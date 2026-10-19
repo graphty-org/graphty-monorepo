@@ -115,7 +115,7 @@ describe("the Style panel", () => {
         await clickRow("Three");
         const row = await screen.findByRole(
             "button",
-            { name: /^Which nodes, 3 of 77, Picked by hand: 3 nodes$/ },
+            { name: /^Which nodes, 3 of 77 nodes, Picked by hand: 3 nodes$/ },
             { timeout: TIMEOUT_MS },
         );
         assert.notInclude(row.textContent ?? "", "A rule set elsewhere");

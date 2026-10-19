@@ -1,8 +1,8 @@
 /**
  * Where keyboard focus goes in the Style panel's condition cards and property lines, on the REAL
  * graphty-element and Les Miserables, by real keys and clicks: a card's remove button is a Tab stop
- * after the card's value, and Escape there closes the cards; Done hands focus back to the Which row; removing a line hands
- * it to its own section's "+".
+ * before the card's value, where it is drawn, and Escape there closes the cards; Done hands focus
+ * back to the Which row; removing a line hands it to its own section's "+".
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -62,7 +62,7 @@ async function whichRow(): Promise<HTMLElement> {
 }
 
 describe("focus in the condition cards and property lines, on the real element", () => {
-    it("Tab reaches a card's remove button after its value, and Escape there closes the cards", async () => {
+    it("Shift+Tab reaches a card's remove button before its value, and Escape there closes the cards", async () => {
         await openPicked();
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
@@ -70,9 +70,9 @@ describe("focus in the condition cards and property lines, on the real element",
         card.querySelector<HTMLElement>("input:not([type=hidden])")?.focus();
         const remove = within(card).getByRole("button", { name: /^Remove / });
         for (let press = 0; press < 4 && document.activeElement !== remove; press++) {
-            await userEvent.keyboard("{Tab}");
+            await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
         }
-        assert.strictEqual(document.activeElement, remove, "Tab never reached the remove button");
+        assert.strictEqual(document.activeElement, remove, "Shift+Tab never reached the remove button");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "the cards stayed open");

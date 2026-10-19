@@ -10,7 +10,7 @@ import "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent as realKeys } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
@@ -181,4 +181,18 @@ describe("A filter step is a condition card", () => {
         },
         TIMEOUT_MS,
     );
+
+    it("picking an attribute hands focus to its value", async () => {
+        await openPeople();
+        await realKeys.click(await screen.findByRole("button", { name: "Add filter step" }));
+        await realKeys.click(await screen.findByRole("combobox", { name: "Attribute" }));
+        await realKeys.click(await screen.findByRole("option", { name: "name" }));
+        const text = await screen.findByRole("combobox", { name: "name: text to match" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, text, "focus stayed in the attribute box");
+        });
+        // The next keys are the value, not more search text in the attribute box.
+        await realKeys.keyboard("Mme");
+        await screen.findByText("24 to 6 nodes");
+    });
 });

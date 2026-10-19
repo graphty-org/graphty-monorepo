@@ -16,21 +16,33 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, shape list typing) compact-mantine's select type-ahead (`ensureListboxKeyboard`
-   in `src/components/inputs/listbox.tsx`, so every read-only Select and StyleSelect, list or
-   grid) left the highlight on the option the FIRST letter matched when the whole run matched
-   nothing: "cube" sat on Cylinder and Enter applied it. Now a run no option starts with clears
-   the highlight (DOM `data-combobox-selected` and `aria-activedescendant`) and uses up Enter
-   (Mantine's store index lives in a ref no DOM event resets, so the Enter guard is what makes
-   "writes nothing" true; any non-letter key ends the guard). The run is drawn in a sticky line
-   at the list's foot (`.cm-listbox-typed`, aria-hidden, appended to the dropdown; the clamped
-   list's down chevron rises above it). Tried the trigger box and a top line: the box is under an
-   over-the-trigger list, and a top line shifts every option; the foot moves nothing. Tests:
-   `StyleSelect.browser` "highlights nothing ..." and "shows the letters typed ..." (both fail
-   without). Walk `design/ui/studio/tmp/r1-dry3-shape-list-typeahead/w1` (06 cube: no highlight,
-   "cube" at the foot; 07 Enter: still Icosphere, Undo off; 08 box; 09 Box applied). Known: 12
-   compact-mantine tests fail on the commit before this change too (QuickActions FieldChooser
-   axe and play, CompactColorInput swatches/onChangeEnd, select disabled trigger, Tree toggles).
+0. (2026-10-18, condition card keys) In `WhichPicker.tsx`: a card's remove button is now drawn
+   right after its header in the DOM (still absolutely placed in the corner), so Tab goes remove,
+   match, values, Add a condition, Done. A text card's Autocomplete has `openOnFocus={false}` and
+   catches ArrowDown in `onKeyDownCapture` on a closed list (stopPropagation at the root's capture
+   stops Mantine's own ArrowDown, which would highlight the first option even on a closed list),
+   so opening, Undo or a removed card never opens the list, and ArrowDown+Enter is Done, not a
+   suggestion. Undo while open: `Cards` keeps `held` (each layer's selector after this open's
+   last write landed; `useStepWriter` now has `busy()` and a `landed` callback) and, when a layer
+   holds another selector with no write on its way, redraws the cards from the layers. A row with
+   no card opens on Add a condition (the auto-opened list made one press close it). Letters typed
+   + Tab take the highlighted attribute. `data-enter-done` on value check boxes. NumberCard
+   focuses its first number box after Highest or Between; a filter step focuses its card's value
+   after an attribute is picked (`Filters.tsx`). Words: card header "3 nodes", one layer's head
+   "8 of 24 nodes", the open cards' "Which nodes" is a heading naming the group, and the count
+   is announced from `WhichPicker` (which outlives the cards, so Enter in a number box still says
+   it). compact-mantine: new `focusWithRing(el)` (sets `data-cm-modality="keyboard"`, focuses),
+   because a select trigger hides its ring after a pointer press and Chromium ignores
+   `focus({focusVisible})` (probed: buttons and check boxes never ring, a read-only input always
+   matches `:focus-visible`). Tests: `ConditionCardKeys.real-element` (6, all fail on the old
+   picker; the Undo case must change the rule by a list pick, since typed text is taken back by
+   the box's own undo) and FilterStepCard "picking an attribute hands focus to its value". Walks
+   `tmp/r1-dry3-condition-card-keys/w1` (05 no list, 06 list with nothing lit, 07 Enter closed,
+   rule kept; 12 Undo shows Mlle; 14 Shift+Tab reaches Remove) and `w2` (09 Add, no list; 12
+   "don"+Tab; 15 Highest focuses the box; 22 Enter on a ticked value; 25-26 filter focus).
+0b. (2026-10-18, shape list typing) A select type-ahead run that matches nothing highlights nothing
+   and uses up Enter (`ensureListboxKeyboard`, compact-mantine `listbox.tsx`): in full in
+   `git show bdd01700e:design/ui/studio/notes/engineer.md`, Top of mind 0.
 1. (2026-10-18, color picker) Three defects in compact-mantine's picker, one in the app:
    (a) the swatch the picker opened on was named "the starting color", but after a second edit it
    is not the color the drawing started with: now "the color before this edit"; (b) the opening

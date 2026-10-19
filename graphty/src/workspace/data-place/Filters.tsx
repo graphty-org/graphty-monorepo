@@ -14,6 +14,7 @@ import { GLYPHS } from "../glyphs";
 import { isPanelEscape } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type Card, type CardField, cardFields, cardOf, keyOf, leafOf, newCard } from "../style/cards";
+import { keystrokeTarget } from "../style/useFocusLine";
 import { CardBody } from "../style/WhichPicker";
 import { countStep, NEW, newId, openStepEditor, stepWords, writeSteps } from "./filterSteps";
 import {
@@ -427,6 +428,17 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
         },
         [id, session, store],
     );
+    // An attribute picked hands focus to its card's value, as a layer's Add a condition does, so
+    // the next keystroke is the value, not more search text in the attribute box.
+    const cardBox = useRef<HTMLDivElement>(null);
+    const [toCard, setToCard] = useState(false);
+    useEffect(() => {
+        if (toCard) {
+            setToCard(false);
+            const controls = cardBox.current?.querySelectorAll<HTMLElement>("input:not([type=hidden]), button");
+            keystrokeTarget([...(controls ?? [])])?.focus();
+        }
+    }, [toCard]);
     const seeds = session?.selection.nodes ?? [];
     // A neighbors step keeps its own seeds unless the editor opened on a new selection.
     const kept = step?.rule.kind === "neighborhood" ? step.rule.seeds : [];
@@ -594,18 +606,21 @@ export function FilterStepEditor({ id }: Readonly<{ id: string }>): React.JSX.El
                         onChange={(value) => {
                             const field = choosable.find((f) => keyOf(f) === value);
                             set({ card: field === undefined ? null : newCard(field) });
+                            setToCard(field !== undefined);
                         }}
                     />
                     {card !== null && (
                         // The condition card a layer's Which picker draws: its match menu, its values.
-                        <CardBody
-                            session={session}
-                            card={card}
-                            side={side}
-                            onChange={(next) => {
-                                set({ card: next });
-                            }}
-                        />
+                        <div ref={cardBox}>
+                            <CardBody
+                                session={session}
+                                card={card}
+                                side={side}
+                                onChange={(next) => {
+                                    set({ card: next });
+                                }}
+                            />
+                        </div>
                     )}
                     {side === "edge" && (
                         <Text size="xs" c="dimmed">

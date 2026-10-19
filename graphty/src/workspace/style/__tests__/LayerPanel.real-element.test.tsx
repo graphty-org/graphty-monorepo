@@ -143,7 +143,8 @@ describe("the layer panel", () => {
         const { session } = await openScene();
         await openLayer(session, { name: "Plain", selector: { match: "everything" } });
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
-        // One click on a row with no card opens the list of conditions to add.
+        // A row with no card opens on Add a condition, whose list one more click opens.
+        await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const search = await screen.findByRole("combobox", { name: "Find an attribute" });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search);

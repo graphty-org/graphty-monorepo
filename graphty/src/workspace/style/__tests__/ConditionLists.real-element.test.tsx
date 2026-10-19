@@ -266,10 +266,17 @@ describe("the cards", () => {
         });
     });
 
-    it("a layer with no card opens on the list and keeps Done; an unfinished card shows no count", async () => {
+    it("a layer with no card opens on Add a condition and keeps Done; an unfinished card shows no count", async () => {
         const session = await open();
         const { region } = await openPicker(session);
         assert.isNotNull(within(region).queryByRole("button", { name: "Done" }), "Done is there before a card");
+        // The list is closed, so one press on Add a condition opens it rather than closing it.
+        assert.isNull(screen.queryByRole("listbox"), "the list did not open on its own");
+        const add = within(region).getByRole("button", { name: "Add a condition" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, add, "focus is on Add a condition");
+        });
+        await userEvent.click(add);
         const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
         await waitFor(() => {
             assert.strictEqual(document.activeElement, search, "the list opens with its search focused");

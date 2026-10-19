@@ -4,6 +4,15 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: focus put on a field by program draws its ring (compact-mantine)
+
+`focusWithRing(element)` is a new export of `@graphty/compact-mantine` (additive). A select
+trigger draws its focus ring on keyboard focus only, so a field focused for the reader after a
+pointer press (a chip that opens a condition card on its first field) landed with no ring and
+the reader could not see where the next key goes. The function marks focus as moved by keyboard
+and focuses the element; the next pointer press hides rings again as before. A browser option
+(`focus({ focusVisible: true })`) would be the natural shape, but Chromium does not support it.
+
 ## 2026-10-18 -- Decided by the team: the color picker holds the color before the edit, and Enter closes it (compact-mantine)
 
 compact-mantine, additive. `ColorPickerPanel` gains `closeOnEnter?: boolean` (default `false`, so

@@ -107,10 +107,7 @@ async function addCard(field: string, kind: "nodes" | "edges" = "nodes"): Promis
         await userEvent.click(await whichRow(kind));
     }
     const region = await screen.findByRole("group", { name: `Which ${kind}` });
-    // A row with no card opens on the list of conditions to add; otherwise "Add a condition" opens it.
-    if (!closed || region.querySelector(".ws-card") !== null) {
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-    }
+    await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
     await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${field}(,|$)`) }));
     return waitFor(() => {
         const card = within(region).getByRole("group", { name: new RegExp(`^${field}(,|$)`) });
@@ -149,7 +146,7 @@ async function elementCount(session: GraphSession, leaf: RuleTree, side: "node" 
 }
 
 /**
- * The count a chip shows: the number after its last comma.
+ * The count a chip shows: the number after its last comma, before its noun ("22 nodes").
  * @param words - The start of the chip's words.
  * @returns The count.
  */
@@ -158,7 +155,7 @@ async function chipCount(words: string): Promise<number> {
         const chip = [...document.querySelectorAll<HTMLElement>("[data-chip]")].find((each) =>
             (each.textContent ?? "").startsWith(words),
         );
-        const n = /, (\d+)$/.exec(chip?.textContent ?? "")?.[1];
+        const n = /, (\d+)\u00a0(?:nodes?|edges?)$/.exec(chip?.textContent ?? "")?.[1];
         assert.isDefined(n, `a counted chip starting "${words}": ${chip?.textContent ?? "none"}`);
         return Number(n);
     });
@@ -533,10 +530,14 @@ describe("the combined Style panel", () => {
         const session = await openSample();
         await layerOf(session, "Menu");
         await clickRow("Menu");
-        // A row with no card opens on the list of conditions to add, in one click.
+        // A row with no card opens on Add a condition; Enter there opens its list.
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const add = within(region).getByRole("button", { name: "Add a condition" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, add);
+        });
+        await userEvent.keyboard("{Enter}");
         await screen.findByRole("listbox");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

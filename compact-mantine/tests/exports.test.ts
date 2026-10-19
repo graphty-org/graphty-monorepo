@@ -451,6 +451,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "createColorStop",
     "createDefaultGradientStops",
     "getActivationMeta",
+    "focusWithRing",
     "colorWord",
     "isLightColor",
     "isRtl",

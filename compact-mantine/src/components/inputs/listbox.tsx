@@ -277,6 +277,19 @@ export function ensureFocusModality(): void {
     document.addEventListener("keydown", set("keyboard"), true);
 }
 
+/**
+ * Move focus to a field the reader did not press -- the first field of a card a click elsewhere
+ * opened -- and draw its focus ring there, as keyboard focus would. A select trigger rings on
+ * keyboard focus only, so focus put on one after a click would land with no ring, and the reader
+ * could not see where the next key goes. The next pointer press hides rings again as before.
+ * @param element - the field to focus.
+ */
+export function focusWithRing(element: HTMLElement): void {
+    ensureFocusModality();
+    document.documentElement.setAttribute(MODALITY_ATTRIBUTE, "keyboard");
+    element.focus();
+}
+
 /** The most frames a letter typed on a closed trigger waits for its list to be drawn. */
 const OPEN_FRAMES = 10;
 

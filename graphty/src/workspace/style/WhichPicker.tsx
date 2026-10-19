@@ -1,4 +1,4 @@
-import { useNumberParser } from "@graphty/compact-mantine";
+import { focusWithRing, useNumberParser } from "@graphty/compact-mantine";
 import type { GraphSession, HistoryStepId, Layer, LayerPatch, RuleTree } from "@graphty/graphty-element/session";
 import {
     Autocomplete,
@@ -271,8 +271,8 @@ function useLeafCount(
 }
 
 /**
- * The rows' total as the Which row and the open cards both say it: "11 of 77" for one layer,
- * "10 layers, 77 of 77 nodes" (the union) for several.
+ * The rows' total as the Which row and the open cards both say it: "11 of 77 nodes", for one layer
+ * as for several (the union), as a folder's count says it.
  * @param session - the element's session.
  * @param rows - the rows.
  * @param side - nodes or edges.
@@ -299,7 +299,8 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): s
         // How many layers is the panel's header's to say; a total it cannot count is left unsaid.
         return matched === undefined ? "" : `${String(matched)} of ${String(total)} ${NOUN[side].many}`;
     }
-    return matched === undefined ? `of ${String(total)}` : `${String(matched)} of ${String(total)}`;
+    const of = `of ${String(total)} ${NOUN[side].many}`;
+    return matched === undefined ? of : `${String(matched)} ${of}`;
 }
 
 /** Props of a picker. */
@@ -355,11 +356,13 @@ export function WhichPicker({
     const [focusKey, setFocusKey] = useState<string | null>(() =>
         open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
     );
-    // Opened from a row with no card, the cards open on the list of conditions to add: the one
-    // thing the reader can do there.
-    const [listOnOpen, setListOnOpen] = useState(false);
     const rowButton = useRef<HTMLButtonElement>(null);
     const regionId = useId();
+    // A card that changes the count says so -- also when the key that changed it (Enter in a
+    // number box) closed the cards. The count the picker opens with is not news, nor is a count
+    // still being worked out ("of 24 nodes", "").
+    const head = useHead(session, rows, side);
+    useAnnounceChange(/\d of \d/.test(head) ? head : null);
     if (rows.length === 0) {
         return null;
     }
@@ -388,7 +391,6 @@ export function WhichPicker({
                     focusKey={focusKey}
                     regionId={regionId}
                     base={base}
-                    openList={listOnOpen && adding === undefined}
                     adding={adding}
                     onElsewhere={onElsewhere}
                     onClose={close}
@@ -405,10 +407,9 @@ export function WhichPicker({
                     buttonRef={rowButton}
                     regionId={regionId}
                     onOpen={(key) => {
-                        const list = key === undefined && shown.length === 0;
-                        setListOnOpen(list);
-                        // The list takes focus into its search itself.
-                        setFocusKey(list ? null : (key ?? shown[0]?.key ?? "add"));
+                        // With no card, focus lands on Add a condition, whose list opens on a
+                        // press: open already, the press would close it.
+                        setFocusKey(key ?? shown[0]?.key ?? "add");
                         setOpen(true);
                     }}
                 />
@@ -623,7 +624,6 @@ type OnCard = (next: Card) => void;
  * @param props.focusKey - the card (or "add") to focus first
  * @param props.regionId - the open cards' id, which the row controls
  * @param props.base - the base layer: no condition is added to it
- * @param props.openList - open "Add a condition"'s list on arrival
  * @param props.adding - a field to add a card on when the cards open
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.onClose - closes the cards, handing focus back to the Which row
@@ -638,7 +638,6 @@ function Cards({
     focusKey,
     regionId,
     base,
-    openList = false,
     adding,
     onElsewhere,
     onClose,
@@ -651,7 +650,6 @@ function Cards({
     focusKey: string | null;
     regionId: string;
     base: boolean;
-    openList?: boolean;
     adding?: string;
     onElsewhere?: (field: CardField) => void;
     onClose: () => void;
@@ -673,11 +671,26 @@ function Cards({
     const endsAt = useRef(new Map(rows.map((row) => [row.id, row.ends])));
     const [focus, setFocus] = useState<string | null>(focusKey);
     const box = useRef<HTMLDivElement>(null);
+    // Each row's selector as the layer held it after this open's last write landed: a layer that
+    // holds another while no write is on its way was changed by another hand (Undo, Redo), and the
+    // cards show what it holds now.
+    const held = useRef(new Map(rows.map((row) => [row.layer.id, row.layer.selector])));
+    // The rows as last drawn: a write from a notice's Undo compares with what the layers hold now.
+    const drawn = useRef(rows);
+    drawn.current = rows;
     // Named for the act, as other style steps are ("changing node size on Hubs"), so Undo reads
     // "Undid changing the conditions on Group 1."
     const writer = useStepWriter(
         session,
         `changing the conditions on ${rows.length === 1 ? rows[0].name : `${String(rows.length)} layers`}`,
+        () => {
+            for (const row of drawn.current) {
+                const now = session.styles.get(row.layer.id);
+                if (now !== undefined) {
+                    held.current.set(row.layer.id, now.selector);
+                }
+            }
+        },
     );
     const fields = useMemo(() => cardFields(session, side), [session, side]);
     const elsewhere = useMemo(() => cardFields(session, side === "node" ? "edge" : "node"), [session, side]);
@@ -706,15 +719,32 @@ function Cards({
                 : (keystrokeTarget(
                       controls.filter((each) => each.closest(".ws-card-head, .ws-card-remove") === null),
                   ) ?? controls[0]);
-        target?.focus();
+        // Drawn with its ring even after a click (a chip, the row), so the reader sees where keys go.
+        if (target instanceof HTMLElement) {
+            focusWithRing(target);
+        }
         setFocus(null);
     }, [focus]);
 
     // The cards as last edited, for the notices that outlive a render (Undo, a drop on close).
     const latest = useRef(list);
-    // The rows as last drawn: a write from a notice's Undo compares with what the layers hold now.
-    const drawn = useRef(rows);
-    drawn.current = rows;
+    useEffect(() => {
+        if (writer.busy()) {
+            return;
+        }
+        const moved = rows.some((row) => {
+            const was = held.current.get(row.layer.id);
+            return was !== undefined && !sameSelector(was, row.layer.selector);
+        });
+        if (moved) {
+            for (const row of rows) {
+                held.current.set(row.layer.id, row.layer.selector);
+            }
+            const now = shownOf(rows);
+            latest.current = now;
+            setList(now);
+        }
+    }, [rows, writer]);
     // `names` puts back the names the layers had (a notice's Undo), not the ones the cards give.
     const commit = (next: readonly Shown[], names?: ReadonlyMap<string, Pick<Layer, "name" | "userData">>): void => {
         latest.current = next;
@@ -821,9 +851,6 @@ function Cards({
         [store],
     );
     const head = useHead(session, rows, side);
-    // A card that changes the count says so; the count the picker opens with is not news, nor is
-    // a count still being worked out ("of 24", "2 layers").
-    useAnnounceChange(/\d of \d/.test(head) ? head : null);
     const matched = rows.length === 1 ? session.styles.counts(rows[0].layer.id).matched : undefined;
     let why: string | undefined;
     if (matched === 0 && list.length > 0) {
@@ -837,7 +864,7 @@ function Cards({
             gap={6}
             id={regionId}
             role="group"
-            aria-label={`Which ${NOUN[side].many}`}
+            aria-labelledby={`${regionId}-name`}
             className="ws-which-open"
             onFocus={() => {
                 cancelAnimationFrame(leaving.current);
@@ -871,8 +898,9 @@ function Cards({
             }}
         >
             <Group gap={4} wrap="nowrap">
-                {/* The group is named by these words: read once, as its name. */}
-                <Text size="xs" fw={600} aria-hidden>
+                {/* The group's name, and a heading at the level of the sections around it, as the
+                    folded row is, so a heading walk still lands here while the cards are open. */}
+                <Text size="xs" fw={600} id={`${regionId}-name`} role="heading" aria-level={3}>
                     Which {NOUN[side].many}
                 </Text>
                 <Text size="xs" c="dimmed" ml="auto">
@@ -920,7 +948,6 @@ function Cards({
                     fields={fields}
                     elsewhere={elsewhere}
                     used={list.map((each) => each.key)}
-                    opened={openList}
                     onAdd={add}
                     onElsewhere={onElsewhere}
                 />
@@ -961,20 +988,28 @@ const RULE_REFUSED = "That rule could not be used for this layer";
  * at a time, and a write waiting behind another is replaced by a newer one.
  * @param session - the element's session.
  * @param label - the step's label.
- * @returns the writer.
+ * @param landed - called after each write has landed (or been refused).
+ * @returns the writer, and whether a write is on its way.
  */
-function useStepWriter(session: GraphSession, label: string): { write: (patches: readonly LayerPatch[]) => void } {
+function useStepWriter(
+    session: GraphSession,
+    label: string,
+    landed: () => void,
+): { write: (patches: readonly LayerPatch[]) => void; busy: () => boolean } {
     const { store } = useWorkspace();
     const step = useRef<HistoryStepId | undefined>(undefined);
     const chain = useRef<Promise<void>>(Promise.resolve());
     const waiting = useRef<readonly LayerPatch[] | null>(null);
+    const pending = useRef(0);
     return {
+        busy: () => pending.current > 0,
         write: (patches) => {
             const queued = waiting.current !== null;
             waiting.current = patches;
             if (queued) {
                 return;
             }
+            pending.current += 1;
             chain.current = chain.current
                 .then(async () => {
                     const next = waiting.current;
@@ -997,6 +1032,10 @@ function useStepWriter(session: GraphSession, label: string): { write: (patches:
                 })
                 .catch(() => {
                     store.set({ notice: { message: RULE_REFUSED, error: true } });
+                })
+                .finally(() => {
+                    landed();
+                    pending.current -= 1;
                 });
         },
     };
@@ -1043,7 +1082,6 @@ async function announceEmpty(
  * @param props.fields - the fields of the kind
  * @param props.elsewhere - the other kind's fields, named when a search finds none of this kind's
  * @param props.used - the card keys already drawn
- * @param props.opened - opens its list when drawn
  * @param props.onAdd - adds a card on a field
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
  * @returns The control
@@ -1052,14 +1090,12 @@ function AddCondition({
     fields,
     elsewhere = [],
     used,
-    opened = false,
     onAdd,
     onElsewhere,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
     used: readonly string[];
-    opened?: boolean;
     onAdd: (field: CardField) => void;
     onElsewhere?: (field: CardField) => void;
 }>): React.JSX.Element {
@@ -1115,15 +1151,7 @@ function AddCondition({
                   combobox.closeDropdown();
                   onElsewhere(other);
               };
-    const { dropdownOpened, selectFirstOption, resetSelectedOption, openDropdown } = combobox;
-    // Only once, when drawn: a later render never reopens a list the reader closed.
-    const openOnce = useRef(opened);
-    useEffect(() => {
-        if (openOnce.current) {
-            openOnce.current = false;
-            openDropdown();
-        }
-    }, [openDropdown]);
+    const { dropdownOpened, selectFirstOption, resetSelectedOption } = combobox;
     // "Nothing found" sits in the list, which a screen reader does not read while focus is in the
     // search: the status line says it each time typing empties the list.
     const { store } = useWorkspace();
@@ -1175,8 +1203,15 @@ function AddCondition({
                 button.current?.focus();
                 break;
             case "Tab":
-                // Tab leaves the list closed: Shift+Tab lands on Add a condition, Tab moves on from
-                // it, never into the list.
+                // With letters typed, Tab takes the attribute they highlight and moves on into its
+                // card, as a select's type-ahead does.
+                if (!event.shiftKey && typed !== "" && combobox.getSelectedOptionIndex() !== -1) {
+                    event.preventDefault();
+                    combobox.clickSelectedOption();
+                    break;
+                }
+                // Else Tab leaves the list closed: Shift+Tab lands on Add a condition, Tab moves on
+                // from it, never into the list.
                 combobox.closeDropdown();
                 if (event.shiftKey) {
                     event.preventDefault();
@@ -1260,6 +1295,11 @@ function AddCondition({
                                     size="compact-xs"
                                     variant="subtle"
                                     mt={4}
+                                    // A long attribute name wraps inside the list's width, never
+                                    // scrolling the list sideways.
+                                    h="auto"
+                                    maw="100%"
+                                    styles={{ label: { whiteSpace: "normal", textAlign: "start" } }}
                                     // A press in the list must not take focus from the search first.
                                     onMouseDown={(event) => {
                                         event.preventDefault();
@@ -1377,12 +1417,11 @@ function CardEditor({
                 </Text>
                 {count !== undefined && (
                     <Text size="xs" c="dimmed">
-                        {String(count)}
+                        {many(count, side)}
                     </Text>
                 )}
             </Group>
-            <CardBody session={session} card={card} side={side} onChange={onChange} />
-            {/* Drawn in the header's corner, reached by Tab after the card's own controls. */}
+            {/* Drawn in the header's corner, and first in Tab order there, as it is drawn. */}
             <Tooltip label={`Remove ${name}`}>
                 <CloseButton
                     size="xs"
@@ -1396,6 +1435,7 @@ function CardEditor({
                     }}
                 />
             </Tooltip>
+            <CardBody session={session} card={card} side={side} onChange={onChange} />
         </div>
     );
 }
@@ -1831,6 +1871,16 @@ function NumberCard({
         setDrafts({});
         setRefused(null);
     };
+    // A match picked that takes a number (Highest, Between) hands focus to its first box, where
+    // the next keystroke belongs, once the card draws it.
+    const body = useRef<HTMLDivElement>(null);
+    const [toBox, setToBox] = useState(false);
+    useEffect(() => {
+        if (toBox) {
+            setToBox(false);
+            body.current?.querySelector<HTMLElement>("input[inputmode=decimal]")?.focus();
+        }
+    }, [toBox, card.match]);
     const shown = (key: keyof Drafts): string => drafts[key] ?? (card[key] === undefined ? "" : String(card[key]));
     const box = (key: keyof Drafts, label: string): React.JSX.Element => (
         <NumberBox
@@ -1857,13 +1907,14 @@ function NumberCard({
         />
     );
     return (
-        <Stack gap={4}>
+        <Stack gap={4} ref={body}>
             <MatchSelect
                 name={name}
                 value={card.match}
                 data={[{ value: "range", label: "Between" }, { value: "top", label: "Highest" }, ...PRESENCE]}
                 onChange={(match) => {
                     clear();
+                    setToBox(match === "top" || match === "range");
                     onChange({
                         ...card,
                         match: match as typeof card.match,
@@ -1998,6 +2049,7 @@ function CategoryCard({
                                 key={each.value}
                                 size="xs"
                                 label={`${each.label}, ${many(each.count, side)}`}
+                                data-enter-done
                                 checked={card.values.includes(each.value)}
                                 onChange={(event) => {
                                     toggle(each.value, event.currentTarget.checked);
@@ -2008,6 +2060,7 @@ function CategoryCard({
                             <Checkbox
                                 size="xs"
                                 label={`(no value), ${many(counts.missing, side)}`}
+                                data-enter-done
                                 checked={card.gaps}
                                 onChange={(event) => {
                                     onChange({ ...card, gaps: event.currentTarget.checked });
@@ -2108,6 +2161,19 @@ function TextCard({
                             placeholder="Type the text to match"
                             data={listed}
                             filter={({ options }) => options}
+                            // Focus put here (the card opening, Undo, a card removed) never opens
+                            // the list: typing or ArrowDown does, so a stray Enter cannot take a
+                            // suggestion over the text the rule holds.
+                            openOnFocus={false}
+                            // ArrowDown on a closed list only opens it, with nothing highlighted, so
+                            // the Enter after it is Done, not a suggestion; the next ArrowDown walks.
+                            onKeyDownCapture={(event) => {
+                                if (event.key === "ArrowDown" && !opened) {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    setOpened(true);
+                                }
+                            }}
                             // Listed once something is typed: an empty box opens on nothing.
                             dropdownOpened={opened && typed !== "" && listed.length > 0}
                             onDropdownOpen={() => {
@@ -2216,6 +2282,15 @@ function LayerCard({
                     {name}
                 </Text>
             </Group>
+            {/* Drawn in the header's corner, and first in Tab order there, as it is drawn. */}
+            <Tooltip label={`Remove ${name} from every layer`}>
+                <CloseButton
+                    size="xs"
+                    className="ws-card-remove"
+                    aria-label={`Remove ${name} from every layer`}
+                    onClick={onRemove}
+                />
+            </Tooltip>
             <UnstyledButton
                 className="ws-card-layer"
                 aria-expanded={open}
@@ -2237,15 +2312,6 @@ function LayerCard({
                     {line}
                 </Text>
             </UnstyledButton>
-            {/* Drawn in the header's corner, reached by Tab after the card's own button. */}
-            <Tooltip label={`Remove ${name} from every layer`}>
-                <CloseButton
-                    size="xs"
-                    className="ws-card-remove"
-                    aria-label={`Remove ${name} from every layer`}
-                    onClick={onRemove}
-                />
-            </Tooltip>
             {open && (
                 <Stack gap={2} role="list" aria-label={`${name} in each layer`}>
                     {topFirst.map(({ row, card: each }) => (

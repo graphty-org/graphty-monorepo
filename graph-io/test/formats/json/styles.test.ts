@@ -274,6 +274,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "labelOnTop")).toEqual([true, true]);
     });
 
+    it("draws a graphology edge without a size 1 wide, sigma.js 4's default edge size", async () => {
+        const r = await load({
+            options: { type: "directed" },
+            nodes: [{ key: "a" }, { key: "b" }],
+            edges: [
+                { source: "a", target: "b", attributes: { color: "#ff0000" } },
+                { source: "b", target: "a", attributes: { size: 3 } },
+            ],
+        });
+        // graphology-specimen-edges-lines `default`, json-graphology-synth `e0`: sigma draws the edge as wide as an
+        // edge of size 1 (DEFAULT_EDGE_DISPLAY_DATA)
+        expect(values(r, "edge", "width")).toEqual([1, 3]);
+    });
+
     it("draws a graphology label on one line, each newline or tab a space, as sigma.js's canvas text does", async () => {
         const r = await load({
             options: { type: "directed" },

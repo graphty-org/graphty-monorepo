@@ -1310,6 +1310,41 @@ Rows still open, each with what stops it:
   0.88, sheets whose nodes all have a size, which nothing in this round changed): comparator work, find what in
   the label raster is not deterministic.
 
+## Specimen sheets: Cytoscape line types graphty-element now draws (fix round 1, rendering batch 3, 2026-10-19)
+
+graphty-element now draws Cytoscape desktop's stroke line types as patterns of their own, where it drew a solid
+line before. New `edge.style` (`line.type`) values: `double`, `forward-slash`, `backward-slash`, `vertical-slash`,
+`separate-arrow` and `contiguous-arrow`. New `node.borderStyle` (`border.style`) values: `zigzag`, `sinewave`,
+`forward-slash`, `backward-slash`, `vertical-slash` and `separate-arrow`. graph-io's Cytoscape reader now spells a
+border's stroke as the line type's own value (`other:forward-slash`, `other:zigzag`; it wrote
+`other:forward_slash`), and graphty-element maps each of them, and `double` on an edge (drawn solid before), onto
+the new styles. On the XGMML, CX, CX2 and session `edges-lines` sheets every `edge.dash` row passes (6 failed:
+slashes, arrows and parallel lines drawn solid); on `node-fills-borders` and `mappings-bypass-p3` `node.strokeDash`
+passes 36 of 37 (31 of 37).
+
+Re-judged this batch, now passing: Gephi's curved edges (`gephi-arc-curve`: `edge.curve` passes on every curved
+GEXF page and on `gml-specimen-edges-lines-p5` and `-arrows-p6`), OGDF regular polygons (`gml-specimen-node-shapes-p5`
+`node.shape` passes; its open row is the label font), Cytoscape self-loops (`loop-geometry`: every loop's route and
+curve passes on the four `edges-lines` sheets and `mappings-bypass-p10`) and DOT hollow arrowheads
+(`dot-real-depcruise` `edge.arrowFill` 652 of 652).
+
+Rows still open, each with what stops it:
+
+- `border-stroke-sinewave` (`*-specimen-node-fills-borders`, `*-mappings-bypass-p3`): the comparator reads
+  Cytoscape's sine-wave border, which Java2D draws as loops round a short perimeter, as `arrows`; graphty draws and
+  reports `sinewave`. Comparator work.
+- `line-type-sinewave` and `line-type-zigzag` (`edge.width` on the four `edges-lines` sheets and
+  `mappings-bypass-p10`): Cytoscape draws a sine wave of a 3-wide line as a 1.1-wide stroke waving about 2.4 widths
+  either side with a wavelength of about 6.7 widths, and a zigzag as a stroke about as wide as the line; graphty's
+  wave and zigzag are drawn narrower (half a width either side, a fifth of a width thick), and the reader reports
+  graphty's line width, not its drawn stroke. Needs a decision on wave geometry options in graphty-element and the
+  reader measuring the drawn stroke.
+- `border-stroke-contiguous-arrow`: Cytoscape 3.10.5 draws no border at all for this line type on a node; graphty
+  draws a solid one (`node.stroke` on `cys-specimen-node-fills-borders`). graph-io work: read it as no border.
+- Graphviz layouts for DOT files without positions (`graphviz-layout-engine`, the nine `dot-real-*` and `dot-synth-*`
+  samples): the engines of closed pull request #3203 reach master with pull request #3230 and are not on this branch; the
+  rows wait for master to be merged in.
+
 ## Specimen sheets: Gephi JSON
 
 The Gephi JSON specimen sheets (`graph-io/test/fidelity/specimens/gephi-json/`, written by

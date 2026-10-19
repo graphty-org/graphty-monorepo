@@ -252,8 +252,8 @@ function lineOf(kind: "lineStyle" | "borderStyle"): CytoscapeValueParser {
         if (v === null || isStyleValue("node", kind, v) || kind === "lineStyle") {
             return v;
         }
-        // a line type a border does not have is kept as other:
-        return `other:${key}`;
+        // a line type a border does not have is kept as other:, spelled as the line type's own (other:forward-slash)
+        return v.startsWith("other:") ? v : `other:${v}`;
     };
 }
 

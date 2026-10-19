@@ -358,6 +358,8 @@ export interface ChannelValues {
     "node.pieHole": number;
     "node.pieRotation": number;
     "node.pieFitBox": boolean;
+    "node.pieOffsetX": number;
+    "node.pieOffsetY": number;
     "node.stripeColors": string;
     "node.stripeSizes": string;
     "node.stripeOpacities": string;
@@ -612,7 +614,7 @@ const NODE_PIE_CAVEAT =
     "none shares what is left), `node.pieOpacities` each one's opacity. The disc is `node.pieRadius` " +
     "times half the node's shorter side (the ellipse filling the node with `node.pieFitBox`), " +
     "`node.pieHole` cuts out that fraction of the radius, and the slices run clockwise from " +
-    "`node.pieRotation` degrees clockwise from 12 o'clock.";
+    "`node.pieRotation` degrees clockwise from 12 o'clock; `node.pieOffsetX` / `-Y` move its center (y down).";
 
 const NODE_STRIPES_CAVEAT =
     "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
@@ -1712,6 +1714,30 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         default: false,
         accepts: "boolean",
         stylePath: "pie.fitBox",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieOffsetX": {
+        channel: "node.pieOffsetX",
+        target: "node",
+        plainName: "Node Pie Offset X",
+        shortName: "Pie offset x",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "pie.offsetX",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieOffsetY": {
+        channel: "node.pieOffsetY",
+        target: "node",
+        plainName: "Node Pie Offset Y",
+        shortName: "Pie offset y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "pie.offsetY",
         renderable: true,
         caveat: NODE_PIE_CAVEAT,
     },

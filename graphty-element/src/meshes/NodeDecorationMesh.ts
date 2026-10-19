@@ -121,7 +121,7 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         const outline = clipToBox(face.outline, b.box);
         return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
     });
-    return [...bands, ...pieSlices(o.pie, face.width, face.height)];
+    return [...bands, ...pieSlices(o.pie, face.width, face.height, NodeMesh.extentPerSize(o.shape))];
 }
 
 /**

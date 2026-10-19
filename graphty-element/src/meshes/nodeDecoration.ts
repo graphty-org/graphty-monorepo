@@ -85,9 +85,10 @@ function sharesOf(colors?: string, sizes?: string, opacities?: string): Share[] 
  * @param pie - The node style's pie block.
  * @param width - The node's width.
  * @param height - Its height.
+ * @param scale - The node's lengths per unit of the style's, for its offsets.
  * @returns The slices, counter-clockwise outlines, in drawing order.
  */
-export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: number): ColorPiece[] {
+export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: number, scale = 1): ColorPiece[] {
     if (pie === undefined) {
         return [];
     }
@@ -100,10 +101,12 @@ export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: nu
     if (!(rx > 0 && ry > 0) || hole >= 1) {
         return [];
     }
+    // its center moved by its offsets, y down on screen
+    const [cx, cy] = [(pie.offsetX ?? 0) * scale, -(pie.offsetY ?? 0) * scale];
     // clockwise on screen from 12 o'clock, in the plane's y-up angles
     const at = (turn: number, r: number): Point2 => {
         const t = Math.PI / 2 - ((pie.rotation ?? 0) * Math.PI) / 180 - 2 * Math.PI * turn;
-        return [r * rx * Math.cos(t), r * ry * Math.sin(t)];
+        return [cx + r * rx * Math.cos(t), cy + r * ry * Math.sin(t)];
     };
     let from = 0;
     return sharesOf(pie.colors, pie.sizes, pie.opacities).map((s) => {
@@ -113,7 +116,7 @@ export function pieSlices(pie: NodeStyleConfig["pie"], width: number, height: nu
         const inner =
             hole > 0
                 ? Array.from({ length: steps + 1 }, (_, i) => at(from + (s.size * (steps - i)) / steps, hole))
-                : [[0, 0] as Point2];
+                : [[cx, cy] as Point2];
         from += s.size;
         return { outline: [...outer, ...inner].reverse(), rgb: s.rgb, opacity: s.alpha };
     });

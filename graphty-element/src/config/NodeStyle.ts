@@ -344,7 +344,8 @@ export const NodeStyle = z.strictObject({
      * slice's, 0..1. The disc is `radius` (default 1) times half the node's shorter side, or the
      * ellipse filling the node with `fitBox`; `hole` cuts a hole that fraction of the radius out
      * of its middle (a ring); the slices run clockwise from `rotation` degrees clockwise from 12
-     * o'clock (default 0).
+     * o'clock (default 0). `offsetX` / `offsetY` move the pie's center from the node's (y down), in
+     * the units of `shape.size`.
      */
     pie: z
         .strictObject({
@@ -355,6 +356,8 @@ export const NodeStyle = z.strictObject({
             hole: z.number().min(0).max(1).optional(),
             rotation: z.number().optional(),
             fitBox: z.boolean().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
         })
         .optional(),
     /**

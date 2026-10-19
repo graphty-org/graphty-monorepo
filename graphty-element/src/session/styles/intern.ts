@@ -123,6 +123,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.pieHole": "mesh",
     "node.pieRotation": "mesh",
     "node.pieFitBox": "mesh",
+    "node.pieOffsetX": "mesh",
+    "node.pieOffsetY": "mesh",
     "node.stripeColors": "mesh",
     "node.stripeSizes": "mesh",
     "node.stripeOpacities": "mesh",

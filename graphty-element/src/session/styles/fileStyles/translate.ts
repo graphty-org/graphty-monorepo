@@ -558,6 +558,8 @@ function channelPlans(
             ["pieHole", [id("node.pieHole")]],
             ["pieRotation", [id("node.pieRotation")]],
             ["pieFitBox", [id("node.pieFitBox")]],
+            ["pieOffsetX", [length("node.pieOffsetX")]],
+            ["pieOffsetY", [length("node.pieOffsetY")]],
             ["stripeColors", [id("node.stripeColors")]],
             ["stripeSizes", [id("node.stripeSizes")]],
             ["stripeOpacities", [id("node.stripeOpacities")]],

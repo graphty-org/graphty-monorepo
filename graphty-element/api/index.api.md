@@ -3779,6 +3779,8 @@ export const NodeStyle: z.ZodObject<{
         hole: z.ZodOptional<z.ZodNumber>;
         rotation: z.ZodOptional<z.ZodNumber>;
         fitBox: z.ZodOptional<z.ZodBoolean>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     stripes: z.ZodOptional<z.ZodObject<{
         colors: z.ZodOptional<z.ZodString>;

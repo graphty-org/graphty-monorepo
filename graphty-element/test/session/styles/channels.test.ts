@@ -90,6 +90,8 @@ const DECLARED = [
     "node.pieHole",
     "node.pieRotation",
     "node.pieFitBox",
+    "node.pieOffsetX",
+    "node.pieOffsetY",
     "node.stripeColors",
     "node.stripeSizes",
     "node.stripeOpacities",
@@ -194,8 +196,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into seventy-eight node channels and sixty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 78);
+    it("splits into eighty node channels and sixty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 80);
         assert.strictEqual(channelsFor("edge").length, 65);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),

@@ -575,6 +575,8 @@ export type Channel =
     | "node.pieHole"
     | "node.pieRotation"
     | "node.pieFitBox"
+    | "node.pieOffsetX"
+    | "node.pieOffsetY"
     | "node.stripeColors"
     | "node.stripeSizes"
     | "node.stripeOpacities"

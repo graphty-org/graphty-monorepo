@@ -49,6 +49,11 @@ describe("a pie", () => {
         assert.deepEqual(boxOf(oval.outline), { x0: -20, y0: -10, x1: 20, y1: 10 });
         assert.approximately(pieSlices({ colors: "red", opacities: "0.4" }, 20, 20)[0].opacity, 0.4, 1e-9);
     });
+
+    test("moves its center by its offsets, y down, in the style's units", () => {
+        const [moved] = pieSlices({ colors: "red", offsetX: 2, offsetY: 3 }, 20, 20, 1.5);
+        assert.deepEqual(boxOf(moved.outline), { x0: -7, y0: -14.5, x1: 13, y1: 5.5 });
+    });
 });
 
 describe("stripes", () => {

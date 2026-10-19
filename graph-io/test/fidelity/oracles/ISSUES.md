@@ -998,8 +998,16 @@ defects, open:
   Graphviz turns the whole drawing a quarter turn; graphty draws it unturned (`frame.rotation`).
 - `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
   keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
-- The root graph's HTML-like label (`dot-specimen-groups-p8`): not drawn (`stray.present` 0/3, the words
-  "graph", "label", "html").
+- The root graph's label is never drawn, plain or HTML-like (`stray.present` on `dot-specimen-groups-p4`, `-p5`,
+  `-p7`, `-p13`, `-p14`: Graphviz's "graph-label" at the bottom or top, left, center or right, in its own color and
+  font; `-p8`: the HTML words "graph", "label", "html"). graph-io keeps the label as a graph attribute and
+  graphty-element has no graph-level label to draw it in, so the fix starts in graphty-element.
+- Stored edge `pos` with the tail arrow's `s,x,y` point (`dot-specimen-edges-lines-p11`, `pos-arrow-startpoint`,
+  `pos-arrow-both-points`, beside the `e,x,y` row `pos-arrow-endpoint` of `dot-specimen-edges-lines`): Graphviz draws
+  a full `normal` triangle from the spline's end to the stored point, but the comparator reads each of these arrows
+  as `half` (`edge.arrowShape`, oracle "half", graphty "triangle"); the oracle's polygon is an isosceles triangle
+  (3 points, base perpendicular to its axis), so this is a comparator misreading, sent to the comparator work.
+  `pos-arrow-startpoint` also fails `edge.route`: graphty does not route the curve the stored spline gives.
 - A cluster with an HTML-like label (`dot-specimen-groups` `label-html`): graphty draws a node named
   `cluster-label-html` and no group box (`node.extra`, `group.present`); the same happens to the cluster with an
   empty label in `dot-specimen-mappings-bypass` (`cluster-defaults`).

@@ -106,6 +106,10 @@ export const EdgesLinesP10: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines-p10", FILES),
     name: "edges-lines-p10",
 };
+export const EdgesLinesP11: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines-p11", FILES),
+    name: "edges-lines-p11",
+};
 export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
 export const ArrowsP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-arrows-p2", FILES),
@@ -164,6 +168,14 @@ export const GroupsP11: StoryObj = {
 export const GroupsP12: StoryObj = {
     ...specimenStory(FORMAT, "specimen-groups-p12", FILES),
     name: "groups-p12",
+};
+export const GroupsP13: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-groups-p13", FILES),
+    name: "groups-p13",
+};
+export const GroupsP14: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-groups-p14", FILES),
+    name: "groups-p14",
 };
 export const ImagesCharts: StoryObj = {
     ...specimenStory(FORMAT, "specimen-images-charts", FILES),

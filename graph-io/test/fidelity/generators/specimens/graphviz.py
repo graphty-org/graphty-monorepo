@@ -678,6 +678,21 @@ def edges_lines():
                 edge_line(sid, sid + "-s", sid + "-t", {"pos": f"e,{pt(b['x'] - 6, b['y'])} " +
                                                           " ".join(pt(*p) for p in pts)})]
     s.custom("pos-arrow-endpoint", "pos with e,x,y", arrow_pos)
+
+    # Graphviz's own laid-out output writes the tail arrow's tip as "s,x,y" before the spline (dir=back or both),
+    # as it writes the head's as "e,x,y"; the spline then stops short of the tail node by the arrow's length
+    def start_pos(sid, both):
+        def fn(c):
+            a, b, y = c["source"], c["target"], c["y"]
+            pts = [(a["x"] + 16, a["y"] - 3), (a["x"] + 30, y - 30), (b["x"] - 20, y - 30),
+                   (b["x"] - (16 if both else 6), b["y"] - (3 if both else 0))]
+            head = f" e,{pt(b['x'] - 6, b['y'])}" if both else ""
+            return [f"{q(sid + '-s')} [{attrs({**END, 'pos': pos(a['x'], a['y'])})}];",
+                    f"{q(sid + '-t')} [{attrs({**END, 'pos': pos(b['x'], b['y'])})}];",
+                    edge_line(sid, sid + "-s", sid + "-t", {"dir": "both" if both else "back", "arrowtail": "normal",
+                                                            "pos": f"s,{pt(a['x'] + 6, a['y'])}{head} " +
+                                                            " ".join(pt(*p) for p in pts)})]
+        return fn
     s.write()
 
     # one page per splines value: the same few routing problems drawn under each. true, false and "" are the
@@ -691,6 +706,14 @@ def edges_lines():
                   graph={"splines": "" if v == '""' else v}, columns=4)
         routes(p, v)
         p.write()
+
+    # its own page, so the first page's specimens keep their cells
+    p = Sheet(f"specimen-edges-lines-p{2 + len(order)}", "stored edge pos with the tail arrow's point (s,x,y)",
+              columns=4)
+    p.edge("default", "default")
+    p.custom("pos-arrow-startpoint", "pos with s,x,y dir=back", start_pos("pos-arrow-startpoint", False))
+    p.custom("pos-arrow-both-points", "pos with s and e dir=both", start_pos("pos-arrow-both-points", True))
+    p.write()
 
 
 def routes(p, v):
@@ -972,10 +995,18 @@ def groups():
          {"orientation": "landscape"}),
         # ratio stretches the stored positions to the given height / width before size scales the drawing
         ("ratio-2", "ratio=2: positions stretched to twice as tall as wide", {"ratio": "2"}),
+        # one font setting each, the other two pinned to the neutral label font (the caption names only the swept one)
+        ("graph-label-fontcolor", "the root graph's label color (fontcolor)",
+         {"label": "graph-label", "fontcolor": "#e41a1c", "fontname": FONT, "fontsize": num(NEU["fontSize"])}),
+        ("graph-label-fontname", "the root graph's label font (fontname)",
+         {"label": "graph-label", "fontname": "DejaVu Serif", "fontcolor": NEU["labelColor"],
+          "fontsize": num(NEU["fontSize"])}),
     ]):
         p = Sheet(f"specimen-groups-p{n + 2}", about, graph=g)
         p.node("default", "default")
-        p.node(sid, " ".join(f"{k}={v}" for k, v in g.items() if k not in ("fontname", "fontcolor")))
+        hidden = {"fontname", "fontcolor", "fontsize"} - {sid[len("graph-label-"):]} if sid.startswith(
+            "graph-label-font") else {"fontname", "fontcolor"}
+        p.node(sid, " ".join(f"{k}={v}" for k, v in g.items() if k not in hidden))
         p.write()
 
 
@@ -1230,6 +1261,9 @@ NOT_SWEPT = {
                        "(graphviz_colors.py, graph-io/test/formats/dot/color-names.test.ts)",
     "svg color names": "4 names whose SVG and X11 values differ are drawn; all 147 are checked as the X11 names are",
     "brewer schemes": "3 of 265 schemes are drawn; all 1,689 colors of the 265 are checked as the X11 names are",
+    "ratio values": "ratio=2 is drawn (specimen-groups-p12); fill, compress, expand and auto only fit the drawing to "
+                    "size, which the oracle route fixes at the sheet's own 4:3 shape, so Graphviz draws them as the "
+                    "default (checked with Graphviz 14.1.2: fill moves positions by under 1%)",
     "arrow combinations": "3,111,696 multi-shape arrows exist; 8 representative 2- to 4-shape combinations are drawn",
 }
 

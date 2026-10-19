@@ -6,9 +6,11 @@
  * records and polygon parameters; node-shapes-p3..p4 records under rankdir=LR and RL; node-fills-borders-p2 borders;
  * node-sizes-opacity-p2..p3 outputorder nodesfirst and edgesfirst; node-sizes-opacity-p4 quantum; labels-p2..p3
  * HTML-like labels; labels-p4 forcelabels=false; edges-lines-p2..p7 one per splines value (spline, polyline, curved,
- * ortho, line, none, and the aliases true, false and "" in p8..p10); arrows-p2 tails, dir, size and color; arrows-p3
+ * ortho, line, none, and the aliases true, false and "" in p8..p10); edges-lines-p11 stored pos
+ * with the tail arrow's s,x,y point; arrows-p2 tails, dir, size and color; arrows-p3
  * an undirected graph; arrows-p4 a strict digraph; groups-p2..p8 the root graph's background and label; groups-p9..p11
- * the whole drawing turned (rotate, landscape, orientation); groups-p12 ratio.
+ * the whole drawing turned (rotate, landscape, orientation); groups-p12 ratio; groups-p13..p14 the root graph's
+ * label fontcolor and fontname.
  */
 import { type SpecimenFormat } from "../sheets.js";
 
@@ -42,6 +44,7 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-edges-lines-p8", file: "specimen-edges-lines-p8.gv" },
         { id: "specimen-edges-lines-p9", file: "specimen-edges-lines-p9.gv" },
         { id: "specimen-edges-lines-p10", file: "specimen-edges-lines-p10.gv" },
+        { id: "specimen-edges-lines-p11", file: "specimen-edges-lines-p11.gv" },
         { id: "specimen-arrows", file: "specimen-arrows.gv" },
         { id: "specimen-arrows-p2", file: "specimen-arrows-p2.gv" },
         { id: "specimen-arrows-p3", file: "specimen-arrows-p3.gv" },
@@ -59,6 +62,8 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-groups-p10", file: "specimen-groups-p10.gv" },
         { id: "specimen-groups-p11", file: "specimen-groups-p11.gv" },
         { id: "specimen-groups-p12", file: "specimen-groups-p12.gv" },
+        { id: "specimen-groups-p13", file: "specimen-groups-p13.gv" },
+        { id: "specimen-groups-p14", file: "specimen-groups-p14.gv" },
         { id: "specimen-images-charts", file: "specimen-images-charts.gv" },
         { id: "specimen-mappings-bypass", file: "specimen-mappings-bypass.gv" },
     ],

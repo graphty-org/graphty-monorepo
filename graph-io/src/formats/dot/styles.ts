@@ -1072,9 +1072,12 @@ function graphvizLoops(snapshot: GraphSnapshot): { bendsOf: (e: number, get: Att
         nonEmpty(get("headport")) === null &&
         nonEmpty(get(POS_ATTRIBUTE)) === null;
     const onNode = new Map<number, number[]>();
-    // ponytail: ortho routes a loop round the node's corners and none draws no edge; both keep the element's loop
+    // ponytail: ortho routes a loop round the node's corners and none draws no edge; both keep the element's loop.
     const splines = (nonEmpty(cellText(snapshot.graph, "splines", 0)) ?? "").toLowerCase();
-    for (let e = 0; e < snapshot.edgeCount && splines !== "ortho" && splines !== "none"; e++) {
+    // a file graphty wrote keeps its loops' look in its own block
+    const laid =
+        splines !== "ortho" && splines !== "none" && nonEmpty(cellText(snapshot.graph, STYLE_BLOCK_NAME, 0)) === null;
+    for (let e = 0; e < snapshot.edgeCount && laid; e++) {
         const n = snapshot.edgeSource(e);
         if (n === snapshot.edgeTarget(e) && portless((name) => cellText(snapshot.edges, name, e))) {
             onNode.set(n, [...(onNode.get(n) ?? []), e]);

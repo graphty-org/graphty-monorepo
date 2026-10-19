@@ -16,14 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, labels, third hand-out) The label item (text size beside 'Size in', Escape in a
-   settings field, Escape on Reset, list opens on 'name', Fixed text box width, Tab closes the
-   list, Icosphere whole) is in 611619ee7, an ancestor of the study build 52cb47a85; the pilot
-   T44A/T44B ran on 58556989e, before it. On HEAD d8ab81d4e `Labels.real-element` passes 16 of 16
-   (one test per acceptance item, the "a label entry's size, keys, lists and widths" block). No
-   code change. No new walk: all four browser slots held by the r1d3 pilots; the walk on a build
-   holding 611619ee7 is `design/ui/studio/tmp/r1-dry1-labels/walk3`, `walk4`. Before building a
-   handed-out fix, run `git merge-base --is-ancestor <fix> <pilot commit>` first.
+0a. (2026-10-18, Analyze: Enter, tooltip, run message) Asked again for three pilot findings
+(Enter in Louvain's Resolution, an "Analyze Shift+A" tooltip after Run, "Louvain finished" with
+no count) seen on build 58556989e. All three were already fixed before the frozen build
+52cb47a85a: Enter in `fa3c6be16` (compact-mantine `useNumberField` commits, then submits its
+form), the message in `fa3c6be16` (`groupsAnnouncement` in `analyze/words.ts`: "Louvain
+finished: 6 groups, each a layer in the Louvain folder of Style layers"), the tooltip in
+`098534fc7` (`focusReturned` in compact-mantine `overlayBehavior.ts`). Test
+`GroupsAsLayers.real-element` "runs on Enter in a setting..." covers all three and passes. No
+code change; before building a fix, check `git log <pilot build>..HEAD` for the file first.
+No real.mjs walk this time: all four browser slots were held by r1d3 pilot sessions for 15+
+minutes, and the repo's hook refuses a foreground wait, so the queued session was cancelled. 0. (2026-10-18, labels, third hand-out) The label item (text size beside 'Size in', Escape in a
+settings field, Escape on Reset, list opens on 'name', Fixed text box width, Tab closes the
+list, Icosphere whole) is in 611619ee7, an ancestor of the study build 52cb47a85; the pilot
+T44A/T44B ran on 58556989e, before it. On HEAD d8ab81d4e `Labels.real-element` passes 16 of 16
+(one test per acceptance item, the "a label entry's size, keys, lists and widths" block). No
+code change. No new walk: all four browser slots held by the r1d3 pilots; the walk on a build
+holding 611619ee7 is `design/ui/studio/tmp/r1-dry1-labels/walk3`, `walk4`. Before building a
+handed-out fix, run `git merge-base --is-ancestor <fix> <pilot commit>` first.
+
 1. (2026-10-18, layer rows and the key agree with what a layer draws) graphty-element
    `styles.groups` counted the whole graph (the prepared binding's `categoryCounts`) although
    `ValueGroup.count` says "of the layer's elements": now counted over the layer's selector
@@ -88,6 +99,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **A finding against an older build is checked against HEAD before any code.** The
+  Analyze findings (Enter, tooltip, run message) came from pilot screenshots of build 58556989e;
+  117 commits later all three were fixed and tested, so the right change was none.
 - (2026-10-18) **The key reads which values a layer holds from `styles.groups`, fixed in the
   element.** Its count claimed the layer's elements and gave the graph's; computing per-layer
   counts in the app (or via `preview({ within })`) would have worked around a documented defect.
@@ -234,6 +248,9 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Did not work: queuing a real.mjs `--start` while four pilot sessions hold every
+  browser slot. The start blocks with no output; a `timeout` around it kills the client but leaves
+  the queued `--serve` process (kill it by pid). Worked: the real-element test as the check.
 - (2026-10-18) Did not work: a one-size rule that compared `swatch.size` with no `size` set hid
   every size ramp in a unit test (undefined === undefined); scoped to category blocks with a size.
   A covered line named "Shortest route" (the element's layer name) where the key names the run as

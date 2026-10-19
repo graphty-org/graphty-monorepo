@@ -145,7 +145,9 @@ function twoColumns(records, key) {
 function columns(records, key) {
     const subsetKey = {};
     for (const node of records.nodes) {
-        (subsetKey[String(node[key])] ??= []).push(node.id);
+        const value = String(node[key]);
+        subsetKey[value] ??= [];
+        subsetKey[value].push(node.id);
     }
     return { id: "layers", options: { subsetKey } };
 }

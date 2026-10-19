@@ -60,6 +60,42 @@ const CHANNELS = {
 } as const satisfies Record<Target, { label: Channel; style: Channel }>;
 
 /**
+ * The writes that turn a row into the other kind, as one undo step. Card: the card look, and the
+ * plain label's one value as the card's first row, in bold. Label: the look taken off, and the
+ * card's first row as the label's one value.
+ * @param kind - the kind the row becomes.
+ * @param channels - the label channel and its style channel.
+ * @param channels.label - the label channel.
+ * @param channels.style - the label style channel.
+ * @param labelStyle - the row's label style now.
+ * @param line - the row's label line, if it has one.
+ * @returns the channel writes.
+ */
+function kindLines(
+    kind: Kind,
+    channels: { label: Channel; style: Channel },
+    labelStyle: LabelStyle,
+    line: Line | undefined,
+): [Channel, LineWrite][] {
+    if (kind === "card") {
+        const lines: [Channel, LineWrite][] = [[channels.style, { value: { ...labelStyle, ...CARD_LOOK } }]];
+        if (line?.binding !== undefined) {
+            lines.push([
+                channels.label,
+                { template: [labelTemplateLine({ text: "", path: line.binding.by, bold: true })] },
+            ]);
+        }
+        return lines;
+    }
+    const lines: [Channel, LineWrite][] = [[channels.style, { value: plainLook(labelStyle) }]];
+    const first = line?.template?.map(labelTemplateRow).find((r) => r !== null);
+    if (first !== undefined) {
+        lines.push([channels.label, { binding: { by: first.path } }]);
+    }
+    return lines;
+}
+
+/**
  * What the line draws: the bound attribute's name, graphty-element's own "nothing answers this
  * path", or the literal text the row writes.
  * @param session - the element's session.
@@ -120,26 +156,8 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
         writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }).catch(fail);
     };
     const card = line !== undefined && isCard(labelStyle);
-    // Card: the card look, and the plain label's one value as the card's first row, in bold.
-    // Label: the look taken off, and the card's first row as the label's one value. One undo step each.
     const setKind = (kind: Kind): void => {
-        const lines: [Channel, LineWrite][] = [];
-        if (kind === "card") {
-            lines.push([styleChannel, { value: { ...labelStyle, ...CARD_LOOK } }]);
-            if (line?.binding !== undefined) {
-                lines.push([
-                    channel,
-                    { template: [labelTemplateLine({ text: "", path: line.binding.by, bold: true })] },
-                ]);
-            }
-        } else {
-            lines.push([styleChannel, { value: plainLook(labelStyle) }]);
-            const first = line?.template?.map(labelTemplateRow).find((r) => r !== null);
-            if (first !== undefined) {
-                lines.push([channel, { binding: { by: first.path } }]);
-            }
-        }
-        writeLines(session, row, target, lines).catch(fail);
+        writeLines(session, row, target, kindLines(kind, CHANNELS[target], labelStyle, line)).catch(fail);
     };
     const pick = (choice: DataChoice): void => {
         setListOpen(false);

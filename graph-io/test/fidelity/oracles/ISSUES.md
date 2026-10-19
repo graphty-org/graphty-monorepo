@@ -632,6 +632,55 @@ Where the oracle SVG and Chromium's own screen differ (each checked against `ORA
   horizontal stripe nodes of `cytoscapejs-specimen-images-charts` are drawn as the pie charts before them. The
   SVG follows Cytoscape.js's drawing code (blacken darkens, stripes are bands), and so must graphty.
 
+The annotation, chart color scheme and mapping pages added after the first round (`-images-charts-p6`,
+`-mappings-bypass-p19`, `-p20`):
+
+- Arrow annotations (`*-specimen-images-charts-p6`, the `arrow-*` specimens). No CyREST command makes one, so the
+  generator saves the sheet as a session, adds the arrows to its `__Annotations` column in the form Cytoscape
+  3.10.5 itself saves (`generators/specimens/cys_add_annotations.py`), and opens that session again; Cytoscape reads
+  them, and every file is saved from it. What Cytoscape draws: the head numbers it saves are ding's
+  `ArrowAnnotationImpl.ArrowType` in declaration order (0 Circle, 1 Closed Arrow, 2 Concave Arrow, 3 Diamond, 4 Open
+  Arrow, 5 No Arrow, 6 X Arrow, 7 Triangular Head, 8 T-Shape); graph-io read 6 as a T and 8 as a triangle, and now
+  reads them as Cytoscape draws them. An arrow with no head at either end draws no line at all
+  (`arrow-target-type-no-arrow`), so the neutral arrow carries a Closed Arrow head. The line runs from the middle of
+  the side of the source annotation that faces the end, to the end point or the facing side of the target annotation
+  (graph-io now places both ends so), at half the saved `lineThickness` and never under 1. Each head carries its own
+  color (`sourceColor`, `targetColor`, now read and drawn). Still different in graphty, not fixed yet:
+    - head sizes: Cytoscape draws every head 17 x 10 at size 1, whatever the line width; graphty sizes a head from the
+      line width (`8 + 2 x width`). The head geometry should come from graph-io as data (graphty-element is neutral),
+      which needs a head length and width on `ArrowAnnotation`.
+    - Open Arrow is an open chevron in Cytoscape and an outlined triangle in graphty; Triangular Head (5 long) is read
+      as a plain triangle.
+    - `arrow-to-a-node`: Cytoscape stops the line at the node's box; graph-io stops it at the node's center, because
+      reading the end at the node's box needs the node's drawn size, which the annotation reader does not have.
+    - the comparator judges annotations only as stray marks (`stray.present`, `stray.extra`), so a head's shape, color
+      and size are not checked one by one: sent to the comparator work.
+- Annotation rotation (`annotation-shape-angle-30`, `annotation-bounded-text-angle-30`, `annotation-image-angle-30`
+  on p6, `annotation-text-angle-45` on p4): Cytoscape turns the annotation about its center, clockwise. graph-io now
+  reads `rotation` and graphty-element turns the annotation's plane by it.
+- `annotation-shape-v`: Cytoscape's annotation shapes include `V` (a downward chevron), which its API enum does not
+  list; graph-io reads it as `vee`, and graphty draws it.
+- `annotation-shape-border-opacity-40`: drawn opaque in the SVG, like the opacity specimens of p4 (the SVG writer
+  drops an annotation's alpha).
+- `annotation-image-brightness-50`, `annotation-image-contrast-50`: Cytoscape draws the picture lighter and with more
+  contrast; graph-io does not read `brightness` or `contrast`, so graphty draws the picture as it is. Open.
+- Chart positions with different anchors (`customgraphics-position-1-e-w-c-0-0` on p6): Cytoscape puts the chart's
+  W side on the node's E side, so the chart sits right of the node; graphty draws it left of the node. graph-io's
+  position formula (`styles/cytoscape/charts.ts`) was fitted to the same-anchor pages (`NW,NW` moves the chart down
+  and right, inward) and inverts the case where the anchors differ. Open: the formula needs refitting against both
+  pages (`-p3` `C,NW` is the other different-anchor case). The offset specimen (`C,C,c,12.00,-8.00`) matches.
+- Continuous mappings at a point (`specimen-mappings-bypass-p20`): a point's `equal` value is drawn for a value
+  exactly at the point (`continuous-shape-5`, `continuous-step-fill-5`). Cytoscape's CX2 writer drops `equal`
+  (each range excludes the point), and a continuous mapping onto `NODE_SHAPE` written that way cannot be loaded
+  again (CyREST answers 500, a null `NodeShape`), so that page and the continuous shape mapping exist as XGMML, CX
+  and a session only; `-p19` holds the other new mapping kinds in all four formats.
+- Chart color schemes (`bar-color-scheme-*` on `images-charts`, `-p6` and their replay): `cy_colorScheme` (the
+  deprecated CONTRASTING, MODULATED and RAINBOW, and the named gradients of custom-graphics-internal's
+  `ColorGradient`, BLUE_RED, YL_OR_RD and 21 more) gives a chart its colors when `cy_colors` is absent. graph-io does
+  reads only pie and ring charts, and neither reads `cy_colorScheme`, so graphty draws no bars at all here. Open:
+  the fix is in graph-io's chart reader (bar charts first; the scheme colors are generated in `ColorScheme`, the
+  gradients listed in `ColorGradient`).
+
 ## Specimen sheets: vis-network
 
 The vis-network specimen sheets (`graph-io/test/fidelity/specimens/vis-network/`, `{ nodes, edges, options }`

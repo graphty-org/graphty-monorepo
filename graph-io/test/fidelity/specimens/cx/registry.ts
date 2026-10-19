@@ -33,6 +33,7 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-images-charts-p3", file: "specimen-images-charts-p3.cx" },
         { id: "specimen-images-charts-p4", file: "specimen-images-charts-p4.cx" },
         { id: "specimen-images-charts-p5", file: "specimen-images-charts-p5.cx" },
+        { id: "specimen-images-charts-p6", file: "specimen-images-charts-p6.cx" },
         { id: "specimen-mappings-bypass", file: "specimen-mappings-bypass.cx" },
         { id: "specimen-mappings-bypass-p2", file: "specimen-mappings-bypass-p2.cx" }, // the node-shapes sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p3", file: "specimen-mappings-bypass-p3.cx" }, // the node-fills-borders sheet through discrete mappings on name
@@ -51,6 +52,9 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-mappings-bypass-p16", file: "specimen-mappings-bypass-p16.cx" }, // the images-charts-p3 sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p17", file: "specimen-mappings-bypass-p17.cx" }, // the edge-labels-p2 sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p18", file: "specimen-mappings-bypass-p18.cx" }, // the images-charts-p5 sheet through discrete mappings on name
+        { id: "specimen-mappings-bypass-p19", file: "specimen-mappings-bypass-p19.cx" }, // more mapping kinds: a continuous step, Boolean and Double keys, passthrough numbers and names
+        // a continuous mapping onto a shape, and values exactly at a point; Cytoscape cannot reopen its own CX2 of this page
+        { id: "specimen-mappings-bypass-p20", file: "specimen-mappings-bypass-p20.cx" },
     ],
     absent: {},
     pending: [],

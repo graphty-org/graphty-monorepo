@@ -196,4 +196,53 @@ describe("reading Cytoscape files as Cytoscape draws them", () => {
         });
         expect(readAnnotations(snapshot).skipped).toEqual(["ImageAnnotation"]);
     });
+
+    it("reads each arrow annotation head by the number Cytoscape 3.10 saves, as its SVG draws it", async () => {
+        // specimen-images-charts-p6: one arrow per head at the target end; the oracle draws an X at 6 and a T at 8
+        const file = resolve(import.meta.dirname, "../fidelity/specimens/cx2/specimen-images-charts-p6.cx2");
+        const { snapshot } = await importGraph(new Uint8Array(readFileSync(file)), { format: "cx2" });
+        const arrows = readAnnotations(snapshot).annotations.filter((a) => a.kind === "arrow");
+        expect(arrows).toHaveLength(28);
+        const heads = arrows
+            .map((a) => [a.targetArrow, a.sourceArrow].join(" "))
+            .filter((h, i, all) => all.indexOf(h) === i)
+            .sort();
+        expect(heads).toEqual(
+            [
+                "circle none",
+                "diamond none",
+                "none none",
+                "other:x none",
+                "tee none",
+                "triangle circle",
+                "triangle diamond",
+                "triangle none",
+                "triangle other:x",
+                "triangle tee",
+                "triangle triangle",
+                "triangle triangle-open",
+                "triangle vee",
+                "triangle-open none",
+                "vee none",
+            ].sort(),
+        );
+        // the line leaves the middle of the source box's facing side, at half the saved thickness and never under 1
+        const byId = new Map(arrows.map((a) => [a.id, a]));
+        const plain = byId.get("00000000-0000-4000-8000-000000000001");
+        const thick = byId.get("00000000-0000-4000-8000-000000000020");
+        expect(plain?.from.y).toBeCloseTo(plain?.to.y ?? NaN, 1);
+        expect(plain?.width).toBe(1);
+        expect(thick?.width).toBe(2);
+        const leaves = readAnnotations(snapshot).annotations.some(
+            (a) =>
+                a.kind === "shape" &&
+                a.width === 14 &&
+                a.center.y === plain?.from.y &&
+                Math.abs(a.center.x + a.width / 2 - plain.from.x) < 1e-9,
+        );
+        expect(leaves).toBe(true);
+        // a turned shape keeps its turn, clockwise on screen
+        const turned = readAnnotations(snapshot).annotations.filter((a) => a.kind === "shape" && a.rotation === 30);
+        expect(turned).toHaveLength(2); // the shape and the bounded text's box
+    });
 });

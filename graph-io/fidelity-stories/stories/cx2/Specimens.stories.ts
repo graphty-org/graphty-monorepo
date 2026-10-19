@@ -65,6 +65,10 @@ export const ImagesChartsP5: StoryObj = {
     ...specimenStory(FORMAT, "specimen-images-charts-p5", FILES),
     name: "images-charts-p5",
 };
+export const ImagesChartsP6: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-images-charts-p6", FILES),
+    name: "images-charts-p6",
+};
 export const MappingsBypass: StoryObj = {
     ...specimenStory(FORMAT, "specimen-mappings-bypass", FILES),
     name: "mappings-bypass",
@@ -136,4 +140,8 @@ export const MappingsBypassP17: StoryObj = {
 export const MappingsBypassP18: StoryObj = {
     ...specimenStory(FORMAT, "specimen-mappings-bypass-p18", FILES),
     name: "mappings-bypass-p18",
+};
+export const MappingsBypassP19: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-mappings-bypass-p19", FILES),
+    name: "mappings-bypass-p19",
 };

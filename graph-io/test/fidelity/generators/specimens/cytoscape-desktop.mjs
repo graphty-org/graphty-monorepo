@@ -20,7 +20,9 @@
 // discrete, continuous and passthrough mappings and bypasses over mappings, and every later page replays one bypass
 // sheet with each bypass turned into a discrete mapping on the name column (Cytoscape matches by name).
 import console from "node:console";
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -244,6 +246,39 @@ const JAVA_LOGICAL = ["SansSerif", "Serif", "Monospaced", "Dialog", "DialogInput
 const FILLS = ["#D62728", "#2CA02C", "#1F77B4", "#FF7F0E", "#9467BD", "#000000", "#FFFFFF", "#FFFF00"];
 const ANCHOR_POINTS = ["NW", "N", "NE", "W", "C", "E", "SW", "S", "SE"];
 const IMG = "https://raw.githubusercontent.com/cytoscape/cytoscape.js/master/documentation/img/cytoscape-logo.png";
+/**
+ * The arrow annotation's heads by the number Cytoscape 3.10.5 saves (ding's ArrowAnnotationImpl.ArrowType, in
+ * declaration order; read from its class, ding-presentation-impl-3.10.5.jar).
+ */
+const ARROW_TYPES = [
+    "Circle",
+    "Closed Arrow",
+    "Concave Arrow",
+    "Diamond",
+    "Open Arrow",
+    "No Arrow",
+    "X Arrow",
+    "Triangular Head",
+    "T-Shape",
+];
+/** A Java ARGB color as Cytoscape saves an annotation's color: a signed 32-bit integer. */
+const javaColor = (hex, alpha = 0xff) => String((alpha << 24) | parseInt(hex.slice(1), 16) | 0);
+/**
+ * The neutral arrow annotation every arrow specimen changes one field of: a Closed Arrow head at the target only, the
+ * neutral edge color. (Cytoscape draws no line at all for an arrow with no head at either end.)
+ */
+const ARROW_NEUTRAL = {
+    sourceType: 5,
+    targetType: 1,
+    sourceSize: "1.0",
+    targetSize: "1.0",
+    lineColor: javaColor(layout.neutral.edgeColor),
+    sourceColor: javaColor(layout.neutral.edgeColor),
+    targetColor: javaColor(layout.neutral.edgeColor),
+    lineThickness: "1.0",
+    canvas: "foreground",
+    rotation: "0.0",
+};
 const cg = (factory, props) => `org.cytoscape.${factory}:${JSON.stringify(props)}`;
 const CHART_DATA = { cy_dataColumns: ["a", "b", "c"], cy_range: [0, 10], cy_colors: ["#D62728", "#2CA02C", "#1F77B4"] };
 const HEAT_COLORS = ["#2166AC", "#F7F7F7", "#B2182B"];
@@ -866,6 +901,110 @@ function sheets() {
             .map(chartSp),
     ]);
 
+    // more annotations: the arrow annotation (every head at each end, its colors, width and size, and what it points
+    // at) and the annotation arguments the first annotation page leaves out (rotation, border opacity, italic text,
+    // bounded text color and style, image brightness and contrast). Each arrow leaves a small neutral shape.
+    const arrowSp = (id, fields, cap, target = "point") => ({
+        id,
+        kind: "arrow",
+        target,
+        fields,
+        vp: null,
+        value: null,
+        set: {},
+        caption: cap,
+    });
+    const BOX = { width: "50", height: "40", fillColor: "#AEC7E8", borderColor: "#505050", borderThickness: "1" };
+    add("specimen-images-charts-p6", [
+        dflt("node"),
+        arrowSp("arrow-default", {}, "arrow\n(Closed Arrow)"),
+        ...ARROW_TYPES.map((t, i) =>
+            arrowSp(`arrow-target-type-${slug(t)}`, { targetType: i }, `arrow targetType=\n${t}`),
+        ).filter((sp) => sp.fields.targetType !== ARROW_NEUTRAL.targetType),
+        ...ARROW_TYPES.map((t, i) =>
+            arrowSp(`arrow-source-type-${slug(t)}`, { sourceType: i }, `arrow sourceType=\n${t}`),
+        ).filter((sp) => sp.fields.sourceType !== ARROW_NEUTRAL.sourceType),
+        arrowSp("arrow-line-color", { lineColor: javaColor("#D62728") }, "arrow lineColor"),
+        arrowSp("arrow-line-color-alpha-40", { lineColor: javaColor("#D62728", 0x66) }, "arrow lineColor\nalpha=40%"),
+        arrowSp("arrow-line-thickness-4", { lineThickness: "4.0" }, "arrow\nlineThickness=4"),
+        arrowSp("arrow-target-size-2", { targetSize: "2.0" }, "arrow targetSize=2\n(Closed Arrow)"),
+        arrowSp("arrow-source-size-2", { sourceType: 1, sourceSize: "2.0" }, "arrow sourceSize=2\n(Closed Arrow)"),
+        arrowSp("arrow-target-color", { targetColor: javaColor("#1F77B4") }, "arrow targetColor\n(Closed Arrow)"),
+        arrowSp(
+            "arrow-source-color",
+            { sourceType: 1, sourceColor: javaColor("#1F77B4") },
+            "arrow sourceColor\n(Closed Arrow)",
+        ),
+        arrowSp("arrow-to-node", {}, "arrow to a node", "node"),
+        arrowSp("arrow-to-annotation", {}, "arrow to an\nannotation", "annotation"),
+        arrowSp("arrow-anchor-center", { anchorType: "CENTER" }, "arrow\nanchorType=CENTER", "annotation"),
+        arrowSp("arrow-background", { canvas: "background" }, "arrow background"),
+        ann("shape", { type: "V", ...BOX }, "annotation-shape-v", "shape=V"),
+        ann("shape", { type: "RECTANGLE", ...BOX, angle: "30" }, "annotation-shape-angle-30", "shape angle=30"),
+        ann(
+            "shape",
+            { type: "RECTANGLE", ...BOX, borderColor: "#1F77B4", borderThickness: "4", borderOpacity: "40" },
+            "annotation-shape-border-opacity-40",
+            "shape border\nopacity=40",
+        ),
+        ann("text", { text: "Italic", fontSize: "12", fontStyle: "italic" }, "annotation-text-italic", "text italic"),
+        ann(
+            "text",
+            { text: "BoldItalic", fontSize: "12", fontStyle: "bolditalic" },
+            "annotation-text-bold-italic",
+            "text bolditalic",
+        ),
+        ...[
+            ["color", { color: "#D62728" }, "bounded text\ncolor"],
+            ["bold", { fontStyle: "bold" }, "bounded text\nbold"],
+            ["angle-30", { angle: "30" }, "bounded text\nangle=30"],
+        ].map(([s, extra, cap]) =>
+            ann(
+                "bounded text",
+                {
+                    text: "Bounded",
+                    type: "RECTANGLE",
+                    width: "70",
+                    height: "34",
+                    fillColor: "#FFFF99",
+                    borderColor: "#505050",
+                    borderThickness: "1",
+                    fontSize: "11",
+                    ...extra,
+                },
+                `annotation-bounded-text-${s}`,
+                cap,
+            ),
+        ),
+        ...[
+            ["brightness-50", { brightness: "50" }, "image\nbrightness=50"],
+            ["contrast-50", { contrast: "50" }, "image\ncontrast=50"],
+            ["angle-30", { angle: "30" }, "image angle=30"],
+        ].map(([s, extra, cap]) =>
+            ann("image", { url: IMG, width: "70", height: "40", ...extra }, `annotation-image-${s}`, cap),
+        ),
+        // a chart placed beside its node and moved by an offset (the position page uses only matching anchors)
+        ...["E,W,c,0.00,0.00", "C,C,c,12.00,-8.00"].map((p) =>
+            nodeSp("NODE_CUSTOMGRAPHICS_POSITION_1", p, {
+                id: `customgraphics-position-1-${slug(p.replace(/\.00/g, ""))}`,
+                base: { ...CG.base, NODE_CUSTOMGRAPHICS_1: CHARTS.pie },
+            }),
+        ),
+        // the chart color schemes the chart pages leave out: MODULATED, and two of the named gradients
+        // (custom-graphics-internal's ColorGradient: BLUE_RED, YL_OR_RD, ...) cy_colorScheme also takes
+        ...["MODULATED", "BLUE_RED", "YL_OR_RD"].map((scheme) =>
+            chartSp([
+                `bar-color-scheme-${slug(scheme)}`,
+                cg("BarChart", {
+                    cy_dataColumns: CHART_DATA.cy_dataColumns,
+                    cy_range: [0, 10],
+                    cy_type: "GROUPED",
+                    cy_colorScheme: scheme,
+                }),
+            ]),
+        ),
+    ]);
+
     // mappings: the same kinds of value reached through the style (defaults, discrete, continuous, passthrough),
     // and per-element bypasses over a mapping
     add("specimen-mappings-bypass", MAPPED_SPECIMENS, {
@@ -874,10 +1013,18 @@ function sheets() {
     });
 
     // the bypass sheets replayed through discrete mappings on the name column
-    const replayed = out.filter((s) => !/groups|images-charts-p4|mappings/.test(s.id));
+    const replayed = out.filter((s) => !/groups|images-charts-p[46]|mappings/.test(s.id));
     replayed.forEach(({ id, specimens, ...rest }, i) =>
         add(`specimen-mappings-bypass-p${i + 2}`, specimens, { ...rest, replayOf: id, mapped: true }),
     );
+    // the mapping kinds the first mappings page leaves out: a continuous mapping with a step (different lesser,
+    // equal and greater at a point) and, on the next page, one onto a discrete property, discrete mappings on Boolean and Double keys,
+    // and passthrough mappings onto a number, a line type, a font and a label color
+    add(`specimen-mappings-bypass-p${replayed.length + 2}`, MAPPED_SPECIMENS_2, { style: MAPPED_STYLE_2 });
+    add(`specimen-mappings-bypass-p${replayed.length + 3}`, MAPPED_SPECIMENS_3, {
+        style: { mappings: [CONTINUOUS_SHAPE, ...MAPPED_STYLE_2.mappings] },
+        formats: ["cys", "xgmml", "cx"],
+    });
     return out;
 }
 
@@ -1108,6 +1255,101 @@ const MAPPED_SPECIMENS = [
 const END = { NODE_WIDTH: 12, NODE_HEIGHT: 12, NODE_SIZE: 12 };
 const CHILD = { NODE_WIDTH: 16, NODE_HEIGHT: 16, NODE_SIZE: 16 };
 /** Column types: Cytoscape would guess a JSON number's type from its first value, so every column is declared. */
+const MAPPED_SPECIMENS_2 = [
+    mapped("default", {}, "default"),
+    ...[2.5, 7.5].map((v) =>
+        mapped(`continuous-step-fill-${slug(v)}`, { step: v }, `fill continuous\nstep at 5, step=${v}`),
+    ),
+    ...[true, false].map((v) =>
+        mapped(`discrete-boolean-border-${v}`, { flag: v }, `border_paint\ndiscrete flag=${v}`),
+    ),
+    mapped("discrete-boolean-border-unset", {}, "border_paint\ndiscrete flag unset"),
+    ...[1.5, 2, 3].map((v) => mapped(`discrete-double-height-${slug(v)}`, { dkey: v }, `height discrete\ndkey=${v}`)),
+    ...[20, 60].map((v) => mapped(`passthrough-width-${v}`, { size: v }, `width passthrough\nsize=${v}`)),
+    ...["DOT", "LONG_DASH", "bogus"].map((v) =>
+        mapped(`passthrough-border-stroke-${slug(v)}`, { shp: v }, `border_stroke\npassthrough ${v}`),
+    ),
+    mapped("passthrough-font-face", { font: "Serif,bold,12", label: "Font" }, "font_face passthrough\nSerif,bold,12"),
+    ...["#D62728", "not-a-color"].map((v) =>
+        mapped(`passthrough-label-color-${slug(v)}`, { fillHex: v, label: "Color" }, `label_color\npassthrough ${v}`),
+    ),
+];
+/**
+ * A continuous mapping onto a shape (a discrete property), on both sides of its point and exactly at it, and the
+ * value exactly at the fill mapping's step. Cytoscape 3.10.5's CX2 writer drops a point's `equal` value (each range
+ * excludes the point), and loading that CX2 file fails on the null shape, so this page is saved as XGMML, CX and a
+ * session only.
+ */
+const MAPPED_SPECIMENS_3 = [
+    mapped("default", {}, "default"),
+    ...[0, 5, 10].map((v) => mapped(`continuous-shape-${v}`, { sc2: v }, `shape continuous\nsc2=${v}`)),
+    mapped("continuous-step-fill-5", { step: 5 }, "fill continuous\nstep at 5, step=5"),
+];
+/** A continuous mapping onto a shape, with a different shape below, at and above its one point. */
+const CONTINUOUS_SHAPE = {
+    mappingType: "continuous",
+    mappingColumn: "sc2",
+    visualProperty: "NODE_SHAPE",
+    points: [[5, "ELLIPSE", "DIAMOND", "RECTANGLE"]],
+};
+const MAPPED_STYLE_2 = {
+    mappings: [
+        {
+            mappingType: "continuous",
+            mappingColumn: "step",
+            visualProperty: "NODE_FILL_COLOR",
+            points: [
+                [0, "#1F77B4"],
+                [5, "#D62728", "#FFFFFF", "#2CA02C"],
+                [10, "#FFFF00"],
+            ],
+        },
+        {
+            mappingType: "discrete",
+            mappingColumn: "flag",
+            mappingColumnType: "Boolean",
+            visualProperty: "NODE_BORDER_PAINT",
+            map: [
+                [true, "#D62728"],
+                [false, "#1F77B4"],
+            ],
+        },
+        {
+            mappingType: "discrete",
+            mappingColumn: "dkey",
+            mappingColumnType: "Double",
+            visualProperty: "NODE_HEIGHT",
+            map: [
+                [1.5, 60],
+                [2, 18],
+            ],
+        },
+        {
+            mappingType: "passthrough",
+            mappingColumn: "size",
+            mappingColumnType: "Double",
+            visualProperty: "NODE_WIDTH",
+        },
+        {
+            mappingType: "passthrough",
+            mappingColumn: "shp",
+            mappingColumnType: "String",
+            visualProperty: "NODE_BORDER_STROKE",
+        },
+        {
+            mappingType: "passthrough",
+            mappingColumn: "font",
+            mappingColumnType: "String",
+            visualProperty: "NODE_LABEL_FONT_FACE",
+        },
+        {
+            mappingType: "passthrough",
+            mappingColumn: "fillHex",
+            mappingColumnType: "String",
+            visualProperty: "NODE_LABEL_COLOR",
+        },
+    ],
+};
 const NODE_COLUMNS = {
     label: "String",
     labelColor: "String",
@@ -1118,6 +1360,14 @@ const NODE_COLUMNS = {
     rank: "Double",
     alpha: "Double",
     chart: "String",
+    sc2: "Double",
+    step: "Double",
+    flag: "Boolean",
+    dkey: "Double",
+    size: "Double",
+    shp: "String",
+    font: "String",
+    fillHex: "String",
     a: "Double",
     b: "Double",
     c: "Double",
@@ -1155,6 +1405,7 @@ function place(sheet) {
     const edges = [];
     const groups = [];
     const annotations = [];
+    const arrows = []; // arrow annotations as Cytoscape saves them, "@name" standing for another annotation's uuid
     const styled = []; // [vp, name, value]: set through a discrete mapping on the name column
     const charts = /images-charts/.test(sheet.replayOf ?? sheet.id);
     // `spec` marks the elements that carry a specimen's look (the rest is scaffolding: anchors, captions, end nodes)
@@ -1264,6 +1515,48 @@ function place(sheet) {
                 });
                 break;
             }
+            case "arrow": {
+                // a small neutral shape at the cell's source point, the arrow leaving it toward the target point
+                const box = (name, x) =>
+                    annotations.push({
+                        type: "shape",
+                        args: {
+                            type: "Rectangle",
+                            width: "14",
+                            height: "10",
+                            fillColor: layout.neutral.fill,
+                            borderColor: layout.neutral.border,
+                            borderThickness: "1",
+                            x: String(x - 7),
+                            y: String(c.y - 5),
+                            newName: name,
+                        },
+                    });
+                box(`${sp.id}-src`, c.source.x);
+                const to = { x: c.target.x, y: c.y };
+                const xy = (p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`;
+                const end = { targetPoint: xy(to) };
+                if (sp.target === "node") {
+                    node(t, to.x, to.y, END);
+                    Object.assign(end, { targetPoint: undefined, targetNode: xy(to) });
+                } else if (sp.target === "annotation") {
+                    box(`${sp.id}-dst`, to.x);
+                    Object.assign(end, { targetPoint: undefined, targetAnnotation: `@${sp.id}-dst` });
+                }
+                arrows.push({
+                    type: "org.cytoscape.view.presentation.annotations.ArrowAnnotation",
+                    uuid: `00000000-0000-4000-8000-${String(arrows.length + 1).padStart(12, "0")}`,
+                    name: sp.id,
+                    sourceAnnotation: `@${sp.id}-src`,
+                    ...end,
+                    ...ARROW_NEUTRAL,
+                    ...sp.fields,
+                    x: c.source.x.toFixed(1),
+                    y: c.y.toFixed(1),
+                    z: String(arrows.length),
+                });
+                break;
+            }
             default:
                 throw new Error(`unknown specimen kind ${sp.kind}`);
         }
@@ -1273,7 +1566,7 @@ function place(sheet) {
     const dup = names.find((n, i) => names.indexOf(n) !== i);
     if (dup) throw new Error(`${sheet.id}: two elements are named ${dup}`);
     for (const n of names) if (!/^[a-z0-9-]+$/.test(n)) throw new Error(`${sheet.id}: ${n} is not a setting id`);
-    return { nodes, edges, groups, annotations, styled };
+    return { nodes, edges, groups, annotations, arrows, styled };
 }
 
 const discrete = (vp, column, type, pairs) => ({
@@ -1517,7 +1810,45 @@ async function build(sheet) {
             throw new Error(`${sheet.id}: ${listed.length} annotations made of ${placed.annotations.length}`);
         }
     }
+    if (placed.arrows.length) return { ...(await addArrows(sheet, net, placed.arrows)), placed };
     return { net, view: viewId, placed };
+}
+
+/**
+ * Cytoscape's commands make no arrow annotation, so a sheet with arrows is saved as a session, the arrows are added
+ * to its network's __Annotations column as Cytoscape 3.10.5 saves them (cys_add_annotations.py), and the session is
+ * opened again: Cytoscape reads the arrows as it reads any session's, and every file is then saved from it.
+ * @param sheet - the sheet
+ * @param net - its network
+ * @param arrows - the arrows' fields
+ * @returns the reopened network and view
+ */
+async function addArrows(sheet, net, arrows) {
+    const dir = mkdtempSync(join(tmpdir(), "cytoscape-arrows-"));
+    const before = join(dir, "before.cys");
+    const after = join(dir, "after.cys");
+    const entries = join(dir, "arrows.json");
+    await command("session", "save as", { file: before });
+    const strings = arrows.map((a) =>
+        Object.entries(a)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => `${k}=${v}`)
+            .join("|"),
+    );
+    writeFileSync(entries, JSON.stringify(strings));
+    execFileSync("python3", ["-I", join(here, "cys_add_annotations.py"), before, after, entries]);
+    await command("session", "open", { file: after });
+    const nets = await call("GET", "/networks");
+    if (nets.length !== 1) throw new Error(`${sheet.id}: ${nets.length} networks after reopening`);
+    const views = await call("GET", `/networks/${nets[0]}/views`);
+    // the column is written again from the annotations Cytoscape holds when a session is saved
+    await command("session", "save as", { file: before });
+    const column = (await call("GET", `/networks/${nets[0]}/tables/defaultnetwork/rows`))[0].__Annotations ?? [];
+    const read = column.filter((s) => s.includes("ArrowAnnotation")).length;
+    if (process.env.KEEP_ARROWS) console.log(dir);
+    else rmSync(dir, { recursive: true, force: true });
+    if (read !== arrows.length) throw new Error(`${sheet.id}: Cytoscape read ${read} of ${arrows.length} arrows`);
+    return { net: nets[0], view: views[0] };
 }
 
 // The session is saved first: saving it writes the annotations into the network's __Annotations column, which the
@@ -1530,7 +1861,7 @@ const FORMATS = [
 ];
 async function save(sheet, net, viewId) {
     const written = [];
-    for (const [fmt, ext] of FORMATS) {
+    for (const [fmt, ext] of FORMATS.filter(([f]) => !sheet.formats || sheet.formats.includes(f))) {
         const dir = join(specimensDir, fmt);
         mkdirSync(dir, { recursive: true });
         const file = join(dir, `${sheet.id}.${ext}`);

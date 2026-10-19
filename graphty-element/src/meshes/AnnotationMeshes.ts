@@ -165,15 +165,24 @@ export class AnnotationMeshes {
         // group 0 is the graph; group 1 is drawn after it with the depth buffer cleared, as on-top labels are
         mesh.renderingGroupId = background ? 0 : 1;
         mesh.alphaIndex = a.z;
+        // turned about its box's center, clockwise on screen (y is up here); a value saved before rotation was read
+        // holds none
+        const rotation = a.kind === "arrow" ? 0 : ((a as { rotation?: number }).rotation ?? 0);
+        mesh.rotation.z = (-rotation * Math.PI) / 180;
+        // the box the turned geometry covers, about the same center
+        const [cx, cy] = [(geometry.x0 + geometry.x1) / 2, (geometry.y0 + geometry.y1) / 2];
+        const [cos, sin] = [Math.abs(Math.cos(mesh.rotation.z)), Math.abs(Math.sin(mesh.rotation.z))];
+        const [hw0, hh0] = [(geometry.x1 - geometry.x0) / 2, (geometry.y1 - geometry.y0) / 2];
+        const [hw, hh] = [cos * hw0 + sin * hh0, sin * hw0 + cos * hh0];
         const metadata: AnnotationMeshMetadata = {
             annotation: {
                 kind: a.kind,
                 ...(a.kind === "text" ? { text: a.text } : {}),
                 box: {
-                    x0: geometry.x0 * scale,
-                    y0: geometry.y0 * scale,
-                    x1: geometry.x1 * scale,
-                    y1: geometry.y1 * scale,
+                    x0: (cx - hw) * scale,
+                    y0: (cy - hh) * scale,
+                    x1: (cx + hw) * scale,
+                    y1: (cy + hh) * scale,
                 },
             },
         };
@@ -317,6 +326,14 @@ function shapePath(ctx: CanvasRenderingContext2D, a: ShapeAnnotation): void {
             ctx.lineTo(x - hw, y - hh);
             ctx.closePath();
             break;
+        case "vee":
+            // a downward chevron: the two top corners, a notch between them, the point at the bottom middle
+            ctx.moveTo(x - hw, y + hh);
+            ctx.lineTo(x, y + hh - a.height * 0.38);
+            ctx.lineTo(x + hw, y + hh);
+            ctx.lineTo(x, y - hh);
+            ctx.closePath();
+            break;
         default:
             // ponytail: other outlines draw as their box; add the polygons when a file needs them
             ctx.rect(x - hw, y - hh, a.width, a.height);
@@ -412,7 +429,10 @@ function paintArrow(ctx: CanvasRenderingContext2D, a: ArrowAnnotation): void {
     ctx.moveTo(a.from.x, a.from.y);
     ctx.lineTo(a.to.x, a.to.y);
     ctx.stroke();
+    // a value saved before the heads had colors of their own holds none: the line's color
+    ctx.strokeStyle = ctx.fillStyle = (a as { targetColor?: string }).targetColor ?? a.color;
     paintHead(ctx, a, a.to, a.from, a.targetArrow, a.targetSize);
+    ctx.strokeStyle = ctx.fillStyle = (a as { sourceColor?: string }).sourceColor ?? a.color;
     paintHead(ctx, a, a.from, a.to, a.sourceArrow, a.sourceSize);
 }
 
@@ -451,6 +471,15 @@ function paintHead(
         case "tee":
             ctx.rect(-a.width, -len / 2, a.width, len);
             break;
+        case "other:x":
+            // a cross centered on the line's end, drawn as two strokes
+            ctx.moveTo(-len / 2, -len / 2);
+            ctx.lineTo(len / 2, len / 2);
+            ctx.moveTo(-len / 2, len / 2);
+            ctx.lineTo(len / 2, -len / 2);
+            ctx.stroke();
+            ctx.restore();
+            return;
         case "diamond":
         case "diamond-open":
             ctx.moveTo(0, 0);

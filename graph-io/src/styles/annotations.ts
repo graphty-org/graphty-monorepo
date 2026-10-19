@@ -34,10 +34,19 @@ export interface AnnotationBase {
 }
 
 /**
+ * How far an annotation is turned about its box's center, in degrees, clockwise as seen on screen (0: not turned).
+ * Shapes, texts and pictures carry it; Cytoscape saves it as `rotation`.
+ */
+export interface RotatedAnnotation {
+    /** The turn in degrees, clockwise on screen. */
+    readonly rotation: number;
+}
+
+/**
  * A filled, outlined shape.
  * @category Styles
  */
-export interface ShapeAnnotation extends AnnotationBase {
+export interface ShapeAnnotation extends AnnotationBase, RotatedAnnotation {
     /** What the annotation is: always `"shape"` for a shape. */
     readonly kind: "shape";
     /** The box's center. */
@@ -64,7 +73,7 @@ export interface ShapeAnnotation extends AnnotationBase {
  * A line of text.
  * @category Styles
  */
-export interface TextAnnotation extends AnnotationBase {
+export interface TextAnnotation extends AnnotationBase, RotatedAnnotation {
     /** What the annotation is: always `"text"` for a line of text. */
     readonly kind: "text";
     /** The text. */
@@ -112,13 +121,17 @@ export interface ArrowAnnotation extends AnnotationBase {
     readonly sourceSize: number;
     /** The end's arrowhead size as a factor of the normal size. */
     readonly targetSize: number;
+    /** The arrowhead color at the start. */
+    readonly sourceColor: StyleColor;
+    /** The arrowhead color at the end. */
+    readonly targetColor: StyleColor;
 }
 
 /**
  * A picture placed in a box, which `readImageAnnotations()` reads.
  * @category Styles
  */
-export interface ImageAnnotation extends AnnotationBase {
+export interface ImageAnnotation extends AnnotationBase, RotatedAnnotation {
     /** What the annotation is: always `"image"` for a picture. */
     readonly kind: "image";
     /** The box's center. */
@@ -176,11 +189,13 @@ const SHAPES: ReadonlyMap<string, StyleNodeShape> = new Map<string, StyleNodeSha
     ["parallelogram", "parallelogram"],
     ["star5", "star"],
     ["star6", "star"],
+    ["v", "vee"],
 ]);
 
 /**
- * Cytoscape's annotation arrowheads, by the position in its `ArrowType` list (older sessions) and by name (newer
- * ones), lowercase.
+ * Cytoscape's annotation arrowheads, by the number it saves (the declaration order of ding's
+ * `ArrowAnnotationImpl.ArrowType` in 3.10: Circle, Closed Arrow, Concave Arrow, Diamond, Open Arrow, No Arrow,
+ * X Arrow, Triangular Head, T-Shape) and by its display name, lowercase.
  */
 const ARROW_ORDER: readonly StyleArrowShape[] = [
     "circle",
@@ -189,12 +204,9 @@ const ARROW_ORDER: readonly StyleArrowShape[] = [
     "diamond",
     "triangle-open",
     "none",
-    "tee",
-    "triangle",
-    "triangle",
-    "triangle",
-    "tee",
     "other:x",
+    "triangle",
+    "tee",
 ];
 const ARROW_NAMES: ReadonlyMap<string, StyleArrowShape> = new Map<string, StyleArrowShape>([
     ["circle", "circle"],
@@ -206,7 +218,10 @@ const ARROW_NAMES: ReadonlyMap<string, StyleArrowShape> = new Map<string, StyleA
     ["pipe", "tee"],
     ["triangle", "triangle"],
     ["t", "tee"],
+    ["t-shape", "tee"],
+    ["triangular head", "triangle"],
     ["x", "other:x"],
+    ["x arrow", "other:x"],
 ]);
 
 /**
@@ -263,6 +278,7 @@ export function readImageAnnotations(snapshot: GraphSnapshot): ImageAnnotation[]
                 layer: f.get("canvas") === "background" ? "background" : "foreground",
                 z: num(f.get("z")) ?? 0,
                 kind: "image",
+                rotation: num(f.get("rotation")) ?? 0,
                 center: { x: x + width / 2, y: -(y + height / 2) },
                 width,
                 height,
@@ -359,6 +375,7 @@ function shapeOf(f: ReadonlyMap<string, string>, base: AnnotationBase, zoom: num
     return {
         ...base,
         kind: "shape",
+        rotation: num(f.get("rotation")) ?? 0,
         center: { x: x + width / 2, y: -(y + height / 2) },
         width,
         height,
@@ -393,6 +410,7 @@ function textOf(
     return {
         ...base,
         kind: "text",
+        rotation: num(f.get("rotation")) ?? 0,
         text: f.get("text") ?? "",
         at,
         anchor,
@@ -407,9 +425,11 @@ function textOf(
 
 /**
  * An arrow annotation. Cytoscape keeps its start as the annotation it leaves (`sourceAnnotation`) and its end as a
- * point, a node's center at save time (`targetNode`) or another annotation, and saves the arrow's top-left corner
- * as `x`, `y`: the start wherever the end lies right of and below it, which is taken for the start, else the center
- * of the annotation it leaves.
+ * point (`targetPoint`), a node's center at save time (`targetNode`) or another annotation (`targetAnnotation`). It
+ * draws the line from the middle of the side of the source annotation's box that faces the end, to the end point or
+ * the middle of the facing side of the target annotation's box, at half the saved `lineThickness` and never under
+ * 1 (measured on Cytoscape 3.10.5's SVG of `specimen-images-charts-p6` and of the tutorial session). A source with
+ * no saved size (a text annotation) leaves from the arrow's saved `x`, `y` corner.
  * @param f - its fields
  * @param base - its id, layer and order
  * @param zoom - the zoom its line width was saved at
@@ -422,17 +442,26 @@ function arrowOf(
     zoom: number,
     byId: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): ArrowAnnotation[] | null {
-    const target = f.get("targetAnnotation");
-    const to = point(f.get("targetPoint")) ?? point(f.get("targetNode")) ?? centerOf(byId.get(target ?? ""), zoom);
-    if (to === null) {
+    const sourceBox = boxOf(byId.get(f.get("sourceAnnotation") ?? ""), zoom);
+    const targetBox = boxOf(byId.get(f.get("targetAnnotation") ?? ""), zoom);
+    const toPoint = point(f.get("targetPoint")) ?? point(f.get("targetNode"));
+    const corner = { x: num(f.get("x")) ?? 0, y: num(f.get("y")) ?? 0 };
+    const sourceCenter = sourceBox === null ? corner : centerOfBox(sourceBox);
+    const aim = toPoint ?? (targetBox === null ? null : centerOfBox(targetBox));
+    if (aim === null) {
         return null;
     }
-    const corner = { x: num(f.get("x")) ?? 0, y: num(f.get("y")) ?? 0 };
-    const source = centerOf(byId.get(f.get("sourceAnnotation") ?? ""), zoom) ?? corner;
-    // ponytail: the start is exact only when the end lies right of and below it; elsewhere the center of the
-    // annotation it leaves, as Cytoscape stores no other start. Clip to that annotation's box if it matters.
-    const from = { x: to.x > corner.x ? corner.x : source.x, y: to.y > corner.y ? corner.y : source.y };
+    // a source with no saved size (a text) leaves from the arrow's saved top-left corner where the end lies right of
+    // and below it, else from the source's corner: the file keeps no other trace of where the text was drawn
+    const from =
+        sourceBox !== null && sourceBox.width > 0 && sourceBox.height > 0
+            ? facing(sourceBox, aim)
+            : { x: aim.x > corner.x ? corner.x : sourceCenter.x, y: aim.y > corner.y ? corner.y : sourceCenter.y };
+    // ponytail: a node end stops at its center; Cytoscape stops at the node's box, which needs the node's size
+    const to = toPoint ?? facing(targetBox ?? { x: aim.x, y: aim.y, width: 0, height: 0 }, sourceCenter);
     const color = javaColor(f.get("lineColor")) ?? { color: "#000000", alpha: 1 };
+    const sourceColor = javaColor(f.get("sourceColor"))?.color ?? color.color;
+    const targetColor = javaColor(f.get("targetColor"))?.color ?? color.color;
     return [
         {
             ...base,
@@ -441,22 +470,32 @@ function arrowOf(
             to: { x: to.x, y: -to.y },
             color: color.color,
             opacity: color.alpha * percent(f.get("lineOpacity")),
-            width: (positive(f.get("lineThickness")) ?? 1) / zoom,
+            width: Math.max(1, (positive(f.get("lineThickness")) ?? 1) / zoom / 2),
             sourceArrow: arrowShape(f.get("sourceType")),
             targetArrow: arrowShape(f.get("targetType")),
             sourceSize: positive(f.get("sourceSize")) ?? 1,
             targetSize: positive(f.get("targetSize")) ?? 1,
+            sourceColor,
+            targetColor,
         },
     ];
 }
 
+/** An annotation's box as the file writes it: top-left corner, y down. */
+interface FileBox {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+}
+
 /**
- * An annotation's center, y down as the file writes it: a shape's box center, a text's corner.
+ * An annotation's box, y down as the file writes it.
  * @param f - its fields, or undefined
  * @param zoom - the zoom the arrow was saved at
- * @returns the point, or null
+ * @returns the box, or null
  */
-function centerOf(f: ReadonlyMap<string, string> | undefined, zoom: number): AnnotationPoint | null {
+function boxOf(f: ReadonlyMap<string, string> | undefined, zoom: number): FileBox | null {
     if (f === undefined) {
         return null;
     }
@@ -465,7 +504,33 @@ function centerOf(f: ReadonlyMap<string, string> | undefined, zoom: number): Ann
     if (x === null || y === null) {
         return null;
     }
-    return { x: x + (positive(f.get("width")) ?? 0) / zoom / 2, y: y + (positive(f.get("height")) ?? 0) / zoom / 2 };
+    return { x, y, width: (positive(f.get("width")) ?? 0) / zoom, height: (positive(f.get("height")) ?? 0) / zoom };
+}
+
+/**
+ * A box's center.
+ * @param b - the box
+ * @returns the center
+ */
+function centerOfBox(b: FileBox): AnnotationPoint {
+    return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+
+/**
+ * The middle of the side of a box that faces a point: a left or right side when the point lies more across than
+ * along, against the box's own proportions, else the top or bottom.
+ * @param b - the box
+ * @param p - the point
+ * @returns the side's middle
+ */
+function facing(b: FileBox, p: AnnotationPoint): AnnotationPoint {
+    const c = centerOfBox(b);
+    const dx = p.x - c.x;
+    const dy = p.y - c.y;
+    if (Math.abs(dx) * b.height >= Math.abs(dy) * b.width) {
+        return { x: c.x + Math.sign(dx) * (b.width / 2), y: c.y };
+    }
+    return { x: c.x, y: c.y + Math.sign(dy) * (b.height / 2) };
 }
 
 /**

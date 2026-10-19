@@ -307,4 +307,11 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 - Full notes before this summary: `git show 54c009f84:design/ui/studio/notes/engineer.md`; before
   the first summary: `git show 6b160deb5:design/ui/studio/notes/engineer.md`.
 - (2026-10-18) Re-asked for truthful counts after a restart: already landed in 97d8bff7c (in the frozen build ed4351b258); `TruthfulCounts.real-element` still passes on the branch tip, walks in `design/ui/studio/tmp/r1-dry1-truthful-counts/w1`, `w2`. Check `git log` for a task's title before rebuilding it.
+- (2026-10-18, second re-ask) Truthful counts again: still landed (97d8bff7c, swatch and Color
+  line; 52cb47a85 `builtParts`). The pilot screenshots cited were taken on build 58556989e, older
+  than both. On the tip, whose `graphty/dist` equals the frozen build tier3-r1d3-52cb47a85a byte for
+  byte, `TruthfulCounts.real-element` (2) and `LayerRowAndKey.real-element` (5) pass. `groupMarks`
+  in `StyleTree.tsx` reads the swatch from the layer's `set`/`encode` only, never its selector, so
+  a gained condition (T48B) keeps it as well as a lost one. Check a pilot folder's
+  `session.json` `commit` before treating its screenshots as current.
 - (2026-10-18) Re-asked for the key (column title, 250,000, no stale fold, no repeated "Agencies", no cut entry, Tab and arrows) after a restart: already landed in ed4351b25, the frozen build itself; on the branch tip element `legend-copies`/`legend-reach` (5), app `legendWords` (21) and `LegendCard.real-element` (7) pass; walks `design/ui/studio/tmp/r1-dry1-key/w2`, `w3` show "Size: donations 0 - 250,000" and Group 1-10 whole in a focusable scrolling key.

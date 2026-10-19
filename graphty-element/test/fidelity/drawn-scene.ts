@@ -905,7 +905,8 @@ function joinedDashes(
 
 /**
  * A patterned line's elements on screen, from their own drawn outlines: each element's extent along the line and the
- * gap to the next one, alternating. A billboarded element has no outline to read, and then nothing is read.
+ * gap to the next one, alternating, the last element's followed by the median gap. A billboarded element has no
+ * outline to read, and then nothing is read.
  * @param elements - the pattern's elements, in order along the line
  * @param p - the projector
  * @returns element and gap lengths in pixels, or null
@@ -929,7 +930,11 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
         const t = o.map(([x, y]) => (x - a[0]) * u[0] + (y - a[1]) * u[1]);
         return [Math.min(...t), Math.max(...t)] as const;
     });
-    return spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
+    const pairs = spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
+    // the last element too (a dash-dot of two elements is a dash and a dot), followed by the line's usual gap
+    const gaps = pairs.filter((_, i) => i % 2 === 1).sort((x, y) => x - y);
+    const [l0, l1] = spans[spans.length - 1];
+    return [...pairs, l1 - l0, gaps[Math.floor(gaps.length / 2)]];
 }
 
 /**

@@ -36,21 +36,6 @@ export const AllPairsShortestPath: Story = {
     name: "AllPairsShortestPath",
 };
 
-export const BreadthFirstSearch: Story = {
-    ...tile("PathsAndTrees", "breadthFirstSearch"),
-    name: "BreadthFirstSearch",
-};
-
-export const DirectionOptimizedBfs: Story = {
-    ...tile("PathsAndTrees", "directionOptimizedBfs"),
-    name: "DirectionOptimizedBfs",
-};
-
-export const DepthFirstSearch: Story = {
-    ...tile("PathsAndTrees", "depthFirstSearch"),
-    name: "DepthFirstSearch",
-};
-
 export const KruskalMST: Story = {
     ...tile("PathsAndTrees", "kruskalMST"),
     name: "KruskalMST",

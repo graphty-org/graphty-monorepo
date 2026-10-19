@@ -16,24 +16,26 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, screen-reader names) All app and compact-mantine; no API change. The analysis
-   card's "Run" is named "Run <analysis>" (aria-label; landed inside d7781a87d, whose author's
-   commit took my staged-by-nobody hunk from the shared file). The read-the-file page's footer is a
-   `section` named by the model strip (`aria-labelledby` dp-model, "volunteers: 24 nodes, 63
-   edges"), so `--read` from Load hears the counts. The value picker's fold says why while folded
-   ("5 attributes, hidden, holds text, not groups or amounts (3), ..., Show why"; `foldWhy` counts
-   each refusal's words) and "shown, Hide them" when open; its groups were already named
-   (`role=group` aria-label in QuickActions; real.mjs reads only the highlighted option, not its
-   group). A bound pill's name ends with each group's color ("Node color: kind, 3 groups, ...:
-   person orange, company blue, agency green", `groupWords`, cap as the chits, "and N more"); the
-   description keeps only notes and a ramp's ends. Key: a merged section's fieldset takes no name
-   (its one row says it), a titled one keeps the name and hides its visible title; a key chip has a
-   Tooltip with its color word. compact-mantine `InfoCircle` shows its name ("About Degree") as a
-   hover-only tooltip on top (a focus tooltip ate the Escape that closes the bubble: 4 tests).
-   Tests: `workspace/__tests__/ScreenReaderNames.real-element` (3), DataPage "puts Load in a
-   region", ValuePicker fold, InfoCircle "tooltip on hover" (fails without). Walks
-   `design/ui/studio/tmp/r1-dry3-screen-reader-names/w1` (sr: 15 read, 19 Run Degree), `w2` (12 key
-   tooltip, 16 picker, 20 About Degree), `w3` (08 Poster key, one name).
+0. (2026-10-18, keyboard stops and Escape) App and compact-mantine, no API change. A full section
+   "+" has `tabIndex -1` (Section.tsx; tooltip and description keep the reason). Escape in the
+   inspector is kept from Clear selection only in a field (`FIELD` selector in useCommandKeys.ts:
+   inputs, lists, check boxes, sliders); heading, tabs and buttons clear. Escape in the table grid
+   focuses `[data-command="table.toggle"]` (`leaveGrid` in TableDock; CommandTool now writes
+   `data-command`). Tab out of Filter analyses takes the first Tab stop after the opener's
+   toolbar in page order (the opener was no Tab stop when Table held the roving stop, so
+   `indexOf` gave -1 and Main menu). compact-mantine `tooltipPlacement.ts`: a tree row's own
+   words (`.cm-tree-name/-count/-description`) weigh x10 for a control inside the row, so the
+   caret's tooltip opens below. The caret's hit box was already 24 x 32, and the dimmed "Style
+   nodes" tooltip already showed on hover (both confirmed in the walk). Tests:
+   `frame/__tests__/KeyboardStopsEscape.real-element` (5; 3 fail without), Tree.browser "caret's
+   tooltip clear of the row's own name" (fails without); updated FocusAndTabOrder and
+   KeysLeaveNothingOpen to the new calls. Walk `design/ui/studio/tmp/r1-dry3-keyboard-stops-escape/w1`
+   (02 caret tooltip below, 04 click 11 px off the glyph expands, 07 Style nodes reason, 09 Tab from
+   Text "+" to the Color box, 11 Escape in grid on Table, 13 Tab from "deg" past the toolbar, 16
+   Escape on heading "24" clears).
+   0b. (2026-10-18, screen-reader names) "Run <analysis>", Load's region, the fold's why, group
+   colors in a bound pill's name, InfoCircle hover tooltip: in full in
+   `git show d714c8530:design/ui/studio/notes/engineer.md`, Top of mind 0.
 1. (2026-10-18, summaries and the Data place) True attribute summaries, Data place second lines,
    category and text glyphs, "Select only N nodes": in full in
    `git show 10800b21b:design/ui/studio/notes/engineer.md`, Top of mind 0.
@@ -56,39 +58,39 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 5. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
    two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
 6. Earlier 2026-10-18 entries (keys and focus, filter steps, layer panel words): `git show 28e989215:design/ui/studio/notes/engineer.md` and `6d312090c`.
-7. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+   Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -97,6 +99,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **A dead stop leaves the Tab order; a dimmed command stays.** A full "+" adds
+  nothing and its lines are their own stops; Undo with nothing to undo is still the command the
+  reader looks for. Reverses the earlier "every + is a Tab stop" call (tests updated).
+- (2026-10-18) **Escape clears the selection in the inspector except in a field.** The canvas
+  menu promises "Clear selection Escape"; a heading or a button holds nothing Escape could undo.
+- (2026-10-18) **The next stop is found by page order from the opener's toolbar,** not by the
+  opener's index among Tab stops: a roving toolbar has one stop, which may be another tool.
+- (2026-10-18) **The caret's tooltip is fixed in placement, not given a fixed side.** Every side
+  covers something in a tree; weighting the row's own words generalizes the own-heading rule.
 - (2026-10-18) **Group colors go in a bound pill's name, not its description.** The study tool
   and many screen readers read a description late or not at all, and the chits are not controls;
   the name is what Tab lands on. Order is facts then groups so `^... colors$`-style names became
@@ -200,101 +211,21 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
-- (2026-10-18) Swapping HEAD copies of shared files in to prove a test fails is unsafe when other
-  agents are editing them (AnalyzePopover and PropertyRow both changed under me in minutes); prove
-  failures only on files nobody else touches, or reason from the old name. A Tooltip with
-  `events.focus` inside `Popout.Trigger` stopped Escape reaching `useEscapeKey` (the open tooltip
-  stops it; `hasOpenTooltip` saw the bubble id, not the tooltip's): hover-only fixed it.
-- (2026-10-18) Seen, not mine (failing with others' uncommitted Section/WhichPicker work in the
-  tree): VaryByLayer "+" menu tests (no menuitem Shape/Size), PropertyRows locked-layer Tab and '='
-  in Size, DataPage "draws every sample row" (two "All 12 rows"), CanvasOverlays T8 "Show anyway",
-  VaryByLayer "+33 vs +35" chits and color picker Escape.
-
-- (2026-10-18) Proving a test fails by copying HEAD over shared files (PropertyRow, WhichPicker)
-  for one run: worked, but another agent committed my WhichPicker hunk in 9f8c35c76 meanwhile, and
-  restoring my copy could have dropped an edit made in that minute. For a shared file, remove only
-  my hunk by string replacement and put it back the same way. Playwright refuses `userEvent.click`
-  on an `aria-disabled` control until forced (`{ force: true }`); a findByRole for a tooltip needs
-  a guard past the theme's 1 s open delay. Seen, not mine: LayerPanelBehavior "takes an attribute
-  of the other kind" times out at HEAD's test too; StylePanel.real-element three ValuePicker cases
-  (the id column now listed once as "Node id").
-- (2026-10-18) Seen, not mine, with others' uncommitted edits in the worktree: 15 style
-  real-element tests (ColorBox, PropertyRows 3, OneLineRows, RowKinds 2, StylePanel 3, Groups,
-  LayerPanelWords, BindingPopover Louvain, BulkPilot 2) fail with my focus change switched off too.
-  Older "seen, not mine" lists: `git show bdd01700e:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) Worked: a document `focusin` listener logging `new Error().stack` in a failing test
-  names who moved focus (here `rescue` in frame/focus.ts), faster than reading the hooks.
-- (2026-10-18) Seen, not mine: an edge Width of 3 drew the edges dashed in the walk
-  (`r1-dry3-style-line-focus/w1/13.png`); `ConditionCardKeys.real-element` imports a
-  `LayerSelector` the element does not export, which stops `tsc` (another agent's file), so the
-  walk build used `vite build` alone.
-- (2026-10-18) Closing a pop-out from an input's Enter keydown: the close focuses the trigger
-  first, and without `preventDefault()` the same Enter activates that button and reopens the
-  pop-out. The test caught it (panel still in the document). WORKED after preventDefault.
-- (2026-10-18) Reading a pilot screenshot as "labels overlap" was wrong twice: cropped and
-  enlarged, Magnon / Mme Thenardier and Lucy Grant / "name" were a label over another node and a
-  neighbor's label on the ring. Crop before naming the mechanism. Measuring label rectangles from
-  a billboard's world AABB (`boundingBox.vectorsWorld`) overstates them in perspective; project
-  the plane's four corners through `getWorldMatrix()` instead, and a sphere's radius is its box's
-  half-extent, not `boundingSphere.radiusWorld` (the box's half-diagonal).
-- (2026-10-18) A Playwright probe of the served build with in-page `element.graph` reads
-  (`design/ui/studio/tmp/r1-dry3-labels-on-drawing/probe.mjs`, run through `with-browser.sh`,
-  REAL_DIST, SIZE=96) reproduced the pilot picture exactly and gave counts and passes per step.
-  WORKED; faster than a real.mjs walk for a mechanism.
-- (2026-10-18) Measuring the pilot screenshot first found the mechanism at once: the karate
-  drawing's center sat at x 905 = 297 + (L + 903) / 2, so L = 313, the key room plus gap, on a
-  canvas with no key. Measure the offset against the inset before suspecting the layout or the
-  element's framing. In real-element tests the toolbar's bottom inset makes `viewInsets` never
-  `{}`: wait on `left ?? top`, not on a non-empty object.
-- (2026-10-18) `real.mjs --hover-at` on build 6d312090c showed Hovered 0 over Valjean while my own
-  Playwright walk read `session.selection.hovered === "Valjean"`: the element hovered, the app's
-  count was stale. Check the session before blaming the element. An app test that hovers a node
-  right after a sample opens must `waitForStableFrame()` first: the camera is still framing the
-  graph and `nodeScreenPosition` moves under the pointer.
-- (2026-10-18) `contains(name, 'Acciaiuoli')` as the example: refused at the comma when typed
-  (walk s3/10.png). `name == 'Acciaiuoli'` selects the one node (s4/08.png).
-- (2026-10-18) GraphPlace.test renders the place with no panel height, so a list sized to its room
-  never scrolled: the test now renders it in a 600 px panel, as the workspace does.
-- (2026-10-18) Done on a new empty layer and Remove node color already land on the Which row and
-  Fill "+" in the current source (tests and the s1/s2 walk); the frozen build's misses came from
-  the picker staying open while other rows were edited, which closing on focus leave now prevents.
-  real.mjs `--read` now walks out of a shadow root (the canvas) to its host's landmark.
-- (2026-10-18) Earlier "seen, not mine" lists (ConditionCards `chipCount`, NamesAndRules, FocusAfterAdding, tasks "Deleted Louvain"): `git show ef2f796ee:design/ui/studio/notes/engineer.md`.
-- (2026-10-18) A card's text box lists matches once something is typed (an empty box opened all 77
-  names over the cards); the list covers Done, so Escape closes it first, then the picker.
-- (2026-10-18) A card's text box now has a value list, so Enter on a highlighted value would also
-  have run the picker's Done; `isDoneKey` skips an Enter the list already handled
-  (`event.defaultPrevented`).
-- (2026-10-18) Another agent staged deletions in the shared index between my check and my
-  commit; the commit (failed on a long body line, luckily) would have carried them. Commit from a
-  private index instead: `GIT_INDEX_FILE=<tmp>/index git read-tree HEAD`, `update-index
---cacheinfo` my blobs, commit with the hooks. WORKED (6bef23d3b), leaves their staging alone.
-  commitlint also caps body lines at 100 characters.
-
-- (2026-10-18) Staging only my hunks of a file another agent edits: write the file with my edits
-  reversed (O), `git merge-file -p <HEAD copy> O <working file>`, then `hash-object -w` and
-  `update-index --cacheinfo` into a private index. WORKED.
-- Six entries of 2026-10-18 (a glyph grid's arrows in the study tool, tests seen failing that were
-  others', vite re-optimizing mid-run, a style run with three agents editing) are in full in
-  `git show 6fbf1615b:design/ui/studio/notes/engineer.md`.
-- Four entries of 2026-10-18 (landing the frozen build's source, T7/T8 lookups, the r1-3-01 walk,
-  re-optimized vite deps on a first run) are in full in `git show bffcbc76d:design/ui/studio/notes/engineer.md`.
-
-- Five entries of 2026-10-18 (compact-mantine's failing-at-HEAD tests, nx refusing while
-  `compact-mantine-headproof/` exists so build with `npm run build` per package, `waitForSettled()`
-  before the layout rests, find-box quoting) are in full in
-  `git show 204af3158:design/ui/studio/notes/engineer.md`.
-
-- Older entries (2026-10-06 to 2026-10-18, the dry runs' walks and test runs) are in full in
-  `git show 6dd52bfa1:design/ui/studio/notes/engineer.md`.
-
-- (2026-10-18) Found, not fixed: graphty-element `real-input.test.ts` "three wheel turns out in 3d
-  zoom out as far as three turns in zoom in" fails every run (start/out 1.4045 vs in/start
-  1.4366, tolerance 0.01); the 2D case and the three-out-undo-three-in check pass. Zoom to the
-  pointer in 3D moves the orbit target toward the pointer, and on-screen spread is not inversely
-  proportional to camera distance for nodes off the target's depth, so a further three notches
-  out from the start do not mirror three in. No camera code changed since 4e7c5cddd, which added
-  the test; needs its own unit.
+- (2026-10-18) A tooltip test failed only in a full file run: `findByRole("tooltip")` waits 1 s by
+  default, the theme's open delay is 1 s, so it raced. Give it the hang guard. WORKED.
+- (2026-10-18) Seen, not mine (fail on HEAD's sources too): KeysLeaveNothingOpen "Tab from a
+  card's value reaches the card's remove button" (the remove moved after the header in 9f8c35c76)
+  and FocusAndTabOrder "Tab out of the Vary by list" (focus returns to "Node size by attribute").
+  `UnsetLine.real-element` (untracked, another agent) stops graphty `tsc`; walk build used
+  `vite build`. "Done on a new layer" failed once on the first, cold run of two files (13.8 s,
+  message lost) and passed on four warm runs, mine and HEAD's.
+- (2026-10-18) Proving failure by copying HEAD over my four files for one `-t` run, then copying
+  back, WORKED; check `git diff --stat` after, since another agent committed TableDock meanwhile.
+- (2026-10-18) Worked: a document `focusin` listener logging `new Error().stack` names who moved
+  focus. Staging only my hunks of a shared file: `git merge-file` into a private index (details
+  and every older entry: `git show d714c8530:design/ui/studio/notes/engineer.md`, "Tried").
+- (2026-10-18) Found, not fixed: graphty-element `real-input.test.ts` 3D wheel zoom-out symmetry
+  fails every run (1.4045 vs 1.4366); needs its own unit.
 
 ## Sources
 

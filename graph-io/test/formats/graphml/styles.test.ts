@@ -132,6 +132,15 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ffcc00"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
+        expect(bare.styles.styles.graph.background).toBeUndefined();
+    });
+
+    it("paints a yEd file white, as yEd's canvas does: the file holds no background", async () => {
+        const { styles } = await load(
+            `${YED_HEAD}<node id="a"><data key="d6"><y:ShapeNode><y:Fill color="#FF0000"/></y:ShapeNode></data></node></graph></graphml>`,
+        );
+        expect(styles.styles.source.tool).toBe("yed");
+        expect(styles.styles.graph.background).toBe("#ffffff");
     });
 
     it("draws yEd's flowchart GenericNodes as the shapes yEd draws, matching the name whole", async () => {
@@ -189,7 +198,7 @@ describe("GraphML styles: yFiles 3", () => {
 });
 
 describe("GraphML styles: Gephi, Cytoscape and other writers", () => {
-    it("reads Gephi's r, g, b and size keys with Gephi's defaults and the source node's color on edges", async () => {
+    it("reads Gephi's r, g, b and size keys with Gephi's defaults and the mixed node colors on edges", async () => {
         const { snapshot, styles } = await load(
             corpusBytes(join(CORPUS, "gephi-rgb/nielmclaren__constellation.js__data.graphml")),
         );
@@ -200,10 +209,8 @@ describe("GraphML styles: Gephi, Cytoscape and other writers", () => {
         const b = snapshot.nodes.value("b", 0) as number;
         const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
         expect(resolveStyles(styles, "node", "fill", snapshot)[0]).toBe(hex);
-        expect(resolveStyles(styles, "edge", "color", snapshot)[0]).toBe(
-            resolveStyles(styles, "node", "fill", snapshot)[snapshot.edgeSource(0)],
-        );
-        expect(styles.styles.rules.some((r2) => r2.facts?.reason === "SOURCE_NODE_COLOR")).toBe(true);
+        expect(styles.styles.rules.some((r2) => r2.facts?.reason === "END_NODES_COLOR")).toBe(true);
+        expect(resolveStyles(styles, "edge", "curved", snapshot)[0]).toBe(true);
     });
 
     it("gives Cytoscape's export Cytoscape's default style, nodes labeled by name", async () => {

@@ -1,5 +1,7 @@
 # SonarQube as a local pre-push gate
 
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
 How graphty-monorepo uses the owner's SonarQube server: a pre-push step that blocks only the
 problems a push introduces, a background job that keeps master's analysis current, and a staged
 plan that burns the existing backlog down without ever blocking feature work.

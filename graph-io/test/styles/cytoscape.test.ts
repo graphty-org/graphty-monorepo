@@ -880,6 +880,56 @@ describe("emit then translate returns the same rules", () => {
         }
     });
 
+    it("notes a passthrough of fractions to a whole-number visual property, which Cytoscape draws rounded", async () => {
+        const b = new GraphBuilder({ directed: true });
+        const size = b.declareNodeColumn({ name: "size", dtype: "f64" });
+        const whole = b.declareNodeColumn({ name: "whole", dtype: "f64" });
+        const sizes = [10, 12.5, 14, 17.25];
+        for (const [i, v] of sizes.entries()) {
+            const n = b.addNode(i + 1);
+            b.setNodeValue(size, n, v);
+            b.setNodeValue(whole, n, Math.round(v));
+        }
+        const s = b.freeze();
+        const styles = (labelBy: string, widthBy: string): ExtractedStyles =>
+            extracted(s, [
+                {
+                    id: "r",
+                    target: "node",
+                    role: "mapping",
+                    origin: "declared",
+                    where: { all: true },
+                    map: {
+                        labelSize: { kind: "passthrough", by: { data: labelBy } },
+                        width: { kind: "passthrough", by: { data: widthBy } },
+                    },
+                },
+            ]);
+        const approximated = (notes: readonly { code: string; style?: { property: string }; count: number | null }[]) =>
+            notes
+                .filter((n) => n.code === "W_STYLE_APPROXIMATED")
+                .map((n) => `${String(n.style?.property)} ${String(n.count)}`);
+        const registry = createRegistry();
+        for (const format of ["cys", "cx", "cx2", "xgmml"] as const) {
+            // 12.5 and 17.25 draw as 13 and 17; a width holds fractions, and a whole column has none to round
+            const fractional = styles("size", "size");
+            expect([format, approximated(registry.checkExport(s, format, { styles: fractional }))]).toEqual([
+                format,
+                ["labelSize 2"],
+            ]);
+            expect([
+                format,
+                approximated(registry.checkExport(s, format, { styles: styles("whole", "size") })),
+            ]).toEqual([format, []]);
+            // the file holds the column's values as they are, so reading it back gives them unchanged
+            const bytes = await registry.exportGraphToBytes(s, format, { styles: fractional });
+            const back = await registry.importGraph(bytes, { format, styles: true });
+            expect([format, resolveStyles(back.styles as ExtractedStyles, "node", "labelSize", back.snapshot)]).toEqual(
+                [format, sizes],
+            );
+        }
+    });
+
     it("writes another program's shape as its nearest Cytoscape shape, and Cytoscape's own other values as they are", () => {
         const s = graph(3, rng(1));
         const ex = extracted(s, [

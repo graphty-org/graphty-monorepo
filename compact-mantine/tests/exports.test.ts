@@ -310,6 +310,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "compactColors",
     "compactDarkColors",
     "compactGlobalCss",
+    "compactGraphtyColors",
     "compactTheme",
     "compactThemeOverride",
     "createCompactTheme",
@@ -1055,7 +1056,12 @@ describe("Package exports", () => {
             expect(mainExports.createCompactTheme).toBe(themeExports.createCompactTheme);
             expect(mainExports.createCompactTheme({ highContrast: true }).other?.compact).toEqual({
                 highContrast: true,
+                accent: "figma",
             });
+            expect(mainExports.compactGlobalCss({ accent: "graphty" })).toContain(
+                "--cm-bg-brand: light-dark(#97c800, #c4f23a);",
+            );
+            expect(mainExports.compactGraphtyColors[6]).toBe("#97c800");
             expect(mainExports.compactGlobalCss()).toContain("--cm-bg:");
             expect(mainExports.compactGlobalCss()).toContain(".cm-toolbar");
             expect(typeof mainExports.ensureCompactStyles).toBe("function");

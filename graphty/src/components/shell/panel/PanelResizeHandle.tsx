@@ -131,7 +131,7 @@ export function PanelResizeHandle(props: PanelResizeHandleProps): React.JSX.Elem
                 // The panel's own 1px border is the drawn rule; the strip is the
                 // target around it, and the focus ring is what makes it visible
                 // to the keyboard.
-                outlineColor: PANEL_INK.ACCENT,
+                outlineColor: PANEL_INK.FOCUS,
                 touchAction: "none",
             }}
         />

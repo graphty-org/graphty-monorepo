@@ -49,6 +49,39 @@ export type ToolDerivedDefault =
           readonly source: string;
       }
     | {
+          /**
+           * An edge with no color of its own takes the mean of its two nodes' colors, each channel rounded down
+           * (Gephi Preview's "mixed" edge color).
+           */
+          readonly kind: "colorFromEndNodes";
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
+          /**
+           * A node with no border of its own gets a border of its fill with each channel times `darken`, `widthFactor`
+           * times its width wide (Gephi Preview's "darker" border, scaled with the node).
+           */
+          readonly kind: "borderFromFill";
+          /** What each color channel of the fill is multiplied by. */
+          readonly darken: number;
+          /** The border's width as a share of the node's width. */
+          readonly widthFactor: number;
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
+          /**
+           * A node with no label size of its own gets a label size of its width times `factor` (Gephi Preview's
+           * proportional label size).
+           */
+          readonly kind: "labelSizeFromWidth";
+          /** The label size per unit of the node's width. */
+          readonly factor: number;
+          /** Where the default is stated. */
+          readonly source: string;
+      }
+    | {
           /** An edge with no width of its own is drawn as thick as its weight (1 for an edge with no weight, or a weight of 0 or below). */
           readonly kind: "widthFromWeight";
           /** Where the default is stated. */
@@ -101,11 +134,16 @@ const GV = "graphviz.org/docs/attrs";
 const YED_QA = "yEd Q&A, How can I change the default nodes and/or default edges";
 const YED_CORPUS = "yEd GraphML corpus, most frequent value";
 const YED_EDGE = "yFiles for Java 2.19 EdgeRealizer API docs";
+const YED_BG = "yFiles for Java 2.19 DefaultBackgroundRenderer API docs";
 const Y3 = "yFiles for HTML API docs,";
 const GEPHI = "gephi master 92e503df61a7";
 const VIS = "vis-network 10.1.2 vis-network.esm.js";
 const SIGMA = "sigma 3.0.3 packages/sigma/src";
+const GEXFJS = "github.com/raphv/gexf-js ebfd2a7213d3 js/gexfjs.js";
 const PAJEK = "Pajek 6.02 reference manual";
+const PAJEK_SHAPES =
+    "the SHAPES.CFG Pajek writes when none exists (DrawEPS.htm), " +
+    "github.com/ohshane/radical-clustering 0f568f67893558035868b3db1bf365870ba52f6b shapes.cfg, SHAPE ELLIPSE";
 const OGDF = "ogdf master 1a40505ac006";
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 
@@ -297,7 +335,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelFont: v("Dialog", `${YED_CORPUS} of y:EdgeLabel`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
                 },
-                graph: {},
+                graph: {
+                    background: v(
+                        "#ffffff",
+                        `${YED_BG} (setColor: "By default the background color is white"); yEd manual, Preferences, Background tab`,
+                    ),
+                },
                 derived: [],
             },
             {
@@ -334,20 +377,64 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
                     height: v(10, `${GEPHI} AbstractProcessor.java lines 195-198`),
                     shape: v("ellipse", "GEXF 1.3 viz shape default disc; Preview NodeRenderer"),
+                    opacity: v(1, `${GEPHI} DefaultPreset.java line 87 (NODE_OPACITY 100)`),
+                    // Preview hides labels (DefaultPreset.java line 106) and so does the Overview (VizConfig.java
+                    // line 113); graph-io shows them as sigma.js and gexf-js do (see formats/gexf/styles.ts), in
+                    // the color and font Gephi gives a label it shows
+                    labelColor: v("#000000", `${GEPHI} DefaultPreset.java line 91 (DependantOriginalColor(BLACK))`),
+                    labelFont: v("Arial", `${GEPHI} DefaultPreset.java line 93 (Arial plain 12)`),
+                    // the size of a size-10 node's label; Preview scales it with the node (labelSizeFromWidth below)
+                    labelSize: v(12, `${GEPHI} DefaultPreset.java line 93 (Arial plain 12)`),
                     labelPosition: v(
                         "center",
                         `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,
                     ),
                 },
                 edge: {
+                    curved: v(
+                        true,
+                        `${GEPHI} DefaultPreset.java line 66 (EDGE_CURVED true); EdgeRenderer.java line 117`,
+                    ),
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
                     targetArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),
+                    // the vocabulary's 1 is the tool's normal arrow: Preview's ARROW_SIZE 3, drawn 3 times the edge's
+                    // weight long, as Cytoscape.js's arrow-scale 1 scales with the edge's width
+                    arrowSize: v(
+                        1,
+                        `${GEPHI} DefaultPreset.java line 62 (ARROW_SIZE 3); EdgeRenderer.java lines 255-256 (times the weight)`,
+                    ),
+                    opacity: v(1, `${GEPHI} DefaultPreset.java line 71 (EDGE_OPACITY 100)`),
                 },
                 graph: { background: v("#ffffff", `${GEPHI} VizConfig.java line 111`) },
                 derived: [
                     {
-                        kind: "colorFromSourceNode",
-                        source: `${GEPHI} VizConfig.java line 119 (EdgeColorMode.SOURCE)`,
+                        kind: "labelFromColumn",
+                        column: "label",
+                        source: `${SIGMA}/settings.ts lines 119-126 (renderLabels); ${GEXFJS} lines 1019-1040`,
+                    },
+                    {
+                        kind: "colorFromEndNodes",
+                        source:
+                            `${GEPHI} DefaultPreset.java line 65 (EdgeColor.Mode.MIXED); ` +
+                            "PreviewAPI types/EdgeColor.java lines 89-93",
+                    },
+                    {
+                        kind: "borderFromFill",
+                        darken: 0.498,
+                        widthFactor: 0.08,
+                        source:
+                            `${GEPHI} DefaultPreset.java lines 84, 86 (DependantColor DARKER, NODE_BORDER_FIXED false); ` +
+                            "PreviewAPI types/DependantColor.java lines 55, 85-86; Utils ColorUtils.java lines 22-34; " +
+                            "PreviewPlugin renderers/SizeUtils.java lines 11, 33-38 (0.16 x size / 2 of a node drawn " +
+                            "size x 2 wide, builders/NodeBuilder.java line 65)",
+                    },
+                    {
+                        kind: "labelSizeFromWidth",
+                        factor: 1.2,
+                        source:
+                            `${GEPHI} DefaultPreset.java lines 93, 98 (Arial 12, NODE_LABEL_PROPORTIONAL_SIZE true); ` +
+                            "PreviewPlugin renderers/NodeLabelRenderer.java lines 165-173 (12 x the node drawn size x 2 " +
+                            "wide x 0.05, builders/NodeBuilder.java line 65)",
                     },
                     {
                         kind: "widthFromWeight",
@@ -421,9 +508,14 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     opacity: v(1, `${PAJEK} p. 87`),
                     borderColor: v("#000000", `${PAJEK}, vertex parameter bc (default Black)`),
                     borderWidth: v(0.2, `${PAJEK}, vertex parameter bw (default 1, against the default vertex size 5)`),
+                    labelColor: v("#000000", `${PAJEK_SHAPES} (lc Black)`),
+                    labelPosition: v("center", `${PAJEK_SHAPES} (lr 0); ${PAJEK} p. 85 (radius 0 is centered)`),
                 },
                 edge: {
                     color: v("#000000", `${PAJEK} p. 90`),
+                    // No line width: Pajek's w is read as the file has it, not as a factor of the vertex size as bw is,
+                    // so a default of 1 here, with no vertex size in the file, became the length every other length
+                    // of the drawing was scaled by, and a border 0.2 wide was drawn far too thin to see.
                     lineStyle: v("solid", `${PAJEK} p. 90`),
                     opacity: v(1, `${PAJEK} p. 87`),
                     sourceArrow: v("none", `${PAJEK} p. 91`),

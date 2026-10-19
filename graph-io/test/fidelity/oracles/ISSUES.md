@@ -901,7 +901,9 @@ defects, open:
   where the oracle shows none (`edge.arrow`), and every curve tail is routed differently (`edge.route`); the half
   arrows `olnormal` and `ornormal` are filled in graphty and hollow in Graphviz (`dot-specimen-arrows`,
   `edge.arrowFill`); the two parallel edges under `splines=polyline` take other routes (`dot-specimen-edges-lines-p3`,
-  `edge.route`); and the raster edge region falls under `splines=curved`, `ortho` and `none` (`raster.edge` on
+  `edge.route`); the outline of `color=red:blue` (`dot-specimen-node-fills-borders-p2` `border-color-list`), of
+  `shape=underline` (`dot-specimen-node-shapes`) and of `peripheries=0` on a box and a circle
+  (`dot-specimen-node-shapes-p2`) differs from Graphviz's (`node.stroke`); and the raster edge region falls under `splines=curved`, `ortho` and `none` (`raster.edge` on
   `dot-specimen-edges-lines-p4`, `-p5`, `-p7`). Their floors were recorded while the nodes were drawn at 1/72 of their
   size and meant nothing; they stay below them until fixed.
 

@@ -333,6 +333,16 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["outline-width", { property: "outerBorderWidth", type: "size" }],
     ["outline-style", { property: "outerBorderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
     ["outline-offset", { property: "outerBorderOffset", type: "size" }],
+    ["underlay-color", { property: "underlayColor", type: "color" }],
+    ["underlay-opacity", { property: "underlayOpacity", type: "zeroOne" }],
+    ["underlay-padding", { property: "underlayPadding", type: "size" }],
+    ["underlay-shape", { property: "underlayShape", type: "enum", enums: NODE_SHAPES }],
+    ["underlay-corner-radius", { property: "underlayCornerRadius", type: "size" }],
+    ["overlay-color", { property: "overlayColor", type: "color" }],
+    ["overlay-opacity", { property: "overlayOpacity", type: "zeroOne" }],
+    ["overlay-padding", { property: "overlayPadding", type: "size" }],
+    ["overlay-shape", { property: "overlayShape", type: "enum", enums: NODE_SHAPES }],
+    ["overlay-corner-radius", { property: "overlayCornerRadius", type: "size" }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],
     ["shape-polygon-points", { property: "shapePoints", type: "text" }],
     ["corner-radius", { property: "cornerRadius", type: "size" }],
@@ -362,6 +372,12 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["line-gradient-stop-colors", { property: "gradientColors", type: "text" }],
     ["line-gradient-stop-positions", { property: "gradientStops", type: "text" }],
     ["line-outline-color", { property: "outlineColor", type: "color" }],
+    ["underlay-color", { property: "underlayColor", type: "color" }],
+    ["underlay-opacity", { property: "underlayOpacity", type: "zeroOne" }],
+    ["underlay-padding", { property: "underlayPadding", type: "size" }],
+    ["overlay-color", { property: "overlayColor", type: "color" }],
+    ["overlay-opacity", { property: "overlayOpacity", type: "zeroOne" }],
+    ["overlay-padding", { property: "overlayPadding", type: "size" }],
     ["target-arrow-shape", { property: "targetArrow", type: "enum", enums: ARROWS }],
     ["source-arrow-shape", { property: "sourceArrow", type: "enum", enums: ARROWS }],
     ["target-arrow-color", { property: "targetArrowColor", type: "color" }],
@@ -1073,6 +1089,9 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
             return !STRAIGHT.has(String(word));
         case "shapePoints":
             return cyjsPointsToNeutral(String(word)) ?? undefined;
+        case "underlayShape":
+        case "overlayShape":
+            return canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined;
         case "shape": {
             const polygon = String(word).toLowerCase();
             if (polygon === "polygon") {

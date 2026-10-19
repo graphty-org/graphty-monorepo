@@ -213,6 +213,29 @@ export interface NodeStyleValues {
      * `outline-offset` out, so that is what is read.
      */
     readonly outerBorderOffset: number;
+    /**
+     * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
+     * `underlay-*`); drawn only with an `underlayOpacity` above 0.
+     */
+    readonly underlayColor: StyleColor;
+    /** The opacity of the underlay, 0..1; 0 draws none. */
+    readonly underlayOpacity: number;
+    /** How far beyond the node's box the underlay reaches on every side (a length). */
+    readonly underlayPadding: number;
+    /** The underlay's shape; absent, the node's own. */
+    readonly underlayShape: StyleNodeShape;
+    /** The largest radius of a rounded underlay's corners (a length). */
+    readonly underlayCornerRadius: number;
+    /** The color of the same filled shape drawn over the node (Cytoscape.js `overlay-*`). */
+    readonly overlayColor: StyleColor;
+    /** The opacity of the overlay, 0..1; 0 draws none. */
+    readonly overlayOpacity: number;
+    /** How far beyond the node's box the overlay reaches on every side (a length). */
+    readonly overlayPadding: number;
+    /** The overlay's shape; absent, the node's own. */
+    readonly overlayShape: StyleNodeShape;
+    /** The largest radius of a rounded overlay's corners (a length). */
+    readonly overlayCornerRadius: number;
     /** The label text, as the tool draws it. */
     readonly label: string;
     /** The tooltip text. */
@@ -336,6 +359,21 @@ export interface EdgeStyleValues {
     readonly outlineColor: StyleColor;
     /** The opacity of that band, 0..1. */
     readonly outlineOpacity: number;
+    /**
+     * The color of a band drawn beneath the line along its whole length, `underlayPadding` either side of the line's
+     * middle whatever its width (Cytoscape.js `underlay-*`); drawn only with an `underlayOpacity` above 0.
+     */
+    readonly underlayColor: StyleColor;
+    /** The opacity of that band, 0..1; 0 draws none. */
+    readonly underlayOpacity: number;
+    /** How far either side of the line's middle the band reaches (a length). */
+    readonly underlayPadding: number;
+    /** The color of the same band drawn over the line (Cytoscape.js `overlay-*`). */
+    readonly overlayColor: StyleColor;
+    /** The opacity of the band over the line, 0..1; 0 draws none. */
+    readonly overlayOpacity: number;
+    /** How far either side of the line's middle the band over it reaches (a length). */
+    readonly overlayPadding: number;
     /**
      * The colors a line painted in a gradient runs through, `#rrggbb` separated by spaces (Cytoscape.js
      * `line-gradient-stop-colors`); see `gradientKind`.

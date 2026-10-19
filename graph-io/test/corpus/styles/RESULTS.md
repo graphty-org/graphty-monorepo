@@ -49,59 +49,59 @@ Tool values are elements drawn with the writing program's default.
 | cx2/ndex-a2d9d91b-b1dc-11ec-b3be-0ac135e8bacf.cx2.gz | ok | 468 | 1713 | 4 | 3 | 1866 | 0% | 0% | 0 | 2649 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx2.gz | ok | 2207 | 2282 | 1 | 2 | 0 | - | - | 0 | 71511 | 0 |  |
 | cx2/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx2 | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 1937 | 0 | W_STYLE_NOT_CARRIED |
-| cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 45000 | 0 |  |
-| cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 13 | 7 | 776 | 0% | 0% | 0 | 10592 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 775 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2375 | 0% | 0% | 0 | 9210 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2452 | 0% | 0% | 0 | 9199 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 11 | 1 | 236 | 0% | 0% | 0 | 6414 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 97 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 236 | 0% | 0% | 0 | 6403 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-only-40.cyjs | ok | 400 | 0 | 15 | 1 | 237 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-only-5.cyjs | ok | 400 | 0 | 6 | 1 | 209 | 0% | 0% | 0 | 6452 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-only-80.cyjs | ok | 400 | 0 | 15 | 1 | 192 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-plus-10.cyjs | ok | 400 | 0 | 11 | 1 | 665 | 0% | 0% | 0 | 5675 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-plus-160.cyjs | ok | 400 | 0 | 15 | 1 | 692 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-plus-20.cyjs | ok | 400 | 0 | 15 | 1 | 659 | 0% | 0% | 0 | 5627 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-plus-40.cyjs | ok | 400 | 0 | 15 | 1 | 623 | 0% | 0% | 0 | 5605 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-plus-5.cyjs | ok | 400 | 0 | 6 | 1 | 558 | 0% | 0% | 0 | 5807 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv4/opacity-plus-80.cyjs | ok | 400 | 0 | 15 | 1 | 521 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/all-30.cyjs | ok | 400 | 0 | 15 | 1 | 1081 | 0% | 0% | 0 | 4199 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/all-300.cyjs | ok | 400 | 0 | 15 | 1 | 1151 | 0% | 0% | 0 | 4000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-30.cyjs | ok | 400 | 0 | 15 | 1 | 283 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-300.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-bc-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-bc-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-bg-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-bg-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-col-fs-30.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-col-fs-300.cyjs | ok | 400 | 0 | 15 | 1 | 250 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-lab-30.cyjs | ok | 400 | 0 | 15 | 1 | 176 | 0% | 0% | 0 | 6406 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-lab-300.cyjs | ok | 400 | 0 | 15 | 1 | 257 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-shape-30.cyjs | ok | 400 | 0 | 15 | 1 | 278 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-shape-300.cyjs | ok | 400 | 0 | 15 | 1 | 488 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-w-30.cyjs | ok | 400 | 0 | 15 | 1 | 403 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv5/op-w-300.cyjs | ok | 400 | 0 | 15 | 1 | 547 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/bc-then-bcbg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/bg-then-bgop.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/bg-then-bgw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/common-default-then-class.cyjs | ok | 9 | 0 | 4 | 1 | 6 | 0% | 0% | 0 | 123 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/common-size-default-then-class-color.cyjs | ok | 9 | 0 | 3 | 1 | 6 | 0% | 0% | 0 | 132 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/common-two-classes.cyjs | ok | 9 | 0 | 4 | 1 | 3 | 0% | 0% | 0 | 143 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/eq-sel.cyjs | ok | 4 | 0 | 2 | 1 | 0 | - | - | 0 | 60 | 0 |  |
-| cyjs/adv6/fo-then-fobg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/op-then-bg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/op-then-opw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/shape-then-shapebg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/size-then-sizebg-wonly.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 60 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 4 | 1 | 2 | 0% | 0% | 0 | 62 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 3 | 1 | 0 | - | - | 0 | 64 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 10008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 10008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 319 | 1% | 1% | 0 | 1611 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 5 | 23 | 43% | 43% | 0 | 2717 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
-| cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 11 | 6 | 96 | 10% | 10% | 0 | 2485 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 63000 | 0 |  |
+| cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 13 | 7 | 776 | 0% | 0% | 0 | 13992 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 1075 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2375 | 0% | 0% | 0 | 13210 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2452 | 0% | 0% | 0 | 13199 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 11 | 1 | 236 | 0% | 0% | 0 | 8814 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 97 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 236 | 0% | 0% | 0 | 8803 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-only-40.cyjs | ok | 400 | 0 | 15 | 1 | 237 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-only-5.cyjs | ok | 400 | 0 | 6 | 1 | 209 | 0% | 0% | 0 | 8852 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-only-80.cyjs | ok | 400 | 0 | 15 | 1 | 192 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-plus-10.cyjs | ok | 400 | 0 | 11 | 1 | 665 | 0% | 0% | 0 | 8075 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-plus-160.cyjs | ok | 400 | 0 | 15 | 1 | 692 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-plus-20.cyjs | ok | 400 | 0 | 15 | 1 | 659 | 0% | 0% | 0 | 8027 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-plus-40.cyjs | ok | 400 | 0 | 15 | 1 | 623 | 0% | 0% | 0 | 8005 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-plus-5.cyjs | ok | 400 | 0 | 6 | 1 | 558 | 0% | 0% | 0 | 8207 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv4/opacity-plus-80.cyjs | ok | 400 | 0 | 15 | 1 | 521 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/all-30.cyjs | ok | 400 | 0 | 15 | 1 | 1081 | 0% | 0% | 0 | 6599 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/all-300.cyjs | ok | 400 | 0 | 15 | 1 | 1151 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-30.cyjs | ok | 400 | 0 | 15 | 1 | 283 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-300.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-bc-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-bc-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-bg-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-bg-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-col-fs-30.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-col-fs-300.cyjs | ok | 400 | 0 | 15 | 1 | 250 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-lab-30.cyjs | ok | 400 | 0 | 15 | 1 | 176 | 0% | 0% | 0 | 8806 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-lab-300.cyjs | ok | 400 | 0 | 15 | 1 | 257 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-shape-30.cyjs | ok | 400 | 0 | 15 | 1 | 278 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-shape-300.cyjs | ok | 400 | 0 | 15 | 1 | 488 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-w-30.cyjs | ok | 400 | 0 | 15 | 1 | 403 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv5/op-w-300.cyjs | ok | 400 | 0 | 15 | 1 | 547 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/bc-then-bcbg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/bg-then-bgop.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/bg-then-bgw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/common-default-then-class.cyjs | ok | 9 | 0 | 4 | 1 | 6 | 0% | 0% | 0 | 177 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/common-size-default-then-class-color.cyjs | ok | 9 | 0 | 3 | 1 | 6 | 0% | 0% | 0 | 186 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/common-two-classes.cyjs | ok | 9 | 0 | 4 | 1 | 3 | 0% | 0% | 0 | 197 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/eq-sel.cyjs | ok | 4 | 0 | 2 | 1 | 0 | - | - | 0 | 84 | 0 |  |
+| cyjs/adv6/fo-then-fobg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/op-then-bg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/op-then-opw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/shape-then-shapebg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/size-then-sizebg-wonly.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 84 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 4 | 1 | 2 | 0% | 0% | 0 | 86 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 3 | 1 | 0 | - | - | 0 | 88 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 14008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 14008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 319 | 1% | 1% | 0 | 2335 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 5 | 23 | 43% | 43% | 0 | 3441 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
+| cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 11 | 6 | 96 | 10% | 10% | 0 | 3209 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 797 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/STELZL.cys | ok | 1603 | 3308 | 3 | 5 | 249 | 100% | 93% | 0 | 6514 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 1019 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
@@ -288,79 +288,79 @@ Tool values are elements drawn with the writing program's default.
 | graphml/yfiles-html/aleph-im__pyaleph__PyAleph_architecture.graphml | ok | 30 | 3 | 9 | 2 | 43 | 47% | 12% | 0 | 42 | 0 |  |
 | graphml/yfiles-html/cheind__autoregressive__wavenet-causal-padding.graphml | ok | 21 | 22 | 5 | 3 | 24 | 0% | 0% | 0 | 162 | 0 | W_STYLE_ALPHA_DROPPED |
 | graphml/yfiles-html/luizomf__design-patterns-python__State_1.graphml | ok | 4 | 13 | 3 | 5 | 2 | 100% | 0% | 0 | 56 | 0 |  |
-| json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 3 | 965 | 0% | 0% | 0 | 10312 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
-| json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 12217 | 0 |  |
-| json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 2 | 4 | 0 | - | - | 0 | 1155 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs-edge-arrows (data and stylesheet) | ok | 24 | 12 | 4 | 3 | 10 | 0% | 0% | 0 | 552 | 0 | W_STYLE_NOT_CARRIED |
-| json/cyjs-edge-arrows-data.json | ok | 24 | 12 | 1 | 2 | 0 | - | - | 0 | 648 | 0 |  |
-| json/cyjs-enrichment-map-desktop-style (data and stylesheet) | ok | 525 | 6421 | 4 | 2 | 0 | - | - | 0 | 74306 | 0 | W_STYLE_NOT_CARRIED |
-| json/cyjs-enrichment-map.networks.json.gz | ok | 525 | 6421 | 1 | 2 | 0 | - | - | 0 | 137345 | 0 |  |
+| json/cyjs-colajs (data and stylesheet) | ok | 21 | 593 | 3 | 3 | 965 | 0% | 0% | 0 | 12196 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
+| json/cyjs-colajs-data.json | ok | 21 | 593 | 1 | 2 | 0 | - | - | 0 | 14715 | 0 |  |
+| json/cyjs-cose-bilkent-compound.json | ok | 28 | 35 | 2 | 4 | 0 | - | - | 0 | 1463 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs-edge-arrows (data and stylesheet) | ok | 24 | 12 | 4 | 3 | 10 | 0% | 0% | 0 | 744 | 0 | W_STYLE_NOT_CARRIED |
+| json/cyjs-edge-arrows-data.json | ok | 24 | 12 | 1 | 2 | 0 | - | - | 0 | 840 | 0 |  |
+| json/cyjs-enrichment-map-desktop-style (data and stylesheet) | ok | 525 | 6421 | 4 | 2 | 0 | - | - | 0 | 103140 | 0 | W_STYLE_NOT_CARRIED |
+| json/cyjs-enrichment-map.networks.json.gz | ok | 525 | 6421 | 1 | 2 | 0 | - | - | 0 | 166179 | 0 |  |
 | json/cyjs-genemania-export.json | ok | 31 | 255 | 2 | 1 | 0 | - | - | 0 | 4383 | 0 |  |
-| json/cyjs-node-types (data and stylesheet) | ok | 26 | 0 | 4 | 1 | 26 | 19% | 19% | 0 | 364 | 0 | W_STYLE_UNKNOWN_VALUE |
-| json/cyjs-node-types-data.json | ok | 26 | 0 | 1 | 1 | 0 | - | - | 0 | 442 | 0 |  |
-| json/cyjs-tokyo-railways (data and stylesheet) | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 23273 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
+| json/cyjs-node-types (data and stylesheet) | ok | 26 | 0 | 4 | 1 | 26 | 19% | 19% | 0 | 520 | 0 | W_STYLE_UNKNOWN_VALUE |
+| json/cyjs-node-types-data.json | ok | 26 | 0 | 1 | 1 | 0 | - | - | 0 | 598 | 0 |  |
+| json/cyjs-tokyo-railways (data and stylesheet) | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 32371 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
 | json/cyjs-tokyo-railways.json.gz | ok | 943 | 860 | 2 | 1 | 0 | - | - | 0 | 29874 | 0 |  |
-| json/cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 45000 | 0 |  |
-| json/cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 13 | 7 | 776 | 0% | 0% | 0 | 10592 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 775 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2375 | 0% | 0% | 0 | 9210 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2452 | 0% | 0% | 0 | 9199 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 11 | 1 | 236 | 0% | 0% | 0 | 6414 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 97 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 236 | 0% | 0% | 0 | 6403 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-only-40.cyjs | ok | 400 | 0 | 15 | 1 | 237 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-only-5.cyjs | ok | 400 | 0 | 6 | 1 | 209 | 0% | 0% | 0 | 6452 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-only-80.cyjs | ok | 400 | 0 | 15 | 1 | 192 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-plus-10.cyjs | ok | 400 | 0 | 11 | 1 | 665 | 0% | 0% | 0 | 5675 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-plus-160.cyjs | ok | 400 | 0 | 15 | 1 | 692 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-plus-20.cyjs | ok | 400 | 0 | 15 | 1 | 659 | 0% | 0% | 0 | 5627 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-plus-40.cyjs | ok | 400 | 0 | 15 | 1 | 623 | 0% | 0% | 0 | 5605 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-plus-5.cyjs | ok | 400 | 0 | 6 | 1 | 558 | 0% | 0% | 0 | 5807 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv4/opacity-plus-80.cyjs | ok | 400 | 0 | 15 | 1 | 521 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/all-30.cyjs | ok | 400 | 0 | 15 | 1 | 1081 | 0% | 0% | 0 | 4199 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/all-300.cyjs | ok | 400 | 0 | 15 | 1 | 1151 | 0% | 0% | 0 | 4000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-30.cyjs | ok | 400 | 0 | 15 | 1 | 283 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-300.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-bc-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-bc-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-bg-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-bg-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-col-fs-30.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-col-fs-300.cyjs | ok | 400 | 0 | 15 | 1 | 250 | 0% | 0% | 0 | 5600 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-lab-30.cyjs | ok | 400 | 0 | 15 | 1 | 176 | 0% | 0% | 0 | 6406 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-lab-300.cyjs | ok | 400 | 0 | 15 | 1 | 257 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-shape-30.cyjs | ok | 400 | 0 | 15 | 1 | 278 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-shape-300.cyjs | ok | 400 | 0 | 15 | 1 | 488 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-w-30.cyjs | ok | 400 | 0 | 15 | 1 | 403 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv5/op-w-300.cyjs | ok | 400 | 0 | 15 | 1 | 547 | 0% | 0% | 0 | 6000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/bc-then-bcbg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/bg-then-bgop.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/bg-then-bgw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/common-default-then-class.cyjs | ok | 9 | 0 | 4 | 1 | 6 | 0% | 0% | 0 | 123 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/common-size-default-then-class-color.cyjs | ok | 9 | 0 | 3 | 1 | 6 | 0% | 0% | 0 | 132 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/common-two-classes.cyjs | ok | 9 | 0 | 4 | 1 | 3 | 0% | 0% | 0 | 143 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/eq-sel.cyjs | ok | 4 | 0 | 2 | 1 | 0 | - | - | 0 | 60 | 0 |  |
-| json/cyjs/adv6/fo-then-fobg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/op-then-bg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/op-then-opw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/shape-then-shapebg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/size-then-sizebg-wonly.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 63 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 60 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 4 | 1 | 2 | 0% | 0% | 0 | 62 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 3 | 1 | 0 | - | - | 0 | 64 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 10008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 10008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
-| json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 319 | 1% | 1% | 0 | 1611 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 5 | 23 | 43% | 43% | 0 | 2717 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
-| json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 11 | 6 | 96 | 10% | 10% | 0 | 2485 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 6965 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 3 | 1959 | 0% | 0% | 0 | 25500 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 1502 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 |59 | 0% | 0% | 0 | 2265 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 |59 | 0% | 0% | 0 | 2265 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 220 | 7% | 7% | 0 | 1282 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 23273 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
-| json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 6 | 3 | 2131 | 0% | 0% | 0 | 26352 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv/cyjs-500-classes.cyjs | ok | 3000 | 0 | 2 | 1 | 5910 | 0% | 0% | 0 | 63000 | 0 |  |
+| json/cyjs/adv/cyjs-selector-zoo.cyjs | ok | 300 | 400 | 13 | 7 | 776 | 0% | 0% | 0 | 13992 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv/cyjs-string-stylesheet.cyjs | ok | 50 | 0 | 4 | 1 | 25 | 0% | 0% | 0 | 1075 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv3/cyjs-overlap-30cols.cyjs | ok | 400 | 400 | 15 | 15 | 2375 | 0% | 0% | 0 | 13210 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv3/cyjs-overlap-80cols.cyjs | ok | 400 | 400 | 15 | 15 | 2452 | 0% | 0% | 0 | 13199 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-only-10.cyjs | ok | 400 | 0 | 11 | 1 | 236 | 0% | 0% | 0 | 8814 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-only-160.cyjs | ok | 400 | 0 | 15 | 1 | 97 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-only-20.cyjs | ok | 400 | 0 | 15 | 1 | 236 | 0% | 0% | 0 | 8803 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-only-40.cyjs | ok | 400 | 0 | 15 | 1 | 237 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-only-5.cyjs | ok | 400 | 0 | 6 | 1 | 209 | 0% | 0% | 0 | 8852 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-only-80.cyjs | ok | 400 | 0 | 15 | 1 | 192 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-plus-10.cyjs | ok | 400 | 0 | 11 | 1 | 665 | 0% | 0% | 0 | 8075 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-plus-160.cyjs | ok | 400 | 0 | 15 | 1 | 692 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-plus-20.cyjs | ok | 400 | 0 | 15 | 1 | 659 | 0% | 0% | 0 | 8027 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-plus-40.cyjs | ok | 400 | 0 | 15 | 1 | 623 | 0% | 0% | 0 | 8005 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-plus-5.cyjs | ok | 400 | 0 | 6 | 1 | 558 | 0% | 0% | 0 | 8207 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv4/opacity-plus-80.cyjs | ok | 400 | 0 | 15 | 1 | 521 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/all-30.cyjs | ok | 400 | 0 | 15 | 1 | 1081 | 0% | 0% | 0 | 6599 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/all-300.cyjs | ok | 400 | 0 | 15 | 1 | 1151 | 0% | 0% | 0 | 6400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-30.cyjs | ok | 400 | 0 | 15 | 1 | 283 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-300.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-bc-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-bc-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-bg-30.cyjs | ok | 400 | 0 | 15 | 1 | 539 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-bg-300.cyjs | ok | 400 | 0 | 15 | 1 | 497 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-col-fs-30.cyjs | ok | 400 | 0 | 15 | 1 | 174 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-col-fs-300.cyjs | ok | 400 | 0 | 15 | 1 | 250 | 0% | 0% | 0 | 8000 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-lab-30.cyjs | ok | 400 | 0 | 15 | 1 | 176 | 0% | 0% | 0 | 8806 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-lab-300.cyjs | ok | 400 | 0 | 15 | 1 | 257 | 0% | 0% | 0 | 8800 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-shape-30.cyjs | ok | 400 | 0 | 15 | 1 | 278 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-shape-300.cyjs | ok | 400 | 0 | 15 | 1 | 488 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-w-30.cyjs | ok | 400 | 0 | 15 | 1 | 403 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv5/op-w-300.cyjs | ok | 400 | 0 | 15 | 1 | 547 | 0% | 0% | 0 | 8400 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/bc-then-bcbg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/bg-then-bgop.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/bg-then-bgw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/common-default-then-class.cyjs | ok | 9 | 0 | 4 | 1 | 6 | 0% | 0% | 0 | 177 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/common-size-default-then-class-color.cyjs | ok | 9 | 0 | 3 | 1 | 6 | 0% | 0% | 0 | 186 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/common-two-classes.cyjs | ok | 9 | 0 | 4 | 1 | 3 | 0% | 0% | 0 | 197 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/eq-sel.cyjs | ok | 4 | 0 | 2 | 1 | 0 | - | - | 0 | 84 | 0 |  |
+| json/cyjs/adv6/fo-then-fobg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/op-then-bg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/op-then-opw.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/shape-then-shapebg.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/size-then-sizebg-wonly.cyjs | ok | 4 | 0 | 3 | 1 | 1 | 0% | 0% | 0 | 87 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/size-then-sizebg.cyjs | ok | 4 | 0 | 3 | 1 | 2 | 0% | 0% | 0 | 84 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/three-rules.cyjs | ok | 4 | 0 | 4 | 1 | 2 | 0% | 0% | 0 | 86 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv6/two-rules.cyjs | ok | 4 | 0 | 3 | 1 | 0 | - | - | 0 | 88 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv7/fold-no-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 14008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/adv7/fold-with-prefix-clash.cyjs | ok | 400 | 400 | 15 | 15 | 2047 | 0% | 0% | 0 | 14008 | 0 | W_STYLE_LAYER_CAP, W_STYLE_SELECTOR_AS_COLUMN |
+| json/cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 319 | 1% | 1% | 0 | 2335 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 6 | 5 | 23 | 43% | 43% | 0 | 3441 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
+| json/cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 11 | 6 | 96 | 10% | 10% | 0 | 3209 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-graphmaker.json | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 9315 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-perf.json.gz | ok | 500 | 1000 | 2 | 3 | 1959 | 0% | 0% | 0 | 32500 | 0 | W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-sbgn-sciluna.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 2026 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/fidelity/cyjs-synth-edges-saved.json | ok | 101 | 58 | 7 | 14 | 59 | 0% | 0% | 0 | 3103 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-edges.json | ok | 101 | 58 | 7 | 14 | 59 | 0% | 0% | 0 | 3103 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-synth-nodes.json | ok | 110 | 0 | 13 | 1 | 220 | 7% | 7% | 0 | 1940 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/cyjs-tokyo.json.gz | ok | 943 | 860 | 2 | 4 | 410 | 0% | 0% | 0 | 32371 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR |
+| json/fidelity/cyjs-winecheese.json.gz | ok | 369 | 1333 | 6 | 3 | 2131 | 0% | 0% | 0 | 33529 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | json/fidelity/gephi-worldcup.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/fidelity/graphology-synth.json | ok | 100 | 270 | 3 | 3 | 584 | 54% | 0% | 0 | 1537 | 0 |  |
 | json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 227 | 69% | 0% | 110 | 1378 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -372,18 +372,18 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 679 | 0 |  |
 | json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 984 | 0 |  |
 | json/generated/cytoscape-graphty-written.json | ok | 4 | 3 | 6 | 4 | 14 | 79% | 57% | 0 | 0 | 0 |  |
-| json/generated/cytoscape-tamper-block-truncated.json | ok | 4 | 3 | 7 | 8 | 14 | 57% | 57% | 0 | 64 | 0 | W_STYLE_BLOCK_IGNORED |
+| json/generated/cytoscape-tamper-block-truncated.json | ok | 4 | 3 | 7 | 8 | 14 | 57% | 57% | 0 | 100 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/cytoscape-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 14 | 86% | 64% | 0 | 0 | 0 |  |
-| json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 7 | 8 | 14 | 57% | 57% | 0 | 71 | 0 | W_STYLE_BLOCK_IGNORED |
+| json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 7 | 8 | 14 | 57% | 57% | 0 | 113 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 4 | 9 | 78% | 67% | 0 | 60 | 0 |  |
 | json/generated/graphology-tamper-block-truncated.json | ok | 4 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 38 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 9 | 89% | 78% | 0 | 60 | 0 |  |
 | json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 49 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 43777 | 0 |  |
 | json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 40376 | 0 | W_STYLE_RAMP_ROUNDED |
-| json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json | ok | 44 | 44 | 5 | 4 | 30 | 0% | 0% | 0 | 1262 | 0 | W_STYLE_NOT_CARRIED |
-| json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 1502 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 6965 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/iVis-at-Bilkent_cytoscape.js-cosep__glycolysis.json | ok | 44 | 44 | 5 | 4 | 30 | 0% | 0% | 0 | 1702 | 0 | W_STYLE_NOT_CARRIED |
+| json/sciluna_cytoscape.js-sbgn-layout__9613829.json | ok | 52 | 53 | 10 | 3 | 124 | 0% | 0% | 0 | 2026 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
+| json/scsweb2020_graph-maker__aggregate-cy-graph.json.gz | ok | 211 | 271 | 4 | 4 | 112 | 0% | 0% | 0 | 9315 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
 | json/sigma-website-airports.json.gz | ok | 3257 | 37042 | 1 | 1 | 0 | - | - | 0 | 183995 | 0 |  |
 | json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 44231 | 0 |  |
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 22935 | 0 |  |

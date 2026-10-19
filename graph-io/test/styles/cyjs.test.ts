@@ -595,6 +595,54 @@ describe("the cascade", () => {
         }
     });
 
+    it("reads node and edge underlays and overlays, and writes them back", async () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        "underlay-opacity": 0.5,
+                        "underlay-color": "rgb(77,175,74)",
+                        "underlay-padding": "8px",
+                        "underlay-shape": "ellipse",
+                        "overlay-opacity": 0.25,
+                        "overlay-corner-radius": "2px",
+                    },
+                },
+                { selector: "#ab", style: { "overlay-opacity": 0.5, "overlay-color": "red", "overlay-padding": 6 } },
+            ],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        expect(r.node.values.underlayOpacity?.[0]).toBe(0.5);
+        expect(r.node.values.underlayColor?.[0]).toBe("#4daf4a");
+        expect(r.node.values.underlayPadding?.[0]).toBe(8);
+        expect(r.node.values.underlayShape?.[0]).toBe("ellipse");
+        expect(r.node.values.overlayCornerRadius?.[0]).toBe(2);
+        expect(r.edge.values.overlayOpacity?.[0]).toBe(0.5);
+        expect(r.edge.values.overlayColor?.[0]).toBe("#ff0000");
+        expect(r.edge.values.overlayPadding?.[0]).toBe(6);
+
+        const s = await snapshotOf(doc);
+        const ex = extract(doc, s);
+        // unset, Cytoscape.js's own: black, 10 px out, a round rectangle
+        expect(resolveStyles(ex, "node", "overlayShape", s)[0]).toBe("round-rectangle");
+        expect(resolveStyles(ex, "node", "overlayPadding", s)[0]).toBe(10);
+        const em = toCytoscapeStylesheet(ex);
+        const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
+        for (const [target, property] of [
+            ["node", "underlayOpacity"],
+            ["node", "underlayShape"],
+            ["node", "overlayCornerRadius"],
+            ["edge", "overlayColor"],
+            ["edge", "overlayPadding"],
+        ] as const) {
+            expect(resolveStyles(back, target, property, s), `${target} ${property}`).toEqual(
+                resolveStyles(ex, target, property, s),
+            );
+        }
+    });
+
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {
         const text = `node { width: 20; background-color: #336699 }
             .big { width: 50 }

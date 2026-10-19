@@ -342,9 +342,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "fill")).toEqual(["#ff0000", "#97c2fc", "#00ff00", "#97c2fc"]);
         // a text color's border is vis-network's darker shade of it
         expect(values(r, "node", "borderColor")).toEqual(["#cc0000", "#2b7ce9", "#2b7ce9", "#2b7ce9"]);
-        // vis-network draws `size` as a radius; the box, which vis-network sizes by its label, has no minimum and
-        // grows to its label plus the margin
-        expect(values(r, "node", "width")).toEqual([20, 20, 20, 0]);
+        // vis-network draws `size` as a radius; the box, which vis-network sizes by its label, grows to its label plus
+        // the margin, and with no label to a 14 x 14 one (24 across)
+        expect(values(r, "node", "width")).toEqual([20, 20, 20, 24]);
         expect(values(r, "node", "labelFit")).toEqual([null, null, null, "bounds"]);
         expect(values(r, "node", "shape")).toEqual(["ellipse", "ellipse", "ellipse", "round-rectangle"]);
         // vis-network draws a label below a dot and inside a box
@@ -527,13 +527,13 @@ describe("JSON styles: reading", () => {
             options: { nodes: { shape: "dot" } },
         });
         // value runs 1..3; a and b take scaling.min 10 and max 30 (radii), c its own 0..100 at the middle
-        expect(values(r, "node", "width")).toEqual([20, 60, 100, 50, 0]);
+        expect(values(r, "node", "width")).toEqual([20, 60, 100, 50, 24]);
         const back = await load(
             JSON.parse(
                 await registry.exportGraphToString(r.snapshot, "json", { styles: r.styles, dialect: "vis" }),
             ) as Record<string, unknown>,
         );
-        expect(values(back, "node", "width")).toEqual([20, 60, 100, 50, 0]);
+        expect(values(back, "node", "width")).toEqual([20, 60, 100, 50, 24]);
     });
 
     it("widens vis.js edges by value once any edge has one, and draws the rest at options.edges.width", async () => {

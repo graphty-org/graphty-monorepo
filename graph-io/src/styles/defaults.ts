@@ -642,6 +642,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(14, `${VIS} lines 25160-25290`),
                     labelFont: v("arial", `${VIS} lines 25160-25290`),
                     labelMinScreenSize: v(4, `${VIS9} Label.draw, edges scaling.label.drawThreshold 5`),
+                    // an edge label is drawn on the line, its letters stroked white 2 px wide (font.strokeWidth 2)
+                    labelPosition: v("center", `${VIS9} Edge.drawLabel (the label at the line's middle point)`),
+                    labelOutlineColor: v("#ffffff", `${VIS} lines 25160-25290 (font.strokeColor)`),
+                    labelOutlineWidth: v(2, `${VIS} lines 25160-25290 (font.strokeWidth)`),
                 },
                 graph: {
                     background: v(

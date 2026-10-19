@@ -1970,6 +1970,11 @@
         }
     },
     "allowedDrops": {
+        "json-vis-synth/fill": "reference corrected against vis-network 9.1.9's own drawing (graph-io/test/fidelity/oracles/json-vis-synth.svg): an image node (12) is its picture alone and an icon node (14) its glyph alone, with no box behind them; the old JSON scene gave them the default fill",
+        "json-vis-synth/borderColor": "reference corrected against vis-network 9.1.9's own drawing: an image node (12) and an icon node (14) draw no border",
+        "json-vis-synth/borderWidth": "reference corrected against vis-network 9.1.9's own drawing: an image node (12) and an icon node (14) draw no border",
+        "json-vis-synth/fillOpacity": "reference corrected against vis-network 9.1.9's own drawing (graph-io/test/fidelity/oracles/json-vis-synth.svg): node 24's opacity 0.3 does not fade its color given as the name black, which overrideOpacity leaves as it is, so vis-network draws it opaque",
+        "json-vis-synth/labelText": "reference corrected against vis-network 9.1.9's own drawing: node 28's font.multi html label is drawn as its text, bold and plain, without its <b> tags",
         "json-vis-synth/borderStyle": "reference corrected: vis-network's text shape (node 4) draws no border, so its border style is no longer judged; 68 of 69 pass where 69 of 70 did, the same one failing node (20)",
         "json-graphology-synth/edgeLabel": "reference corrected against sigma.js's own drawing (graph-io/test/fidelity/oracles/json-graphology-synth.png): sigma draws no edge labels unless renderEdgeLabels is on, which a graphology file never sets, so graphty no longer draws them",
         "gexf-qvge-mine-airing/edgeColor": "reference corrected: Gephi Toolkit 0.11.3's own SVG (graph-io/test/fidelity/oracles/gexf-qvge-mine-airing.svg) draws every edge in the mix of its two end nodes' colors (EdgeColor MIXED, 111 of 111 / 190 of 190 edges), never the file's edge color the old JSON scene reported",

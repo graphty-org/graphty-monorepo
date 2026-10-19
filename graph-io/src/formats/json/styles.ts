@@ -687,12 +687,26 @@ interface VisLayer {
     title?: unknown;
     /** edges: whether `font` was given as text, which leaves the edge's label off the canvas (visValues) */
     fontText?: unknown;
+    /** `font.multi`: whether the label's text holds html or markdown markup (visLabelText) */
+    fontMulti?: unknown;
+    fontStrokeWidth?: unknown;
+    fontStrokeColor?: unknown;
+    fontBackground?: unknown;
+    fontAlign?: unknown;
     fontColor?: unknown;
     fontSize?: unknown;
     fontFace?: unknown;
     margin?: unknown;
+    /** `widthConstraint` (a number) or its `maximum`: the width the label's lines wrap at */
+    wrapWidth?: unknown;
+    /** `scaling.label`: the label's font size from `value` when enabled */
+    scalingLabel?: unknown;
+    /** nodes: `shapeProperties.borderDashes` */
+    borderDashes?: unknown;
     widthMin?: unknown;
     heightMin?: unknown;
+    /** nodes: `heightConstraint.valign` */
+    valign?: unknown;
     width?: unknown;
     dashes?: unknown;
     arrows?: unknown;
@@ -701,6 +715,9 @@ interface VisLayer {
     inherit?: unknown;
     background?: unknown;
     smooth?: unknown;
+    selfReference?: unknown;
+    selfReferenceSize?: unknown;
+    physics?: unknown;
     image?: unknown;
     brokenImage?: unknown;
     useImageSize?: unknown;
@@ -739,6 +756,10 @@ function visLayer(o: unknown, target: StyleTarget): VisLayer {
     set("hidden", o.hidden);
     set("label", o.label);
     set("title", o.title);
+    set("wrapWidth", isJsonObject(o.widthConstraint) ? o.widthConstraint.maximum : o.widthConstraint);
+    if (isJsonObject(o.scaling)) {
+        set("scalingLabel", o.scaling.label);
+    }
     visFontLayer(o.font, set);
     if (target === "edge" && o.font !== undefined && o.font !== null) {
         set("fontText", typeof o.font === "string");
@@ -776,6 +797,7 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
     set("margin", o.margin);
     set("widthMin", isJsonObject(o.widthConstraint) ? o.widthConstraint.minimum : o.widthConstraint);
     set("heightMin", isJsonObject(o.heightConstraint) ? o.heightConstraint.minimum : o.heightConstraint);
+    set("valign", isJsonObject(o.heightConstraint) ? o.heightConstraint.valign : undefined);
     set("image", isJsonObject(o.image) ? o.image.unselected : o.image);
     set("brokenImage", o.brokenImage);
     set("imagePadding", o.imagePadding);
@@ -791,6 +813,7 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
         set("useBorderWithImage", o.shapeProperties.useBorderWithImage);
         set("interpolation", o.shapeProperties.interpolation);
         set("coordinateOrigin", o.shapeProperties.coordinateOrigin);
+        set("borderDashes", o.shapeProperties.borderDashes);
     }
 }
 
@@ -918,6 +941,9 @@ function visEdgeLayer(o: Record<string, unknown>, set: SetLayer): void {
     set("arrows", o.arrows);
     set("background", o.background);
     set("smooth", o.smooth);
+    set("selfReference", o.selfReference);
+    set("selfReferenceSize", o.selfReferenceSize);
+    set("physics", o.physics);
 }
 
 /**
@@ -927,6 +953,11 @@ function visEdgeLayer(o: Record<string, unknown>, set: SetLayer): void {
  */
 function visFontLayer(font: unknown, set: SetLayer): void {
     if (isJsonObject(font)) {
+        set("fontMulti", font.multi);
+        set("fontStrokeWidth", font.strokeWidth);
+        set("fontStrokeColor", font.strokeColor);
+        set("fontBackground", font.background);
+        set("fontAlign", font.align);
         set("fontColor", font.color);
         set("fontSize", font.size);
         set("fontFace", font.face);
@@ -955,7 +986,7 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
             out[p] = v;
         }
     };
-    const color = (p: string, opacity: string | null, raw: unknown): void => {
+    const color: PutColor = (p, opacity, raw) => {
         if (raw === undefined || raw === null || raw === "") {
             return;
         }
@@ -991,23 +1022,253 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
     if (layer.hidden !== undefined && canonBoolean(layer.hidden, site("visible")) === true) {
         put("visible", false);
     }
-    if (layer.label !== undefined) {
-        // vis-network 9.1.9 draws no edge label whose `font` is text: Edge.drawLabel reads `options.font.align` (undefined
-        // on a string) as not horizontal and moves the context to the label point, while the label module, which
-        // parsed the text, still draws at the absolute point, so the label lands off the canvas
-        put("label", target === "edge" && layer.fontText === true ? "" : canonText(layer.label, site("label")));
-    }
-    if (layer.title !== undefined) {
-        put("tooltip", canonText(layer.title, site("tooltip")));
-    }
-    color("labelColor", null, layer.fontColor);
+    visLabelValues(layer, target, put, color, site);
+    return out;
+}
+
+/** Puts a color of a row, and its alpha as an opacity when it has one (visValues). */
+type PutColor = (p: string, opacity: string | null, raw: unknown) => void;
+
+/**
+ * The label values of a vis.js layer: its text (markup read), wrap width, font, outline, background and, for an edge,
+ * where on the line it sits.
+ * @param layer - the layer
+ * @param target - nodes or edges
+ * @param put - the row's setter
+ * @param color - the row's color setter
+ * @param site - where its values are read
+ */
+function visLabelValues(
+    layer: VisLayer,
+    target: StyleTarget,
+    put: PutRow,
+    color: PutColor,
+    site: (property: string) => CanonSite,
+): void {
     if (layer.fontSize !== undefined) {
         put("labelSize", canonNumber(layer.fontSize, site("labelSize")));
     }
     if (layer.fontFace !== undefined) {
         put("labelFont", canonText(layer.fontFace, site("labelFont")));
     }
-    return out;
+    if (layer.label !== undefined) {
+        // vis-network 9.1.9 draws no edge label whose `font` is text: Edge.drawLabel reads `options.font.align` (undefined
+        // on a string) as not horizontal and moves the context to the label point, while the label module, which
+        // parsed the text, still draws at the absolute point, so the label lands off the canvas
+        const text = target === "edge" && layer.fontText === true ? "" : canonText(layer.label, site("label"));
+        const marked = typeof text === "string" ? visMarkup(text, layer.fontMulti) : null;
+        put("label", marked?.text ?? text);
+        // after the face: a label all in mono is drawn in the mono face
+        for (const [p, v] of Object.entries(VIS_MOD_VALUES[marked?.mod ?? "normal"] ?? {})) {
+            put(p, v);
+        }
+    }
+    // vis-network wraps a label's lines at `widthConstraint.maximum` (or a number), margins not taken off:
+    // Label.adjustSizes subtracts them only under constrainWidth, which nothing sets
+    if (typeof layer.wrapWidth === "number" && Number.isFinite(layer.wrapWidth) && layer.wrapWidth > 0) {
+        put("labelWrapWidth", layer.wrapWidth);
+    }
+    if (layer.title !== undefined) {
+        put("tooltip", canonText(layer.title, site("tooltip")));
+    }
+    visLabelLook(layer, target, put, color, site);
+}
+
+/**
+ * The look of a vis.js layer's label: its color, background box, letter outline and, for an edge, where on the line
+ * it sits.
+ * @param layer - the layer
+ * @param target - nodes or edges
+ * @param put - the row's setter
+ * @param color - the row's color setter
+ * @param site - where its values are read
+ */
+function visLabelLook(
+    layer: VisLayer,
+    target: StyleTarget,
+    put: PutRow,
+    color: PutColor,
+    site: (property: string) => CanonSite,
+): void {
+    color("labelColor", null, layer.fontColor);
+    // font.background "none" (vis-network's default) draws no box
+    color("labelBackground", null, layer.fontBackground === "none" ? undefined : layer.fontBackground);
+    color("labelOutlineColor", null, layer.fontStrokeColor);
+    if (layer.fontStrokeWidth !== undefined) {
+        put("labelOutlineWidth", canonNumber(layer.fontStrokeWidth, site("labelOutlineWidth")));
+    }
+    if (target === "edge" && typeof layer.fontAlign === "string") {
+        // vis-network draws an edge label on the line ("horizontal", "middle"), above it ("top") or below it ("bottom")
+        put("labelPosition", layer.fontAlign === "top" || layer.fontAlign === "bottom" ? layer.fontAlign : "center");
+    }
+}
+
+/** The label values of a label whose every word has one vis.js font modifier; vis-network's mono face is monospace. */
+const VIS_MOD_VALUES: Readonly<Record<string, Row>> = {
+    bold: { labelWeight: "bold" },
+    ital: { labelItalic: true },
+    boldital: { labelWeight: "bold", labelItalic: true },
+    mono: { labelFont: "monospace" },
+};
+
+/**
+ * Whether vis-network's node `opacity` replaces a color's alpha: a hex color of 3 or 6 digits or an `rgb()` color, and
+ * vis-network's own default (overrideOpacity; hexToRGB reads no other text).
+ * @param color - the color as the file gives it, or undefined for vis-network's default
+ * @returns true when the opacity applies
+ */
+function visTakesOpacity(color: unknown): boolean {
+    if (color === undefined) {
+        return true;
+    }
+    return (
+        typeof color === "string" &&
+        !color.includes("rgba") &&
+        (color.includes("rgb") || /^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color.trim()))
+    );
+}
+
+/**
+ * vis.js dashes (`dashes`, `shapeProperties.borderDashes`) as the line style they draw at a width, read as a dash
+ * array is read anywhere: with round caps each dash a width longer and each gap a width shorter; then gaps under a
+ * tenth of the pattern are solid, dashes no longer than 1.5 widths are dotted, dashes of which the longest is twice
+ * the shortest dash-dot, others dashed; false is solid.
+ * @param dashes - false, or the dash array (dash, gap, dash, gap ...; an odd one repeats)
+ * @param width - the line's width
+ * @param round - whether the dashes have round caps
+ * @returns the line style
+ */
+function visDashStyle(dashes: unknown, width: number, round: boolean): string {
+    if (!Array.isArray(dashes)) {
+        return dashes === false ? "solid" : "dashed";
+    }
+    const lengths = dashes.filter((d): d is number => typeof d === "number" && Number.isFinite(d));
+    const pairs = lengths.length % 2 === 1 ? [...lengths, ...lengths] : lengths;
+    const grow = round ? width : 0;
+    const on = pairs.filter((_d, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
+    const off = pairs.filter((_d, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
+    const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
+    // a gap of exactly a tenth still shows (mappings-bypass edge-default: [5, 5] at width 4)
+    if (on.length === 0 || sum(off) < 0.1 * (sum(on) + sum(off))) {
+        return "solid";
+    }
+    if (on.every((d) => d <= 1.5 * Math.max(1, width))) {
+        return "dotted";
+    }
+    return Math.max(...on) >= 2 * Math.min(...on) ? "dash-dot" : "dashed";
+}
+
+/**
+ * vis.js label markup (`font.multi`): true or "html" reads `<b>`, `<i>` and `<code>` and the entities `&lt;` and
+ * `&amp;`; "markdown" or "md" reads `*bold*`, `_ital_` and `` `mono` `` at word edges, with `\` escaping a mark
+ * (vis-network 9.1.9 `LabelSplitter.splitHtmlBlocks`, `splitMarkdownBlocks`). The text without its markup, and the
+ * one font modifier every word has when they share one.
+ * @param text - the label
+ * @param multi - `font.multi`
+ * @returns the plain text and the shared modifier, or null when the label is not read as markup
+ */
+function visMarkup(text: string, multi: unknown): { text: string; mod: string | null } | null {
+    const system = VIS_MARKUP_SYSTEM.get(multi);
+    if (system === undefined) {
+        return null;
+    }
+    const state: VisMarkState = { bold: false, ital: false, mono: false };
+    const runs: { text: string; mod: string }[] = [];
+    const source = text.slice(0, 4096);
+    let i = 0;
+    while (i < source.length) {
+        const tagged = visMarkTag(source, i, system, state);
+        if (tagged > 0) {
+            i += tagged;
+            continue;
+        }
+        const [ch, next] = visMarkChar(source, i, system);
+        runs.push({ text: ch, mod: visMarkMod(state) });
+        i = next;
+    }
+    const mods = new Set(runs.filter((r) => /\S/.test(r.text)).map((r) => r.mod));
+    const only = mods.size === 1 ? [...mods][0] : null;
+    return { text: runs.map((r) => r.text).join(""), mod: only === "normal" ? null : only };
+}
+
+/** vis-network's markup systems by `font.multi`. */
+const VIS_MARKUP_SYSTEM: ReadonlyMap<unknown, "html" | "md"> = new Map<unknown, "html" | "md">([
+    [true, "html"],
+    ["html", "html"],
+    ["markdown", "md"],
+    ["md", "md"],
+]);
+
+/** Which font modifiers are on, part way through a label. */
+interface VisMarkState {
+    bold: boolean;
+    ital: boolean;
+    mono: boolean;
+}
+
+/** Each system's marks and the modifier each turns on or off. */
+const VIS_MARKS: Readonly<Record<"html" | "md", Readonly<Record<string, keyof VisMarkState>>>> = {
+    html: { "<b>": "bold", "</b>": "bold", "<i>": "ital", "</i>": "ital", "<code>": "mono", "</code>": "mono" },
+    md: { "*": "bold", _: "ital", "`": "mono" },
+};
+
+/**
+ * Reads a mark at a place in a label, turning its modifier on or off: an html tag opens a modifier that is off and
+ * closes one that is on; a markdown mark opens at the start of a word and closes a modifier that is on.
+ * @param source - the label
+ * @param i - the place
+ * @param system - the markup system
+ * @param state - the modifiers on, changed in place
+ * @returns how many characters the mark takes, 0 for no mark
+ */
+function visMarkTag(source: string, i: number, system: "html" | "md", state: VisMarkState): number {
+    const marks = VIS_MARKS[system];
+    const tag = Object.keys(marks).find((m) => source.startsWith(m, i));
+    if (tag === undefined) {
+        return 0;
+    }
+    const key = marks[tag];
+    const toggles =
+        system === "html" ? state[key] === tag.startsWith("</") : state[key] || i === 0 || /\s/.test(source[i - 1]);
+    if (!toggles) {
+        return 0;
+    }
+    state[key] = !state[key];
+    return tag.length;
+}
+
+/**
+ * The character at a place in a label, an html entity (`&lt;`, `&amp;`) or a markdown escape read as the character it
+ * stands for.
+ * @param source - the label
+ * @param i - the place
+ * @param system - the markup system
+ * @returns the character and the place after it
+ */
+function visMarkChar(source: string, i: number, system: "html" | "md"): [string, number] {
+    if (system === "md") {
+        return source[i] === "\\" && i + 1 < source.length ? [source[i + 1], i + 2] : [source[i], i + 1];
+    }
+    const entity = [
+        ["&lt;", "<"],
+        ["&amp;", "&"],
+    ].find(([e]) => source.startsWith(e, i));
+    return entity === undefined ? [source[i], i + 1] : [entity[1], i + entity[0].length];
+}
+
+/**
+ * The font modifier the modifiers on make: mono over the others, bold and italic together boldital.
+ * @param state - the modifiers on
+ * @returns the modifier
+ */
+function visMarkMod(state: VisMarkState): string {
+    if (state.mono) {
+        return "mono";
+    }
+    if (state.bold) {
+        return state.ital ? "boldital" : "bold";
+    }
+    return state.ital ? "ital" : "normal";
 }
 
 /** Sets a value of a row when it is not null. */
@@ -1038,7 +1299,16 @@ function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (prop
         put("borderWidth", canonNumber(layer.borderWidth, site("borderWidth")));
     }
     if (layer.opacity !== undefined) {
-        put("opacity", canonOpacity(layer.opacity, "vis", site("opacity")));
+        // vis-network's node opacity replaces the alpha of its border color and its background color alike, but only of
+        // a hex or rgb() color: overrideOpacity leaves rgba() and any other text (a name) as it is (Node.getFormattingValues)
+        const opacity = canonOpacity(layer.opacity, "vis", site("opacity"));
+        put("opacity", visTakesOpacity(layer.fill) ? opacity : null);
+        put("borderOpacity", visTakesOpacity(layer.border) ? opacity : null);
+    }
+    if (layer.borderDashes !== undefined) {
+        // vis-network's default border dashes are [5, 15]
+        const width = typeof layer.borderWidth === "number" ? layer.borderWidth : 1;
+        put("borderStyle", visDashStyle(layer.borderDashes === true ? [5, 15] : layer.borderDashes, width, false));
     }
 }
 
@@ -1056,7 +1326,11 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         put("width", canonNumber(layer.width, site("width")));
     }
     if (layer.dashes !== undefined) {
-        put("lineStyle", layer.dashes === false || layer.dashes === "false" ? "solid" : "dashed");
+        // vis-network's default dashes are [5, 5]
+        const width = typeof layer.width === "number" ? layer.width : 1;
+        const dashes = layer.dashes === true ? [5, 5] : layer.dashes;
+        // vis-network draws an edge with round caps (EdgeBase: lineCap "round"), each dash a width longer
+        put("lineStyle", layer.dashes === "false" ? "solid" : visDashStyle(dashes, width, true));
     }
     if (layer.arrows !== undefined) {
         const [to, from, middle] = visArrows(layer.arrows, site);
@@ -1194,21 +1468,15 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
         });
         const merged = { ...nodeDefaults, ...group, ...own };
         const row = visValues(merged, "node", site, VIS_SIZED.has(shape));
-        if (VIS_SIZED.has(shape)) {
-            const radius = visRadius(merged, range, site);
-            row.width = 2 * radius;
-            row.height = 2 * radius;
-            Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
-            if (shape === "icon") {
-                Object.assign(row, visIcon(merged, site("glyphColor")));
-            }
-            // vis-network's triangleDown: its triangle turned over, a corner down
-            if (shape === "triangleDown") {
-                row.shape = "polygon";
-                row.shapePoints = "-1,1 0,-1 1,1";
-            }
-        } else {
-            Object.assign(row, visLabelFit(merged, shape));
+        Object.assign(
+            row,
+            VIS_SIZED.has(shape)
+                ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
+                : visFitShape(merged, shape),
+        );
+        const labelSize = visLabelScaled(merged, range);
+        if (labelSize !== null) {
+            row.labelSize = labelSize;
         }
         for (const [p, v] of Object.entries(row)) {
             node.put(p, i, v);
@@ -1237,9 +1505,10 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const toolNode = toolDefaults("vis-network")?.node;
     const borderOf = (i: number): StyleValue =>
         node.values.borderColor?.[i] ?? (toolNode?.borderColor?.value as StyleValue | undefined) ?? "#2b7ce9";
-    const edge = visEdges(snapshot, visLayer(options.edges, "edge"), borderOf, notes, context);
+    const geometry = visGeometry(snapshot, node.values);
+    const edge = visEdges(snapshot, visLayer(options.edges, "edge"), borderOf, geometry, notes, context);
     const values = { node: node.values, edge: edge.values };
-    exactFromBlock(snapshot, src.block, values, VIS_WRITTEN);
+    exactFromBlock(snapshot, src.block, values, visWritten(snapshot, values.edge));
     return {
         canonical: true,
         dialect: "vis",
@@ -1255,6 +1524,50 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             edge: VIS_KEYS.edge.filter((x) => snapshot.edges.has(x)),
         },
     };
+}
+
+/**
+ * vis.js: what a node of a shape sized by `size` draws besides its colors: its box from its radius, its picture or
+ * glyph, and triangleDown turned over.
+ * @param merged - the node's merged layer
+ * @param shape - its vis-network shape
+ * @param radius - its radius (visRadius)
+ * @param site - where its values are read
+ * @returns the values
+ */
+function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (property: string) => CanonSite): Row {
+    const row: Row = { width: 2 * radius, height: 2 * radius };
+    Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
+    if (shape === "icon") {
+        Object.assign(row, visIcon(merged, site("glyphColor")));
+    }
+    // vis-network's triangleDown: its triangle turned over, a corner down
+    if (shape === "triangleDown") {
+        row.shape = "polygon";
+        row.shapePoints = "-1,1 0,-1 1,1";
+    }
+    return row;
+}
+
+/**
+ * vis.js: what a node of a shape sized by its label draws besides its colors: its growth round its label, nothing at
+ * all with a margin of 0, and its label at the top or bottom under `heightConstraint.valign`.
+ * @param merged - the node's merged layer
+ * @param shape - its vis-network shape
+ * @returns the values
+ */
+function visFitShape(merged: VisLayer, shape: string): Row {
+    const row = visLabelFit(merged, shape);
+    // a margin of 0 leaves vis-network's margins undefined (`_setMargins` tests `if (options.margin)`), so the node's
+    // size is NaN and neither it nor its label is drawn
+    if (merged.margin === 0 && (shape === "box" || shape === "circle" || shape === "database")) {
+        row.visible = false;
+    }
+    // heightConstraint.valign moves the label to the top or the bottom of a node taller than it (Label._drawText)
+    if (merged.valign === "top" || merged.valign === "bottom") {
+        row.labelPosition = `inside-${merged.valign}`;
+    }
+    return row;
 }
 
 /**
@@ -1286,17 +1599,41 @@ function visLabelFit(layer: VisLayer, shape: string): Row {
         padX = (side("left") + side("right")) / 2;
         padY = (side("top") + side("bottom")) / 2;
     }
+    // a node with no label text is sized as if its label were 14 x 14 (NodeBase.getDimensionsFromLabel)
+    const empty = typeof layer.label !== "string" || layer.label === "";
+    const [boxW, boxH] = empty ? [Math.max(minW, 14), Math.max(minH, 14)] : [minW, minH];
+    if (empty && fit.ellipse) {
+        padX = padY = boxH / 2;
+    }
     const row: Row = {
         labelFit: "bounds",
         labelPaddingX: padX,
         labelPaddingY: padY,
-        width: minW > 0 ? minW + 2 * padX : 0,
-        height: minH > 0 ? minH + 2 * padY : 0,
+        width: boxW > 0 ? boxW + 2 * padX : 0,
+        height: boxH > 0 ? boxH + 2 * padY : 0,
     };
     if (fit.square) {
         row.labelFitSquare = true;
     }
     return row;
+}
+
+/**
+ * vis.js `scaling.label`: with `enabled`, the font size of an element with a `value`, mapped as its size is from the
+ * value range onto `scaling.label.min` .. `max` (14 .. 30) (vis-network 9.1.9 `Node.setValueRange`, `Edge.setValueRange`).
+ * @param layer - the element's merged layer
+ * @param range - the value range, or null
+ * @returns the font size, or null when the label is not scaled
+ */
+function visLabelScaled(layer: VisLayer, range: readonly [number, number] | null): number | null {
+    const value = finiteValue(layer.value);
+    const label = layer.scalingLabel;
+    if (value === null || range === null || !isJsonObject(label) || label.enabled !== true) {
+        return null;
+    }
+    const min = typeof label.min === "number" ? label.min : 14;
+    const max = typeof label.max === "number" ? label.max : 30;
+    return visScaled(value, range, min, max);
 }
 
 /** vis-network's default node size, a radius (`size: 25`, vis-network.esm.js NodesHandler defaults). */
@@ -1454,6 +1791,7 @@ function visGroupLayers(
  * @param snapshot - the graph
  * @param edgeDefaults - `options.edges`
  * @param borderOf - each node's drawn border color
+ * @param geometry - the nodes' positions and boxes, for the edges' routes
  * @param notes - where problems are noted
  * @param context - the work budget
  * @returns the edge values, rules and style columns
@@ -1462,6 +1800,7 @@ function visEdges(
     snapshot: GraphSnapshot,
     edgeDefaults: VisLayer,
     borderOf: (node: number) => StyleValue,
+    geometry: VisGeometry,
     notes: StyleNotes,
     context: StyleReadContext,
 ): { values: Values; rules: StyleRule[]; columns: Map<string, StyleColumn> } {
@@ -1473,7 +1812,10 @@ function visEdges(
     const range = visValueRange(m, (e) => finiteValue({ ...edgeDefaults, ...edgeRecords(e) }.value));
     for (let e = 0; e < m; e++) {
         const own = edgeRecords(e);
-        const merged = { ...edgeDefaults, ...own };
+        // an array of `options.edges.dashes` reaches the edge through bridgeObject as a plain object, no longer an
+        // array, so vis-network draws its default [5, 5] (EdgeBase.setStrokeDashed)
+        const bridged = own.dashes === undefined && Array.isArray(edgeDefaults.dashes) ? { dashes: true } : {};
+        const merged = { ...edgeDefaults, ...own, ...bridged };
         const site = (property: string): CanonSite => ({
             notes,
             target: "edge",
@@ -1481,22 +1823,32 @@ function visEdges(
             element: e,
             budget: context.budget,
         });
+        const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
         const vals: Row = {
             ...visValues(merged, "edge", site, true),
             ...visEdgeWidth(merged, edgeDefaults, range, site),
+            ...visRoute(edgeDefaults, own, s, t, geometry),
+            ...visEdgeLabel(merged, range, geometry.at(s), geometry.at(t)),
         };
+        const inherit = own.inherit ?? edgeDefaults.inherit ?? "from";
+        const inherits = inherit !== false && inherit !== "false";
+        if (inherits) {
+            // the edge's own `inherit` wins over a color `options.edges` gives (that only stops inheriting there)
+            delete vals.color;
+        }
+        if (inherit === "both") {
+            // vis-network: a linear gradient from the source node's border color to the target's
+            vals.gradientKind = "linear";
+            vals.gradientColors = `${String(borderOf(s))} ${String(borderOf(t))}`;
+        }
         for (const [p, v] of Object.entries(vals)) {
             edge.put(p, e, v);
         }
-        const inherit = own.inherit ?? edgeDefaults.inherit ?? "from";
-        if (inherit === false || inherit === "false") {
+        if (!inherits) {
             if (vals.color === undefined) {
                 edge.put("color", e, VIS_EDGE_COLOR);
             }
             continue;
-        }
-        if (inherit === "both") {
-            notes.add(STYLE_ISSUE.GRADIENT, "edge", "color", { sample: "inherit both", element: e });
         }
         inherited[e] = borderOf(inherit === "to" ? snapshot.edgeTarget(e) : snapshot.edgeSource(e));
         inheriting++;
@@ -1524,6 +1876,308 @@ function visEdges(
         });
     }
     return { values: edge.values, rules: edgeRules, columns: edgeColumns };
+}
+
+/** What a vis.js edge's route is drawn from: its nodes' positions and boxes. */
+interface VisGeometry {
+    /** A node's position as vis-network draws it (`parseInt` of `x` and `y`, y down), or null. */
+    readonly at: (i: number) => readonly [number, number] | null;
+    /** A node's half width, half height and border width, or null for a node sized by its label. */
+    readonly box: (i: number) => readonly [number, number, number] | null;
+}
+
+/**
+ * vis.js: the positions and boxes of the nodes, for the routes of their edges.
+ * @param snapshot - the graph
+ * @param nodeValues - the node values read so far (sizes and border widths)
+ * @returns the geometry
+ */
+function visGeometry(snapshot: GraphSnapshot, nodeValues: Values): VisGeometry {
+    const whole = (v: unknown): number => {
+        if (typeof v === "string") {
+            return Number.parseInt(v, 10);
+        }
+        return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : Number.NaN;
+    };
+    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const num = (v: StyleValue | null | undefined): number | null => (typeof v === "number" && v > 0 ? v : null);
+    return {
+        at: (i) => {
+            const p = [whole(xs?.(i)), whole(ys?.(i))] as const;
+            return Number.isNaN(p[0]) || Number.isNaN(p[1]) ? null : p;
+        },
+        box: (i) => {
+            const [w, h] = [num(nodeValues.width?.[i]), num(nodeValues.height?.[i])];
+            const bw = nodeValues.borderWidth?.[i];
+            return w === null || h === null ? null : [w / 2, h / 2, typeof bw === "number" ? bw : 1];
+        },
+    };
+}
+
+/** vis-network's `smooth` with every layer applied: booleans set `enabled`, objects their own fields. */
+interface VisSmooth {
+    enabled: boolean;
+    type: string;
+    roundness: number;
+    forceDirection: unknown;
+}
+
+/**
+ * vis.js: an edge's `smooth` over `options.edges.smooth` over vis-network's defaults (dynamic, roundness 0.5).
+ * @param layers - the layers, the lowest first
+ * @returns the smooth options
+ */
+function visSmooth(...layers: unknown[]): VisSmooth {
+    const s: VisSmooth = { enabled: true, type: "dynamic", roundness: 0.5, forceDirection: "none" };
+    for (const l of layers) {
+        if (typeof l === "boolean") {
+            s.enabled = l;
+        } else if (isJsonObject(l)) {
+            s.enabled = typeof l.enabled === "boolean" ? l.enabled : s.enabled;
+            s.type = typeof l.type === "string" ? l.type : s.type;
+            s.roundness = typeof l.roundness === "number" && Number.isFinite(l.roundness) ? l.roundness : s.roundness;
+            s.forceDirection = l.forceDirection ?? s.forceDirection;
+        }
+    }
+    return s;
+}
+
+/**
+ * vis.js: an edge label's size under `scaling.label` and its turn along the line.
+ * @param merged - the edge's merged layer
+ * @param range - the edges' value range
+ * @param a - the source node's center, or null
+ * @param b - the target node's center, or null
+ * @returns the values
+ */
+function visEdgeLabel(
+    merged: VisLayer,
+    range: readonly [number, number] | null,
+    a: VisPoint | null,
+    b: VisPoint | null,
+): Row {
+    const row: Row = {};
+    const size = visLabelScaled(merged, range);
+    if (size !== null) {
+        row.labelSize = size;
+    }
+    const turn = visLabelTurn(merged.fontAlign, a, b);
+    if (turn !== null) {
+        row.labelRotation = turn;
+    }
+    return row;
+}
+
+/**
+ * vis.js: how far an edge label whose `font.align` is not "horizontal" is turned to run along its edge, kept readable
+ * (vis-network 9.1.9 `Edge._getRotation`), in degrees clockwise on screen.
+ * @param align - `font.align`
+ * @param a - the source node's center, or null
+ * @param b - the target node's center, or null
+ * @returns the turn, or null for a level label
+ */
+function visLabelTurn(align: unknown, a: VisPoint | null, b: VisPoint | null): number | null {
+    if (typeof align !== "string" || align === "horizontal" || a === null || b === null) {
+        return null;
+    }
+    const [dx, dy] = [a[0] - b[0], a[1] - b[1]];
+    let angle = Math.atan2(dy, dx);
+    if ((angle < -1 && dx < 0) || (angle > 0 && dx < 0)) {
+        angle += Math.PI;
+    }
+    const degrees = Math.round(((angle * 180) / Math.PI) * 1e4) / 1e4;
+    return degrees < 0 ? degrees + 360 : degrees;
+}
+
+/** A point, y down. */
+type VisPoint = readonly [number, number];
+
+/**
+ * vis-network's control point of a static smooth curve (9.1.9 `BezierEdgeStatic._getViaCoordinates`), from the two
+ * node centers.
+ * @param from - the source node's center
+ * @param to - the target node's center
+ * @param smooth - the smooth options
+ * @returns the control point
+ */
+function visStaticVia(from: VisPoint, to: VisPoint, smooth: VisSmooth): VisPoint {
+    const f = smooth.roundness;
+    const [fx, fy] = from;
+    const [tx, ty] = to;
+    const dx = Math.abs(fx - tx);
+    const dy = Math.abs(fy - ty);
+    // the step a discrete, diagonalCross or continuous curve takes from its source, toward its target in x and in y
+    // (away from it in y when level: `from.y >= to.y` steps up)
+    const step = f * Math.max(dx, dy);
+    const sx = step * (Math.sign(tx - fx) || 1);
+    const sy = step * (Math.sign(ty - fy) || -1);
+    // which way a cross, horizontal or vertical curve's point lies from the target, back toward the source
+    const backX = (1 - f) * dx * (Math.sign(fx - tx) || 1);
+    const backY = (1 - f) * dy * (Math.sign(fy - ty) || 1);
+    switch (smooth.type) {
+        case "discrete":
+            return visDiscreteVia(from, [fx + sx, fy + sy], dx, dy, f);
+        case "diagonalCross":
+            return [fx + sx, fy + sy];
+        case "straightCross":
+            return dx <= dy ? [tx, ty + backY] : [tx + backX, ty];
+        case "horizontal":
+            return [tx + backX, fy];
+        case "vertical":
+            return [fx, ty + backY];
+        case "curvedCW":
+            return visCurvedVia(from, to, f, f * 0.5 + 0.5);
+        case "curvedCCW":
+            return visCurvedVia(from, to, f, -f * 0.5 + 0.5);
+        default:
+            // continuous: the diagonal step, no farther than the target along the longer axis
+            return dx <= dy
+                ? [fx + Math.sign(sx) * Math.min(step, dx), fy + sy]
+                : [fx + sx, fy + Math.sign(sy) * Math.min(step, dy)];
+    }
+}
+
+/**
+ * vis-network's discrete curve: the diagonal step, kept at the source's x (or y) when the nodes are nearly in line.
+ * @param from - the source node's center
+ * @param diagonal - the diagonal step's point
+ * @param dx - the distance between the nodes in x
+ * @param dy - the distance in y
+ * @param f - the roundness
+ * @returns the control point
+ */
+function visDiscreteVia(from: VisPoint, diagonal: VisPoint, dx: number, dy: number, f: number): VisPoint {
+    if (dx <= dy) {
+        return [dx < f * dy ? from[0] : diagonal[0], diagonal[1]];
+    }
+    return [diagonal[0], dy < f * dx ? from[1] : diagonal[1]];
+}
+
+/**
+ * vis-network's curvedCW and curvedCCW: a point `(roundness / 2 + 1 / 2)` of the distance from the source, turned
+ * `turn` half turns from the line to the target (vis-network's sin / cos convention, y down).
+ * @param from - the source node's center
+ * @param to - the target node's center
+ * @param f - the roundness
+ * @param turn - the turn, in half turns
+ * @returns the control point
+ */
+function visCurvedVia(from: VisPoint, to: VisPoint, f: number, turn: number): VisPoint {
+    const ex = to[0] - from[0];
+    const ey = from[1] - to[1];
+    const r = (f * 0.5 + 0.5) * Math.hypot(ex, ey);
+    const angle = (Math.atan2(ey, ex) + turn * Math.PI) % (2 * Math.PI);
+    return [from[0] + r * Math.sin(angle), from[1] + r * Math.cos(angle)];
+}
+
+/**
+ * vis-network's two control points of a cubicBezier curve (9.1.9 `CubicBezierEdge._getViaCoordinates`): each
+ * `roundness` of the way across from its own end, horizontally when the nodes are farther apart in x or
+ * `forceDirection` is horizontal (or true), else vertically.
+ * @param from - the source node's center
+ * @param to - the target node's center
+ * @param smooth - the smooth options
+ * @returns the two control points
+ */
+function visCubicVia(from: VisPoint, to: VisPoint, smooth: VisSmooth): [VisPoint, VisPoint] {
+    const [dx, dy] = [from[0] - to[0], from[1] - to[1]];
+    const r = smooth.roundness;
+    const force = smooth.forceDirection;
+    const across = (Math.abs(dx) > Math.abs(dy) || force === true || force === "horizontal") && force !== "vertical";
+    return across
+        ? [
+              [from[0] - r * dx, from[1]],
+              [to[0] + r * dx, to[1]],
+          ]
+        : [
+              [from[0], from[1] - r * dy],
+              [to[0], to[1] + r * dy],
+          ];
+}
+
+/**
+ * A point as the neutral `bends` spell it: `along,across` relative to the line between two centers, y down in, y up
+ * out.
+ * @param a - the source center
+ * @param b - the target center
+ * @param p - the point
+ * @returns `along,across`
+ */
+function alongAcross(a: VisPoint, b: VisPoint, p: VisPoint): string {
+    const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+    const [qx, qy] = [p[0] - a[0], p[1] - a[1]];
+    const l2 = dx * dx + dy * dy;
+    return `${fraction((qx * dx + qy * dy) / l2)},${fraction((dy * qx - dx * qy) / l2)}`;
+}
+
+/**
+ * A number rounded to four places for a bend, with no negative zero.
+ * @param v - the number
+ * @returns its text
+ */
+const fraction = (v: number): string => String(Math.round(v * 1e4) / 1e4 || 0);
+
+/**
+ * vis.js: the route vis-network draws an edge along. A smooth edge is one Bezier curve through its control points
+ * (`bendCurve: "bezier"`): a static type's one point, cubicBezier's two. A dynamic one (vis-network's default) is
+ * drawn through a support node the physics simulation moves; where it never moves (physics off for the network or
+ * the edge) it stays at the middle and the edge is straight. A self-loop is vis-network's circle of
+ * `selfReference.size` (20) centered on its node's outline at `selfReference.angle` (pi / 4).
+ * @param defaults - `options.edges`
+ * @param own - the edge's own keys
+ * @param s - its source node
+ * @param t - its target node
+ * @param g - the nodes' geometry
+ * @returns the route's values, none for a straight edge or a route the file does not decide
+ */
+function visRoute(defaults: VisLayer, own: VisLayer, s: number, t: number, g: VisGeometry): Row {
+    if (s === t) {
+        return visLoop(defaults, own, g.box(s));
+    }
+    const smooth = visSmooth(defaults.smooth, own.smooth);
+    const [a, b] = [g.at(s), g.at(t)];
+    // ponytail: a dynamic curve where physics runs is wherever the simulation left its support node; drawn straight
+    if (!smooth.enabled || smooth.type === "dynamic" || a === null || b === null || (a[0] === b[0] && a[1] === b[1])) {
+        return {};
+    }
+    const controls = smooth.type === "cubicBezier" ? visCubicVia(a, b, smooth) : [visStaticVia(a, b, smooth)];
+    return { curved: true, bendCurve: "bezier", bends: controls.map((p) => alongAcross(a, b, p)).join(" ") };
+}
+
+/**
+ * vis.js: a self-loop, vis-network's circle (9.1.9 `EdgeBase._getCircleData`, `getSelfRefCoordinates`) of radius
+ * `selfReference.size` (or the older `selfReferenceSize`; 20) centered where the node's box, border included, meets
+ * the ray at `selfReference.angle` (pi / 4, counterclockwise from the right). Written as bends at the corners of the
+ * square round the circle, drawn through their midpoints, which run along the circle.
+ * @param defaults - `options.edges`
+ * @param own - the edge's own keys
+ * @param box - the node's half width, half height and border width, or null when unknown
+ * @returns the loop's values, none for a node whose size is not known here
+ */
+function visLoop(defaults: VisLayer, own: VisLayer, box: readonly [number, number, number] | null): Row {
+    if (box === null) {
+        return {};
+    }
+    const field = (layer: VisLayer, key: string): unknown =>
+        isJsonObject(layer.selfReference) ? layer.selfReference[key] : undefined;
+    const pick = (...vs: unknown[]): number | null =>
+        (vs.find((v) => typeof v === "number" && Number.isFinite(v)) as number | undefined) ?? null;
+    const radius =
+        pick(field(own, "size"), own.selfReferenceSize, field(defaults, "size"), defaults.selfReferenceSize) ?? 20;
+    const angle = pick(field(own, "angle"), field(defaults, "angle")) ?? Math.PI / 4;
+    const [hw, hh, bw] = box;
+    const reach = Math.min(Math.abs(hw / Math.cos(angle)), Math.abs(hh / Math.sin(angle))) + bw;
+    // the circle's center relative to the node's, y up
+    const [cx, cy] = [Math.cos(angle) * reach, Math.sin(angle) * reach];
+    // the corners of the square round the circle, the first the one facing the node and again last, so the curve
+    // through their midpoints runs the whole circle and its ends, out of and back into the node, bulge as it does
+    const corners: string[] = [];
+    for (let k = 0; k <= 4; k++) {
+        const a = angle + Math.PI + ((k % 4) * Math.PI) / 2;
+        const [x, y] = [cx + Math.SQRT2 * radius * Math.cos(a), cy + Math.SQRT2 * radius * Math.sin(a)];
+        corners.push(`${fraction(x / hw)},${fraction(y / hh)}`);
+    }
+    return { curved: true, bendCurve: "midpoints", bends: corners.join(" ") };
 }
 
 /** The vis.js keys the reader reads, per target. */
@@ -1562,6 +2216,10 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "font",
         "background",
         "smooth",
+        "selfReference",
+        "selfReferenceSize",
+        "physics",
+        "widthConstraint",
     ],
 };
 
@@ -1714,6 +2372,24 @@ const visFitBack =
         return visLabelFit({ fontSize: want("labelSize"), label: want("label") }, shape)[property] ?? null;
     };
 
+/**
+ * What reading a file graphty wrote in vis.js gives back: VIS_WRITTEN, and for a self-loop the route the reader draws
+ * it along (vis-network's circle, made from vis-network's own defaults and the node's size, never from the block).
+ * @param snapshot - the graph
+ * @param edgeValues - the edge values the reader read
+ * @returns the readings back
+ */
+function visWritten(snapshot: GraphSnapshot, edgeValues: Values): Written {
+    const loop =
+        (property: string) =>
+        (want: (p: string) => StyleValue | null, i: number): StyleValue | null =>
+            snapshot.edgeSource(i) === snapshot.edgeTarget(i) ? (edgeValues[property]?.[i] ?? null) : want(property);
+    return {
+        node: VIS_WRITTEN.node,
+        edge: { ...VIS_WRITTEN.edge, bends: loop("bends"), bendCurve: loop("bendCurve"), curved: loop("curved") },
+    };
+}
+
 const VIS_WRITTEN: Written = {
     node: {
         width: (want) => visSize(want) ?? visFitBack("width")(want),
@@ -1722,6 +2398,11 @@ const VIS_WRITTEN: Written = {
         labelPaddingX: visFitBack("labelPaddingX"),
         labelPaddingY: visFitBack("labelPaddingY"),
         labelFitSquare: visFitBack("labelFitSquare"),
+        // the writer writes hex colors, whose alpha vis-network's node opacity replaces, the border's too
+        borderOpacity: (want) => {
+            const opacity = want("opacity");
+            return typeof opacity === "number" ? opacity : want("borderOpacity");
+        },
         shape: (want) => {
             const s = want("shape");
             if (typeof s !== "string") {
@@ -1744,7 +2425,9 @@ const VIS_WRITTEN: Written = {
             if (s === null) {
                 return null;
             }
-            return s === "solid" ? "solid" : "dashed";
+            // written as `dashes: true`, vis-network's [5, 5], which a wide edge's round caps close up
+            const width = want("width");
+            return s === "solid" ? "solid" : visDashStyle([5, 5], typeof width === "number" ? width : 1, true);
         },
         targetArrow: (want) => arrowBack(want("targetArrow")),
         sourceArrow: (want) => arrowBack(want("sourceArrow")),

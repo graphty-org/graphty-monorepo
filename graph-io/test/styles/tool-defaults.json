@@ -295,7 +295,10 @@
             "labelColor": "#343434",
             "labelSize": 14,
             "labelFont": "arial",
-            "labelMinScreenSize": 4
+            "labelMinScreenSize": 4,
+            "labelPosition": "center",
+            "labelOutlineColor": "#ffffff",
+            "labelOutlineWidth": 2
         },
         "graph": {
             "background": "#ffffff"

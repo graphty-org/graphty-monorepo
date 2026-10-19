@@ -267,6 +267,15 @@ export interface NodeStyleValues {
     readonly labelOnTop: boolean;
     /** How far the label is turned, in degrees clockwise on screen, 0 up to 360. */
     readonly labelRotation: number;
+    /** The color of a box drawn behind the label's text (vis-network `font.background`). */
+    readonly labelBackground: StyleColor;
+    /** The color of an outline drawn round each letter of the label (vis-network `font.strokeColor`). */
+    readonly labelOutlineColor: StyleColor;
+    /**
+     * How thick that outline is, a stroke centered on the letters' edges, in the units of `labelSize`; 0 draws none
+     * (vis-network `font.strokeWidth`).
+     */
+    readonly labelOutlineWidth: number;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**
@@ -487,7 +496,8 @@ export interface EdgeStyleValues {
     /**
      * How a curved edge is drawn through its bends: `"corners"`, straight through each bend with its corner rounded,
      * or `"midpoints"`, one smooth curve using the bends as control points, from the middle of each segment to the
-     * next and leaving each end along its first and last segments (Cytoscape desktop).
+     * next and leaving each end along its first and last segments (Cytoscape desktop), or `"bezier"`, one Bezier curve
+     * whose control points are the bends (one: quadratic, two: cubic; vis-network's smooth edges).
      */
     readonly bendCurve: string;
     /**
@@ -514,6 +524,18 @@ export interface EdgeStyleValues {
     readonly labelWeight: StyleLabelWeight;
     /** Whether the label is italic. */
     readonly labelItalic: boolean;
+    /** The width the label's lines wrap at (a length); see the node's. */
+    readonly labelWrapWidth: number;
+    /** Where the label sits against the line's middle: `center` on the line, `top` above it. */
+    readonly labelPosition: StyleLabelPosition;
+    /** How far the label is turned, in degrees clockwise on screen, 0 up to 360; see the node's. */
+    readonly labelRotation: number;
+    /** The color of a box drawn behind the label's text; see the node's. */
+    readonly labelBackground: StyleColor;
+    /** The color of an outline drawn round each letter of the label; see the node's. */
+    readonly labelOutlineColor: StyleColor;
+    /** How thick that outline is, in the units of `labelSize`; 0 draws none. */
+    readonly labelOutlineWidth: number;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */

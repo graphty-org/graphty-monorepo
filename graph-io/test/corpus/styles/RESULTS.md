@@ -364,20 +364,20 @@ Tool values are elements drawn with the writing program's default.
 | json/fidelity/gephi-worldcup.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/fidelity/graphology-synth.json | ok | 100 | 270 | 3 | 3 | 584 | 54% | 0% | 0 | 1537 | 0 |  |
 | json/fidelity/sigma-lesmis.json | ok | 77 | 254 | 3 | 2 | 227 | 69% | 0% | 110 | 1378 | 0 | W_STYLE_RAMP_ROUNDED |
-| json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 14 | 2 | 126 | 0% | 0% | 0 | 2925 | 0 |  |
-| json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 7 | 4 | 69 | 48% | 1% | 0 | 225 | 0 |  |
-| json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 3472 | 0 |  |
-| json/fidelity/vis-synth.json | ok | 72 | 84 | 9 | 5 | 224 | 64% | 25% | 0 | 643 | 0 | W_STYLE_GRADIENT, W_STYLE_UNKNOWN_VALUE |
-| json/fidelity/vis-transparency.json | ok | 50 | 100 | 3 | 2 | 0 | - | - | 0 | 1400 | 0 |  |
-| json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 679 | 0 |  |
-| json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 984 | 0 |  |
-| json/generated/cytoscape-graphty-written.json | ok | 4 | 3 | 6 | 4 | 14 | 79% | 57% | 0 | 0 | 0 |  |
-| json/generated/cytoscape-tamper-block-truncated.json | ok | 4 | 3 | 7 | 8 | 14 | 57% | 57% | 0 | 100 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/cytoscape-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 14 | 86% | 64% | 0 | 0 | 0 |  |
-| json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 7 | 8 | 14 | 57% | 57% | 0 | 113 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 4 | 9 | 78% | 67% | 0 | 60 | 0 |  |
+| json/fidelity/vis-lesmiserables.json | ok | 77 | 254 | 14 | 2 | 126 | 0% | 0% | 0 | 3687 | 0 |  |
+| json/fidelity/vis-nodelegend.json | ok | 21 | 15 | 7 | 4 | 69 | 48% | 1% | 0 | 270 | 0 |  |
+| json/fidelity/vis-siblings.json | ok | 200 | 284 | 6 | 3 | 158 | 0% | 0% | 0 | 4324 | 0 |  |
+| json/fidelity/vis-synth.json | ok | 72 | 84 | 9 | 6 | 231 | 65% | 24% | 0 | 896 | 0 | W_STYLE_UNKNOWN_VALUE |
+| json/fidelity/vis-transparency.json | ok | 50 | 100 | 3 | 2 | 0 | - | - | 0 | 1700 | 0 |  |
+| json/fidelity/vis-unix.json | ok | 41 | 49 | 3 | 3 | 0 | - | - | 0 | 826 | 0 |  |
+| json/fidelity/vis-world.json | ok | 48 | 69 | 3 | 3 | 0 | - | - | 0 | 1191 | 0 |  |
+| json/generated/cytoscape-graphty-written.json | ok | 4 | 3 | 6 | 4 | 14 | 79% | 57% | 0 | 3 | 0 |  |
+| json/generated/cytoscape-tamper-block-truncated.json | ok | 4 | 3 | 7 | 8 | 13 | 62% | 62% | 0 | 103 | 0 | W_STYLE_BLOCK_IGNORED |
+| json/generated/cytoscape-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 14 | 86% | 64% | 0 | 3 | 0 |  |
+| json/generated/cytoscape-tamper-node-added.json | ok | 5 | 3 | 7 | 8 | 13 | 62% | 62% | 0 | 116 | 0 | W_STYLE_BLOCK_IGNORED |
+| json/generated/graphology-graphty-written.json | ok | 4 | 3 | 6 | 4 | 9 | 78% | 67% | 0 | 69 | 0 |  |
 | json/generated/graphology-tamper-block-truncated.json | ok | 4 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 38 | 0 | W_STYLE_BLOCK_IGNORED |
-| json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 9 | 89% | 78% | 0 | 60 | 0 |  |
+| json/generated/graphology-tamper-native-edited.json | ok | 4 | 3 | 7 | 4 | 9 | 89% | 78% | 0 | 69 | 0 |  |
 | json/generated/graphology-tamper-node-added.json | ok | 5 | 3 | 2 | 2 | 9 | 100% | 0% | 0 | 49 | 0 | W_STYLE_BLOCK_IGNORED |
 | json/graphology-arctic.json.gz | ok | 1715 | 6228 | 1 | 1 | 0 | - | - | 0 | 43777 | 0 |  |
 | json/graphology-eurosis.json.gz | ok | 1285 | 7524 | 4 | 1 | 2118 | 0% | 0% | 1540 | 40376 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -388,7 +388,7 @@ Tool values are elements drawn with the writing program's default.
 | json/sigma-website-euroSIS.json.gz | ok | 1285 | 7524 | 2 | 1 | 0 | - | - | 0 | 44231 | 0 |  |
 | json/sigma-website-wikipedia.json.gz | ok | 2085 | 0 | 1 | 1 | 0 | - | - | 0 | 22935 | 0 |  |
 | json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
-| json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 5 | 3 | 0 | - | - | 0 | 3654 | 0 |  |
+| json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 5 | 3 | 202 | 100% | 0% | 0 | 4461 | 0 |  |
 | pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 100% | 45% | 0 | 64 | 0 |  |
 | pajek/fidelity/1crn.net | ok | 327 | 337 | 7 | 2 | 363 | 0% | 0% | 0 | 4628 | 0 |  |
 | pajek/fidelity/c.net | ok | 65 | 125 | 3 | 2 | 0 | - | - | 0 | 1080 | 0 |  |

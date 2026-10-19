@@ -864,8 +864,8 @@ and the `curve`, `inv_curve` and `image` arrow types draw nothing (arrows); capt
 `bold`, `ital`, `boldital`, `mono` modifiers, as objects or as text) is not read by graph-io, so graphty draws the
 markup characters as plain text where vis-network draws styled runs (labels, labels-p2, labels-p3, edge-labels,
 edge-labels-p2); curved `smooth` types other than the default draw straight
-(edges-lines route 38/56, edges-lines-p3 route 7/17); edge `background` and the rest of edges-lines-p3 as judged in
-`graphty-element/tmp/oracle-report/`.
+(edges-lines route 38/56, edges-lines-p3 route 7/17; fixed in fix round 1, see "vis-network settings graph-io now
+reads" below); edge `background` and the rest of edges-lines-p3 as judged in `graphty-element/tmp/oracle-report/`.
 
 The oracle SVG was checked against Chromium's own screen of every sheet (`ORACLE_SCREENSHOT_DIR`, a per-cell pixel
 difference): after four fixes to the SVG context in `web-oracle.mjs`, they differ only in text antialiasing. Before
@@ -875,6 +875,80 @@ repeated paint gets its own copy), drew an image node's `opacity` opaque (svgcan
 globalAlpha), and missed a `brokenImage` (the image tracker did not wait for a second load started by setting `src`
 again on the same Image). The fixes apply to every web oracle; the Cytoscape.js and sigma.js oracles pick them up
 when regenerated.
+
+## Specimen sheets: vis-network settings graph-io now reads (fix round 1, 2026-10-19)
+
+graph-io's vis-network reader (`graph-io/src/formats/json/styles.ts`) now reads these settings the way
+vis-network 9.1.9 draws them; tests in `graph-io/test/styles/vis-specimen-fixes.test.ts`:
+
+- `edges.smooth`: every static type (`continuous`, `discrete`, `diagonalCross`, `straightCross`, `horizontal`,
+  `vertical`, `curvedCW`, `curvedCCW`) with its `roundness`, and `cubicBezier` with `forceDirection`, as vis-network's
+  own control points (`BezierEdgeStatic._getViaCoordinates`, `CubicBezierEdge._getViaCoordinates`) from the
+  positions it draws (`parseInt` of `x` and `y`). graphty-element draws them with the new `line.bendCurve` value
+  `"bezier"` (neutral `bendCurve: "bezier"`): one Bezier curve from node center to node center through the bends,
+  cut where it leaves each node. A `dynamic` curve (vis-network's default) is drawn through a support node the
+  physics moves; with physics off it stays at the middle and the edge is straight, which graph-io draws.
+  `vis-network-specimen-edges-lines` (smooth-*, roundness-*, background-curved*) and `-edges-lines-p3` pass their
+  route and curve rows.
+- `selfReference.size`, `.angle` and the older `selfReferenceSize`: a self-loop is vis-network's circle on the
+  node's outline, written as bends round the circle (`bendCurve: "midpoints"`).
+- `font.background`, `font.strokeWidth`, `font.strokeColor` (new neutral `labelBackground`, `labelOutlineColor`,
+  `labelOutlineWidth`, and graphty-element channels `node.` / `edge.labelBackground`, `labelOutline`,
+  `labelOutlineWidth`), with vis-network's edge label default of a 2 px white stroke as a tool default.
+- Edge labels sit on the line (`font.align` horizontal and middle; new edge `labelPosition`, graphty-element draws
+  it through the label style's location), above it or below it (`top`, `bottom`), turned along the line for any
+  align but horizontal (edge `labelRotation`, as `Edge._getRotation`).
+- `widthConstraint` (a number or its `maximum`) as the label's wrap width, for nodes and edges (edge
+  `labelWrapWidth` is new); vis-network does not take the margins off it (`constrainWidth` is never set).
+- `font.multi` (true, html, markdown): the markup is read off the label, and a label whose words all share one
+  modifier is drawn bold, italic or in the mono face.
+- Shapes sized by their label: a node with no label text is sized round a 14 x 14 box
+  (`NodeBase.getDimensionsFromLabel`); `margin: 0` on a box, circle or database draws nothing (its size is NaN);
+  `heightConstraint.valign` top and bottom put the label inside the node's top or bottom.
+- `opacity` fades a node's border as well as its fill, but only where vis-network can (a hex or `rgb()` color;
+  `overrideOpacity` leaves `rgba()`, 8-digit hex and names as they are).
+- `color.inherit: "both"` is a linear gradient from the source node's border color to the target's; an edge's own
+  `inherit` wins over a color `options.edges` gives (`edge-inherit-from-group`).
+- `dashes` and `shapeProperties.borderDashes` arrays as the line style they draw: dash-dot, dotted or dashed by
+  the same reading the comparator uses, with an edge's round caps (vis-network draws edges with `lineCap: "round"`),
+  and an `options.edges.dashes` array drawn as vis-network's default [5, 5] (bridgeObject turns it into an object).
+- `scaling.label`: with `enabled`, a label's font size from `value`, as its node's size is.
+
+Re-judged on the vis-network sheets and samples (failing elements before -> after, at the commit of this entry):
+edges-lines 28 -> 10, edges-lines-p2 1 -> 0, edges-lines-p3 11 -> 2, edge-labels 50 -> 29, edge-labels-p2 5 -> 4,
+node-sizes-opacity 13 -> 3, node-fills-borders 8 -> 3, mappings-bypass 6 -> 3, node-shapes 31 -> 27, arrows 18 -> 17,
+groups 3 -> 2, groups-p2 3 -> 2, json-vis-synth 57 -> 37. Still open, and why:
+
+- Multi-font runs (`font.multi` with `<b>B</b> x`, and `font.bold` / `ital` / `boldital` / `mono` color, size, face,
+  mod and vadjust; labels, labels-p2, labels-p3, edge-labels, edge-labels-p2): graphty-element draws one font per
+  label, so a label mixing runs is drawn in the label's own font. graphty-element work: styled runs in a label.
+  The comparator also reads vis-network's runs as separate texts and associates none of them with graphty's one
+  label (`label.present` o=None), so these rows cannot pass until it joins runs on one baseline.
+- `font.vadjust` (node and edge labels), `font.align` left / right (multi-line node labels) and an asymmetric
+  `margin` (`margin-sides`): graphty-element has no label offset or line alignment channel yet (the shared
+  `label-anchor-offset` work). edge-labels `font-vadjust` (-10) passed before only because graphty drew every edge
+  label 7 px above its line; it fails now that the others sit on it.
+- `font.background` box size: graphty-element draws the panel with its label margins, about 6 px taller than
+  vis-network's box round the text (`label.backgroundBox`, labels and edge-labels).
+- `selfReference.renderBehindTheNode: false` (`self-reference-front`): vis-network draws only a short arc of the
+  circle; graphty draws the whole circle. The comparator reads vis-network's full-circle loops (`self-loop`,
+  `self-reference-size`, `self-reference-size-legacy`) as stray paths, not edges (`stray.present` path#0..2 on
+  edges-lines), so graphty's loops count as extra edges: comparator work. `self-reference-angle` (the one loop the
+  comparator does read) follows the circle away from the node but leaves and re-enters the node at one point where
+  vis-network's circle crosses it twice (`edge.route` 0.32 against 0.05).
+- `dashes-wide` (dashes true, width 4): vis-network's round caps leave gaps of 0.94 px in a 9.4 px pattern, which the
+  comparator reads as solid, as it should by its rule; graph-io reads the same and asks for dashed only where a
+  gap is at least a tenth of the pattern. graphty-element's dashed line has no dash array, so its own dashes differ.
+- `database` (`size-30-database`, `shape-database*`): vis-network sizes it from its label's width alone and the
+  oracle reads its cylinder as having no stroke; graphty sizes it as a square round the whole label.
+- A hexagon (`shape-hexagon`, `shape-hexagon-label-below`): vis-network draws it sqrt 3 times its size tall, with
+  its corners at 0, 60, ... degrees, but puts the label below its full size (2 x size); graphty draws the hexagon
+  the node's full height and its label below what it draws. Drawing it shorter moves graphty's label up with it, so
+  it waits for a label offset in graphty-element (the shared `label-anchor-offset` work).
+- `json-vis-siblings` extra elements: the file has no hidden or duplicate records (200 nodes, 284 edges, none
+  hidden, no repeated id or pair), and vis-network draws all of them: the oracle SVG holds 484 filled paths,
+  200 nodes and 284 arrowheads. The comparator finds 83 of the nodes and 77 of the edges in it, so graphty's
+  others count as extra: comparator work, not an import gap.
 
 ## Specimen sheets: Pajek
 

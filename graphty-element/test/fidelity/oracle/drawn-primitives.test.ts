@@ -215,4 +215,44 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         const alone = nodeOf({ border: outer.border, innerBorder: null, outer });
         assert.deepEqual([alone?.w, alone?.stroke?.color, alone?.ring ?? null], [44, "#999999", null]);
     });
+
+    it("leaves out a group it draws nothing for: no fill, no outline and no label", () => {
+        const groupOf = (fill: string | null, fillOpacity: number): PScene["groups"] => {
+            const parent = {
+                id: "p",
+                x: 50,
+                y: 50,
+                w: 40,
+                h: 40,
+                shape: "rectangle",
+                fill,
+                fillOpacity,
+                border: { color: null, width: 0, style: "solid" },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: fill },
+            };
+            const scene = {
+                nodes: [parent],
+                edges: [],
+                groups: [{ id: "p", bbox: { x: 30, y: 30, w: 40, h: 40 }, fill, label: null, members: ["a"] }],
+                annotations: [],
+                gaps: [],
+            } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([
+                    ["p", { insetPx: 0, label: null, gradient: false, ramp: null } as unknown as DrawnNode],
+                ]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 200,
+                height: 100,
+            };
+            return drawnPrimitives(scene, drawn).groups;
+        };
+        assert.lengthOf(groupOf("#eeeeee", 1), 1);
+        assert.lengthOf(groupOf(null, 1), 0);
+        assert.lengthOf(groupOf("#eeeeee", 0), 0);
+    });
 });

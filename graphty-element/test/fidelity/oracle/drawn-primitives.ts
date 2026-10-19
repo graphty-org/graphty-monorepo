@@ -375,27 +375,31 @@ export function drawnPrimitives(
             },
         ];
     });
-    const groups = sceneGroups.map((g) => {
-        const n = scene.nodes.find((x) => x.id === g.id);
-        const d = drawn.nodes.get(g.id);
-        return {
-            id: g.id,
-            box: { x0: g.bbox.x, y0: g.bbox.y, x1: g.bbox.x + g.bbox.w, y1: g.bbox.y + g.bbox.h },
-            fill: g.fill === null ? null : { color: g.fill, opacity: n?.fillOpacity ?? 1, gradient: null },
-            stroke:
-                n !== undefined && n.border.color !== null && n.border.width > 0
-                    ? {
-                          color: n.border.color,
-                          opacity: d?.border?.opacity ?? 1,
-                          width: n.border.width,
-                          dash: null,
-                          dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
-                      }
-                    : null,
-            label: g.label !== null && d?.label ? textOf(d.label) : null,
-            members: [...g.members].sort(),
-        };
-    });
+    // a group graphty draws nothing for (no fill, no outline, no label) is no box on the canvas: json-cyjs-tokyo's 204
+    // invisible compound parents
+    const groups = sceneGroups
+        .map((g) => {
+            const n = scene.nodes.find((x) => x.id === g.id);
+            const d = drawn.nodes.get(g.id);
+            return {
+                id: g.id,
+                box: { x0: g.bbox.x, y0: g.bbox.y, x1: g.bbox.x + g.bbox.w, y1: g.bbox.y + g.bbox.h },
+                fill: g.fill === null ? null : { color: g.fill, opacity: n?.fillOpacity ?? 1, gradient: null },
+                stroke:
+                    n !== undefined && n.border.color !== null && n.border.width > 0
+                        ? {
+                              color: n.border.color,
+                              opacity: d?.border?.opacity ?? 1,
+                              width: n.border.width,
+                              dash: null,
+                              dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
+                          }
+                        : null,
+                label: g.label !== null && d?.label ? textOf(d.label) : null,
+                members: [...g.members].sort(),
+            };
+        })
+        .filter((g) => (g.fill !== null && g.fill.opacity > 0) || g.stroke !== null || g.label !== null);
     return {
         side: "graphty",
         width: drawn.width,

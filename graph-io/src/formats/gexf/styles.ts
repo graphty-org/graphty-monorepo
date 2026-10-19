@@ -681,8 +681,6 @@ function nodeRules(
         }),
         "NODE_SIZE",
     );
-    // the border is stroked on a circle of radius size - border / 2: inside the node's size, which it never grows
-    everyElement(node, "node", "border-inside", { borderPosition: "inside" });
     const font = preview.font("node");
     const labelSizes = nodeIndices.map((i) =>
         preview.on("node.label.proportinalSize")

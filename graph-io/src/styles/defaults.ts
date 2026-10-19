@@ -556,6 +556,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(20, `${GEPHI} AbstractProcessor.java lines 195-198 (size 10 is a radius)`),
                     height: v(20, `${GEPHI} AbstractProcessor.java lines 195-198 (size 10 is a radius)`),
                     shape: v("ellipse", "GEXF 1.3 viz shape default disc; Preview NodeRenderer"),
+                    borderPosition: v(
+                        "inside",
+                        `${MEASURED}gexf-specimen-node-fills-borders-p3), Gephi Toolkit 0.11.3: the border is stroked on a circle of radius size - border / 2`,
+                    ),
                     labelPosition: v(
                         "center",
                         `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,

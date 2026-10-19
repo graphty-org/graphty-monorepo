@@ -7,6 +7,12 @@
  * - `data.import`: a load through a registered data source, replacing the graph or adding to it.
  * - `data.expand`: the neighbourhood a double-click fetched, added as one step. The fetched
  *   records are in the command, so redo never fetches again.
+ * - `data.declare`: what a column measures, kept in the `attributes` slice under
+ *   `<kind>:<name>` so it is saved and undone like any other project change.
+ * - `data.setSource`: the source the graph was loaded from, the `source` graph value
+ *   `data.source()` reads: a new name for it, or the source a project file recorded.
+ * - `data.setFileStyles`: the per-element style values the layers made from files read at
+ *   `graphty.style.<namespace>.<kind>.<key>`, kept beside the data and never in its records.
  *
  * Each reads its records through ingest (id and endpoint extraction, the repeated-edge policy,
  * weights) and writes through the graph primitives in its draft, which record the resolved values,
@@ -23,13 +29,20 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
+import type { DeclaredDirection } from "../../data/DataSource";
+import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
 import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
-import type { NodeRecordInput, RowUpdate } from "../types";
+import type { CodedFact } from "../shared";
+import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
+import type { FileStyleOptions } from "../styles/fileStyles/translate";
+import { deepEquals } from "../styles/predicate";
+import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
@@ -52,6 +65,15 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /**
+           * The graph's direction, declared the way a node-link JSON file's `"directed"` key
+           * declares it, and taken on the same terms: only while the graph holds no edges, and
+           * never over a `data.directed` the configuration set to a boolean. On a graph that
+           * already holds edges it changes nothing, not even where the direction came from; a
+           * value that disagrees is logged. Undo takes it back with the edges. Default: leave
+           * the direction as it is.
+           */
+          readonly directed?: boolean;
       }
     | {
           /** The same values on many rows: "set type to hub on these nodes". */
@@ -65,6 +87,8 @@ export type DataMutation =
           readonly kind: "update-rows";
           readonly target: "node" | "edge";
           readonly rows: readonly RowUpdate<NodeId | EdgeId>[];
+          /** Each row's values become its whole record instead of patching it. Default: patch. */
+          readonly replace?: boolean;
       }
     | {
           /** Remove nodes, and every edge attached to one. */
@@ -109,6 +133,17 @@ export interface DataImportCommand {
     readonly mode?: "replace" | "merge";
     /** `"recommended"` also chooses a layout for what was loaded, in the same step. */
     readonly layout?: "recommended" | "keep";
+    /** Rows a draft already read: loaded in place of reading the source again, on redo too. */
+    readonly held?: HeldRows;
+    /** An edge naming a node no node record holds: made (the default), or left out. */
+    readonly unmatched?: "add" | "leave-out";
+    /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
+    readonly duplicateIds?: "first" | "merge" | "refuse";
+    /**
+     * Count the load instead of refusing it: a limit it passes is recorded in the report, and
+     * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
+     */
+    readonly measure?: { readonly nodes: ReadonlySet<NodeId>; readonly edges: number };
     /** Declared at construction: while the baseline window is open it becomes the baseline. */
     readonly setup?: boolean;
     /**
@@ -116,6 +151,56 @@ export interface DataImportCommand {
      * properties assigned one after the other are one load.
      */
     readonly coalesce?: string;
+    /**
+     * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
+     * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     */
+    readonly styles?: "file" | "none";
+    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    readonly styleOptions?: FileStyleOptions;
+}
+
+/** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
+export interface HeldRows {
+    /** Node records. */
+    readonly nodes: readonly Record<string, unknown>[];
+    /** Edge records. */
+    readonly edges: readonly Record<string, unknown>[];
+    /** The direction the file declared, read when the rows were. */
+    readonly declaredDirection: DeclaredDirection | null;
+    /** The rows reading the source refused. */
+    readonly errors: readonly DataLoadingError[];
+    /** How many refused rows end a read: the source's error limit. */
+    readonly errorLimit: number;
+    /** The expression a node record's id is read with; the configured one when absent. */
+    readonly idPath?: string;
+    /** The expression an edge's source is read with; probed when absent. */
+    readonly source?: string;
+    /** The expression an edge's target is read with; probed when absent. */
+    readonly target?: string;
+    /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
+    readonly weight?: string | null;
+}
+
+/**
+ * Whether a command adds rows, and so starts the load-time algorithm list once it is recorded: an
+ * add of nodes or edges, or an import naming both a source type and its options.
+ * @param command - Any dispatched command.
+ * @param command.op - What it does.
+ * @returns True when it does.
+ */
+export function addsRows(command: { readonly op: string }): boolean {
+    if (command.op === "data.apply") {
+        const { kind } = (command as DataApplyCommand).mutation;
+        return kind === "add-nodes" || kind === "add-edges";
+    }
+
+    if (command.op === "data.import") {
+        const { source } = command as DataImportCommand;
+        return source.type !== undefined && source.config !== undefined;
+    }
+
+    return false;
 }
 
 /** `data.expand`: what a double-click on `seed` fetched, captured so redo does not fetch again. */
@@ -130,8 +215,53 @@ interface DataExpandCommand {
     readonly target?: string;
 }
 
+/** `data.declare`: what a column measures, overriding what the element inferred. */
+interface DataDeclareCommand {
+    readonly op: "data.declare";
+    readonly column: { readonly kind: "node" | "edge"; readonly name: string };
+    readonly declaration: MeasurementDeclaration;
+}
+
+/**
+ * `data.setSource`: describe the source the graph was loaded from -- a new name for it, or the
+ * source a project file recorded.
+ */
+interface DataSetSourceCommand {
+    readonly op: "data.setSource";
+    readonly source: ImportSource;
+}
+
+/**
+ * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
+ * entry per load. An empty list removes them all.
+ */
+export interface DataSetFileStylesCommand {
+    readonly op: "data.setFileStyles";
+    readonly loads: readonly FileStyleLoadValues[];
+}
+
 /** Every data op. */
-export type DataCommand = DataApplyCommand | DataImportCommand | DataExpandCommand;
+export type DataCommand =
+    | DataApplyCommand
+    | DataImportCommand
+    | DataExpandCommand
+    | DataDeclareCommand
+    | DataSetSourceCommand
+    | DataSetFileStylesCommand;
+
+/** The measurements every declaration may name. */
+const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
+
+/**
+ * The `attributes` slice key one column's declaration is kept under.
+ * @param column - The column.
+ * @param column.kind - Nodes or edges.
+ * @param column.name - Its literal name.
+ * @returns The key.
+ */
+export function declarationKey(column: { readonly kind: string; readonly name: string }): string {
+    return `${column.kind}:${column.name}`;
+}
 
 /** How a session applies a data mutation: its ingest and its store. Set by whoever owns them. */
 export interface DataService {
@@ -156,10 +286,10 @@ export interface DataService {
         draft: Draft,
         signal: AbortSignal,
         after?: UndoableContext["after"],
-    ): Promise<void>;
+    ): Promise<ImportOutcome | null | undefined>;
     /**
-     * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`.
-     * A renderer's only; a headless session runs no plugin.
+     * Set graph-level values through `draft`: what a plugin algorithm wrote to `graphResults`, or
+     * the data source's new name.
      * @param values - The values by name.
      * @param draft - The command's draft.
      */
@@ -227,33 +357,61 @@ export function replaceEdgesCommand(
             ...(options.repeated === undefined ? {} : { repeated: options.repeated }),
         },
     });
-    return { op: "batch", label: "Replaced the edges", steps, ...(setup ? { setup } : {}) };
+    return {
+        op: "batch",
+        label: "Replaced the edges",
+        fact: { code: "data.replace-edges", params: {} },
+        steps,
+        ...(setup ? { setup } : {}),
+    };
 }
 
 /**
  * The step replacing the graph's nodes: remove the nodes it holds that the new records do not
- * name, with their edges, and add the new ones. A node named again keeps its row and its edges.
- * @param held - The ids of the nodes it holds, read when the step is about to run.
+ * name, with their edges, give every node named again the record it was just handed (it keeps its
+ * row, its position and its edges), and add the new ones.
+ * @param held - The records of the nodes it holds by id, read when the step is about to run.
  * @param records - The nodes it should hold afterwards.
  * @param idPath - Where a record's id is, `data.knownFields.nodeIdPath`.
  * @param setup - Declared at construction.
  * @returns The command.
  */
 export function replaceNodesCommand(
-    held: readonly NodeId[],
+    held: ReadonlyMap<NodeId, Readonly<Record<string, unknown>>>,
     records: readonly RecordInput[],
     idPath: string,
     setup = false,
 ): BatchCommand {
-    const named = new Set(records.map((record) => jmespath.search(record, idPath) as unknown));
-    const gone = held.filter((id) => !named.has(id));
+    const named = new Map(records.map((record) => [jmespath.search(record, idPath) as unknown, record]));
+    const gone = [...held.keys()].filter((id) => !named.has(id));
+    const changed: RowUpdate<NodeId>[] = [];
+    for (const [id, prior] of held) {
+        const record = named.get(id);
+        if (record !== undefined && !deepEquals(prior, record)) {
+            changed.push({ id, values: record });
+        }
+    }
+
     const steps: DataApplyCommand[] = [];
     if (gone.length > 0) {
         steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: gone } });
     }
 
-    steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records } });
-    return { op: "batch", label: "Replaced the nodes", steps, ...(setup ? { setup } : {}) };
+    if (changed.length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: changed, replace: true },
+        });
+    }
+
+    steps.push({ op: "data.apply", mutation: { kind: "add-nodes", records, idPath } });
+    return {
+        op: "batch",
+        label: "Replaced the nodes",
+        fact: { code: "data.replace-nodes", params: {} },
+        steps,
+        ...(setup ? { setup } : {}),
+    };
 }
 
 /** Above this many rows a command holds the whole `graph` slice instead of each id. */
@@ -311,9 +469,35 @@ function labelOf(mutation: DataMutation): string {
     }
 }
 
+/**
+ * The step's fact.
+ * @param mutation - The mutation.
+ * @returns `data.add-nodes` with its count, and the like.
+ */
+function factOf(mutation: DataMutation): CodedFact<HistoryCode> {
+    if (mutation.kind === "clear") {
+        return { code: "data.clear", params: {} };
+    }
+
+    const count = sizeOf(mutation);
+    switch (mutation.kind) {
+        case "add-nodes":
+        case "add-edges":
+        case "remove-nodes":
+        case "remove-edges":
+            return { code: `data.${mutation.kind}`, params: { count } };
+        default:
+            return { code: "data.edit", params: { target: mutation.target, count } };
+    }
+}
+
 const dataApply: UndoableDefinition<DataApplyCommand> = {
     op: "data.apply",
-    undo: { kind: "undoable", label: (command) => labelOf(command.mutation) },
+    undo: {
+        kind: "undoable",
+        label: (command) => labelOf(command.mutation),
+        fact: (command) => factOf(command.mutation),
+    },
     moves: false,
     // A clear begins a new dataset, whose step keeps the arrangement it replaced.
     movesWhen: (command) => command.mutation.kind === "clear",
@@ -385,6 +569,20 @@ function serviceOf(service: DataService | undefined): DataService {
  * @returns "Loaded flights.csv" and the like.
  */
 function importLabel(command: DataImportCommand): string {
+    const { name, type } = importFact(command).params;
+    if (name !== null) {
+        return `Loaded ${String(name)}`;
+    }
+
+    return type === null ? "Set the data source" : `Loaded ${String(type)}`;
+}
+
+/**
+ * The fact of an import's step: the name `data.source()` reports and the data source.
+ * @param command - The import.
+ * @returns `data.import` with `name` and `type`, each null when unknown.
+ */
+function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     const { type, config, name } = command.source;
     const file = config?.file as { name?: unknown } | undefined;
     const url = typeof config?.url === "string" && !config.url.startsWith("data:") ? config.url : undefined;
@@ -392,16 +590,33 @@ function importLabel(command: DataImportCommand): string {
     const named = [name, config?.filename, file?.name, url?.split(/[?#]/)[0]?.split("/").pop()].find(
         (each): each is string => typeof each === "string" && each !== "",
     );
-    if (named !== undefined) {
-        return `Loaded ${named}`;
+    return { code: "data.import", params: { name: named ?? null, type: type ?? null } };
+}
+
+/**
+ * The import's `layout` choice: the command's own, else the one its source config names (a load
+ * call's options and `dataSourceConfig` carry it there, beside the reader's options).
+ * @param command - the import
+ * @returns `"recommended"` or `"keep"`
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the config names any other value.
+ */
+function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
+    const layout = command.layout ?? command.source.config?.layout ?? "keep";
+    if (layout !== "recommended" && layout !== "keep") {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A load's layout is "recommended" or "keep", not ${JSON.stringify(layout)}.`,
+            source: "data",
+            details: { reason: "bad-layout-choice", layout: JSON.stringify(layout) },
+        });
     }
 
-    return type === undefined ? "Set the data source" : `Loaded ${type}`;
+    return layout;
 }
 
 const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
-    undo: { kind: "undoable", label: importLabel },
+    undo: { kind: "undoable", label: importLabel, fact: importFact },
     // A chunked writer: a layout can move the lane between its chunks, so it takes the
     // arrangement it began from, and a replacing one begins a new dataset.
     moves: true,
@@ -410,40 +625,66 @@ const dataImport: UndoableDefinition<DataImportCommand> = {
     // A load writes rows it cannot name before it has read them, so it holds the whole slice.
     keys: () => ["graph"],
     lane: { kind: "queued", category: "data-add", coalesce: (command) => command.coalesce ?? null },
-    // The options can carry a `File` and a whole file's text; neither is copied.
-    byReference: ["config"],
+    // The options can carry a `File` and a whole file's text, and a draft's held rows a whole
+    // file's records, an error tally and the graph a measured merge counts; none is copied.
+    byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
-        if (command.layout === "recommended") {
-            // Chosen for what was loaded, once it is loaded, and merged into the import's step.
-            const advise = ctx.services.layoutAdvice;
-            ctx.after("layout:recommended", (dispatch) => {
-                const advice = advise?.();
-                if (advice !== undefined) {
-                    void dispatch({ op: "layout.set", id: advice.id, engine: advice.engine }).catch(
-                        (error: unknown) => {
-                            // An undo that took the import away cancels this too; anything else is a
-                            // layout the import promised and did not apply.
-                            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
-                                GraphtyLogger.getLogger(["graphty", "data"]).error(
-                                    "The layout recommended for the imported data could not be applied",
-                                    error instanceof Error ? error : new Error(String(error)),
-                                    { layout: advice.id },
-                                );
-                            }
-                        },
-                    );
-                }
-            });
+        // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
+        // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
+        let sceneScale: number | null = null;
+        if (layoutChoiceOf(command) === "recommended") {
+            adviseLayout(ctx, () => sceneScale);
         }
 
-        await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        // The file's styles, and the previous file's layers swept, in this same step.
+        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
     },
 };
 
+/**
+ * Choose the layout recommended for what an import loads, once it is loaded, merged into the
+ * import's step.
+ * @param ctx - The import's context.
+ * @param sceneScale - The scene units one unit of the file's lengths was drawn as, read once the
+ *     import is done: a fixed layout draws the file's stored positions in the same unit.
+ */
+function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): void {
+    const advise = ctx.services.layoutAdvice;
+    ctx.after("layout:recommended", (dispatch) => {
+        const advice = advise?.();
+        if (advice === undefined) {
+            return;
+        }
+
+        const scale = advice.id === "fixed" ? sceneScale() : null;
+        void dispatch({
+            op: "layout.set",
+            id: advice.id,
+            engine: advice.engine,
+            ...(scale === null ? {} : { options: { scale } }),
+        }).catch((error: unknown) => {
+            // An undo that took the import away cancels this too; anything else is a
+            // layout the import promised and did not apply.
+            if ((error as { name?: unknown } | null)?.name !== "AbortError") {
+                GraphtyLogger.getLogger(["graphty", "data"]).error(
+                    "The layout recommended for the imported data could not be applied",
+                    error instanceof Error ? error : new Error(String(error)),
+                    { layout: advice.id },
+                );
+            }
+        });
+    });
+}
+
 const dataExpand: UndoableDefinition<DataExpandCommand> = {
     op: "data.expand",
-    undo: { kind: "undoable", label: (command) => `Expanded ${String(command.seed)}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Expanded ${String(command.seed)}`,
+        fact: (command) => ({ code: "data.expand", params: { node: command.seed } }),
+    },
     // A slot-holding writer (design section 6.4).
     moves: true,
     draws: true,
@@ -469,5 +710,116 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     },
 };
 
+const dataDeclare: UndoableDefinition<DataDeclareCommand> = {
+    op: "data.declare",
+    undo: {
+        kind: "undoable",
+        label: (command) => `Declare ${command.column.name}`,
+        fact: (command) => ({
+            code: "data.declare",
+            params: { kind: command.column.kind, column: command.column.name },
+        }),
+    },
+    // A declaration repaints nothing: a layer keeps the binding it was created with.
+    moves: false,
+    keys: (command) => [`attributes/${declarationKey(command.column)}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { declaration } = command;
+        const { order } = declaration as { order?: unknown };
+        const valid =
+            DECLARABLE.has(declaration.measurement) &&
+            (declaration.measurement === "ordinal"
+                ? Array.isArray(order) &&
+                  order.length > 0 &&
+                  order.every((value) => typeof value === "string" || typeof value === "number")
+                : order === undefined);
+        if (!valid) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `A declaration names one of ${[...DECLARABLE].join(", ")}, and an ordinal one lists its values in order.`,
+                source: "data",
+                details: { column: command.column, declaration, available: [...DECLARABLE] },
+            });
+        }
+
+        const stored: MeasurementDeclaration =
+            declaration.measurement === "ordinal"
+                ? { measurement: "ordinal", order: Object.freeze([...declaration.order]) }
+                : { measurement: declaration.measurement };
+        ctx.draft.attributes.set(declarationKey(command.column), Object.freeze(stored));
+    },
+};
+
+const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
+    op: "data.setSource",
+    undo: {
+        kind: "undoable",
+        label: (command) => `Name the source ${command.source.name ?? ""}`,
+        fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
+    },
+    moves: false,
+    keys: () => [`graph/v:${SOURCE_VALUE}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { source } = command;
+        if (typeof source !== "object" || source === null || Array.isArray(source)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "A data source is described by an object: its type, name, size and options.",
+                source: "data",
+                details: { reason: "not-a-source", source },
+            });
+        }
+
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot describe the data source.",
+                source: "data",
+            });
+        }
+
+        service.values({ [SOURCE_VALUE]: describeSource(source) }, ctx.draft);
+    },
+};
+
+const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
+    op: "data.setFileStyles",
+    undo: {
+        kind: "undoable",
+        label: () => "Set the style values of loaded files",
+        fact: (command) => ({
+            code: "data.set-file-styles",
+            params: { loads: Array.isArray(command.loads) ? command.loads.length : 0 },
+        }),
+    },
+    moves: false,
+    keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        // Checked before anything is written: the values may come from a file anyone edited.
+        const store = fileStyleStoreOf(command.loads);
+        const service = serviceOf(ctx.services.data);
+        if (service.values === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot write graph values, so it cannot keep style values.",
+                source: "data",
+            });
+        }
+
+        service.values({ [FILE_STYLES_VALUE]: store.loads.length === 0 ? undefined : store }, ctx.draft);
+    },
+};
+
 /** The data ops' definitions. */
-export const DATA_DEFINITIONS = [dataApply, dataImport, dataExpand] as const;
+export const DATA_DEFINITIONS = [
+    dataApply,
+    dataImport,
+    dataExpand,
+    dataDeclare,
+    dataSetSource,
+    dataSetFileStyles,
+] as const;

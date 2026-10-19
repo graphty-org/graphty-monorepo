@@ -1,4 +1,103 @@
 /**
+ * The stable code every error an algorithm throws on purpose carries as `error.code`, so a caller can tell the
+ * cases apart without matching message text (which may change):
+ *
+ * - `E_NEEDS_UNDIRECTED` / `E_NEEDS_DIRECTED`: the algorithm is defined for the other kind of graph.
+ * - `E_BAD_OPTION`: an option is out of range, of the wrong length, or inconsistent with another.
+ * - `E_BAD_NODE`: a node index (a start, a target, a source) is not a node of the graph.
+ * - `E_BAD_WEIGHT`: an edge weight the algorithm cannot use (negative, infinite or NaN).
+ * - `E_NOT_CONNECTED` / `E_NOT_BIPARTITE` / `E_EMPTY_GRAPH`: the graph lacks a property the algorithm needs.
+ * - `E_TOO_LARGE`: the result would exceed a size bound the caller can raise.
+ * - `E_NOT_CONVERGED`, `E_BAD_PATH`, `E_PATH_COUNT_OVERFLOW`: {@link ConvergenceError}, {@link PathWalkError}
+ *   and {@link PathCountOverflowError}.
+ *
+ * The thrown object stays the `Error` or `RangeError` it was before codes existed.
+ * @public
+ */
+export type AlgorithmErrorCode =
+    | "E_NEEDS_UNDIRECTED"
+    | "E_NEEDS_DIRECTED"
+    | "E_BAD_OPTION"
+    | "E_BAD_NODE"
+    | "E_BAD_WEIGHT"
+    | "E_NOT_CONNECTED"
+    | "E_NOT_BIPARTITE"
+    | "E_EMPTY_GRAPH"
+    | "E_TOO_LARGE"
+    | "E_NOT_CONVERGED"
+    | "E_BAD_PATH"
+    | "E_PATH_COUNT_OVERFLOW";
+
+/**
+ * Attach a code to an error about to be thrown.
+ * @param error - The error
+ * @param code - Its code
+ * @returns The same error, with `code` set
+ */
+export function withCode<E extends Error>(
+    error: E,
+    code: AlgorithmErrorCode,
+): E & { readonly code: AlgorithmErrorCode } {
+    return Object.assign(error, { code });
+}
+
+/**
+ * The `E_TOO_LARGE` error of an algorithm that holds n x n values: a RangeError with `code` and
+ * `params` (`nodeCount`, `maxNodes` -- null when no bound was set and the allocation itself failed --
+ * and `bytes`).
+ * @param fn - The algorithm's name, for the message
+ * @param nodeCount - The node count
+ * @param maxNodes - The caller's bound, or undefined when the allocation failed under no bound
+ * @param bytes - The bytes the dense matrices need
+ * @returns The error, to throw
+ */
+export function tooLarge(
+    fn: string,
+    nodeCount: number,
+    maxNodes: number | undefined,
+    bytes: number,
+): RangeError & { readonly code: AlgorithmErrorCode; readonly params: object } {
+    const message =
+        maxNodes === undefined
+            ? `${fn}: ${String(nodeCount)} nodes need ${String(bytes)} bytes of n x n memory, more than this runtime could allocate. Pass a maxNodes to refuse such graphs up front.`
+            : `${fn}: ${String(nodeCount)} nodes exceeds maxNodes ${String(maxNodes)}; the result would allocate ${String(bytes)} bytes. Pass a larger maxNodes to allow it.`;
+    return Object.assign(withCode(new RangeError(message), "E_TOO_LARGE"), {
+        params: { nodeCount, maxNodes: maxNodes ?? null, bytes },
+    });
+}
+
+/**
+ * Refuse a graph above the caller's `maxNodes` before allocating, then run the n x n allocations,
+ * turning the engine's RangeError ("Array buffer allocation failed", "Out of memory") into `E_TOO_LARGE`.
+ * @param fn - The algorithm's name
+ * @param nodeCount - The node count
+ * @param maxNodes - The caller's bound; undefined for none
+ * @param bytes - The bytes the allocations need
+ * @param alloc - The allocations
+ * @returns What alloc returns
+ */
+export function allocDense<T>(
+    fn: string,
+    nodeCount: number,
+    maxNodes: number | undefined,
+    bytes: number,
+    alloc: () => T,
+): T {
+    // A NaN maxNodes refuses rather than switching the bound off.
+    if (maxNodes !== undefined && (nodeCount > maxNodes || Number.isNaN(maxNodes))) {
+        throw tooLarge(fn, nodeCount, maxNodes, bytes);
+    }
+    try {
+        return alloc();
+    } catch (error) {
+        if (error instanceof RangeError) {
+            throw tooLarge(fn, nodeCount, undefined, bytes);
+        }
+        throw error;
+    }
+}
+
+/**
  * Thrown when an iterative algorithm reaches its iteration cap before meeting its tolerance.
  *
  * The scores it had reached are not returned: an unconverged vector is not the answer, and
@@ -7,6 +106,7 @@
  */
 export class ConvergenceError extends Error {
     override readonly name = "ConvergenceError";
+    readonly code: AlgorithmErrorCode = "E_NOT_CONVERGED";
 
     /**
      * Builds the error and its message.
@@ -36,6 +136,7 @@ export class ConvergenceError extends Error {
  */
 export class PathWalkError extends Error {
     override readonly name = "PathWalkError";
+    readonly code: AlgorithmErrorCode = "E_BAD_PATH";
 
     /**
      * Builds the error and its message.
@@ -64,6 +165,7 @@ export class PathWalkError extends Error {
  */
 export class PathCountOverflowError extends Error {
     override readonly name = "PathCountOverflowError";
+    readonly code: AlgorithmErrorCode = "E_PATH_COUNT_OVERFLOW";
 
     /**
      * Builds the error and its message.

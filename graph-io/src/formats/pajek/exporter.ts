@@ -12,18 +12,21 @@
  * weight is written for edges whose weight was explicit (the role-weight column's validity).
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
 import { pairFolding } from "../../common/direction.js";
 import { isPajekLabel, quotePajekLabel } from "../../common/escape.js";
 import { capabilities, checkCapabilities, LOSS, type SanitizedIds, sanitizeIds } from "../../common/export.js";
-import { formatDecimal, formatF32, formatF64, formatInteger } from "../../common/format.js";
+import { formatDecimal, formatF32, formatInteger, formatNumber, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype } from "../../common/text.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
+import { PAJEK_STYLE_CAPABILITIES, pajekStyledExport } from "./styles.js";
 import {
     encodeCharacterReferences,
     formatIntervals,
@@ -36,48 +39,88 @@ import {
     SHAPES,
 } from "./syntax.js";
 
-/** The format-specific options of the Pajek exporter. */
-export interface PajekExportOptions {
+/** What the writer takes: the format's options, the common ones and the styles. */
+type PajekWriteOptions = PajekExportOptions & CommonExportOptions & ExporterStyleOptions;
+
+/**
+ * The format-specific options of the Pajek exporter.
+ * @category Built-in formats
+ */
+export interface PajekExportOptions extends CommonExportOptions {
     /**
-     * Write a `*Network <name>` header line (the .paj project-file convention) when the snapshot's
-     * meta.name is set; default false, since plain .net readers do not expect it.
+     * Write a `*Network <name>` line first, as Pajek project files (.paj) have. The name is the `name`
+     * option, else the graph's name (`snapshot.meta.name`); a graph with neither gets a bare
+     * `*Network` line. Plain .net readers do not expect the line. An explicit `false` wins over
+     * `name`: `{ networkHeader: false, name: "x" }` writes no line.
+     * @defaultValue false, or true when `name` is given
      */
     networkHeader?: boolean | undefined;
+    /**
+     * The network name written on the `*Network` line. Giving one writes the line, unless
+     * `networkHeader` is `false`. The default is the graph's name (`snapshot.meta.name`), which a
+     * Pajek, DOT, GML or GEXF import keeps; a graph read from CSV has none.
+     * @defaultValue the graph's name
+     */
+    name?: string | undefined;
 }
 
 /**
  * The LossNote codes of the Pajek exporter's check(): the Pajek-specific ones and, aliased, the
  * shared ones it records itself (`LOSS` holds the rest of the generic pre-flight's codes). A key
  * is the code without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const PAJEK_LOSS = Object.freeze({
-    /** A label or text value holds a double quote or a line break; export() will throw E_UNSUPPORTED. */
+    /**
+     * A label or text value holds a double quote or a line break, which Pajek cannot write; the save fails with
+     * E_UNSUPPORTED.
+     */
     TEXT: "E_PAJEK_TEXT",
     /** A column whose name cannot be a parameter key (whitespace, a quote, numeric, a shape keyword); skipped. */
     KEY_DROPPED: "W_PAJEK_KEY_DROPPED",
-    /** A label role column that is not text; its values are written as text and re-import as string. */
+    /**
+     * The node label attribute holds numbers or other values that are not text; they are written as text and read back
+     * as text.
+     */
     LABEL_AS_TEXT: "W_PAJEK_LABEL_AS_TEXT",
-    /** A non-finite f64 value; written as Infinity / NaN text, which re-imports as string. */
+    /** NaN or an infinity is written as the text Infinity or NaN, which reads back as text. */
     NONFINITE_AS_TEXT: "W_PAJEK_NONFINITE_AS_TEXT",
     /** A mutual pair; written as one undirected edge, the mark lost. */
     MUTUAL_AS_UNDIRECTED: LOSS.MUTUAL_AS_UNDIRECTED,
     /** A start / end / timestamp role column; Pajek intervals are written from the spells role only. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A position column with a stride other than 2 or 3. */
+    /** A position with other than 2 or 3 coordinates is not written. */
     POSITION_STRIDE: "W_PAJEK_POSITION_STRIDE",
-    /** meta.extra.pajek.firstMode is not a count within 0..N; the two-mode header is not written. */
+    /**
+     * The graph's two-mode vertex count (`meta.extra.pajek.firstMode`) is not between 0 and the number of nodes, so
+     * the file is written as a one-mode network.
+     */
     FIRST_MODE_DROPPED: "W_PAJEK_FIRST_MODE_DROPPED",
-    /** A role column Pajek has no slot for (kind, ...) written as a plain parameter; the role is lost. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A `shape` column with a value outside the shape keywords is written as a parameter (a string on re-import). */
+    /**
+     * A `shape` attribute whose value is not one of Pajek's shape names is written as a parameter, and reads back as a
+     * plain text attribute.
+     */
     SHAPE_AS_PARAMETER: "W_PAJEK_SHAPE_AS_PARAMETER",
     /** A vertex line with coordinates, a shape or parameters needs a label: the id text is written and reads back as a label. */
     LABEL_GAINED: "W_PAJEK_LABEL_GAINED",
-    /** A role-less node column named `label` reads back with the label role (its values become the vertex labels). */
+    /**
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
-    /** Under sanitizeIds "mangle": an original id whose text reads back as the other type under ids "canonical". */
+    /** The label column, when a role-less column named `label` is read over it on import. */
+    COLUMN_DROPPED: LOSS.COLUMN_DROPPED,
+    /**
+     * With `sanitizeIds: "mangle"`: an original id that reads back as a different type, such as the text "7" as the
+     * number 7.
+     */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
-    /** Parameter text that looks like a number or a boolean reads back as one (parameters are untyped, design 5.1). */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
 });
 
@@ -141,127 +184,190 @@ interface PlannedColumn {
  */
 function plan(table: Iterable<Column>, domain: "node" | "edge", notes: LossNote[] | null): PlannedColumn[] {
     const planned: PlannedColumn[] = [];
-    const rows = (column: Column): number => column.length - column.nullCount;
     for (const column of table) {
-        const { meta } = column;
-        const { role, name, dtype } = meta;
-        if (role === "label" && domain === "node") {
-            if (dtype !== "string" && dtype !== "dict" && notes !== null) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.LABEL_AS_TEXT,
-                        `node column "${name}" (label) is ${dtype}; labels are text and re-import as string`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            planned.push({ column, slot: "label" });
-            continue;
+        const slot = columnSlot(column, domain, notes);
+        if (slot !== null) {
+            planned.push({ column, slot });
         }
-        if (role === "position") {
-            if (domain === "node" && (meta.components === 2 || meta.components === 3)) {
-                planned.push({ column, slot: "position" });
-            } else if (notes !== null && domain === "node") {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.POSITION_STRIDE,
-                        `node column "${name}" (position) has ${meta.components} components; Pajek coordinates are x y [z]`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            } else if (notes !== null) {
-                notes.push(
-                    note(LOSS.POSITIONS, `edge column "${name}" (position) cannot be written`, name, rows(column)),
-                );
-            }
-            continue;
-        }
-        if (role === "spells") {
-            if (
-                dtype === "list" &&
-                (meta.itemDtype === "f64" || meta.itemDtype === "i32" || meta.itemDtype === "f32")
-            ) {
-                planned.push({ column, slot: "spells" });
-                continue;
-            }
-            if (notes !== null) {
-                notes.push(
-                    note(
-                        LOSS.SPELLS,
-                        `${domain} column "${name}" (spells) is not a list of number pairs; it cannot be written`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            continue;
-        }
-        if (role !== null && DROPPED_TEMPORAL_ROLES.has(role)) {
-            if (notes !== null) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.TEMPORAL_DROPPED,
-                        `${domain} column "${name}" (${role}) cannot be written; Pajek intervals come from the spells role`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            continue;
-        }
-        if (role !== null && (STRUCTURAL_ROLES.has(role) || CHECKED_ROLES.has(role))) {
-            // structural columns are folded into the topology; viz and hierarchy roles are reported by the generic checker
-            continue;
-        }
-        if (domain === "edge" && role === "id") {
-            continue;
-        }
-        if (dtype === "list" || dtype === "json") {
-            // reported by the generic checker (lists: false, json: false)
-            continue;
-        }
-        if (domain === "node" && name === SHAPE_COLUMN && (dtype === "dict" || dtype === "string")) {
-            if (allShapeKeywords(column)) {
-                planned.push({ column, slot: "shape" });
-                continue;
-            }
-            // a value outside the keywords: the whole column is a `shape "<text>"` parameter, which the
-            // importer reads back as one string column (a change for a dict column only)
-            if (notes !== null && dtype === "dict") {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.SHAPE_AS_PARAMETER,
-                        `node column "${name}" holds values outside the Pajek shape keywords; it is written as a parameter and reads back as string`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            planned.push({ column, slot: "param" });
-            continue;
-        }
-        if (domain === "edge" && name === RELATION_COLUMN && (dtype === "dict" || dtype === "string")) {
-            planned.push({ column, slot: "relation" });
-            continue;
-        }
-        if (!isParameterKey(name)) {
-            if (notes !== null) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.KEY_DROPPED,
-                        `${domain} column "${name}" cannot be a Pajek parameter key; it is not written`,
-                        name,
-                        rows(column),
-                    ),
-                );
-            }
-            continue;
-        }
-        planned.push({ column, slot: "param" });
     }
     return planned;
+}
+
+/**
+ * Record a note about a whole column, counting its set values; nothing when writing.
+ * @param notes - the note list check() fills; null when writing
+ * @param code - the code
+ * @param message - the message
+ * @param column - the column the note is about
+ */
+function columnNote(notes: LossNote[] | null, code: string, message: string, column: Column): void {
+    notes?.push(note(code, message, column.meta.name, column.length - column.nullCount));
+}
+
+/**
+ * The slot of one column, recording a note for a column that is not written as it is.
+ * @param column - the column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the slot, or null when the column is not written
+ */
+function columnSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { role, name } = column.meta;
+    if (role === "label" && domain === "node") {
+        return labelSlot(column, notes);
+    }
+    if (role === "position") {
+        return positionSlot(column, domain, notes);
+    }
+    if (role === "spells") {
+        return spellsSlot(column, domain, notes);
+    }
+    if (role !== null && DROPPED_TEMPORAL_ROLES.has(role)) {
+        columnNote(
+            notes,
+            PAJEK_LOSS.TEMPORAL_DROPPED,
+            `${domain} column "${name}" (${role}) cannot be written; Pajek intervals come from the spells role`,
+            column,
+        );
+        return null;
+    }
+    if (writtenElsewhere(column, domain)) {
+        return null;
+    }
+    return namedSlot(column, domain, notes);
+}
+
+/**
+ * The node label column: the label slot, noting a label that is not text.
+ * @param column - the label role column
+ * @param notes - the note list check() fills; null when writing
+ * @returns the label slot
+ */
+function labelSlot(column: Column, notes: LossNote[] | null): Slot {
+    const { name, dtype } = column.meta;
+    if (dtype !== "string" && dtype !== "dict") {
+        columnNote(
+            notes,
+            PAJEK_LOSS.LABEL_AS_TEXT,
+            `node column "${name}" (label) is ${dtype}; labels are text and re-import as string`,
+            column,
+        );
+    }
+    return "label";
+}
+
+/**
+ * A position role column: the coordinates of a node with 2 or 3 components, else not written.
+ * @param column - the position role column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the position slot, or null
+ */
+function positionSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { name, components } = column.meta;
+    if (domain === "edge") {
+        columnNote(notes, LOSS.POSITIONS, `edge column "${name}" (position) cannot be written`, column);
+        return null;
+    }
+    if (components === 2 || components === 3) {
+        return "position";
+    }
+    columnNote(
+        notes,
+        PAJEK_LOSS.POSITION_STRIDE,
+        `node column "${name}" (position) has ${components} components; Pajek coordinates are x y [z]`,
+        column,
+    );
+    return null;
+}
+
+/**
+ * A spells role column: the interval slot for a list of numbers, else not written.
+ * @param column - the spells role column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the spells slot, or null
+ */
+function spellsSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { name, dtype, itemDtype } = column.meta;
+    if (dtype === "list" && (itemDtype === "f64" || itemDtype === "i32" || itemDtype === "f32")) {
+        return "spells";
+    }
+    columnNote(
+        notes,
+        LOSS.SPELLS,
+        `${domain} column "${name}" (spells) is not a list of number pairs; it cannot be written`,
+        column,
+    );
+    return null;
+}
+
+/**
+ * Whether a column is folded into the topology, reported by the generic checker, or an edge id,
+ * so it is never a parameter.
+ * @param column - the column
+ * @param domain - node or edge
+ * @returns true when the column has no slot of its own
+ */
+function writtenElsewhere(column: Column, domain: "node" | "edge"): boolean {
+    const { role, dtype } = column.meta;
+    // structural columns are folded into the topology; viz and hierarchy roles, lists and json are
+    // reported by the generic checker (lists: false, json: false)
+    if (role !== null && (STRUCTURAL_ROLES.has(role) || CHECKED_ROLES.has(role))) {
+        return true;
+    }
+    return (domain === "edge" && role === "id") || dtype === "list" || dtype === "json";
+}
+
+/**
+ * The slot of a column written by its name: the shape keyword, the relation name, or a parameter.
+ * @param column - the column
+ * @param domain - node or edge
+ * @param notes - the note list check() fills; null when writing
+ * @returns the slot, or null when the name cannot be a parameter key
+ */
+function namedSlot(column: Column, domain: "node" | "edge", notes: LossNote[] | null): Slot | null {
+    const { name, dtype } = column.meta;
+    const text = dtype === "dict" || dtype === "string";
+    if (text && domain === "node" && name === SHAPE_COLUMN) {
+        return shapeSlot(column, notes);
+    }
+    if (text && domain === "edge" && name === RELATION_COLUMN) {
+        return "relation";
+    }
+    if (!isParameterKey(name)) {
+        columnNote(
+            notes,
+            PAJEK_LOSS.KEY_DROPPED,
+            `${domain} column "${name}" cannot be a Pajek parameter key; it is not written`,
+            column,
+        );
+        return null;
+    }
+    return "param";
+}
+
+/**
+ * A text node column named `shape`: the shape slot when every value is a keyword, else the whole
+ * column is a `shape "<text>"` parameter, which the importer reads back as one string column (a
+ * change for a dict column only).
+ * @param column - the shape column (string or dict)
+ * @param notes - the note list check() fills; null when writing
+ * @returns the shape or param slot
+ */
+function shapeSlot(column: Column, notes: LossNote[] | null): Slot {
+    if (allShapeKeywords(column)) {
+        return "shape";
+    }
+    if (column.meta.dtype === "dict") {
+        columnNote(
+            notes,
+            PAJEK_LOSS.SHAPE_AS_PARAMETER,
+            `node column "${column.meta.name}" holds values outside the Pajek shape keywords; it is written as a parameter and reads back as string`,
+            column,
+        );
+    }
+    return "param";
 }
 
 /**
@@ -293,26 +399,45 @@ function labelNotes(snapshot: GraphSnapshot, nodePlan: readonly PlannedColumn[],
                 plain.length - plain.nullCount,
             ),
         );
-    }
-    if (carried === 0) {
-        return;
-    }
-    let gained = 0;
-    for (let i = 0; i < snapshot.nodeCount; i++) {
-        if (labels === null || !labels.isSet(i)) {
-            gained++;
+        // the labels written second on each vertex line are then read over by that parameter
+        if (labels !== null && labels !== plain) {
+            notes.push(
+                note(
+                    PAJEK_LOSS.COLUMN_DROPPED,
+                    `node column "${labels.meta.name}" (the labels) reads back replaced by the parameter "${LABEL_COLUMN}"`,
+                    labels.meta.name,
+                    labels.length - labels.nullCount,
+                ),
+            );
         }
     }
+    const gained = carried === 0 ? 0 : unlabeled(snapshot.nodeCount, labels);
     if (gained > 0) {
         notes.push(
             note(
                 PAJEK_LOSS.LABEL_GAINED,
-                `${gained} vertex line(s) carry coordinates, a shape or parameters and need a label; the id text is written there and reads back as a label`,
+                `${gained} vertex line${plural(gained)} ${agree(gained, "carries", "carry")} coordinates, a shape or parameters and need a label; the id text is written there and reads back as a label`,
                 labels === null ? LABEL_COLUMN : labels.meta.name,
                 gained,
             ),
         );
     }
+}
+
+/**
+ * How many nodes have no label value.
+ * @param nodeCount - the node count
+ * @param labels - the label column, or null
+ * @returns the count
+ */
+function unlabeled(nodeCount: number, labels: Column | null): number {
+    let count = 0;
+    for (let i = 0; i < nodeCount; i++) {
+        if (!labels?.isSet(i)) {
+            count++;
+        }
+    }
+    return count;
 }
 
 /**
@@ -446,7 +571,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
             notes.push(
                 note(
                     PAJEK_LOSS.TEXT,
-                    `${badText} value(s) of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
+                    `${badText} value${plural(badText)} of ${domain} column "${name}" hold a double quote or a line break; Pajek cannot write them`,
                     name,
                     badText,
                 ),
@@ -456,7 +581,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
             notes.push(
                 note(
                     PAJEK_LOSS.TEXT_INFERRED,
-                    `${typed} value(s) of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
+                    `${typed} value${plural(typed)} of ${domain} column "${name}" look like numbers or booleans; Pajek parameters are untyped and they read back as such`,
                     name,
                     typed,
                 ),
@@ -466,7 +591,7 @@ function checkCells(planned: readonly PlannedColumn[], domain: "node" | "edge", 
             notes.push(
                 note(
                     PAJEK_LOSS.NONFINITE_AS_TEXT,
-                    `${nonFinite} non-finite value(s) of ${domain} column "${name}" are written as text`,
+                    `${nonFinite} non-finite value${plural(nonFinite)} of ${domain} column "${name}" ${agree(nonFinite, "is", "are")} written as text`,
                     name,
                     nonFinite,
                 ),
@@ -492,7 +617,7 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
     if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= snapshot.nodeCount) {
         return value;
     }
-    return NaN;
+    return Number.NaN;
 }
 
 /**
@@ -506,22 +631,13 @@ function firstModeOf(snapshot: GraphSnapshot): number | null {
  * @returns the label text, or null
  */
 function labelOf(labels: Column | null, ids: SanitizedIds, i: number, needed: boolean): string | null {
-    if (labels !== null && labels.isSet(i)) {
+    if (labels?.isSet(i)) {
         return cellText(labels, i);
     }
     if (needed || ids.isChanged(i)) {
         return idText(ids.originalAt(i));
     }
     return null;
-}
-
-/**
- * The text of an id.
- * @param id - the id
- * @returns String(id)
- */
-function idText(id: NodeId): string {
-    return typeof id === "number" ? formatF64(id) : id;
 }
 
 /**
@@ -559,10 +675,11 @@ function coordinatesText(column: Column, i: number, writeZ: boolean): string | n
     }
     const dtype = column.dtype as "f32" | "f64" | "i32" | "u32" | "u8";
     const vector = column.value(i) as ArrayLike<number>;
-    const x = numberText(vector[0], dtype);
-    const y = numberText(vector[1], dtype);
+    // the importer reads coordinates by position, so the shortest text of each is enough
+    const x = formatNumber(vector[0], dtype);
+    const y = formatNumber(vector[1], dtype);
     if (column.meta.components === 3 && writeZ) {
-        return `${x} ${y} ${numberText(vector[2], dtype)}`;
+        return `${x} ${y} ${formatNumber(vector[2], dtype)}`;
     }
     return `${x} ${y}`;
 }
@@ -596,13 +713,16 @@ function needsZ(column: Column): boolean {
  * @param snapshot - the snapshot
  * @param options - the resolved format options
  * @param options.networkHeader - whether the `*Network` line is written
+ * @param options.name - the name on that line, or null for a bare line
  * @param options.mangle - whether the original ids are written as `graphty_originalId` parameters
+ * @param comment - a comment line written first (the `graphty.styles` block), or null
  * @yields lines with their terminator
  * @returns nothing
  */
 function* writeParts(
     snapshot: GraphSnapshot,
-    options: { networkHeader: boolean; mangle: boolean },
+    options: { networkHeader: boolean; name: string | null; mangle: boolean },
+    comment: string | null = null,
 ): Generator<string, void, undefined> {
     const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, options.mangle ? "mangle" : "error");
     const nodePlan = withoutReservedKey(plan(snapshot.nodes, "node", null), options.mangle);
@@ -622,8 +742,11 @@ function* writeParts(
         }
     }
 
-    if (options.networkHeader && snapshot.meta.name !== null) {
-        yield `*Network ${snapshot.meta.name}\n`;
+    if (comment !== null) {
+        yield `${comment}\n`;
+    }
+    if (options.networkHeader) {
+        yield options.name === null ? "*Network\n" : `*Network ${options.name}\n`;
     }
     const firstMode = firstModeOf(snapshot);
     yield firstMode !== null && !Number.isNaN(firstMode)
@@ -676,7 +799,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
         notes.push(
             note(
                 PAJEK_LOSS.TEXT,
-                `${badText} node id(s) hold a double quote or a line break; Pajek cannot write them as labels or parameters`,
+                `${badText} node id${plural(badText)} ${agree(badText, "holds", "hold")} a double quote or a line break; Pajek cannot write them as labels or parameters`,
                 null,
                 badText,
             ),
@@ -686,7 +809,7 @@ function checkIdTexts(nodeCount: number, ids: SanitizedIds, mangle: boolean, not
         notes.push(
             note(
                 PAJEK_LOSS.ID_TEXT_TYPE,
-                `${typeChanged} original id(s) read back from ${ORIGINAL_ID_KEY} as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                `${typeChanged} original id${plural(typeChanged)} ${agree(typeChanged, "reads", "read")} back from ${ORIGINAL_ID_KEY} as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
                 null,
                 typeChanged,
             ),
@@ -749,7 +872,7 @@ function* writeVertices(
                 parts.push(coordinates);
             }
         }
-        if (shape !== null && shape.isSet(i)) {
+        if (shape?.isSet(i)) {
             const keyword = cellText(shape, i);
             if (SHAPES.has(keyword)) {
                 parts.push(keyword);
@@ -832,7 +955,7 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
         // a mutual pair (design section 3.6): both directions, written once as an undirected edge
         const directed = snapshot.directed && folding.sourceDirected(e) && !folding.isMutual(e);
         const kind = directed ? "arcs" : "edges";
-        const relationName = relation !== null && relation.isSet(e) ? cellText(relation, e) : null;
+        const relationName = relation?.isSet(e) ? cellText(relation, e) : null;
         if (!sectionOpen || kind !== currentKind || relationName !== currentRelation) {
             currentKind = kind;
             currentRelation = relationName;
@@ -874,11 +997,16 @@ function* writeLines(snapshot: GraphSnapshot, edgePlan: readonly PlannedColumn[]
 
 /**
  * Resolve the Pajek export options.
+ * @param snapshot - the graph, whose name is the default network name
  * @param options - the caller's options
  * @returns the resolved format options; the common options are checked by resolveExportOptions
  */
-function resolvePajekOptions(options: (PajekExportOptions & CommonExportOptions) | undefined): {
+function resolvePajekOptions(
+    snapshot: GraphSnapshot,
+    options: (PajekExportOptions & CommonExportOptions) | undefined,
+): {
     networkHeader: boolean;
+    name: string | null;
     mangle: boolean;
 } {
     const common = resolveExportOptions(options);
@@ -889,112 +1017,43 @@ function resolvePajekOptions(options: (PajekExportOptions & CommonExportOptions)
             found: typeof value,
         });
     }
-    return { networkHeader: value ?? false, mangle: common.sanitizeIds === "mangle" };
+    const name = options?.name;
+    if (name !== undefined && (typeof name !== "string" || /[\r\n]/.test(name))) {
+        throw new GraphFormatError("E_UNSUPPORTED", "option name: not a one-line string", {
+            option: "name",
+            found: typeof name,
+        });
+    }
+    return {
+        networkHeader: value ?? name !== undefined,
+        name: name ?? snapshot.meta.name,
+        mangle: common.sanitizeIds === "mangle",
+    };
 }
 
-/** The Pajek NET exporter. */
+/**
+ * The Pajek NET exporter.
+ * @category Built-in formats
+ */
 export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
     format: "pajek",
+    options: Object.freeze(["name", "networkHeader"]),
     capabilities: CAPABILITIES,
+    styles: Object.freeze({ capabilities: PAJEK_STYLE_CAPABILITIES }),
 
     /**
-     * Pre-flight: the generic capability gaps plus the Pajek-specific ones.
+     * Pre-flight: the generic capability gaps plus the Pajek-specific ones; with styles, also the values written as
+     * the nearest ones Pajek has.
      * @param snapshot - the snapshot
      * @param options - export options
      * @returns the loss notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): readonly LossNote[] {
-        const resolved = resolveExportOptions(options);
-        const { mangle } = resolvePajekOptions(options);
-        const notes: LossNote[] = [];
-        const planned = plan(snapshot.nodes, "node", notes);
-        const nodePlan = withoutReservedKey(planned, mangle);
-        const edgePlan = plan(snapshot.edges, "edge", notes);
-        const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, mangle ? "mangle" : "error");
-        checkIdTexts(snapshot.nodeCount, ids, mangle, notes);
-        if (nodePlan.length !== planned.length) {
-            const reserved = planned.find((p) => p.slot === "param" && p.column.meta.name === ORIGINAL_ID_KEY);
-            if (reserved !== undefined) {
-                notes.push(
-                    note(
-                        PAJEK_LOSS.KEY_DROPPED,
-                        `node column "${ORIGINAL_ID_KEY}" is the parameter the exporter writes the original ids under (sanitizeIds "mangle"); it is not written`,
-                        ORIGINAL_ID_KEY,
-                        reserved.column.length - reserved.column.nullCount,
-                    ),
-                );
-            }
+    check(snapshot: GraphSnapshot, options?: PajekWriteOptions): readonly LossNote[] {
+        const styled = pajekStyledExport(snapshot, options?.styles);
+        if (styled === null) {
+            return checkPlain(snapshot, options);
         }
-        // columns this exporter handles itself although the generic table says otherwise: the spells
-        // list (written as an interval token, or reported above with the spells code), the shape
-        // keyword and the relation name (dict columns written as keywords)
-        const owned = new Set<string>();
-        for (const { column, slot } of [...nodePlan, ...edgePlan]) {
-            if (slot === "shape" || slot === "relation") {
-                owned.add(`${column.meta.domain}:${column.meta.name}`);
-            } else if (slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN) {
-                // the shape-as-parameter note already says the column reads back as string
-                owned.add(`${column.meta.domain}:${column.meta.name}`);
-            }
-        }
-        for (const table of [snapshot.nodes, snapshot.edges]) {
-            for (const column of table) {
-                if (column.meta.role === "spells") {
-                    owned.add(`${column.meta.domain}:${column.meta.name}`);
-                }
-            }
-        }
-        for (const n of checkCapabilities(snapshot, CAPABILITIES, resolved, {
-            roles: SLOT_ROLES,
-            roleNames: ROLE_NAMES,
-        })) {
-            if (n.column !== null && (n.code === LOSS.LIST || n.code === LOSS.DTYPE)) {
-                const domain = n.message.startsWith("node column") ? "node" : "edge";
-                if (owned.has(`${domain}:${n.column}`)) {
-                    continue;
-                }
-            }
-            if (n.code === LOSS.COLUMN_NAME_CHANGED && n.message.startsWith("edge column")) {
-                // the label slot is a vertex slot; an edge label is a parameter under its own name
-                continue;
-            }
-            notes.push(n);
-        }
-        labelNotes(snapshot, nodePlan, notes);
-        for (const column of snapshot.edges) {
-            if (column.meta.role === "label") {
-                notes.push(
-                    note(
-                        LOSS.ROLE,
-                        `edge column "${column.meta.name}" (label) is written as a plain parameter; Pajek labels vertices only and the role is lost`,
-                        column.meta.name,
-                        column.length - column.nullCount,
-                    ),
-                );
-            }
-        }
-        checkCells(nodePlan, "node", notes);
-        checkCells(edgePlan, "edge", notes);
-        const folding = pairFolding(snapshot, { foldMutual: true });
-        if (folding.mutualCount > 0) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.MUTUAL_AS_UNDIRECTED,
-                    `${folding.mutualCount} mutual pair(s) are written as undirected edges; the mutual mark is lost`,
-                    snapshot.edges.byRole("mutual")?.meta.name ?? null,
-                    folding.mutualCount,
-                ),
-            );
-        }
-        if (Number.isNaN(firstModeOf(snapshot))) {
-            notes.push(
-                note(
-                    PAJEK_LOSS.FIRST_MODE_DROPPED,
-                    "meta.extra.pajek.firstMode is not a count within 0..nodeCount; the two-mode header is not written",
-                ),
-            );
-        }
-        return notes;
+        return Object.freeze([...checkPlain(styled.snapshot, withOriginalIds(options)), ...styled.notes]);
     },
 
     /**
@@ -1003,9 +1062,8 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        const resolved = resolvePajekOptions(options);
-        return encodeChunks(writeParts(snapshot, resolved));
+    export(snapshot: GraphSnapshot, options?: PajekWriteOptions): AsyncIterable<Uint8Array> {
+        return encodeChunks(styledParts(snapshot, options));
     },
 
     /**
@@ -1014,8 +1072,151 @@ export const pajekExporter: GraphExporter<PajekExportOptions> = Object.freeze({
      * @param options - export options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): Promise<string> {
-        const resolved = resolvePajekOptions(options);
-        return joinText(writeParts(snapshot, resolved));
+    exportToString(snapshot: GraphSnapshot, options?: PajekWriteOptions): Promise<string> {
+        return joinText(styledParts(snapshot, options));
     },
 });
+
+/**
+ * The text parts of a Pajek document, with its styles when they are given.
+ * @param snapshot - the snapshot
+ * @param options - export options
+ * @returns the parts
+ */
+function styledParts(snapshot: GraphSnapshot, options?: PajekWriteOptions): Generator<string, void, undefined> {
+    const styled = pajekStyledExport(snapshot, options?.styles);
+    if (styled === null) {
+        return writeParts(snapshot, resolvePajekOptions(snapshot, options));
+    }
+    return writeParts(styled.snapshot, resolvePajekOptions(styled.snapshot, withOriginalIds(options)), styled.comment);
+}
+
+/**
+ * The options of an export with styles: unless `sanitizeIds` is given, the original ids of renumbered vertices are
+ * written too (`"mangle"`), so the file reads back as the same graph and its `graphty.styles` block applies.
+ * @param options - export options
+ * @returns the options to write with
+ */
+function withOriginalIds(
+    options: (PajekExportOptions & CommonExportOptions) | undefined,
+): PajekExportOptions & CommonExportOptions {
+    return options?.sanitizeIds === undefined ? { ...options, sanitizeIds: "mangle" } : options;
+}
+
+/**
+ * The columns this exporter handles itself although the generic table says otherwise: the spells list (written as an
+ * interval token, or reported with the spells code), the shape keyword and the relation name (dict columns written as
+ * keywords), and a shape written as a parameter (its own note says the column reads back as string).
+ * @param snapshot - the snapshot
+ * @param planned - the node and edge column plans
+ * @returns the columns, as `<domain>:<name>`
+ */
+function ownedColumns(snapshot: GraphSnapshot, planned: readonly PlannedColumn[]): Set<string> {
+    const owned = new Set<string>();
+    const key = (column: Column): string => `${column.meta.domain}:${column.meta.name}`;
+    for (const { column, slot } of planned) {
+        const shapeParam = slot === "param" && column.meta.domain === "node" && column.meta.name === SHAPE_COLUMN;
+        if (slot === "shape" || slot === "relation" || shapeParam) {
+            owned.add(key(column));
+        }
+    }
+    for (const column of [...snapshot.nodes, ...snapshot.edges]) {
+        if (column.meta.role === "spells") {
+            owned.add(key(column));
+        }
+    }
+    return owned;
+}
+
+/**
+ * The generic capability gaps, without the list and dtype notes of a column Pajek writes in a slot of its own.
+ * @param snapshot - the snapshot
+ * @param resolved - the resolved export options
+ * @param owned - the columns written in a slot of their own, as `<domain>:<name>`
+ * @returns the loss notes
+ */
+function capabilityNotes(
+    snapshot: GraphSnapshot,
+    resolved: ReturnType<typeof resolveExportOptions>,
+    owned: ReadonlySet<string>,
+): LossNote[] {
+    const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        roles: SLOT_ROLES,
+        roleNames: ROLE_NAMES,
+        // the label slot is a vertex slot; an edge label is a parameter under its own name
+        edgeRoleNames: {},
+    });
+    return notes.filter((n) => {
+        if (n.column === null || (n.code !== LOSS.LIST && n.code !== LOSS.DTYPE)) {
+            return true;
+        }
+        const domain = n.message.startsWith("node column") ? "node" : "edge";
+        return !owned.has(`${domain}:${n.column}`);
+    });
+}
+
+/**
+ * Every loss the Pajek text of a snapshot would incur: the generic capability gaps plus the Pajek-specific ones.
+ * @param snapshot - the snapshot
+ * @param options - export options
+ * @returns the loss notes
+ */
+function checkPlain(snapshot: GraphSnapshot, options?: PajekExportOptions & CommonExportOptions): LossNote[] {
+    const resolved = resolveExportOptions(options);
+    const { mangle } = resolvePajekOptions(snapshot, options);
+    const notes: LossNote[] = [];
+    const planned = plan(snapshot.nodes, "node", notes);
+    const nodePlan = withoutReservedKey(planned, mangle);
+    const edgePlan = plan(snapshot.edges, "edge", notes);
+    const ids = sanitizeIds(snapshot, CAPABILITIES.idCharset, mangle ? "mangle" : "error");
+    checkIdTexts(snapshot.nodeCount, ids, mangle, notes);
+    const reserved =
+        nodePlan.length === planned.length
+            ? undefined
+            : planned.find((p) => p.slot === "param" && p.column.meta.name === ORIGINAL_ID_KEY);
+    if (reserved !== undefined) {
+        notes.push(
+            note(
+                PAJEK_LOSS.KEY_DROPPED,
+                `node column "${ORIGINAL_ID_KEY}" is the parameter the exporter writes the original ids under (sanitizeIds "mangle"); it is not written`,
+                ORIGINAL_ID_KEY,
+                reserved.column.length - reserved.column.nullCount,
+            ),
+        );
+    }
+    const owned = ownedColumns(snapshot, [...nodePlan, ...edgePlan]);
+    notes.push(...capabilityNotes(snapshot, resolved, owned));
+    labelNotes(snapshot, nodePlan, notes);
+    for (const column of [...snapshot.edges].filter((c) => c.meta.role === "label")) {
+        notes.push(
+            note(
+                LOSS.ROLE,
+                `edge column "${column.meta.name}" (label) is written as a plain parameter; Pajek labels vertices only and the role is lost`,
+                column.meta.name,
+                column.length - column.nullCount,
+            ),
+        );
+    }
+    checkCells(nodePlan, "node", notes);
+    checkCells(edgePlan, "edge", notes);
+    const folding = pairFolding(snapshot, { foldMutual: true });
+    if (folding.mutualCount > 0) {
+        notes.push(
+            note(
+                PAJEK_LOSS.MUTUAL_AS_UNDIRECTED,
+                `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as undirected edges; the mutual mark is lost`,
+                snapshot.edges.byRole("mutual")?.meta.name ?? null,
+                folding.mutualCount,
+            ),
+        );
+    }
+    if (Number.isNaN(firstModeOf(snapshot))) {
+        notes.push(
+            note(
+                PAJEK_LOSS.FIRST_MODE_DROPPED,
+                "meta.extra.pajek.firstMode is not a count within 0..nodeCount; the two-mode header is not written",
+            ),
+        );
+    }
+    return notes;
+}

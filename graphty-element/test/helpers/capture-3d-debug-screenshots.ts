@@ -23,13 +23,59 @@
  *   --axes    Enable BabylonJS AxesViewer to show coordinate system
  */
 
- 
-
 import { resolve } from "path";
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
 const STORYBOOK_URL = process.env.STORYBOOK_URL ?? "https://localhost:6006";
 const TMP_DIR = resolve(process.cwd(), "tmp");
+
+/**
+ * Wait until the element has drawn its finished picture: data loaded, layout converged, camera
+ * framed. The element waits for the custom element to upgrade first.
+ * @param page - The story page.
+ */
+async function waitForStablePicture(page: Page): Promise<void> {
+    await page.waitForFunction(() => {
+        const elem = document.querySelector("graphty-element") as { waitForStableFrame?: unknown } | null;
+        return typeof elem?.waitForStableFrame === "function";
+    });
+    await page.evaluate(async () => {
+        const elem = document.querySelector("graphty-element") as unknown as {
+            waitForStableFrame: () => Promise<void>;
+        };
+        await elem.waitForStableFrame();
+    });
+}
+
+/**
+ * Wait until the camera has stopped moving: two drawn frames in a row with the camera in the
+ * same place. A camera the reader moved keeps drifting under inertia for a few frames.
+ * @param page - The story page.
+ */
+async function waitForCameraAtRest(page: Page): Promise<void> {
+    await page.evaluate(() => {
+        (window as { lastCameraKey?: string }).lastCameraKey = undefined;
+    });
+    await page.waitForFunction(
+        () => {
+            const elem = document.querySelector("graphty-element") as {
+                graph?: { scene: { activeCamera: { position: { x: number; y: number; z: number } } | null } };
+            } | null;
+            const position = elem?.graph?.scene.activeCamera?.position;
+            if (!position) {
+                return false;
+            }
+
+            const key = `${String(position.x)},${String(position.y)},${String(position.z)}`;
+            const state = window as { lastCameraKey?: string };
+            const still = state.lastCameraKey === key;
+            state.lastCameraKey = key;
+            return still;
+        },
+        undefined,
+        { polling: "raf" },
+    );
+}
 
 interface CameraPosition {
     name: string;
@@ -86,21 +132,7 @@ const getCameraPositions = (): CameraPosition[] => {
  * Setup camera position using mouse/keyboard controls
  * This works WITH the camera control system instead of fighting against it
  */
-interface PageLike {
-    locator: (selector: string) => {
-        boundingBox: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
-        screenshot: (options: { path: string }) => Promise<unknown>;
-    };
-    mouse: {
-        move: (x: number, y: number, options?: { steps?: number }) => Promise<void>;
-        down: () => Promise<void>;
-        up: () => Promise<void>;
-    };
-    waitForTimeout: (ms: number) => Promise<void>;
-    evaluate: (fn: () => void) => Promise<void>;
-}
-
-async function setupCamera(page: PageLike, position: CameraPosition): Promise<void> {
+async function setupCamera(page: Page, position: CameraPosition): Promise<void> {
     // Skip if this is the "start" position - use default camera
     if (isNaN(position.alpha)) {
         return;
@@ -151,14 +183,13 @@ async function setupCamera(page: PageLike, position: CameraPosition): Promise<vo
     await page.mouse.move(centerX + dragX, centerY + dragY, { steps: 20 });
     await page.mouse.up();
 
-    // Wait for camera to settle
-    await page.waitForTimeout(500);
+    await waitForCameraAtRest(page);
 }
 
 /**
  * Enable axes viewer at the origin
  */
-async function enableAxesViewer(page: PageLike): Promise<void> {
+async function enableAxesViewer(page: Page): Promise<void> {
     await page.evaluate(() => {
         const elem = document.querySelector("graphty-element");
         const graphty = elem as {
@@ -178,37 +209,32 @@ async function enableAxesViewer(page: PageLike): Promise<void> {
 
         // Create AxesViewer using global BABYLON namespace
         // Size 5 makes axes visible but not too large
-         
+
         const axes = new (window as any).BABYLON.AxesViewer(scene, 5);
 
         // Make the colors bright and vivid (graphty-element's scene settings can wash out colors)
         // Set both emissive and diffuse colors to full brightness
-         
+
         axes._xAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(1, 0, 0); // Bright red
-                 
+
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(1, 0, 0);
             }
         });
 
-         
         axes._yAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 1, 0); // Bright green
-                 
+
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 1, 0);
             }
         });
 
-         
         axes._zAxis.getChildMeshes().forEach((mesh: any) => {
             if (mesh.material) {
-                 
                 mesh.material.emissiveColor = new (window as any).BABYLON.Color3(0, 0, 1); // Bright blue
-                 
+
                 mesh.material.diffuseColor = new (window as any).BABYLON.Color3(0, 0, 1);
             }
         });
@@ -222,8 +248,15 @@ async function enableAxesViewer(page: PageLike): Promise<void> {
         scene.render();
     });
 
-    // Wait for axes to be created and rendered
-    await page.waitForTimeout(500);
+    // The axes were drawn by the render above; let the element's own loop draw one frame with them
+    await page.evaluate(
+        () =>
+            new Promise<void>((done) => {
+                requestAnimationFrame(() => {
+                    done();
+                });
+            }),
+    );
 }
 
 /**
@@ -251,8 +284,7 @@ async function captureScreenshots(storyId: string, showAxes = false): Promise<vo
         await page.waitForSelector("graphty-element", { timeout: 10000 });
         console.log("Component loaded");
 
-        // Wait for initial render to complete
-        await page.waitForTimeout(2000);
+        await waitForStablePicture(page);
 
         const timestamp = getTimestamp();
         const positions = getCameraPositions();

@@ -220,8 +220,7 @@ the 7.2 table, with the L1 CPU code as the executable spec.
 
 ### INTEG-9 (major) -- the CI builds with `tsc` only, so the "no `webgpu` in the bundle" guard, the subpath entries and the strict-consumer compile do not see what they claim to test
 
-Sections 2.5 item 1, 3.1, 12.3, 12.5, 13 G1; plan lines 375-377, 387-392, 485, 2938, 2990, 3107,
-3159.
+Sections 2.5 item 1, 3.1, 12.3, 12.5, 13 G1; plan lines 375-377, 387-392, 485, 2938, 2990, 3107, 3159.
 
 Claim: the workflow runs `pnpm -r run build` (tsc, `tsconfig.build.json`) and then
 `test/build-output.test.ts`, which reads `dist/webgpu-graph-algorithms.js` and `dist/browser.js`.
@@ -290,7 +289,7 @@ Plan lines 187, 429, 2237, 2404, 2416-2417.
   `run(g: Graph): Promise<void>` is line 217 (the plan inherited note 02's number).
 - "a bridge implementing today's abstract `LayoutEngine` (lines 36-63)": today's class has
   `addNode / addEdge / getNodePosition / getEdgePosition / nodes / edges`, not `load / reload / dispose /
-  getNodePositionInto`; the sketch implements the design-E1 shape. Say so.
+getNodePositionInto`; the sketch implements the design-E1 shape. Say so.
 
 Fix: correct the four statements.
 
@@ -428,15 +427,15 @@ devDependency.
   `LayoutEngine` abstract at 36-63, `GraphBehavior.ts:13` default `ngraph`, `ai/providers/index.ts:9-12`
   Safari note, `vite.config.ts:39` web-llm external, `ForceAtlas2LayoutEngine.ts` schema 99-115 and
   `dissuadeHubs` 66-73, `NodeBehavior.onDragStart/Update/End` and `pinOnDrag`, `PageRankAlgorithm.ts:
-  224-240`, `BetweennessCentralityAlgorithm.ts:59-78`, `LouvainAlgorithm.ts:166-184`, `package.json`
+224-240`, `BetweennessCentralityAlgorithm.ts:59-78`, `LouvainAlgorithm.ts:166-184`, `package.json`
   depends on `@graphty/algorithms` and `@graphty/layout` (`workspace:*`).
 - algorithms: every public algorithm is sync; `pageRank` at `pagerank.ts:83`; no `indexed` namespace yet.
 - Monorepo: `ci.yml` shard matrix 235-350, Playwright cache 413-427, `all-checks` 706-708 needs `test`
-  + Chromatic only, test job downloads every build artifact, coverage-upload `if` lists shards
-  explicitly; `nx.json` `projectsRelationship: independent`; root pins `@vitest/browser ^3.2.4`,
-  `playwright ^1.54.1`, `vite ^7`, `vitest ^3.2.4`; `packages/move/root-touch-points.diff` shape.
+    - Chromatic only, test job downloads every build artifact, coverage-upload `if` lists shards
+      explicitly; `nx.json` `projectsRelationship: independent`; root pins `@vitest/browser ^3.2.4`,
+      `playwright ^1.54.1`, `vite ^7`, `vitest ^3.2.4`; `packages/move/root-touch-points.diff` shape.
 - cuda-ffi: `on: [push, workflow_dispatch]`, `runs-on: cudaffi-gpu-runner`, `container.options:
-  --gpus all --user root`, lint-only without a GPU.
+--gpus all --user root`, lint-only without a GPU.
 - graph-io skeleton facts: both deps and peer on graph-format, `build-bundle.js:33-47` externalises
   dependencies + peerDependencies, `coverage:preview` ports 9056 / 9057, `pool: "forks"`, prettier
   4 / 120 / all, `no-console` allows `warn`, `jsdoc/require-jsdoc` and explicit return types on.

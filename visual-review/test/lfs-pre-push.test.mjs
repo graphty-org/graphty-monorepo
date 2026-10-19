@@ -5,13 +5,12 @@
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { sha256 } from "../trusted/lib/compare.mjs";
-import { git, isolateGit, LFS_ATTRIBUTES, lfsObject, ROOT } from "./helpers.mjs";
+import { git, isolateGit, LFS_ATTRIBUTES, lfsObject, ROOT, tempDir } from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
@@ -24,7 +23,7 @@ const PNG = "visual-baselines/demo/story--one.png";
  * @returns {{ repo: string, remote: string }} the paths
  */
 function setup() {
-    const dir = mkdtempSync(join(tmpdir(), "vr-lfs-hook-"));
+    const dir = tempDir("vr-lfs-hook-");
     const remote = join(dir, "remote.git");
     const repo = join(dir, "repo");
     git(dir, "init", "-q", "--bare", "-b", "master", remote);
@@ -58,7 +57,7 @@ function commit(repo, path, data) {
  * @returns {string} the directory
  */
 function pathWithoutLfs() {
-    const bin = mkdtempSync(join(tmpdir(), "vr-bin-"));
+    const bin = tempDir("vr-bin-");
     for (const tool of ["git", "cat", "sort", "grep", "sed", "head"]) {
         symlinkSync(execFileSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), join(bin, tool));
     }
@@ -78,6 +77,17 @@ describe("lfs-pre-push.sh", () => {
         commit(repo, "visual-baselines/demo/story--two.png", "image two");
         git(repo, "push", "-q", "--no-verify", "origin", "master");
         expect(existsSync(lfsObject(remote, sha256(Buffer.from("image two"))))).toBe(false);
+    });
+
+    it("refuses the push when a baseline's LFS object is not here to upload", () => {
+        // A branch holding baselines whose images this checkout never downloaded (pointer files
+        // only) must not reach GitHub as pointers to objects nobody uploaded.
+        const { repo, remote } = setup();
+        commit(repo, PNG, "image one");
+        rmSync(lfsObject(join(repo, ".git"), sha256(Buffer.from("image one"))));
+        const out = push(repo);
+        expect(out.status).not.toBe(0);
+        expect(git(remote, "log", "--format=%s", "master")).toBe("init");
     });
 
     it("without git-lfs, refuses a push holding LFS files and says how to install it", () => {

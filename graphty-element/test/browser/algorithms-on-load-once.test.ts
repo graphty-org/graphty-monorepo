@@ -53,21 +53,18 @@ async function makeGraph(): Promise<{ graph: Graph; starts: Map<string, number> 
  * @param target - the graph to wait on
  */
 async function settle(target: Graph): Promise<void> {
-    for (let round = 0; round < 50; round++) {
-        await operationQueueOf(target).waitForCompletion();
-        const busy = target
-            .getSession()
-            .runs.list()
-            .some((run) => run.status === "queued" || run.status === "running");
+    await vi.waitFor(
+        async () => {
+            await operationQueueOf(target).waitForCompletion();
+            const busy = target
+                .getSession()
+                .runs.list()
+                .filter((run) => run.status === "queued" || run.status === "running");
 
-        if (!busy) {
-            return;
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-
-    throw new Error("the runs never finished");
+            assert.deepStrictEqual(busy, [], "every run has finished");
+        },
+        { timeout: 10_000 },
+    );
 }
 
 describe("the load-time algorithm list", () => {
@@ -99,6 +96,20 @@ describe("the load-time algorithm list", () => {
         assert.deepStrictEqual(Object.fromEntries(starts), { degree: 2, pagerank: 2 });
     });
 
+    test("starts each algorithm once when a write that adds no rows is queued behind the adds", async () => {
+        const { graph: made, starts } = await makeGraph();
+
+        await Promise.all([
+            made.addNodes(NODES),
+            made.addEdges(EDGES),
+            made.updateNodes([{ id: "n0", label: "zero" }]),
+            made.removeNodes(["n9"]),
+        ]);
+        await settle(made);
+
+        assert.deepStrictEqual(Object.fromEntries(starts), { degree: 1, pagerank: 1 });
+    });
+
     test("starts each algorithm again when double-clicking a node expands its neighbourhood", async () => {
         const { graph: made, starts } = await makeGraph();
         made.setLayoutBehavior({
@@ -114,7 +125,7 @@ describe("the load-time algorithm list", () => {
         assert.isDefined(node);
         const action = node.mesh.actionManager?.actions.find((a) => a.trigger === ActionManager.OnDoublePickTrigger);
         assert.isDefined(action, "double-clicking a node does something");
-        (action as unknown as { execute: () => void }).execute();
+        (action as unknown as { execute: (event: unknown) => void }).execute({ source: node.mesh });
         await settle(made);
 
         assert.isDefined(made.getDataManager().getNode("x1"), "the expansion added the fetched node");

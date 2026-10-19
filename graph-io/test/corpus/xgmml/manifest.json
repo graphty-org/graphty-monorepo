@@ -1,0 +1,38 @@
+{
+    "format": "xgmml",
+    "description": "XGMML format test files (authored by test/conformance/tools/make_xgmml_fixtures.py)",
+    "files": [
+        {
+            "path": "cytoscape3-small.xgmml",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 3,
+            "expectedEdges": 2,
+            "features": ["cytoscape-3", "cy:type", "graphics", "positions", "directed"]
+        },
+        {
+            "path": "draft-weighted.xgmml",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 3,
+            "expectedEdges": 4,
+            "features": ["draft", "doctype", "weights", "self-loop", "parallel-edges", "positions"]
+        },
+        {
+            "path": "groups-2x.xgmml",
+            "source": "created",
+            "license": "MIT",
+            "expectedNodes": 4,
+            "expectedEdges": 2,
+            "features": ["cytoscape-2", "groups", "xlink", "hierarchy"]
+        },
+        {
+            "path": "karate.xgmml",
+            "source": "created from test/corpus/gml/karate.gml (Zachary 1977, Newman's copy http://www-personal.umich.edu/~mejn/netdata/)",
+            "license": "Academic",
+            "expectedNodes": 34,
+            "expectedEdges": 78,
+            "features": ["cytoscape-3", "undirected", "social-network"]
+        }
+    ]
+}

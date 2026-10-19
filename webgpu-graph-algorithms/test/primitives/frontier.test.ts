@@ -94,7 +94,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
             "stride",
             "firstOfSubmit",
             "iteration",
-            "perNode",
+            "pad3",
             "pad2",
         ];
         expect(FRONTIER_PARAMS.fields.map((f) => f[0])).toEqual(params);
@@ -138,10 +138,11 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         });
     });
 
-    it("the boundary-index rule: firstOfSubmit 0 subtracts nothing, 1 (and any larger index) subtracts the count and the next frontier's degree sum together (issue #391: both words exact from the second boundary on); nextDegreeSum is zeroed for the next level; maxDepth 0 sets done and path 0", async (t) => {
+    it("the boundary-index rule: firstOfSubmit 0 subtracts nothing, 1 (and any larger index) subtracts the count; unvisitedDegreeSum is left to bfs-next-degree (issue #1358); nextDegreeSum is zeroed for the next level; maxDepth 0 sets done and path 0", async (t) => {
         const ctx = await context(t);
         // frontierDegreeSum is the EXPANDED sum (rotated into prevDegreeSum, never subtracted); nextDegreeSum is the
-        // degree of the frontier rotated in, which is what the boundary subtracts and tests against
+        // out-degree of the frontier rotated in, which the boundary tests against; the in-degrees leave
+        // unvisitedDegreeSum when bfs-next-degree sums them, so no boundary touches that word
         const seed = {
             unvisitedCount: 5,
             unvisitedDegreeSum: 9,
@@ -152,8 +153,8 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         };
         const expected: readonly (readonly [number, number, number])[] = [
             [0, 5, 9],
-            [1, 4, 6],
-            [2, 4, 6],
+            [1, 4, 9],
+            [2, 4, 9],
         ];
         for (const [firstOfSubmit, unvisitedCount, unvisitedDegreeSum] of expected) {
             const run = await runBoundary(ctx, [{ role: 0, fields: { firstOfSubmit } }], { seed });
@@ -354,7 +355,7 @@ describe("Frontier, the counters block and frontier-finalize (design 5.4, 6 row 
         const report = await frontierReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 
     it("a bad n, arcCount, edgeCapacity, source, seed word, level or role is E_INVALID_ARGUMENT naming it, before anything is recorded", async (t) => {
         const ctx = await context(t);

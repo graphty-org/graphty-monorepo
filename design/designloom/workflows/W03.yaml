@@ -3,124 +3,124 @@ name: Iterative Analysis Cycle
 category: analysis
 validated: false
 personas:
-  - analyst-alex
-  - expert-emma
-  - bioinformatics-researcher
+    - analyst-alex
+    - expert-emma
+    - bioinformatics-researcher
 requires_capabilities:
-  - centrality-degree
-  - centrality-betweenness
-  - centrality-closeness
-  - centrality-pagerank
-  - community-detection
-  - filtering
-  - visual-encoding-nodes
-  - analysis-history
-  - view-bookmarks
-  - comparison-view
-  - statistics-panel
-  - centrality-eigenvector
-  - algorithm-progress
-  - keyboard-shortcuts
-  - metric-histograms
+    - centrality-degree
+    - centrality-betweenness
+    - centrality-closeness
+    - centrality-pagerank
+    - community-detection
+    - filtering
+    - visual-encoding-nodes
+    - analysis-history
+    - view-bookmarks
+    - comparison-view
+    - statistics-panel
+    - centrality-eigenvector
+    - algorithm-progress
+    - keyboard-shortcuts
+    - metric-histograms
 suggested_components:
-  - graph-canvas
-  - algorithm-panel
-  - algorithm-card
-  - analysis-history-panel
-  - computed-attributes-panel
-  - filter-panel
-  - visual-encoding-panel
-  - statistics-panel
-  - progress-bar
-  - comparison-view
-  - keyboard-shortcuts-dialog
-  - filter-chip
-  - histogram
+    - graph-canvas
+    - algorithm-panel
+    - algorithm-card
+    - analysis-history-panel
+    - computed-attributes-panel
+    - filter-panel
+    - visual-encoding-panel
+    - statistics-panel
+    - progress-bar
+    - comparison-view
+    - keyboard-shortcuts-dialog
+    - filter-chip
+    - histogram
 starting_state:
-  data_type: explored graph
-  node_count: understood
-  edge_density: understood
-  user_expertise: intermediate+
+    data_type: explored graph
+    node_count: understood
+    edge_density: understood
+    user_expertise: intermediate+
 goal: >-
-  **Intent**: Systematically investigate graph data through hypothesis-driven exploration. User has a question and wants
-  to find a defensible answer through iterative refinement.
+    **Intent**: Systematically investigate graph data through hypothesis-driven exploration. User has a question and wants
+    to find a defensible answer through iterative refinement.
 
 
-  **Mental Model**: "Scientific method" - observe patterns, form hypothesis, test with algorithms, refine understanding.
-  Also like detective work - following leads, testing theories, building a case.
+    **Mental Model**: "Scientific method" - observe patterns, form hypothesis, test with algorithms, refine understanding.
+    Also like detective work - following leads, testing theories, building a case.
 
 
-  **Task Phases**:
+    **Task Phases**:
 
-  1. **Question** - Define what you want to know (descriptive, comparative, predictive, diagnostic)
+    1. **Question** - Define what you want to know (descriptive, comparative, predictive, diagnostic)
 
-  2. **Explore** - Visual and statistical exploration, try different views/encodings
+    2. **Explore** - Visual and statistical exploration, try different views/encodings
 
-  3. **Hypothesize** - Formulate specific, testable hypothesis based on observations
+    3. **Hypothesize** - Formulate specific, testable hypothesis based on observations
 
-  4. **Test** - Apply appropriate algorithms, validate against baselines
+    4. **Test** - Apply appropriate algorithms, validate against baselines
 
-  5. **Refine** - Document findings, generate follow-up questions, or adjust approach
+    5. **Refine** - Document findings, generate follow-up questions, or adjust approach
 
-  6. **Conclude** - Draw confident conclusions when evidence is sufficient
-
-
-  **Decision Points**:
-
-  - Is the question well-defined enough to answer?
-
-  - Which visual encoding reveals the pattern I'm looking for?
-
-  - Is my hypothesis confirmed, refuted, or inconclusive?
-
-  - Should I continue iterating, pivot to a new hypothesis, or conclude?
-
-  - How confident am I in my conclusions?
+    6. **Conclude** - Draw confident conclusions when evidence is sufficient
 
 
-  **Information Needs**:
+    **Decision Points**:
 
-  - Question phase: Clear problem statement, success criteria
+    - Is the question well-defined enough to answer?
 
-  - Explore phase: Multiple centrality measures, community structures, distributions
+    - Which visual encoding reveals the pattern I'm looking for?
 
-  - Test phase: Algorithm results, comparison to null models/baselines
+    - Is my hypothesis confirmed, refuted, or inconclusive?
 
-  - Conclude phase: Evidence summary, confidence level, limitations
+    - Should I continue iterating, pivot to a new hypothesis, or conclude?
 
-
-  **Pain Points**:
-
-  - Analysis paralysis - too many possible directions
-
-  - Confirmation bias - seeing patterns that aren't there
-
-  - Not knowing when "enough" evidence has been gathered
-
-  - Difficulty documenting analysis path for reproducibility
+    - How confident am I in my conclusions?
 
 
-  **Data Flow**:
+    **Information Needs**:
 
-  - Input: Graph + research question
+    - Question phase: Clear problem statement, success criteria
 
-  - Transformations: Algorithm execution, statistical tests, visualizations
+    - Explore phase: Multiple centrality measures, community structures, distributions
 
-  - Output: Documented findings with confidence levels and limitations
+    - Test phase: Algorithm results, comparison to null models/baselines
+
+    - Conclude phase: Evidence summary, confidence level, limitations
+
+
+    **Pain Points**:
+
+    - Analysis paralysis - too many possible directions
+
+    - Confirmation bias - seeing patterns that aren't there
+
+    - Not knowing when "enough" evidence has been gathered
+
+    - Difficulty documenting analysis path for reproducibility
+
+
+    **Data Flow**:
+
+    - Input: Graph + research question
+
+    - Transformations: Algorithm execution, statistical tests, visualizations
+
+    - Output: Documented findings with confidence levels and limitations
 success_criteria:
-  - metric: Question answered
-    target: Clear conclusion with supporting evidence
-  - metric: Reproducibility
-    target: Analysis steps documented for replication
-  - metric: Confidence articulated
-    target: User can state confidence level and limitations
+    - metric: Question answered
+      target: Clear conclusion with supporting evidence
+    - metric: Reproducibility
+      target: Analysis steps documented for replication
+    - metric: Confidence articulated
+      target: User can state confidence level and limitations
 sources:
-  - title: Practical Graph Analysis Guide - Chapter 3
-    url: https://graphty.app/docs/
-    summary: The Graph Analysis Cycle - Question, Explore, Hypothesize, Test, Refine, Conclude
-  - title: Cytoscape Automation
-    url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
-    summary: Workflow-based network analysis for reproducibility
+    - title: Practical Graph Analysis Guide - Chapter 3
+      url: https://graphty.app/docs/
+      summary: The Graph Analysis Cycle - Question, Explore, Hypothesize, Test, Refine, Conclude
+    - title: Cytoscape Automation
+      url: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1758-4
+      summary: Workflow-based network analysis for reproducibility
 version: 1.0.1
 created_at: 2026-01-16T16:22:52.067Z
 updated_at: 2026-01-16T16:42:28.329Z

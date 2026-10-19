@@ -24,13 +24,27 @@
 
 import { Color3, InstancedMesh, Mesh, StandardMaterial } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
-import type { z } from "zod/v4";
+import type { z } from "zod";
 
-import { NodeShapes } from "../../src/config/NodeStyle";
+import { FLAT_NODE_SHAPES, NodeShapes } from "../../src/config/NodeStyle";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { createMeshScene, type MeshTestScene } from "./real-mesh-harness";
 
 type ShapeName = z.infer<typeof NodeShapes>;
+
+/** The polyhedron shapes whose names are snake_case, so they cannot be written as bare object keys. */
+const SNAKE_CASE_POLYHEDRA = [
+    "triangular_prism",
+    "pentagonal_prism",
+    "hexagonal_prism",
+    "square_pyramid",
+    "pentagonal_pyramid",
+    "triangular_dipyramid",
+    "pentagonal_dipyramid",
+    "elongated_square_dipyramid",
+    "elongated_pentagonal_dipyramid",
+    "elongated_pentagonal_cupola",
+];
 
 /**
  * The Babylon builder each shape is expected to reach, identified by the name the builder gives
@@ -50,30 +64,13 @@ const EXPECTED_SOURCE_NAME: Record<string, string> = {
     dodecahedron: "polyhedron",
     icosahedron: "polyhedron",
     rhombicuboctahedron: "polyhedron",
-    "triangular_prism": "polyhedron",
-    "pentagonal_prism": "polyhedron",
-    "hexagonal_prism": "polyhedron",
-    "square_pyramid": "polyhedron",
-    "pentagonal_pyramid": "polyhedron",
-    "triangular_dipyramid": "polyhedron",
-    "pentagonal_dipyramid": "polyhedron",
-    "elongated_square_dipyramid": "polyhedron",
-    "elongated_pentagonal_dipyramid": "polyhedron",
-    "elongated_pentagonal_cupola": "polyhedron",
+    ...Object.fromEntries(SNAKE_CASE_POLYHEDRA.map((name) => [name, "polyhedron"])),
     goldberg: "goldberg",
     icosphere: "icosphere",
     geodesic: "geodesic",
+    // A flat shape's slab is named after the shape it draws.
+    ...Object.fromEntries(FLAT_NODE_SHAPES.map((name) => [name, name])),
 };
-
-/**
- * The two shapes whose creators ignore the requested size.
- *
- * `NodeMesh.createCapsule` and `createTorus` take `_size` and call the Babylon builder with an
- * empty options object, so both always come out at the builder's default dimensions. That is a
- * real difference in behaviour from every other shape, it is invisible in the type signature, and
- * a test that silently skipped these two would let a later fix go unnoticed.
- */
-const SIZE_IGNORING_SHAPES = new Set(["capsule", "torus"]);
 
 /**
  * Hyphenated spellings `NodeMesh` registers for backward compatibility that the `NodeShapes`
@@ -183,7 +180,8 @@ describe("Node Golden Masters", () => {
     });
 
     describe("Size Variations", () => {
-        const testShapes: ShapeName[] = ["sphere", "box", "cylinder", "tetrahedron"];
+        // capsule and torus once ignored size entirely (#2070).
+        const testShapes: ShapeName[] = ["sphere", "box", "cylinder", "tetrahedron", "capsule", "torus"];
         const sizes = [0.5, 2, 5];
 
         testShapes.forEach((shape) => {
@@ -208,13 +206,8 @@ describe("Node Golden Masters", () => {
             assert.equal(result.mesh.scaling.x, 1);
             assert.equal(result.mesh.scaling.y, 1);
             assert.equal(result.mesh.scaling.z, 1);
+            // Under the default sizeMode a sphere of size 5 is 5 across, as it always was.
             assert.closeTo(boundingExtent("sphere", 5), 5, 1e-6);
-        });
-
-        SIZE_IGNORING_SHAPES.forEach((shape) => {
-            test(`${shape} ignores the requested size`, () => {
-                assert.closeTo(boundingExtent(shape as ShapeName, 5), boundingExtent(shape as ShapeName, 1), 1e-6);
-            });
         });
     });
 

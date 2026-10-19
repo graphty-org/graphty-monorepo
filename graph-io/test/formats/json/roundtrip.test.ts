@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { DirectionResolver } from "../../../src/common/direction.js";
 import { LOSS } from "../../../src/common/export.js";
+import { keysInTextOrder } from "../../../src/common/json-elements.js";
 import { ImportReportBuilder } from "../../../src/common/report.js";
 import {
     JSON_DIALECTS,
@@ -12,7 +13,9 @@ import {
     type JsonExportOptions,
     jsonImporter,
     type JsonImportOptions,
+    jsonShapeOf,
 } from "../../../src/formats/json/index.js";
+import { importGraph } from "../../../src/registry.js";
 import { type CommonExportOptions, type CommonImportOptions } from "../../../src/types.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
 import { type CompareOptions, compareSnapshots, expectSameSnapshot, roundTrip } from "../../helpers/roundtrip.js";
@@ -72,10 +75,13 @@ function rich(): GraphSnapshot {
     return b.freeze();
 }
 
+/** The dialects that keep any column; OBO Graphs keeps the OBO vocabulary only (test/formats/json/obographs-export.test.ts). */
+const GENERIC_DIALECTS = JSON_DIALECTS.filter((d) => d !== "obographs");
+
 describe("corpus round trips (design 16.5)", () => {
     for (const entry of corpusFiles("json")) {
         it(`${entry.path}: export in its own dialect and re-import is exact`, async () => {
-            const s = await imported(readCorpusText("json", entry.path), entry.options as JsonImportOptions);
+            const s = await imported(readCorpusText("json", entry.path), entry.options);
             expect(jsonExporter.check(s)).toEqual([]);
             await exact(s);
             await exact(s, { indent: 4 });
@@ -98,8 +104,8 @@ describe("corpus round trips (design 16.5)", () => {
     it("every corpus file survives every dialect on ids, topology, orientation and weights", async () => {
         const mixedCapable = new Set<JsonDialect>(["jgf", "graphology"]);
         for (const entry of corpusFiles("json")) {
-            const s = await imported(readCorpusText("json", entry.path), entry.options as JsonImportOptions);
-            for (const dialect of JSON_DIALECTS) {
+            const s = await imported(readCorpusText("json", entry.path), entry.options);
+            for (const dialect of GENERIC_DIALECTS) {
                 const exportOptions: JsonExportOptions & CommonExportOptions = { dialect };
                 const importOptions: JsonImportOptions & CommonImportOptions = { dialect };
                 if (dialect === "jgf" && s.ids.toArray().some((id) => typeof id === "number")) {
@@ -208,7 +214,7 @@ describe("synthetic round trips", () => {
         const shadow = s.edges.byRole("weight");
         expect(shadow?.isSet(1)).toBe(false);
         expect(shadow?.isSet(2)).toBe(true);
-        for (const dialect of JSON_DIALECTS) {
+        for (const dialect of GENERIC_DIALECTS) {
             const rt = await roundTrip(s, jsonExporter, jsonImporter, {
                 exportOptions: { dialect },
                 importOptions: { defaultDirected: true },
@@ -273,6 +279,26 @@ describe("synthetic round trips", () => {
         await exact(j);
     });
 
+    it("keeps the order of JGF nodes keyed by integer-like ids, which JSON.parse would sort", async () => {
+        const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        for (const id of ["1249", "1246", "x", "1243", "0"]) {
+            b.addNode(id);
+        }
+        b.addEdge("1249", "0");
+        const s = b.freeze();
+        const text = await jsonExporter.exportToString(s, { dialect: "jgf" });
+        const back = await imported(text);
+        expect(back.ids.toArray()).toEqual(["1249", "1246", "x", "1243", "0"]);
+        // a graph of a graphs array, and a key repeated in the text, which keeps its first place
+        const many =
+            '{"graphs": [{"nodes": {"1": {}}}, {"nodes": {"9": {}, "x": [], "3": {"label": "{\\"}"}, "9": {}}}]}';
+        const second = new GraphBuilder({ directed: true });
+        await jsonImporter.import(many, second, { graphIndex: 1 });
+        expect(second.freeze().ids.toArray()).toEqual(["9", "3"]);
+        expect(keysInTextOrder(many, ["graphs", 1, "nodes"])).toEqual(["9", "x", "3"]);
+        expect(keysInTextOrder(many, ["graphs", 2, "nodes"])).toBeNull();
+    });
+
     it("keeps a snapshot from another source through node-link with its column set", async () => {
         const b = new GraphBuilder({ directed: true, weightDtype: "f64" });
         b.declareNodeColumn({
@@ -285,5 +311,17 @@ describe("synthetic round trips", () => {
         const s = b.freeze();
         expect(s.meta.extra).toEqual({});
         await exact(s, undefined, undefined, { originType: false });
+    });
+});
+
+describe("jsonShapeOf", () => {
+    it("returns the shape a JSON import recorded, and null for a graph read from another format", async () => {
+        const json = await importGraph('{"nodes":[{"id":"a"},{"id":"b"}],"links":[{"source":"a","target":"b"}]}', {
+            format: "json",
+        });
+        expect(jsonShapeOf(json.snapshot)?.dialect).toBe("d3");
+        expect(jsonShapeOf(json.snapshot)?.edgesKey).toBe("links");
+        const dot = await importGraph("graph { a -- b }", { format: "dot" });
+        expect(jsonShapeOf(dot.snapshot)).toBeNull();
     });
 });

@@ -1,10 +1,12 @@
 # Feature Design: Run Algorithm Modal
 
 ## Overview
+
 - **User Value**: Enables users to run graph algorithms directly from the UI without code, visualizing results like centrality, communities, and shortest paths through automatically applied styles
 - **Technical Value**: Provides a consistent, discoverable interface for algorithm execution that leverages the existing suggested styles system and integrates with the style layers sidebar
 
 ## Requirements
+
 1. Add "Run Algorithm..." menu item to the hamburger menu (similar to "Load Data...")
 2. Pop open a modal window for algorithm selection and configuration
 3. Each algorithm should have its own specific options UI
@@ -16,11 +18,13 @@
 ### User Interface
 
 #### Menu Integration
+
 - Add "Run Algorithm..." item to File section of hamburger menu
 - Use `Zap` icon from lucide-react (suggesting computation/execution)
 - Positioned after "Load Data..." menu item
 
 #### Modal Layout
+
 ```
 ┌────────────────────────────────────────────────────┐
 │ Run Algorithm                                   ✕  │
@@ -45,29 +49,33 @@
 ```
 
 #### Algorithm Categories
-| Category | Algorithms |
-|----------|------------|
-| Centrality | Degree, PageRank, Betweenness, Closeness, Eigenvector, Katz, HITS |
-| Community Detection | Louvain, Girvan-Newman, Label Propagation, Leiden |
-| Shortest Path | Dijkstra, Bellman-Ford, Floyd-Warshall |
-| Traversal | BFS, DFS |
-| Components | Connected Components, Strongly Connected Components |
-| Minimum Spanning Tree | Kruskal, Prim |
-| Flow | Max Flow, Min Cut, Bipartite Matching |
+
+| Category              | Algorithms                                                        |
+| --------------------- | ----------------------------------------------------------------- |
+| Centrality            | Degree, PageRank, Betweenness, Closeness, Eigenvector, Katz, HITS |
+| Community Detection   | Louvain, Girvan-Newman, Label Propagation, Leiden                 |
+| Shortest Path         | Dijkstra, Bellman-Ford, Floyd-Warshall                            |
+| Traversal             | BFS, DFS                                                          |
+| Components            | Connected Components, Strongly Connected Components               |
+| Minimum Spanning Tree | Kruskal, Prim                                                     |
+| Flow                  | Max Flow, Min Cut, Bipartite Matching                             |
 
 #### Algorithm Options UI
 
 **Simple Algorithms (no options)**:
+
 - Degree, Louvain, Connected Components, etc.
 - Just show the description
 
 **Algorithms with Node Selection** (Dijkstra, BFS, DFS, Bellman-Ford, Prim, Max Flow, Min Cut):
+
 ```
 Source Node: [Select or enter node ID ▼]
 Target Node: [Select or enter node ID ▼]  (optional for some)
 ```
 
 Options for node selection:
+
 1. Dropdown populated with current graph nodes
 2. Type-ahead search for large graphs
 3. "First node" / "Last node" quick options
@@ -81,6 +89,7 @@ Options for node selection:
 **graphty-element owns the style layers.** The React app syncs its sidebar state by listening for `"style-changed"` events and querying the current layers from graphty-element.
 
 This means:
+
 - `runAlgorithm(..., { applySuggestedStyles: true })` adds layers to graphty-element's `StyleManager`
 - React listens for changes and updates its sidebar state accordingly
 - The sidebar reflects the actual state of layers in graphty-element
@@ -89,10 +98,12 @@ This means:
 #### Components
 
 **New Files:**
+
 1. `src/components/RunAlgorithmModal.tsx` - Main modal component
 2. `src/hooks/useGraphLayers.ts` - Hook to sync layers from graphty-element
 
 **Modified Files:**
+
 1. `src/components/layout/TopMenuBar.tsx` - Add menu item and callback prop
 2. `src/components/layout/AppLayout.tsx` - Add modal state, use layer sync hook
 3. `src/components/Graphty.tsx` - Expose graph ref and event subscription
@@ -179,15 +190,18 @@ The `EventManager` exposes `onGraphEvent` Observable. A single observer forwards
 // In graphty-element.ts asyncFirstUpdated()
 // Universal event forwarder - all internal events become DOM CustomEvents
 this.#graph.eventManager.onGraphEvent.add((event) => {
-    this.dispatchEvent(new CustomEvent(event.type, {
-        detail: event,
-        bubbles: true,
-        composed: true,
-    }));
+    this.dispatchEvent(
+        new CustomEvent(event.type, {
+            detail: event,
+            bubbles: true,
+            composed: true,
+        }),
+    );
 });
 ```
 
 **Benefits:**
+
 - One line of setup instead of 6+ lines per event
 - Automatically includes new events (like `"style-changed"`) without code changes
 - Uses the existing Observable pattern
@@ -223,11 +237,7 @@ interface GraphtyElementType extends HTMLElement {
                 layers: readonly StyleLayerType[];
             };
         };
-        runAlgorithm: (
-            namespace: string,
-            type: string,
-            options?: { applySuggestedStyles?: boolean }
-        ) => Promise<void>;
+        runAlgorithm: (namespace: string, type: string, options?: { applySuggestedStyles?: boolean }) => Promise<void>;
     };
 }
 ```
@@ -263,14 +273,18 @@ function useGraphLayers(graphtyRef: RefObject<GraphtyElementType>): {
                 id: layer.metadata?.id ?? `layer-${idx}`,
                 name: layer.metadata?.name ?? `Layer ${idx + 1}`,
                 styleLayer: {
-                    node: layer.node ? {
-                        selector: layer.node.selector,
-                        style: layer.node.style,
-                    } : undefined,
-                    edge: layer.edge ? {
-                        selector: layer.edge.selector,
-                        style: layer.edge.style,
-                    } : undefined,
+                    node: layer.node
+                        ? {
+                              selector: layer.node.selector,
+                              style: layer.node.style,
+                          }
+                        : undefined,
+                    edge: layer.edge
+                        ? {
+                              selector: layer.edge.selector,
+                              style: layer.edge.style,
+                          }
+                        : undefined,
                 },
             }));
             setLayers(converted);
@@ -296,10 +310,12 @@ function useGraphLayers(graphtyRef: RefObject<GraphtyElementType>): {
 #### Layer Naming
 
 When algorithms add suggested styles, the layer name should be simple:
+
 - Use algorithm display name: "PageRank", "Louvain", "Dijkstra"
 - NOT the internal metadata name like "PageRank - Node Size"
 
 This requires either:
+
 1. **Option A**: Modify how `applySuggestedStyles` sets the layer name (in graphty-element)
 2. **Option B**: Post-process layer names in the React hook based on `algorithmSource` metadata
 
@@ -310,14 +326,7 @@ This requires either:
 Since the algorithm registry doesn't expose a list of available algorithms, we define the catalog in the React app:
 
 ```typescript
-type AlgorithmCategory =
-    | "centrality"
-    | "community"
-    | "shortest-path"
-    | "traversal"
-    | "components"
-    | "mst"
-    | "flow";
+type AlgorithmCategory = "centrality" | "community" | "shortest-path" | "traversal" | "components" | "mst" | "flow";
 
 interface AlgorithmInfo {
     namespace: string;
@@ -352,12 +361,14 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 ### Implementation Approach
 
 #### Phase 1: Layer Sync Infrastructure
+
 1. Replace manual event forwarding in `graphty-element.ts` with universal forwarder (one line)
 2. Create `useGraphLayers` hook with DOM event listener for `"style-changed"`
 3. Refactor `AppLayout` to use hook instead of local state
 4. Verify sidebar updates when layers change in graphty-element
 
 #### Phase 2: Run Algorithm Modal (MVP)
+
 1. Create `RunAlgorithmModal.tsx` with category/algorithm selection
 2. Add menu item to `TopMenuBar.tsx`
 3. Add modal state to `AppLayout.tsx`
@@ -365,11 +376,13 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 5. Verify layers appear in sidebar after execution
 
 #### Phase 3: Algorithm Options
+
 1. Implement node selection UI for path-finding algorithms
 2. Create dropdown populated with graph nodes
 3. Wire options through to algorithm execution
 
 #### Phase 4: Polish
+
 1. Loading state during algorithm execution
 2. Error display for algorithm failures
 3. Success feedback
@@ -377,6 +390,7 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 ## Acceptance Criteria
 
 ### Must Have
+
 - [ ] "Run Algorithm..." menu item appears in hamburger menu
 - [ ] Modal opens with algorithm category and selection dropdowns
 - [ ] All 23 algorithms are selectable
@@ -388,6 +402,7 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 - [ ] Sidebar reflects actual layer state from graphty-element (event-based sync)
 
 ### Should Have
+
 - [ ] Algorithm descriptions shown in modal
 - [ ] Category filtering works correctly
 - [ ] Dijkstra/BFS/DFS allow source/target node selection
@@ -395,6 +410,7 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 - [ ] Disabled "Run" button when algorithm is executing
 
 ### Nice to Have
+
 - [ ] Node selector has search/filter capability
 - [ ] Recently run algorithms section
 - [ ] Keyboard navigation in modal
@@ -402,23 +418,27 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 ## Technical Considerations
 
 ### Performance
+
 - **Impact**: Algorithm execution can be CPU-intensive for large graphs
 - **Mitigation**:
-  - Show loading state during execution
-  - The existing queue system in graphty-element handles execution ordering
-  - Event-based layer sync is efficient (only syncs on actual changes)
+    - Show loading state during execution
+    - The existing queue system in graphty-element handles execution ordering
+    - Event-based layer sync is efficient (only syncs on actual changes)
 
 ### Security
+
 - No external data fetching, algorithms run on loaded graph data only
 - Node selection inputs should be sanitized (handled by graphty-element)
 
 ### Compatibility
+
 - Follows existing modal patterns (LoadDataModal)
 - Uses same Mantine components
 - No breaking changes to existing functionality
 - Event subscription pattern aligns with graphty-element's EventManager
 
 ### Testing
+
 - Unit tests for `useGraphLayers` hook
 - Unit tests for RunAlgorithmModal component
 - Integration tests for algorithm execution flow
@@ -428,19 +448,25 @@ const ALGORITHM_CATALOG: AlgorithmInfo[] = [
 ## Risks and Mitigation
 
 ### Risk: `"style-changed"` event not exposed as DOM event
+
 **Mitigation**: Replace manual event forwarding in graphty-element with a universal forwarder using `eventManager.onGraphEvent.add()`. This is a one-line change that automatically exposes ALL internal events (including `"style-changed"`) as DOM CustomEvents.
 
 ### Risk: Algorithm registry not accessible
+
 **Mitigation**: Define algorithm catalog statically in React app. While less dynamic, this provides better UX with descriptions and categorization.
 
 ### Risk: Layer identity across syncs
+
 **Mitigation**: Use stable IDs on layers. If graphty-element layers don't have IDs, generate them based on index + metadata hash, or add ID support to StyleManager.
 
 ### Risk: Duplicate layers from multiple algorithm runs
+
 **Mitigation**: This is intended behavior - each algorithm run adds new layers. Users can manually delete unwanted layers from the sidebar. Layer names are simple (e.g., "PageRank") so users can distinguish runs by position in the list.
 
 ### Risk: Bidirectional sync complexity
+
 **Mitigation**: Keep it simple for MVP:
+
 - graphty-element → React: event-based, read layers on change
 - React → graphty-element: direct StyleManager calls for edits/deletes/reorder
 - Both directions trigger "style-changed", but the hook can debounce/dedupe

@@ -42,7 +42,7 @@ That is the whole plugin. `place` receives the graph and the options, already ch
 filled in with their defaults, and returns a `Map` from node id to `[x, y]` or `[x, y, z]`.
 
 - **Positions are in scene units**, the units the camera and the node sizes use. A node at the
-  default size is 1 unit across, so a spacing of 2 leaves a node's width between neighbours.
+  default size is 1 unit across, so a spacing of 2 leaves a node's width between neighbors.
   Nothing multiplies what you return. +x is right and +y is up, so tier 0 is the bottom row and a
   column that runs down the screen uses negative y.
 - **A node you leave out of the map is not placed** by your layout. So is one you map to `null`
@@ -246,7 +246,7 @@ registerSnapshotLayout({
                 default: 50,
                 min: 1,
                 max: 1000,
-                description: "Scene units between neighbours.",
+                description: "Scene units between neighbors.",
             },
         ],
     },
@@ -293,6 +293,7 @@ until it resolves.
 | `dataPositions()` | Where each node's own `position` field puts it, scaled by the element's `positionScale`; NaN where a node has none.                                   |
 | `signal`          | Aborted when the answer is no longer wanted: the graph changed, the layout was replaced, or the element was disposed.                                 |
 | `report(p)`       | Tell the consumer how far you have got: `{ fraction, message? }`, emitted as the element's `layout-progress` event.                                   |
+| `warn(w)`         | Tell the consumer the data kept you from placing nodes as asked: `{ code, params }`, emitted as the element's `layout-warning` event.                 |
 
 Read a mask with `maskTest(mask, row)`. Import it, and the `GraphSnapshot`, `NodeMask` and `EdgeMask`
 types, from `@graphty/graphty-element/extend`, not from `@graphty/graph-format`: they are the
@@ -302,7 +303,7 @@ element's own copy, so they always match the snapshots it hands you.
 after a reader adds nodes to a finished graph, every node that was already drawn is left where it
 is; `fixed` tells you which they are so that you can arrange the rest around them. After an add,
 `added` marks the newcomers and `initial` holds where everything is, which is what lets a layout
-place a newcomer among its neighbours instead of from scratch. Your answer for the kept nodes can
+place a newcomer among its neighbors instead of from scratch. Your answer for the kept nodes can
 come back turned, mirrored or rescaled against where they are drawn; the element carries the new
 nodes into the drawn frame by the turn (or mirror), scale and shift that best maps your kept rows
 onto their drawn places. Only an add is held this way: if any edge between two existing nodes was

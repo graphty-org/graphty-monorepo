@@ -1,4 +1,4 @@
-import type { Scene } from "@babylonjs/core";
+import type { Observable, Scene } from "@babylonjs/core";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
@@ -8,6 +8,7 @@ import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
+import type { NodeLabelCounts } from "./LabelDeclutter";
 import type { LayoutManager } from "./LayoutManager";
 import type { SelectionManager } from "./SelectionManager";
 import type { StatsManager } from "./StatsManager";
@@ -50,6 +51,13 @@ export interface GraphContext {
     getSession?(): GraphSession;
 
     /**
+     * Told the node label counts once the view is still and they changed; see
+     * `LabelDeclutter`. Absent on a context nothing listens to.
+     * @since 3.7.0
+     */
+    readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
+
+    /**
      * Get the LayoutManager for layout operations
      */
     getLayoutManager(): LayoutManager;
@@ -75,7 +83,9 @@ export interface GraphContext {
     is2D(): boolean;
 
     /**
-     * Check if ray updates are needed (for edge arrows)
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
      */
     needsRayUpdate(): boolean;
 
@@ -168,20 +178,18 @@ export class DefaultGraphContext implements GraphContext {
      * @param scene - Babylon.js Scene instance
      * @param statsManager - StatsManager instance for performance monitoring
      * @param config - Graph-level configuration options
-     * @param rayUpdateNeeded - Whether ray updates are needed for edge arrows
      * @param stylePainter - Painter answering what the session's style stack resolved, when one
      *     is bound
      */
     constructor(
-        private styles: () => Styles,
-        private dataManager: DataManager,
-        private layoutManager: LayoutManager,
-        private meshCache: MeshCache,
-        private scene: Scene,
-        private statsManager: StatsManager,
-        private config: GraphContextConfig,
-        private rayUpdateNeeded = true,
-        private stylePainter?: StylePainter,
+        private readonly styles: () => Styles,
+        private readonly dataManager: DataManager,
+        private readonly layoutManager: LayoutManager,
+        private readonly meshCache: MeshCache,
+        private readonly scene: Scene,
+        private readonly statsManager: StatsManager,
+        private readonly config: GraphContextConfig,
+        private readonly stylePainter?: StylePainter,
     ) {}
 
     /**
@@ -252,19 +260,13 @@ export class DefaultGraphContext implements GraphContext {
     }
 
     /**
-     * Check if ray updates are needed for edge arrows
-     * @returns True if ray updates are needed, false otherwise
+     * Always false.
+     * @deprecated Each edge aims its own ray when it needs one. Will be removed in
+     * graphty-element 4.0.
+     * @returns false
      */
     needsRayUpdate(): boolean {
-        return this.rayUpdateNeeded;
-    }
-
-    /**
-     * Set whether ray updates are needed for edge arrows
-     * @param needed - Whether ray updates are needed
-     */
-    setRayUpdateNeeded(needed: boolean): void {
-        this.rayUpdateNeeded = needed;
+        return false;
     }
 
     /**

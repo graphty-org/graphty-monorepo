@@ -8,7 +8,7 @@
  * rules under the two-phase path forced and under the fused path forced (top-down only), the choice counters of
  * rmat14 at the default threshold against the oracle's level sizes, rmat14's per-boundary direction and unvisited
  * words against the host model of Beamer's rule at both cadences, the path from its middle and the hub-clique
- * fixture forced bottom-up (alpha U32_MAX, beta 0) with the clique's `arcsScanned` allowed one extra read per
+ * fixture forced bottom-up (alpha U32_MAX, beta 0) with the clique's `arcsScanned` pinned to one read per
  * claim, the directed path's unvisited words, and the one-workgroup predecessor pass, all bitwise (any mismatch is
  * Infinity) -- fails on the mutant by at least minFactor. The first block is the coverage loop of
  * test/sabotage/coverage.test.ts applied to these rows (P8 is not in SABOTAGE_PHASES until P8-T15). Three
@@ -91,11 +91,13 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
         expect((SABOTAGE["bfs-unvisited-flags"] ?? []).map((m) => m.name)).toEqual([
             "everyone-listed",
             "in-degree-test-inverted",
-            "in-degree-summed",
+            "vertices-counted-not-in-degrees",
         ]);
         expect((SABOTAGE["bfs-next-degree"] ?? []).map((m) => m.name)).toEqual([
             "sum-dropped",
             "entries-counted-not-degrees",
+            "in-sum-dropped",
+            "out-degree-subtracted",
             "path-gate-inverted",
         ]);
         const selector = MEASURED[MEASURED.length - 1];
@@ -122,6 +124,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
         }
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on lavapipe on the dev box under load, 12 s on the Windows WARP host lane, 11 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it("the real kernels pass the check (factor 0)", async (t) => {
         requireGpu(t);
         const ctx = await acquire({ label: "sabotage-bfs" });
@@ -136,6 +139,7 @@ describe("sabotage: bfs-contract, sssp-pred, bfs-fused, bfs-bottom-up, bfs-bitse
 
     for (const { id, rows } of MEASURED) {
         for (const mutation of rows) {
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 17 s on CI's lavapipe, 17 s on the Windows WARP host lane, 13 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
             it(`${id}/${mutation.name}: fails the check by >= ${mutation.minFactor}x`, async (t) => {
                 requireGpu(t);
                 const report = await withSabotage(id, mutation, (ctx) => bfsReport(ctx));

@@ -15,7 +15,7 @@ import { GRID_HUB_CELL } from "../constants.js";
 import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { plan1d } from "../kernel/dispatch.js";
-import { type BoundKernel, INDIRECT_ARGS_STRIDE, type Kernel } from "../kernel/kernel.js";
+import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { type PipelineCache } from "../kernel/pipeline-cache.js";
 import { type UniformBlock, type UniformValues } from "../kernel/struct-block.js";
 import { type WgslModuleSpec } from "../kernel/wgsl.js";
@@ -56,7 +56,6 @@ export interface RepulsionGridResources extends RepulsionExactResources {
     readonly cellStart: Binding;
     readonly hubList: Binding;
     readonly hubCounters: Binding;
-    readonly hubArgs: Binding;
     readonly pyramid: Binding;
 }
 
@@ -183,8 +182,9 @@ export class RepulsionGrid {
      * @param overrides - the override set G6 / G7 / K4 were compiled with
      * @param spec - the grid
      * @param box - the lease box the scope's scratch() and params() read
-     * @param build - the T8 planner (G1-G3)
-     * @param pyramid - the T9 planner (G4-G5)
+     * @param planners - the planners
+     * @param planners.build - the T8 planner (G1-G3)
+     * @param planners.pyramid - the T9 planner (G4-G5)
      * @param kernels - G6 (`far`), G7 (`near`) and K4 (`speedFinalize`)
      */
     private constructor(
@@ -193,8 +193,7 @@ export class RepulsionGrid {
         overrides: RepulsionGridOverrides,
         spec: GridSpec,
         box: LeaseBox,
-        build: GridBuildPlanner,
-        pyramid: GridPyramidPlanner,
+        planners: { readonly build: GridBuildPlanner; readonly pyramid: GridPyramidPlanner },
         kernels: FieldKernels,
     ) {
         this.caps = scope.caps;
@@ -207,8 +206,8 @@ export class RepulsionGrid {
             LAW: overrides.LAW,
         });
         this.spec = spec;
-        this.build = build;
-        this.pyramid = pyramid;
+        this.build = planners.build;
+        this.pyramid = planners.pyramid;
         this.far = kernels.far;
         this.near = kernels.near;
         this.speedFinalize = kernels.speedFinalize;
@@ -216,8 +215,7 @@ export class RepulsionGrid {
 
     /**
      * The model-owned buffers of the grid tier (spec 7.3; PD-11): `cellKey` / `cellVal` / `sortedKey` / `sortedIdx`
-     * 4n, `cellHist` / `cellStart` 4 histWords (cells + 2^dim + 1) zeroed, `hubList` one word per possible hub cell, `hubArgs` one
-     * indirect slot, `pyramid` 16 B per pyramid cell zeroed. `hubCounters` (16 B, zeroed) is the MODEL's on every
+     * 4n, `cellHist` / `cellStart` 4 histWords (cells + 2^dim + 1) zeroed, `hubList` one word per possible hub cell, `pyramid` 16 B per pyramid cell zeroed. `hubCounters` (16 B, zeroed) is the MODEL's on every
      * tier (PD-14: K1 binds it on the exact tier too). n = 0 reports one node's worth of bytes (spec 3.6).
      * @param n - the node count
      * @param spec - the grid
@@ -238,7 +236,6 @@ export class RepulsionGrid {
                 usage: STORAGE_RW,
                 zero: false,
             },
-            { name: "hubArgs", byteLength: INDIRECT_ARGS_STRIDE, usage: STORAGE_RW | BufferUsage.INDIRECT, zero: true },
             { name: "pyramid", byteLength: gridPyramidBytes(spec), usage: STORAGE_RW, zero: true },
         ];
     }
@@ -261,7 +258,6 @@ export class RepulsionGrid {
             kernelSpec("histogram"),
             kernelSpec("fill"),
             kernelSpec("grid-centroid"),
-            kernelSpec("indirect-finalize"),
             kernelSpec("grid-centroid-hub"),
             kernelSpec("grid-downsample"),
             farFieldSpec(overrides),
@@ -307,11 +303,15 @@ export class RepulsionGrid {
             const speedFinalize = await scope.pipelines.kernel(
                 kernelSpec("fa2-speed-finalize", { SWING_MODE: overrides.SWING_MODE }),
             );
-            return new RepulsionGrid(scope, workgroupSize, overrides, spec, box, build, pyramid, {
-                far,
-                near,
-                speedFinalize,
-            });
+            return new RepulsionGrid(
+                scope,
+                workgroupSize,
+                overrides,
+                spec,
+                box,
+                { build, pyramid },
+                { far, near, speedFinalize },
+            );
         } catch (error) {
             leaseOf(box).release();
             throw error;
@@ -348,7 +348,6 @@ export class RepulsionGrid {
             pyramid: r.pyramid,
             hubList: r.hubList,
             hubCounters: r.hubCounters,
-            hubArgs: r.hubArgs,
         });
         this.bound = {
             far: this.far.bind({

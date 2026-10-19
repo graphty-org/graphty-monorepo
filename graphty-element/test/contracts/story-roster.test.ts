@@ -9,7 +9,7 @@
  * - the storybook vitest project runs the stories that EXIST, so deleting one removes a test
  *   rather than failing one. The count fell from 150 to 131 and three later reports printed 131
  *   as green;
- * - Chromatic fails on a CHANGED snapshot, and a deleted story produces no snapshot to diff;
+ * - the screenshot review fails on a CHANGED snapshot, and a deleted story produces no snapshot to diff;
  * - the pre-push gate never runs the storybook project at all;
  * - ESLint globally ignored `**\/stories\/**` at the time, so the static gates never read the
  *   files either.
@@ -33,7 +33,7 @@
  *
  * A STORY'S ID IS `<meta title>::<export name>`, which is what a visual-regression baseline is
  * keyed on. So a retitled meta and a renamed export are both caught here, and both of those
- * orphan a Chromatic baseline exactly as a deletion does.
+ * orphan a visual-review baseline exactly as a deletion does.
  *
  * NO STORYBOOK, NO BROWSER. The ids are read off disk, so this runs in the `default` vitest
  * project -- which means the pre-push gate and the `graphty-element-default` CI shard, the two
@@ -58,7 +58,14 @@ import path from "node:path";
 
 import { assert, describe, it } from "vitest";
 
-import { PACKAGE_ROOT, readStories, readStoryFile, STORIES_DIR, type StoryFileReading, storyFiles } from "./story-source";
+import {
+    PACKAGE_ROOT,
+    readStories,
+    readStoryFile,
+    STORIES_DIR,
+    type StoryFileReading,
+    storyFiles,
+} from "./story-source";
 
 /** The checked-in roster. */
 const ROSTER_PATH = path.join(STORIES_DIR, "story-roster.json");
@@ -281,9 +288,7 @@ describe("the roster reads a story however it is written", () => {
     };
 
     it("finds a story that does not carry the type annotation the old pattern wanted", () => {
-        const ids = read(OTHERWISE_WRITTEN_STORIES).flatMap((reading) =>
-            reading.stories.map((story) => story.id),
-        );
+        const ids = read(OTHERWISE_WRITTEN_STORIES).flatMap((reading) => reading.stories.map((story) => story.id));
 
         assert.deepEqual(
             ids.sort(),
@@ -308,10 +313,13 @@ describe("the roster reads a story however it is written", () => {
 
     it("refuses a file whose title it cannot read, instead of reading no stories from it", () => {
         assert.throws(
-            () => read(`import type { Meta } from "@storybook/web-components-vite";\n` +
-                `const meta: Meta = { title: titleFor("Styles/Node"), component: "graphty-element" };\n` +
-                `export default meta;\n` +
-                `export const Only = { args: {} };\n`),
+            () =>
+                read(
+                    `import type { Meta } from "@storybook/web-components-vite";\n` +
+                        `const meta: Meta = { title: titleFor("Styles/Node"), component: "graphty-element" };\n` +
+                        `export default meta;\n` +
+                        `export const Only = { args: {} };\n`,
+                ),
             /title/,
             `A meta whose title is built at run time takes every story in the file out of the roster ` +
                 `at once. The reader has to refuse it out loud; returning zero stories is the silence ` +

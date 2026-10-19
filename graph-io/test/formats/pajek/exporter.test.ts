@@ -313,7 +313,7 @@ describe("pajekExporter: writing", () => {
         expect(lines(text).slice(1, 3)).toEqual(["1 1 1 2 3", "2 2 4 5 0"]);
         const twoComponents = builderWith(true, [{ name: "position", dtype: "f64", components: 2, role: "position" }]);
         twoComponents.addNodeRecord(1, { position: [1.5, 2] });
-        expect(lines(await pajekExporter.exportToString(twoComponents.freeze()))[1]).toBe("1 1 1.5 2.0");
+        expect(lines(await pajekExporter.exportToString(twoComponents.freeze()))[1]).toBe("1 1 1.5 2");
     });
 
     it("writes the shape keywords in their slot, or the whole column as a parameter when a value is not a keyword", async () => {
@@ -381,6 +381,21 @@ describe("pajekExporter: writing", () => {
         builder.addEdge(1, 2);
         builder.setMeta({ extra: { pajek: { firstMode: 5 } } });
         expect(lines(await pajekExporter.exportToString(builder.freeze()))[0]).toBe("*Vertices 2");
+    });
+
+    it("names the network with the name option, and writes a bare *Network line for an unnamed graph", async () => {
+        const builder = builderWith(true);
+        builder.addEdge(1, 2);
+        const unnamed = builder.freeze();
+        expect(lines(await pajekExporter.exportToString(unnamed, { networkHeader: true }))[0]).toBe("*Network");
+        const named = await pajekExporter.exportToString(unnamed, { name: "got" });
+        expect(lines(named).slice(0, 2)).toEqual(["*Network got", "*Vertices 2"]);
+        expect((await fromPajek(named)).meta.name).toBe("got");
+        expect((await fromPajek("*Network\n*Vertices 1\n1 a\n")).nodeCount).toBe(1);
+        expect(lines(await pajekExporter.exportToString(unnamed, { name: "got", networkHeader: false }))[0]).toBe(
+            "*Vertices 2",
+        );
+        expect(() => pajekExporter.check(unnamed, { name: "a\nb" })).toThrow(GraphFormatError);
     });
 
     it("writes sections in runs of kind and relation, preserving the edge order", async () => {

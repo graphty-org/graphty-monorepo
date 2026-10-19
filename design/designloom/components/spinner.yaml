@@ -7,9 +7,9 @@ implements_capabilities: []
 used_in_workflows: []
 dependencies: []
 props:
-  size: "string - Spinner size: 'sm' | 'md' | 'lg' (default: 'md')"
-  color: "string - Spinner color (default: 'primary')"
-  label: "string - Accessible label (default: 'Loading...')"
+    size: "string - Spinner size: 'sm' | 'md' | 'lg' (default: 'md')"
+    color: "string - Spinner color (default: 'primary')"
+    label: "string - Accessible label (default: 'Loading...')"
 sources: []
 version: 1.0.0
 created_at: 2026-01-16T03:59:03.869Z

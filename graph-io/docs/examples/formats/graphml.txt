@@ -1,0 +1,2 @@
+107 nodes; edge columns: Edge Label, id
+[ 'W_ID_MANGLED' ]

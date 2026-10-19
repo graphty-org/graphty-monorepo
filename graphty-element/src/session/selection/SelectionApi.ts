@@ -36,6 +36,7 @@ import type { GraphSnapshot, U8, U32 } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, ScopeId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { deepFreeze } from "../project/draft";
 import { arrayColumn, computeColumnStatistics } from "../results/statistics";
 import type { ResultsApi } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
@@ -191,6 +192,25 @@ export interface SelectionApi {
     /** Whether the last mutation dropped elements to stay within the cap. */
     readonly truncated: boolean;
     /**
+     * The target the selection was made from, as it was passed to `apply`, while the selection is
+     * still exactly that target: `{ neighborsOf: ["Javert"] }` after a neighborhood was selected,
+     * so a panel that did not make the call can tell a neighborhood from any other set of nodes.
+     * A frozen copy: changing the object you passed does not change it.
+     *
+     * Null before anything was selected, after an `apply` that adds to, removes from, toggles or
+     * intersects the selection, after a replace the cap cut short, and once anything else changes
+     * the selection or the graph -- a click, an undo or redo, `clear()`, or any edit to the
+     * graph's nodes, edges or data (the target might name something different now).
+     *
+     * ```ts
+     * const origin = session.selection.origin;
+     * if (origin !== null && "neighborsOf" in origin && origin.neighborsOf?.length === 1) {
+     *     showNeighbors(origin.neighborsOf[0]);
+     * }
+     * ```
+     */
+    readonly origin: SelectionTarget | null;
+    /**
      * Whether one element is selected.
      *
      * One array read, and no allocation at all, so a render loop can ask once per element per
@@ -270,6 +290,15 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked.
      */
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
+    /**
+     * Whether taking edges out of the selection would change nothing: no edge is selected (or,
+     * given the edges, none of them is), no change is waiting, and the cap has truncated nothing.
+     * Answered without reading the graph, so a removal that selects no edge does not freeze it to
+     * find that out.
+     * @param ids - The edges about to be taken out; absent, any selected edge counts.
+     * @returns True when it would change nothing.
+     */
+    edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -491,6 +520,9 @@ class Selection implements SelectionOwner {
 
     #truncated = false;
 
+    /** The target the selection is exactly, while nothing else has changed it. */
+    #origin: SelectionTarget | null = null;
+
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
         null;
@@ -564,6 +596,16 @@ class Selection implements SelectionOwner {
     }
 
     /**
+     * The target the selection was made from, while it is still exactly that target.
+     * @returns The target as it was passed, or null.
+     */
+    get origin(): SelectionTarget | null {
+        this.#sync();
+
+        return this.#origin;
+    }
+
+    /**
      * Whether one element is selected, without allocating anything.
      *
      * The node half is asked first, and the edge half only when the id could be an edge id at all
@@ -585,7 +627,8 @@ class Selection implements SelectionOwner {
             return true;
         }
 
-        return typeof id === "string" && this.#edges.size > 0 && this.#edges.hasId(id);
+        // An edge id is text; the number it spells names the same edge.
+        return this.#edges.size > 0 && this.#edges.hasId(String(id));
     }
 
     /**
@@ -636,6 +679,7 @@ class Selection implements SelectionOwner {
     remapNodes(remap: U32, count: number): void {
         this.#nodes.remap(remap, count);
         this.#frameStale = true;
+        this.#origin = null;
     }
 
     /**
@@ -646,6 +690,7 @@ class Selection implements SelectionOwner {
     remapEdges(remap: U32, count: number): void {
         this.#edges.remap(remap, count);
         this.#frameStale = true;
+        this.#origin = null;
     }
 
     /**
@@ -703,12 +748,40 @@ class Selection implements SelectionOwner {
         }
 
         this.#truncated = this.#enforceCap(cap);
+        // Only a whole replace a caller asked for leaves the selection exactly what the target
+        // named. A click or an undo reselects a plain id list nobody passed, so it records nothing.
+        this.#origin =
+            op === "replace" && cause === "api" && !this.#truncated ? deepFreeze(structuredClone(target)) : null;
 
         return this.#delta(before, members.unmatched, members.unresolvedPaths, cause, members.skipped);
     }
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
         this.#pending = { target, op, cause };
+    }
+
+    edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean {
+        if (this.#pending !== null || this.#truncated) {
+            return false;
+        }
+
+        if (this.#edges.size === 0) {
+            return true;
+        }
+
+        // The masks as they stand, as `has` reads them: one lookup per edge, no freeze. A frame a
+        // renumbering freeze left stale cannot answer, so that case takes the full path.
+        if (ids === undefined || this.#frameStale) {
+            return false;
+        }
+
+        for (const id of ids) {
+            if (this.#edges.hasId(id)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -721,6 +794,7 @@ class Selection implements SelectionOwner {
         this.#nodes.clear();
         this.#edges.clear();
         this.#truncated = false;
+        this.#origin = null;
 
         return this.#delta(before, EMPTY_STRINGS, EMPTY_PATHS, "api");
     }
@@ -811,6 +885,8 @@ class Selection implements SelectionOwner {
 
         if (graph !== this.#frame.graph) {
             this.#frame = frameOf(graph);
+            // The target may name something else in the changed graph: a neighborhood that grew.
+            this.#origin = null;
         }
 
         this.#frameStale = false;

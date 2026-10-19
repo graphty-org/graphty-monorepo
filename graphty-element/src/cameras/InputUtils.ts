@@ -36,7 +36,7 @@ const XR_PAN_SPEED = 0.08;
 /** Zoom factor change per frame at full right-stick Y deflection. */
 const XR_ZOOM_SPEED = 0.02;
 /** Zoom factor change per metre the two pinching hands move apart or together. */
-const XR_GESTURE_ZOOM_SENSITIVITY = 2.0;
+const XR_GESTURE_ZOOM_SENSITIVITY = 2;
 /** Thumb-to-index distance, in metres, below which an open hand starts pinching. */
 const XR_PINCH_START_DISTANCE = 0.04;
 /** Thumb-to-index distance, in metres, above which a pinching hand lets go. Looser than the start, so a pinch does not flicker. */

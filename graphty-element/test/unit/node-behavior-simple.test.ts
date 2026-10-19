@@ -252,8 +252,10 @@ describe("NodeBehavior Unit Tests", () => {
 
         NodeBehavior.addDefaultBehaviors(mockNode);
 
-        const manager = mockNode.mesh.actionManager as unknown as
-            { registerAction: unknown; actions: { _trigger: number; execute?: () => void }[] } | null;
+        const manager = mockNode.mesh.actionManager as unknown as {
+            registerAction: unknown;
+            actions: { _trigger: number; execute?: () => void }[];
+        } | null;
         assert.isNotNull(manager, "an action manager should still have been created");
 
         // The handler is registered on EVERY node and reads the fetchers when the reader

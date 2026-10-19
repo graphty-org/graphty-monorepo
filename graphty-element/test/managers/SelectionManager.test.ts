@@ -1,4 +1,3 @@
- 
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import type { AdHocData } from "../../src/config";
@@ -6,6 +5,7 @@ import { Graph } from "../../src/Graph";
 import { EventManager } from "../../src/managers/EventManager";
 import { SelectionManager } from "../../src/managers/SelectionManager";
 import type { Node } from "../../src/Node";
+import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
@@ -236,7 +236,7 @@ describe("SelectionManager", () => {
 
             try {
                 const before = graph.getSession().styles.list().length;
-                await graph.addNode({ id: "layer-free" } as unknown as AdHocData);
+                await graph.addNode({ id: "layer-free" });
                 graph.selectNode("layer-free");
 
                 assert.equal(graph.getSession().styles.list().length, before);
@@ -249,7 +249,7 @@ describe("SelectionManager", () => {
             const graph = await createTestGraph();
 
             try {
-                await graph.addNode({ id: "bag-free" } as unknown as AdHocData);
+                await graph.addNode({ id: "bag-free" });
                 graph.selectNode("bag-free");
 
                 const node = graph.getSelectedNode();
@@ -277,7 +277,7 @@ describe("SelectionManager", () => {
 
         it("selectById() selects a node by its ID", async () => {
             // Add a node to the graph
-            await graph.addNode({ id: "test-node-1" } as unknown as AdHocData);
+            await graph.addNode({ id: "test-node-1" });
 
             // Select by ID
             const result = selectionManager.selectById("test-node-1");
@@ -292,6 +292,46 @@ describe("SelectionManager", () => {
             const result = selectionManager.selectById("non-existent");
             assert.isFalse(result);
             assert.isNull(selectionManager.getSelectedNode());
+        });
+    });
+
+    // A shift-click on a node: it joins the selection, or leaves it if it was in.
+    describe("toggle", () => {
+        it("adds a node that is not selected and takes out one that is", () => {
+            const [a, b] = [createMockNode("a"), createMockNode("b")];
+
+            selectionManager.toggle(a);
+            selectionManager.toggle(b);
+            assert.deepStrictEqual(
+                selectionManager.getSelectedNodes().map((node) => node.id),
+                ["a", "b"],
+            );
+
+            selectionManager.toggle(a);
+            assert.deepStrictEqual(
+                selectionManager.getSelectedNodes().map((node) => node.id),
+                ["b"],
+            );
+            assert.isFalse(a.isSelected(), "the node taken out is no longer highlighted");
+        });
+
+        it("costs work in proportion to the selection, no more", async () => {
+            await assertScalesLinearly(
+                async (size) => {
+                    const manager = new SelectionManager(eventManager);
+                    for (let i = 0; i < size; i++) {
+                        manager.toggle(createMockNode(String(i)));
+                    }
+
+                    const extra = createMockNode("extra");
+                    const visits = await visitsDuring(() => {
+                        manager.toggle(extra);
+                    });
+                    manager.dispose();
+                    return visits;
+                },
+                { sizes: [250, 1000], counter: "elements visited by one toggle" },
+            );
         });
     });
 });
@@ -309,7 +349,7 @@ describe("SelectionManager integration with Graph", () => {
 
     it("node removal while selected deselects the node", async () => {
         // Add a node
-        await graph.addNode({ id: "node-to-remove" } as unknown as AdHocData);
+        await graph.addNode({ id: "node-to-remove" });
 
         // Select it
         graph.selectNode("node-to-remove");
@@ -324,7 +364,7 @@ describe("SelectionManager integration with Graph", () => {
 
     it("selection persists across style changes", async () => {
         // Add nodes
-        await graph.addNode({ id: "persistent-node" } as unknown as AdHocData);
+        await graph.addNode({ id: "persistent-node" });
 
         // Select a node
         graph.selectNode("persistent-node");

@@ -54,6 +54,27 @@ import { type MutableColumnParts } from "../types/internal.js";
 const EMPTY_LIST: readonly unknown[] = Object.freeze([]);
 
 /**
+ * The most ids one id-to-index Map holds: V8 caps a Map at 2^24 entries and throws a bare
+ * RangeError beyond it. Anonymous nodes (id === index) need no Map entry and are not capped here.
+ */
+// ponytail: one Map per builder; shard the id map when graphs past 16.7M explicit ids matter
+const MAX_ID_MAP_SIZE = 2 ** 24;
+
+/**
+ * E_TOO_LARGE when the id map would grow past MAX_ID_MAP_SIZE, before anything is mutated.
+ * @param size - the id map size the caller is about to reach
+ */
+export function checkIdMapSize(size: number): void {
+    if (size > MAX_ID_MAP_SIZE) {
+        throw new GraphFormatError(
+            "E_TOO_LARGE",
+            `node count ${size} exceeds the ${MAX_ID_MAP_SIZE} nodes with explicit ids one builder can hold`,
+            { count: size, max: MAX_ID_MAP_SIZE },
+        );
+    }
+}
+
+/**
  * The E_COLUMN_TYPE error for a value a column cannot hold.
  * @param meta - the column
  * @param row - the row
@@ -131,23 +152,9 @@ function checkListItem(meta: ColumnMeta, row: number, item: unknown): void {
         case "f64":
         case "i32":
         case "u32":
-        case "u8": {
-            if (components === 1) {
-                if (typeof item !== "number" || !representableNumber(itemDtype, item)) {
-                    throw cellError(meta, row, `list item is not a representable ${itemDtype}`, typeof item);
-                }
-                return;
-            }
-            if (!Array.isArray(item) || item.length !== components) {
-                throw cellError(meta, row, `list item is not ${components} numbers`, typeof item);
-            }
-            for (const k of item as unknown[]) {
-                if (typeof k !== "number" || !representableNumber(itemDtype, k)) {
-                    throw cellError(meta, row, `list item component is not a representable ${itemDtype}`, typeof k);
-                }
-            }
+        case "u8":
+            checkNumericListItem(meta, row, item, itemDtype, components);
             return;
-        }
         case "bool":
             if (typeof item !== "boolean") {
                 throw cellError(meta, row, "list item is not a boolean", typeof item);
@@ -166,6 +173,38 @@ function checkListItem(meta: ColumnMeta, row: number, item: unknown): void {
         default: {
             const name: string = itemDtype;
             throw new GraphFormatError("E_COLUMN_TYPE", `unknown dtype ${name}`, { dtype: name });
+        }
+    }
+}
+
+/**
+ * Check one list item of a numeric list column: a representable number, or for a multi-component
+ * item an array of exactly `components` representable numbers.
+ * @param meta - the list column
+ * @param row - the row
+ * @param item - the item
+ * @param itemDtype - the numeric item dtype
+ * @param components - the item components
+ */
+function checkNumericListItem(
+    meta: ColumnMeta,
+    row: number,
+    item: unknown,
+    itemDtype: "f32" | "f64" | "i32" | "u32" | "u8",
+    components: number,
+): void {
+    if (components === 1) {
+        if (typeof item !== "number" || !representableNumber(itemDtype, item)) {
+            throw cellError(meta, row, `list item is not a representable ${itemDtype}`, typeof item);
+        }
+        return;
+    }
+    if (!Array.isArray(item) || item.length !== components) {
+        throw cellError(meta, row, `list item is not ${components} numbers`, typeof item);
+    }
+    for (const k of item as unknown[]) {
+        if (typeof k !== "number" || !representableNumber(itemDtype, k)) {
+            throw cellError(meta, row, `list item component is not a representable ${itemDtype}`, typeof k);
         }
     }
 }
@@ -543,7 +582,7 @@ export class StagingColumn {
         validity.resize(this.length, false);
         const { typed } = this;
         for (let row = 0; row < i; row++) {
-            if (typed === null || typed.get(row) !== INVALID_INDEX) {
+            if (typed?.get(row) !== INVALID_INDEX) {
                 validity.set(row, true);
             }
         }
@@ -1184,6 +1223,7 @@ export class Staging {
             return;
         }
         const bound = this.nodeBound;
+        checkIdMapSize(bound);
         const ids = new Array<NodeId>(bound);
         const map = new Map<NodeId, number>();
         for (let i = 0; i < bound; i++) {
@@ -1200,6 +1240,9 @@ export class Staging {
      * @returns the new index
      */
     pushNode(id: NodeId | null): number {
+        if (this.idToIndex !== null) {
+            checkIdMapSize(this.idToIndex.size + 1);
+        }
         const index = this.nodeAlive.push(true);
         this.firstOut.push(INVALID_INDEX);
         this.firstIn.push(INVALID_INDEX);
@@ -1210,6 +1253,25 @@ export class Staging {
         }
         this.liveNodeCount++;
         return index;
+    }
+
+    /**
+     * Append `count` live anonymous nodes: pushNode(null) `count` times, but with one resize per
+     * array while no id map exists (2^24 single pushes took 0.7-1.0 s, the three resizes about 0.05 s).
+     * @param count - how many
+     */
+    pushAnonymousNodes(count: number): void {
+        if (this.idToIndex !== null) {
+            for (let i = 0; i < count; i++) {
+                this.pushNode(null);
+            }
+            return;
+        }
+        const bound = this.nodeBound + count;
+        this.nodeAlive.resize(bound, true);
+        this.firstOut.resize(bound, INVALID_INDEX);
+        this.firstIn.resize(bound, INVALID_INDEX);
+        this.liveNodeCount += count;
     }
 
     /**
@@ -1329,16 +1391,12 @@ export class Staging {
         this.edgeAlive.resize(end, true);
         this.nextOut.resize(end);
         this.nextIn.resize(end);
-        this.selfLoopCount += linkEdgeRange(
-            this.src.array,
-            this.dst.array,
-            first,
-            end,
-            this.firstOut.array,
-            this.firstIn.array,
-            this.nextOut.array,
-            this.nextIn.array,
-        );
+        this.selfLoopCount += linkEdgeRange(this.src.array, this.dst.array, first, end, {
+            firstOut: this.firstOut.array,
+            firstIn: this.firstIn.array,
+            nextOut: this.nextOut.array,
+            nextIn: this.nextIn.array,
+        });
         this.liveEdgeCount += count;
         return first;
     }
@@ -1654,6 +1712,18 @@ interface CompactionPlan {
     readonly mergedWeightSet: U32 | null;
 }
 
+/** The four incidence-list arrays (backing views) that edge linking writes. */
+interface IncidenceLists {
+    /** Out-list heads, per node. */
+    readonly firstOut: U32;
+    /** In-list heads, per node. */
+    readonly firstIn: U32;
+    /** Receives the out-list links, per edge. */
+    readonly nextOut: U32;
+    /** Receives the in-list links, per edge. */
+    readonly nextIn: U32;
+}
+
 /**
  * Link the edges [first, end) into both incidence lists in index order, exactly as pushEdge does one
  * at a time (every list head becomes the highest linked index).
@@ -1661,22 +1731,11 @@ interface CompactionPlan {
  * @param dst - targets (backing view)
  * @param first - the first edge to link
  * @param end - one past the last edge to link
- * @param firstOut - out-list heads
- * @param firstIn - in-list heads
- * @param nextOut - receives the out-list links
- * @param nextIn - receives the in-list links
+ * @param lists - the incidence lists to link into
  * @returns the number of self-loops among the linked edges
  */
-function linkEdgeRange(
-    src: U32,
-    dst: U32,
-    first: number,
-    end: number,
-    firstOut: U32,
-    firstIn: U32,
-    nextOut: U32,
-    nextIn: U32,
-): number {
+function linkEdgeRange(src: U32, dst: U32, first: number, end: number, lists: IncidenceLists): number {
+    const { firstOut, firstIn, nextOut, nextIn } = lists;
     let loops = 0;
     for (let e = first; e < end; e++) {
         const u = src[e];
@@ -1701,10 +1760,7 @@ function linkEdgeRange(
  * @param nodeRemap - old node index -> new node index
  * @param outSrc - receives the remapped sources
  * @param outDst - receives the remapped targets
- * @param firstOut - out-list heads, INVALID_INDEX on entry
- * @param firstIn - in-list heads, INVALID_INDEX on entry
- * @param nextOut - receives the out-list links
- * @param nextIn - receives the in-list links
+ * @param lists - the incidence lists to rebuild, every head INVALID_INDEX on entry
  * @returns the self-loop count
  */
 function gatherEdges(
@@ -1714,11 +1770,9 @@ function gatherEdges(
     nodeRemap: U32,
     outSrc: U32,
     outDst: U32,
-    firstOut: U32,
-    firstIn: U32,
-    nextOut: U32,
-    nextIn: U32,
+    lists: IncidenceLists,
 ): number {
+    const { firstOut, firstIn, nextOut, nextIn } = lists;
     const edgeCount = origin.length;
     let loops = 0;
     for (let e = 0; e < edgeCount; e++) {
@@ -1825,10 +1879,12 @@ export function compactStaging(source: Staging, plan: CompactionPlan): Staging {
         nodeRemap,
         out.src.array,
         out.dst.array,
-        out.firstOut.array,
-        out.firstIn.array,
-        out.nextOut.array,
-        out.nextIn.array,
+        {
+            firstOut: out.firstOut.array,
+            firstIn: out.firstIn.array,
+            nextOut: out.nextOut.array,
+            nextIn: out.nextIn.array,
+        },
     );
     if (out.weight !== null) {
         out.weight.resize(edgeCount);

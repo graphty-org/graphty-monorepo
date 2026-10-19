@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph PUBLIC "-//John Punin//DTD graph description//EN" "http://www.cs.rpi.edu/~puninj/XGMML/xgmml.dtd">
+<graph id="1" label="Draft">
+  <node id="a"><att name="card"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:v="http://www.w3.org/2006/vcard/ns#"><rdf:Description rdf:about="#a"><v:fn>A &amp; B</v:fn></rdf:Description></rdf:RDF></att></node>
+</graph>

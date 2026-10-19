@@ -329,12 +329,7 @@ function stringValue(expr: ts.Expression, values: Map<string, ts.Expression>): s
  * @param out - Where to record what was found.
  * @param where - How to describe this position in a message.
  */
-function readChannelMap(
-    expr: ts.Expression,
-    values: Map<string, ts.Expression>,
-    out: Written,
-    where: string,
-): void {
+function readChannelMap(expr: ts.Expression, values: Map<string, ts.Expression>, out: Written, where: string): void {
     const target = resolve(expr, values);
 
     if (!ts.isObjectLiteralExpression(target)) {
@@ -691,10 +686,7 @@ function excludedNames(
 function channelShapedNames(source: ts.SourceFile): string[] {
     const found = new Set<string>();
     const visit = (node: ts.Node): void => {
-        if (
-            (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) &&
-            CHANNEL_SHAPED.test(node.text)
-        ) {
+        if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && CHANNEL_SHAPED.test(node.text)) {
             found.add(node.text);
         }
 
@@ -744,7 +736,13 @@ function stringLiterals(
  */
 export function readStoryFile(file: string): StoryFileReading {
     const relative = path.relative(PACKAGE_ROOT, file);
-    const source = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const source = ts.createSourceFile(
+        file,
+        readFileSync(file, "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+        ts.ScriptKind.TS,
+    );
     const values = topLevelValues(source);
     const defaultExport = source.statements.find(
         (statement): statement is ts.ExportAssignment =>

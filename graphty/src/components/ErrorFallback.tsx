@@ -10,7 +10,7 @@ import type { FallbackProps } from "@/types/error-boundary";
  * @param root0.resetError - Function to reset the error state and try again
  * @returns The error fallback UI component
  */
-export function ErrorFallback({ resetError }: FallbackProps): React.JSX.Element {
+export function ErrorFallback({ resetError }: Readonly<FallbackProps>): React.JSX.Element {
     return (
         <Box
             style={{

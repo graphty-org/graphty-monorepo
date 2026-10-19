@@ -34,9 +34,11 @@ import { CHANNELS, isChannel } from "../../src/session/styles/channels";
 const PROBES: Readonly<Record<string, () => string | null>> = {
     "edge.tooltip": () => {
         if (isChannel("edge.tooltip")) {
-            return "`edge.tooltip` is a channel again. Nothing draws an edge tooltip -- an edge " +
+            return (
+                "`edge.tooltip` is a channel again. Nothing draws an edge tooltip -- an edge " +
                 "cannot be hovered -- so if it has been republished, the entry in " +
-                "WITHDRAWN_CAPABILITIES is now false and something has to go.";
+                "WITHDRAWN_CAPABILITIES is now false and something has to go."
+            );
         }
 
         const parsed = EdgeStyle.safeParse({ tooltip: { enabled: true, text: "anything at all" } });
@@ -58,9 +60,7 @@ const PROBES: Readonly<Record<string, () => string | null>> = {
     "EdgeStyle.enabled": () => {
         const parsed = EdgeStyle.safeParse({ enabled: true });
 
-        return parsed.success
-            ? "EdgeStyle accepts `enabled` again, and nothing reads it."
-            : null;
+        return parsed.success ? "EdgeStyle accepts `enabled` again, and nothing reads it." : null;
     },
 };
 
@@ -78,11 +78,7 @@ describe("the capabilities 2.0 withdrew", () => {
                 `${entry.subject} was withdrawn with nothing to reach for instead. Every one of ` +
                     "these has an answer -- that is what made withdrawing it defensible",
             );
-            assert.match(
-                entry.withdrawnIn,
-                /^\d+\.\d+$/,
-                `${entry.subject} does not say which release took it away`,
-            );
+            assert.match(entry.withdrawnIn, /^\d+\.\d+$/, `${entry.subject} does not say which release took it away`);
         }
     });
 

@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const planarLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -44,6 +45,7 @@ const planarLayoutOptionsSchema = defineOptions({
 
 const PlanarLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(70),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
@@ -59,8 +61,6 @@ export class PlanarLayout extends SnapshotLayoutEngine {
     static type = "planar";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 70;
     protected readonly dimensions: 2 | 3;
     config: PlanarLayoutConfigType;
 
@@ -109,7 +109,7 @@ export class PlanarLayout extends SnapshotLayoutEngine {
                 dim: layoutDim(this.config.dim),
                 seed: this.config.seed,
             }),
-            PlanarLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

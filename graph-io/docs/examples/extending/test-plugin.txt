@@ -1,0 +1,8 @@
+teams.gv: notes W_COLUMN_DROPPED, W_GRAPH_ATTRIBUTES_DROPPED
+  - nodes.graphty.cluster: column missing after round trip
+  - nodes.style: column missing after round trip
+  - nodes.color: column missing after round trip
+proteins.xgmml: notes W_EDGE_IDS_DROPPED, W_ID_TEXT_TYPE, W_COLUMN_DROPPED, W_GRAPH_ATTRIBUTES_DROPPED
+  - ids[0]: expected "1", got 1
+  - ids[1]: expected "2", got 2
+  - ids[2]: expected "3", got 3

@@ -31,6 +31,12 @@ const NUM_RUNS = 200;
 const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
 const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
+/**
+ * Upper bound of maxIter and of the budget in the settled-within case, which runs up to 2 x 30 single-iteration batches
+ * per run: on WARP's no-subgroups pass that took 254 s to over 300 s of the 300 s case limit (hosts.yml runs
+ * 37165181916 and 37165648417), so a software adapter gets less work, never a bigger number (G5-F13).
+ */
+const runBound = (): number => (gpuScale() < 1 ? 10 : 30);
 /** The budget every case runs under: the temperature stays positive through every generated step count. */
 const BUDGET = 1_000_000;
 /** dt of that budget (PD-5). */
@@ -135,6 +141,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 21 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "fixed nodes never move: a random mask set through setFixed between steps, or given as the fixed option at creation (PD-6), keeps every pinned row bitwise where it was; the all-fixed mask settles within settleWindow + 1 steps",
         async (t) => {
@@ -193,6 +200,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 16 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)",
         async (t) => {
@@ -240,14 +248,15 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 45 s on the Windows WARP host lane, 18 s on lavapipe on the dev box under load, 16 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "settled within maxIter: run({ maxIter, batch: 1 }) stops at maxIter exactly; settled within the FR budget: run({ batch: 1 }) stops at exactly iterations",
         async (t) => {
             requireGpu(t);
             await fc.assert(
                 fc.asyncProperty(
-                    fc.integer({ min: 1, max: 30 }),
-                    fc.integer({ min: 1, max: 30 }),
+                    fc.integer({ min: 1, max: runBound() }),
+                    fc.integer({ min: 1, max: runBound() }),
                     async (maxIter, iterations) => {
                         await withSim(ctx, BASE, async (sim) => {
                             const positions = Float32Array.from(start);
@@ -281,6 +290,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on lavapipe on the dev box under load, 14 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "reheat on unpin, setPosition and load, not on pin (D8): every reheat restarts the temperature index at floor(0.7 iterations) (PD-5), a pin continues the schedule unbroken, a load restarts it at 0",
         async (t) => {
@@ -346,103 +356,98 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
         CASE_TIMEOUT,
     );
 
-    it(
-        "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: n - 1 }),
-                    fc.integer({ min: 0, max: n - 2 }),
-                    async (a, bRaw) => {
-                        const b = Math.min(bRaw, a - 1);
-                        const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
-                        const derived = s.inducedSubgraph(keep);
-                        const next = derived.snapshot;
-                        const remap = derived.nodeRemap;
-                        if (remap === null) {
-                            throw new Error("inducedSubgraph without a node remap");
-                        }
-                        try {
-                            await withSim(ctx, BASE, async (sim) => {
-                                const positions = Float32Array.from(start);
-                                sim.load(s, positions);
-                                sim.setFixed(pinMask(n, a));
-                                await sim.step(2);
-                                const nextPositions = new Float32Array(3 * next.nodeCount);
-                                for (let i = 0; i < n; i++) {
-                                    const j = remap[i];
-                                    if (j === INVALID_INDEX) {
-                                        continue;
-                                    }
-                                    nextPositions[3 * j] = positions[3 * i];
-                                    nextPositions[3 * j + 1] = positions[3 * i + 1];
-                                    nextPositions[3 * j + 2] = positions[3 * i + 2];
-                                }
-                                const aNew = remap[a];
-                                expect(aNew).toBe(a - 1);
-                                sim.load(next, nextPositions);
-                                sim.setFixed(pinMask(next.nodeCount, aNew));
-                                const held = [
-                                    nextPositions[3 * aNew],
-                                    nextPositions[3 * aNew + 1],
-                                    nextPositions[3 * aNew + 2],
-                                ];
-                                await sim.step(3);
-                                expect(nextPositions[3 * aNew]).toBe(held[0]);
-                                expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
-                                expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
-                                // the node that took B's old index is NOT fixed (the mask was re-issued for the new index space)
-                                if (b !== aNew) {
-                                    const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
-                                    expect(
-                                        moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
-                                        "the remapped neighbour moves",
-                                    ).toBe(true);
-                                }
-                            });
-                        } finally {
-                            ctx.release(next);
-                        }
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    it(
-        "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                // -0 is excluded from cz: toScene's z is 0 * scale + center.z = +0 for cz = -0 (IEEE), and the
-                // read below is bitwise (toBe is Object.is)
-                fc.asyncProperty(
-                    fc.float({ min: -10, max: 10, noNaN: true }).filter((v) => !Object.is(v, -0)),
-                    fc.integer({ min: 0, max: 1000 }),
-                    async (cz, zSeed) => {
-                        const options: FruchtermanReingoldOptions = { ...BASE, center: [0, 0, cz] };
-                        await withSim(ctx, options, async (sim) => {
-                            const positions = startPositions(s, options, false);
-                            for (let i = 0; i < n; i++) {
-                                positions[3 * i + 2] = ((zSeed + 7 * i) % 13) - 6;
-                            }
+    it("pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: n - 1 }),
+                fc.integer({ min: 0, max: n - 2 }),
+                async (a, bRaw) => {
+                    const b = Math.min(bRaw, a - 1);
+                    const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
+                    const derived = s.inducedSubgraph(keep);
+                    const next = derived.snapshot;
+                    const remap = derived.nodeRemap;
+                    if (remap === null) {
+                        throw new Error("inducedSubgraph without a node remap");
+                    }
+                    try {
+                        await withSim(ctx, BASE, async (sim) => {
+                            const positions = Float32Array.from(start);
                             sim.load(s, positions);
-                            await sim.step(2);
+                            sim.setFixed(pinMask(n, a));
+                            // one iteration on each side of the load: the assertions need A held and B's successor moved,
+                            // and each extra iteration is four more dispatches in the same submit (issue #2160)
+                            await sim.step(1);
+                            const nextPositions = new Float32Array(3 * next.nodeCount);
                             for (let i = 0; i < n; i++) {
-                                expect(positions[3 * i + 2]).toBe(Math.fround(cz));
+                                const j = remap[i];
+                                if (j === INVALID_INDEX) {
+                                    continue;
+                                }
+                                nextPositions[3 * j] = positions[3 * i];
+                                nextPositions[3 * j + 1] = positions[3 * i + 1];
+                                nextPositions[3 * j + 2] = positions[3 * i + 2];
+                            }
+                            const aNew = remap[a];
+                            expect(aNew).toBe(a - 1);
+                            sim.load(next, nextPositions);
+                            sim.setFixed(pinMask(next.nodeCount, aNew));
+                            const held = [
+                                nextPositions[3 * aNew],
+                                nextPositions[3 * aNew + 1],
+                                nextPositions[3 * aNew + 2],
+                            ];
+                            await sim.step(1);
+                            expect(nextPositions[3 * aNew]).toBe(held[0]);
+                            expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
+                            expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
+                            // the node that took B's old index is NOT fixed (the mask was re-issued for the new index space)
+                            if (b !== aNew) {
+                                const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
+                                expect(
+                                    moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
+                                    "the remapped neighbour moves",
+                                ).toBe(true);
                             }
                         });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                    } finally {
+                        ctx.release(next);
+                    }
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
+    it("2D writes z === center.z whatever z was uploaded, for random z and random center.z", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            // -0 is excluded from cz: toScene's z is 0 * scale + center.z = +0 for cz = -0 (IEEE), and the
+            // read below is bitwise (toBe is Object.is)
+            fc.asyncProperty(
+                fc.float({ min: -10, max: 10, noNaN: true }).filter((v) => !Object.is(v, -0)),
+                fc.integer({ min: 0, max: 1000 }),
+                async (cz, zSeed) => {
+                    const options: FruchtermanReingoldOptions = { ...BASE, center: [0, 0, cz] };
+                    await withSim(ctx, options, async (sim) => {
+                        const positions = startPositions(s, options, false);
+                        for (let i = 0; i < n; i++) {
+                            positions[3 * i + 2] = ((zSeed + 7 * i) % 13) - 6;
+                        }
+                        sim.load(s, positions);
+                        await sim.step(2);
+                        for (let i = 0; i < n; i++) {
+                            expect(positions[3 * i + 2]).toBe(Math.fround(cz));
+                        }
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 19 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "the FR displacement bound: after one iteration every free row moved by at most the temperature, a row with |F| < t by exactly |F| (up to four f32 roundings and the position rounding), a pinned row by 0",
         async (t) => {

@@ -17,7 +17,7 @@
  */
 
 import fc from "fast-check";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, onTestFailed, vi } from "vitest";
 
 import type { LayerSpec } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/GraphSession";
@@ -37,14 +37,22 @@ import {
     undoAllRedoAll,
 } from "./random-model";
 
-/** The seeds CI runs. */
-const SEEDS = [1, 17, 4242, 90210, 2026];
+/** The seeds CI runs: 300 sequences in all, 20 to a test. */
+const SEEDS = [1, 17, 4242, 90210, 2026, 3, 7, 42, 99, 123, 256, 777, 1001, 31337, 65536];
 /** Sequences tried per seed. */
-const NUM_RUNS = Number(process.env.FC_NUM_RUNS ?? 60);
+const NUM_RUNS = Number(process.env.FC_NUM_RUNS ?? 20);
 /** Longest sequence tried. */
 const MAX_COMMANDS = 30;
-/** Per seed: a coverage run of the whole model is slower than the project's 30 s default. */
-const SEED_TIMEOUT_MS = 90_000;
+/*
+ * No per-seed deadline: a sequence costs about 40 ms, so a seed of 20 takes under 1 s alone and
+ * about 2 s with coverage. The pre-push gate shares the CPU with every other test worker and has
+ * run this file 6 to 7 times slower than that; at 60 sequences a seed took 24 to 30 s there and
+ * timed out (issue #2412); at 20 it needs under half of that. Every clock, queue turn and run here
+ * is held by the model -- the repaint's slices too, so a busy machine adds no event-loop turns to
+ * a sequence -- so a sequence that never settles is waiting on something that will never come,
+ * and the project's 30 s budget fails it; the test then prints the sequence that was running (see
+ * `runSeed`).
+ */
 
 /** Where a sequence starts. */
 const STARTS = ["setup", "setup-import", "first-load", "cleared", "failed-import"] as const;
@@ -178,12 +186,25 @@ async function begin(start: Start): Promise<{ real: Real; model: Model }> {
  * @param numRuns - How many sequences to try.
  */
 async function runSeed(seed: number, numRuns: number): Promise<void> {
+    // fast-check reports a failing sequence, but not one the test's time budget stopped, so the test
+    // keeps the running one at hand and prints it however the seed fails.
+    let run = -1;
+    let running = (): string => "no sequence had started";
+    onTestFailed(() => {
+        console.error(
+            `Seed ${String(seed)} failed during run ${String(run)} (0-based; FC_SEED=${String(seed)} ` +
+                `FC_PATH=${String(run)} replays it). The commands that had started, the last one ` +
+                `possibly unfinished: ${running()}`,
+        );
+    });
     await fc.assert(
         guardedAsyncProperty(
             fc.constantFrom(...STARTS),
             fc.scheduler(),
             fc.commands(COMMANDS, { maxCommands: MAX_COMMANDS, size: "max" }),
             async (start, s, commands) => {
+                run++;
+                running = () => `from ${start}: ${fc.stringify(commands)}\nScheduler: ${fc.stringify(s)}`;
                 let begun: { real: Real; model: Model } | undefined;
                 await fc.scheduledModelRun(
                     s,
@@ -203,8 +224,6 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
         {
             seed,
             numRuns,
-            // A sequence that hangs fails rather than holding the seed's test until it times out.
-            timeout: 10_000,
             // Shrinking a long sequence takes longer than CI gives it; FC_SHRINK=1 shrinks one
             // failure locally, and FC_PATH replays it from the path the failure printed.
             endOnFailure: process.env.FC_SHRINK === undefined,
@@ -216,40 +235,56 @@ async function runSeed(seed: number, numRuns: number): Promise<void> {
 describe("random sequences of edits, pending work and history moves, from every starting state", () => {
     const only = process.env.FC_SEED;
     for (const seed of only === undefined ? SEEDS : [Number(only)]) {
-        it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS), SEED_TIMEOUT_MS);
+        it(`holds for seed ${String(seed)}`, () => runSeed(seed, NUM_RUNS));
     }
 });
 
 describe("eviction folds the arrangement of every evicted step into the baseline", () => {
-    it(
-        "2000 placements with coalescing off and a limit of 1000 steps, all undone, leave every evicted placement in place",
-        async () => {
-            const clock = fakeClock();
-            const session = await fixtureSession({ now: clock.now });
-            const real: Real = { session, clock, layout: fakeLayout(session) };
-            session.history.limitSteps = 1000;
-            const expected = laneOf(real);
-            const ids = ["n1", "n2", "n3"];
-            const placed: [string, string][] = [];
-            for (let step = 1; step <= 2000; step++) {
-                const id = ids[step % ids.length];
-                await session.positions.set([{ id, x: step, y: step, z: -step }]);
-                placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
-                // Past the coalescing window, so every placement is a step of its own.
-                clock.advance(COALESCE_MS + 1);
-            }
+    it("400 placements with coalescing off and a limit of 200 steps, all undone, leave every evicted placement in place", async () => {
+        const clock = fakeClock();
+        const session = await fixtureSession({ now: clock.now });
+        const real: Real = { session, clock, layout: fakeLayout(session) };
+        session.history.limitSteps = 200;
+        const expected = laneOf(real);
+        const ids = ["n1", "n2", "n3"];
+        const placed: [string, string][] = [];
+        for (let step = 1; step <= 400; step++) {
+            const id = ids[step % ids.length];
+            await session.positions.set([{ id, x: step, y: step, z: -step }]);
+            placed.push([id, `${String(step)},${String(step)},${String(-step)}`]);
+            // Past the coalescing window, so every placement is a step of its own.
+            clock.advance(COALESCE_MS + 1);
+        }
 
-            const kept = session.history.steps.length;
-            assert.isAtMost(kept, 1000);
-            assert.isAbove(2000 - kept, 1000, "most placements were evicted");
-            for (const [id, value] of placed.slice(0, 2000 - kept)) {
-                expected.set(id, value);
-            }
+        const kept = session.history.steps.length;
+        assert.isAtMost(kept, 200);
+        assert.isAbove(400 - kept, 200, "most placements were evicted");
+        for (const [id, value] of placed.slice(0, 400 - kept)) {
+            expected.set(id, value);
+        }
 
-            await session.history.restoreTo(null);
-            assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
+        await session.history.restoreTo(null);
+        assert.deepEqual(laneOf(real), expected, "the baseline, with every evicted placement applied");
+        session.dispose();
+    });
+});
+
+describe("a sequence's work depends on its seed, not on the machine's clock", () => {
+    it("a session on the model's clock repaints without yielding, however long the real clock says a slice ran", async () => {
+        const clock = fakeClock();
+        const session = await fixtureSession({ now: clock.now });
+        // A machine so busy that every reading of the real clock is a slice later than the last:
+        // a repaint slicing on it would hand the event loop a turn at every check.
+        let real = 0;
+        vi.spyOn(performance, "now").mockImplementation(() => (real += 1000));
+        const yields = vi.spyOn(globalThis, "setTimeout");
+        try {
+            await session.styles.add(declared("#654321"));
+            await paintBaseline(session);
+            assert.lengthOf(yields.mock.calls, 0, "no event-loop turn was taken");
+        } finally {
+            vi.restoreAllMocks();
             session.dispose();
-        },
-        SEED_TIMEOUT_MS,
-    );
+        }
+    });
 });

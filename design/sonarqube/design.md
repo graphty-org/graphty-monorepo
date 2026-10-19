@@ -1,0 +1,759 @@
+# SonarQube as a local pre-push gate
+
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
+How graphty-monorepo uses the owner's SonarQube server: a pre-push step that blocks only the
+problems a push introduces, a background job that keeps master's analysis current, and a staged
+plan that burns the existing backlog down without ever blocking feature work.
+
+The server is the owner's local SonarQube Community Build 26.3.0.120487 (its address is
+`SONAR_HOST_URL` in `.env`; the repository is public, so it is not written here). It is reachable
+only from the owner's network, never from GitHub Actions, so nothing here runs in CI. The
+Community Build has no branch and no pull request analysis: every scan sent to a project
+replaces that project's one picture of the code.
+
+See research-server.md (what the server can do, and timings) and backlog.md (what a full scan
+of master finds today).
+
+## 1. The gate
+
+### Two projects on the server
+
+| Project key              | Holds                                                  | Written by                   | Read by                                                                                                                  |
+| ------------------------ | ------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `graphty-monorepo`       | A full analysis of `origin/master`, with CI's coverage | The baseline job (section 2) | People (the dashboard, the burn-down, the weekly review), and the gate, to recognize issues that already exist on master |
+| `graphty-monorepo-local` | A scan of only the files the current push changed      | The gate                     | The gate, immediately after its own scan                                                                                 |
+
+The local project is scratch space. Every push overwrites it, and nothing in it is kept or
+reviewed. It exists because a scan of a few files sent to a project wipes every other file out
+of that project (measured: 253,738 lines became 6,486), so a changed-files scan must never be
+sent to `graphty-monorepo`.
+
+Both projects use the same quality profile ("Graphty way", below) and the same scanner
+settings, from one checked-in `sonar-project.properties` at the repository root. The key, host
+and token are not in that file (section "Configuration and secrets").
+
+### What the gate does on a push
+
+The new step, "SonarQube (changed lines)", is `tools/sonar-gate.mjs`, run by `tools/prepush.sh`:
+
+1. **Find the changed files.** `git diff -M --name-status --diff-filter=AMR <merge-base> HEAD`,
+   where the merge base is the one the gate uses for nx: with the branch the push merges into
+   (`tools/push-base.mjs`), which is origin/master unless the branch is stacked on another pull
+   request's branch. The push sends HEAD, so HEAD is what is judged, never the working tree. Keep the
+   extensions SonarQube analyzes (`.ts .tsx .js .mjs .cjs .html .css .py`); the scanner applies
+   the exclusions in `sonar-project.properties` itself, so the gate does not copy them. A file
+   with uncommitted changes is left out of the scan and named in a warning ("not checked: has
+   uncommitted changes; the next push checks it"), because the scanner reads the working tree
+   and would judge code that is not being pushed. If nothing is left (a docs-only push), the
+   step passes without contacting the server.
+2. **Check the server and the setup** (section "When the gate cannot run").
+3. **Scan them into `graphty-monorepo-local`.** Run the scanner with `sonar.sources` and
+   `sonar.tests` set to that list's files themselves (never `.` narrowed by `sonar.inclusions`:
+   given a directory, the scanner walks the whole tree and stats every entry before any
+   exclusion applies, so a test-output file a test shard deletes during the walk fails the scan)
+   and `sonar.working.directory` set to
+   `<git common dir>/sonar/<worktree name>/`, outside the worktree, so the scan's files never
+   meet knip, the link check or a `git status`. SonarJS still builds the TypeScript program from
+   each package's tsconfig, so type-aware rules see the rest of the code as context.
+4. **Wait for the server to process it.** Read `ceTaskId` from `report-task.txt` in the working
+   directory and poll `api/ce/task` until it succeeds. `sonar.qualitygate.wait` is not used: the
+   server's gate on this project is not the verdict (step 7 is).
+5. **Read the results.** `api/issues/search` (open issues) and `api/hotspots/search` (hotspots
+   to review) for `graphty-monorepo-local`. The project holds only the changed files, so the
+   result is small.
+6. **Read master's matching findings.** For each file that has a finding on a changed line, the
+   same two calls for that file's path on master (its old path when `git diff -M` reports a
+   rename) in `graphty-monorepo`, including hotspots reviewed as SAFE.
+7. **Decide.** A finding is "on a changed line" when its primary line falls inside a hunk that
+   `git diff -M -U0 <merge-base> HEAD` reports as added or changed. Such a finding blocks the
+   push unless step 6 shows it already exists on master (next section). The script prints each
+   blocking finding as `path:line  rule  message` with a link to the rule on the server, and
+   exits 1.
+
+What is "new" is decided by the diff, not by SonarQube's new-code period. That choice is the
+core of the design:
+
+- **It does not depend on git blame dates.** With the Community Build, "new code" means "a line
+  whose blame date is after the period start". A commit made last week, rebased, or cherry-picked
+  from an old branch would count as old code and slip through. The diff against the merge base
+  judges every commit on the branch the same way, however old it is.
+- **It needs no baseline to be correct.** The local project needs no new-code period, version
+  bump or "specific analysis" pointer kept in step with each push. Master's analysis is used only
+  to let a finding through (next section), never to block one, so a stale or missing baseline
+  makes the gate stricter, never laxer.
+- **The old backlog never blocks.** An existing issue on a line the push did not touch is not
+  reported, and neither is one on a line the push did touch (next section).
+
+### Touching a line does not inherit its backlog
+
+Many edits mark a line as changed without changing what is wrong with it: a rename or codemod
+across many files, `prettier --write` on a file someone edits, a file move, one more parameter on
+a function that already breaks S107. Blocking every old issue on such a line would put hundreds
+of findings in front of an author who wrote none of them, and teach the bypass trailer as a
+habit. So a finding on a changed line does not block when master already has it:
+
+- **Issues:** `graphty-monorepo` has an open issue in the same file (following the rename), with
+  the same rule and the same line `hash`. The issues API returns `hash` on every issue; it is the
+  MD5 of the line with all whitespace removed, so reformatting a line keeps it. Such issues are
+  listed under "existing issues on lines you touched (not blocking)".
+- **Complexity and parameter counts, S3776 (cognitive complexity), S5843 (regex complexity) and
+  S107 (too many parameters):** these are reported on a function's name or on a regex, but what
+  raises them is usually an edit further down: a branch added deep inside a function leaves its
+  first line untouched. So the gate judges each one by the whole stretch of code it covers: from
+  the reported line to its last secondary location (SonarQube marks every complexity increment as
+  one), and for S107 through the end of the parameter list. Only hunks THIS push introduces count:
+  for a branch already on GitHub, the lines changed since the branch's remote head (the remote sha
+  git hands the pre-push hook) that also differ from the merge base, so a function the branch
+  changed in an earlier push is left alone, and what a merge brought in from master is never the
+  branch's; for a new branch, every hunk against the merge base. When such a hunk adds, changes or
+  deletes a line in that stretch, the push edits the function, and the gate compares it with the
+  version before the push (the remote head; for a new branch the merge base) -- not with master's
+  analysis, which can be hours behind or ahead. It writes that version's copies of those files to
+  a scratch directory and scans them into the same scratch project, right after the scan of HEAD
+  and under the same lock (the second scan runs only when such a finding exists, and adds about a
+  minute). When the push holds a merge commit, the merge base's copies are scanned as well, and a
+  score counts as risen only when it exceeds both. The finding blocks when:
+    - the previous version has no such finding there (the function or regex just crossed the
+      limit), or
+    - its score rose (the number in the message: "from 17 to the 15 allowed", or "(9)" parameters),
+      or
+    - "touch it, fix it": it is S3776 and the function scores 16 to 20. A function that is only a
+      little over the limit and that the push edits anyway must come down to 15 or below in the
+      same push; the message says so. Above 20 the refactor is a job of its own, so there only a
+      rise blocks.
+      A finding whose stretch the push does not touch is judged like any other finding on an
+      unchanged line (the warning below). Lines of a function after its last increment are not in the
+      stretch, so an edit there does not count as touching it. `// NOSONAR(S3776): <reason>` on the
+      reported line still suppresses one finding, with the reason.
+- **Hotspots:** master has the hotspot in the same file, with the same rule and line hash, and it
+  is either still to review (it is the backlog) or reviewed as SAFE. The hotspots API does not
+  return a hash, so the gate computes it from the line at the revision master's analysis was made
+  of (`git show <revision>:<path>`), with SonarQube's formula above (a test checks the computed
+  hash against the issues API's `hash` on a sample of master's issues). A hotspot reviewed as
+  FIXED or ACKNOWLEDGED does not match: it came back, and it blocks.
+
+- **A line edited in place** (a fix of one rule on a line that also carries another, older
+  finding): the hash changes, so the old finding would look new. A finding also matches a master
+  finding with the same rule that points at the same code (the text of its `textRange`, which both
+  APIs report), on the line the diff maps it to line for line: the line sits in a hunk that
+  replaced exactly as many lines as it removed, at the same offset, and master's line hash equals
+  the merge base's text at that line (so master's analysis, which may be of a later commit,
+  numbers it the same way). Because the flagged code is unchanged, a hotspot reviewed SAFE keeps
+  its review; one whose code changed blocks. This does not apply to a vulnerability, which matches
+  only by its line hash.
+- **One master finding per finding.** Each master finding vouches for at most one local finding, so
+  a rule that appears more often than master had it blocks the extra occurrences. Findings on
+  unchanged lines claim their master finding first, so a copy of a line with an old finding is a new
+  occurrence and blocks.
+- **A decision already made on master** counts as master having the finding: an issue accepted or
+  marked a false positive there, like a hotspot reviewed SAFE.
+
+A wrapped line (prettier splitting one line into three) changes the hash and still blocks; the
+author can fix the issue or use a `NOSONAR` comment. With no `graphty-monorepo` analysis, nothing
+matches and every finding on a changed line blocks, as the strict reading of "a changed line is
+new code" would.
+
+### What blocks
+
+| Finding                                                                                                                  | Effect                                      |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
+| An open issue (bug, vulnerability, code smell) of any severity on a changed line, not on master                          | Blocks                                      |
+| A security hotspot on a changed line, not on master                                                                      | Blocks                                      |
+| A finding on a changed line that master already has (section above)                                                      | Listed, does not block                      |
+| S3776, S5843 or S107 on a function or regex the push edits: new, risen, or S3776 at 16 to 20 (section above)             | Blocks                                      |
+| An issue on an unchanged line of a changed file whose rule and message do not appear for that file in `graphty-monorepo` | Warning, "possibly introduced by this push" |
+
+The last row covers what the line rule cannot see. It stays a warning permanently: the baseline
+runs 30 minutes to 3 hours behind master (section 2), so a change that just landed on master would
+be blamed on this push; that error cannot be designed out, so it never blocks. Complexity and
+parameter counts are the exception: they are compared with a scan of the merge base itself, so a
+branch added deep inside a function blocks (section above).
+
+Hotspots block from the first day, because the gate looks only at changed lines: a new hotspot
+costs its author one review, not the backlog.
+
+Coverage and duplication are not gate conditions locally:
+
+- **Coverage:** the gate cannot afford to run the coverage suites, so any local coverage
+  figure is stale or absent, and "Sonar way" would fail every change of 20 lines or more on a 0%
+  reading. Coverage stays with the 80% / 75% thresholds the packages' Vitest configs enforce, and
+  with CI's coverage job. `graphty-monorepo` imports CI's real coverage (section 2), so the
+  dashboard shows it.
+- **Duplication:** copy-paste detection within a handful of scanned files compares them only
+  with each other, so the figure means nothing. Master's analysis measures it.
+
+### Time budget
+
+The scan costs about 48 s for an 8-file change; most of it is fixed startup cost. The last 60
+merged branches changed a median of 4 analyzable files (90th percentile 23), so a typical push
+pays 45-60 s.
+
+The step costs the gate almost no wall-clock time, because it runs **in the background**. It
+starts right after "Lint", not before it: Lint runs with `--skip-nx-cache`, so it rebuilds the
+packages it depends on, and each build deletes its `dist/` first. A scan started earlier walked
+into a folder that vanished mid-walk and died with `NoSuchFileException`. No step after Lint
+rewrites a `dist/`. It writes to a log file, and `tools/prepush.sh` waits
+for it and prints its log just before the summary, after the tests (several minutes). So the scan
+finishes while the tests run.
+
+Guards:
+
+- **One deadline for the whole step: 900 s**, counted from the step's start and covering the wait
+  for the lock, the scan, the server's processing queue and the reads. Past it, the step stops
+  its scanner and passes with the boxed warning ("SonarQube did NOT check this push: deadline").
+  The likely cause is the server's queue: the Community Build processes one analysis at a time,
+  so a local scan can wait behind the baseline job's full master scan.
+- **One scan at a time per machine.** Two worktrees pushing at once would overwrite each other's
+  scan in `graphty-monorepo-local`, and one would read the other's results. The step holds
+  `flock -w <seconds left before the deadline>` on `sonar-local.lock` in the git common directory
+  from the scan to the read. A second push waits about a minute. A push from another machine at
+  the same moment is not guarded; the owner works from one machine, so this is accepted.
+- **No orphans.** `tools/prepush.sh` starts the step in its own process group (`setsid`) and
+  installs `trap 'kill -- -$SONAR_PGID' EXIT`, so when the push ends early (a failed step, a
+  Ctrl-C, an agent's tool timeout killing `prepush.sh`) the scanner and its JRE die with it and
+  release the lock.
+
+There is no full-scan mode in the gate. A full scan is about 4 minutes, adds nothing to what
+the changed lines show, and is the baseline job's work.
+
+### When the gate cannot run
+
+The rule: **the gate fails open only when the server cannot be reached**, before the scan or during
+it. Every other problem is a misconfiguration and blocks the push, with the cause and the fix. A
+scanner failure is sorted by the scanner's own error lines: only one that names a network or server
+fault passes, and one the gate does not recognize blocks. A silent pass on a broken setup would
+skip SonarQube on every push from that worktree, and nobody would notice until the weekly review.
+
+| Situation                                                                                                                     | Behavior                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Server unreachable: `api/system/status` does not answer UP within 15 s                                                        | Passes, with the boxed warning; no token is sent                                                 |
+| Something answers, but its server id is not the pinned one (section "Configuration and secrets")                              | Passes, with the boxed warning ("not the owner's server"); no token is sent                      |
+| No `SONAR_HOST_URL` in the environment or in `.env` (a clone without the owner's `.env`)                                      | Passes, with the boxed warning; no token is sent                                                 |
+| The step's 900 s deadline passes                                                                                              | Passes, with the boxed warning                                                                   |
+| After the server answered: a DNS failure, a refused, reset or timed-out connection, an HTTP 5xx, a dropped connection         | Passes, with the boxed warning and the scanner's error lines                                     |
+| No pinned server id (`--setup` never ran on this machine)                                                                     | Blocks, saying to run `tools/sonar-baseline.mjs --setup` once                                    |
+| No `SONAR_TOKEN` in the environment or in `.env`                                                                              | Blocks, saying where to set it                                                                   |
+| The token is rejected (401) (`api/users/current`)                                                                             | Blocks, saying how to make a valid token                                                         |
+| No Java at `SONAR_SCANNER_JAVA_EXE_PATH` or on `PATH`, scanner missing, other scanner error, `graphty-monorepo-local` missing | Blocks, naming the cause and the fix (for the last: run `tools/sonar-baseline.mjs --setup` once) |
+| Findings that block (section "What blocks")                                                                                   | Blocks                                                                                           |
+
+**Fail-open on an unreachable server, and why.** The owner is sometimes off the network, and
+SonarQube has no other place to run: it is not in CI. Failing closed there would make every
+off-network push impossible, and the only way through would be `git push --no-verify`, which also
+skips Git LFS, the secret scan, the build, lint and the tests. Nothing is lost:
+
+- The gate judges the whole branch against its merge base, not the commits since the last push.
+  The next push from the network re-checks everything a skipped push carried, except the
+  whole-function complexity rules, which judge only what each push itself changes.
+- A branch that merges before it is pushed again from the network lands on master, where the
+  baseline job's next scan shows its issues as new code. The weekly review (section 3) lists
+  them.
+
+The warning is loud on purpose: a box in yellow, printed both when the step starts and again in
+the final summary, saying "SonarQube did NOT check this push" and why.
+
+**Every run is logged.** The step appends one line per run to `<git common dir>/sonar/gate.log`:
+time, branch, HEAD, and the outcome (`passed`, `blocked`, `bypassed`, `skipped:<reason>`, plus
+the count of files left out for uncommitted changes). The weekly comment reports the skip rate
+from it, so a gate that has quietly stopped running shows up within a week.
+
+### Configuration and secrets
+
+**Where the values come from.** The gate and the baseline job read `SONAR_HOST_URL`,
+`SONAR_PROJECT_KEY` and `SONAR_TOKEN` (or `SONAR_SCAN_TOKEN` for scans, when set) from the environment first, then from the repository's
+`.env`. They never source `.env`: they read those three keys (and `SONAR_SCANNER_JAVA_EXE_PATH`,
+which is not a secret) line by line and ignore everything
+else, so nothing else in the file (the Chromatic tokens and the rest) is run or exported. `.env`
+is gitignored and symlinked into every worktree. Git hooks run without `~/.bashrc`, so `.env` is
+the dependable place for the token; a token exported from `~/.bashrc` also reaches every process
+the owner's shell starts, which this design cannot prevent. The local key is
+`${SONAR_PROJECT_KEY}-local`.
+
+**Where the token goes.** Only two places: the scanner's own process (`env` of that one child)
+and the `Authorization` header that `tools/sonar/api.mjs` builds for each Web API call. Every
+Web API call in the gate and in the baseline job goes through that one helper, so no `curl` ever
+carries the token on a command line. `tools/prepush.sh` never reads or exports it. Every other
+child process (git, pnpm, the build, `gh`) is started with both tokens removed from its
+environment. The token is never an argument (arguments show in `ps`), never logged, and never
+passed to servherd in `env` or `command` (servherd stores both and shows them in
+`servherd_info`); the baseline loop reads it itself. The scanner never runs with `-X`,
+`--debug` or `sonar.verbose`, because a debug log can print environment values. A test runs a
+scan with a fake token and checks that it appears in none of the log, the scanner's working
+directory, or `ps` output taken during the scan.
+
+**The owner's token is used; a separate scan user is optional.** The token in the environment is
+the `admin` user's, exported from the owner's shell profile, so every process on this machine can
+already read it. A narrower scan-only token would therefore not reduce what an agent can reach,
+and the gate uses `SONAR_TOKEN` as it is. If the admin token ever leaves the shell profile, a user
+with "Browse" and "Execute Analysis" on the two projects can be created and its token put in `.env`
+as `SONAR_SCAN_TOKEN`, which scans then use instead. `--setup` (creates projects, restores the
+profile) needs an administrator's token.
+
+**The server is not authenticated yet.** The server's host name resolves in public DNS to a
+private address, and the server speaks plain `http`. Off the owner's network, any device that
+holds that address and port on some other network could answer the reachability check, and
+anyone on the owner's network can read the token in transit. Two measures:
+
+- **Now: pin the server's id.** `--setup` records the id from `api/system/status` in
+  `<git common dir>/sonar/server-id`. The gate compares the id before sending any token, and
+  treats a mismatch as "unreachable" (passes with the warning, sends nothing). This stops an
+  accidental device on another network from receiving the token. It does not stop a deliberate
+  attacker, because the status endpoint is public and its answer can be copied.
+- **The real fix: TLS.** A reverse proxy with a certificate in front of the server (the host
+  name is in public DNS, so a DNS-challenge certificate works), and `SONAR_HOST_URL` switched to
+  `https`. This is an owner action on the server, outside this repository. It is a stage 0 item
+  (section 3), and issue #38 is not done until it lands.
+
+**What the scanner downloads.** On first run the scanner downloads its engine, the analyzers and
+SonarJS's Node.js runtime from the server, and would download a JRE too. The gate sets
+`sonar.scanner.skipJreProvisioning=true` and requires `SONAR_SCANNER_JAVA_EXE_PATH` (the owner's
+JRE 21 is at `~/.local/share/java/jdk-21.0.10+7-jre/bin/java`), so no Java comes from the server.
+The engine and analyzers still do, cached in `~/.sonar/cache` and fetched again only when the
+server's copy changes; over plain `http` that is code a spoofed server could hand over, which is
+one more reason TLS is required.
+
+**First run.**
+
+- `tools/sonar-baseline.mjs --setup` (run once by the owner, with the admin token, on the
+  owner's network) is idempotent. It creates both projects if they are missing, restores the
+  "Graphty way" profile from the repository and assigns it to both, creates the "Graphty" quality
+  gate and assigns it to both, sets `graphty-monorepo`'s new-code period to 30 days, and records
+  the server id.
+- The scanner is `@sonar/scan` 5.0.1, pinned as a root devDependency, so every worktree has it
+  after `pnpm install`.
+
+### Pushing past a false positive
+
+Three ways, each written down where a reviewer sees it, in order of preference:
+
+1. **One line: `// NOSONAR(<rule>): <reason>`.** SonarQube honors any comment containing
+   `NOSONAR` and suppresses every issue on that line. The gate checks the format itself: a
+   `NOSONAR` on a changed line without a rule key and a reason of at least 10 characters
+   (`NOSONAR\((S\d+)\): .{10,}`) blocks the push. The gate also skips a hotspot on a line with a
+   well-formed `NOSONAR` naming that hotspot's rule, whether or not the server honored the
+   comment. The suppression is in the code, in the PR diff, and greppable
+   (`git grep -n NOSONAR`).
+
+    The limit: SonarQube ignores the rule key, so a `NOSONAR` also hides any other issue on that
+    line, including a vulnerability, and neither the gate nor the server can show what it hid. So
+    a `NOSONAR` naming a vulnerability rule blocks the push; a vulnerability false positive goes
+    into a per-rule path entry (way 2). Every new `NOSONAR` is listed in the weekly review.
+
+2. **A path pattern: an entry in `sonar.issue.ignore.multicriteria`** in
+   `sonar-project.properties`, with a comment above it giving the reason. This is for a rule
+   that is wrong for a whole file or area, such as `Math.random` (S2245) in a layout's seeded
+   random number generator. Entries name exact files or narrow globs, never a whole package, so
+   a new use elsewhere is still reported. It is checked in, reviewed in the PR, and applied to
+   both projects alike.
+3. **Whole push: a `Sonar-Bypass: <reason>` trailer on the HEAD commit.** Only HEAD counts, so
+   an old bypass does not cover later pushes of new code on the branch; a pusher who needs it
+   again adds it again. The gate still scans and prints every finding, then passes with a warning
+   naming the commit, except that vulnerabilities and hotspots on changed lines still block. When
+   the scan could not run at all (a server defect), the trailer lets the push through. It exists
+   for a server defect or an emergency, not for a finding nobody wants to fix. The trailer is
+   permanent in history, so every use can be counted:
+   `git log --grep '^Sonar-Bypass:' origin/master`.
+
+False positives are NOT marked on the server for issues. A status set on an issue in
+`graphty-monorepo` never reaches `graphty-monorepo-local`, which is rebuilt on every push, and
+the reason would sit where no PR reviewer sees it. Hotspots are the exception: a hotspot reviewed
+as SAFE on `graphty-monorepo` is honored by the gate through the matching above, because the
+review is what the security review rating counts.
+
+The weekly review (section 3) counts all of them: new `NOSONAR` comments, new multicriteria
+entries, new `Sonar-Bypass` trailers, and the gate's skips. A rising count means a rule or the
+gate needs fixing, not more bypasses.
+
+### Changes to `tools/prepush.sh` and the repository
+
+- `sonar-project.properties`: sources and tests (`sonar.sources=.`, `sonar.tests=.`, the test
+  inclusions from the research), the exclusions from the research plus
+  `algorithms/benchmark-results/**`, `sonar.cpd.exclusions=graph-samples/src/datasets/**`, the
+  multicriteria ignores, `sonar.scanner.skipJreProvisioning=true`, and
+  `sonar.javascript.lcov.reportPaths=coverage/lcov.info` (used only by the baseline job; the gate
+  passes no report).
+- `tools/sonar/api.mjs`: reads the three settings, builds the `Authorization` header, makes every
+  Web API call, and starts the scanner with the token in that child's environment only. Used by
+  both scripts below.
+- `tools/sonar-gate.mjs`: the gate (the steps above, the master matching, the `NOSONAR` format
+  check, the trailer check, the reachability and identity check, the deadline, the run log).
+  Node, because it parses JSON and diff hunks.
+- `tools/sonar-baseline.mjs`: the baseline job and `--setup`. Node too, so it shares the helper
+  and no shell script ever handles the token.
+- `tools/sonar/graphty-way.xml`: the quality profile, with each deactivated rule's reason as an
+  XML comment. Not SonarQube's own backup format, which flattens inheritance: it names the parent
+  ("Sonar way") and the rules to deactivate for each language, and `--setup` and the baseline job
+  make the server's profile match it (creating it, setting the parent, deactivating the listed
+  rules and reactivating any other). The baseline job restores it when it changes.
+- `tools/prepush-source-checks.sh`: run `tools/sonar-gate.mjs` as the last of the source-only
+  checks, which the push queue runs before a push waits for a gate slot and `tools/prepush.sh`
+  runs before the build (2026-10-09; it had run in the background after "Lint", so a push it
+  failed held a gate slot through the build and the tests first). It needs no build output.
+- `.husky/pre-push`: its header comment lists the new step and the bypass trailer.
+- `.gitignore`: `.scannerwork/`, in the gate's own commit, for scans run by hand (the gate and the
+  baseline job write outside the worktree).
+
+## 2. Keeping master's analysis current
+
+**Chosen: a polling loop run by servherd on the owner's machine,** `tools/sonar-baseline.mjs
+--watch`, started once as `servherd_start({ name: "sonar-baseline", cwd: "<repo>", command:
+"node tools/sonar-baseline.mjs --watch" })`, with no token in `env` or `command`.
+
+Every 30 minutes it fetches `origin` and picks the newest release-train run (`release.yml`,
+scheduled or dispatched, among its last 100 runs listed with one `gh run list` call) that finished,
+was not cancelled, and still has `coverage-*` artifacts (one `gh api` call per run asked, newest
+first, at most 5, stopping at the first that has them). Master pushes run no tests (design/ci/ci-cd-plan.md
+section 8), so the train's full CI run of its candidate is the only coverage of a master commit;
+the commit scanned is that candidate, not master's tip. The train runs every 6 hours and skips
+while a release is pending, so the analysis is as fresh as the last train that tested something.
+If `graphty-monorepo` has not analyzed that commit or a later one (the server's last analysis
+revision, from `api/project_analyses/search`), it:
+
+1. moves its own detached worktree, `.worktrees/sonar-baseline`, to that commit (never the
+   main checkout);
+2. runs `pnpm install --frozen-lockfile` and the nx build (cached), so type-aware rules resolve
+   cross-package types the same way the gate's scans do, with both tokens removed from their
+   environment and core files off (`ulimit -c 0`). If the move, the
+   install or the build fails, the first failed pass of a streak opens one issue, "SonarQube
+   baseline: the build of master fails" (its number kept in `<git common dir>/sonar/prepare-alert`),
+   and the next pass that builds closes it;
+3. downloads that run's `coverage-*` artifacts (`gh run download <run id>`), lifts each shard
+   group's members out of their `coverage-group-*` artifact as `coverage.yml` does, and merges them
+   with `tools/merge-coverage.sh --ci --artifacts`, which writes the repository-relative
+   `coverage/lcov.info` the scanner imports. Every package whose tests write coverage is in it,
+   githerd, compact-mantine, remote-logger and visual-review included, and a package tested in
+   several shards is counted from its merged line records. `sonar.coverage.exclusions` leaves out
+   code no test suite runs (scripts, benchmarks, the docs' example programs, Vite and Vitest
+   configuration files), so it does not read as 0%. If the download or merge fails, it scans
+   without coverage and says so in the log;
+4. restores `tools/sonar/graphty-way.xml` to the server if the file changed since the last run;
+5. takes `sonar-local.lock` with `flock -w 900`, waiting up to 15 minutes for the pre-push gates
+   holding it (up to 3 at once) to finish; if it still cannot, it logs that and tries again at the
+   next poll. Then it runs a
+   full scan into `graphty-monorepo` under `timeout 1800`, with `sonar.projectVersion` set to the
+   root `package.json` version, `sonar.scm.revision` set to the commit, and
+   `sonar.working.directory` under the git common directory;
+6. once a week (the first run of each ISO week), posts the numbers to the burn-down tracking
+   issue (section 3).
+
+It runs one scan at a time, and a burst of merges costs one scan of the newest master, not one
+per merge. Off the network, it logs a line and tries again at the next poll.
+
+Why this and not the alternatives:
+
+- **No CI.** GitHub Actions cannot reach the server.
+- **No cron or systemd timer.** This machine has neither: `crontab` is not installed, and
+  systemd is not PID 1.
+- **Not a post-merge hook.** It fires only when someone runs `git merge` or `git pull` in a
+  checkout. Merges happen on GitHub, and the main checkout rarely pulls master, so the baseline
+  would go stale silently. It would also add a 4-minute scan to an ordinary pull.
+- **Not the pre-push.** A push carries the branch, not master. Scanning master there would mean
+  a second 4-minute scan per push, of code the pusher did not write.
+- **servherd** already supervises every long-running process on this machine. `servherd_list`
+  shows the loop, `servherd_logs` shows its scans, starting it again restarts it instead of
+  adding a copy, and it is not a process nobody knows about. It assigns a port the loop does not
+  use, which costs nothing.
+
+The gate does not depend on this job (section 1). A stale baseline makes the gate stricter (fewer
+findings match master), and affects the dashboard, the "possibly introduced" warnings and the
+weekly numbers.
+
+## 3. Burning down the backlog
+
+### Where it starts
+
+From backlog.md, a full scan of master at `f3786c38a` without test files:
+
+- 3,477 open issues: 0 vulnerabilities, 383 reliability, 3,382 maintainability, 4 blockers
+- 99 security hotspots, none reviewed
+- duplication 5.0%
+- ratings: security A, reliability D, maintainability A, security review E
+
+A scan that also analyzes test files (the gate's configuration) found 9,684 issues, 5,977 of
+them from one rule (S2699, below). The first baseline scan with the final configuration resets
+the starting line. Expect about 3,600 issues once S2699, S4782, S7735 and S4138 are off, but the
+real number is whatever that scan says.
+
+### Rule-by-rule triage
+
+Every rule with open issues gets exactly one of these decisions, recorded in the "Rule
+decisions" table below:
+
+| Decision       | When                                                              | Where it is recorded                                                                                      |
+| -------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Fix            | The rule finds something worth changing in this codebase          | Issues filed and fixed                                                                                    |
+| False positive | The rule is right in general but wrong on specific lines or paths | `NOSONAR(<rule>): <reason>` in code, or a multicriteria entry with a reason in `sonar-project.properties` |
+| Deactivate     | The rule does not fit this codebase at all                        | `tools/sonar/graphty-way.xml` with the reason as a comment, and the table below                           |
+
+A rule whose decision is still open is deactivated until it has one, so a rule nobody has
+agreed to never blocks a push. It is switched on in the PR that records "Fix" or "False
+positive".
+
+"Graphty way" is a quality profile that inherits from "Sonar way", so new rules SonarQube adds to
+"Sonar way" in later releases reach it automatically. The profile lives in the repository and the
+baseline job restores it to the server, so a rule change is reviewed in a PR like any other.
+
+### Rule decisions
+
+The decisions known at the start. Each later decision is a new row in this table, in the PR that
+changes the profile.
+
+| Rule                                                                 |              Issues | Decision                                        | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------- | ------------------: | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| typescript:S2699 (test has no assertion)                             |               5,977 | Deactivate                                      | The tests assert through Vitest's chai-style `assert.*` and through helpers the rule does not follow. The sampled tests all assert.                                                                                                                                                                                                                                                                                                                                                                                                |
+| typescript:S4782 (`?` with `\| undefined`)                           |                 624 | Deactivate                                      | graph-format, graph-io, webgpu-graph-algorithms and graphty-element typecheck their published types under `exactOptionalPropertyTypes` (`tsconfig.strict-consumer.json`). There, `prop?: T \| undefined` and `prop?: T` differ, and the `\| undefined` is deliberate. "Fixing" it breaks strict consumers who pass `undefined`.                                                                                                                                                                                                    |
+| javascript:S7772, typescript:S7772 (`node:` prefix on built-ins)     |                  94 | Fix                                             | `"fs"` and `"node:fs"` load the same module on every Node the repository supports, and the code that imports them runs only in Node (servers, scripts, build configs). Cleared in stage 3, except `vite.shared.config.ts`, left for the next change to that file because editing it reruns every package's CI.                                                                                                                                                                                                                     |
+| typescript:S7770 (wrapper around `String` or `Boolean`)              |                   7 | Fix where only a wrapper                        | `(x) => String(x)` and `String` return the same string for every value, and `(v) => v` and `Boolean` the same truthiness for `filter` and `some`; the built-ins ignore the extra index and array arguments and `this`. Cleared in stage 3 (6 sites: graphty-element 4, compact-mantine 1, graph-io 1). Left: graphty-element's `edgeIdOf`, a named function whose comment documents why an edge id is always a string; its callers keep that name.                                                                                 |
+| typescript:S4325 (redundant cast or non-null assertion)              |                   5 | Fix                                             | All 5 were the `as any` casts in graphty-element's d3 layout engine, needed only because `d3-force-3d` was declared twice and the merged types made the forces non-callable. #2280 declared the module once and removed the casts, so the cast-free code type-checks and compiles to the same JavaScript. Cleared in stage 3 (all 5, graphty-element).                                                                                                                                                                             |
+| typescript:S4165 (redundant assignment)                              |                   6 | Fix                                             | The six were explicit zero cases in two lookup tables whose variable already held zero: the R-MAT quadrant bits in webgpu-graph-algorithms' benchmark datasets (now declared without a value, since every branch assigns them) and the wave phases of graphty-element's `PatternedLineRenderer` (now starting at the baseline, so only the peak and the valley assign).                                                                                                                                                            |
+| javascript:S125, typescript:S125 (commented-out code)                |                   9 | Fix                                             | Seven were dead: commented-out imports and a constant in graphty-element's source and Vite config, and two Babylon material settings in an example page; deleted. Two were the character labels `// {` and `// ;` in graph-io's DOT tokenizer, which parse as code; every label in that switch is now quoted (`// "{"`), which the rule reads as text.                                                                                                                                                                             |
+| javascript:S7781, typescript:S7781 (`replaceAll` with a `g` regex)   |                  10 | Fix where only `g`                              | With a regex whose only flag is `g`, `replace` and `replaceAll` replace every match with the same replacement, `$1` and `$&` included. Left alone: a regex with other flags, and lines that carry another finding (an S5852 hotspot, S5850) or would draw one (S4624, a nested template), since an edit re-reports it as new. 2 fixed in stage 3, 8 left.                                                                                                                                                                          |
+| javascript:S7780, typescript:S7780 (`String.raw` for `\\`)           |                  22 | Fix where the line has no other finding         | `"\\d"` and `` String.raw`\d` `` are the same two characters, and `${...}` substitutes as in a plain template; each rewritten literal was evaluated before and after. Left alone: `visual-review/trusted/` (2); graphty-element's `vite.config.ts` (nested template, S4624); the first `replace` in each `sanitize-api-docs.js` (2), whose line has S7781 and an S5852 regex; 2 templates joined by `+`, where lint `prefer-template` refuses a tagged one; remote-logger's `log-storage.ts` (S7781 on ES2020). 14 fixed, 8 left.  |
+| typescript:S7763 (`export ... from` to re-export)                    |                  66 | Fix                                             | `import { a } from "m"; export { a };` and `export { a } from "m";` publish the same binding, so no consumer sees a change; the import stays where the file also uses the name. An alias that carries its own documentation (`export const ROLE_TAKEN_CODE = SHARED_ROLE_TAKEN_CODE;` with its `@category`, layout's `@deprecated` `indexed`) is left alone, because a re-export cannot carry that comment. Cleared in stage 3, except those 5.                                                                                    |
+| typescript:S7749 (digit grouping in numbers)                         |                   6 | Fix                                             | Separators are ignored when a number is read, so `0x811c_9dc5` and `0x81_1c_9d_c5` are the same number. Cleared in stage 3 (all 6, graphty-element), regrouping each hex literal into bytes.                                                                                                                                                                                                                                                                                                                                       |
+| typescript:S4043 (array `sort` inside an expression)                 |                   4 | Fix                                             | `sort` reorders its array in place and returns that same array, so `use(a.sort())` and `a.sort(); use(a);` sort the same array and pass the same object on. Each site sorts a local array it built itself. Cleared in stage 3 (all 4, graphty-element) by moving the sort into its own statement; the two string sorts name the default code-unit order as a comparator (S2871).                                                                                                                                                   |
+| S2245 (`Math.random`)                                                |         22 hotspots | False positive for exact files; review the rest | Path entries only for the seeded random number generators and test-data generators where randomness is the point: `layout/src/simulation/seed.ts`, `layout/src/utils/random.ts`, `webgpu-graph-algorithms/src/layouts/seed.ts`, `graphty-element/src/simple/defineLayout.ts`, `algorithms/benchmarks/**`. Uses that make an id (`graphty-element/src/session/runs/RunsApi.ts`, `graphty-element/src/meshes/RichTextLabel.ts`, `remote-logger/src/client/RemoteLogClient.ts`) and any other use are reviewed one by one in stage 1. |
+| typescript:S7761 (`.dataset` for `data-*` attributes)                |                  14 | Fix                                             | `el.dataset.fooBar` reads and writes the `data-foo-bar` attribute itself: it is `undefined` exactly when the attribute is absent, and assigning to it sets the attribute. So `hasAttribute("data-x")` becomes `dataset.x !== undefined`, `setAttribute("data-x", v)` becomes `dataset.x = v`, and the one `getAttribute` is only compared with two strings, where `null` and `undefined` answer alike. Cleared in one pass in stage 3 (compact-mantine 12, graphty 1, graphty-element 1).                                          |
+| S4036 (command found through `PATH`) in `tools/`, package `scripts/` |         32 hotspots | False positive (path)                           | Developer tooling that runs `git`, `pnpm` and `node` from the developer's own `PATH`.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| typescript:S6653 (`Object.hasOwn` over `hasOwnProperty.call`)        |                   6 | Fix where the library is ES2022                 | `Object.hasOwn(o, k)` and `Object.prototype.hasOwnProperty.call(o, k)` answer the same for every object and string key and both throw on `null`. Cleared in stage 3 in graph-io (2) and graphty-element (1), which already use `Object.hasOwn`. Left: graph-format (2) and graph-samples (1), whose published code targets the ES2020 library, where `Object.hasOwn` would raise the oldest runtime they support.                                                                                                                  |
+| javascript:S1135, typescript:S1135 (TODO comment)                    |                  15 | Fix where stale; Keep where real work           | Ten were not open work: four pointed at a `DataManager.clear` TODO that #121 resolved, two were notes, one asked a question its code answers, one asked for a guard that exists, one was a wrong note on batching, and one quoted an old comment; reworded or deleted. Two were stubs since implemented (#2342). Three track real work and stay open as its record, each with an issue: a node expansion's secondary edges (#2343), the XR drag jump guard (#2344), six type-aware lint rules off (#2345).                         |
+| javascript:S7750, typescript:S7750 (`find` over `filter`)            |                   5 | Fix where the library has the method            | `a.filter(p)[0]` and `a.find(p)` give the same element, and `a.filter(p).at(-1)` or `.pop()` and `a.findLast(p)` the same last one, for a predicate with no side effects. Cleared in stage 3: graphty-element's `dom-events.mjs` (1, `find`). Left: graphty-element (2), the graphty app (1) and remote-logger (1), whose TypeScript library is ES2022 or older and has no `findLast`.                                                                                                                                             |
+| javascript:S7764, typescript:S7764 (`globalThis` over `window`)      |                 140 | Fix where the same object                       | In browser page code and in Node module scope `window`, `self` and `globalThis` are one object, so reading a real global through `globalThis` changes nothing. Left alone: a `typeof window` check (`typeof globalThis` is always defined) and the code it guards, names declared only on `Window`, and `window.setTimeout` stored as a `number` (Node's types make it a `Timeout`). 91 fixed in stage 3, 49 left.                                                                                                                 |
+| javascript:S7735, typescript:S7735 (negated condition with `else`)   |                  71 | Deactivate                                      | Decided in stage 3. A sample of the 87 sites found them almost all to be presence checks such as `x !== null ? use(x) : fallback` and `if (edge !== null) { ... } else { ... }`, which put the present case first on purpose. Swapping the branches makes none of them easier to read.                                                                                                                                                                                                                                             |
+| javascript:S3358, typescript:S3358 (nested ternary operator)         |                  62 | Fix outside visual-review/trusted               | A ternary inside another ternary makes the reader hold two conditions to know which value comes out. The 28 sites outside visual-review/trusted (graphty-element's 7 in #2601, the rest in the stage-3 pull requests) are now an if/else, a small helper or a named value (`const noun = n === 1 ? "row" : "rows"`), the same result for every input. The 34 in visual-review/trusted wait for its complexity rework (#2520).                                                                                                      |
+| javascript:S7748, typescript:S7748 (zero fraction in a number)       |                 147 | Fix                                             | `1.0` and `1` are the same number in JavaScript, so dropping the fraction changes nothing at run time. Cleared in one pass in stage 3.                                                                                                                                                                                                                                                                                                                                                                                             |
+| typescript:S4323 (union type to a type alias)                        |                  15 | Fix                                             | A type alias is erased from the emitted JavaScript, so naming a union changes nothing at run time. Cleared in stage 3 where the union is in an unexported position (10 sites: graph-io 5, graphty-element 4, webgpu-graph-algorithms 1), reusing an existing type where one names the union. Left: unions in exported or published positions (a public method, an exported function, a type emitted into a `.d.ts`), where a new name would change the published types.                                                            |
+| typescript:S7744 (needless `?? {}` when spreading)                   |                  10 | Fix                                             | Spreading `null` or `undefined` into an object literal adds nothing, so `{ ...(x ?? {}) }` and `{ ...x }` build the same object for every value of `x`. Cleared in one pass in stage 3 (9 in graph-io, 1 in graphty-element).                                                                                                                                                                                                                                                                                                      |
+| typescript:S3735 (`void` operator)                                   |                  14 | Deactivate                                      | Decided in stage 3. Every site is `void promise` on a call whose result is deliberately not awaited (an undo, a repaint, a pin, a clipboard write, a log post). ESLint's `@typescript-eslint/no-floating-promises` is an error in this repository and accepts exactly that `void` as the mark of an intended fire-and-forget, so removing it fails lint, and the two rules cannot both pass.                                                                                                                                       |
+| javascript:S2187, typescript:S2187 (test file with no test case)     |                  19 | Deactivate                                      | Decided in stage 3. Every site registers its cases through a call the rule does not follow: graphty-element's scoped algorithm tests through the shared `describeScopedAdapter` harness, the ESLint rule tests through `RuleTester.run`. Vitest already fails a file that registers no test, so the rule adds nothing.                                                                                                                                                                                                             |
+| javascript:S7778, typescript:S7778 (one `push` for several)          |                  39 | Fix                                             | `a.push(x); a.push(y);` and `a.push(x, y);` leave the same array: the arguments are still evaluated in order, and no rewritten site reads the array between the two calls. A comment that labelled one of the calls moves above the merged call. Left alone: graph-samples' `EdgeBuffer.push(a, b)`, which adds one edge per call and is not `Array#push`. 38 fixed in stage 3, 1 left.                                                                                                                                            |
+| typescript:S6660 (`if` alone in an `else` block)                     |                   5 | Fix                                             | `else { if (c) { ... } }` and `else if (c) { ... }` are the same statement: the block adds no scope a lone `if` uses. Cleared in stage 3 (5 sites: layout 2, algorithms' benchmark runner 2, graphty-element 1).                                                                                                                                                                                                                                                                                                                   |
+| typescript:S6661 (object spread over `Object.assign({}, x)`)         |                   5 | Fix                                             | `Object.assign({}, x)` and `{ ...x }` copy the same own enumerable properties into a new plain object; they differ only when `x` has an own `__proto__` key, which the setter on `{}` would apply. Cleared in stage 3 (all 5, graphty-element's rich text parser, whose styles are object literals with six fixed keys).                                                                                                                                                                                                           |
+| typescript:S4138 (`for...of` over an index loop)                     |                  34 | Deactivate                                      | Decided in stage 3. Most hits are index loops over typed arrays in the kernels of graph-format, algorithms and layout, where the index loop is the deliberate hot-path form; the few left in graph-io and graphty-element are taste. Path entries would cover most of the rule.                                                                                                                                                                                                                                                    |
+| typescript:S7755 (`.at(-1)` over `[x.length - 1]`)                   |                  76 | Fix where the type holds                        | `x.at(-1)` and `x[x.length - 1]` read the same element, but `.at()` is typed `T                                                                                                                                                                                                                                                                                                                                                                                                                                                    | undefined` and needs the ES2022 library. Fixed where the site already handles an empty array (`?? null`, `?.`, a check for `undefined`), so the type is unchanged without a `!`. Left alone: packages on the ES2020 library, and sites that use the element unchecked, store it as `T` or put it in a template string. 19 fixed in stage 3, 57 left. |
+| typescript:S3776 (cognitive complexity)                              |         411 + 47 js | Fix, threshold stays 15                         | No package-wide exemption. Complex kernels that cannot be split take a `NOSONAR(S3776)` with the reason. The gate blocks a new or rising score anywhere in a function the push edits, and an edited function at 16 to 20 ("touch it, fix it", section 1).                                                                                                                                                                                                                                                                          |
+| typescript:S2933 (field could be `readonly`)                         |                 192 | Fix                                             | `readonly` is checked by TypeScript and erased from the emitted JavaScript, so adding it changes nothing at run time. Every reported field is `private` or a `#private` field, so no published type changes. Cleared in one pass in stage 3.                                                                                                                                                                                                                                                                                       |
+| javascript:S7718, typescript:S7718 (catch parameter named `error`)   |                   6 | Deactivate                                      | The code already names a caught value `error` where that reads best. The six flagged name what was caught: `cause` (three, passed on as `new Error(message, { cause })`), `reason` (a promise rejection), `state` (a readiness check) and `thrown` (anything a style layer throws). Where `error` is already taken the rule asks for `error_`, which says less than any of them. A naming convention the codebase does not follow by rule.                                                                                         |
+| typescript:S7765 (`includes` to test for a value)                    |                   4 | Fix                                             | `s.indexOf(x) >= 0` and `s.includes(x)` give the same answer for a string; `a.some((w) => w === 0)` and `a.includes(0)` give the same answer for a typed array (SameValueZero matches `-0` and never `NaN`, as `===` does). Cleared in stage 3 (graph-io 2, algorithms 1; graphty-element's benchmark asks its id map `has(id)`, which is its `indexOf(id) >= 0`).                                                                                                                                                                 |
+| javascript:S1871, typescript:S1871 (two branches with the same body) |                   6 | Fix                                             | One body per pair: graph-io's GraphML reader captures under `Data` and `Default` as under `Capture`, its Pajek exporter owns a shape written as a parameter in the shape and relation `if`, remote-logger's selective clear deletes a session matching either filter, graphty-element's `PointerRenderer` draws the bottom pointer from `default` only, and `tools/count-migration-state.mjs` sets `reaches` from one condition. No condition has side effects, so `a \|\| b` evaluates what `if (a) else if (b)` did.             |
+| javascript:S1128, typescript:S1128 (unused import)                   |                   3 | Fix                                             | Deleted: `KERNELS` and `KernelId` in webgpu-graph-algorithms' compile demo and `Node` in graphty-element's `expanding.html` example.                                                                                                                                                                                                                                                                                                                                                                                               |
+| javascript:S1481, javascript:S1854 (unused variable or assignment)   |               2 + 2 | Fix                                             | The same two lines of graphty-element's XR pivot camera example: a loop key it never reads (now `[, entry]`, as elsewhere in that page) and a watchdog interval handle it never clears.                                                                                                                                                                                                                                                                                                                                            |
+| typescript:S4030 (collection written, never read)                    |                   1 | Fix                                             | algorithms' small-world benchmark generator kept a set of edge keys it never read; deleted. It drew no random numbers, so the generated graphs are unchanged.                                                                                                                                                                                                                                                                                                                                                                      |
+| S5852 (regex with super-linear backtracking) in graph-io's importers | part of 26 hotspots | Fix now, outside the stages                     | graph-io is published and parses user files, so a crafted file can hang an importer. Filed at stage 0 as a `bug` with `priority:high`, fixed in graph-io's next release.                                                                                                                                                                                                                                                                                                                                                           |
+| typescript:S6759 (React props should be read-only)                   |                  92 | Fix, except compact-mantine's public components | `Readonly<Props>` on a component's props parameter is a type-only change. In the graphty app and in compact-mantine's internal components it reaches no consumer. On compact-mantine's exported components it would change `ComponentProps<typeof X>` to a read-only type that a consumer can no longer assign to, so those 50 stay as they are until compact-mantine's next major.                                                                                                                                                |
+| typescript:S6353 (verbose regex character class)                     |                 102 | Fix                                             | `[0-9]` matches exactly what `\d` matches, and `[A-Za-z0-9_]` exactly what `\w` matches, with or without the `u` and `i` flags, so the shorter form changes no match. Cleared in one pass in stage 3.                                                                                                                                                                                                                                                                                                                              |
+| javascript:S4624, typescript:S4624 (nested template literal)         |                  84 | Fix outside visual-review/trusted               | A template literal inside another one's placeholder reads as one long string with a second string spliced into it. The 64 sites outside visual-review/trusted (17 of them in #2524, #2525 and #2526) now name the inner piece first (the optional ` at line N` of a parse error) or call a small helper (`quoteEach` in graphty-element, `formatMs` in the benchmark tables) that builds the same text. The 20 in visual-review/trusted wait for its complexity rework (#2520).                                                    |
+| typescript:S6582 (prefer optional chaining)                          |                  99 | Fix                                             | `x !== null && x.y` and `x?.y` give the same result whenever `x` is null, undefined or an object, which is all the rewritten sites allow, and in a condition `false` and `undefined` act the same. Where the result is stored or returned as a boolean the rewrite adds `=== true`, so the type and the value stay `boolean`. A site where `x` could be a falsy non-null value such as `0` or `""` is not equivalent and is left alone. Cleared in stage 3.                                                                        |
+| typescript:S7762 (`node.remove()` over `removeChild`)                |                   5 | Fix                                             | `parent.removeChild(node)` and `node.remove()` detach the same node when `parent` is its parent, which every site makes sure of (it appended the node to `document.body` a statement earlier, or tests `node.parentNode`); nothing reads `removeChild`'s return value. Cleared in stage 3 (remote-logger 3, graphty-element 2).                                                                                                                                                                                                    |
+| javascript:S1121, typescript:S1121 (assignment inside an expression) |                   3 | Fix outside visual-review/trusted               | graphty-element's clustering sampler assigns its generator state on its own line before returning the draw, and graph-io's OBO reader writes `map[tag] ??= []` before the `push`. The third is in `visual-review/trusted/` and waits for the owner.                                                                                                                                                                                                                                                                                |
+| javascript:S6035, typescript:S6035 (single-character alternation)    |                   3 | Fix                                             | `(c\|m)?` is `[cm]?` in `tools/check-published-deps.mjs` and `(2\|3)` is `([23])` in a webgpu-graph-algorithms benchmark; the second keeps its capture group, the first is only tested.                                                                                                                                                                                                                                                                                                                                            |
+| typescript:S6594 (`RegExp.exec` over `String.match`)                 |                   2 | Fix                                             | remote-logger's marker parsing. Neither regex has the `g` flag, so `exec` returns what `match` did.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| typescript:S7766 (`Math.min` over a ternary)                         |                   1 | Fix                                             | graph-io's sniff `clamp` returns `Math.min(value, 1)` after its `value > 0` guard, which has already let only positive numbers through.                                                                                                                                                                                                                                                                                                                                                                                            |
+| typescript:S6571 (`unknown` in a union)                              |                   1 | Fix                                             | A webgpu-graph-algorithms benchmark harness type: `Promise<unknown> \| unknown` is `unknown`.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| typescript:S7741 (`typeof x === "undefined"`)                        |                   3 | Fix where the name is declared                  | webgpu-graph-algorithms' value formatter compares its parameter with `undefined`. The 2 in remote-logger's client stay: they read globals a build may never define, and only `typeof` reads an undeclared name without throwing.                                                                                                                                                                                                                                                                                                   |
+| javascript:S7786, typescript:S7786 (`TypeError` for a type check)    |                   6 | Fix where unpublished                           | The two webgpu-graph-algorithms benchmarks throw `TypeError` when the simulation is not the expected class. graphty-element's 2 stay: changing the class of an error a published package throws is a behavior change (and one is a date check, not a type check). The 2 in visual-review wait for the owner.                                                                                                                                                                                                                       |
+| typescript:S6481 (context value rebuilt every render)                |                   1 | Fix                                             | compact-mantine's `PopoutAnchor` memoizes `{ anchorRef }`; the ref never changes, so the context keeps one value and its consumers see the same ref as before.                                                                                                                                                                                                                                                                                                                                                                     |
+| typescript:S6478 (component defined inside a component)              |                   1 | Fix                                             | The graphty app's `ErrorBoundary` passes Sentry a module-level `renderFallback` instead of an inline arrow; it renders the same `ErrorFallback`.                                                                                                                                                                                                                                                                                                                                                                                   |
+| javascript:S7721 (function could move to an outer scope)             |                   4 | Fix outside visual-review/trusted               | The graphty app's `no-element-mutation` ESLint rule: `memberName` reads only its argument and moves to the module, `ownerRoot` reads only the door list and moves to `createRule`. The 2 in `visual-review/trusted/` wait for the owner.                                                                                                                                                                                                                                                                                           |
+| typescript:S3696 (throw of a non-Error)                              |                   5 | False positive                                  | Every site rethrows an `AbortSignal`'s `reason`, whatever its type, which is the platform's contract for cancelled work (graph-io's input reader, graphty-element's repaint and filter passes). Marked `NOSONAR(S3696)` on each line.                                                                                                                                                                                                                                                                                              |
+| typescript:S2234 (arguments in another order than the parameters)    |                   2 | False positive                                  | graph-format's builder and graph-io's direction handling add the mirror arc of an undirected edge, which runs from target to source on purpose. Marked `NOSONAR(S2234)` on each line.                                                                                                                                                                                                                                                                                                                                              |
+| javascript:S1940, typescript:S1940 (inverted comparison)             |                  31 | Keep                                            | `!(a > b)` and `a <= b` differ when either side is `NaN`: the first is `true`, the second `false`. 30 sites are guards written negated on purpose so a `NaN` option, weight or measurement (or a typed-array read past the end) is refused rather than let through; the rewrite would change them. The last, `!!(Math.random() < p)` in an example page, carries an S2245 hotspot an edit would re-report. None fixed.                                                                                                             |
+| typescript:S6564 (redundant type alias)                              |                  18 | Keep                                            | The aliases are named, documented types in public signatures (graph-format's column types, graphty-element's catalog ids). Removing one is breaking.                                                                                                                                                                                                                                                                                                                                                                               |
+| javascript:S7769, typescript:S7769 (`Math.hypot` over `Math.sqrt`)   |                  10 | Keep                                            | `Math.hypot` scales to avoid overflow and gives different floating-point results from `Math.sqrt(x*x + y*y)`. The sites are layout, simulation and color kernels whose outputs tests and stored drawings compare.                                                                                                                                                                                                                                                                                                                  |
+| javascript:S1444, typescript:S1444 (public static field `readonly`)  |                 217 | Fix unless on an exported base class            | 200 sites are on graphty-element's built-in algorithm and layout classes, which are not exported and are handed out typed as their base class, so `readonly` reaches no consumer. 17 are on exported extension base classes (`Algorithm`, `LayoutEngine`, `DataSource`, `DeclaredAlgorithm`) and the element's `static styles`: `readonly` there stops a subclass from assigning the field, as the element's own layout-extension test does, so it is breaking.                                                                    |
+| typescript:S7746 (`return value` in an `async` function)             |                  10 | Fix                                             | An `async` function wraps its return value either way, so the result and its timing are the same. Every site is internal to graphty-element.                                                                                                                                                                                                                                                                                                                                                                                       |
+| javascript:S7785, typescript:S7785 (top-level `await`)               |                  22 | Fix where the file is an ES module              | Scripts, benchmarks, demos and app entry files; no published code. Taken only where the file loads as a module, keeping the call's existing error handling.                                                                                                                                                                                                                                                                                                                                                                        |
+| typescript:S6606 (`??=` and `??`)                                    |                  21 | Fix where `null` cannot reach                   | `??` keeps `0`, `""` and `false`; beyond that the only difference is that `null` also takes the default. 15 sites never see `null`. Left: webgpu-graph-algorithms' `pickNumber`, `pickBoolean` and `pickDim` (they refuse `null` today), layout's per-node inputs (`null` is stored as 0), and graphty-element's `session/commands/layout.ts` and `kernel/wgsl.ts` until someone looks.                                                                                                                                            |
+| typescript:S7747 (unnecessary spread)                                |                  21 | Deactivate                                      | Decided in stage 3. Every site is `for (const x of [...collection])` or `Promise.all([...set])`: a copy taken on purpose because the loop adds to or deletes from the collection it walks (listeners that unsubscribe, cache entries evicted, GPU buffers destroyed), and a `Map` or `Set` iterator visits entries added during the walk. Dropping the copy would change behavior.                                                                                                                                                 |
+| javascript:S7776, typescript:S7776 (array used only for `includes`)  |                  25 | Fix                                             | A fixed list used only to ask "is this value in it" reads as a `Set`. `Array.prototype.includes` and `Set.prototype.has` both compare with SameValueZero, and every site holds strings, so each answer is the same. Cleared in one pass in stage 3 (22 sites: graphty 7, graphty-element 9, graph-io 2, graph-format 1, webgpu-graph-algorithms 1, remote-logger 1, tools 1). The 3 in `visual-review/trusted/` wait for a change the owner makes there.                                                                           |
+| javascript:S5843, typescript:S5843 (regex too complex)               |                  11 | Deactivate                                      | Every site is the one regular expression for a token of a grammar: a number or a date and time in graph-format's and graph-io's text readers, a GML real, a Pajek time point, the CX2 header sniff, the notes timestamp and extension key, and the import-specifier scans in `tools/`. Each reads as one rule of its format's specification; split into pieces it no longer can be checked against that rule. S5852 (super-linear backtracking), the rule that guards these against slow input, stays on.                          |
+| typescript:S1874 (deprecated API used)                               |                   8 | Deactivate                                      | ESLint's `@typescript-eslint/no-deprecated` (an error here) already reports every use of a deprecated API. Each of the 8 sites carries a disable comment with its reason, which SonarQube does not read: graphty-element still honoring the old `twoD` setting and `optionsSchema`, the deprecated `runAlgorithm` forwarder, and remote-logger's `execCommand("copy")` for browsers without the Clipboard API. They go when those APIs are removed in a major.                                                                     |
+| typescript:S2301 (boolean parameter selects the action)              |                   5 | Deactivate                                      | Every site is a small function whose flag the caller already holds as a boolean (`bitmapWrite(words, i, value)`, `allocateCoreArrays(shape, useArena)`, a React change handler that receives `next`). Two methods would push the `if` into every caller, and two of the sites are graph-format exports, where a split is a public API change.                                                                                                                                                                                      |
+| typescript:S2004 (functions nested more than 4 deep)                 |                   5 | Deactivate                                      | Every site is a callback inside a callback inside a component or a session command: a state updater inside a promise handler inside an event handler, a `map` inside a `map`. The depth is the shape of React and promise code, not a function that should be split; S3776 (cognitive complexity) is the rule that asks for splitting.                                                                                                                                                                                             |
+| typescript:S6754 (`useState` not named `[x, setX]`)                  |                   6 | Deactivate                                      | Five of the six sites name the raw setter `setXState` because a wrapper that also updates a ref or storage takes the plain `setX` name, which is what callers must use; the sixth names its setter after what it sets. The naming carries meaning the rule's pattern would erase.                                                                                                                                                                                                                                                  |
+| typescript:S6767 (prop type never used)                              |                   3 | Deactivate                                      | Two sites are false positives: `NodeInspector` passes its whole `props` to a helper that reads `onAction` and `comingActions`, which the rule does not follow. The third is compact-mantine's `ControlGroup` `bleed`, a deprecated public prop kept so existing callers still compile. TypeScript already reports a prop a caller cannot pass.                                                                                                                                                                                     |
+| typescript:S7787 (`export {}` with no names)                         |                   2 | Deactivate                                      | `export {}` is how TypeScript marks a file with no exports as a module. Both sites need it: graphty-element's `react.ts` entry point, which exports nothing yet, and an ESLint test fixture whose text RuleTester replaces.                                                                                                                                                                                                                                                                                                        |
+| typescript:S4634 (trivial promise)                                   |                   3 | Deactivate                                      | Every site is `new Promise((resolve) => { resolve(work()); })` in algorithms' accelerator dispatch and graphty-element's project dispatcher, written so that a throw from `work` becomes a rejection. `Promise.resolve(work())` would throw synchronously instead, so the rule's fix changes behavior.                                                                                                                                                                                                                             |
+| typescript:S4144 (two functions with the same body)                  |                   1 | Keep                                            | graph-format's `BoolColumnImpl.mutableData` and `FixedColumnImpl.mutableData` read the same, but the bool column is a packed bitmap and not a fixed-width numeric column; sharing the body needs a new base class for three lines.                                                                                                                                                                                                                                                                                                 |
+| javascript:S7760, typescript:S7760 (default parameter over `??`)     |                   4 | Keep                                            | Each site defaults with `??` (`dim ?? 2`, `byteOffset ?? 0`, `value ?? ""`), which also turns `null` into the default. A default parameter applies only to `undefined`, so a JavaScript caller passing `null` to layout's `layoutDim`, webgpu-graph-algorithms' uniform block or graph-samples' generators would get an error instead.                                                                                                                                                                                             |
+| typescript:S1119 (label on a loop)                                   |                   2 | Keep                                            | Both labels are in algorithms' bipartite matching hot loops, where `continue pick` and `break search` leave two nested loops at once. Moving the inner loop into a function to drop the label costs a call per edge in the algorithm's inner loop.                                                                                                                                                                                                                                                                                 |
+| typescript:S6479 (array index as React key)                          |                   4 | Keep                                            | compact-mantine's `ShortcutSheet` and `CompoundRow` render positional lists that a caller passes whole and never reorders, and their items have no identity of their own. Changing the keys changes how React reconciles those published components.                                                                                                                                                                                                                                                                               |
+| javascript:S2486 (exception caught and ignored)                      |                   5 | Keep                                            | All 5 are in example and benchmark pages (the XR pivot camera demo, the BFS browser benchmark), each with a comment saying why the error is ignored: a disposed controller, a hand-tracking glitch, a failed warm-up run.                                                                                                                                                                                                                                                                                                          |
+| css:S7924 (text contrast)                                            |                   1 | Keep                                            | The start button of the XR pivot camera example page. The example is a demo, not a published component; its colors are its author's.                                                                                                                                                                                                                                                                                                                                                                                               |
+| javascript:S7784 (`structuredClone` over a JSON round trip)          |                   1 | Keep                                            | visual-review's capture reads each story's `parameters.chromatic` through JSON on purpose, so functions and class instances never cross into Node; `structuredClone` throws on a function instead of dropping it.                                                                                                                                                                                                                                                                                                                  |
+| typescript:S1994 (`for` update skips the tested variable)            |                   9 | Fix                                             | Each loop searches with a counter its condition never reads: the next free id suffix (graphty-element's set store, graph-io's exporters and GraphML hubs), the level count of a frontier loop (algorithms' BFS, webgpu-graph-algorithms' closeness), a first-submit flag (betweenness). A `while` with the step at the end runs the same iterations. Fixed in the set store and closeness; 7 sites wait for open pull requests that edit their files.                                                                              |
+
+Closed on the server on 2026-10-13, so they stop counting as open: the sites the "Fix where ..."
+decisions above deliberately leave were accepted (S7755 56, S7764 43, S7781 8, S7780 8, S7763 5,
+S7750 4, S6653 3, S7770 1, S7772 1), and so were the S6564 (18) and S7769 (10) sites kept above
+and the 3 S1135 TODOs that track open work (#2343, #2344, #2345); the stale TODOs close at the
+next scan of master. The 31 S1940 sites were closed as false positives: the rewrite the rule asks
+for changes the answer for `NaN`. S4323 is Fix everywhere since then: exporting a new alias only
+adds to the API (the owner's rule of 2026-10-08), and an exported one goes into the API report in
+the same pull request. The kept S6479 (4), S4144 (1) and S7924 (1) sites were accepted the same way on
+2026-10-15.
+
+### Stages
+
+The stages run in order, but each is broken into small PRs, one rule (or one rule in one
+package), that ship alongside feature work and never block it: the gate judges only the lines a
+PR adds or changes and lets through what master already has, so a feature branch never needs a
+backlog fix to push.
+
+| Stage                                                  | Work                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Done when                                                                                                 | Ratchet when done                                                                                                                        |
+| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Setup (first week)                                  | The owner's token is in `.env` or the environment; `--setup` has run. Land the gate, `sonar-project.properties`, the "Graphty way" profile with S2699, S4782, S7735 and S4138 off, the exclusions and the S2245 / S4036 path entries. Start the baseline loop. Delete the probe projects. File the S5852 graph-io bug. Record the starting numbers on the tracking issue. The owner puts TLS in front of the server.                                                   | The gate runs on every push; master has a fresh analysis with CI coverage; the server answers on `https`. | Gate: new issues and new hotspots on changed lines block.                                                                                |
+| 1. Security (deadline: two weeks after the gate lands) | Review every hotspot left on `graphty-monorepo` by hand and set its status on the server. Fix the S5852 regexes (if the graph-io bug has not already). Add integrity hashes for the 3 CDN scripts (S5725). Check the S2068 "password".                                                                                                                                                                                                                                 | 0 hotspots to review; security review rating A.                                                           | Server gate: security review rating A.                                                                                                   |
+| 2. Reliability                                         | The 4 blockers (S3516). Then the 34 S2871 sorts, each read by hand: a numeric sort without a comparator is a real bug. Then S4335, S7767, S7059, S7739 (the rest of the 63 high). Then the medium and low reliability issues, rule by rule.                                                                                                                                                                                                                            | Reliability rating A (no open reliability issue).                                                         | Server gate: reliability rating C as soon as the high ones are gone, then A.                                                             |
+| 3. Mechanical maintainability                          | The rules a codemod or ESLint autofix can change with no change in behavior, one rule per PR, largest first: S1444, S7748, S6353, S6582, S7764, S7763, S7755, S7772, S7781, S7778, S1940 (about 1,100 after S4782 is off). Then the behavior-sensitive ones with the tests running: S2933, S7758, S6759, S7773. Decide S7735 and S4138, and switch them on if the decision is not "Deactivate".                                                                        | Every rule in this list has 0 open issues or a decision in the table.                                     | Server gate: maintainability rating A held; duplication on new code at most 3%.                                                          |
+| 4. Judgment                                            | Cognitive complexity (S3776, 458), S107 (more than 7 parameters), S3358 (nested ternaries), S4624 (nested templates), S2310 (loop counter reassigned). The duplicated `stories/utils/graph-generators.ts` in algorithms and layout. These need a person to read the code, so they are fixed mostly when someone is already changing the function ("touch it, fix it"), plus a few chosen hotspots per week, starting with the files with the most effort (backlog.md). | The open-issue count holds at or below 300 for four weekly reviews.                                       | Server gate: the "AI Hardened" conditions (all ratings A, all hotspots reviewed, duplication at most 3%, coverage at least 80% overall). |
+
+A burn-down PR is judged by the same gate. A codemod touches many lines, but the issues already
+on them match master and do not block; only what the codemod itself introduces does. Keep such
+PRs to one package at a time when they get large.
+
+### Ownership, budget and tracking
+
+- **Owner:** the repository owner is the single owner of every stage. A session that works on a
+  package picks up that package's open burn-down issues first.
+- **Package order** within each stage follows the size of the backlog: graphty-element (1,208
+  issues, 156 h), graph-io (597, 75 h), algorithms, webgpu-graph-algorithms, graph-format,
+  graphty, graph-samples, layout, visual-review, remote-logger, compact-mantine, tools.
+- **Weekly budget:** about half a day a week, as one or two burn-down PRs, more in stage 1 to meet
+  its two-week deadline. Feature work never waits on it. SonarQube's estimate for the whole
+  backlog is 383 h, but that counts mechanical rules at their per-issue estimate; a codemod clears
+  hundreds in an hour. At this budget, stages 1-3 take roughly two months, and stage 4 runs on for
+  as long as the code keeps changing.
+- **Issues:** one GitHub issue per stage per package, created at the start of the stage with
+  the label `sonarqube` plus the repository's usual type, `priority:*` and `effort:*` labels.
+  Stage 1 and 2 issues are `priority:high` (a real bug or exposure may be in them), and stage 3
+  and 4 are `priority:low`. Each issue lists its rules and counts, and closes when the package
+  meets the stage's exit condition.
+- **One tracking issue,** "SonarQube burn-down", pinned. Once a week the baseline job comments
+  the week's numbers: open issues by quality and severity, hotspots to review, ratings,
+  duplication, coverage, and the gate's runs and skips from its run log. It also lists issues that
+  are new on master this week (gate escapes from fail-open pushes or from `--no-verify`), new
+  `NOSONAR` comments, new multicriteria entries and `Sonar-Bypass` trailers. It also states the
+  change in open issues since last week, in total and for each package (top-level directory),
+  from the counts it keeps in `<git common dir>/sonar/weekly-counts.json`. When the total rose, it
+  files a `priority:high` issue, "SonarQube: open issues rose in <week>", listing the packages,
+  so the backlog only moves one way. The comments and the
+  issues say "the owner's local SonarQube server", never its host name or port, because the
+  repository is public. The trend is the server's own project activity graph for
+  `graphty-monorepo`, which records every baseline scan. No separate dashboard is built.
+- **Weekly review:** read that comment. Issues new on master get fixed or triaged that week.
+  A rule that keeps attracting `NOSONAR` gets a decision in the table. A skip rate above a few
+  percent from on-network pushes means a setup problem to fix.
+
+### Exit criteria
+
+The burn-down is finished when, for four weekly reviews in a row:
+
+- `graphty-monorepo` passes the "AI Hardened" gate conditions, and the server gate holds them;
+- every rule with open issues has a decision in the table;
+- no `Sonar-Bypass` trailer landed, and no issue appeared new on master without being dealt
+  with that week.
+
+After that, the weekly comment and review continue and the stages are closed. The "possibly
+introduced" check stays a warning (section 1).
+
+## 4. Issue #38: new text
+
+Title: **Set up SonarQube as a local pre-push quality gate (no CI/CD analysis)**
+
+Labels: drop `needs-decision` and `blocked`; keep `infrastructure`, `priority:medium` and
+`effort:high`.
+
+> ## Task
+>
+> Run SonarQube on every push as part of the local pre-push gate (`tools/prepush.sh`), keep an
+> analysis of master on the server for the dashboard, and burn the existing backlog down
+> without blocking feature work. Design: `design/sonarqube/design.md`.
+>
+> ## Why there is no CI/CD analysis
+>
+> The SonarQube server is the owner's local SonarQube Community Build. It is reachable only from
+> the owner's network, so GitHub Actions cannot send it a scan or read its quality gate.
+> SonarQube is therefore not a CI step and not a required check on pull requests. CI's own
+> coverage job and Coveralls are unchanged.
+>
+> ## What runs instead
+>
+> - **Pre-push:** `tools/prepush.sh` scans only the files the push changed, into a scratch
+>   project (`graphty-monorepo-local`), and fails the push when SonarQube reports a new issue or
+>   security hotspot on a line the push added or changed. Issues master already has never block,
+>   even on a line the push touched. The scan takes about a minute and runs in the background
+>   while the tests run.
+> - **Off the network:** the step passes with a loud warning, and the next push from the network
+>   re-checks the whole branch. Any other problem (no token, a rejected token, no Java) fails the
+>   push with the fix.
+> - **False positives:** `// NOSONAR(<rule>): <reason>` on the line, a reasoned path entry in
+>   `sonar-project.properties`, or, for emergencies only, a `Sonar-Bypass: <reason>` trailer on
+>   the pushed commit. All three are visible in the PR and counted weekly.
+> - **Master's analysis:** a loop run by servherd on the owner's machine scans `origin/master`
+>   after each merge, with the coverage from that commit's CI run, into `graphty-monorepo`.
+> - **The backlog** (about 3,500 issues and 99 unreviewed security hotspots on 2026-10-02) is
+>   burned down in stages: security hotspots (within two weeks), reliability bugs, mechanical
+>   rules, then complexity. Tracked by one pinned issue, "SonarQube burn-down", and per-package
+>   issues labeled `sonarqube`.
+>
+> ## What would make CI possible later
+>
+> - **SonarQube Cloud:** free for public repositories, reachable from Actions, and it has branch
+>   and pull request analysis, so the gate could be a required check with decoration on the PR.
+>   The project and profile would move there.
+> - **Exposing the server:** a reverse proxy with TLS, or a tunnel (for example Cloudflare
+>   Tunnel or Tailscale Funnel), so Actions can reach it. The Community Build still has no
+>   branch or pull request analysis, so CI could only scan master after a merge, or use the same
+>   changed-lines check as the pre-push.
+> - **A self-hosted runner on the owner's network:** it could reach the server, but it runs
+>   untrusted pull request code inside that network, so it is not recommended for a public
+>   repository.
+>
+> ## Done when
+>
+> - [x] a SonarQube token is in the environment or `.env`
+> - [ ] `sonar-project.properties`, `tools/sonar-gate.mjs`, `tools/sonar-baseline.mjs`,
+>       `tools/sonar/api.mjs` and the "Graphty way" profile are merged, and `tools/prepush.sh`
+>       runs the step
+> - [ ] the baseline loop runs under servherd, and `graphty-monorepo` shows a current analysis
+>       with CI coverage
+> - [ ] the server answers over TLS and the scripts use its `https` address
+> - [ ] the graph-io regex denial-of-service bug (S5852) is filed with `priority:high`
+> - [ ] the "SonarQube burn-down" tracking issue is open and pinned, with the starting numbers
+
+## Review changes
+
+- The gate fails open only when the server cannot be reached, is not the pinned server, or the
+  900 s deadline passes. A missing or rejected token, an admin token, missing Java or a scanner
+  error now block. `SONAR_REQUIRED` is gone. Every run is logged, and the weekly comment reports
+  the skip rate.
+- A finding on a changed line that master already has (same rule and line hash, following
+  renames) no longer blocks. S3776, S107 and S5843 are judged against a scan of the merge base:
+  they block when new or risen anywhere in an edited function or regex, and S3776 also at 16 to
+  20 in an edited function. A missing baseline
+  falls back to blocking everything on changed lines.
+- Hotspots block from stage 0. A hotspot master has (to review or SAFE) or one on a line with a
+  `NOSONAR` naming its rule is skipped.
+- The step runs under one 900 s deadline, including the lock wait, in its own process group
+  killed by an `EXIT` trap. The baseline job skips a poll rather than make a push wait.
+- S7735 and S4138 are off until decided; any undecided rule is off.
+- `Sonar-Bypass` counts only on HEAD, and never covers vulnerabilities or hotspots once the scan
+  ran.
+- Changed lines come from `git diff <base> HEAD`; files with uncommitted changes are left out with
+  a warning.
+- The scan starts after the webgpu-graph-algorithms bundle step, its working directory is under
+  the git common directory, and `.gitignore` gets `.scannerwork/` in the gate's commit.
+- The gate filters by extension only; the scanner applies the exclusions.
+- The "possibly introduced" check stays a warning permanently.
+- `.env` is parsed for the three `SONAR_*` keys, not sourced. The token goes only to the scanner
+  and to one Node API helper; other children get an environment without it; it is never given to
+  servherd; the scanner never runs in debug mode, and a test checks for leaks. The baseline job
+  is Node, so no shell `curl` handles the token.
+- Security: a non-admin token is required before the gate is switched on; the server id is
+  pinned until TLS is in front of the server; the scanner uses the local JRE and never downloads
+  one; `NOSONAR` naming a vulnerability rule blocks; the S5852 graph-io regexes are filed now as a
+  `priority:high` bug; stage 1 has a two-week deadline; the S2245 path entries name exact files
+  (the earlier `graph-samples/src/generators/` entry matched no `Math.random` use); CI artifacts
+  come only from the master push run; neither this design nor the issue text names the host.

@@ -19,6 +19,9 @@ const DEFAULTS = {
     workDir: ".visual-review",
     commitPrefix: "test",
     issueLabels: ["bug"],
+    fontconfig: null,
+    updateCheck: null,
+    usage: false,
 };
 
 // Project ids name artifacts, jobs, directories and regular expressions, so they stay plain; and
@@ -31,7 +34,7 @@ const REPO_PATH = /^(?!\/)(?!.*(^|\/)\.\.(\/|$))[^\\]+$/;
  * Checks a parsed config and fills in the defaults.
  * @param {unknown} input the parsed JSON
  * @returns {{ defaultBranch: string, workflow: string, baselines: string, workDir: string,
- *     commitPrefix: string, issueLabels: string[], projects: Record<string, { storybook: string,
+ *     commitPrefix: string, issueLabels: string[], fontconfig: string | null, updateCheck: string | null, usage: boolean, projects: Record<string, { storybook: string,
  *     build: string | null, workers: number, seedFromDefaultBranch: boolean, waitFor: { selector:
  *     string, method: string, failOnConsole: string | null } | null }> }} the settings
  */
@@ -59,6 +62,25 @@ export function normalizeConfig(input) {
         }
         out[key] = out[key].replace(/\/+$/, "");
     }
+    // The fontconfig file every capture draws with (FONTCONFIG_FILE), so local and CI captures use
+    // the same committed fonts instead of whatever the host has installed. Null: host fonts.
+    if (raw.fontconfig !== undefined && raw.fontconfig !== null) {
+        if (typeof raw.fontconfig !== "string" || !REPO_PATH.test(raw.fontconfig)) {
+            fail('fontconfig must be a fonts.conf inside the repository, relative and without ".."');
+        }
+        out.fontconfig = raw.fontconfig;
+    }
+    // The shell command `update` runs in the merged checkout before it pushes, when the merge
+    // changed anything outside the baselines. Null: no check.
+    if (raw.updateCheck !== undefined && raw.updateCheck !== null) {
+        if (typeof raw.updateCheck !== "string" || raw.updateCheck.trim() === "") {
+            fail("updateCheck must be a shell command");
+        }
+        out.updateCheck = raw.updateCheck;
+    }
+    // Usage events: the review page's timeline, kept only in the work directory (README, "Usage
+    // events"). Off unless a repository turns it on.
+    out.usage = usageSetting(raw.usage, fail);
     if (raw.issueLabels !== undefined) {
         if (!Array.isArray(raw.issueLabels) || raw.issueLabels.some((l) => typeof l !== "string")) {
             fail("issueLabels must be an array of strings");
@@ -111,6 +133,19 @@ export function normalizeConfig(input) {
         };
     }
     return out;
+}
+
+/**
+ * The `usage` setting: off unless set to true.
+ * @param {unknown} value the config's value
+ * @param {(msg: string) => never} fail throws the config error
+ * @returns {boolean} whether usage events are on
+ */
+function usageSetting(value, fail) {
+    if (value !== undefined && typeof value !== "boolean") {
+        fail("usage must be true or false");
+    }
+    return value === true;
 }
 
 /**

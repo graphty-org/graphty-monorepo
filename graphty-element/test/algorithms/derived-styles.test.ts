@@ -16,7 +16,7 @@
 import { assert, describe, it } from "vitest";
 
 import { BUILT_IN_ALGORITHMS } from "../../src/catalog/algorithms";
-import type { AlgorithmKey, Channel, FieldDescriptor, ResultShape, RunId } from "../../src/catalog/types";
+import type { AlgorithmKey, Channel, FieldDescriptor, ResultShape } from "../../src/catalog/types";
 import { resultShapeContract } from "../../src/session/results/types";
 import { suggestStyles } from "../../src/session/styles";
 
@@ -26,15 +26,15 @@ import { suggestStyles } from "../../src/session/styles";
  * Written out rather than derived from the same table the code reads, because a test that derives
  * its expectation from the implementation asserts only that the implementation is self-consistent.
  */
-const EXPECTED: Readonly<Record<ResultShape, { as: "encoding" | "highlight" | "nothing"; channels: readonly Channel[] }>> = {
+const EXPECTED: Readonly<Record<ResultShape, { as: "encoding" | "mark" | "nothing"; channels: readonly Channel[] }>> = {
     "node-metric": { as: "encoding", channels: ["node.color"] },
     "edge-metric": { as: "encoding", channels: ["edge.color"] },
     community: { as: "encoding", channels: ["node.color"] },
     "layered-grouping": { as: "encoding", channels: ["node.color"] },
     "category-table": { as: "encoding", channels: ["node.color"] },
-    path: { as: "highlight", channels: ["node.color", "edge.color"] },
-    "node-set": { as: "highlight", channels: ["node.color"] },
-    "edge-set": { as: "highlight", channels: ["edge.color"] },
+    path: { as: "mark", channels: ["node.color", "edge.color"] },
+    "node-set": { as: "mark", channels: ["node.color"] },
+    "edge-set": { as: "mark", channels: ["edge.color"] },
     "pair-list": { as: "nothing", channels: [] },
     temporal: { as: "nothing", channels: [] },
     fact: { as: "nothing", channels: [] },
@@ -48,7 +48,16 @@ const EXPECTED: Readonly<Record<ResultShape, { as: "encoding" | "highlight" | "n
  * @returns What `suggestStyles` takes.
  */
 function runOf(key: AlgorithmKey, shape: ResultShape, fields: readonly FieldDescriptor[]) {
-    return { id: key as RunId, algorithm: key, params: {}, label: key, shape, fields };
+    return {
+        id: key,
+        algorithm: key,
+        params: {},
+        label: key,
+        distinguishedBy: null,
+        siblingsDifferBy: null,
+        shape,
+        fields,
+    };
 }
 
 describe("what a built-in algorithm draws by itself", () => {
@@ -112,8 +121,22 @@ describe("what a built-in algorithm draws by itself", () => {
 
     it("does not colour nodes by a group when the primary field already paints the nodes", () => {
         const fields = [
-            { name: "group", plainName: "g", technicalName: "g", kind: "node", type: "integer", path: "results.x.group" },
-            { name: "label", plainName: "l", technicalName: "l", kind: "node", type: "string", path: "results.x.label" },
+            {
+                name: "group",
+                plainName: "g",
+                technicalName: "g",
+                kind: "node",
+                type: "integer",
+                path: "results.x.group",
+            },
+            {
+                name: "label",
+                plainName: "l",
+                technicalName: "l",
+                kind: "node",
+                type: "string",
+                path: "results.x.label",
+            },
         ] as const satisfies readonly FieldDescriptor[];
         const suggestions = suggestStyles(runOf("louvain", "community", fields));
 

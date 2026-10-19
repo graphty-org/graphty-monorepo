@@ -40,6 +40,8 @@ const SETTLE_MS = 400;
 interface HighlightArgs {
     /** What a selected node should look like, or undefined to leave the element's own. */
     selectionStyle?: GraphSelectionStyleInput;
+    /** The shape every node is drawn in, or undefined for the element's own. */
+    shape?: "box";
 }
 
 /**
@@ -53,11 +55,21 @@ interface HighlightArgs {
 function render(args: HighlightArgs): Element {
     const element = document.createElement("graphty-element");
 
-    // Stepped before the first frame under Chromatic, so the snapshot is the same picture twice.
+    // Stepped before the first frame under visual capture, so the snapshot is the same picture twice.
     setLayoutPreSteps(element, 2000);
 
     if (args.selectionStyle) {
         element.selectionStyle = args.selectionStyle;
+    }
+
+    if (args.shape) {
+        // Through a style layer, like any node appearance. Queued until the element is ready.
+        void element.session.styles.add({
+            name: `every node a ${args.shape}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": args.shape },
+        });
     }
 
     element.nodeData = NODES;
@@ -79,7 +91,7 @@ function render(args: HighlightArgs): Element {
 const meta: Meta = {
     title: "Styles/Selection Highlight",
     component: "graphty-element",
-    render: render as Meta["render"],
+    render: render,
     decorators: [eventWaitingDecorator],
     parameters: {
         chromatic: { delay: 800 },
@@ -117,7 +129,8 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
  */
 function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: number } | null {
     const mesh = scene.graph.scene.meshes.find(
-        (candidate) => candidate.name.startsWith("graphty-selection-halo") && candidate.isVisible && candidate.isEnabled(),
+        (candidate) =>
+            candidate.name.startsWith("graphty-selection-halo") && candidate.isVisible && candidate.isEnabled(),
     );
 
     const material = mesh?.material;
@@ -128,7 +141,9 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
     }
 
     const lit = material as unknown as { emissiveColor: { toHexString: () => string }; alpha: number };
-    const of = (target: { getBoundingInfo: () => { boundingBox: { extendSizeWorld: { x: number; y: number; z: number } } } }): number => {
+    const of = (target: {
+        getBoundingInfo: () => { boundingBox: { extendSizeWorld: { x: number; y: number; z: number } } };
+    }): number => {
         const extent = target.getBoundingInfo().boundingBox.extendSizeWorld;
 
         return Math.max(extent.x, extent.y, extent.z);
@@ -145,10 +160,7 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
  * @param scene - The scene to read.
  * @param want - The colour, opacity and drawn size expected.
  */
-async function assertHalo(
-    scene: Drawn,
-    want: { color: string; alpha: number; clearance: number },
-): Promise<void> {
+async function assertHalo(scene: Drawn, want: { color: string; alpha: number; clearance: number }): Promise<void> {
     const halo = haloOnScreen(scene);
 
     await holds(halo !== null, `${scene.story}: a node is selected and no halo is drawn anywhere in the scene`);
@@ -226,5 +238,20 @@ export const RestyledWhileSelected: Story = {
         await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
+    },
+};
+
+/**
+ * The halo around a box: a larger box around the selected node, never a sphere behind it. The
+ * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
+ */
+export const Box: Story = {
+    args: { shape: "box" },
+    play: async ({ canvasElement }) => {
+        const scene = await selected(canvasElement, "Box");
+
+        await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
+
+        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
     },
 };

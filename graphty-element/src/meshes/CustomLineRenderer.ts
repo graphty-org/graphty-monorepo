@@ -1,5 +1,6 @@
 import {
     Color3,
+    Constants,
     Effect,
     Mesh,
     MeshBuilder,
@@ -11,7 +12,28 @@ import {
     VertexData,
 } from "@babylonjs/core";
 
+import {
+    EDGE_JOIN_FRAGMENT_SHADER,
+    EDGE_JOIN_VERTEX_SHADER,
+    EDGE_MITER_LIMIT,
+    JOIN_TEMPLATE_INDICES,
+    JOIN_TEMPLATE_POSITIONS,
+} from "./edgeJoinShader";
 import { PerSceneMaterials } from "./PerSceneMaterials";
+
+/** How a joined line mesh looks; see {@link CustomLineRenderer.createJoinedLineMesh}. */
+export interface JoinedLineOptions {
+    /** The line's width: screen width (the 3D line's own scale), or world units with `worldWidth`. */
+    width: number;
+    /** Hex colour. */
+    color: string;
+    /** Opacity 0-1; default 1. */
+    opacity?: number;
+    /** Whether `width` is in world units, so the line zooms with the graph (2D, and patterns). */
+    worldWidth?: boolean;
+    /** A dashed or dotted line: its element's length along the line (world units) and its kind. */
+    pattern?: { kind: "dash" | "dot"; elementLength: number; count?: number | undefined };
+}
 
 interface LineGeometry {
     positions: number[]; // Vertex positions (center line)
@@ -23,6 +45,9 @@ interface LineGeometry {
     segmentStarts: number[]; // Segment start positions (for consistent perpendicular calculation)
     segmentEnds: number[]; // Segment end positions (for consistent perpendicular calculation)
 }
+
+/** The per-vertex arrays addVertexPair appends to: every LineGeometry array but the indices. */
+type VertexPairBuffers = Omit<LineGeometry, "indices">;
 
 interface CustomLineOptions {
     points: Vector3[]; // Path points
@@ -119,6 +144,7 @@ uniform float width;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for circular dots
+varying float vCoverage;  // How much of the one pixel a sub-pixel line is widened to it covers
 
 // Instance support - BabylonJS include provides finalWorld matrix
 #include<instancesDeclaration>
@@ -156,9 +182,21 @@ void main() {
         perpendicular = vec2(-screenDir.y, screenDir.x);
     }
 
+    // A LINE THINNER THAN ONE PIXEL IS DRAWN ONE PIXEL WIDE AND FAINTER, the way a canvas or SVG
+    // renderer draws a hairline: its stroke covers a fraction of each pixel it crosses, and
+    // antialiasing paints that fraction. Rasterized at its own width, a sub-pixel triangle covers
+    // a pixel centre only here and there, and the line breaks into dots. The line's width on
+    // screen is 'width / 2' pixels over the clip w (see the offset below); under one pixel, the
+    // offset grows to one pixel and the fragment's alpha takes the fraction it stands for. A
+    // line of one pixel or more is untouched, and a width of 0 still draws nothing.
+    float drawnPx = width * 0.5 / vertexClip.w;
+    bool subPixel = drawnPx > 0.0 && drawnPx < 1.0;
+    float grow = subPixel ? 1.0 / drawnPx : 1.0;
+    vCoverage = subPixel ? drawnPx : 1.0;
+
     // Calculate offset in screen space
     // Half-width because we offset in both directions
-    vec2 offset = perpendicular * width * 0.5 * side;
+    vec2 offset = perpendicular * width * 0.5 * side * grow;
 
     // Apply screen-space sizing with perspective tapering
     // NOTE: Removed * vertexClip.w to enable perspective tapering
@@ -203,6 +241,7 @@ precision highp float;
 varying vec2 vUV;
 varying float vDistance;
 varying float vWorldSpaceLineWidth;  // World-space line width for patterns
+varying float vCoverage;
 
 // Uniforms
 uniform vec3 color;
@@ -213,7 +252,7 @@ void main() {
     // CustomLineRenderer only renders solid lines.
 
     // Simple solid line rendering
-    gl_FragColor = vec4(color, opacity);
+    gl_FragColor = vec4(color, opacity * vCoverage);
 }
 `;
         // Register in both stores
@@ -276,7 +315,89 @@ void main(void) {
             globalShaderStore.circularDotFragmentShader = circularDotFragmentShaderCode;
         }
 
+        moduleShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
+        moduleShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
+        if (globalShaderStore) {
+            globalShaderStore.edgeJoinVertexShader = EDGE_JOIN_VERTEX_SHADER;
+            globalShaderStore.edgeJoinFragmentShader = EDGE_JOIN_FRAGMENT_SHADER;
+        }
+
         this.shadersRegistered = true;
+    }
+
+    /**
+     * The mesh a batch of joined lines is drawn from: one instance per straight piece, joined to
+     * its neighbours at every corner by `edgeJoinShader`. `EdgeLineBatch` supplies the instances.
+     * A piece with no neighbours is the same rectangle the line renderer always drew, at the same
+     * width, so a straight edge looks exactly as it did.
+     * @param options - Width, colour, opacity, the width's unit and a dash or dot pattern.
+     * @param scene - The scene it is drawn in.
+     * @returns The template mesh with its material, marked `joinedLine` for `EdgeLineBatch`.
+     */
+    static createJoinedLineMesh(options: JoinedLineOptions, scene: Scene): Mesh {
+        this.registerShaders();
+
+        const mesh = new Mesh("joined-line", scene);
+        const vertexData = new VertexData();
+        vertexData.positions = [...JOIN_TEMPLATE_POSITIONS];
+        vertexData.indices = [...JOIN_TEMPLATE_INDICES];
+        vertexData.applyToMesh(mesh);
+
+        const defines = options.worldWidth === true ? ["#define WORLD_WIDTH"] : [];
+        const material = new ShaderMaterial(
+            "joinedLineMaterial",
+            scene,
+            { vertex: "edgeJoin", fragment: "edgeJoin" },
+            {
+                attributes: ["position", "pPrev", "pA", "pB", "pNext", "run"],
+                uniforms: [
+                    "world",
+                    "viewProjection",
+                    "projection",
+                    "resolution",
+                    "width",
+                    "miterLimit",
+                    "color",
+                    "opacity",
+                    "pattern",
+                ],
+                defines,
+            },
+        );
+
+        const opacity = options.opacity ?? 1;
+        const colorObj = Color3.FromHexString(options.color);
+        material.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
+        material.setFloat("width", options.width);
+        material.setFloat("opacity", opacity);
+        material.setFloat("miterLimit", EDGE_MITER_LIMIT);
+        const { pattern } = options;
+        // (element length, kind: 0 solid, 1 dash, 2 dot, half the width), read by the fragment shader.
+        const kind = pattern?.kind === "dash" ? 1 : 2;
+        material.setVector3(
+            "pattern",
+            pattern ? new Vector3(pattern.elementLength, kind, options.width / 2) : Vector3.Zero(),
+        );
+        // See create (issue #2894).
+        material.blockDirtyMechanism = true;
+        material.backFaceCulling = false;
+        this.resolutionTracked.add(material);
+        mesh.material = material;
+
+        // A translucent line is drawn in the transparent pass, as every line renderer before this
+        // one put it there; an opaque one blends in place, so a sub-pixel line's coverage shows.
+        if (opacity < 1) {
+            mesh.visibility = opacity;
+        }
+
+        mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
+        mesh.metadata = {
+            joinedLine: true,
+            pattern: pattern ? { elementLength: pattern.elementLength, count: pattern.count } : undefined,
+        };
+
+        return mesh;
     }
 
     /**
@@ -359,7 +480,7 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         material.diffuseColor = colorObj;
         material.emissiveColor = colorObj; // Make dots self-illuminated
-        material.alpha = options.opacity ?? 1.0;
+        material.alpha = options.opacity ?? 1;
         material.backFaceCulling = false;
 
         // Create a disc mesh for each dot position
@@ -408,6 +529,7 @@ void main(void) {
         const indices: number[] = [];
         const segmentStarts: number[] = [];
         const segmentEnds: number[] = [];
+        const buffers: VertexPairBuffers = { positions, directions, sides, distances, uvs, segmentStarts, segmentEnds };
 
         let cumulativeDistance = 0;
 
@@ -423,37 +545,11 @@ void main(void) {
             const segmentLength = direction.length();
 
             // Add start vertices (at p0)
-            this.addVertexPair(
-                positions,
-                directions,
-                sides,
-                distances,
-                uvs,
-                segmentStarts,
-                segmentEnds,
-                p0,
-                direction,
-                cumulativeDistance,
-                p0,
-                p1,
-            );
+            this.addVertexPair(buffers, p0, direction, cumulativeDistance, p0, p1);
 
             // Add end vertices (at p1)
             cumulativeDistance += segmentLength;
-            this.addVertexPair(
-                positions,
-                directions,
-                sides,
-                distances,
-                uvs,
-                segmentStarts,
-                segmentEnds,
-                p1,
-                direction,
-                cumulativeDistance,
-                p0,
-                p1,
-            );
+            this.addVertexPair(buffers, p1, direction, cumulativeDistance, p0, p1);
 
             // Add indices for two triangles forming a quad
             const baseIndex = i * 4; // 4 vertices per segment
@@ -600,13 +696,7 @@ void main(void) {
      * Vertices are positioned along the segment at the specified position
      * Both vertices store segment start/end to ensure consistent perpendicular calculation
      * Shader will offset them perpendicular based on 'side' attribute
-     * @param positions - Array to append vertex position data
-     * @param directions - Array to append vertex direction vectors
-     * @param sides - Array to append side indicators (-1 or +1)
-     * @param distances - Array to append cumulative distances along path
-     * @param uvs - Array to append UV coordinates
-     * @param segmentStarts - Array to append segment start positions
-     * @param segmentEnds - Array to append segment end positions
+     * @param buffers - The vertex arrays to append to
      * @param actualPosition - Actual 3D position of this vertex
      * @param direction - Direction vector for this segment
      * @param distance - Cumulative distance at this position
@@ -614,23 +704,18 @@ void main(void) {
      * @param segmentEnd - End position of the current segment
      */
     private static addVertexPair(
-        positions: number[],
-        directions: number[],
-        sides: number[],
-        distances: number[],
-        uvs: number[],
-        segmentStarts: number[],
-        segmentEnds: number[],
+        buffers: VertexPairBuffers,
         actualPosition: Vector3, // Actual 3D position (start or end)
         direction: Vector3,
         distance: number,
         segmentStart: Vector3, // Segment start for consistent perpendicular
         segmentEnd: Vector3, // Segment end for consistent perpendicular
     ): void {
+        const { positions, directions, sides, distances, uvs, segmentStarts, segmentEnds } = buffers;
         // Left vertex (side = -1)
         positions.push(actualPosition.x, actualPosition.y, actualPosition.z);
         directions.push(direction.x, direction.y, direction.z);
-        sides.push(-1.0);
+        sides.push(-1);
         distances.push(distance);
         uvs.push(0, 0); // UV.y = 0 for left side
         segmentStarts.push(segmentStart.x, segmentStart.y, segmentStart.z);
@@ -639,11 +724,32 @@ void main(void) {
         // Right vertex (side = +1)
         positions.push(actualPosition.x, actualPosition.y, actualPosition.z);
         directions.push(direction.x, direction.y, direction.z);
-        sides.push(1.0);
+        sides.push(1);
         distances.push(distance);
         uvs.push(0, 1); // UV.y = 1 for right side (changed from 0)
         segmentStarts.push(segmentStart.x, segmentStart.y, segmentStart.z);
         segmentEnds.push(segmentEnd.x, segmentEnd.y, segmentEnd.z);
+    }
+
+    /**
+     * Blend a line over what is already drawn, in whichever pass draws it.
+     *
+     * A sub-pixel line is drawn one pixel wide at a fraction of its opacity (the vertex shader),
+     * and that fraction only shows if the fragment blends. An opaque line stays in the opaque
+     * pass, where Babylon draws with blending off, so this turns blending on for this mesh's own
+     * draw and off again after it. Moving the line to the transparent pass instead would reorder
+     * it against labels and every other transparent mesh. A fragment of alpha 1 -- every line of
+     * one pixel or more at full opacity -- blends to exactly the colour it wrote before.
+     * @param mesh - The line mesh.
+     */
+    private static blendInPlace(mesh: Mesh): void {
+        const engine = mesh.getScene().getEngine();
+        mesh.onBeforeBindObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_COMBINE, true);
+        });
+        mesh.onAfterRenderObservable.add(() => {
+            engine.setAlphaMode(Constants.ALPHA_DISABLE, true);
+        });
     }
 
     /**
@@ -716,7 +822,7 @@ void main(void) {
         shaderMaterial.setFloat("width", options.width);
 
         // Set opacity
-        shaderMaterial.setFloat("opacity", options.opacity ?? 1.0);
+        shaderMaterial.setFloat("opacity", options.opacity ?? 1);
 
         // NOTE: All patterns are handled by PatternedLineMesh
         // CustomLineRenderer only renders solid lines
@@ -724,6 +830,11 @@ void main(void) {
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // Blocked for the material's life, as in FilledArrowRenderer.applyShader: a ShaderMaterial
+        // re-derives its defines on every readiness check, and everything set on it later is a
+        // uniform. Unblocked, the setter below walks every mesh in the scene, so a line in a new
+        // colour cost the size of the graph (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         // Disable backface culling for double-sided rendering
         shaderMaterial.backFaceCulling = false;
 
@@ -733,6 +844,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }
@@ -831,16 +943,18 @@ void main(void) {
         const colorObj = Color3.FromHexString(options.color);
         shaderMaterial.setVector3("color", new Vector3(colorObj.r, colorObj.g, colorObj.b));
         shaderMaterial.setFloat("width", options.width);
-        shaderMaterial.setFloat("opacity", options.opacity ?? 1.0);
+        shaderMaterial.setFloat("opacity", options.opacity ?? 1);
 
         // Pattern uniforms (arrows are always solid)
         shaderMaterial.setFloat("pattern", 0); // 0 = solid
-        shaderMaterial.setFloat("dashLength", 3.0); // Default (unused for solid)
-        shaderMaterial.setFloat("gapLength", 2.0); // Default (unused for solid)
+        shaderMaterial.setFloat("dashLength", 3); // Default (unused for solid)
+        shaderMaterial.setFloat("gapLength", 2); // Default (unused for solid)
 
         // Register material for its own scene's resolution updates
         this.resolutionTracked.add(shaderMaterial);
 
+        // See create (issue #2894).
+        shaderMaterial.blockDirtyMechanism = true;
         shaderMaterial.backFaceCulling = false;
         mesh.material = shaderMaterial;
 
@@ -848,6 +962,7 @@ void main(void) {
         // Line meshes can have incorrect bounding boxes due to screen-space expansion,
         // causing frustum culling to incorrectly hide lines that are actually on screen
         mesh.alwaysSelectAsActiveMesh = true;
+        this.blendInPlace(mesh);
 
         return mesh;
     }

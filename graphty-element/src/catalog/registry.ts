@@ -37,7 +37,7 @@
 
 import { GraphtyError } from "../errors";
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
-import { type AlgorithmDescriptor, type AlgorithmKey, KNOWN_ALGORITHMS } from "./types";
+import { type AlgorithmDescriptor, type AlgorithmKey, KNOWN_ALGORITHMS, type SuggestedName } from "./types";
 
 /**
  * A registered algorithm: what the catalogue publishes about it, and where its class lives.
@@ -80,6 +80,11 @@ export interface RegisteredAlgorithm {
      * field's whole purpose.
      */
     readonly version?: string;
+    /**
+     * The name a run's result is given, from the run's option values, read from
+     * `static suggestedName`. Undefined, or absent, names the result after the algorithm key.
+     */
+    readonly suggestedName?: (options: Readonly<Record<string, unknown>>) => SuggestedName | undefined;
 }
 
 /**

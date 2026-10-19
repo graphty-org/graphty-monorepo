@@ -1,0 +1,13 @@
+{
+    "description": "Gzip budget in bytes for each part of @graphty/cytoscape-extensions as a browser application bundles it (scripts/size.mjs builds and measures them). Each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes.",
+    "headroomPercent": 10,
+    "minimumHeadroomBytes": 1024,
+    "parts": {
+        "main entry (loaded up front)": 135404,
+        "file formats, all of them (on the first graphtyImport or graphtyExport)": 412822,
+        "generators (on the first graphtyGenerate or graphtyDataset)": 23862,
+        "WebGPU code (on the first GPU-eligible call)": 117298,
+        "everything (every chunk of the build)": 688325,
+        "script-tag bundle (dist/cytoscape-extensions.bundle.js, without the file formats)": 274400
+    }
+}

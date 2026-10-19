@@ -25,6 +25,7 @@ export type {
     AttributeDescriptor,
     AttributeType,
     Binding,
+    BindingStop,
     CameraDescriptor,
     CameraId,
     CatalogApi,
@@ -42,6 +43,7 @@ export type {
     FieldInterpretation,
     FormatDescriptor,
     FormatId,
+    FormatStyles,
     FunctionDescriptor,
     GraphtyErrorCode,
     KnownAlgorithm,
@@ -54,6 +56,9 @@ export type {
     LayoutId,
     LogSinkDescriptor,
     LogSinkId,
+    Measurement,
+    MeasurementDeclaration,
+    MeasurementSource,
     MetricAvailability,
     NodeId,
     OptionBound,
@@ -74,6 +79,7 @@ export type {
     Selector,
     StaticStyle,
     StyleDocument,
+    SuggestedName,
     ThemeDescriptor,
 } from "./types";
 export {

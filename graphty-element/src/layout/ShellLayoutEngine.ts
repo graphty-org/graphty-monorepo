@@ -1,6 +1,6 @@
 import { type F32, INVALID_INDEX } from "@graphty/graph-format";
 import { shell } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const shellLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -36,6 +37,7 @@ const shellLayoutOptionsSchema = defineOptions({
 
 const ShellLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     nlist: z.array(z.array(z.number())).or(z.null()).default(null),
     dim: z.number().default(2),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -51,8 +53,6 @@ export class ShellLayout extends SnapshotLayoutEngine {
     static type = "shell";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = shellLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: ShellLayoutConfigType;
 
@@ -105,7 +105,7 @@ export class ShellLayout extends SnapshotLayoutEngine {
                 center: this.config.center ?? undefined,
                 dim: layoutDim(this.config.dim),
             }),
-            ShellLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

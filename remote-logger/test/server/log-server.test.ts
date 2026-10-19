@@ -164,6 +164,28 @@ describe("Log Server", () => {
         expect(data.logs).toHaveLength(2);
     });
 
+    test("answers 400 to a non-numeric ?n= instead of querying NaN logs", async () => {
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
+        await waitForServer(server);
+
+        for (const bad of ["abc", "0", "-2", "1.5"]) {
+            const response = await fetch(`http://127.0.0.1:${port}/logs/recent?n=${bad}`);
+            expect(response.status).toBe(400);
+            const data = await response.json();
+            expect(data.error).toBe(`n must be an integer of at least 1, got "${bad}"`);
+        }
+    });
+
+    test("uses the default of 50 for a missing or empty ?n=", async () => {
+        server = startLogServer({ port, host: "127.0.0.1", quiet: true });
+        await waitForServer(server);
+
+        for (const query of ["", "?n="]) {
+            const response = await fetch(`http://127.0.0.1:${port}/logs/recent${query}`);
+            expect(response.status).toBe(200);
+        }
+    });
+
     test("should handle GET /logs/errors", async () => {
         server = startLogServer({ port, host: "127.0.0.1", quiet: true });
         await waitForServer(server);
@@ -217,8 +239,8 @@ describe("Log Server", () => {
 
         // Verify logs are cleared
         const logsResponse = await fetch(`http://127.0.0.1:${port}/logs`);
-        const data = await logsResponse.json();
-        expect(Object.keys(data)).toHaveLength(0);
+        const data: unknown = await logsResponse.json();
+        expect(data).toEqual({});
     });
 
     test("should handle GET /health", async () => {
@@ -296,13 +318,12 @@ describe("Log Server", () => {
             body: JSON.stringify(logData),
         });
 
-        // Give time for file write
-        await new Promise((resolve) => setTimeout(resolve, 100));
-
-        // Verify file was written
-        expect(fs.existsSync(logFilePath)).toBe(true);
-        const content = fs.readFileSync(logFilePath, "utf-8");
-        expect(content).toContain("File log test");
+        // The server appends through a write stream, so the line lands after the response.
+        // Wait for it, under the test's own time limit.
+        const read = (): string => (fs.existsSync(logFilePath) ? fs.readFileSync(logFilePath, "utf-8") : "");
+        while (!read().includes("File log test")) {
+            await new Promise((resolve) => setImmediate(resolve));
+        }
 
         // Cleanup
         fs.unlinkSync(logFilePath);

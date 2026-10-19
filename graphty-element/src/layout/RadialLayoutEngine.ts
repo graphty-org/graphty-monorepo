@@ -1,6 +1,6 @@
 import type { F32 } from "@graphty/graph-format";
 import { radial } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,13 +15,14 @@ const radialLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     root: {
         schema: z.union([z.string(), z.number()]).nullable().default(null),
         meta: {
             label: "Root Node",
-            description: "The node at the centre; empty picks the node with the most edges",
+            description: "The node at the center; empty picks the node with the most edges",
         },
     },
     scale: {
@@ -36,6 +37,7 @@ const radialLayoutOptionsSchema = defineOptions({
 
 const RadialLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(100),
     root: z.union([z.string(), z.number()]).nullable().default(null),
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
@@ -50,8 +52,6 @@ export class RadialLayout extends SnapshotLayoutEngine {
     static type = "radial";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 100;
     protected readonly dimensions: 2 | 3;
     config: RadialLayoutConfigType;
 
@@ -99,7 +99,7 @@ export class RadialLayout extends SnapshotLayoutEngine {
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
             }),
-            RadialLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

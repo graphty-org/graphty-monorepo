@@ -8,11 +8,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { chromium } from "playwright";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { withRetries } from "../trusted/lib/github.mjs";
 import { startApp, world } from "./faults.mjs";
-import { FIXTURE, isolateGit, job, makeRepo } from "./helpers.mjs";
+import { FIXTURE, interceptedPage, isolateGit, job, makeRepo } from "./helpers.mjs";
 
 const TOKEN = "t".repeat(43);
 const OTHER = "4".repeat(40);
@@ -21,18 +21,12 @@ const BUTTON = "button--primary.dark.png";
 const BUTTON_BASELINE = join(FIXTURE, "compact-mantine/baselines", BUTTON);
 const BUTTON_BASELINE_HASH = CM_ITEMS.find((i) => i.file === BUTTON).baseline;
 
-// Each scenario starts a server on a new repository, opens a Chromium tab and walks the page to
-// the screen it tests: about 0.5 to 1 s unloaded and 1.5 s on a CI runner before the scenario's
-// own steps, some of which wait on purpose (3.5 s for a late render, 60 items for the image
-// cache). Measured on one CPU shared with a busy loop, the scenarios take 3 to 6 s; Vitest's
-// default 5 s is sized for unit tests.
-vi.setConfig({ testTimeout: 20000 });
-
 let browser;
 let s;
 let pages = [];
 let page;
 let dialogs;
+const inFlight = new Map();
 
 beforeAll(async () => {
     isolateGit();
@@ -56,8 +50,22 @@ afterEach(async () => {
  * @returns {Promise<import("playwright").Page>} the tab
  */
 async function tab(hash = "") {
-    const p = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+    const p = await interceptedPage(browser, { viewport: { width: 1000, height: 800 } });
     pages.push(p);
+    // Every write the tab sends (a decision, an Undo, a mark), counted until it is answered.
+    const writes = { open: 0, idle: [] };
+    inFlight.set(p, writes);
+    const isWrite = (req) => req.method() !== "GET";
+    p.on("request", (req) => {
+        writes.open += isWrite(req) ? 1 : 0;
+    });
+    const answered = (req) => {
+        if (isWrite(req) && --writes.open === 0) {
+            writes.idle.splice(0).forEach((resolve) => resolve());
+        }
+    };
+    p.on("requestfinished", answered);
+    p.on("requestfailed", answered);
     await p.exposeFunction("asked", (message) => {
         dialogs.push(message);
         return !message.startsWith("Finish");
@@ -101,7 +109,8 @@ async function open(r, w, { gh = w.gh, hash = "" } = {}) {
  */
 async function review(n = 0, p = page) {
     await p.getByRole("button", { name: "Review", exact: true }).nth(n).click();
-    await p.locator(".component").first().waitFor();
+    // A grid of identical changes shows them as one cluster of similar changes, with no component.
+    await p.locator(".component, .cluster").first().waitFor();
 }
 
 // Item numbers: 1 menu--open (failed), 2 button--primary.dark (changed), 3 slider--sizes
@@ -118,7 +127,19 @@ const ready = (p = page) => p.locator("#stage[data-ready]").waitFor();
 const decisions = async (project = "compact-mantine", id = "123") =>
     (await s.api("GET", `/api/pr/${id}/${project}`)).body.decisions;
 const boxCount = () => page.locator("#box-count").textContent();
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Waits until the tab has handled every input already sent to it, and the server has answered
+ * every write the tab sent: what a press that wrongly decided would have needed to land.
+ * @param {import("playwright").Page} [p] the tab
+ */
+async function settled(p = page) {
+    // A press's handler, and the write and the question it starts, run before the tab's next task.
+    await p.evaluate(() => new Promise((resolve) => globalThis.setTimeout(resolve, 0)));
+    const writes = inFlight.get(p);
+    if (writes.open > 0) {
+        await new Promise((resolve) => writes.idle.push(resolve));
+    }
+}
 
 /**
  * Run 1001 on `head`, whose capture of the button is its baseline's bytes: no changed box.
@@ -199,9 +220,9 @@ describe("review page: stale caches", () => {
         // The failure reads as text with a Retry, and Accept waits for both images.
         await expect.poll(() => page.locator("#stage p.error").textContent()).toMatch(/\S.*Retry$/);
         expect(await page.locator("#accept").getAttribute("class")).toContain("loading");
-        await page.keyboard.press("j");
         await page.keyboard.press("k");
-        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count(), { timeout: 3000 }).toBe(1);
+        await page.keyboard.press("j");
+        await expect.poll(() => page.locator('#stage img[alt^="baseline of"]').count()).toBe(1);
     });
 
     // Only the most recently used images and diffs are kept; older object URLs are revoked.
@@ -224,7 +245,7 @@ describe("review page: stale caches", () => {
         );
         s = await startApp(r, { gh: w.gh, token: TOKEN });
         dialogs = [];
-        page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+        page = await interceptedPage(browser, { viewport: { width: 1000, height: 800 } });
         pages.push(page);
         // Counts the object URLs the page holds: created and not yet revoked.
         await page.addInitScript(() => {
@@ -248,7 +269,7 @@ describe("review page: stale caches", () => {
         // Each step waits for the page to show item n with its box count, checked every frame:
         // expect.poll's 50 ms interval alone would make the 59 steps take about 3 s.
         for (let n = 2; n <= items.length; n++) {
-            await page.keyboard.press("j");
+            await page.keyboard.press("k");
             await page.waitForFunction((n) => {
                 const { document } = globalThis;
                 return (
@@ -257,19 +278,23 @@ describe("review page: stale caches", () => {
                 );
             }, n);
         }
-        // At most the 50 images kept, plus the grid's thumbnails (one per tile it loaded).
+        // At most the 50 images kept, plus the grid's thumbnails (one per tile it loaded), plus the
+        // tab's icon with the count of pull requests waiting (one, replaced in place).
         const thumbs = await page.evaluate(
             () =>
                 globalThis.performance.getEntriesByType("resource").filter((e) => e.name.includes("/api/thumb/"))
                     .length,
         );
-        expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(50 + thumbs);
+        expect(await page.evaluate(() => globalThis.liveUrls())).toBeLessThanOrEqual(50 + thumbs + 1);
     });
 });
 
 describe("review page: decisions", () => {
-    // A double click's second click, landing on the next item's Accept, is ignored.
-    it("A double click on Accept, or a held A key, accepts the next items without showing them", async () => {
+    /**
+     * Double-clicks Accept on item 2, the second click landing once item 3 is on the screen.
+     * @param {number} [rate] how many times slower the tab's CPU runs (Chromium's throttling)
+     */
+    async function doubleClickAccept(rate = 1) {
         const r = makeRepo();
         await open(r, world(r));
         await review();
@@ -277,14 +302,28 @@ describe("review page: decisions", () => {
         // Accept waits for both images.
         await page.locator('#stage img[alt^="new image of"]').waitFor();
         await ready();
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate });
         const box = await page.locator("#accept").boundingBox();
-        const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
-        await page.mouse.click(x, y);
-        await sleep(150);
-        await page.mouse.click(x, y);
-        await sleep(500);
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+        // The second click of the same double click (the browser counts it: detail 2) lands as
+        // the next item shows, on its Accept, however long after the first the page runs it.
+        await page.locator("#position", { hasText: /^3 of / }).waitFor();
+        await page.mouse.down({ clickCount: 2 });
+        await page.mouse.up({ clickCount: 2 });
+        await settled();
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
         expect(await decisions()).not.toHaveProperty("slider--sizes.png");
-    });
+    }
+
+    // A double click's second click, landing on the next item's Accept, is ignored.
+    it("A double click on Accept, or a held A key, accepts the next items without showing them", () =>
+        doubleClickAccept());
+
+    // The same on a page running 20 times slower: dropped by which item the double click began
+    // on, not by how soon after it the page gets to the second click.
+    it("A double click on Accept, or a held A key, accepts the next items without showing them (a slow page)", () =>
+        doubleClickAccept(20));
 
     // A held decision key decides once.
     it("A double click on Accept, or a held A key, accepts the next items without showing them (a held A key)", async () => {
@@ -297,7 +336,7 @@ describe("review page: decisions", () => {
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^3 of /);
         // The key is still held: the browser repeats it.
         await page.keyboard.down("a");
-        await sleep(500);
+        await settled();
         await page.keyboard.up("a");
         expect(Object.keys(await decisions())).toEqual([BUTTON]);
     });
@@ -318,11 +357,12 @@ describe("review page: decisions", () => {
         await expect.poll(async () => Object.keys(await decisions()).length).toBe(0);
         await other.locator(`.tile[data-file="${BUTTON}"]`).click();
         await other.locator("#position").waitFor();
-        await sleep(300);
+        await settled(other);
         expect(await decisions()).toEqual({});
     });
 
-    // Moving to another item forgets an abandoned Exclude, and Enter alone decides nothing.
+    // The reason box holds the keys while it is open, and a cancelled Exclude is gone: nothing
+    // typed after it decides anything.
     it("Enter in the reason box can run an earlier, abandoned Exclude", async () => {
         const r = makeRepo();
         await open(r, world(r));
@@ -330,14 +370,18 @@ describe("review page: decisions", () => {
         await openStory(2);
         await ready();
         await page.keyboard.press("e");
+        await page.locator("#reason:focus").waitFor();
+        await page.keyboard.press("k");
+        expect(await page.locator("#position").textContent()).toMatch(/^2 of /);
+        await page.keyboard.press("Escape");
         await expect
             .poll(() => page.locator("#status").textContent())
-            .toBe("Type the reason, then press Enter to exclude.");
+            .toBe("Exclude cancelled: #2 is still undecided.");
         await page.getByRole("button", { name: "Next", exact: true }).click();
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^3 of /);
-        await page.locator("#note").fill("too tall");
-        await page.locator("#note").press("Enter");
-        await sleep(300);
+        await page.keyboard.type("too tall");
+        await page.keyboard.press("Enter");
+        await settled();
         expect(dialogs.filter((d) => d.startsWith("Exclude"))).toEqual([]);
         expect(await decisions()).toEqual({});
     });
@@ -363,18 +407,42 @@ describe("review page: rendering and routing", () => {
             items: CM_ITEMS.map((i) => (i.file === BUTTON ? { ...i, threshold: 1 } : i)),
         };
         await open(r, w);
-        await page.route("**/slider--sizes.png", async (route) => {
-            await sleep(1000);
+        // Item 3's images are held until the page has gone back to item 2.
+        let release;
+        const held = new Promise((resolve) => (release = resolve));
+        await page.route("**/api/img/**/slider--sizes.png", async (route) => {
+            await held;
             return route.continue().catch(() => {});
         });
         await review();
+        // With Focus on (O), showing item 2 works out item 3's diff ahead, for its focus point: the
+        // diff a late render of item 3 waits on is computed while item 2 shows.
+        await openStory(1);
+        await page.keyboard.press("o");
+        await page.keyboard.press("Escape");
         await openStory(2);
         await expect.poll(boxCount).toBe("No changed area at this threshold");
-        await page.keyboard.press("j");
         await page.keyboard.press("k");
+        await page.keyboard.press("j");
         await expect.poll(() => page.locator("#position").textContent()).toMatch(/^2 of /);
-        // Item 3's two images arrive one after the other, a second each.
-        await sleep(3500);
+        await page
+            .locator("#box-count", { hasText: "No changed area at this threshold" })
+            .waitFor({ state: "attached" });
+        // The page reads an image's pixels only to diff it: once both of item 3's are read, its
+        // diff is done, and a late render waiting on it goes on before the page's next task.
+        await page.evaluate(() => {
+            const proto = globalThis.OffscreenCanvasRenderingContext2D.prototype;
+            const read = proto.getImageData;
+            globalThis.pixelReads = 0;
+            proto.getImageData = function (...args) {
+                globalThis.pixelReads++;
+                return read.apply(this, args);
+            };
+        });
+        release();
+        await page.waitForFunction(() => globalThis.pixelReads >= 2);
+        await page.evaluate(() => new Promise((resolve) => globalThis.setTimeout(resolve, 0)));
+        expect(await page.locator("#position").textContent()).toMatch(/^2 of /);
         expect(await boxCount()).toBe("No changed area at this threshold");
     });
 
@@ -393,9 +461,12 @@ describe("review page: rendering and routing", () => {
         // the superseded route has had its answer.
         let asked = 0;
         let answered = 0;
+        let pressed;
+        const pressesDone = new Promise((resolve) => (pressed = resolve));
         await page.route("**/api/prs?*", async (route) => {
             asked++;
-            await sleep(700);
+            // Answered only once Forward has been pressed: the route is superseded by then.
+            await pressesDone;
             const decided = await s.api("POST", "/api/decide", {
                 id: "123",
                 project: "compact-mantine",
@@ -407,23 +478,33 @@ describe("review page: rendering and routing", () => {
             await route.continue().catch(() => {});
             answered++;
         });
-        // Back twice and Forward once, without waiting for any to land: story -> grid -> targets,
-        // whose route waits, -> grid again before that wait ends.
+        // Back twice and Forward once: story -> grid -> targets, whose route waits, -> grid again
+        // before that wait ends. Each press goes once the one before it has landed (its popstate,
+        // after the page's own handler ran): Chromium drops a Back or Forward asked for while
+        // another is still in flight, which left the page on the targets screen (#2447).
         await page.evaluate(() => {
-            globalThis.history.back();
-            setTimeout(() => globalThis.history.back(), 50);
-            setTimeout(() => globalThis.history.forward(), 150);
+            globalThis.pops = 0;
+            globalThis.addEventListener("popstate", () => globalThis.pops++);
         });
+        const press = async (step, pops) => {
+            await page.evaluate((s) => globalThis.history[s](), step);
+            await page.waitForFunction((n) => globalThis.pops >= n, pops);
+        };
+        await press("back", 1);
+        await press("back", 2);
+        await expect.poll(() => asked).toBe(1);
+        await press("forward", 3);
+        pressed();
         // The grid is shown and the targets route has its answer; a superseded route that went on
-        // would now draw the targets or push an entry, within a moment of its answer. The wait is
-        // counted from the answer, not from the presses, so a slow machine waits longer instead of
-        // running out of the test's time.
+        // would now draw the targets or push an entry, within a moment of its answer. The wait has
+        // no limit of its own, so a slow machine waits longer instead of failing early.
         await expect
-            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0, {
-                timeout: 8000,
-            })
+            .poll(async () => asked >= 1 && answered === asked && (await page.locator(".component").count()) > 0)
             .toBe(true);
-        await sleep(500);
+        // The superseded route has read its answer and handled it.
+        await page.evaluate(
+            () => new Promise((resolve) => globalThis.requestAnimationFrame(() => globalThis.setTimeout(resolve, 0))),
+        );
         const after = await page.evaluate(() => ({
             length: globalThis.history.length,
             hash: globalThis.location.hash,
@@ -460,7 +541,7 @@ describe("review page: rendering and routing", () => {
         const w = world(r);
         s = await startApp(r, { gh: w.gh, token: TOKEN });
         dialogs = [];
-        page = await browser.newPage({ viewport: { width: 1000, height: 800 } });
+        page = await interceptedPage(browser, { viewport: { width: 1000, height: 800 } });
         pages.push(page);
         let calls = 0;
         const running = {
@@ -480,7 +561,7 @@ describe("review page: rendering and routing", () => {
             }),
         );
         await page.goto(`${s.origin}/#token=${TOKEN}`);
-        await expect.poll(() => calls, { timeout: 5000 }).toBeGreaterThan(2);
+        await expect.poll(() => calls).toBeGreaterThan(2);
         await expect.poll(() => page.locator("body").textContent()).toMatch(/interrupted|restarted/i);
     });
 });

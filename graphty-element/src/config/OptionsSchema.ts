@@ -12,7 +12,7 @@
  * - Consistent discovery APIs
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * UI metadata for an option (not validation - that's Zod's job)
@@ -226,4 +226,3 @@ export function getOptionsGrouped(optionsSchema: OptionsSchema): Map<string, Opt
 
     return groups;
 }
-

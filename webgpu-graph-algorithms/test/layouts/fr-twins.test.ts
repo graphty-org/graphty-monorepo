@@ -27,7 +27,6 @@ import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const GRAPHS: readonly ParityGraph[] = ["karate", "random1k"];
 /** Spec 12.2's second pass: acquire() then defaults to subgroups: false, so both contexts are the workgroup twin and the twin axis is vacuous here (a policy skip, not a wrong-result skip). */
 const NO_SUBGROUPS_PASS = process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1";
@@ -61,73 +60,65 @@ describe("FR subgroup twins in-process (spec 11.3)", () => {
     });
 
     for (const graph of GRAPHS) {
-        it(
-            `${graph}: every stage agrees between the twins within the traced tolerances, each twice bitwise; K2's attraction bitwise`,
-            async (t) => {
-                requireGpu(t);
-                if (NO_SUBGROUPS_PASS) {
-                    t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                    return;
-                }
-                const s = paritySnapshot(graph, gpuScale(), false);
-                try {
-                    const start = startPositions(s, FR_BASE_OPTIONS, false);
-                    const a = await captureFrStages(withSubgroups, s, start, FR_BASE_OPTIONS, null);
-                    const a2 = await captureFrStages(withSubgroups, s, start, FR_BASE_OPTIONS, null);
-                    const b = await captureFrStages(withoutSubgroups, s, start, FR_BASE_OPTIONS, null);
-                    const b2 = await captureFrStages(withoutSubgroups, s, start, FR_BASE_OPTIONS, null);
-                    for (const key of FR_STAGE_KEYS) {
-                        expectBitwiseEqual(a[key].values, a2[key].values, `${graph}/${key}: feature run 1 vs run 2`);
-                        expectBitwiseEqual(b[key].values, b2[key].values, `${graph}/${key}: workgroup run 1 vs run 2`);
-                        const err = stageError(a[key].vector, a[key].values, b[key].values);
-                        const report: CheckReport = {
-                            worst: ratioOf(err.rel, frTolerance(TWIN_TOLERANCE[key]).value),
-                            worstLabel: `${graph}/${key}`,
-                            samples: a[key].values.length,
-                        };
-                        console.warn(
-                            `[fr-twins] ${graph}/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
-                        );
-                        assertCheckPasses(report);
-                        if (key === "attraction") {
-                            expectBitwiseEqual(a[key].values, b[key].values, `${graph}/${key}: no twin, bitwise`);
-                        }
+        it(`${graph}: every stage agrees between the twins within the traced tolerances, each twice bitwise; K2's attraction bitwise`, async (t) => {
+            requireGpu(t);
+            if (NO_SUBGROUPS_PASS) {
+                t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+                return;
+            }
+            const s = paritySnapshot(graph, gpuScale(), false);
+            try {
+                const start = startPositions(s, FR_BASE_OPTIONS, false);
+                const a = await captureFrStages(withSubgroups, s, start, FR_BASE_OPTIONS, null);
+                const a2 = await captureFrStages(withSubgroups, s, start, FR_BASE_OPTIONS, null);
+                const b = await captureFrStages(withoutSubgroups, s, start, FR_BASE_OPTIONS, null);
+                const b2 = await captureFrStages(withoutSubgroups, s, start, FR_BASE_OPTIONS, null);
+                for (const key of FR_STAGE_KEYS) {
+                    expectBitwiseEqual(a[key].values, a2[key].values, `${graph}/${key}: feature run 1 vs run 2`);
+                    expectBitwiseEqual(b[key].values, b2[key].values, `${graph}/${key}: workgroup run 1 vs run 2`);
+                    const err = stageError(a[key].vector, a[key].values, b[key].values);
+                    const report: CheckReport = {
+                        worst: ratioOf(err.rel, frTolerance(TWIN_TOLERANCE[key]).value),
+                        worstLabel: `${graph}/${key}`,
+                        samples: a[key].values.length,
+                    };
+                    console.warn(
+                        `[fr-twins] ${graph}/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)}`,
+                    );
+                    assertCheckPasses(report);
+                    if (key === "attraction") {
+                        expectBitwiseEqual(a[key].values, b[key].values, `${graph}/${key}: no twin, bitwise`);
                     }
-                } finally {
-                    withSubgroups.release(s);
-                    withoutSubgroups.release(s);
                 }
-            },
-            CASE_TIMEOUT,
-        );
+            } finally {
+                withSubgroups.release(s);
+                withoutSubgroups.release(s);
+            }
+        });
     }
 
-    it(
-        "writes the workgroup twin's K3 force, K5 positions, K5 partials and K1 state of the UNSCALED random1k and of karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)",
-        async (t) => {
-            requireGpu(t);
-            const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
-            const members: readonly {
-                readonly graph: ParityGraph;
-                readonly fixtures: Readonly<Record<FrStageKey, FrNoiseFixtureName>>;
-            }[] = [
-                { graph: "random1k", fixtures: FR_NOISE_FIXTURES },
-                { graph: "karate", fixtures: FR_KARATE_FIXTURES },
-            ];
-            for (const m of members) {
-                const s = paritySnapshot(m.graph, 1, false);
-                try {
-                    const start = startPositions(s, FR_BASE_OPTIONS, false);
-                    const capture = await captureFrStages(withoutSubgroups, s, start, FR_BASE_OPTIONS, null);
-                    for (const key of TWIN_MEMBERS) {
-                        const { kernel, fixture } = m.fixtures[key];
-                        writeNoiseFixture(kernel, fixture, twinClass, capture[key].values, "f32");
-                    }
-                } finally {
-                    withoutSubgroups.release(s);
+    it("writes the workgroup twin's K3 force, K5 positions, K5 partials and K1 state of the UNSCALED random1k and of karate as `<class>-no-subgroups` noise fixtures (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+        requireGpu(t);
+        const twinClass = `${adapterClass(withoutSubgroups.caps)}${TWIN_SUFFIX}`;
+        const members: readonly {
+            readonly graph: ParityGraph;
+            readonly fixtures: Readonly<Record<FrStageKey, FrNoiseFixtureName>>;
+        }[] = [
+            { graph: "random1k", fixtures: FR_NOISE_FIXTURES },
+            { graph: "karate", fixtures: FR_KARATE_FIXTURES },
+        ];
+        for (const m of members) {
+            const s = paritySnapshot(m.graph, 1, false);
+            try {
+                const start = startPositions(s, FR_BASE_OPTIONS, false);
+                const capture = await captureFrStages(withoutSubgroups, s, start, FR_BASE_OPTIONS, null);
+                for (const key of TWIN_MEMBERS) {
+                    const { kernel, fixture } = m.fixtures[key];
+                    writeNoiseFixture(kernel, fixture, twinClass, capture[key].values, "f32");
                 }
+            } finally {
+                withoutSubgroups.release(s);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        }
+    });
 });

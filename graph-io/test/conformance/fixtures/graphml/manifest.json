@@ -983,11 +983,11 @@
       "origin": "https://github.com/igraph/igraph/blob/main/tests/regression/invalid3.graphml",
       "license": "GPL-2.0-or-later (test-only)",
       "version": "main, retrieved 2026-09-23",
-      "exercises": "igraph fuzz: not well-formed XML must give ImportError, never a crash",
+      "exercises": "igraph fuzz: an empty file (not well-formed XML) must give ImportError, never a crash; E_EMPTY_INPUT is the one code every importer gives an empty input",
       "oracle": "spec",
       "expected": {
         "outcome": "fail",
-        "code": "E_XML_SYNTAX"
+        "code": "E_EMPTY_INPUT"
       }
     },
     {
@@ -1999,8 +1999,7 @@
           "E_GRAPHML_KEY_FOR_INVALID",
           "W_GRAPHML_KEY_DOMAIN"
         ]
-      },
-      "knownFailure": "key for=\"graphml\" is rejected as an error (sources.md 2.4, 10)"
+      }
     },
     {
       "file": "authored/yed-classic.graphml",
@@ -2023,8 +2022,7 @@
         "forbidCodes": [
           "E_GRAPHML_KEY_FOR_INVALID"
         ]
-      },
-      "knownFailure": "key for=\"graphml\" is rejected as an error (sources.md 2.4, 10)"
+      }
     },
     {
       "file": "authored/whitespace-typed.graphml",

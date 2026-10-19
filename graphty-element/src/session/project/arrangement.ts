@@ -22,6 +22,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { NodeId } from "../../catalog/types";
+import { otherIdSpelling, rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { type ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "../../data/positions";
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { PositionEntry } from "../types";
@@ -177,10 +178,10 @@ function rowOf(snapshot: GraphSnapshot, id: NodeId, hint: number): number {
 }
 
 /**
- * The arrangement of one session: the current capture, the generation of the lane it matches,
+ * The arrangement of one session: the current capture, the change count of the lane it matches,
  * the `arrangement` and `pins` hooks, and the `positions.*` commands' writes.
  *
- * Its invariant: while the lane's generation equals the one recorded here, the lane holds the
+ * Its invariant: while the lane's change count equals the one recorded here, the lane holds the
  * arrangement of the history's cursor, A(cursor). A seal, a restore and a `positions.set` keep it;
  * a layout write breaks it until the next seal.
  */
@@ -218,6 +219,18 @@ export class Arrangement {
         lane.register("arrangement", () => {
             this.apply(this.lane.cause !== "command");
         });
+        // The layout turning 2D puts every node on the plane, as a restore into 2D does in `apply`.
+        lane.register("layout", (_rendered, target) => {
+            const { source } = this;
+            if (
+                target.layout?.dimension === "2d" &&
+                source !== null &&
+                onPlane(source.positions.view(source.snapshot().nodeCount))
+            ) {
+                source.positions.moved();
+                this.engine?.loadArrangement(this.lane.cause !== "command", false);
+            }
+        });
     }
 
     /**
@@ -227,7 +240,7 @@ export class Arrangement {
      */
     bind(source: LaneSource | null): void {
         this.source = source;
-        this.captured = source?.positions.generation ?? 0;
+        this.captured = source?.positions.changes ?? 0;
         this.exact = null;
     }
 
@@ -236,7 +249,7 @@ export class Arrangement {
      * @returns True when it has.
      */
     get moved(): boolean {
-        return this.source !== null && this.source.positions.generation !== this.captured;
+        return this.source !== null && this.source.positions.changes !== this.captured;
     }
 
     /**
@@ -261,7 +274,7 @@ export class Arrangement {
             epoch: this.state.graph.epoch,
             coords: snapshot === null ? new Float32Array(0) : source.positions.view(snapshot.nodeCount).slice(),
         });
-        retainArray(capture.coords, "the arrangement slice's capture", this);
+        retainArray(capture.coords, "the arrangement slice's capture");
         this.current(capture);
         return capture;
     }
@@ -366,15 +379,18 @@ export class Arrangement {
         const values: number[] = [];
         const at = { x: 0, y: 0, z: 0 };
         for (const entry of entries) {
-            const row = rowOf(snapshot, entry.id, 0);
+            // An integer id may be written either way; the step records the id the graph holds.
+            const row = rowOfEitherSpelling(snapshot.ids, entry.id);
             if (row === INVALID_INDEX) {
                 throw badPosition(`The graph holds no node ${JSON.stringify(entry.id)} to place.`, entry.id);
             }
 
             lane.read(row, at);
-            ids.push(entry.id);
+            ids.push(snapshot.ids.idOf(row));
             rows.push(row);
-            values.push(at.x, at.y, at.z, entry.x, entry.y, entry.z ?? 0);
+            // In 2D the lane holds every node on the Z = 0 plane, so the Z given is ignored and
+            // the step records the 0 the lane holds: redone, it lands where it landed.
+            values.push(at.x, at.y, at.z, entry.x, entry.y, this.flat ? 0 : (entry.z ?? 0));
         }
 
         for (const [index, row] of rows.entries()) {
@@ -382,11 +398,41 @@ export class Arrangement {
         }
 
         draft.arrange(rowPatch(ids, rows, values));
-        this.captured = lane.generation;
+        this.captured = lane.changes;
         this.exact = null;
         this.written = true;
         // The engine takes the new rows as its own at the next pass.
         this.lane.touch("arrangement", "");
+    }
+
+    /**
+     * The rows of some nodes as the lane holds them now, as a row patch from unplaced: what a step
+     * that created their rows records, so no arrangement taken before it places them.
+     * @param ids - The nodes.
+     * @returns The patch, or null when the graph holds none of them or there is no lane.
+     */
+    rowsNow(ids: readonly NodeId[]): RowPatch | null {
+        const { source } = this;
+        if (source === null) {
+            return null;
+        }
+
+        const snapshot = source.snapshot();
+        const held: NodeId[] = [];
+        const rows: number[] = [];
+        const values: number[] = [];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const id of ids) {
+            const row = rowOf(snapshot, id, 0);
+            if (row !== INVALID_INDEX) {
+                source.positions.read(row, at);
+                held.push(id);
+                rows.push(row);
+                values.push(Number.NaN, Number.NaN, Number.NaN, at.x, at.y, at.z);
+            }
+        }
+
+        return held.length === 0 ? null : rowPatch(held, rows, values);
     }
 
     /**
@@ -400,18 +446,41 @@ export class Arrangement {
     }
 
     /**
-     * `positions.pin`: pin or release nodes, in the `pins` slice and in the lane's pin bytes. A
-     * node the graph does not hold is skipped, as the element's own `pin` always has.
+     * `positions.pin`: pin or release nodes, in the `pins` slice and in the lane's pin bytes. An
+     * id is looked up in either spelling of an integer, as `getNode` looks it up, so `"34"` pins
+     * node `34`.
      * @param ids - The nodes.
      * @param pinned - Pin, or release.
      * @param draft - The command's draft.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` naming every id the graph does not hold in
+     *     either spelling; nothing is pinned or released then.
      */
     pin(ids: readonly NodeId[], pinned: boolean, draft: Draft): void {
         const snapshot = this.source?.snapshot() ?? null;
         // A node an edge created has a row and no record of its own: it is in the graph too.
         const held = (id: NodeId): boolean =>
             this.state.graph.nodes.has(id) || (snapshot !== null && rowOf(snapshot, id, 0) !== INVALID_INDEX);
-        const changed = this.graph.setPinned(draft, ids.filter(held), pinned);
+        const resolved: NodeId[] = [];
+        const missing: NodeId[] = [];
+        for (const id of ids) {
+            const other = held(id) ? id : otherIdSpelling(id);
+            if (other !== undefined && held(other)) {
+                resolved.push(other);
+            } else {
+                missing.push(id);
+            }
+        }
+
+        if (missing.length > 0) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: `The graph holds no node ${missing.map((id) => JSON.stringify(id)).join(", ")} to ${pinned ? "pin" : "unpin"}.`,
+                source: "layout",
+                details: { ids: missing },
+            });
+        }
+
+        const changed = this.graph.setPinned(draft, resolved, pinned);
         // Written now as well as by the hook, so a getter and the engine have the pin as soon as
         // this returns; the hook writes it again from the slice.
         for (const id of changed) {
@@ -447,12 +516,20 @@ export class Arrangement {
     }
 
     /**
+     * Whether the layout slice is 2D, where the lane holds every node at Z = 0.
+     * @returns True in 2D.
+     */
+    private get flat(): boolean {
+        return this.state.layout?.dimension === "2d";
+    }
+
+    /**
      * Record a capture as the current one.
      * @param capture - The capture.
      */
     private current(capture: ArrangementCapture): void {
         (this.state as { arrangement: ArrangementCapture | null }).arrangement = capture;
-        this.captured = this.source?.positions.generation ?? 0;
+        this.captured = this.source?.positions.changes ?? 0;
         this.exact = capture;
     }
 
@@ -500,8 +577,15 @@ export class Arrangement {
                 });
             }
 
+            // A 2D position puts every node on the Z = 0 plane, whatever Z the history holds for it:
+            // the orthographic camera hides a Z, but a node's edges are drawn through it. The
+            // history keeps the Z, so returning to a 3D position brings it back.
+            if (this.flat && onPlane(lane)) {
+                exact = null;
+            }
+
             source.positions.moved();
-            this.captured = source.positions.generation;
+            this.captured = source.positions.changes;
             this.exact = exact;
         }
 
@@ -512,7 +596,7 @@ export class Arrangement {
         this.written = false;
         this.engine?.loadArrangement(restoring, wrote);
         if (atRest) {
-            this.captured = source?.positions.generation ?? 0;
+            this.captured = source?.positions.changes ?? 0;
         }
     }
 
@@ -567,6 +651,23 @@ export class Arrangement {
  */
 function badPosition(message: string, id: NodeId): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", message, source: "layout", details: { id } });
+}
+
+/**
+ * Put every placed row of the lane on the Z = 0 plane, keeping its X and Y.
+ * @param lane - The lane.
+ * @returns True when a row had a Z.
+ */
+function onPlane(lane: Float32Array): boolean {
+    let moved = false;
+    for (let z = 2; z < lane.length; z += POSITION_COMPONENTS) {
+        if (lane[z] !== 0 && !Number.isNaN(lane[z])) {
+            lane[z] = 0;
+            moved = true;
+        }
+    }
+
+    return moved;
 }
 
 /**

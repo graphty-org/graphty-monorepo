@@ -4,16 +4,16 @@ category: display
 description: Visual display of a keyboard shortcut with key combination styling. Used in menus and help overlays.
 status: planned
 implements_capabilities:
-  - keyboard-shortcuts
+    - keyboard-shortcuts
 used_in_workflows:
-  - W14
-  - W06
-  - W07
+    - W14
+    - W06
+    - W07
 dependencies: []
 props:
-  keys: string[] - Key combination (e.g., ['Ctrl', 'F'])
-  label: string - Shortcut description
-  platform: "string - Platform variant: 'auto' | 'mac' | 'windows' (default: 'auto')"
+    keys: string[] - Key combination (e.g., ['Ctrl', 'F'])
+    label: string - Shortcut description
+    platform: "string - Platform variant: 'auto' | 'mac' | 'windows' (default: 'auto')"
 sources: []
 version: 1.0.0
 created_at: 2026-01-16T04:00:32.690Z

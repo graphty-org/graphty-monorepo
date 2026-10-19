@@ -1,6 +1,6 @@
 import { assert, describe, it } from "vitest";
 
-import type { OptionDescriptor, Scope } from "../../../src/catalog/types";
+import type { OptionDescriptor } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
 import {
     algorithmSlug,
@@ -8,12 +8,14 @@ import {
     canonicalIdentity,
     canonicalize,
     canonicalizeParams,
-    computeScopeDigest,
     deriveRunId,
     RUN_ID_PATTERN,
     type RunIdentity,
     stableDigest,
 } from "../../../src/session/runs";
+import { trimTrailingSeparators } from "../../../src/session/runs/runId";
+import { mintLayerId } from "../../../src/session/styles/Layer";
+import { assertScalesLinearly } from "../../helpers/cost";
 
 const OPTIONS: readonly OptionDescriptor[] = [
     { name: "resolution", plainName: "Resolution", type: "number", default: 1 },
@@ -180,6 +182,52 @@ describe("algorithmSlug", () => {
         assert.strictEqual(algorithmSlug("---"), "run");
         assert.strictEqual(algorithmSlug("123"), "run");
     });
+
+    it("trims trailing separators in linear time", async () => {
+        assert.strictEqual(algorithmSlug("acme-_-"), "acme");
+        // `/[-_]+$/` retried from every separator: about 2.4 s on 100,000 of them that do not end
+        // the text, and 300 s at ten times that. The loop that replaced it reads each trailing
+        // separator once and nothing before them, counted here by the characters it reads.
+        const reads = (text: string, trimmed: string): number => {
+            let count = 0;
+            const counted = new Proxy(new String(text), {
+                get(target, key) {
+                    if (typeof key === "string" && /^\d+$/.test(key)) {
+                        count++;
+                    }
+
+                    const value: unknown = Reflect.get(target, key);
+                    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+                },
+            });
+            assert.strictEqual(trimTrailingSeparators(counted as unknown as string), trimmed);
+            return count;
+        };
+        await assertScalesLinearly(
+            (size) => {
+                const text = `a${"-_".repeat(size)}a`;
+                return reads(text, text);
+            },
+            {
+                sizes: [1_000, 4_000],
+                growth: "constant",
+                counter: "characters read with separators inside the text",
+            },
+        );
+        await assertScalesLinearly((size) => reads(`a${"-_".repeat(size)}`, "a"), {
+            sizes: [1_000, 4_000],
+            counter: "characters read with separators ending the text",
+        });
+
+        // And the slug goes through that loop: at this length the regex would take minutes.
+        const long = `a${"-_".repeat(500_000)}a`;
+        assert.strictEqual(algorithmSlug(long), long);
+    });
+
+    it("gives a layer id the same trimming", () => {
+        assert.strictEqual(mintLayerId("Hubs -_", new Set()), "hubs_1");
+        assert.strictEqual(mintLayerId("-_", new Set()), "layer_1");
+    });
 });
 
 describe("assertRunId", () => {
@@ -198,37 +246,6 @@ describe("assertRunId", () => {
             }
         });
     }
-});
-
-describe("computeScopeDigest", () => {
-    const spec: Scope = "visible";
-
-    it("does not depend on the order the members came out in", () => {
-        assert.strictEqual(
-            computeScopeDigest(spec, ["a", "b", "c"], []),
-            computeScopeDigest(spec, ["c", "a", "b"], []),
-        );
-    });
-
-    it("changes when a member arrives", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a", "b"], []), computeScopeDigest(spec, ["a", "b", "c"], []));
-    });
-
-    it("changes when the specification changes even though the members do not", () => {
-        assert.notStrictEqual(computeScopeDigest("visible", ["a"], []), computeScopeDigest("graph", ["a"], []));
-    });
-
-    it("tells the node 1 apart from the node \"1\"", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, [1], []), computeScopeDigest(spec, ["1"], []));
-    });
-
-    it("notices a swap that an exclusive-or on its own would cancel out", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a", "b"], []), computeScopeDigest(spec, ["c", "d"], []));
-    });
-
-    it("keeps the node half and the edge half apart", () => {
-        assert.notStrictEqual(computeScopeDigest(spec, ["a"], []), computeScopeDigest(spec, [], ["a"]));
-    });
 });
 
 describe("stableDigest", () => {

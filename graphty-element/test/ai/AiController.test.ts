@@ -6,6 +6,7 @@ import type { AiStatus } from "../../src/ai/AiStatus";
 import { CommandRegistry } from "../../src/ai/commands";
 import type { CommandContext, CommandResult } from "../../src/ai/commands/types";
 import { MockLlmProvider } from "../../src/ai/providers/MockLlmProvider";
+import type { LlmProvider, LlmResponse, Message } from "../../src/ai/providers/types";
 import { createMessageGraph } from "../helpers/message-graph";
 
 describe("AiController", () => {
@@ -203,6 +204,164 @@ describe("AiController", () => {
             const result = await controller.execute("make it throw");
             assert.strictEqual(result.success, false);
             assert.ok(result.message.toLowerCase().includes("error"));
+        });
+    });
+
+    /**
+     * A model that looks before it acts -- findNodes, then zoomToNodes on what it found -- needs
+     * the first tool's result before it can make the second call. Asked once, it stops after
+     * looking and the person gets nothing done.
+     */
+    describe("execute - tool results go back to the model", () => {
+        /** A provider that answers each ask with the next scripted response and records what it was sent. */
+        function scriptedProvider(script: LlmResponse[]): LlmProvider & { asks: Message[][]; choices: string[] } {
+            const asks: Message[][] = [];
+            const choices: string[] = [];
+            return {
+                name: "scripted",
+                supportsStreaming: false,
+                supportsTools: true,
+                asks,
+                choices,
+                configure: () => undefined,
+                generate: (messages, _tools, options) => {
+                    asks.push([...messages]);
+                    choices.push(options?.toolChoice ?? "auto");
+                    return Promise.resolve(script[asks.length - 1] ?? { text: "done", toolCalls: [] });
+                },
+                generateStream: () => Promise.reject(new Error("not used")),
+                validateApiKey: () => Promise.resolve(true),
+            };
+        }
+
+        function registerEcho(name: string, success = true): string[] {
+            const ran: string[] = [];
+            registry.register({
+                name,
+                description: name,
+                parameters: z.object({ value: z.string() }),
+                examples: [],
+                execute: (_graph, params) => {
+                    ran.push(String(params.value));
+                    return Promise.resolve({
+                        success,
+                        message: `${name} ${String(params.value)}`,
+                        data: { seen: params.value },
+                    });
+                },
+            });
+            return ran;
+        }
+
+        it("asks again with the tool's result, and runs the tool the model calls next", async () => {
+            const looked = registerEcho("look");
+            const acted = registerEcho("act");
+            const provider = scriptedProvider([
+                { text: "", toolCalls: [{ id: "t1", name: "look", arguments: { value: "servers" } }] },
+                { text: "", toolCalls: [{ id: "t2", name: "act", arguments: { value: "zoom" } }] },
+                { text: "Zoomed to the servers.", toolCalls: [] },
+            ]);
+            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            const result = await multi.execute("focus on servers");
+
+            assert.deepStrictEqual(looked, ["servers"]);
+            assert.deepStrictEqual(acted, ["zoom"]);
+            assert.strictEqual(provider.asks.length, 3);
+            const second = provider.asks[1];
+            assert.deepStrictEqual(
+                second.at(-2)?.toolCalls?.map((call) => call.name),
+                ["look"],
+            );
+            assert.strictEqual(second.at(-1)?.role, "tool");
+            assert.strictEqual(second.at(-1)?.toolCallId, "t1");
+            assert.deepStrictEqual(JSON.parse(second.at(-1)?.content ?? "{}"), {
+                success: true,
+                message: "look servers",
+                data: { seen: "servers" },
+            });
+            assert.strictEqual(result.success, true);
+            assert.include(result.message, "Zoomed to the servers.");
+            assert.strictEqual(result.llmText, "Zoomed to the servers.");
+        });
+
+        it("puts the instructions in the user's turn for a provider that refuses a system prompt with tools", async () => {
+            registerEcho("look");
+            const provider = { ...scriptedProvider([]), supportsSystemPromptWithTools: false };
+            const noSystem = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            await noSystem.execute("find servers");
+
+            const [first] = provider.asks;
+            assert.strictEqual(first.length, 1);
+            assert.strictEqual(first[0].role, "user");
+            assert.include(first[0].content, "- look: look");
+            assert.isTrue(first[0].content.endsWith("find servers"));
+        });
+
+        it("hands a failed tool's result back, so the model can correct it", async () => {
+            registerEcho("broken", false);
+            const fixed = registerEcho("fixed");
+            const provider = scriptedProvider([
+                { text: "", toolCalls: [{ id: "t1", name: "broken", arguments: { value: "a" } }] },
+                { text: "", toolCalls: [{ id: "t2", name: "fixed", arguments: { value: "b" } }] },
+            ]);
+            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            await multi.execute("do it");
+
+            assert.strictEqual(JSON.parse(provider.asks[1].at(-1)?.content ?? "{}").success, false);
+            assert.deepStrictEqual(fixed, ["b"]);
+        });
+
+        it("answers every call of a turn, including one skipped after an earlier failure", async () => {
+            registerEcho("broken", false);
+            const skipped = registerEcho("later");
+            const provider = scriptedProvider([
+                {
+                    text: "",
+                    toolCalls: [
+                        { id: "t1", name: "broken", arguments: { value: "a" } },
+                        { id: "t2", name: "later", arguments: { value: "b" } },
+                    ],
+                },
+            ]);
+            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            await multi.execute("do both");
+
+            assert.deepStrictEqual(skipped, []);
+            const toolMessages = provider.asks[1].filter((message) => message.role === "tool");
+            assert.deepStrictEqual(
+                toolMessages.map((message) => message.toolCallId),
+                ["t1", "t2"],
+            );
+            assert.include(toolMessages[1].content, "Not run");
+        });
+
+        it("stops running tools after five turns, then asks for a text answer only", async () => {
+            const ran = registerEcho("again");
+            const forever = { text: "", toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }] };
+            const answer = {
+                text: "I looked at the data; what should change?",
+                toolCalls: [{ id: "t", name: "again", arguments: { value: "x" } }],
+            };
+            const provider = scriptedProvider([...Array.from({ length: 5 }, () => forever), answer, forever]);
+            const multi = new AiController({ provider, commandRegistry: registry, graph: mockGraph });
+
+            const result = await multi.execute("loop");
+
+            assert.strictEqual(provider.asks.length, 6);
+            assert.deepStrictEqual(provider.choices, ["auto", "auto", "auto", "auto", "auto", "none"]);
+            // only the answer-only ask ends with the request to answer, and it is not kept in the history
+            const lasts = provider.asks.map((ask) => ask.at(-1));
+            assert.strictEqual(lasts[5]?.role, "user");
+            assert.include(lasts[5]?.content, "No more tools can run");
+            assert.ok(lasts.slice(0, 5).every((m) => !m?.content.includes("No more tools can run")));
+            // the answer-only ask's tool call, from a provider that ignored toolChoice, does not run
+            assert.strictEqual(ran.length, 5);
+            assert.strictEqual(result.success, true);
+            assert.strictEqual(result.llmText, "I looked at the data; what should change?");
         });
     });
 

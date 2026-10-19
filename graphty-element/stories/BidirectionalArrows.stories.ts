@@ -4,6 +4,7 @@ import "../src/graphty-element";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { assertArrowCapsDrawn, assertGraphLoaded, drawn, holds, pixelsOfColour } from "./assertions";
+import { catSocialNetwork2Url } from "./datasets";
 import {
     arrowTypes,
     eventWaitingDecorator,
@@ -39,7 +40,7 @@ const meta: Meta = {
         setup: storySetup({}),
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
+            data: catSocialNetwork2Url,
         },
         layout: "ngraph",
         layoutConfig: { seed: 42 },

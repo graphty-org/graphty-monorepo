@@ -46,7 +46,7 @@ interface FieldLayout {
 }
 
 const STRUCT_ALIGN = 16;
-const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const IDENTIFIER = /^[A-Za-z_]\w*$/;
 const U32_LIMIT = 0xffffffff;
 const I32_MIN = -2147483648;
 const I32_MAX = 2147483647;

@@ -143,7 +143,11 @@ describe("the BFS check helpers go red on a wrong answer", () => {
         }).toThrow();
         // 1 -> 2 is not an arc of the diamond, though depth[1] + 1 == depth[2] would hold on a depth of 2.
         expect(() => {
-            expectLevelConsistent({ depth: Uint32Array.of(0, 1, 2, 2), parent: Uint32Array.of(INVALID_INDEX, 0, 1, 1) }, s, 0);
+            expectLevelConsistent(
+                { depth: Uint32Array.of(0, 1, 2, 2), parent: Uint32Array.of(INVALID_INDEX, 0, 1, 1) },
+                s,
+                0,
+            );
         }).toThrow();
         // The source must carry the sentinel.
         expect(() => {
@@ -191,7 +195,12 @@ describe("dijkstraOracle (binary heap, f64 and f32)", () => {
         expectTriangleInequality(r.dist, s);
         // The oracle's predArc is the RELAXING arc, not PD-27's pick (the grid has several tight in-arcs per node);
         // it still chains to the source.
-        expectPredChainReachesSource(r.predArc, s, 5, Array.from(r.dist, (d) => Number.isFinite(d)));
+        expectPredChainReachesSource(
+            r.predArc,
+            s,
+            5,
+            Array.from(r.dist, (d) => Number.isFinite(d)),
+        );
     });
 
     it("a weights override replaces the column for the run", () => {
@@ -230,7 +239,9 @@ describe("dijkstraOracle (binary heap, f64 and f32)", () => {
         }
         expect(differ).toBeGreaterThan(0);
         expect(rel).toBeGreaterThan(0);
-        console.log(`[traversal-oracle] f32-vs-f64 path2000 rel=${rel.toExponential(3)} (${differ} of ${n - 1} differ)`);
+        console.log(
+            `[traversal-oracle] f32-vs-f64 path2000 rel=${rel.toExponential(3)} (${differ} of ${n - 1} differ)`,
+        );
         expectTriangleInequality(f32.dist, s);
         expectPredArcAttains(f32.dist, f32.predArc, s, 0, "plateau");
     });

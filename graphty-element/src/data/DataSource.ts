@@ -1,10 +1,18 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
-import type { CommonImportOptions, GraphImporter, ImportReport } from "@graphty/graph-io";
-import { z } from "zod/v4";
-import * as z4 from "zod/v4/core";
+import {
+    type CommonImportOptions,
+    type GraphChoiceOptions,
+    type GraphImporter,
+    type GraphListing,
+    type ImportReport,
+    ImportReportBuilder,
+    readText,
+} from "@graphty/graph-io";
+import { extractStyles } from "@graphty/graph-io/styles";
+import { z } from "zod";
 
 import { MIN_CONTENT_CONFIDENCE } from "../catalog/detect";
-import { publishFormatDescriptor } from "../catalog/formatRegistry";
+import { type GraphLister, publishFormatDescriptor } from "../catalog/formatRegistry";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
@@ -12,16 +20,52 @@ import type { FormatDescriptor } from "../catalog/types";
 import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
+import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
-import { columnsMapping, importWhole, toRecords } from "./graph-io-import.js";
+import { filePositionsOf } from "./filePositions.js";
+import {
+    columnsMapping,
+    emptyLoad,
+    importWhole,
+    readerImport,
+    toRecords,
+    withoutStyleSlots,
+} from "./graph-io-import.js";
+import { type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
-// Base configuration interface
+/** What every reader is configured with, whatever its format. */
 export interface BaseDataSourceConfig {
-    data?: string;
+    /**
+     * The file's contents, inline: text, or its bytes. Bytes are decoded by the importer, which
+     * reads a byte-order mark and an encoding declaration; a binary format (a zip) needs them.
+     */
+    data?: SourceData;
+    /** A file to read, as bytes. */
     file?: File;
+    /** A URL to fetch, as bytes. */
     url?: string;
     chunkSize?: number;
     errorLimit?: number;
+    /**
+     * Which graph to read from a file that holds several, by its 0-based position. The first
+     * when neither this nor `graphName` is given. `listGraphs` from `./catalog` lists them.
+     */
+    graphIndex?: number;
+    /** Which graph to read from a file that holds several, by its name. */
+    graphName?: string;
+    /**
+     * Whether the load draws the file's own styles as layers (`"file"`) or leaves them out
+     * (`"none"`, the default). With `"file"`, a reader leaves style values out of the records,
+     * because the layers carry them: the GEXF reader writes no `color` or `size` keys and the
+     * GraphML reader no yEd style keys.
+     */
+    styles?: "file" | "none";
+    /**
+     * `"recommended"` chooses a layout for what was loaded, once it is loaded: the `fixed` layout,
+     * which draws each node where the file put it, when every node arrived with a position, and a
+     * computed one otherwise. `"keep"` (the default) leaves the layout as it is.
+     */
+    layout?: "recommended" | "keep";
 }
 
 /**
@@ -40,9 +84,12 @@ interface FormatStatics {
     readonly descriptor?: unknown;
     /** The optional content sniffer, asked after every built-in one. */
     readonly detect?: unknown;
+    /** The optional lister of the graphs a file holds, for a format whose file can hold several. */
+    readonly listGraphs?: unknown;
 }
 
 type DataSourceClass = (new (opts: object) => DataSource) & FormatStatics;
+
 // Shared with every other copy of graphty-element on the page, so a plugin registered through one
 // reaches them all.
 const dataSourceRegistry = new SharedImplementationMap<DataSourceClass>("format");
@@ -70,6 +117,11 @@ const ELEMENT_OWNED_OPTIONS: ReadonlySet<string> = new Set([
     "nodeIdPath",
     "edgeSrcIdPath",
     "edgeDstIdPath",
+    "graphIndex",
+    "graphName",
+    "styles",
+    "styleOptions",
+    "layout",
 ]);
 
 /**
@@ -176,6 +228,28 @@ function readFormatDetector(type: string, value: unknown): ((sample: string) => 
     return value as (sample: string) => boolean;
 }
 
+/**
+ * Check the optional graph lister a reader class carries.
+ * @param type - The name the class registers under.
+ * @param value - The class's `static listGraphs`, untrusted.
+ * @returns The lister, or undefined when the class declares none.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when it is declared and is not a function.
+ */
+function readGraphLister(type: string, value: unknown): GraphLister | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value !== "function") {
+        refuseRegistration(
+            "listGraphs",
+            `the format "${type}" declares a \`static listGraphs\` that is not a function, so no file's graphs could be listed`,
+        );
+    }
+
+    return value as GraphLister;
+}
+
 export interface DataSourceChunk {
     nodes: AdHocData[];
     edges: AdHocData[];
@@ -275,8 +349,17 @@ export abstract class DataSource {
      */
     static detect?: (sample: string) => boolean;
 
-    edgeSchema: z4.$ZodObject | null = null;
-    nodeSchema: z4.$ZodObject | null = null;
+    /**
+     * Lists the graphs a file of this format holds, for a format whose file can hold several (a
+     * Cytoscape session's networks). Optional: a format that declares it accepts the
+     * `graphIndex` and `graphName` options, and `listGraphs` from `./catalog` asks it; a format
+     * that does not reads its one graph and refuses a choice of any other. `fromImporter` sets it
+     * from the importer's own `listGraphs`.
+     */
+    static listGraphs?: GraphLister;
+
+    edgeSchema: z.core.$ZodObject | null = null;
+    nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
@@ -424,27 +507,131 @@ export abstract class DataSource {
     }
 
     /**
-     * Shared method to get content from data, file, or URL
-     * Subclasses should call this instead of implementing their own
-     * @returns Promise resolving to the content string
+     * The source's contents as text: inline text as it is, and anything else -- bytes, a file, a
+     * URL -- decoded the way graph-io decodes it (a byte-order mark names the encoding, UTF-8
+     * otherwise, the mark itself dropped). For a reader that parses text itself; one that hands
+     * the file to a graph-io importer calls {@link getInput} instead, so the importer can read
+     * an encoding declaration too.
+     * @returns The text.
+     * @throws A `GraphtyError` with `E_PARSE_FAILED` when the bytes cannot be decoded, `E_EMPTY_LOAD` when there are none.
      */
     protected async getContent(): Promise<string> {
+        const input = await this.getInput();
+        if (typeof input === "string") {
+            return input;
+        }
+
+        try {
+            return await readText(input, new ImportReportBuilder(this.type, 0));
+        } catch (error) {
+            const empty = emptyLoad(error, this.type);
+            if (empty !== null) {
+                throw empty;
+            }
+
+            // Bytes that are not text in any encoding the decoder could settle on (invalid UTF-8
+            // after valid non-ASCII UTF-8): the file cannot be read, and the caller is told so
+            // with a code, not graph-io's bare ImportError.
+            throw GraphtyError.wrap(error, {
+                code: "E_PARSE_FAILED",
+                source: "data",
+                message: `Failed to read the ${this.type} file as text: ${error instanceof Error ? error.message : String(error)}`,
+                details: { format: this.type },
+            });
+        }
+    }
+
+    /**
+     * The source's contents as bytes: inline bytes as they are, inline text as UTF-8, a file's
+     * bytes, or a URL's (fetched with retries). Nothing is decoded, so a binary format -- a zip --
+     * arrives intact.
+     * @returns The bytes.
+     * @throws An `Error` naming the reader when the configuration has no data, file or URL.
+     */
+    protected async getBytes(): Promise<Uint8Array> {
+        const input = await this.getInput();
+        return typeof input === "string" ? new TextEncoder().encode(input) : input;
+    }
+
+    /**
+     * The source's contents as a graph-io importer's input: inline text as the caller gave it,
+     * and everything else as bytes for the importer to decode.
+     * @returns The text or the bytes.
+     * @throws An `Error` naming the reader when the configuration has no data, file or URL.
+     */
+    protected async getInput(): Promise<SourceInput> {
         const config = this.getConfig();
 
         if (config.data !== undefined) {
-            return config.data;
+            return toSourceInput(config.data);
         }
 
         if (config.file) {
-            return await config.file.text();
+            return new Uint8Array(await config.file.arrayBuffer());
         }
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            return await response.text();
+            return new Uint8Array(await response.arrayBuffer());
         }
 
         throw new Error(this.errorMessages.missingInput());
+    }
+
+    /**
+     * The graph the caller chose, checked.
+     *
+     * A format whose file can hold several graphs declares `static listGraphs` and reads the
+     * one this names. Any other format holds one graph, so `graphIndex: 0` is accepted and any
+     * other choice is refused rather than quietly loading the one graph there is.
+     * @returns The choice, with only the keys the caller set.
+     * @throws A `GraphtyError` with `E_OPTION_RANGE` for a `graphIndex` that is not a
+     * non-negative integer, a `graphName` that is not a string, both at once, or a choice this
+     * format cannot honour.
+     */
+    protected graphChoice(): GraphChoiceOptions {
+        const { graphIndex, graphName } = this.getConfig() as { graphIndex?: unknown; graphName?: unknown };
+        const refuse = (option: string, value: unknown, message: string): never => {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message,
+                source: "config",
+                details: { kind: "format", id: this.type, option, value },
+            });
+        };
+
+        if (
+            graphIndex !== undefined &&
+            (typeof graphIndex !== "number" || !Number.isInteger(graphIndex) || graphIndex < 0)
+        ) {
+            refuse(
+                "graphIndex",
+                graphIndex,
+                `"graphIndex" takes a non-negative integer, not ${JSON.stringify(graphIndex)}`,
+            );
+        }
+
+        if (graphName !== undefined && typeof graphName !== "string") {
+            refuse("graphName", graphName, `"graphName" takes a string, not ${JSON.stringify(graphName)}`);
+        }
+
+        if (graphIndex !== undefined && graphName !== undefined) {
+            refuse("graphName", graphName, 'pass "graphIndex" or "graphName" to choose a graph, not both');
+        }
+
+        const lists = (this.constructor as typeof DataSource).listGraphs !== undefined;
+        if (!lists && (graphName !== undefined || (graphIndex !== undefined && graphIndex !== 0))) {
+            refuse(
+                graphName === undefined ? "graphIndex" : "graphName",
+                graphName ?? graphIndex,
+                `a ${this.type} file holds one graph, so there is no other graph to choose`,
+            );
+        }
+
+        return {
+            ...(graphIndex === undefined ? {} : { graphIndex: graphIndex as number }),
+            ...(graphName === undefined ? {} : { graphName: graphName as string }),
+        };
     }
 
     /**
@@ -545,38 +732,64 @@ export abstract class DataSource {
     }
 
     /**
+     * The styles of the file this source last read: the rules and per-element values graph-io
+     * reads from it, and where each column of the file landed on the records. Read on demand,
+     * only when a load asks for the file's styles (`styles: "file"`), so a load that does not
+     * pays nothing.
+     *
+     * Every reader built on a graph-io importer answers it, the element's own and those made with
+     * {@link DataSource.fromImporter} alike, by calling the importer's `styles()`; a reader that
+     * parses a file itself answers null. Not an extension point: a format gets styles by being
+     * read with a graph-io importer.
+     * @internal
+     * @param options - Whether the defaults of the program that wrote the file are added (true
+     *     by default), and a cancel signal.
+     * @param options.toolDefaults - Whether the writing program's defaults are added.
+     * @param options.signal - Cancels the reading.
+     * @returns The styles, or null when the file carries none or nothing has been read yet.
+     */
+    async fileStyles(
+        options: { readonly toolDefaults?: boolean; readonly signal?: AbortSignal } = {},
+    ): Promise<FileStylesRead | null> {
+        const pending = readerImport(this);
+        if (pending === null) {
+            return null;
+        }
+
+        const held = await pending;
+        const { imported } = held;
+        const extracted = extractStyles(imported.importer, imported.snapshot, imported.report, {
+            ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
+        if (extracted === null) {
+            return null;
+        }
+
+        const { format, dialect } = extracted.styles.source;
+        const pxPerUnit = filePositionsOf(imported)?.pxPerUnit;
+        return {
+            extracted,
+            snapshot: imported.snapshot,
+            path: (kind, column) => held.path(kind, column),
+            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
+            format: format === "json" && dialect !== null ? dialect : format,
+            ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
+        };
+    }
+
+    /**
      * Fetches, validates, and yields graph data in chunks.
      * Filters out invalid nodes and edges based on schema validation.
      * @yields DataSourceChunk objects containing validated nodes and edges
      */
     async *getData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+        // Checked before anything is read, so a bad choice costs no download.
+        this.graphChoice();
         for await (const chunk of this.sourceFetchData()) {
-            // Filter out invalid nodes
-            const validNodes: AdHocData[] = [];
-            if (this.nodeSchema) {
-                for (const n of chunk.nodes) {
-                    const isValid = await this.dataValidator(this.nodeSchema, n);
-                    if (isValid) {
-                        validNodes.push(n);
-                    }
-                    // Invalid nodes are logged to errorAggregator but skipped
-                }
-            } else {
-                validNodes.push(...chunk.nodes);
-            }
-
-            // Filter out invalid edges
-            const validEdges: AdHocData[] = [];
-            if (this.edgeSchema) {
-                for (const e of chunk.edges) {
-                    const isValid = await this.dataValidator(this.edgeSchema, e);
-                    if (isValid) {
-                        validEdges.push(e);
-                    }
-                }
-            } else {
-                validEdges.push(...chunk.edges);
-            }
+            // Invalid elements are logged to errorAggregator but skipped
+            const validNodes = await validOf(this, this.nodeSchema, chunk.nodes);
+            const validEdges = await validOf(this, this.edgeSchema, chunk.edges);
 
             // Only yield if we have data (or if we're not filtering)
             if (validNodes.length > 0 || validEdges.length > 0) {
@@ -598,8 +811,8 @@ export abstract class DataSource {
      * @param obj - Data object to validate
      * @returns Promise resolving to true if validation succeeds, false otherwise
      */
-    async dataValidator(schema: z4.$ZodObject, obj: object): Promise<boolean> {
-        const res = await z4.safeParseAsync(schema, obj);
+    async dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean> {
+        const res = await z.core.safeParseAsync(schema, obj);
 
         if (!res.success) {
             const errMsg = z.prettifyError(res.error);
@@ -673,6 +886,7 @@ export abstract class DataSource {
         }
 
         const detect = readFormatDetector(type, cls.detect);
+        const listGraphs = readGraphLister(type, cls.listGraphs);
 
         // Published BEFORE the class is filed, so a refusal leaves neither half registered: a
         // reader loadable by name that no catalogue lists is the state this whole seam exists to
@@ -684,6 +898,7 @@ export abstract class DataSource {
                 descriptor,
                 type,
                 ...(detect === undefined ? {} : { detect }),
+                ...(listGraphs === undefined ? {} : { listGraphs }),
             },
             options,
         );
@@ -698,7 +913,9 @@ export abstract class DataSource {
      * For an author who already has a `GraphImporter` (an object whose `import(input, sink,
      * options)` pushes nodes and edges into a builder). The class reads its input the way every
      * reader does -- inline `data`, a `File` or a `url` with retries -- and hands the importer
-     * the text. Each node and edge attribute the importer set becomes a key of the record under
+     * inline text as it is and anything else as bytes, which the importer decodes. When the
+     * importer has `listGraphs`, the class has it too, so `listGraphs` from `./catalog` lists a
+     * file's graphs and the `graphIndex` / `graphName` load options reach the importer. Each node and edge attribute the importer set becomes a key of the record under
      * its column name; an edge's weight becomes `weight`. A repeated node keeps its first
      * declaration, as the element keeps a repeated record. The importer's errors are aggregated
      * like any reader's, and a file the importer gives up on (it throws graph-io's `ImportError`)
@@ -729,15 +946,28 @@ export abstract class DataSource {
 
         const { importOptions = {}, statedBy } = options;
         const sniff = importer.sniff?.bind(importer);
+        const list = importer.listGraphs?.bind(importer);
+        // Whether the format's files can carry styles, from the importer itself unless the
+        // descriptor says.
+        const described: FormatDescriptor =
+            descriptor.styles === undefined
+                ? { ...descriptor, styles: { read: typeof importer.styles === "function", write: "none" } }
+                : descriptor;
 
         return class ImporterDataSource extends DataSource {
             static override readonly type: string = descriptor.id;
-            static override readonly descriptor: FormatDescriptor = descriptor;
+            static override readonly descriptor: FormatDescriptor = described;
             // The importer's sniffer, held to the confidence the built-in sniffers are held to.
             static override readonly detect =
                 sniff === undefined
                     ? undefined
                     : (sample: string): boolean => sniff(new TextEncoder().encode(sample)) >= MIN_CONTENT_CONFIDENCE;
+            // The importer's lister, handed the same fixed options its import is.
+            static override readonly listGraphs =
+                list === undefined
+                    ? undefined
+                    : (input: SourceInput): Promise<readonly GraphListing[]> =>
+                          list(input, importOptions as Opts & CommonImportOptions);
 
             readonly #config: BaseDataSourceConfig;
             readonly #options: Record<string, unknown>;
@@ -766,13 +996,13 @@ export abstract class DataSource {
                     }
                 }
 
-                return merged as Opts & CommonImportOptions;
+                return { ...merged, ...this.graphChoice() } as Opts & CommonImportOptions;
             }
 
             async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
                 const imported = await importWhole(
                     importer,
-                    await this.getContent(),
+                    await this.getInput(),
                     this.#importerOptions(),
                     this.errorAggregator,
                     { firstDeclarationWins: true },
@@ -783,7 +1013,14 @@ export abstract class DataSource {
                     this.declareDirection(snapshot.directed, words, report.counts.expandedMixed);
                 }
 
-                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+                const { nodes, edges } = toRecords(
+                    imported,
+                    // A load drawing the file's styles leaves the file's own style slots to the layers.
+                    this.#config.styles === "file"
+                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
+                        : columnsMapping(snapshot),
+                    this,
+                );
                 yield* this.chunkData(nodes, edges);
             }
         };
@@ -847,4 +1084,28 @@ export abstract class DataSource {
     static getRegisteredTypes(): string[] {
         return Array.from(dataSourceRegistry.keys()).sort();
     }
+}
+
+/**
+ * The elements of a chunk that pass a schema, in order; every one when there is no schema.
+ * @param source - The data source, whose validator records each failure.
+ * @param schema - The schema, or none.
+ * @param items - The elements.
+ * @returns A copy, never the chunk's own array: a dialect read yields one chunk of every element.
+ */
+async function validOf(
+    source: DataSource,
+    schema: z.core.$ZodObject | null | undefined,
+    items: AdHocData[],
+): Promise<AdHocData[]> {
+    if (!schema) {
+        return items.slice();
+    }
+    const valid: AdHocData[] = [];
+    for (const item of items) {
+        if (await source.dataValidator(schema, item)) {
+            valid.push(item);
+        }
+    }
+    return valid;
 }

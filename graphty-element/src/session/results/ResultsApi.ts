@@ -17,9 +17,11 @@
  */
 
 import type { FieldDescriptor, Path, Query, ResultShape, RunId } from "../../catalog/types";
+import type { RunDistinction } from "../runs/types";
 // The DEEP path on purpose. `../styles` re-exports StylesApi, which imports this file, so
 // importing the barrel here closes a cycle; `predicate` itself reaches only a type and the error
 // class, so this edge is one-way.
+import type { ResultRef } from "../shared";
 import { quotePath } from "../styles/predicate";
 import {
     RESULT_ROOT,
@@ -142,6 +144,10 @@ export interface ResultsRunEntry {
     readonly id: RunId;
     /** What to call the run in a completion list. */
     readonly label: string;
+    /** The option the run's name was suggested by; none when absent. */
+    readonly distinguishedBy?: RunDistinction | null;
+    /** What tells the run apart from listed runs of its algorithm sharing its name; none when absent. */
+    readonly siblingsDifferBy?: readonly string[] | null;
     /** The shape, which is what settles the primary field before a result exists. */
     readonly shape: ResultShape;
     /** The result, once the run has published one. */
@@ -208,6 +214,26 @@ function shapeOf(ref: RunRef): ResultShape | undefined {
  */
 function publishes(result: RunResult, field: string): boolean {
     return result.fields.some((candidate: FieldDescriptor) => candidate.name === field) || field in result.graph;
+}
+
+/**
+ * The field a run-result reference names: its own `field`, else the run's primary field.
+ *
+ * Every API that takes a {@link ResultRef} reads the field through here, so "the primary field
+ * when absent" means the same thing everywhere.
+ * @param results - The session's results.
+ * @param ref - The run, and optionally the field.
+ * @returns The field name, or undefined for a result with no primary field (a `fact` result).
+ */
+export function fieldOfResult(results: ResultsApi, ref: ResultRef): string | undefined {
+    if (ref.field !== undefined) {
+        return ref.field;
+    }
+
+    const prefix = `${resultPath(runIdOf(ref.run))}.`;
+    const path = results.path(ref.run);
+
+    return path.startsWith(prefix) ? path.slice(prefix.length) : undefined;
 }
 
 /** Addressing results over one registry of runs. */
@@ -298,7 +324,15 @@ class Results implements ResultsApi {
 
         for (const entry of this.#registry.entries()) {
             if (entry.result !== undefined) {
-                roots.push(Object.freeze({ runId: entry.id, label: entry.label, fields: entry.result.fields }));
+                roots.push(
+                    Object.freeze({
+                        runId: entry.id,
+                        label: entry.label,
+                        distinguishedBy: entry.distinguishedBy ?? null,
+                        siblingsDifferBy: entry.siblingsDifferBy ?? null,
+                        fields: entry.result.fields,
+                    }),
+                );
             }
         }
 

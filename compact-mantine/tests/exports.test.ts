@@ -14,18 +14,28 @@ import type {
     ActivationHandlerWithMeta,
     ActivationMeta,
     AdvancedButtonProps,
+    AlignmentMatrixProps,
+    AlignmentMatrixValue,
     ChangeHandler,
+    ColorPickerFormat,
+    ColorPickerPaintType,
+    ColorPickerPanelLabels,
+    ColorPickerPanelProps,
     ColorStop,
+    ComboInputItem,
+    ComboInputOption,
+    ComboInputProps,
+    ComboInputSeparator,
     CompactColorInputProps,
     CompactMantineLabels,
+    CompactThemeOptions,
     CompoundRowProps,
     CompoundSegment,
+    ContextMenuProps,
     ControlGroupProps,
     ControlSectionProps,
-    ControlSubGroupProps,
     DataRowHeaderProps,
     DataRowProps,
-    DataRowRole,
     DataRowSortDirection,
     DataTableAlign,
     DataTableColumn,
@@ -43,20 +53,28 @@ import type {
     FieldGlyphProps,
     FieldLetter,
     FieldRowProps,
+    FlatTreeRow,
     GestureChangeHandler,
     GestureEndHandler,
     GestureHandlers,
     GestureStartHandler,
+    GradientEditorLabels,
     GradientEditorProps,
+    HelpButtonProps,
     HistogramBin,
     HistogramRowProps,
-    IconGroupOption,
-    IconGroupRowProps,
     InfoCircleProps,
+    InlineRenameProps,
     LabelsProviderProps,
     LiveSetting,
+    MenuCheckItemProps,
     MetricRowProps,
+    ModalFooterProps,
+    NavRailProps,
     OpenChangeHandler,
+    PageListItem,
+    PageListProps,
+    PageRowProps,
     PanelFieldKind,
     PanelFieldProps,
     PanelLabelsProviderProps,
@@ -77,18 +95,48 @@ import type {
     PopoutRegionProps,
     PopoutTriggerProps,
     ProseBlockProps,
+    QuickAction,
+    QuickActionsProps,
+    RailButtonProps,
     RampRowProps,
     RankChipProps,
+    ResetButtonProps,
+    ResizeHandleBounds,
+    ResizeHandleEdge,
+    ResizeHandleProps,
+    ResultRowProps,
+    SearchInputProps,
+    SecondaryToolbarButtonProps,
+    SecondaryToolbarProps,
+    ShortcutEntry,
+    ShortcutGroup,
+    ShortcutSheetProps,
+    ShortcutSheetTab,
     SparklineRowProps,
-    StyleNumberInputProps,
-    StyleSelectOption,
-    StyleSelectProps,
+    SplitButtonProps,
+    ToastAction,
+    ToastApi,
+    ToastOptions,
+    ToastProps,
+    ToastProviderProps,
+    ToggleIconButtonProps,
     ToggleRowGroupProps,
     ToggleRowProps,
     ToggleWithContentProps,
+    ToolbarProps,
+    ToolButtonProps,
+    ToolGroupProps,
+    ToolItem,
+    TooltipShortcutProps,
     TrailingSlotProps,
+    TreeItemProps,
+    TreeMove,
+    TreeNodeData,
+    TreeProps,
+    TreeRowTint,
     UiGlyphName,
     UiGlyphProps,
+    VariablePillProps,
 } from "../src/index";
 import * as mainExports from "../src/index";
 import * as themeExports from "../src/theme";
@@ -105,8 +153,8 @@ interface SampleRow {
  * This is a type-level assertion: the file stops compiling if the package stops
  * exporting one of them, or renames it. Vitest transpiles rather than
  * type-checks, so the guarantee belongs to `tsc` and the editor rather than to
- * this run, which is why the runtime test below only checks that the list is the
- * length it should be and that no name is written twice.
+ * this run. The run-time list below is held to every key of this map by the
+ * same compiler.
  *
  * The key is the type name with any trailing `Props` dropped and the first
  * letter lowered, so a missing entry is obvious when the list is read beside
@@ -123,14 +171,13 @@ type PublicTypeSurface = {
     colorStop: ColorStop;
     compactColorInput: CompactColorInputProps;
     compactMantineLabels: CompactMantineLabels;
+    compactThemeOptions: CompactThemeOptions;
     compoundRow: CompoundRowProps;
     compoundSegment: CompoundSegment;
     controlGroup: ControlGroupProps;
     controlSection: ControlSectionProps;
-    controlSubGroup: ControlSubGroupProps;
     dataRow: DataRowProps;
     dataRowHeader: DataRowHeaderProps;
-    dataRowRole: DataRowRole;
     dataRowSortDirection: DataRowSortDirection;
     dataTable: DataTableProps<SampleRow>;
     dataTableAlign: DataTableAlign;
@@ -153,14 +200,14 @@ type PublicTypeSurface = {
     gestureHandlers: GestureHandlers;
     gestureStartHandler: GestureStartHandler;
     gradientEditor: GradientEditorProps;
+    helpButton: HelpButtonProps;
     histogramBin: HistogramBin;
     histogramRow: HistogramRowProps;
-    iconGroupOption: IconGroupOption;
-    iconGroupRow: IconGroupRowProps;
     infoCircle: InfoCircleProps;
     labelsProvider: LabelsProviderProps;
     liveSetting: LiveSetting;
     metricRow: MetricRowProps;
+    navRail: NavRailProps;
     openChangeHandler: OpenChangeHandler;
     panelField: PanelFieldProps;
     panelFieldKind: PanelFieldKind;
@@ -182,18 +229,67 @@ type PublicTypeSurface = {
     popoutPosition: PopoutPosition;
     popoutTrigger: PopoutTriggerProps;
     proseBlock: ProseBlockProps;
+    quickAction: QuickAction;
+    quickActions: QuickActionsProps;
+    railButton: RailButtonProps;
     rampRow: RampRowProps;
     rankChip: RankChipProps;
+    resetButton: ResetButtonProps;
+    secondaryToolbar: SecondaryToolbarProps;
+    secondaryToolbarButton: SecondaryToolbarButtonProps;
+    shortcutEntry: ShortcutEntry;
+    shortcutGroup: ShortcutGroup;
+    shortcutSheet: ShortcutSheetProps;
+    shortcutSheetTab: ShortcutSheetTab;
     sparklineRow: SparklineRowProps;
-    styleNumberInput: StyleNumberInputProps;
-    styleSelect: StyleSelectProps;
-    styleSelectOption: StyleSelectOption;
     toggleRow: ToggleRowProps;
     toggleRowGroup: ToggleRowGroupProps;
     toggleWithContent: ToggleWithContentProps;
+    toolbar: ToolbarProps;
+    toolButton: ToolButtonProps;
+    toolGroup: ToolGroupProps;
+    toolItem: ToolItem;
     trailingSlot: TrailingSlotProps;
     uiGlyph: UiGlyphProps;
     uiGlyphName: UiGlyphName;
+    comboInputItem: ComboInputItem;
+    comboInputOption: ComboInputOption;
+    comboInput: ComboInputProps;
+    comboInputSeparator: ComboInputSeparator;
+    searchInput: SearchInputProps;
+    variablePill: VariablePillProps;
+    contextMenu: ContextMenuProps;
+    menuCheckItem: MenuCheckItemProps;
+    modalFooter: ModalFooterProps;
+    toastAction: ToastAction;
+    toastApi: ToastApi;
+    toastOptions: ToastOptions;
+    toast: ToastProps;
+    toastProvider: ToastProviderProps;
+    tooltipShortcut: TooltipShortcutProps;
+    alignmentMatrix: AlignmentMatrixProps;
+    alignmentMatrixValue: AlignmentMatrixValue;
+    colorPickerFormat: ColorPickerFormat;
+    colorPickerPaintType: ColorPickerPaintType;
+    colorPickerPanelLabels: ColorPickerPanelLabels;
+    colorPickerPanel: ColorPickerPanelProps;
+    flatTreeRow: FlatTreeRow;
+    gradientEditorLabels: GradientEditorLabels;
+    inlineRename: InlineRenameProps;
+    pageListItem: PageListItem;
+    pageList: PageListProps;
+    pageRow: PageRowProps;
+    resizeHandleBounds: ResizeHandleBounds;
+    resizeHandleEdge: ResizeHandleEdge;
+    resizeHandle: ResizeHandleProps;
+    resultRow: ResultRowProps;
+    splitButton: SplitButtonProps;
+    toggleIconButton: ToggleIconButtonProps;
+    treeItem: TreeItemProps;
+    treeMove: TreeMove;
+    treeNodeData: TreeNodeData;
+    tree: TreeProps;
+    treeRowTint: TreeRowTint;
 };
 
 /**
@@ -210,16 +306,20 @@ type PublicTypeSurface = {
  */
 const PUBLIC_RUNTIME_EXPORTS = [
     // Theme
+    "compactBrandColors",
     "compactColors",
     "compactDarkColors",
+    "compactGlobalCss",
+    "compactGraphtyColors",
     "compactTheme",
     "compactThemeOverride",
+    "createCompactTheme",
+    "ensureCompactStyles",
 
     // Components
     "CompactColorInput",
     "ControlGroup",
     "ControlSection",
-    "ControlSubGroup",
     "DataTable",
     "GradientEditor",
     "InfoCircle",
@@ -227,10 +327,46 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "PopoutButton",
     "PopoutManager",
     "PopoutRegion",
-    "StyleNumberInput",
-    "StyleSelect",
+    "ScrollArea",
     "SegmentedControl",
     "ToggleWithContent",
+
+    // Buttons, chrome, color, inputs, overlays, selection, tree
+    "ComboInput",
+    "SearchInput",
+    "VariablePill",
+    "ContextMenu",
+    "MenuCheckItem",
+    "ModalFooter",
+    "Toast",
+    "ToastProvider",
+    "TooltipShortcut",
+    "useToast",
+    "ALIGNMENT_MATRIX_VALUES",
+    "AlignmentMatrix",
+    "ColorPickerPanel",
+    "InlineRename",
+    "PageList",
+    "PageRow",
+    "ResizeHandle",
+    "ResultRow",
+    "SplitButton",
+    "ToggleIconButton",
+    "Tree",
+    "TreeItem",
+    "moveTreeItem",
+    "renameTreeItem",
+
+    // Editor shell
+    "HelpButton",
+    "NavRail",
+    "QuickActions",
+    "RailButton",
+    "SecondaryToolbar",
+    "ShortcutSheet",
+    "Toolbar",
+    "ToolButton",
+    "ToolGroup",
 
     // Panel rows and the two atoms they are built from
     "ActionRow",
@@ -240,12 +376,12 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "DataRowHeader",
     "FieldRow",
     "HistogramRow",
-    "IconGroupRow",
     "MetricRow",
     "PanelField",
     "ProseBlock",
     "RampRow",
     "RankChip",
+    "ResetButton",
     "SparklineRow",
     "ToggleRow",
     "ToggleRowGroup",
@@ -294,8 +430,11 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "createColorStop",
     "createDefaultGradientStops",
     "getActivationMeta",
+    "isLightColor",
     "isRtl",
     "isValidHex",
+    "mixHex",
+    "normalizeHexa",
     "MAX_ALPHA_HEX",
     "MAX_OPACITY_PERCENT",
     "opacityToAlphaHex",
@@ -349,10 +488,6 @@ describe("Package exports", () => {
                 expect(mainExports.ControlSection).toBeDefined();
             });
 
-            it("exports ControlSubGroup", () => {
-                expect(mainExports.ControlSubGroup).toBeDefined();
-            });
-
             it("exports GradientEditor", () => {
                 expect(mainExports.GradientEditor).toBeDefined();
             });
@@ -377,16 +512,12 @@ describe("Package exports", () => {
                 expect(mainExports.Popout.Anchor).toBeDefined();
             });
 
-            it("exports StyleNumberInput", () => {
-                expect(mainExports.StyleNumberInput).toBeDefined();
+            it("exports ScrollArea", () => {
+                expect(mainExports.ScrollArea).toBeDefined();
             });
 
             it("exports SegmentedControl", () => {
                 expect(mainExports.SegmentedControl).toBeDefined();
-            });
-
-            it("exports StyleSelect", () => {
-                expect(mainExports.StyleSelect).toBeDefined();
             });
 
             it("exports ToggleWithContent", () => {
@@ -437,6 +568,7 @@ describe("Package exports", () => {
                 expect(mainExports.PanelField).toBeDefined();
                 expect(mainExports.TrailingSlot).toBeDefined();
                 expect(mainExports.AdvancedButton).toBeDefined();
+                expect(mainExports.ResetButton).toBeDefined();
             });
 
             it("exports RT-1 FieldRow", () => {
@@ -447,8 +579,9 @@ describe("Package exports", () => {
                 expect(mainExports.CompoundRow).toBeDefined();
             });
 
-            it("exports RT-3 IconGroupRow", () => {
-                expect(mainExports.IconGroupRow).toBeDefined();
+            it("no longer exports RT-3 IconGroupRow, which the themed SegmentedControl replaces", () => {
+                const surface = mainExports as Record<string, unknown>;
+                expect(surface.IconGroupRow).toBeUndefined();
             });
 
             it("exports RT-4 RampRow", () => {
@@ -508,7 +641,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(16);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(44);
             });
 
             it("exports the guards that read the registers", () => {
@@ -590,93 +723,146 @@ describe("Package exports", () => {
         describe("Type exports", () => {
             it("names every published type", () => {
                 // The assertion that matters is PublicTypeSurface above, which is
-                // checked by the compiler. This one keeps the list honest at run
-                // time: 76 named types, none of them written twice. It is a
-                // subset of the type block in src/index.ts rather than the whole
-                // of it: four published names (liveSetting, popoutAnchor,
-                // popoutButton and popoutManager) have never been listed here,
-                // and closing that gap is a separate job from this one.
-                const names: (keyof PublicTypeSurface)[] = [
-                    "actionRow",
-                    "activationEvent",
-                    "activationHandler",
-                    "activationHandlerWithMeta",
-                    "activationMeta",
-                    "advancedButton",
-                    "changeHandler",
-                    "colorStop",
-                    "compactColorInput",
-                    "compactMantineLabels",
-                    "compoundRow",
-                    "compoundSegment",
-                    "controlGroup",
-                    "controlSection",
-                    "controlSubGroup",
-                    "dataRow",
-                    "dataRowHeader",
-                    "dataRowRole",
-                    "dataRowSortDirection",
-                    "dataTable",
-                    "dataTableAlign",
-                    "dataTableColumn",
-                    "dataTableHandle",
-                    "dataTableLabels",
-                    "dataTableRowHandler",
-                    "dataTableRowMouseHandler",
-                    "dataTableSelectionMode",
-                    "dataTableSort",
-                    "dataTableValue",
-                    "direction",
-                    "disclosure",
-                    "fieldGlyph",
-                    "fieldGlyphName",
-                    "fieldLetter",
-                    "fieldRow",
-                    "gestureChangeHandler",
-                    "gestureEndHandler",
-                    "gestureHandlers",
-                    "gestureStartHandler",
-                    "gradientEditor",
-                    "histogramBin",
-                    "histogramRow",
-                    "iconGroupOption",
-                    "iconGroupRow",
-                    "infoCircle",
-                    "labelsProvider",
-                    "metricRow",
-                    "openChangeHandler",
-                    "panelField",
-                    "panelFieldKind",
-                    "panelLabelsProvider",
-                    "popout",
-                    "popoutAlignment",
-                    "popoutAnchorTarget",
-                    "popoutContent",
-                    "popoutContextValue",
-                    "popoutHeader",
-                    "popoutHeaderConfig",
-                    "popoutManagerContextValue",
-                    "popoutPanel",
-                    "popoutPlacement",
-                    "popoutPosition",
-                    "popoutTrigger",
-                    "proseBlock",
-                    "rampRow",
-                    "rankChip",
-                    "sparklineRow",
-                    "styleNumberInput",
-                    "styleSelect",
-                    "styleSelectOption",
-                    "toggleRow",
-                    "toggleRowGroup",
-                    "toggleWithContent",
-                    "trailingSlot",
-                    "uiGlyph",
-                    "uiGlyphName",
-                ];
+                // checked by the compiler. This one keeps the run-time list
+                // honest: `satisfies` makes leaving out a key of
+                // PublicTypeSurface, or naming one it does not have, a type
+                // error, so the list cannot drift from the published types.
+                const listed = {
+                    actionRow: true,
+                    activationEvent: true,
+                    activationHandler: true,
+                    activationHandlerWithMeta: true,
+                    activationMeta: true,
+                    advancedButton: true,
+                    changeHandler: true,
+                    colorStop: true,
+                    compactColorInput: true,
+                    compactMantineLabels: true,
+                    compoundRow: true,
+                    compoundSegment: true,
+                    controlGroup: true,
+                    controlSection: true,
+                    dataRow: true,
+                    dataRowHeader: true,
+                    dataRowSortDirection: true,
+                    dataTable: true,
+                    dataTableAlign: true,
+                    dataTableColumn: true,
+                    dataTableHandle: true,
+                    dataTableLabels: true,
+                    dataTableRowHandler: true,
+                    dataTableRowMouseHandler: true,
+                    dataTableSelectionMode: true,
+                    dataTableSort: true,
+                    dataTableValue: true,
+                    direction: true,
+                    disclosure: true,
+                    fieldGlyph: true,
+                    fieldGlyphName: true,
+                    fieldLetter: true,
+                    fieldRow: true,
+                    gestureChangeHandler: true,
+                    gestureEndHandler: true,
+                    gestureHandlers: true,
+                    gestureStartHandler: true,
+                    gradientEditor: true,
+                    histogramBin: true,
+                    histogramRow: true,
+                    infoCircle: true,
+                    labelsProvider: true,
+                    liveSetting: true,
+                    metricRow: true,
+                    openChangeHandler: true,
+                    panelField: true,
+                    panelFieldKind: true,
+                    panelLabelsProvider: true,
+                    popout: true,
+                    popoutAlignment: true,
+                    popoutAnchor: true,
+                    popoutAnchorTarget: true,
+                    popoutButton: true,
+                    popoutContent: true,
+                    popoutContextValue: true,
+                    popoutHeader: true,
+                    popoutHeaderConfig: true,
+                    popoutManager: true,
+                    popoutManagerContextValue: true,
+                    popoutPanel: true,
+                    popoutPlacement: true,
+                    popoutPosition: true,
+                    popoutRegion: true,
+                    popoutTrigger: true,
+                    proseBlock: true,
+                    rampRow: true,
+                    rankChip: true,
+                    resetButton: true,
+                    sparklineRow: true,
+                    toggleRow: true,
+                    toggleRowGroup: true,
+                    toggleWithContent: true,
+                    trailingSlot: true,
+                    uiGlyph: true,
+                    uiGlyphName: true,
+                    // The theme options and the editor shell.
+                    compactThemeOptions: true,
+                    helpButton: true,
+                    navRail: true,
+                    quickAction: true,
+                    quickActions: true,
+                    railButton: true,
+                    secondaryToolbar: true,
+                    secondaryToolbarButton: true,
+                    shortcutEntry: true,
+                    shortcutGroup: true,
+                    shortcutSheet: true,
+                    shortcutSheetTab: true,
+                    toolbar: true,
+                    toolButton: true,
+                    toolGroup: true,
+                    toolItem: true,
+                    // Buttons, chrome, color, selection, and the tree and lists.
+                    comboInputItem: true,
+                    comboInputOption: true,
+                    comboInput: true,
+                    comboInputSeparator: true,
+                    searchInput: true,
+                    variablePill: true,
+                    contextMenu: true,
+                    menuCheckItem: true,
+                    modalFooter: true,
+                    toastAction: true,
+                    toastApi: true,
+                    toastOptions: true,
+                    toast: true,
+                    toastProvider: true,
+                    tooltipShortcut: true,
+                    alignmentMatrix: true,
+                    alignmentMatrixValue: true,
+                    colorPickerFormat: true,
+                    colorPickerPaintType: true,
+                    colorPickerPanelLabels: true,
+                    colorPickerPanel: true,
+                    flatTreeRow: true,
+                    gradientEditorLabels: true,
+                    inlineRename: true,
+                    pageListItem: true,
+                    pageList: true,
+                    pageRow: true,
+                    resizeHandleBounds: true,
+                    resizeHandleEdge: true,
+                    resizeHandle: true,
+                    resultRow: true,
+                    splitButton: true,
+                    toggleIconButton: true,
+                    treeItem: true,
+                    treeMove: true,
+                    treeNodeData: true,
+                    tree: true,
+                    treeRowTint: true,
+                } satisfies Record<keyof PublicTypeSurface, true>;
+                const names = Object.keys(listed);
 
-                expect(names).toHaveLength(76);
-                expect(new Set(names).size).toBe(names.length);
+                expect(names).toHaveLength(129);
             });
         });
 
@@ -717,14 +903,14 @@ describe("Package exports", () => {
 
             it("exports PANEL_GRID", () => {
                 expect(mainExports.PANEL_GRID).toBeDefined();
-                expect(mainExports.PANEL_GRID.WIDTH).toBe(280);
-                expect(mainExports.PANEL_GRID.BODY).toBe(224);
-                expect(mainExports.PANEL_GRID.FIELD).toBe(108);
+                expect(mainExports.PANEL_GRID.WIDTH).toBe(240);
+                expect(mainExports.PANEL_GRID.BODY).toBe(184);
+                expect(mainExports.PANEL_GRID.FIELD).toBe(88);
                 expect(mainExports.PANEL_GRID.TRAIL).toBe(24);
             });
 
-            it("PANEL_GRID keeps the row identity that adds up to 280", () => {
-                // 16 + 108 + 8 + 108 + 8 + 24 + 8 = 280
+            it("PANEL_GRID keeps the row identity that adds up to 240", () => {
+                // 16 + 88 + 8 + 88 + 8 + 24 + 8 = 240
                 const grid = mainExports.PANEL_GRID;
                 const identity =
                     grid.PAD_LEFT +
@@ -742,23 +928,20 @@ describe("Package exports", () => {
 
             it("exports PANEL_INK", () => {
                 expect(mainExports.PANEL_INK).toBeDefined();
-                expect(mainExports.PANEL_INK.VALUE).toBe("var(--mantine-color-text)");
-                expect(mainExports.PANEL_INK.CHROME).toBe(
-                    "light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1))",
-                );
-                expect(mainExports.PANEL_INK.ACCENT).toBe("var(--mantine-primary-color-filled)");
+                expect(mainExports.PANEL_INK.VALUE).toBe("var(--cm-text)");
+                expect(mainExports.PANEL_INK.CHROME).toBe("var(--cm-text-secondary)");
+                expect(mainExports.PANEL_INK.ACCENT).toBe("var(--cm-bg-brand)");
             });
 
-            it("exports the ink roles the contrast pass added", () => {
-                // A selected item needs a ground that separates from its track
-                // and an ink that reads on that ground, and a control that cannot
-                // be operated needs an ink that is allowed to be dimmer than the
-                // text minimum. None of the three existed before.
-                expect(mainExports.PANEL_INK.SELECTED).toBe(
-                    "light-dark(var(--mantine-color-gray-7), var(--mantine-color-dark-1))",
-                );
-                expect(mainExports.PANEL_INK.ON_SELECTED).toBe("var(--mantine-color-body)");
-                expect(mainExports.PANEL_INK.DISABLED).toBe("var(--mantine-color-disabled-color)");
+            it("exports the ink roles as Figma's selected item and the new roles", () => {
+                // SELECTED / ON_SELECTED are Figma's selected item (#e5f4ff with a brand glyph),
+                // no longer an inverted patch; the Figma roles the old map lacked are added.
+                expect(mainExports.PANEL_INK.SELECTED).toBe("var(--cm-bg-selected)");
+                expect(mainExports.PANEL_INK.ON_SELECTED).toBe("var(--cm-icon-brand)");
+                expect(mainExports.PANEL_INK.DISABLED).toBe("var(--cm-text-disabled)");
+                expect(mainExports.PANEL_INK.HOVER).toBe("var(--cm-bg-hover)");
+                expect(mainExports.PANEL_INK.FOCUS).toBe("var(--cm-border-selected)");
+                expect(mainExports.PANEL_INK.MENU).toBe("var(--cm-bg-menu)");
             });
 
             it("PANEL_INK writes no raw hex, so the rows read in light mode too", () => {
@@ -860,13 +1043,29 @@ describe("Package exports", () => {
 
         it("publishes the panel grid on theme.other", () => {
             // A consumer theming the library reads the geometry from the theme
-            // rather than retyping the 280px identity.
+            // rather than retyping the 240px identity.
             expect(themeExports.compactTheme.other.panelGrid).toBe(constantsExports.PANEL_GRID);
-            expect(themeExports.compactTheme.other.panelGrid?.WIDTH).toBe(280);
+            expect(themeExports.compactTheme.other.panelGrid?.WIDTH).toBe(240);
         });
 
         it("compactThemeOverride carries the panel grid too", () => {
             expect(themeExports.compactThemeOverride.other?.panelGrid).toBe(constantsExports.PANEL_GRID);
+        });
+
+        it("exports the theme factory and the stylesheet", () => {
+            expect(mainExports.createCompactTheme).toBe(themeExports.createCompactTheme);
+            expect(mainExports.createCompactTheme({ highContrast: true }).other?.compact).toEqual({
+                highContrast: true,
+                accent: "figma",
+            });
+            expect(mainExports.compactGlobalCss({ accent: "graphty" })).toContain(
+                "--cm-bg-brand: light-dark(#97c800, #c4f23a);",
+            );
+            expect(mainExports.compactGraphtyColors[6]).toBe("#97c800");
+            expect(mainExports.compactGlobalCss()).toContain("--cm-bg:");
+            expect(mainExports.compactGlobalCss()).toContain(".cm-toolbar");
+            expect(typeof mainExports.ensureCompactStyles).toBe("function");
+            expect(mainExports.compactBrandColors[6]).toBe("#0d99ff");
         });
 
         it("compactTheme has components configured", () => {
@@ -896,7 +1095,7 @@ describe("Package exports", () => {
 
         it("exports PANEL_GRID", () => {
             expect(constantsExports.PANEL_GRID).toBeDefined();
-            expect(constantsExports.PANEL_GRID.WIDTH).toBe(280);
+            expect(constantsExports.PANEL_GRID.WIDTH).toBe(240);
         });
 
         it("exports PANEL_INK", () => {

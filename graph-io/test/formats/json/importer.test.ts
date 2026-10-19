@@ -115,7 +115,7 @@ const EXPECTED: Record<string, { dialect: string; directed: boolean }> = {
 describe("corpus", () => {
     for (const entry of corpusFiles("json")) {
         it(`imports ${entry.path} with the manifest's counts`, async () => {
-            const { s, report } = await load(readCorpusText("json", entry.path), entry.options as Options);
+            const { s, report } = await load(readCorpusText("json", entry.path), entry.options);
             expect(s.nodeCount).toBe(entry.expectedNodes);
             expect(s.edgeCount).toBe(entry.expectedEdges);
             expect(report.counts.nodes).toBe(entry.expectedNodes);
@@ -551,12 +551,12 @@ describe("node-link", () => {
         expect(s.edgeCount).toBe(1);
     });
 
-    it("reserves both nodes and edges as errors when a section is missing, but still imports", async () => {
+    it("warns when a section is missing, and still imports", async () => {
         const nodesOnly = await load('{"nodes":[{"id":1},{"id":2}]}');
         expect(nodesOnly.s.nodeCount).toBe(2);
         expect(codes(nodesOnly.report)).toEqual([JSON_ISSUE.MISSING_SECTION]);
         expect(nodesOnly.report.issues[0]?.category).toBe("missing-value");
-        expect(nodesOnly.report.issues[0]?.severity).toBe("error");
+        expect(nodesOnly.report.issues[0]?.severity).toBe("warning");
         const edgesOnly = await load('{"edges":[{"source":1,"target":2}]}');
         expect(edgesOnly.s.nodeCount).toBe(2);
         expect(edgesOnly.s.edgeCount).toBe(1);
@@ -854,7 +854,7 @@ describe("jgf", () => {
             expect(report.lossy).toEqual([
                 {
                     code: JSON_ISSUE.HYPEREDGES_SKIPPED,
-                    message: "2 hyperedge(s) were not imported",
+                    message: "2 hyperedges were not imported",
                     column: null,
                     count: 2,
                 },
@@ -966,12 +966,12 @@ describe("cytoscape", () => {
         expect(report.issues[0]?.category).toBe("missing-value");
         const position = s.nodes.byRole("position");
         expect(position?.meta.name).toBe("position");
-        expect(position?.dtype).toBe("f32");
+        expect(position?.dtype).toBe("f64");
         expect(position?.meta.components).toBe(3);
         expect(position?.meta.mutable).toBe(true);
         expect(position?.meta.extra).toEqual({ sourceDims: 2, units: "file" });
         expect(position?.meta.origin?.namespace).toBe("cytoscape");
-        expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([Math.fround(0.1), 2, 0]);
+        expect(Array.from(position?.value(1) as ArrayLike<number>)).toEqual([0.1, -2, 0]); // stored y-up
         expect(position?.isSet(0)).toBe(false);
         expect(s.nodes.byRole("classes")?.value(1)).toEqual(["a", "b"]);
         expect(s.nodes.byRole("classes")?.value(2)).toEqual(["c"]);
@@ -1385,5 +1385,23 @@ describe("nodesPath and edgesPath", () => {
         await expect(load(doc, { nodesPath: "nodes", dialect: "jgf" })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
+    });
+});
+
+describe("nodeIdFrom label without labels", () => {
+    it("says where the ids came from instead", async () => {
+        const { importGraph } = await import("../../../src/index.js");
+        const named = await importGraph('{"nodes":[{"name":"a"},{"name":"b"}],"links":[{"source":"a","target":"b"}]}', {
+            format: "json",
+            nodeIdFrom: "label",
+        });
+        expect(named.report.issues.map((i) => i.message)).toContain(
+            'nodeIdFrom "label": no node has a "label" key; ids are read from "name"',
+        );
+        const labelled = await importGraph('{"nodes":[{"id":1,"label":"a"}],"links":[]}', {
+            format: "json",
+            nodeIdFrom: "label",
+        });
+        expect(labelled.report.issues).toEqual([]);
     });
 });

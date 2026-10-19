@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph PUBLIC "-//John Punin//DTD graph description//EN" "http://www.cs.rpi.edu/~puninj/XGMML/xgmml.dtd">
+<graph id="1" label="Draft">
+  <node id="a"><att><graph><node id="b"><att><graph><node xlink:href="#a" xmlns:xlink="http://www.w3.org/1999/xlink"/></graph></att></node></graph></att></node>
+</graph>

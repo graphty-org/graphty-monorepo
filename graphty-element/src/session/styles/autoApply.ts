@@ -30,8 +30,11 @@
  *   consumer's call dispatches (see {@link suggestionCommand}) instead of adding layers by another
  *   door: a stranger who runs an algorithm and then colours by it gets one layer and one legend
  *   block, in the place the derived layer already had.
- * - **A highlight is exclusive**, likewise enforced by `styles.highlight()`: a second route or
- *   chosen set replaces the first.
+ * - **A chosen subset is a mark, and marks stack.** A route, a matching or a spanning tree is
+ *   applied as `styles.mark()`: an ordinary layer per half, scoped to the chosen elements, that
+ *   replaces only the same run's earlier mark. Two algorithms' marks both stay, the later one on
+ *   top where they overlap, and a batch keeps every member's mark, since none of them hides
+ *   another.
  * - **`{ style: false }` opts out**, and a run that failed, was cancelled or has nothing per
  *   element to paint suggests nothing in the first place.
  *
@@ -42,8 +45,8 @@
  *
  * WHAT THIS DOES NOT DO. It never removes a layer, never disables one, and never paints an element
  * a run measured nothing about: what a suggestion becomes is decided by {@link suggestStyles} and
- * applied as an encoding or a highlight, both of which scope the layer to the elements carrying
- * that run's value. Dimming the rest is a reader's choice and is not made here.
+ * applied as an encoding or a mark, both of which scope the layer to the elements carrying that
+ * run's value. Dimming the rest is a reader's choice and is not made here.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -51,7 +54,7 @@
 import type { Channel, RunId } from "../../catalog/types";
 import type { StyleCommand } from "../commands/style";
 import type { RunRef } from "../results/types";
-import type { RunStatus, RunStyle } from "../runs/types";
+import type { RunPainting, RunStatus, RunStyle, SuggestionOutcome } from "../runs/types";
 import { type StyleSuggestion, suggestStyles } from "./derive";
 import type { EncodingRun } from "./EncodingSpec";
 import type { Layer } from "./Layer";
@@ -104,14 +107,26 @@ export interface AutoApplySources {
     readonly onProblem?: (runId: RunId, error: unknown) => void;
 }
 
+/** What releasing a batch's hold decided. */
+interface PaintRelease {
+    /**
+     * What to paint: one suggestion per channel, keeping the member that would have ended up on
+     * top, minus what an authored layer already drives.
+     */
+    readonly paint: readonly StyleSuggestion[];
+    /** What became of every other held suggestion: superseded by a sibling, or suppressed. */
+    readonly settled: readonly SuggestionOutcome[];
+    /** Every run whose decision waited on this hold, in the order they finished. */
+    readonly members: readonly RunId[];
+}
+
 /** A batch's suggestions, held until the batch is released. */
 export interface PaintHold {
     /**
      * Stop holding.
-     * @returns What was held, one suggestion per channel, keeping the member that would have
-     * ended up on top, minus what an authored layer already drives; empty on a second release.
+     * @returns What was decided; nothing on a second release.
      */
-    release(): readonly StyleSuggestion[];
+    release(): PaintRelease;
 }
 
 /** What the policy decided about one finished run. */
@@ -120,6 +135,11 @@ interface PaintDecision {
     readonly painted: boolean;
     /** What to plan into the run's step now; empty when held or when there is nothing to paint. */
     readonly paint: readonly StyleSuggestion[];
+    /**
+     * Where the decision stands, with the suggestions it held back. The caller adds an outcome
+     * for each of `paint`. Undefined when the run had its moment already and keeps that decision.
+     */
+    readonly painting?: RunPainting;
 }
 
 /** The policy, as whoever records a finished run calls it. */
@@ -156,6 +176,21 @@ const AUTHORED: readonly string[] = Object.freeze(["user", "template", "plugin"]
 /** Nothing to paint. */
 const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
 
+/** No outcomes. */
+const NO_OUTCOMES: readonly SuggestionOutcome[] = Object.freeze([]);
+
+/** A second release of one hold. */
+const RELEASED: PaintRelease = Object.freeze({ paint: NOTHING, settled: NO_OUTCOMES, members: Object.freeze([]) });
+
+/**
+ * A decision with no suggestions in it.
+ * @param state - Where it stands.
+ * @returns The decision.
+ */
+export function bare(state: RunPainting["state"]): RunPainting {
+    return Object.freeze({ state, suggestions: NO_OUTCOMES });
+}
+
 /**
  * What two suggestions have to agree on to be the same picture.
  *
@@ -167,6 +202,12 @@ const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
  * @returns The key.
  */
 function coalesceKey(suggestion: StyleSuggestion): string {
+    if (suggestion.as === "mark") {
+        // A mark paints only what its run chose, so it never hides another member's: each keeps
+        // a key of its own.
+        return `mark:${idOf(suggestion.spec.run)}`;
+    }
+
     return suggestion.as === "highlight" ? "highlight" : suggestion.channels.join(",");
 }
 
@@ -181,7 +222,7 @@ function coalesceKey(suggestion: StyleSuggestion): string {
  * @param channels - The channels a suggestion would paint.
  * @returns True when it is authored, enabled and drives one of them.
  */
-function authoredDriving(layer: Layer, channels: readonly Channel[]): boolean {
+export function authoredDriving(layer: Layer, channels: readonly Channel[]): boolean {
     if (!layer.enabled || !AUTHORED.includes(layer.source.by)) {
         return false;
     }
@@ -190,14 +231,14 @@ function authoredDriving(layer: Layer, channels: readonly Channel[]): boolean {
 }
 
 /**
- * Whether an authored layer already drives one of these channels on every element, so a
+ * The authored layer that already drives one of these channels on every element, so a
  * suggestion beneath it could never show.
  * @param layers - The stack.
  * @param channels - The channels the suggestion would paint.
- * @returns True when the suggestion should be dropped.
+ * @returns That layer, or undefined when the suggestion may paint.
  */
-function authoredCovers(layers: readonly Layer[], channels: readonly Channel[]): boolean {
-    return layers.some((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
+function authoredCovering(layers: readonly Layer[], channels: readonly Channel[]): Layer | undefined {
+    return layers.find((layer) => layer.selector.match === "everything" && authoredDriving(layer, channels));
 }
 
 /**
@@ -219,7 +260,7 @@ export function beneathAuthored(layers: readonly Layer[], channels: readonly Cha
  * @param ref - The reference.
  * @returns The id.
  */
-function idOf(ref: RunRef): RunId {
+export function idOf(ref: RunRef): RunId {
     if (typeof ref === "string") {
         return ref;
     }
@@ -228,9 +269,9 @@ function idOf(ref: RunRef): RunId {
 }
 
 /**
- * The command a suggestion is applied as: the one `styles.encode()` or `styles.highlight()`
- * dispatches for the same specification, so the replacement and exclusivity rules of those verbs
- * hold for it too.
+ * The command a suggestion is applied as: the one `styles.encode()`, `styles.mark()` or
+ * `styles.highlight()` dispatches for the same specification, so the replacement and exclusivity
+ * rules of those verbs hold for it too.
  * @param suggestion - The suggestion.
  * @param auto - True when this policy decided it, which places it beneath authored layers (see
  *     {@link beneathAuthored}); false when a caller asked for it outright, which puts it on top.
@@ -239,14 +280,28 @@ function idOf(ref: RunRef): RunId {
 export function suggestionCommand(suggestion: StyleSuggestion, auto = false): StyleCommand {
     const placement = auto ? { beneathAuthored: true } : {};
 
-    return suggestion.as === "highlight"
-        ? {
-              op: "style.patch",
-              action: "highlight",
-              spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) },
-              ...placement,
-          }
-        : { op: "style.encode", spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) }, ...placement };
+    switch (suggestion.as) {
+        case "mark":
+            return {
+                op: "style.patch",
+                action: "mark",
+                spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) },
+                ...placement,
+            };
+        case "highlight":
+            return {
+                op: "style.patch",
+                action: "highlight",
+                spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) },
+                ...placement,
+            };
+        default:
+            return {
+                op: "style.encode",
+                spec: { ...suggestion.spec, run: idOf(suggestion.spec.run) },
+                ...placement,
+            };
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -259,34 +314,61 @@ export function suggestionCommand(suggestion: StyleSuggestion, auto = false): St
  * @returns The policy.
  */
 export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolicy {
-    /** Every hold still open, with what it has been handed, newest last. */
-    const held = new WeakMap<PaintHold, Map<string, StyleSuggestion>>();
+    /** Every hold still open: each suggestion handed to it in order, and the runs that waited. */
+    const held = new WeakMap<PaintHold, { suggestions: StyleSuggestion[]; members: RunId[] }>();
 
     /**
      * Drop what an authored layer already drives on every element, reading the stack once: a
      * suggestion is suppressed by a decision somebody had already made, never by a layer the
      * suggestion beside it is about to add.
      * @param suggestions - The candidates.
-     * @returns What to paint.
+     * @returns What to paint, and an outcome for each suggestion dropped.
      */
-    const unsuppressed = (suggestions: readonly StyleSuggestion[]): readonly StyleSuggestion[] => {
+    const unsuppressed = (
+        suggestions: readonly StyleSuggestion[],
+    ): { paint: readonly StyleSuggestion[]; suppressed: SuggestionOutcome[] } => {
         const styles = sources.styles();
 
         if (suggestions.length === 0 || styles === undefined) {
-            return NOTHING;
+            return { paint: NOTHING, suppressed: [] };
         }
 
         const stack = styles.list();
+        const paint: StyleSuggestion[] = [];
+        const suppressed: SuggestionOutcome[] = [];
 
-        return Object.freeze(suggestions.filter((suggestion) => !authoredCovers(stack, suggestion.channels)));
+        for (const suggestion of suggestions) {
+            const holder = authoredCovering(stack, suggestion.channels);
+
+            if (holder === undefined) {
+                paint.push(suggestion);
+            } else {
+                suppressed.push(Object.freeze({ outcome: "suppressed", suggestion, byLayerId: holder.id }));
+            }
+        }
+
+        return { paint: Object.freeze(paint), suppressed };
     };
 
     return {
         completed(run: AutoApplyRun, painted: boolean, hold?: PaintHold): PaintDecision {
-            // A cancel and a failure have no result to paint, and a re-run keeps its id -- so a
-            // run that already had its moment keeps the layers it already has.
-            if (run.status !== "succeeded" || !run.style || painted) {
+            // A re-run keeps its id -- so a run that already had its moment keeps the layers it
+            // already has, and the decision that made them.
+            if (painted) {
                 return { painted, paint: NOTHING };
+            }
+
+            // A cancel and a failure have no result to paint.
+            if (run.status !== "succeeded") {
+                return { painted, paint: NOTHING, painting: bare("not-succeeded") };
+            }
+
+            if (!run.style) {
+                return { painted, paint: NOTHING, painting: bare("opted-out") };
+            }
+
+            if (sources.styles() === undefined) {
+                return { painted: true, paint: NOTHING, painting: bare("no-styles") };
             }
 
             // Had whether or not anything is painted. The moment a run first completes is the
@@ -296,15 +378,19 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
             const pending = hold === undefined ? undefined : held.get(hold);
 
             if (pending === undefined) {
-                return { painted: true, paint: unsuppressed(suggestions) };
+                const { paint, suppressed } = unsuppressed(suggestions);
+
+                return {
+                    painted: true,
+                    paint,
+                    painting: Object.freeze({ state: "decided", suggestions: Object.freeze(suppressed) }),
+                };
             }
 
-            for (const suggestion of suggestions) {
-                // The member that finished last replaces the one before it on the same channel.
-                pending.set(coalesceKey(suggestion), suggestion);
-            }
+            pending.suggestions.push(...suggestions);
+            pending.members.push(run.id);
 
-            return { painted: true, paint: NOTHING };
+            return { painted: true, paint: NOTHING, painting: bare("pending") };
         },
 
         hold(): PaintHold {
@@ -313,10 +399,37 @@ export function createAutoApplyPolicy(sources: AutoApplySources): AutoApplyPolic
                     const pending = held.get(hold);
                     held.delete(hold);
 
-                    return pending === undefined ? NOTHING : unsuppressed([...pending.values()]);
+                    if (pending === undefined) {
+                        return RELEASED;
+                    }
+
+                    // The member that finished last replaces the one before it on the same channel.
+                    const top = new Map<string, StyleSuggestion>();
+
+                    for (const suggestion of pending.suggestions) {
+                        top.set(coalesceKey(suggestion), suggestion);
+                    }
+
+                    const winners = new Set(top.values());
+                    const superseded: SuggestionOutcome[] = pending.suggestions
+                        .filter((suggestion) => !winners.has(suggestion))
+                        .map((suggestion) =>
+                            Object.freeze({
+                                outcome: "superseded",
+                                suggestion,
+                                byRunId: idOf((top.get(coalesceKey(suggestion)) ?? suggestion).spec.run),
+                            }),
+                        );
+                    const { paint, suppressed } = unsuppressed([...winners]);
+
+                    return Object.freeze({
+                        paint,
+                        settled: Object.freeze([...superseded, ...suppressed]),
+                        members: Object.freeze([...pending.members]),
+                    });
                 },
             };
-            held.set(hold, new Map());
+            held.set(hold, { suggestions: [], members: [] });
 
             return hold;
         },

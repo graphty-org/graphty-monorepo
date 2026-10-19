@@ -327,7 +327,7 @@ They are grouped by kind of algorithm.
 ### Centrality and community algorithms
 
 - **k-core no longer counts a self-loop** toward a node's core number, so a self-looped node, and
-  any node whose core leaned on self-looped neighbours, can sit lower. The result equals the 2.x
+  any node whose core leaned on self-looped neighbors, can sit lower. The result equals the 2.x
   result on the same graph with every self-loop removed.
 - **Louvain can find a different partition.** On the cat network of the algorithm stories it finds
   four communities (modularity 0.462) where 2.x found six (0.402); on some graphs it lands lower,
@@ -369,4 +369,4 @@ They are grouped by kind of algorithm.
   2.x had no bound and ran a large graph until the tab ran out of memory.
 - **Adamic-Adar link prediction scores can differ in the last bits** (up to about 2e-11), so pairs
   whose scores tie exactly can come out in another order, and at the `topK` cut-off another of the
-  tied pairs can be kept. The common-neighbours method is unchanged.
+  tied pairs can be kept. The common-neighbors method is unchanged.

@@ -22,7 +22,7 @@ Both declarations survive the dual-API window, byte for byte. Three things happe
   shadows and why it stays.
 - The index-based side gets a THIRD declaration, `indexed.PageRankOptions`, in
   `algorithms/src/indexed/pagerank.ts`: `{ dampingFactor?, maxIterations?, tolerance?,
-  weighted? }`, every member `readonly` and `| undefined`, as the graph-format design's Port 3
+weighted? }`, every member `readonly` and `| undefined`, as the graph-format design's Port 3
   writes it. It is also re-exported flat from the barrel under the alias
   `IndexedPageRankOptions`, so a consumer can name it without the namespace.
 - At 2.0, when the legacy facades go (the 2.0 row of the graph-format design's landing-order

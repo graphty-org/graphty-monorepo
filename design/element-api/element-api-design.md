@@ -1084,13 +1084,7 @@ interface SampleDatasetDescriptor {
     tags: readonly string[];
 }
 type SampleDatasetId =
-    | "karate"
-    | "les-miserables"
-    | "football"
-    | "dolphins"
-    | "power-grid"
-    | "cat-social"
-    | (string & {});
+    "karate" | "les-miserables" | "football" | "dolphins" | "power-grid" | "cat-social" | (string & {});
 ```
 
 #### 4.3.3 Mutation, and inverses that serialise
@@ -1525,15 +1519,16 @@ interface StartOptions extends RunOptions {
     seed?: number;
     timeBoxMs?: number;
     as?: RunId; // author-assigned id; REQUIRED for anything persisted
-    style?: RunStyle; // false opts out; { size } also sizes by a node metric
+    style?: RunStyle; // false opts out; { size } also sizes by a node or edge metric
     exact?: boolean; // refuse to approximate; above the cap this throws
     sample?: number; // sample size for an approximable algorithm
 }
 
 // true / omitted: the derived colour suggestion. false: nothing.
-// { size: true | [min, max] }: the colour suggestion PLUS a node.size encoding of the same field,
-// for a run whose shape is "node-metric" only (ignored, without an error, for any other shape).
-// size: true is the range [1, 3] -- 1 is the default node size, so the lowest node is unchanged.
+// { size: true | [min, max] }: the colour suggestion PLUS a node.size encoding of the same field
+// for a "node-metric" run, or an edge.width encoding for an "edge-metric" run (ignored, without an
+// error, for any other shape). size: true is the range [1, 3] on nodes -- 1 is the default node
+// size, so the lowest node is unchanged -- and the default edge width to twice it on edges.
 // The size layer is scoped { match: "has" } like every run layer and is removed with the run.
 type RunStyle = boolean | { size?: boolean | readonly [min: number, max: number] };
 
@@ -1777,9 +1772,9 @@ suppressed when a user-authored layer already drives that channel on every eleme
 `match: "everything"` selector); an authored layer naming only some elements does not suppress it,
 and the derived layer is placed beneath it so the hand-made choice still wins on those elements;
 once per batch, so six runs never paint six times. `{ style: false }` opts out. `{ style: { size: true } }` (or
-`{ size: [min, max] }`) also suggests a `node.size` encoding of a node metric's primary field,
-through the same `encode()` and the same batch coalescing (keyed by channel); it is the one-flag
-form of `encode({ run, channel: "node.size", range })`.
+`{ size: [min, max] }`) also suggests a `node.size` encoding of a node metric's primary field, or
+an `edge.width` encoding of an edge metric's, through the same `encode()` and the same batch
+coalescing (keyed by channel); it is the one-flag form of `encode({ run, channel, range })`.
 
 **An explicit `encode()` replaces the derived layer for the same `(runId, channel)` pair**, it
 does not stack on it, and it returns that layer's id. This is the case the suppression rule
@@ -2274,15 +2269,7 @@ type Channel =
     | "edge.tooltip";
 
 type EdgeLinePattern =
-    | "solid"
-    | "dashed"
-    | "dotted"
-    | "dash-dot"
-    | "dash-dot-dot"
-    | "long-dash"
-    | "short-dash"
-    | "double"
-    | "wave"; // edge.style values
+    "solid" | "dashed" | "dotted" | "dash-dot" | "dash-dot-dot" | "long-dash" | "short-dash" | "double" | "wave"; // edge.style values
 
 type Binding =
     | { value: ChannelValue }
@@ -2760,14 +2747,7 @@ interface ReportOptions {
     methodology?: string;
     findings?: string;
     sections?: readonly (
-        | "statistics"
-        | "degree-distribution"
-        | "rankings"
-        | "communities"
-        | "image"
-        | "legend"
-        | "methods"
-        | "notes"
+        "statistics" | "degree-distribution" | "rankings" | "communities" | "image" | "legend" | "methods" | "notes"
     )[];
     runs?: readonly RunId[] | "all";
     image?: CaptureOptions;

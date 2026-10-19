@@ -24,6 +24,5 @@ describe("StronglyConnectedComponentsAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "scc");
             assert.strictEqual(AlgClass, StronglyConnectedComponentsAlgorithm);
         });
-
     });
 });

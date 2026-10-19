@@ -70,8 +70,19 @@ export function validateResults(r) {
             (isObj(r.local) &&
                 isStr(r.local.describe) &&
                 typeof r.local.diff === "string" &&
-                SHA256.test(r.local.diff)),
-        "local must be null or { describe, diff }",
+                SHA256.test(r.local.diff) &&
+                (r.local.preview === undefined ||
+                    (isObj(r.local.preview) &&
+                        typeof r.local.preview.merge === "string" &&
+                        SHA1.test(r.local.preview.merge) &&
+                        isStr(r.local.preview.host) &&
+                        isStr(r.local.preview.tool)))),
+        "local must be null or { describe, diff, preview? }",
+    );
+    // A preview of a pull request names it and the head it captured.
+    check(
+        r.local?.preview === undefined || (r.pr !== null && r.headSha !== null),
+        "a local preview must name its pull request and head",
     );
     check(typeof r.seeded === "boolean", "seeded must be a boolean");
     check(typeof r.complete === "boolean", "complete must be a boolean");
@@ -156,3 +167,23 @@ export function validateResults(r) {
     });
     return errors;
 }
+
+/**
+ * skipped.json: what a CI job writes in place of results.json when the run chose not to capture
+ * a project because the pull request cannot affect it. It is not a capture: the gate accepts it
+ * only on a pull request's own run, only for a project with baselines on the base branch whose
+ * baselines the pull request does not change, and never in a merge-queue run (gate.mjs).
+ */
+export const SKIPPED_FILE = "skipped.json";
+
+/** The problem the review server shows for a project the run left out: neutral, nothing to decide. */
+export const NOT_AFFECTED = "not affected";
+
+/**
+ * Whether a parsed skipped.json is the marker for this project.
+ * @param {any} m the parsed JSON, untrusted
+ * @param {string} project the project the artifact is named for
+ * @returns {boolean} true only for exactly `{ "skipped": "not affected", "project": <project> }`
+ */
+export const isSkipMarker = (m, project) =>
+    isObj(m) && Object.keys(m).length === 2 && m.skipped === "not affected" && m.project === project;

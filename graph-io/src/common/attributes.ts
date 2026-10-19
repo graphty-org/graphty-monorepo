@@ -24,7 +24,6 @@ import {
     BAD_DEFAULT_CODE,
     BAD_OPTIONS_CODE,
     COLUMN_RENAMED_CODE,
-    PRECISION_CODE,
     ROLE_TAKEN_CODE,
     UNKNOWN_ATTR_TYPE_CODE,
 } from "./codes.js";
@@ -41,8 +40,8 @@ import { parseTemporal, type TemporalValue, timeTextCompanion } from "./temporal
 
 /**
  * What an importer knows about a declared attribute.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface AttributeDeclarationInput {
     /** The declaring format. */
@@ -73,8 +72,8 @@ export interface AttributeDeclarationInput {
 
 /**
  * A non-fatal problem with a declaration, for the importer to record as a warning.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface DeclarationIssue {
     /** The issue category. */
@@ -87,8 +86,8 @@ export interface DeclarationIssue {
 
 /**
  * A declared attribute: the ColumnDecl to push, the spec to parse values with, and what to report.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface DeclaredAttribute {
     /** The declaration for declareNodeColumn / declareEdgeColumn. */
@@ -105,40 +104,35 @@ export interface DeclaredAttribute {
     readonly issues: readonly DeclarationIssue[];
 }
 
-/** Issue code: the declared type is not one the format defines; the column is kept as string. */
+/**
+ * The declared type is not one the format defines; the column is kept as string.
+ * @category Issue and loss codes
+ */
 export const UNKNOWN_TYPE_CODE = UNKNOWN_ATTR_TYPE_CODE;
-/** Issue code: the column was renamed `<name>#<id>` because the name was taken (design section 5.6). */
+/**
+ * The column was renamed `<name>#<id>` because the name was taken.
+ * @category Issue and loss codes
+ */
 export const RENAMED_CODE = COLUMN_RENAMED_CODE;
 
-export { BAD_DEFAULT_CODE, BAD_OPTIONS_CODE, PRECISION_CODE, ROLE_TAKEN_CODE };
+export { BAD_DEFAULT_CODE, BAD_OPTIONS_CODE, PRECISION_CODE, ROLE_TAKEN_CODE } from "./codes.js";
 
-/** Rows sampled before the dict heuristic decides (design section 5.4). */
+/**
+ * Rows sampled before the dict heuristic decides (design section 5.4).
+ * @category Plugin helpers
+ */
 export const DICT_SAMPLE_ROWS = 1024;
 
 /**
  * Build the column declaration of a declared attribute.
  * @param input - what the file declares
  * @returns the declaration, the value spec and any warnings to record
+ * @category Plugin helpers
  */
 export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttribute {
     const issues: DeclarationIssue[] = [];
     const listSyntax = input.listSyntax ?? "gexf";
-    let spec: DeclaredTypeSpec;
-    if (input.type === null) {
-        spec = stringSpec(null);
-    } else {
-        const mapped = mapDeclaredType(input.format, input.type, input.long);
-        if (mapped === null) {
-            spec = stringSpec(input.type);
-            issues.push({
-                category: "unsupported",
-                code: UNKNOWN_TYPE_CODE,
-                message: `${input.format} type "${input.type}" is not supported; values kept as text`,
-            });
-        } else {
-            spec = mapped;
-        }
-    }
+    let spec = declaredSpec(input, issues);
     const { name, renamed } = resolveName(input);
     if (renamed) {
         issues.push({
@@ -170,20 +164,7 @@ export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttr
     }
     const optionsText = input.optionsText ?? null;
     if (optionsText !== null) {
-        try {
-            const options = splitListText(optionsText, listSyntax).map((item) => parseItem(item, spec));
-            decl.options = options;
-            if (spec.dtype === "string" && !spec.list && options.every((o) => typeof o === "string")) {
-                decl.dtype = "dict";
-                spec = { ...spec, dtype: "dict" };
-            }
-        } catch (err) {
-            issues.push({
-                category: "validation-error",
-                code: BAD_OPTIONS_CODE,
-                message: `options "${optionsText}" of attribute "${name}" do not parse as ${spec.declared}: ${messageOf(err)}`,
-            });
-        }
+        spec = declareOptions(decl, spec, optionsText, listSyntax, issues);
     }
     const defaultText = input.defaultText ?? null;
     if (defaultText !== null) {
@@ -202,12 +183,70 @@ export function declareAttribute(input: AttributeDeclarationInput): DeclaredAttr
 }
 
 /**
+ * The value spec of a declared type: string for no type, string with UNKNOWN_TYPE_CODE for a type
+ * the format does not define.
+ * @param input - what the file declares
+ * @param issues - receives the unknown-type warning
+ * @returns the spec
+ */
+function declaredSpec(input: AttributeDeclarationInput, issues: DeclarationIssue[]): DeclaredTypeSpec {
+    if (input.type === null) {
+        return stringSpec(null);
+    }
+    const mapped = mapDeclaredType(input.format, input.type, input.long);
+    if (mapped !== null) {
+        return mapped;
+    }
+    issues.push({
+        category: "unsupported",
+        code: UNKNOWN_TYPE_CODE,
+        message: `${input.format} type "${input.type}" is not supported; values kept as text`,
+    });
+    return stringSpec(input.type);
+}
+
+/**
+ * Put the parsed options of an attribute on its declaration; a plain string attribute whose
+ * options are all strings becomes a dict column.
+ * @param decl - the declaration to complete
+ * @param spec - the value spec
+ * @param optionsText - the options text
+ * @param listSyntax - the list syntax the options are split with
+ * @param issues - receives BAD_OPTIONS_CODE when the options do not parse
+ * @returns the spec, with dtype dict when the column became a dict
+ */
+function declareOptions(
+    decl: ColumnDecl,
+    spec: DeclaredTypeSpec,
+    optionsText: string,
+    listSyntax: ListSyntax,
+    issues: DeclarationIssue[],
+): DeclaredTypeSpec {
+    try {
+        const options = splitListText(optionsText, listSyntax).map((item) => parseItem(item, spec));
+        decl.options = options;
+        if (spec.dtype === "string" && !spec.list && options.every((o) => typeof o === "string")) {
+            decl.dtype = "dict";
+            return { ...spec, dtype: "dict" };
+        }
+    } catch (err) {
+        issues.push({
+            category: "validation-error",
+            code: BAD_OPTIONS_CODE,
+            message: `options "${optionsText}" of attribute "${decl.name}" do not parse as ${spec.declared}: ${messageOf(err)}`,
+        });
+    }
+    return spec;
+}
+
+/**
  * Parse a value text by a declaration: a scalar, or a list split by the syntax with each item
  * parsed by the item kind.
  * @param text - the value text
  * @param spec - the declared type
  * @param listSyntax - the list syntax
  * @returns the value to push (a boolean, a number, a string, a JSON value or an array)
+ * @category Plugin helpers
  */
 export function parseDeclaredValue(text: string, spec: DeclaredTypeSpec, listSyntax: ListSyntax): unknown {
     if (spec.list) {
@@ -222,6 +261,7 @@ export function parseDeclaredValue(text: string, spec: DeclaredTypeSpec, listSyn
  * @param text - the value text
  * @param spec - a scalar temporal spec
  * @returns the value and the text to keep, or null text
+ * @category Plugin helpers
  */
 export function parseDeclaredTemporal(text: string, spec: DeclaredTypeSpec): TemporalValue {
     if (spec.temporal === null || spec.list) {
@@ -232,7 +272,7 @@ export function parseDeclaredTemporal(text: string, spec: DeclaredTypeSpec): Tem
     return parseTemporal(text.trim(), spec.temporal);
 }
 
-const INTEGER_TEXT = /^[+-]?[0-9]+$/;
+const INTEGER_TEXT = /^[+-]?\d+$/;
 
 /**
  * Whether a long value's text lost precision when parsed to f64 (design section 5.1: a value with
@@ -241,6 +281,7 @@ const INTEGER_TEXT = /^[+-]?[0-9]+$/;
  * @param spec - the declared type
  * @param text - the value text (trimmed or not)
  * @returns true when the importer should record a `precision` issue
+ * @category Plugin helpers
  */
 export function losesPrecision(spec: DeclaredTypeSpec, text: string): boolean {
     if (!spec.precision) {
@@ -260,6 +301,7 @@ export function losesPrecision(spec: DeclaredTypeSpec, text: string): boolean {
  * @param domain - node or edge
  * @param decl - the declaration
  * @returns the column handle
+ * @category Plugin helpers
  */
 export function declareOn(sink: GraphSink, domain: "node" | "edge", decl: ColumnDecl): ColumnHandle {
     return domain === "node" ? sink.declareNodeColumn(decl) : sink.declareEdgeColumn(decl);
@@ -267,8 +309,8 @@ export function declareOn(sink: GraphSink, domain: "node" | "edge", decl: Column
 
 /**
  * The outcome of declareResolved(): the handle and the declaration as it was applied.
- * Consumed by the per-format importers under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface ResolvedDeclaration {
     /** The column handle. */
@@ -282,11 +324,10 @@ export interface ResolvedDeclaration {
 }
 
 /**
- * The io rule of design section 5.6 in one place, so every importer agrees: declare a column on
+ * The column naming rule in one place, so every importer agrees: declare a column on
  * the sink and, when the sink already holds the name with another shape (an earlier import, a
  * caller's column), rename it `<name>#<origin.id>` (a counter when the source has no id) and
- * record W_COLUMN_RENAMED (coercion); when the table already holds the role (design section 5.5:
- * at most one column per role), declare without the role and record W_ROLE_TAKEN (coercion). The
+ * record W_COLUMN_RENAMED (coercion); when the table already holds the role, declare without the role and record W_ROLE_TAKEN (coercion). The
  * same shape under the same name returns the existing handle, as the sink does.
  * @param sink - the sink
  * @param domain - node or edge
@@ -294,6 +335,7 @@ export interface ResolvedDeclaration {
  * @param report - the report the coercion issues are recorded in
  * @param where - the line and element, when known
  * @returns the handle and the declaration as applied
+ * @category Plugin helpers
  */
 export function declareResolved(
     sink: GraphSink,
@@ -313,29 +355,12 @@ export function declareResolved(
                 throw err;
             }
             if (err.code === "E_COLUMN_EXISTS" && !renamed) {
-                const taken = takenIn(sink, domain);
-                const id = current.origin?.id ?? null;
-                const name = uniqueColumnName(current.name, id, taken);
-                report.warning(
-                    "coercion",
-                    COLUMN_RENAMED_CODE,
-                    `${domain} column "${current.name}" renamed to "${name}": the sink already holds that name with another shape`,
-                    { ...where, element: where?.element ?? current.name },
-                );
-                current = { ...current, name };
+                current = renameColumn(sink, domain, current, report, where);
                 renamed = true;
                 continue;
             }
             if (err.code === "E_DUPLICATE_ROLE" && current.role !== undefined && !roleDropped) {
-                const holder = typeof err.details.holder === "string" ? err.details.holder : "another column";
-                report.warning(
-                    "coercion",
-                    ROLE_TAKEN_CODE,
-                    `${domain} column "${current.name}" loses the ${current.role} role: "${holder}" already holds it`,
-                    { ...where, element: where?.element ?? current.name },
-                );
-                const { role: _role, ...withoutRole } = current;
-                current = withoutRole;
+                current = dropRole(err, domain, current, current.role, report, where);
                 roleDropped = true;
                 continue;
             }
@@ -345,7 +370,64 @@ export function declareResolved(
 }
 
 /**
- * Declare the companion text column of a temporal column (design section 5.1). A table holds at
+ * The declaration under a name the sink does not hold yet, recording W_COLUMN_RENAMED.
+ * @param sink - the sink
+ * @param domain - node or edge
+ * @param decl - the declaration whose name clashed
+ * @param report - the report
+ * @param where - the line and element, when known
+ * @returns the renamed declaration
+ */
+function renameColumn(
+    sink: GraphSink,
+    domain: "node" | "edge",
+    decl: ColumnDecl,
+    report: ImportReportBuilder,
+    where: IssueLocation | undefined,
+): ColumnDecl {
+    const taken = takenIn(sink, domain);
+    const id = decl.origin?.id ?? null;
+    const name = uniqueColumnName(decl.name, id, taken);
+    report.warning(
+        "coercion",
+        COLUMN_RENAMED_CODE,
+        `${domain} column "${decl.name}" renamed to "${name}": the sink already holds that name with another shape`,
+        { ...where, element: where?.element ?? decl.name },
+    );
+    return { ...decl, name };
+}
+
+/**
+ * The declaration without the role another column holds, recording W_ROLE_TAKEN.
+ * @param err - the sink's E_DUPLICATE_ROLE error
+ * @param domain - node or edge
+ * @param decl - the declaration whose role clashed
+ * @param role - its role
+ * @param report - the report
+ * @param where - the line and element, when known
+ * @returns the declaration without its role
+ */
+function dropRole(
+    err: GraphFormatError,
+    domain: "node" | "edge",
+    decl: ColumnDecl,
+    role: ColumnRole,
+    report: ImportReportBuilder,
+    where: IssueLocation | undefined,
+): ColumnDecl {
+    const holder = typeof err.details.holder === "string" ? err.details.holder : "another column";
+    report.warning(
+        "coercion",
+        ROLE_TAKEN_CODE,
+        `${domain} column "${decl.name}" loses the ${role} role: "${holder}" already holds it`,
+        { ...where, element: where?.element ?? decl.name },
+    );
+    const { role: _role, ...withoutRole } = decl;
+    return withoutRole;
+}
+
+/**
+ * Declare the companion text column of a temporal column. A table holds at
  * most one column per role, so when another companion already carries `timeText` this one is
  * declared without the role (reported once per table); exporters find every companion through
  * `extra.for`.
@@ -354,6 +436,7 @@ export function declareResolved(
  * @param companion - the declaration from declareAttribute()
  * @param report - the report the role loss is recorded in; when omitted the loss is silent
  * @returns the column handle
+ * @category Plugin helpers
  */
 export function declareCompanion(
     sink: GraphSink,
@@ -383,6 +466,7 @@ export function declareCompanion(
  * @param sink - the sink
  * @param domain - node or edge
  * @returns a predicate over column names
+ * @category Plugin helpers
  */
 export function takenIn(sink: GraphSink, domain: "node" | "edge"): (name: string) => boolean {
     return (name: string): boolean =>
@@ -396,6 +480,7 @@ export function takenIn(sink: GraphSink, domain: "node" | "edge"): (name: string
  * @param id - the source id (the attribute id or key id); null falls back to a counter
  * @param taken - whether a name is already used in the table
  * @returns a free name
+ * @category Plugin helpers
  */
 export function uniqueColumnName(name: string, id: string | null, taken: (name: string) => boolean): string {
     if (!taken(name)) {
@@ -417,6 +502,7 @@ export function uniqueColumnName(name: string, id: string | null, taken: (name: 
  * The dict heuristic of design section 5.4 for an untyped string column: observe values until the
  * sample is full; the column is a dict when the distinct count stays below half the rows, a string
  * otherwise. The importer buffers the sampled values and declares the column on the decision.
+ * @category Plugin helpers
  */
 export class DictHeuristic {
     private readonly distinct = new Set<string>();

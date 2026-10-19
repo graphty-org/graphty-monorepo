@@ -1,0 +1,1050 @@
+[
+    {
+        "from": "building-a-panel-advancedbutton--custom-icon",
+        "to": "components-actions-advancedbutton--custom-icon"
+    },
+    {
+        "from": "building-a-panel-advancedbutton--default",
+        "to": "components-actions-advancedbutton--default"
+    },
+    {
+        "from": "building-a-panel-advancedbutton--empty-slot-keeps-the-column",
+        "to": "components-actions-advancedbutton--empty-slot-keeps-the-column"
+    },
+    {
+        "from": "building-a-panel-advancedbutton--in-a-row",
+        "to": "components-actions-advancedbutton--in-a-row"
+    },
+    {
+        "from": "building-a-panel-advancedbutton--right-to-left",
+        "to": "components-actions-advancedbutton--right-to-left"
+    },
+    {
+        "from": "building-a-panel-controlgroup--default",
+        "to": "components-panels-and-rows-controlgroup--default"
+    },
+    {
+        "from": "building-a-panel-controlgroup--with-actions",
+        "to": "components-panels-and-rows-controlgroup--with-actions"
+    },
+    {
+        "from": "building-a-panel-controlsection--a-panel-of-sections",
+        "to": "components-panels-and-rows-controlsection--a-panel-of-sections"
+    },
+    {
+        "from": "building-a-panel-controlsection--controlled",
+        "to": "components-panels-and-rows-controlsection--controlled"
+    },
+    {
+        "from": "building-a-panel-controlsection--default",
+        "to": "components-panels-and-rows-controlsection--default"
+    },
+    {
+        "from": "building-a-panel-controlsection--right-to-left",
+        "to": "components-panels-and-rows-controlsection--right-to-left"
+    },
+    {
+        "from": "building-a-panel-controlsection--translated",
+        "to": "components-panels-and-rows-controlsection--translated"
+    },
+    {
+        "from": "building-a-panel-controlsection--with-actions",
+        "to": "components-panels-and-rows-controlsection--with-actions"
+    },
+    {
+        "from": "building-a-panel-controlsection--with-info",
+        "to": "components-panels-and-rows-controlsection--with-info"
+    },
+    {
+        "from": "building-a-panel-controlsubgroup--controlled",
+        "to": "components-panels-and-rows-controlsubgroup--controlled"
+    },
+    {
+        "from": "building-a-panel-controlsubgroup--default",
+        "to": "components-panels-and-rows-controlsubgroup--default"
+    },
+    {
+        "from": "building-a-panel-controlsubgroup--inside-a-section",
+        "to": "components-panels-and-rows-controlsubgroup--inside-a-section"
+    },
+    {
+        "from": "building-a-panel-controlsubgroup--long-label",
+        "to": "components-panels-and-rows-controlsubgroup--long-label"
+    },
+    {
+        "from": "building-a-panel-fieldrow--default",
+        "to": "components-panels-and-rows-fieldrow--default"
+    },
+    {
+        "from": "building-a-panel-fieldrow--multi-selection",
+        "to": "components-panels-and-rows-fieldrow--multi-selection"
+    },
+    {
+        "from": "building-a-panel-fieldrow--pair-with-reset",
+        "to": "components-panels-and-rows-fieldrow--pair-with-reset"
+    },
+    {
+        "from": "building-a-panel-fieldrow--rhythm",
+        "to": "components-panels-and-rows-fieldrow--rhythm"
+    },
+    {
+        "from": "building-a-panel-fieldrow--right-to-left",
+        "to": "components-panels-and-rows-fieldrow--right-to-left"
+    },
+    {
+        "from": "building-a-panel-fieldrow--scrubbable",
+        "to": "components-panels-and-rows-fieldrow--scrubbable"
+    },
+    {
+        "from": "building-a-panel-fieldrow--with-labels",
+        "to": "components-panels-and-rows-fieldrow--with-labels"
+    },
+    {
+        "from": "building-a-panel-trailingslot--default",
+        "to": "components-panels-and-rows-trailingslot--default"
+    },
+    {
+        "from": "building-a-panel-trailingslot--empty-slots-keep-the-column",
+        "to": "components-panels-and-rows-trailingslot--empty-slots-keep-the-column"
+    },
+    {
+        "from": "building-a-panel-trailingslot--right-to-left",
+        "to": "components-panels-and-rows-trailingslot--right-to-left"
+    },
+    {
+        "from": "building-a-panel-trailingslot--what-goes-in-it",
+        "to": "components-panels-and-rows-trailingslot--what-goes-in-it"
+    },
+    {
+        "from": "compact-theme-mantine-components-actionicon--colors",
+        "to": "themed-mantine-actions-actionicon--colors"
+    },
+    {
+        "from": "compact-theme-mantine-components-actionicon--default",
+        "to": "themed-mantine-actions-actionicon--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-anchor--default",
+        "to": "themed-mantine-actions-anchor--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-autocomplete--default",
+        "to": "themed-mantine-inputs-autocomplete--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-avatar--default",
+        "to": "themed-mantine-surfaces-avatar--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-badge--default",
+        "to": "themed-mantine-feedback-badge--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-burger--default",
+        "to": "themed-mantine-actions-burger--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-button--colors",
+        "to": "themed-mantine-actions-button--colors"
+    },
+    {
+        "from": "compact-theme-mantine-components-button--default",
+        "to": "themed-mantine-actions-button--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-checkbox--default",
+        "to": "themed-mantine-selection-checkbox--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-closebutton--default",
+        "to": "themed-mantine-actions-closebutton--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-fileinput--clearable",
+        "to": "themed-mantine-inputs-fileinput--clearable"
+    },
+    {
+        "from": "compact-theme-mantine-components-fileinput--default",
+        "to": "themed-mantine-inputs-fileinput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-fileinput--multiple",
+        "to": "themed-mantine-inputs-fileinput--multiple"
+    },
+    {
+        "from": "compact-theme-mantine-components-fileinput--with-description",
+        "to": "themed-mantine-inputs-fileinput--with-description"
+    },
+    {
+        "from": "compact-theme-mantine-components-indicator--default",
+        "to": "themed-mantine-feedback-indicator--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-jsoninput--default",
+        "to": "themed-mantine-inputs-jsoninput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-jsoninput--with-validation",
+        "to": "themed-mantine-inputs-jsoninput--with-validation"
+    },
+    {
+        "from": "compact-theme-mantine-components-kbd--default",
+        "to": "themed-mantine-feedback-kbd--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-loader--colors",
+        "to": "themed-mantine-feedback-loader--colors"
+    },
+    {
+        "from": "compact-theme-mantine-components-loader--default",
+        "to": "themed-mantine-feedback-loader--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-multiselect--clearable",
+        "to": "themed-mantine-inputs-multiselect--clearable"
+    },
+    {
+        "from": "compact-theme-mantine-components-multiselect--default",
+        "to": "themed-mantine-inputs-multiselect--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-multiselect--multi-row",
+        "to": "themed-mantine-inputs-multiselect--multi-row"
+    },
+    {
+        "from": "compact-theme-mantine-components-navlink--default",
+        "to": "themed-mantine-navigation-navlink--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-numberinput--default",
+        "to": "themed-mantine-inputs-numberinput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-numberinput--with-controls",
+        "to": "themed-mantine-inputs-numberinput--with-controls"
+    },
+    {
+        "from": "compact-theme-mantine-components-pagination--default",
+        "to": "themed-mantine-navigation-pagination--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-passwordinput--default",
+        "to": "themed-mantine-inputs-passwordinput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-pill--default",
+        "to": "themed-mantine-inputs-pill--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-pillsinput--default",
+        "to": "themed-mantine-inputs-pillsinput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-pillsinput--multi-row",
+        "to": "themed-mantine-inputs-pillsinput--multi-row"
+    },
+    {
+        "from": "compact-theme-mantine-components-progress--default",
+        "to": "themed-mantine-feedback-progress--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-progress--sections",
+        "to": "themed-mantine-feedback-progress--sections"
+    },
+    {
+        "from": "compact-theme-mantine-components-progress--variants",
+        "to": "themed-mantine-feedback-progress--variants"
+    },
+    {
+        "from": "compact-theme-mantine-components-radio--default",
+        "to": "themed-mantine-selection-radio--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-radio--radio-group",
+        "to": "themed-mantine-selection-radio--radio-group"
+    },
+    {
+        "from": "compact-theme-mantine-components-rangeslider--custom-step",
+        "to": "themed-mantine-selection-rangeslider--custom-step"
+    },
+    {
+        "from": "compact-theme-mantine-components-rangeslider--default",
+        "to": "themed-mantine-selection-rangeslider--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-rangeslider--min-range",
+        "to": "themed-mantine-selection-rangeslider--min-range"
+    },
+    {
+        "from": "compact-theme-mantine-components-rangeslider--with-marks",
+        "to": "themed-mantine-selection-rangeslider--with-marks"
+    },
+    {
+        "from": "compact-theme-mantine-components-ringprogress--default",
+        "to": "themed-mantine-feedback-ringprogress--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-ringprogress--variants",
+        "to": "themed-mantine-feedback-ringprogress--variants"
+    },
+    {
+        "from": "compact-theme-mantine-components-segmentedcontrol--default",
+        "to": "themed-mantine-selection-segmentedcontrol--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-segmentedcontrol--five-options",
+        "to": "themed-mantine-selection-segmentedcontrol--five-options"
+    },
+    {
+        "from": "compact-theme-mantine-components-segmentedcontrol--full-width",
+        "to": "themed-mantine-selection-segmentedcontrol--full-width"
+    },
+    {
+        "from": "compact-theme-mantine-components-select--clearable",
+        "to": "components-inputs-select--clearable"
+    },
+    {
+        "from": "compact-theme-mantine-components-select--default",
+        "to": "components-inputs-select--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-select--native",
+        "to": "components-inputs-select--native"
+    },
+    {
+        "from": "compact-theme-mantine-components-select--searchable",
+        "to": "components-inputs-select--searchable"
+    },
+    {
+        "from": "compact-theme-mantine-components-slider--default",
+        "to": "themed-mantine-selection-slider--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-slider--with-marks",
+        "to": "themed-mantine-selection-slider--with-marks"
+    },
+    {
+        "from": "compact-theme-mantine-components-slider--with-steps",
+        "to": "themed-mantine-selection-slider--with-steps"
+    },
+    {
+        "from": "compact-theme-mantine-components-stepper--default",
+        "to": "themed-mantine-navigation-stepper--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-switch--default",
+        "to": "themed-mantine-selection-switch--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-tabs--default",
+        "to": "themed-mantine-navigation-tabs--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-tagsinput--default",
+        "to": "themed-mantine-inputs-tagsinput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-tagsinput--max-tags",
+        "to": "themed-mantine-inputs-tagsinput--max-tags"
+    },
+    {
+        "from": "compact-theme-mantine-components-tagsinput--multi-row",
+        "to": "themed-mantine-inputs-tagsinput--multi-row"
+    },
+    {
+        "from": "compact-theme-mantine-components-text--default",
+        "to": "themed-mantine-surfaces-text--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-textarea--default",
+        "to": "themed-mantine-inputs-textarea--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-textinput--default",
+        "to": "themed-mantine-inputs-textinput--default"
+    },
+    {
+        "from": "compact-theme-mantine-components-themeicon--default",
+        "to": "themed-mantine-surfaces-themeicon--default"
+    },
+    {
+        "from": "editing-a-value-compactcolorinput--controlled",
+        "to": "components-color-compactcolorinput--controlled"
+    },
+    {
+        "from": "editing-a-value-compactcolorinput--default",
+        "to": "components-color-compactcolorinput--default"
+    },
+    {
+        "from": "editing-a-value-compactcolorinput--right-to-left",
+        "to": "components-color-compactcolorinput--right-to-left"
+    },
+    {
+        "from": "editing-a-value-compactcolorinput--translated",
+        "to": "components-color-compactcolorinput--translated"
+    },
+    {
+        "from": "editing-a-value-compactcolorinput--with-label",
+        "to": "components-color-compactcolorinput--with-label"
+    },
+    {
+        "from": "editing-a-value-compactcolorinput--without-opacity",
+        "to": "components-color-compactcolorinput--without-opacity"
+    },
+    {
+        "from": "editing-a-value-compoundrow--busy",
+        "to": "components-panels-and-rows-compoundrow--busy"
+    },
+    {
+        "from": "editing-a-value-compoundrow--default",
+        "to": "components-panels-and-rows-compoundrow--default"
+    },
+    {
+        "from": "editing-a-value-compoundrow--graph-size",
+        "to": "components-panels-and-rows-compoundrow--graph-size"
+    },
+    {
+        "from": "editing-a-value-compoundrow--in-a-panel",
+        "to": "components-panels-and-rows-compoundrow--in-a-panel"
+    },
+    {
+        "from": "editing-a-value-compoundrow--interactive",
+        "to": "components-panels-and-rows-compoundrow--interactive"
+    },
+    {
+        "from": "editing-a-value-compoundrow--right-to-left",
+        "to": "components-panels-and-rows-compoundrow--right-to-left"
+    },
+    {
+        "from": "editing-a-value-compoundrow--shortened-value",
+        "to": "components-panels-and-rows-compoundrow--shortened-value"
+    },
+    {
+        "from": "editing-a-value-compoundrow--three-segments",
+        "to": "components-panels-and-rows-compoundrow--three-segments"
+    },
+    {
+        "from": "editing-a-value-compoundrow--with-labels",
+        "to": "components-panels-and-rows-compoundrow--with-labels"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--at-maximum-stops",
+        "to": "components-color-gradienteditor--at-maximum-stops"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--coalesced-into-one-undo-entry",
+        "to": "components-color-gradienteditor--coalesced-into-one-undo-entry"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--controlled",
+        "to": "components-color-gradienteditor--controlled"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--custom-bounds",
+        "to": "components-color-gradienteditor--custom-bounds"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--default",
+        "to": "components-color-gradienteditor--default"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--right-to-left",
+        "to": "components-color-gradienteditor--right-to-left"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--translated",
+        "to": "components-color-gradienteditor--translated"
+    },
+    {
+        "from": "editing-a-value-gradienteditor--without-direction",
+        "to": "components-color-gradienteditor--without-direction"
+    },
+    {
+        "from": "editing-a-value-panelfield--bound",
+        "to": "components-inputs-panelfield--bound"
+    },
+    {
+        "from": "editing-a-value-panelfield--choices",
+        "to": "components-inputs-panelfield--choices"
+    },
+    {
+        "from": "editing-a-value-panelfield--default",
+        "to": "components-inputs-panelfield--default"
+    },
+    {
+        "from": "editing-a-value-panelfield--draggable",
+        "to": "components-inputs-panelfield--draggable"
+    },
+    {
+        "from": "editing-a-value-panelfield--editable",
+        "to": "components-inputs-panelfield--editable"
+    },
+    {
+        "from": "editing-a-value-panelfield--letter",
+        "to": "components-inputs-panelfield--letter"
+    },
+    {
+        "from": "editing-a-value-panelfield--mixed",
+        "to": "components-inputs-panelfield--mixed"
+    },
+    {
+        "from": "editing-a-value-panelfield--number-box",
+        "to": "components-inputs-panelfield--number-box"
+    },
+    {
+        "from": "editing-a-value-panelfield--opens-your-own-panel",
+        "to": "components-inputs-panelfield--opens-your-own-panel"
+    },
+    {
+        "from": "editing-a-value-panelfield--pair",
+        "to": "components-inputs-panelfield--pair"
+    },
+    {
+        "from": "editing-a-value-panelfield--pending",
+        "to": "components-inputs-panelfield--pending"
+    },
+    {
+        "from": "editing-a-value-panelfield--placeholder",
+        "to": "components-inputs-panelfield--placeholder"
+    },
+    {
+        "from": "editing-a-value-panelfield--right-to-left",
+        "to": "components-inputs-panelfield--right-to-left"
+    },
+    {
+        "from": "editing-a-value-panelfield--swatch",
+        "to": "components-inputs-panelfield--swatch"
+    },
+    {
+        "from": "editing-a-value-panelfield--translated",
+        "to": "components-inputs-panelfield--translated"
+    },
+    {
+        "from": "editing-a-value-panelfield--with-labels",
+        "to": "components-inputs-panelfield--with-labels"
+    },
+    {
+        "from": "editing-a-value-panelfield--with-unit",
+        "to": "components-inputs-panelfield--with-unit"
+    },
+    {
+        "from": "editing-a-value-ramprow--choosing-the-scale",
+        "to": "components-color-ramprow--choosing-the-scale"
+    },
+    {
+        "from": "editing-a-value-ramprow--color-ramp",
+        "to": "components-color-ramprow--color-ramp"
+    },
+    {
+        "from": "editing-a-value-ramprow--default",
+        "to": "components-color-ramprow--default"
+    },
+    {
+        "from": "editing-a-value-ramprow--default-gradient",
+        "to": "components-color-ramprow--default-gradient"
+    },
+    {
+        "from": "editing-a-value-ramprow--in-a-panel",
+        "to": "components-color-ramprow--in-a-panel"
+    },
+    {
+        "from": "editing-a-value-ramprow--log-scale",
+        "to": "components-color-ramprow--log-scale"
+    },
+    {
+        "from": "editing-a-value-ramprow--right-to-left",
+        "to": "components-color-ramprow--right-to-left"
+    },
+    {
+        "from": "editing-a-value-ramprow--still-computing",
+        "to": "components-color-ramprow--still-computing"
+    },
+    {
+        "from": "editing-a-value-ramprow--translated",
+        "to": "components-color-ramprow--translated"
+    },
+    {
+        "from": "editing-a-value-ramprow--with-advanced-settings",
+        "to": "components-color-ramprow--with-advanced-settings"
+    },
+    {
+        "from": "editing-a-value-ramprow--without-scale",
+        "to": "components-color-ramprow--without-scale"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--controlled",
+        "to": "components-inputs-stylenumberinput--controlled"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--default",
+        "to": "components-inputs-stylenumberinput--default"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--german-locale",
+        "to": "components-inputs-stylenumberinput--german-locale"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--right-to-left",
+        "to": "components-inputs-stylenumberinput--right-to-left"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--with-decimal-scale",
+        "to": "components-inputs-stylenumberinput--with-decimal-scale"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--with-min-max-and-step",
+        "to": "components-inputs-stylenumberinput--with-min-max-and-step"
+    },
+    {
+        "from": "editing-a-value-stylenumberinput--with-suffix",
+        "to": "components-inputs-stylenumberinput--with-suffix"
+    },
+    {
+        "from": "editing-a-value-togglerow--controlled",
+        "to": "components-selection-togglerow--controlled"
+    },
+    {
+        "from": "editing-a-value-togglerow--default",
+        "to": "components-selection-togglerow--default"
+    },
+    {
+        "from": "editing-a-value-togglerow--long-labels",
+        "to": "components-selection-togglerow--long-labels"
+    },
+    {
+        "from": "editing-a-value-togglerow--reading-the-event",
+        "to": "components-selection-togglerow--reading-the-event"
+    },
+    {
+        "from": "editing-a-value-togglerow--right-to-left",
+        "to": "components-selection-togglerow--right-to-left"
+    },
+    {
+        "from": "editing-a-value-togglerow--switch-control",
+        "to": "components-selection-togglerow--switch-control"
+    },
+    {
+        "from": "editing-a-value-togglerow--verb-deleted",
+        "to": "components-selection-togglerow--verb-deleted"
+    },
+    {
+        "from": "editing-a-value-togglerow--with-advanced-settings",
+        "to": "components-selection-togglerow--with-advanced-settings"
+    },
+    {
+        "from": "editing-a-value-togglerowgroup--default",
+        "to": "components-selection-togglerowgroup--default"
+    },
+    {
+        "from": "editing-a-value-togglerowgroup--in-the-panel",
+        "to": "components-selection-togglerowgroup--in-the-panel"
+    },
+    {
+        "from": "editing-a-value-togglerowgroup--named-by-its-heading",
+        "to": "components-selection-togglerowgroup--named-by-its-heading"
+    },
+    {
+        "from": "editing-a-value-togglerowgroup--right-to-left",
+        "to": "components-selection-togglerowgroup--right-to-left"
+    },
+    {
+        "from": "editing-a-value-togglerowgroup--two-groups",
+        "to": "components-selection-togglerowgroup--two-groups"
+    },
+    {
+        "from": "editing-a-value-togglerowgroup--with-trailing-controls",
+        "to": "components-selection-togglerowgroup--with-trailing-controls"
+    },
+    {
+        "from": "editing-a-value-togglewithcontent--controlled",
+        "to": "components-selection-togglewithcontent--controlled"
+    },
+    {
+        "from": "editing-a-value-togglewithcontent--default",
+        "to": "components-selection-togglewithcontent--default"
+    },
+    {
+        "from": "editing-a-value-togglewithcontent--enabled",
+        "to": "components-selection-togglewithcontent--enabled"
+    },
+    {
+        "from": "editing-a-value-togglewithcontent--or-a-toggle-row",
+        "to": "components-selection-togglewithcontent--or-a-toggle-row"
+    },
+    {
+        "from": "editing-a-value-togglewithcontent--several",
+        "to": "components-selection-togglewithcontent--several"
+    },
+    {
+        "from": "floating-panels-infocircle--controlled",
+        "to": "components-overlays-infocircle--controlled"
+    },
+    {
+        "from": "floating-panels-infocircle--default",
+        "to": "components-overlays-infocircle--default"
+    },
+    {
+        "from": "floating-panels-infocircle--in-a-section-header",
+        "to": "components-overlays-infocircle--in-a-section-header"
+    },
+    {
+        "from": "floating-panels-infocircle--long-explanation",
+        "to": "components-overlays-infocircle--long-explanation"
+    },
+    {
+        "from": "floating-panels-popout--anchor-axes",
+        "to": "components-overlays-popout--anchor-axes"
+    },
+    {
+        "from": "floating-panels-popout--anchor-axes-interactions",
+        "to": "components-overlays-popout--anchor-axes-interactions"
+    },
+    {
+        "from": "floating-panels-popout--component-compatibility",
+        "to": "components-overlays-popout--component-compatibility"
+    },
+    {
+        "from": "floating-panels-popout--controlled",
+        "to": "components-overlays-popout--controlled"
+    },
+    {
+        "from": "floating-panels-popout--controlled-interactions",
+        "to": "components-overlays-popout--controlled-interactions"
+    },
+    {
+        "from": "floating-panels-popout--multiple-popouts",
+        "to": "components-overlays-popout--multiple-popouts"
+    },
+    {
+        "from": "floating-panels-popout--multiple-popouts-interactions",
+        "to": "components-overlays-popout--multiple-popouts-interactions"
+    },
+    {
+        "from": "floating-panels-popout--tabbed",
+        "to": "components-overlays-popout--tabbed"
+    },
+    {
+        "from": "floating-panels-popout--tabbed-interactions",
+        "to": "components-overlays-popout--tabbed-interactions"
+    },
+    {
+        "from": "floating-panels-popoutbutton--default",
+        "to": "components-overlays-popoutbutton--default"
+    },
+    {
+        "from": "floating-panels-popoutbutton--default-interactions",
+        "to": "components-overlays-popoutbutton--default-interactions"
+    },
+    {
+        "from": "floating-panels-popoutbutton--in-control-group",
+        "to": "components-overlays-popoutbutton--in-control-group"
+    },
+    {
+        "from": "floating-panels-popoutbutton--multiple-buttons",
+        "to": "components-overlays-popoutbutton--multiple-buttons"
+    },
+    {
+        "from": "floating-panels-popoutbutton--multiple-buttons-interactions",
+        "to": "components-overlays-popoutbutton--multiple-buttons-interactions"
+    },
+    {
+        "from": "showing-data-actionrow--a-list",
+        "to": "components-data-display-actionrow--a-list"
+    },
+    {
+        "from": "showing-data-actionrow--abbreviated-state",
+        "to": "components-data-display-actionrow--abbreviated-state"
+    },
+    {
+        "from": "showing-data-actionrow--actions-only",
+        "to": "components-data-display-actionrow--actions-only"
+    },
+    {
+        "from": "showing-data-actionrow--default",
+        "to": "components-data-display-actionrow--default"
+    },
+    {
+        "from": "showing-data-actionrow--held-open",
+        "to": "components-data-display-actionrow--held-open"
+    },
+    {
+        "from": "showing-data-actionrow--long-state",
+        "to": "components-data-display-actionrow--long-state"
+    },
+    {
+        "from": "showing-data-actionrow--resident-and-hidden",
+        "to": "components-data-display-actionrow--resident-and-hidden"
+    },
+    {
+        "from": "showing-data-actionrow--right-to-left",
+        "to": "components-data-display-actionrow--right-to-left"
+    },
+    {
+        "from": "showing-data-actionrow--running",
+        "to": "components-data-display-actionrow--running"
+    },
+    {
+        "from": "showing-data-actionrow--selectable",
+        "to": "components-data-display-actionrow--selectable"
+    },
+    {
+        "from": "showing-data-actionrow--state-only",
+        "to": "components-data-display-actionrow--state-only"
+    },
+    {
+        "from": "showing-data-datarow--column",
+        "to": "components-data-display-datarow--column"
+    },
+    {
+        "from": "showing-data-datarow--default",
+        "to": "components-data-display-datarow--default"
+    },
+    {
+        "from": "showing-data-datarow--inert",
+        "to": "components-data-display-datarow--inert"
+    },
+    {
+        "from": "showing-data-datarow--long-name",
+        "to": "components-data-display-datarow--long-name"
+    },
+    {
+        "from": "showing-data-datarow--right-to-left",
+        "to": "components-data-display-datarow--right-to-left"
+    },
+    {
+        "from": "showing-data-datarow--with-icon",
+        "to": "components-data-display-datarow--with-icon"
+    },
+    {
+        "from": "showing-data-datarow--with-trailing",
+        "to": "components-data-display-datarow--with-trailing"
+    },
+    {
+        "from": "showing-data-datarowheader--default",
+        "to": "components-data-display-datarowheader--default"
+    },
+    {
+        "from": "showing-data-datarowheader--multiple-columns",
+        "to": "components-data-display-datarowheader--multiple-columns"
+    },
+    {
+        "from": "showing-data-datarowheader--right-to-left",
+        "to": "components-data-display-datarowheader--right-to-left"
+    },
+    {
+        "from": "showing-data-datarowheader--sortable",
+        "to": "components-data-display-datarowheader--sortable"
+    },
+    {
+        "from": "showing-data-datarowheader--without-a-unit",
+        "to": "components-data-display-datarowheader--without-a-unit"
+    },
+    {
+        "from": "showing-data-datarowheader--without-the-caption",
+        "to": "components-data-display-datarowheader--without-the-caption"
+    },
+    {
+        "from": "showing-data-datatable--column-arrangement",
+        "to": "components-data-display-datatable--column-arrangement"
+    },
+    {
+        "from": "showing-data-datatable--default",
+        "to": "components-data-display-datatable--default"
+    },
+    {
+        "from": "showing-data-datatable--drawn-cells",
+        "to": "components-data-display-datatable--drawn-cells"
+    },
+    {
+        "from": "showing-data-datatable--empty",
+        "to": "components-data-display-datatable--empty"
+    },
+    {
+        "from": "showing-data-datatable--large-dataset",
+        "to": "components-data-display-datatable--large-dataset"
+    },
+    {
+        "from": "showing-data-datatable--rearranged-from-outside",
+        "to": "components-data-display-datatable--rearranged-from-outside"
+    },
+    {
+        "from": "showing-data-datatable--right-to-left",
+        "to": "components-data-display-datatable--right-to-left"
+    },
+    {
+        "from": "showing-data-datatable--selection",
+        "to": "components-data-display-datatable--selection"
+    },
+    {
+        "from": "showing-data-datatable--single-selection",
+        "to": "components-data-display-datatable--single-selection"
+    },
+    {
+        "from": "showing-data-datatable--sorting",
+        "to": "components-data-display-datatable--sorting"
+    },
+    {
+        "from": "showing-data-datatable--translated",
+        "to": "components-data-display-datatable--translated"
+    },
+    {
+        "from": "showing-data-histogramrow--bimodal",
+        "to": "components-data-display-histogramrow--bimodal"
+    },
+    {
+        "from": "showing-data-histogramrow--busy",
+        "to": "components-data-display-histogramrow--busy"
+    },
+    {
+        "from": "showing-data-histogramrow--default",
+        "to": "components-data-display-histogramrow--default"
+    },
+    {
+        "from": "showing-data-histogramrow--long-tail",
+        "to": "components-data-display-histogramrow--long-tail"
+    },
+    {
+        "from": "showing-data-histogramrow--right-to-left",
+        "to": "components-data-display-histogramrow--right-to-left"
+    },
+    {
+        "from": "showing-data-histogramrow--translated",
+        "to": "components-data-display-histogramrow--translated"
+    },
+    {
+        "from": "showing-data-histogramrow--with-the-other-chart-rows",
+        "to": "components-data-display-histogramrow--with-the-other-chart-rows"
+    },
+    {
+        "from": "showing-data-histogramrow--with-trailing",
+        "to": "components-data-display-histogramrow--with-trailing"
+    },
+    {
+        "from": "showing-data-metricrow--a-long-name",
+        "to": "components-data-display-metricrow--a-long-name"
+    },
+    {
+        "from": "showing-data-metricrow--a-stack",
+        "to": "components-data-display-metricrow--a-stack"
+    },
+    {
+        "from": "showing-data-metricrow--busy",
+        "to": "components-data-display-metricrow--busy"
+    },
+    {
+        "from": "showing-data-metricrow--clickable",
+        "to": "components-data-display-metricrow--clickable"
+    },
+    {
+        "from": "showing-data-metricrow--default",
+        "to": "components-data-display-metricrow--default"
+    },
+    {
+        "from": "showing-data-metricrow--right-to-left",
+        "to": "components-data-display-metricrow--right-to-left"
+    },
+    {
+        "from": "showing-data-metricrow--the-ends",
+        "to": "components-data-display-metricrow--the-ends"
+    },
+    {
+        "from": "showing-data-metricrow--translated",
+        "to": "components-data-display-metricrow--translated"
+    },
+    {
+        "from": "showing-data-proseblock--all-three-variants",
+        "to": "components-data-display-proseblock--all-three-variants"
+    },
+    {
+        "from": "showing-data-proseblock--announced-when-it-arrives",
+        "to": "components-data-display-proseblock--announced-when-it-arrives"
+    },
+    {
+        "from": "showing-data-proseblock--departure",
+        "to": "components-data-display-proseblock--departure"
+    },
+    {
+        "from": "showing-data-proseblock--exact-run",
+        "to": "components-data-display-proseblock--exact-run"
+    },
+    {
+        "from": "showing-data-proseblock--reading-about-one-node",
+        "to": "components-data-display-proseblock--reading-about-one-node"
+    },
+    {
+        "from": "showing-data-proseblock--right-to-left",
+        "to": "components-data-display-proseblock--right-to-left"
+    },
+    {
+        "from": "showing-data-proseblock--run-record",
+        "to": "components-data-display-proseblock--run-record"
+    },
+    {
+        "from": "showing-data-proseblock--run-record-that-overflows",
+        "to": "components-data-display-proseblock--run-record-that-overflows"
+    },
+    {
+        "from": "showing-data-proseblock--run-record-without-details",
+        "to": "components-data-display-proseblock--run-record-without-details"
+    },
+    {
+        "from": "showing-data-rankchip--default",
+        "to": "components-data-display-rankchip--default"
+    },
+    {
+        "from": "showing-data-rankchip--in-a-data-row",
+        "to": "components-data-display-rankchip--in-a-data-row"
+    },
+    {
+        "from": "showing-data-rankchip--in-a-metric-row",
+        "to": "components-data-display-rankchip--in-a-metric-row"
+    },
+    {
+        "from": "showing-data-rankchip--instead-of-a-sentence",
+        "to": "components-data-display-rankchip--instead-of-a-sentence"
+    },
+    {
+        "from": "showing-data-rankchip--other-content",
+        "to": "components-data-display-rankchip--other-content"
+    },
+    {
+        "from": "showing-data-rankchip--right-to-left",
+        "to": "components-data-display-rankchip--right-to-left"
+    },
+    {
+        "from": "showing-data-sparklinerow--busy",
+        "to": "components-data-display-sparklinerow--busy"
+    },
+    {
+        "from": "showing-data-sparklinerow--default",
+        "to": "components-data-display-sparklinerow--default"
+    },
+    {
+        "from": "showing-data-sparklinerow--empty",
+        "to": "components-data-display-sparklinerow--empty"
+    },
+    {
+        "from": "showing-data-sparklinerow--right-to-left",
+        "to": "components-data-display-sparklinerow--right-to-left"
+    },
+    {
+        "from": "showing-data-sparklinerow--rising",
+        "to": "components-data-display-sparklinerow--rising"
+    },
+    {
+        "from": "showing-data-sparklinerow--settled",
+        "to": "components-data-display-sparklinerow--settled"
+    },
+    {
+        "from": "showing-data-sparklinerow--several-at-once",
+        "to": "components-data-display-sparklinerow--several-at-once"
+    },
+    {
+        "from": "showing-data-sparklinerow--translated",
+        "to": "components-data-display-sparklinerow--translated"
+    },
+    {
+        "from": "showing-data-sparklinerow--with-a-trailing-control",
+        "to": "components-data-display-sparklinerow--with-a-trailing-control"
+    }
+]

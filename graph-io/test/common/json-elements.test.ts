@@ -114,8 +114,10 @@ describe("scanAspects", () => {
     });
 
     it("reports a document that is not an array as one root event", async () => {
-        expect(await scan(' {"a": 1} ')).toEqual([{ kind: "root", value: { a: 1 }, line: 1 }]);
-        expect(await scan("5")).toEqual([{ kind: "root", value: 5, line: 1 }]);
+        // an object is not read at all (a large Cytoscape.js document is refused at once)
+        expect(await scan(' {"a": 1} ')).toEqual([{ kind: "root", value: undefined, object: true, line: 1 }]);
+        expect(await scan('{"a": ')).toEqual([{ kind: "root", value: undefined, object: true, line: 1 }]);
+        expect(await scan("5")).toEqual([{ kind: "root", value: 5, object: false, line: 1 }]);
     });
 
     it("yields nothing for an empty array and fails on empty input", async () => {
@@ -124,18 +126,35 @@ describe("scanAspects", () => {
         expect(error.empty).toBe(true);
     });
 
-    it("names the keys after the first of a block member and skips their values", async () => {
+    it("reads every array-valued key of a block member as a block and names the others", async () => {
+        // since the robustness pass: an array-valued second key is a block of its own (shared)
         const events = await scan('[{"nodes":[{"id":1}],"edges":[{"id":2}],"x":{"y":[1]}}]');
-        expect(events.map((e) => e.kind)).toEqual(["block", "element", "extraKeys"]);
-        expect(events[2]).toMatchObject({ kind: "extraKeys", aspect: "nodes", keys: ["edges", "x"] });
+        expect(events.map((e) => e.kind)).toEqual(["block", "element", "block", "element", "extraKeys"]);
+        expect(events[0]).toMatchObject({ kind: "block", aspect: "nodes", shared: false });
+        expect(events[2]).toMatchObject({ kind: "block", aspect: "edges", shared: true, block: 0 });
+        expect(events[4]).toMatchObject({ kind: "extraKeys", aspect: "nodes", keys: ["x"] });
+    });
+
+    it("reads the array-valued keys of a member whatever their order, and names the others", async () => {
+        for (const text of ['[{"x":1,"nodes":[{"id":1}]}]', '[{"networkAttributes":{"n":"a"},"nodes":[{"id":1}]}]']) {
+            const events = await scan(text);
+            expect(events.map((e) => e.kind)).toEqual(["block", "element", "extraKeys"]);
+            expect(events[0]).toMatchObject({ kind: "block", aspect: "nodes", shared: true });
+            expect(events[1]).toMatchObject({ kind: "element", value: { id: 1 } });
+            expect(events[2]).toMatchObject({
+                kind: "extraKeys",
+                aspect: "nodes",
+                keys: [text.includes('"x"') ? "x" : "networkAttributes"],
+            });
+        }
     });
 
     it("parses members that are not blocks whole: scalars, empty objects, several keys", async () => {
-        const events = await scan('[1, {}, {"CXVersion": "2.0", "hasFragments": [true]}, "x", [2]]');
+        const events = await scan('[1, {}, {"CXVersion": "2.0", "hasFragments": true}, "x", [2]]');
         expect(events.map((e) => (e.kind === "member" ? e.value : e.kind))).toEqual([
             1,
             {},
-            { CXVersion: "2.0", hasFragments: [true] },
+            { CXVersion: "2.0", hasFragments: true },
             "x",
             [2],
         ]);
@@ -166,8 +185,9 @@ describe("scanAspects", () => {
             ['[{"nodes":[]},]', /unexpected "\]"/, 1],
             ['[{"nodes" []}]', /expected ":"/, 1],
             ['[{"nodes":[]}]\n]', /after the closing bracket/, 2],
-            ['{"a":1} x', /after the document/, 1],
-            ['[{"nodes":[] "x"}]', /expected "\}"/, 1],
+            ['"a" x', /after the document/, 1],
+            ['[{"nodes":[] "x"}]', /expected "," or "\}"/, 1],
+            ['[{"x":1 "nodes":[]}]', /expected "," or "\}"/, 1],
             ['[{"metaData":[{"name":"nodes"}}]}]', /expected "," or "\]" in the "metaData" block, found "\}"/, 1],
         ];
         for (const [text, message, line] of cases) {
@@ -260,7 +280,7 @@ describe("CxStructure", () => {
             "W_ASPECT_ORDER: 3 metaData blocks; a document has at most two (pre and post)",
             "W_STATUS_WARNING: the producer reports a warning: careful",
             'W_ASPECT_ORDER: the "x" block comes after the status block, which must be last; it is read',
-            'W_COUNT_MISMATCH: metaData declares 3 "nodes" element(s); 1 were read',
+            'W_COUNT_MISMATCH: metaData declares 3 "nodes" elements; 1 was read',
         ]);
         expect(s.hasStatus).toBe(true);
         expect(s.statusWellFormed()).toBe(true);

@@ -69,6 +69,9 @@ describe("DOT ids", () => {
         expect(isBareDotId("strict")).toBe(false);
         expect(isBareDotId("a-b")).toBe(false);
         expect(isBareDotId("1e5")).toBe(false);
+        // The reader skips a U+FEFF between tokens, so a value starting with one is quoted.
+        expect(isBareDotId("\uFEFFKRAS")).toBe(false);
+        expect(isBareDotId("K\uFEFFRAS")).toBe(true);
     });
 
     it("quotes with only the double quote escaped", () => {

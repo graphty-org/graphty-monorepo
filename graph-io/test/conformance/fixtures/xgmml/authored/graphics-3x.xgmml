@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="1" label="Network" directed="1" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <graphics><att name="NETWORK_SCALE_FACTOR" value="0.67" type="string"/><att name="NETWORK_BACKGROUND_PAINT" value="#FFFFFF" type="string"/></graphics>
+  <node id="a" label="A"><graphics type="ELLIPSE" x="10" y="20" z="32768" w="40" h="40" fill="#EFF5FC"><att name="NODE_LABEL" value="A" type="string"/><att name="lockedVisualProperties" type="list"><att name="NODE_SHAPE" value="TRIANGLE" type="string"/></att></graphics></node>
+  <node id="b" label="B"><graphics type="ELLIPSE" x="-5" y="0" z="0"/></node>
+  <edge id="e" source="a" target="b" cy:directed="1"><graphics width="2.0" fill="#999999"><att name="EDGE_BEND" value="" type="string"/></graphics></edge>
+</graph>

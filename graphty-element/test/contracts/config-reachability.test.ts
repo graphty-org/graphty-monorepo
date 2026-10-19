@@ -48,7 +48,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { LABEL_STYLE_FIELDS } from "../../src/catalog/label-style";
 import type { Channel } from "../../src/catalog/types";
@@ -167,12 +167,16 @@ function painterOf(style: ResolvedStyle): StylePainter {
  * @param run - Which of the two probe runs this is.
  * @returns The probe.
  */
-function labelProbe(run: 0 | 1): Record<string, string> {
-    const probe: Record<string, string> = {};
+function labelProbe(run: 0 | 1): Record<string, string | boolean> {
+    const probe: Record<string, string | boolean> = {};
 
     for (const field of LABEL_STYLE_FIELDS) {
         probe[field] = `probe-${String(run)}-${field}`;
     }
+
+    // The one switch in the vocabulary that the painter reads as on or off rather than passing
+    // through, so it needs two values that differ as switches do.
+    probe.italic = run === 0;
 
     return probe;
 }
@@ -222,7 +226,7 @@ function reachedBy(descriptor: ChannelDescriptor): Set<string> {
     }
 
     const runs = ([0, 1] as const).map((run) => {
-        const painter = painterOf({ [descriptor.channel]: probeValue(descriptor, run) } as ResolvedStyle);
+        const painter = painterOf({ [descriptor.channel]: probeValue(descriptor, run) });
         const paint = descriptor.target === "node" ? painter.nodePaint(0) : painter.edgePaint(0);
 
         assert.isNotNull(paint, `the painter returned no paint for ${descriptor.channel}`);

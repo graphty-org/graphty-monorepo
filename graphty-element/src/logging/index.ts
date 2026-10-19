@@ -31,7 +31,13 @@
 
 // Core exports
 export { type LogFormatOptions } from "./format.js";
-export { formatLogRecord, GraphtyLogger, type GraphtyLoggerConfig, type Logger, type LogSinkReference } from "./GraphtyLogger.js";
+export {
+    formatLogRecord,
+    GraphtyLogger,
+    type GraphtyLoggerConfig,
+    type Logger,
+    type LogSinkReference,
+} from "./GraphtyLogger.js";
 export { lazy } from "./LazyEval.js";
 export {
     configureLogging,
@@ -40,6 +46,7 @@ export {
     type LoggerConfig,
     resetLoggingConfig,
 } from "./LoggerConfig.js";
+export { redactSecrets } from "./redactSecrets.js";
 export { type ConsoleSinkOptions, createConsoleSink } from "./sinks/ConsoleSink.js";
 export { createRemoteSink, type RemoteSinkOptions } from "./sinks/RemoteSink.js";
 export { clearLoggingConfig, loadLoggingConfig, saveLoggingConfig } from "./storage.js";

@@ -244,7 +244,7 @@ describe("Dependency Ordering", () => {
     // Phase 1 Tests - These will FAIL initially
     it("should have layout-update → layout-set dependency", () => {
         // This test will FAIL initially
-         
+
         const deps = (OperationQueueManager as any).CATEGORY_DEPENDENCIES;
         const hasLayoutUpdateToLayoutSet = deps.some(
             (dep: [string, string]) => dep[0] === "layout-update" && dep[1] === "layout-set",

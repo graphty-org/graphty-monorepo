@@ -1,14 +1,14 @@
-import type { GraphSnapshot } from "@graphty/graph-format";
+import { type GraphSnapshot, type NodeRef, resolveNode } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { type CommonLayoutOptions, planar, resolve, result } from "./common";
-import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite";
+import type { LayoutResult } from "../positions.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { type CommonLayoutOptions, planar, refusal, resolve, result } from "./common.js";
+import { type LayerAlign, layeredRows, multipartitePlace } from "./multipartite.js";
 
 /** Options of the index-based breadth-first layout. */
 export interface BfsLayoutOptions extends CommonLayoutOptions {
-    /** Index of the node the search starts from; default 0. */
-    readonly start?: number | undefined;
+    /** The node the search starts from: its index, or `{ id }`; default 0. */
+    readonly start?: NodeRef | undefined;
     /** Default `vertical`. */
     readonly align?: LayerAlign | undefined;
 }
@@ -19,18 +19,21 @@ export interface BfsLayoutOptions extends CommonLayoutOptions {
  * @param g - an undirected snapshot
  * @param start - the start index
  * @returns node indices per layer
- * @throws when a node is not reachable from `start`
+ * @throws when a node is not reachable from `start` (code `E_NOT_CONNECTED`)
  */
 function bfsLayers(g: GraphSnapshot, start: number): number[][] {
     const n = g.nodeCount;
     if (!Number.isInteger(start) || start < 0 || start >= n) {
-        throw new Error(`start node ${String(start)} is not in the graph`);
+        throw refusal(new Error(`start node ${String(start)} is not in the graph`), "E_BAD_NODE", {
+            option: "start",
+            index: start,
+        });
     }
     const visited = new Uint8Array(n);
     visited[start] = 1;
     let reached = 1;
     const layers: number[][] = [[start]];
-    for (let layer = layers[0]; ; ) {
+    for (let layer = layers[0]; ;) {
         const next: number[] = [];
         for (const u of layer) {
             for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
@@ -49,7 +52,10 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
         layer = next;
     }
     if (reached < n) {
-        throw new Error("bfs_layout didn't include all nodes. Graph may be disconnected.");
+        throw Object.assign(new Error("bfs_layout didn't include all nodes. Graph may be disconnected."), {
+            code: "E_NOT_CONNECTED",
+            params: { nodeCount: n, reached },
+        });
     }
     return layers;
 }
@@ -61,11 +67,14 @@ function bfsLayers(g: GraphSnapshot, start: number): number[][] {
  * @param s - the snapshot; a directed one is read as its undirected derived graph
  * @param options - `scale` is the distance of the farthest node from the centre; `start` the first layer
  * @returns the layout
- * @throws when the graph is not connected
+ * @throws an Error when the graph is not connected, with `code` `E_NOT_CONNECTED` and `params`
+ * `{ nodeCount, reached }` (the nodes the search from `start` reached); with `code` `E_BAD_NODE` and `params`
+ * `{ option: "start", index }` when `start` is an index that is not a node (a `{ id }` the graph does not hold is
+ * graph-format's `E_UNKNOWN_NODE`)
  */
 export function bfs(s: GraphSnapshot, options: BfsLayoutOptions = {}): LayoutResult {
     const { n, dim, scale, center } = resolve(s, options);
     const { start = 0, align = "vertical" } = options;
-    const layers = n === 0 ? [] : bfsLayers(toLayoutSnapshot(s), start);
+    const layers = n === 0 ? [] : bfsLayers(toLayoutSnapshot(s), resolveNode(s, start));
     return result(planar(layeredRows(n, layers, multipartitePlace, align, scale, center), dim, center), dim, n);
 }

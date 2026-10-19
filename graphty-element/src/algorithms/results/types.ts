@@ -19,6 +19,7 @@
 import type { EdgeId, FieldDescriptor, ResultShape } from "../../catalog/types";
 import type { ResultElementValues } from "../../session/results";
 import type { Caveats, RunDirection, RunProgressReport } from "../../session/runs";
+import { caveatSentence, partialSentence } from "../../session/runs/caveatFacts";
 import type { ScopedInput, ScopedInputOptions } from "../input/ScopedInput";
 
 // ---------------------------------------------------------------------------------------------
@@ -68,8 +69,11 @@ export interface AlgorithmOutput {
     readonly edges?: readonly ResultElementValues<EdgeId>[];
     /** What the run published for the graph as a whole. */
     readonly graph?: Readonly<Record<string, unknown>>;
-    /** What qualifies these numbers, including which method produced them. */
-    readonly caveats: Caveats;
+    /**
+     * What qualifies these numbers, including which method produced them. `facts` may be left
+     * out: {@link declaredCaveats} fills it, and a run without it starts with none.
+     */
+    readonly caveats: Caveats | Omit<Caveats, "facts">;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -83,20 +87,38 @@ export interface AlgorithmOutput {
  * runs of the same algorithm routinely differ in: which engine ran, and whether an edge was
  * followed both ways.
  */
-interface CaveatsInit extends Partial<Caveats> {
+interface CaveatsInit extends Partial<Omit<Caveats, "notes" | "partialReason">> {
     /** Which method computed the numbers, such as "dijkstra" or "stoer-wagner". */
     readonly method: string;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
+    /** Sentences of the algorithm's own, published after the ones its `facts` are worded as. */
+    readonly notes?: readonly string[];
+    /** Why the run stopped early, in a sentence of its own; worded from `partialCause` when absent. */
+    readonly partialReason?: string;
 }
 
 /**
  * Fill in the caveats every exact, double-precision run shares, and keep what the run said.
+ *
+ * `notes` comes out as the English of every fact, followed by any sentence the run wrote itself,
+ * and `partialReason` as the English of `partialCause` when the run gave no sentence of its own.
  * @param init - What this run has to say.
  * @returns The complete caveats.
  */
 export function declaredCaveats(init: CaveatsInit): Caveats {
-    return { exact: true, precision: "f64", notes: [], ...init };
+    const facts = init.facts ?? [];
+    const reason =
+        init.partialReason ?? (init.partialCause === undefined ? undefined : partialSentence(init.partialCause));
+
+    return {
+        exact: true,
+        precision: "f64",
+        ...init,
+        facts,
+        notes: [...facts.map(caveatSentence), ...(init.notes ?? [])],
+        ...(reason === undefined ? {} : { partialReason: reason }),
+    };
 }
 
 // ---------------------------------------------------------------------------------------------

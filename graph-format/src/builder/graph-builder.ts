@@ -48,6 +48,7 @@ import {
     type U32,
 } from "../types/index.js";
 import {
+    checkIdMapSize,
     createStagingColumn,
     type ExtensionStaging,
     type IndexMaps,
@@ -464,9 +465,7 @@ export class GraphBuilder implements GraphBuilderContract {
                 }
             }
         }
-        for (let i = 0; i < count; i++) {
-            staging.pushNode(null);
-        }
+        staging.pushAnonymousNodes(count);
         if (count > 0) {
             this.mutated();
         }
@@ -538,7 +537,10 @@ export class GraphBuilder implements GraphBuilderContract {
     }
 
     /**
-     * Grow staging capacity ahead of a bulk push.
+     * Grow staging capacity ahead of a bulk push. A node count past the 2^24 nodes with explicit
+     * ids the builder holds is E_TOO_LARGE here, before anything is reserved, so a declared count
+     * is refused at once rather than after millions of addNode calls; anonymous nodes past that
+     * limit (addAnonymousNodes) need no reserve.
      * @param nodes - the node count to fit
      * @param edges - the edge count to fit
      */
@@ -561,7 +563,10 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             return value;
         };
-        this.staging.reserve(check("nodes", nodes), check("edges", edges));
+        const nodeCount = check("nodes", nodes);
+        const edgeCount = check("edges", edges);
+        checkIdMapSize(nodeCount);
+        this.staging.reserve(nodeCount, edgeCount);
     }
 
     // ---------------------------------------------------------------- edges
@@ -1549,7 +1554,7 @@ export class GraphBuilder implements GraphBuilderContract {
             }
             const explicit = staging.weightExplicit(e);
             const weight = explicit && staging.weight !== null ? staging.weight.get(e) : undefined;
-            const mirror = staging.pushEdge(v, u, weight);
+            const mirror = staging.pushEdge(v, u, weight); // NOSONAR(S2234): the mirror arc runs the other way on purpose
             directedColumn.write(mirror, false);
             pairColumn.write(e, mirror);
             pairColumn.write(mirror, e);
@@ -1581,7 +1586,7 @@ export class GraphBuilder implements GraphBuilderContract {
     private columnIndex(columns: readonly StagingColumn[], name: string): number {
         const cached = columns === this.staging.nodeColumns ? this.nodeNames : this.edgeNames;
         let index = cached;
-        if (index === null || index.columns !== columns || index.map.size !== columns.length) {
+        if (index?.columns !== columns || index.map.size !== columns.length) {
             const map = new Map<string, number>();
             for (let i = 0; i < columns.length; i++) {
                 map.set(columns[i].meta.name, i);
@@ -2001,22 +2006,7 @@ export class GraphBuilder implements GraphBuilderContract {
                     { table: name, column: column.meta.name },
                 );
             }
-            const valueMap = referenceMap(column.meta, refs);
-            for (let row = 0; row < column.length; row++) {
-                if (!column.isSet(row)) {
-                    into.ensureLength(first + row + 1);
-                    continue;
-                }
-                let value = column.value(row);
-                if (valueMap !== null) {
-                    value = remapReference(value, valueMap);
-                    if (value === undefined) {
-                        into.ensureLength(first + row + 1);
-                        continue;
-                    }
-                }
-                into.write(first + row, value);
-            }
+            appendExtensionColumn(into, column, first, referenceMap(column.meta, refs));
         }
         for (const column of targetColumns) {
             column.ensureLength(first + table.rowCount);
@@ -2026,6 +2016,32 @@ export class GraphBuilder implements GraphBuilderContract {
 }
 
 // ============================================================ module helpers
+
+/**
+ * Append the rows of one source extension column after row `first` of its target column, rewriting
+ * references through `valueMap`; an unset row, or a reference with nothing left, stays unset.
+ * @param into - the target staging column
+ * @param column - the source column
+ * @param first - the target row of source row 0
+ * @param valueMap - the index map of a refersTo column, or null
+ */
+function appendExtensionColumn(into: StagingColumn, column: Column, first: number, valueMap: U32 | null): void {
+    for (let row = 0; row < column.length; row++) {
+        if (!column.isSet(row)) {
+            into.ensureLength(first + row + 1);
+            continue;
+        }
+        let value = column.value(row);
+        if (valueMap !== null) {
+            value = remapReference(value, valueMap);
+            if (value === undefined) {
+                into.ensureLength(first + row + 1);
+                continue;
+            }
+        }
+        into.write(first + row, value);
+    }
+}
 
 /**
  * Enforce "at most one column per role" among staging columns (design section 5.5).

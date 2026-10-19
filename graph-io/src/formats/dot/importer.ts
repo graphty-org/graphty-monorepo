@@ -21,13 +21,13 @@
  *   name (fdp's cluster edges) merge into that one node with a warning. Other subgraphs are
  *   transparent grouping; their attributes are reported as dropped.
  * - attribute values are ID strings inferred per column by the sink under the 5.1 grammar, except
- *   `label` (text, role label), `pos` on a node (the position role column, f32 x3, design section
+ *   `label` (text, role label), `pos` on a node (the position role column, f64 x3, design section
  *   5.2), `weight` (THE weight, `weightFrom`) and `key` (cgraph's edge identity, the edge id role).
  * - ids are coerced with the common rule (`canonical` by default: `1` and `"1"` are the same node,
  *   as the DOT grammar says).
  *
  * The whole text is read first (design section 8.4 allows it for DOT). A grammar violation is
- * fatal, as it is for Graphviz itself: the import aborts with ImportError (code E_DOT_SYNTAX)
+ * fatal, as it is for Graphviz itself: the import aborts with ImportError (issue code E_SYNTAX)
  * carrying the partial report. Errors the sink raises for one element are recorded and the element
  * is skipped (section 8.6).
  */
@@ -42,18 +42,26 @@ import {
 } from "@graphty/graph-format";
 
 import { declareResolved } from "../../common/attributes.js";
+import { importChosenGraph } from "../../common/choose.js";
 import {
+    AMBIGUOUS_GRAPH_NAME_CODE,
     COLUMN_RENAMED_CODE,
     DIRECTION_FORCED_CODE,
     DIRECTION_REFUSED_CODE,
+    DUPLICATE_ATTRIBUTE_CODE,
+    ELEMENT_ISSUE,
     EMPTY_INPUT_CODE,
+    ENCODING_CONFLICT_CODE,
     ENCODING_FALLBACK_CODE,
+    GRAPH_NOT_FOUND_CODE,
     ID_MERGED_CODE,
+    INPUT_ISSUE,
     INVALID_ENCODING_CODE,
     INVALID_UTF8_CODE,
     MIXED_DIRECTION_CODE,
     MULTIPLE_GRAPHS_CODE,
     OPTION_IGNORED_CODE,
+    PRECISION_CODE,
     ROLE_TAKEN_CODE,
     SINK_OPTION_CODE,
     SYNTAX_CODE,
@@ -61,17 +69,25 @@ import {
 } from "../../common/codes.js";
 import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
-import { readText, throwIfAborted } from "../../common/input.js";
+import { canonicalEncoding, readText, throwIfAborted } from "../../common/input.js";
 import {
+    graphChosen,
     reportSinkOptions,
     reportUnusedOptions,
     type ResolvedImportOptions,
     resolveImportOptions,
 } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
-import { type CommonImportOptions, type GraphImporter, type ImportInput, type ImportReport } from "../../types.js";
+import {
+    type CommonImportOptions,
+    type GraphChoiceOptions,
+    type GraphImporter,
+    type ImportInput,
+    type ImportReport,
+} from "../../types.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
@@ -81,51 +97,84 @@ import {
     PARENT_COLUMN,
     PIN_ATTRIBUTE,
     POS_ATTRIBUTE,
+    POSITION_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
+import { dotPositions } from "./positions.js";
+import { dotStyles } from "./styles.js";
 import { DotSyntaxError, type DotToken, DotTokenizer } from "./tokenizer.js";
 
-/** The DOT importer's format-specific options. */
-export interface DotImportOptions {
+/**
+ * The DOT importer's format-specific options.
+ * @category Built-in formats
+ */
+export interface DotImportOptions extends GraphChoiceOptions, CommonImportOptions {
     /**
      * What an edge operator that contradicts the graph keyword means (`--` in a digraph, `->` in a
-     * graph; a syntax error for Graphviz): "operator" (default) reads the edge with the operator's
-     * direction and resolves it per onMixedDirection, with a warning; "header" reads it with the
-     * graph's direction, with a warning; "error" aborts the import as Graphviz does.
+     * graph; Graphviz refuses such a file): "operator" reads the edge with the operator's
+     * direction, so the graph has both directions and `onMixedDirection` decides, with a warning;
+     * "header" reads it with the graph's direction, with a warning; "error" stops the import with an
+     * ImportError whose `issue.code` is E_SYNTAX, as Graphviz does.
+     * @defaultValue "operator"
      */
     mismatchedEdgeOperator?: "operator" | "header" | "error" | undefined;
     /**
-     * Map a node's `pos` to a `pos` column with the position role and a trailing `!` to `pin`
-     * (default true); false keeps `pos` as the text the file wrote, like any other attribute.
+     * Read a node's `pos` attribute as its position (a trailing `!` becomes a `pin` attribute);
+     * false keeps `pos` as the text the file wrote, like any other attribute.
+     * @defaultValue true
      */
     positions?: boolean | undefined;
+    /**
+     * With `positions`, also keep `pos` as the text the file wrote; the position column is then
+     * named `graphty.position`, so a reader gets both.
+     * @defaultValue false
+     */
+    keepPositionSource?: boolean | undefined;
 }
 
 /**
- * The issue codes the DOT importer records (design section 8.6), by name: the codes shared with
- * the other importers (src/common/codes.ts) and the DOT-specific ones. A key is the code without
+ * The issue codes the DOT importer records, by name: the codes shared with
+ * the other importers and the DOT-specific ones. A key is the code without
  * its severity and format prefixes.
+ * @category Built-in formats
  */
 export const DOT_ISSUE = Object.freeze({
-    /** A grammar violation; fatal. */
+    ...INPUT_ISSUE,
+    ...ELEMENT_ISSUE,
+    /** The text breaks DOT's syntax; the message says where. The import stops. */
     SYNTAX: SYNTAX_CODE,
-    /** The input holds no graph at all (empty or only comments); fatal. */
+    /** The input holds no graph: it is empty or only comments. The import stops. */
     EMPTY_INPUT: EMPTY_INPUT_CODE,
-    /** The input holds invalid UTF-8 (fatal). */
+    /** The input is not valid UTF-8. The import stops. */
     INVALID_UTF8: INVALID_UTF8_CODE,
-    /** Invalid bytes in the encoding a BOM, a declaration or the encoding option chose (fatal). */
+    /**
+     * Some bytes are not valid in the encoding that was chosen (by a byte order mark, the file's declaration or the
+     * `encoding` option). The import stops.
+     */
     INVALID_ENCODING: INVALID_ENCODING_CODE,
     /** Bytes that are not UTF-8 and declare no encoding were read as windows-1252. */
     ENCODING_FALLBACK: ENCODING_FALLBACK_CODE,
     /** A declared encoding the platform cannot decode was ignored. */
     UNKNOWN_ENCODING: UNKNOWN_ENCODING_CODE,
-    /** Subgraphs or braces nested deeper than the parser's limit; fatal. */
+    /** A declared encoding the byte order mark contradicts (the mark wins). */
+    ENCODING_CONFLICT: ENCODING_CONFLICT_CODE,
+    /** Subgraphs or braces are nested deeper than graph-io reads. The import stops. */
     NESTING: "E_DOT_NESTING",
-    /** An edge operator contradicting the graph keyword (warning under "operator" / "header"). */
+    /**
+     * An edge operator contradicting the graph keyword, read under mismatchedEdgeOperator "operator" or "header".
+     * Under "error" the import stops with E_SYNTAX instead.
+     */
     EDGE_OPERATOR: "W_DOT_EDGE_OPERATOR",
-    /** A second graph in the same input; only the first is read. */
+    /**
+     * The file holds several graphs and only the first was read. It is not added when `graphIndex` or `graphName` chose the graph.
+     * `importAllGraphs()` reads every one.
+     */
     MULTIPLE_GRAPHS: MULTIPLE_GRAPHS_CODE,
+    /** `graphIndex` or `graphName` names no graph of the file; the message lists the graphs it holds. The import stops. */
+    GRAPH_NOT_FOUND: GRAPH_NOT_FOUND_CODE,
+    /** `graphName` matches more than one graph; pass `graphIndex`. The import stops. */
+    AMBIGUOUS_GRAPH_NAME: AMBIGUOUS_GRAPH_NAME_CODE,
     /** A badly delimited numeral (`1e3`) split into two tokens, as Graphviz does with a warning. */
     NUMERAL_AMBIGUITY: "W_DOT_NUMERAL_AMBIGUITY",
     /** Attributes of a subgraph that is not a cluster (rank=same and the like) cannot be represented. */
@@ -136,29 +185,59 @@ export const DOT_ISSUE = Object.freeze({
     CLUSTER_NODE_MERGED: "W_DOT_CLUSTER_NODE_MERGED",
     /** A node mentioned in two unrelated clusters keeps the first. */
     CLUSTER_CONFLICT: "W_DOT_CLUSTER_CONFLICT",
-    /** A node `pos` that is not a point; the value was dropped. */
+    /** A node's `pos` is not a point, or has a coordinate that is not finite; the value was dropped. */
     BAD_POS: "W_DOT_BAD_POS",
+    /** Node `pos` values mix two and three coordinates; the position column records the first's. */
+    POS_DIMS: "W_DOT_POS_DIMS",
+    /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
+    PRECISION: PRECISION_CODE,
+    /** The same attribute twice in one statement's attribute lists; the last value stands, as in Graphviz. */
+    DUPLICATE_ATTRIBUTE: DUPLICATE_ATTRIBUTE_CODE,
+    /** The second part of a port (`a:p:zz`) is not a compass point; kept as written, as Graphviz warns. */
+    COMPASS_POINT: "W_DOT_COMPASS_POINT",
+    /** A `charset` attribute beyond the head the decoder reads it from; the input was decoded without it. */
+    LATE_CHARSET: "W_DOT_LATE_CHARSET",
+
     /** A parallel edge merged into an earlier one under `strict`. */
     STRICT_MERGED: "W_DOT_STRICT_MERGED",
     /** An edge merged into an earlier one with the same endpoints and `key`. */
     KEY_MERGED: "W_DOT_KEY_MERGED",
-    /** A role (label, id, position, ...) was already taken in the caller's sink; the column was declared without it. */
+    /**
+     * You read into a graph builder that already has an id, label or position attribute, so this file's one is kept as
+     * a plain attribute.
+     */
     ROLE_TAKEN: ROLE_TAKEN_CODE,
-    /** A column of another shape exists in the caller's sink under a name the importer declares; renamed `<name>#<id>`. */
+    /**
+     * An attribute was renamed `<name>#<suffix>` because another attribute already has its name, for example
+     * two attributes declared with the same name.
+     */
     COLUMN_RENAMED: COLUMN_RENAMED_CODE,
-    /** A common option the format has no use for was given a non-default value. */
+    /** You set an option this format does not use; it had no effect. The message names the option. */
     OPTION_IGNORED: OPTION_IGNORED_CODE,
-    /** Two distinct id texts merged under ids: "number". */
+    /** Two different id texts became the same number because `ids` is "number", so their nodes were merged. */
     ID_MERGED: ID_MERGED_CODE,
-    /** A builder-policy option the sink does not honour. */
+    /**
+     * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
+     * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
+     */
     SINK_OPTION: SINK_OPTION_CODE,
-    /** The sink refused the file's direction. */
+    /**
+     * You read into a graph builder whose direction is already set, or which already holds edges, so the file is read
+     * with the builder's direction instead of its own.
+     */
     DIRECTION_REFUSED: DIRECTION_REFUSED_CODE,
-    /** Edges forced to the policy's direction. */
+    /** Edges of the other direction were read with the direction `onMixedDirection` chose. */
     DIRECTION_FORCED: DIRECTION_FORCED_CODE,
-    /** A mixed file under onMixedDirection "error" (fatal). */
+    /**
+     * The graph has both directed and undirected edges and `onMixedDirection` is "error". An import stops; a save to a
+     * format that holds one direction per file fails with E_DIRECTED. Pass "directed" or "undirected" to read or write
+     * it anyway.
+     */
     MIXED_DIRECTION: MIXED_DIRECTION_CODE,
-    /** A text column the sink could not widen to the dtype its cells imply. */
+    /**
+     * Your graph builder cannot change an attribute's type after its first value, so a text column keeps the type of
+     * its first values.
+     */
     WIDENING_UNSUPPORTED: WIDENING_UNSUPPORTED_CODE,
 });
 
@@ -192,8 +271,17 @@ const MAX_ANCESTOR_WALK = 4096;
  */
 const DOT_HEADER = /^\s*(strict\s+)?(di)?graph(?=[\s{"/]|$)(?!\s*\[)/i;
 const TRUE_TEXTS: ReadonlySet<string> = new Set(["true", "yes", "1"]);
-const POINT_TEXT =
-    /^\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)(?:\s*,\s*([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?))?\s*(!?)\s*$/;
+const COMPASS_POINTS: ReadonlySet<string> = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw", "c", "_"]);
+/**
+ * A DOT number: digits with an optional fraction, or a bare fraction (`.5`), then an exponent.
+ * Written so each digit has exactly one way to match; `[0-9]*\.?[0-9]+` took quadratic time on a
+ * long run of digits.
+ */
+const POINT_NUMBER = String.raw`[-+]?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][-+]?\d+)?`;
+/** A point "x,y[,z][!]". The `!` and its trailing space are one optional group, so spaces cannot split two ways. */
+const POINT_TEXT = new RegExp(
+    String.raw`^\s*(${POINT_NUMBER})\s*,\s*(${POINT_NUMBER})(?:\s*,\s*(${POINT_NUMBER}))?\s*(?:(!)\s*)?$`,
+);
 
 /** An attribute as written: name, value text and the line of the assignment. */
 interface DotAttribute {
@@ -239,12 +327,16 @@ interface Scope {
 }
 
 /**
- * The importer plugin for DOT / Graphviz text (design section 12.4).
+ * The importer plugin for DOT / Graphviz text.
+ * @category Built-in formats
  */
 export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     format: DOT_FORMAT,
+    options: Object.freeze(["keepPositionSource", "mismatchedEdgeOperator", "positions"]),
     extensions: EXTENSIONS,
     mimeTypes: MIME_TYPES,
+    styles: dotStyles,
+    positions: dotPositions,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after
@@ -273,6 +365,10 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         sink: GraphSink,
         options?: DotImportOptions & CommonImportOptions,
     ): Promise<ImportReport> {
+        if (graphChosen(options)) {
+            // the choice is honored here too, not only by the registry
+            return importChosenGraph(dotImporter, input, sink, options);
+        }
         const resolved = resolveImportOptions(options, {
             ids: "canonical",
             defaultDirected: true,
@@ -282,21 +378,33 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const report = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, report, USED_OPTIONS);
         reportSinkOptions(sink, options, report);
-        const text = await readText(input, report, { ...resolved, declaredEncoding: dotCharset });
+        const head: { charset?: string | null } = {};
+        const text = await readText(input, report, {
+            ...resolved,
+            declaredEncoding: (h) => (head.charset = dotCharset(h)),
+            declarationBytes: CHARSET_HEAD_BYTES,
+        });
         const reports = { current: report };
         const lexer = dotLexer(text, reports);
         const first = guard(report, () => lexer.next());
-        const trailing = parseGraph(
-            new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
+        const parser = new DotParser(
+            lexer,
+            sink,
             report,
-            first,
+            resolved,
+            mismatch,
+            options?.positions !== false,
+            options?.keepPositionSource === true,
         );
+        parser.headCharset = head.charset;
+        const trailing = parseGraph(parser, report, first);
         if (trailing.kind !== "eof") {
+            // anything after the graph must be graphs too: Graphviz refuses the file otherwise
             const skipped = guard(report, () => countGraphs(lexer, trailing));
             report.warning(
                 "unsupported",
                 MULTIPLE_GRAPHS_CODE,
-                `the input holds ${skipped} more graph(s) after the first; import() reads the first, importAll() reads every one`,
+                `the input holds ${skipped} more graph${plural(skipped)} after the first; the first is read (graphIndex or graphName chooses another; importAllGraphs() reads every one)`,
                 { line: trailing.line },
             );
         }
@@ -325,7 +433,12 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
         const mismatch = mismatchOption(options?.mismatchedEdgeOperator);
         const first = new ImportReportBuilder(DOT_FORMAT, resolved.errorLimit);
         reportUnusedOptions(options, first, USED_OPTIONS);
-        const text = await readText(input, first, { ...resolved, declaredEncoding: dotCharset });
+        const head: { charset?: string | null } = {};
+        const text = await readText(input, first, {
+            ...resolved,
+            declaredEncoding: (h) => (head.charset = dotCharset(h)),
+            declarationBytes: CHARSET_HEAD_BYTES,
+        });
         const reports = { current: first };
         const lexer = dotLexer(text, reports);
         const done: ImportReport[] = [];
@@ -335,11 +448,17 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
             reports.current = report;
             const sink = sinkFor(done.length);
             reportSinkOptions(sink, options, report);
-            token = parseGraph(
-                new DotParser(lexer, sink, report, resolved, mismatch, options?.positions !== false),
+            const parser = new DotParser(
+                lexer,
+                sink,
                 report,
-                token,
+                resolved,
+                mismatch,
+                options?.positions !== false,
+                options?.keepPositionSource === true,
             );
+            parser.headCharset = head.charset;
+            token = parseGraph(parser, report, token);
             throwIfAborted(resolved.signal);
             done.push(report.finish());
         } while (token.kind !== "eof");
@@ -408,6 +527,9 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (isKeyword(token, "strict")) {
             token = lexer.next();
         }
+        if (isPunct(token, "}")) {
+            throw new DotSyntaxError('unexpected "}" after the end of the graph: no "{" is open', token.line);
+        }
         if (!isKeyword(token, "graph") && !isKeyword(token, "digraph")) {
             throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
         }
@@ -418,7 +540,7 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (!isPunct(token, "{")) {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
-        for (let depth = 1; depth > 0; ) {
+        for (let depth = 1; depth > 0;) {
             token = lexer.next();
             if (token.kind === "eof") {
                 throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
@@ -435,19 +557,47 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
     return count;
 }
 
-/** A `charset` attribute assignment (Graphviz's declaration of the input encoding). */
-const DOT_CHARSET = /\bcharset\s*=\s*"?([A-Za-z][A-Za-z0-9._-]*)/i;
+/** How many leading bytes the `charset` search sees: a license comment may come before the graph. */
+const CHARSET_HEAD_BYTES = 64 * 1024;
 
 /**
  * The encoding a DOT file declares with the graph attribute `charset` (Graphviz reads UTF-8,
  * Latin1 and Big-5), for the shared byte decoder; Graphviz's spellings `latin-1` and `big-5` are
- * mapped to the WHATWG labels.
+ * mapped to the WHATWG labels. Only a graph-level assignment counts (`charset=...` as a statement
+ * or inside `graph [...]`), never one in a comment, a quoted value or a node / edge attribute list.
  * @param head - the start of the file, decoded as windows-1252
  * @returns the declared label, or null
  */
 function dotCharset(head: string): string | null {
-    const match = DOT_CHARSET.exec(head);
-    return match === null ? null : match[1].replace(/^(latin|big)-/i, "$1");
+    const lexer = new DotTokenizer(head);
+    // the attribute list an open `[` belongs to: the graph's (`graph [`) or a node's / an edge's
+    let list: "graph" | "other" | null = null;
+    let previous: DotToken | null = null;
+    try {
+        let token = lexer.next();
+        while (token.kind !== "eof") {
+            if (isPunct(token, "[")) {
+                list = previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+            } else if (isPunct(token, "]")) {
+                list = null;
+            } else if (list !== "other" && isKeyword(token, "charset")) {
+                const equals = lexer.next();
+                const value = isPunct(equals, "=") ? lexer.next() : equals;
+                if (value !== equals && value.kind === "id") {
+                    return value.text.replace(/^(latin|big)-/i, "$1");
+                }
+                token = value;
+            }
+            previous = token;
+            token = lexer.next();
+        }
+    } catch (err) {
+        // the head ends inside a comment or a string: nothing further is seen
+        if (!(err instanceof DotSyntaxError)) {
+            throw err;
+        }
+    }
+    return null;
 }
 
 /**
@@ -455,7 +605,7 @@ function dotCharset(head: string): string | null {
  * @param value - the caller's value
  * @returns the value or the default; E_UNSUPPORTED for anything else
  */
-function mismatchOption(value: unknown): "operator" | "header" | "error" {
+function mismatchOption(value: unknown): NonNullable<DotImportOptions["mismatchedEdgeOperator"]> {
     if (value === undefined) {
         return "operator";
     }
@@ -545,7 +695,7 @@ function describeToken(token: DotToken): string {
  * @returns true when it starts with `cluster`
  */
 function isClusterName(name: string | null): boolean {
-    return name !== null && name.startsWith(CLUSTER_PREFIX);
+    return name?.startsWith(CLUSTER_PREFIX) === true;
 }
 
 /**
@@ -562,6 +712,8 @@ class DotParser {
 
     private readonly mismatch: "operator" | "header" | "error";
     private readonly positions: boolean;
+
+    private readonly keepPositionSource: boolean;
 
     private readonly ids: IdCoercer;
 
@@ -612,6 +764,16 @@ class DotParser {
     /** The current subgraph nesting depth. */
     private depth = 0;
 
+    /** The coordinate count of the first `pos`, or 0 before one. */
+    private posDims = 0;
+
+    /**
+     * What the decoder's look at the head found for `charset`: a label, null for none, undefined
+     * when it never looked (text input, a BOM, the encoding option). A `charset` assignment read
+     * when the head had none came too late to decode by.
+     */
+    headCharset: string | null | undefined = undefined;
+
     /** The inferred attribute columns by name, per domain (the 5.1 text grammar per column). */
     private readonly nodeWriters = new Map<string, TextCellWriter>();
 
@@ -625,6 +787,7 @@ class DotParser {
      * @param options - the resolved common options
      * @param mismatch - the resolved mismatchedEdgeOperator option
      * @param positions - whether `pos` goes to the position column
+     * @param keepPositionSource - whether `pos` also stays as text
      */
     constructor(
         lexer: DotTokenizer,
@@ -633,6 +796,7 @@ class DotParser {
         options: ResolvedImportOptions,
         mismatch: "operator" | "header" | "error",
         positions: boolean,
+        keepPositionSource: boolean,
     ) {
         this.lexer = lexer;
         this.sink = sink;
@@ -640,6 +804,7 @@ class DotParser {
         this.options = options;
         this.mismatch = mismatch;
         this.positions = positions;
+        this.keepPositionSource = keepPositionSource;
         this.ids = new IdCoercer(options.ids);
         this.resolver = new DirectionResolver(sink, report, options.onMixedDirection);
     }
@@ -759,22 +924,43 @@ class DotParser {
             }
             throw new DotSyntaxError(`unexpected ${describeToken(token)} at the start of a statement`, token.line);
         }
-        if (!token.quoted && !token.html) {
-            const keyword = token.text.toLowerCase();
-            if (keyword === "node" || keyword === "edge" || keyword === "graph") {
-                lexer.next();
-                this.attributeStatement(scope, keyword, token.line);
-                return;
-            }
-            if (keyword === "subgraph") {
-                const group = this.subgraph(scope);
-                this.maybeEdgeStatement(scope, group, token.line);
-                return;
-            }
-            if (keyword === "digraph" || keyword === "strict") {
-                throw new DotSyntaxError(`unexpected keyword ${describeToken(token)} inside a graph`, token.line);
-            }
+        if (!token.quoted && !token.html && this.keywordStatement(scope, token)) {
+            return;
         }
+        this.idStatement(scope);
+    }
+
+    /**
+     * Parse a statement that starts with a keyword: an attribute statement or a subgraph.
+     * @param scope - the scope
+     * @param token - the statement's first token, not yet read
+     * @returns false when the token is no statement keyword (an ID)
+     */
+    private keywordStatement(scope: Scope, token: DotToken): boolean {
+        const keyword = token.text.toLowerCase();
+        if (keyword === "node" || keyword === "edge" || keyword === "graph") {
+            this.lexer.next();
+            this.attributeStatement(scope, keyword, token.line);
+            return true;
+        }
+        if (keyword === "subgraph") {
+            const group = this.subgraph(scope);
+            this.maybeEdgeStatement(scope, group, token.line);
+            return true;
+        }
+        if (keyword === "digraph" || keyword === "strict") {
+            throw new DotSyntaxError(`unexpected keyword ${describeToken(token)} inside a graph`, token.line);
+        }
+        return false;
+    }
+
+    /**
+     * Parse a statement that starts with an ID: `ID = ID`, a node statement, or an edge statement starting with a
+     * node.
+     * @param scope - the scope
+     */
+    private idStatement(scope: Scope): void {
+        const { lexer } = this;
         // ID '=' ID, a node statement, or an edge statement starting with a node
         const id = this.identifier();
         if (isPunct(lexer.peek(), "=")) {
@@ -784,12 +970,47 @@ class DotParser {
             return;
         }
         const port = this.port();
+        if (isPunct(lexer.peek(), ",")) {
+            this.nodeListStatement(scope, [{ id, port }, ...this.moreNodes()]);
+            return;
+        }
         if (isEdgeOp(lexer.peek())) {
             const endpoint = this.mentionEndpoint(scope, id, port);
             this.edgeStatement(scope, endpoint === null ? [] : [endpoint], id.line);
             return;
         }
         this.nodeStatement(scope, id, port);
+    }
+
+    /**
+     * Read the rest of a node list after its first node: `, ID [port]` repeated (`a, b, c`).
+     * @returns the further nodes, in order
+     */
+    private moreNodes(): { id: DotToken; port: string | null }[] {
+        const out: { id: DotToken; port: string | null }[] = [];
+        while (isPunct(this.lexer.peek(), ",")) {
+            this.lexer.next();
+            const id = this.identifier();
+            out.push({ id, port: this.port() });
+        }
+        return out;
+    }
+
+    /**
+     * A statement starting with a node list (`a, b [attrs]` or `a, b -> c`): an edge statement from every node of
+     * the list, or a node statement for each.
+     * @param scope - the scope
+     * @param nodes - the listed nodes with their ports
+     */
+    private nodeListStatement(scope: Scope, nodes: readonly { id: DotToken; port: string | null }[]): void {
+        if (isEdgeOp(this.lexer.peek())) {
+            this.edgeStatement(scope, this.mentionAll(scope, nodes), nodes[0].id.line);
+            return;
+        }
+        const attributes = this.attributeList();
+        for (const n of nodes) {
+            this.applyNodeStatement(scope, n.id, n.port, attributes);
+        }
     }
 
     /**
@@ -833,7 +1054,16 @@ class DotParser {
         let { text } = this.identifier();
         if (isPunct(lexer.peek(), ":")) {
             lexer.next();
-            text += `:${this.identifier().text}`;
+            const compass = this.identifier();
+            text += `:${compass.text}`;
+            if (!COMPASS_POINTS.has(compass.text)) {
+                this.report.warning(
+                    "validation-error",
+                    DOT_ISSUE.COMPASS_POINT,
+                    `port ${JSON.stringify(text)}: ${JSON.stringify(compass.text)} is not a compass point (n, ne, e, se, s, sw, w, nw, c, _); the port is kept as written`,
+                    { line: compass.line, element: text },
+                );
+            }
         }
         return text;
     }
@@ -1082,6 +1312,7 @@ class DotParser {
     private attributeList(): DotAttribute[] {
         const { lexer } = this;
         const out: DotAttribute[] = [];
+        const names = new Set<string>();
         while (isPunct(lexer.peek(), "[")) {
             lexer.next();
             for (;;) {
@@ -1103,6 +1334,15 @@ class DotParser {
                     );
                 }
                 const value = this.identifier();
+                if (names.has(name.text)) {
+                    this.report.warning(
+                        "merged",
+                        DOT_ISSUE.DUPLICATE_ATTRIBUTE,
+                        `attribute ${JSON.stringify(name.text)} is set twice in one statement; the last value ${JSON.stringify(value.text)} stands`,
+                        { line: name.line, element: name.text },
+                    );
+                }
+                names.add(name.text);
                 out.push({ name: name.text, value: value.text, line: name.line });
             }
         }
@@ -1116,7 +1356,22 @@ class DotParser {
      * @param port - the port, if any (dropped with a warning)
      */
     private nodeStatement(scope: Scope, id: DotToken, port: string | null): void {
-        const attributes = this.attributeList();
+        this.applyNodeStatement(scope, id, port, this.attributeList());
+    }
+
+    /**
+     * Mention a node of a node statement and apply the statement's attributes to it.
+     * @param scope - the scope
+     * @param id - the id token
+     * @param port - the port, if any (dropped with a warning)
+     * @param attributes - the statement's attributes
+     */
+    private applyNodeStatement(
+        scope: Scope,
+        id: DotToken,
+        port: string | null,
+        attributes: readonly DotAttribute[],
+    ): void {
         const endpoint = this.mentionEndpoint(scope, id, null);
         if (endpoint === null) {
             return;
@@ -1164,19 +1419,35 @@ class DotParser {
                 groups.push(this.subgraph(scope));
             } else {
                 const id = this.identifier();
-                const port = this.port();
-                const endpoint = this.mentionEndpoint(scope, id, port);
-                groups.push(endpoint === null ? [] : [endpoint]);
+                groups.push(this.mentionAll(scope, [{ id, port: this.port() }, ...this.moreNodes()]));
             }
         }
         const attributes = this.attributeList();
         for (let k = 0; k < kinds.length; k++) {
+            const targets = groups[k + 1];
             for (const source of groups[k]) {
-                for (const target of groups[k + 1]) {
+                for (const target of targets) {
                     this.pushEdge(scope, source, target, kinds[k], attributes, line);
                 }
             }
         }
+    }
+
+    /**
+     * Mention each listed node as an edge endpoint.
+     * @param scope - the scope
+     * @param nodes - the nodes with their ports
+     * @returns the endpoints of the nodes that could be created
+     */
+    private mentionAll(scope: Scope, nodes: readonly { id: DotToken; port: string | null }[]): Endpoint[] {
+        const group: Endpoint[] = [];
+        for (const n of nodes) {
+            const endpoint = this.mentionEndpoint(scope, n.id, n.port);
+            if (endpoint !== null) {
+                group.push(endpoint);
+            }
+        }
+        return group;
     }
 
     /**
@@ -1205,7 +1476,7 @@ class DotParser {
                 this.report.warnOnce(
                     "coercion",
                     DOT_ISSUE.EDGE_OPERATOR,
-                    `${message}; read with the operator's direction and resolved per onMixedDirection`,
+                    `${message}; read with the operator's direction, and onMixedDirection decides how the mixed graph is stored`,
                     { line: op.line },
                 );
                 return operatorDirected ? "directed" : "undirected";
@@ -1308,7 +1579,7 @@ class DotParser {
         const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
         if (weightText !== undefined) {
             try {
-                weight = parseWeightText(weightText);
+                weight = parseWeightText(weightText, this.report);
             } catch (err) {
                 this.report.recordError(err, where);
                 this.report.counts.skippedEdges++;
@@ -1434,6 +1705,9 @@ class DotParser {
                 this.sink.setNodeValue(this.nodeLabel(), index, value);
             } else if (name === POS_ATTRIBUTE && this.positions) {
                 this.setPosition(index, value, line, element);
+                if (this.keepPositionSource) {
+                    this.textWriter("node", name).write(index, value);
+                }
             } else {
                 this.textWriter("node", name).write(index, value);
             }
@@ -1470,11 +1744,26 @@ class DotParser {
      * @param attribute - the attribute
      */
     private setGraphAttribute(attribute: DotAttribute): void {
+        if (attribute.name.toLowerCase() === "charset" && this.headCharset === null) {
+            const canonical = canonicalEncoding(attribute.value);
+            if (canonical !== "utf-8") {
+                this.report.warning(
+                    "unsupported",
+                    DOT_ISSUE.LATE_CHARSET,
+                    `charset ${JSON.stringify(attribute.value)} is declared beyond the first 1024 bytes, after the input was decoded without it; pass the encoding option to decode it as declared`,
+                    { line: attribute.line, element: attribute.name },
+                );
+            }
+        }
         try {
             if (attribute.name === LABEL_ATTRIBUTE) {
                 this.sink.setGraphValue(attribute.name, attribute.value, { dtype: "string", origin: DOT_ORIGIN });
             } else {
-                this.sink.setGraphValue(attribute.name, parseTextCell(attribute.value), { origin: DOT_ORIGIN });
+                // the dtype comes from the text's grammar, so "20.0" stays f64 as it does in a node column
+                this.sink.setGraphValue(attribute.name, parseTextCell(attribute.value), {
+                    dtype: inferTextDtype(attribute.value),
+                    origin: DOT_ORIGIN,
+                });
             }
         } catch (err) {
             this.report.recordError(err, { line: attribute.line, element: attribute.name });
@@ -1503,7 +1792,28 @@ class DotParser {
         const y = Number(match[2]);
         const z = match[3] === undefined ? 0 : Number(match[3]);
         const dims = match[3] === undefined ? 2 : 3;
-        this.sink.setNodeValue(this.positionColumn(dims), index, [x, y, z]);
+        const point = [x, y, z];
+        if (point.some((v) => !Number.isFinite(v))) {
+            // a half-infinite point would be a half-valid position
+            this.report.warning(
+                "validation-error",
+                DOT_ISSUE.BAD_POS,
+                `pos ${JSON.stringify(text)} has a coordinate that is not finite; dropped`,
+                { line, element },
+            );
+            return;
+        }
+        if (this.posDims === 0) {
+            this.posDims = dims;
+        } else if (dims !== this.posDims) {
+            this.report.warnOnce(
+                "validation-error",
+                DOT_ISSUE.POS_DIMS,
+                `pos values mix ${this.posDims} and ${dims} coordinates; the position column records sourceDims ${this.posDims}`,
+                { line, element },
+            );
+        }
+        this.sink.setNodeValue(this.positionColumn(dims), index, point);
         if (match[4] === "!") {
             this.sink.setNodeValue(PIN_ATTRIBUTE, index, true);
         }
@@ -1571,15 +1881,15 @@ class DotParser {
     }
 
     /**
-     * The position column (f32 x3, role position, design section 5.2), declared on the first `pos`.
+     * The position column (f64 x3, role position, design section 5.2), declared on the first `pos`.
      * @param dims - the dimensions of the first value, recorded in extra.sourceDims
      * @returns the handle
      */
     private positionColumn(dims: 2 | 3): ColumnHandle {
         if (this.positionHandle === INVALID_INDEX) {
             this.positionHandle = this.declare("node", {
-                name: POS_ATTRIBUTE,
-                dtype: "f32",
+                name: this.keepPositionSource ? POSITION_COLUMN : POS_ATTRIBUTE,
+                dtype: "f64",
                 components: 3,
                 nullable: true,
                 mutable: true,

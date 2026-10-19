@@ -1,19 +1,20 @@
 /**
  * @file Run identity: what makes two calls the same run, and what makes them different ones.
  *
- * A run id is not a slot number. It is either author-assigned through `as:` or derived from the
- * RESULT the run answers -- the algorithm key, whether it is exact or sampled, and the scope it
- * reads with the live keywords frozen. An id minted from an execution counter would mean a saved
- * style layer, recipe or template resolves to a different run depending on the order things
- * happened to execute, and changing that afterwards is a behavioural break in everything already
- * persisted.
+ * A run id is not a slot number. It is either author-assigned through `as:` or the name the
+ * run's algorithm suggests (`./suggestedName`), and an unnamed run is found again by the RESULT it
+ * answers -- the algorithm key, whether it is exact or sampled, and the scope it reads with the
+ * live keywords frozen -- together with that suggested name. An id minted from an execution
+ * counter would mean a saved style layer resolves to a different run depending on the order
+ * things happened to execute; a suggested name is the same whatever ran before it, and only a
+ * second, different computation under the same name is counted on (`_2`, `_3`, ...).
  *
- * The derived id is the RESULT's id ({@link ResultId}): parameters and the seed are not part of
- * it, so tuning a resolution or a damping factor re-runs the same result and every layer bound to
- * it repaints, instead of growing a second result and a second layer. The keywords `"visible"` and
- * `"selection"` are replaced by the definition in force before hashing -- the visibility filter
- * and time window, the selected nodes -- so the same unscoped call under a different filter is a
- * different result, never a re-execution of the first one over a different graph.
+ * Parameters and the seed are not part of the result's identity, so tuning a setting the name
+ * does not carry re-runs the same result and every layer bound to it repaints, instead of growing
+ * a second result and a second layer. The keywords `"visible"` and `"selection"` are replaced by
+ * the definition in force before comparing -- the visibility filter and time window, the selected
+ * nodes -- so the same unscoped call under a different filter is a different result, never a
+ * re-execution of the first one over a different graph.
  *
  * Two rules do the work here:
  *
@@ -22,24 +23,17 @@
  *   `{}` and `{ resolution: 1 }` are one run when 1 is the declared default.
  * - **The scope SPECIFICATION, not the resolved membership.** An id derived from which nodes were
  *   in scope would change every time a node arrived, so a layer bound to the run would dangle on
- *   the next import. The resolved membership is what {@link computeScopeDigest} answers, and that
- *   digest drives staleness and re-execution -- not identity.
+ *   the next import. The resolved membership is what drives staleness and re-execution -- not
+ *   identity -- through the scope's `d1:` membership digest (`digestOf` in
+ *   `../sets/resolve.ts`), which hashes the member nodes and edges and nothing of the
+ *   specification, so the same members under `"visible"` and `"graph"` digest the same.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM: it is string arithmetic over plain data.
  */
 
 import { compareIds } from "../../catalog/sets/canonical";
 import { parseScope } from "../../catalog/sets/parse";
-import type {
-    AlgorithmKey,
-    EdgeId,
-    NodeId,
-    OptionDescriptor,
-    ResultId,
-    RunId,
-    Scope,
-    SetDefinition,
-} from "../../catalog/types";
+import type { AlgorithmKey, NodeId, OptionDescriptor, RunId, Scope, SetDefinition } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { RUN_ID_PATTERN } from "./types";
 
@@ -55,12 +49,6 @@ const FNV_OFFSET = 0x811c9dc5;
 
 /** A second, unrelated seed, so the two halves of a digest do not agree on their collisions. */
 const FNV_OFFSET_ALTERNATE = 0x9dc5811c;
-
-/** The seed the node half of a scope digest folds with. */
-const SCOPE_NODE_SEED = 0x1b873593;
-
-/** The seed the edge half of a scope digest folds with, so a node id and an edge id differ. */
-const SCOPE_EDGE_SEED = 0xcc9e2d51;
 
 /** How wide one 32-bit half of a digest is once written in base 36. */
 const DIGEST_HALF_WIDTH = 7;
@@ -252,11 +240,25 @@ export function canonicalizeParams(
 export function algorithmSlug(algorithm: AlgorithmKey): string {
     const slug = algorithm
         .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "-")
-        .replace(/^[^a-z]+/, "")
-        .replace(/[-_]+$/, "");
+        .replaceAll(/[^a-z0-9_-]+/g, "-")
+        .replace(/^[^a-z]+/, "");
 
-    return slug === "" ? "run" : slug;
+    return trimTrailingSeparators(slug) || "run";
+}
+
+/**
+ * Drop the dashes and underscores a slug ends with. A loop, not `/[-_]+$/`: that regex retries
+ * from every separator and takes quadratic time on a long run of them that does not end the text.
+ * @param slug - The slug.
+ * @returns The slug without trailing `-` and `_`.
+ */
+export function trimTrailingSeparators(slug: string): string {
+    let end = slug.length;
+    while (end > 0 && (slug[end - 1] === "-" || slug[end - 1] === "_")) {
+        end--;
+    }
+
+    return slug.slice(0, end);
 }
 
 /**
@@ -399,16 +401,6 @@ export interface ResultIdentity {
 }
 
 /**
- * The id a result gets when its author did not name it: derived from what the result IS, never
- * from its parameters, its seed or when it ran.
- * @param identity - What the result is.
- * @returns The id, which always matches the run-id pattern.
- */
-export function deriveResultId(identity: ResultIdentity): ResultId {
-    return `${algorithmSlug(identity.algorithm)}_${stableDigest(canonicalResultIdentity(identity))}`;
-}
-
-/**
  * The canonical text of a result identity, which is what two runs under one id are compared by.
  * @param identity - The identity.
  * @returns Its canonical text.
@@ -444,65 +436,4 @@ export function assertRunId(value: string): RunId {
     }
 
     return value;
-}
-
-// ---------------------------------------------------------------------------------------------
-// Scope membership
-// ---------------------------------------------------------------------------------------------
-
-/** A commutative fold over one set of ids: equal sets fold equally, whatever order they arrive in. */
-interface MembershipFold {
-    /** How many ids there were. */
-    readonly count: number;
-    /** The exclusive-or of their hashes. */
-    readonly xor: number;
-    /** The wrapping sum of their hashes, which catches the pairs an exclusive-or cancels out. */
-    readonly sum: number;
-}
-
-/**
- * Fold one set of ids into an order-independent summary.
- * @param ids - The ids in the set, in whatever order they come out.
- * @param seed - The hash seed, which keeps a node id and an edge id from folding the same way.
- * @returns The fold.
- */
-function foldMembership(ids: Iterable<NodeId | EdgeId>, seed: number): MembershipFold {
-    let count = 0;
-    let xor = 0;
-    let sum = 0;
-
-    for (const id of ids) {
-        // The tag is what keeps the number 1 and the string "1" from being the same element.
-        const hashed = hash32(typeof id === "number" ? `#${id}` : `$${id}`, seed);
-        xor = (xor ^ hashed) >>> 0;
-        sum = (sum + hashed) >>> 0;
-        count += 1;
-    }
-
-    return { count, xor, sum };
-}
-
-/**
- * The digest a resolved scope carries, so that equal digests mean equal scopes.
- *
- * This is the mechanism behind two things a consumer never has to track: whether a finished run's
- * numbers still describe what is on screen, and whether starting the same run again should
- * re-execute it. Both are answered by comparing this digest against the one the run recorded.
- *
- * The fold is commutative and single-pass, so a scope of a million nodes costs one walk and no
- * sort.
- * @param spec - What was asked for.
- * @param nodes - The nodes it resolved to, in any order.
- * @param edges - The edges it resolved to, in any order.
- * @returns The digest.
- */
-export function computeScopeDigest(spec: Scope, nodes: Iterable<NodeId>, edges: Iterable<EdgeId>): string {
-    const nodeFold = foldMembership(nodes, SCOPE_NODE_SEED);
-    const edgeFold = foldMembership(edges, SCOPE_EDGE_SEED);
-    const text =
-        `${canonicalize(spec)}|` +
-        `${nodeFold.count}:${nodeFold.xor.toString(DIGEST_RADIX)}:${nodeFold.sum.toString(DIGEST_RADIX)}|` +
-        `${edgeFold.count}:${edgeFold.xor.toString(DIGEST_RADIX)}:${edgeFold.sum.toString(DIGEST_RADIX)}`;
-
-    return stableDigest(text);
 }

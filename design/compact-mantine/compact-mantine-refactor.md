@@ -24,12 +24,12 @@ This document outlines a comprehensive refactor of the `@graphty/compact-mantine
 
 Mantine provides a layered customization system via `createTheme()`:
 
-| Layer | Purpose | Use Case |
-|-------|---------|----------|
-| `defaultProps` | Set default prop values | Make `size="sm"` the default |
-| `vars` | Override CSS variables | Change dimensions (`--button-height`) |
-| `styles` | Direct style overrides | Apply specific CSS properties |
-| `classNames` | CSS class bindings | Use external CSS/Tailwind |
+| Layer          | Purpose                 | Use Case                              |
+| -------------- | ----------------------- | ------------------------------------- |
+| `defaultProps` | Set default prop values | Make `size="sm"` the default          |
+| `vars`         | Override CSS variables  | Change dimensions (`--button-height`) |
+| `styles`       | Direct style overrides  | Apply specific CSS properties         |
+| `classNames`   | CSS class bindings      | Use external CSS/Tailwind             |
 
 **Key insight**: The `vars` function receives `(theme, props)` and should return CSS variable overrides. This is the idiomatic way to customize component dimensions.
 
@@ -40,15 +40,18 @@ Mantine provides a layered customization system via `createTheme()`:
 Google's Material Design provides well-researched guidance on UI density:
 
 #### Density Scale
+
 - **Default (0)**: Standard spacing, optimized for touch
 - **Comfortable (-1 to -2)**: Slightly reduced spacing
 - **Compact (-3 to -5)**: Maximum density, each step = 4px reduction
 
 #### When to Use Density
+
 - **DO use for**: Data tables, long forms, sidebars, toolbars, dense information displays
 - **DON'T use for**: Dialogs, popovers, date pickers (they don't compete for layout space)
 
 #### Accessibility Requirements
+
 - Maintain 48px minimum touch targets (use external padding if visual size is smaller)
 - Increase margins/gutters as component density increases (design equilibrium)
 
@@ -57,29 +60,30 @@ Google's Material Design provides well-researched guidance on UI density:
 ### How Other Libraries Handle Density
 
 #### Material UI (MUI)
+
 ```tsx
 const theme = createTheme({
-  components: {
-    MuiButton: { defaultProps: { size: 'small' } },
-    MuiTextField: { defaultProps: { margin: 'dense' } },
-    MuiTable: { defaultProps: { size: 'small' } },
-  },
+    components: {
+        MuiButton: { defaultProps: { size: "small" } },
+        MuiTextField: { defaultProps: { margin: "dense" } },
+        MuiTable: { defaultProps: { size: "small" } },
+    },
 });
 ```
 
 #### Ant Design
+
 ```tsx
-<ConfigProvider componentSize="small">
-  {/* All components use small size */}
-</ConfigProvider>
+<ConfigProvider componentSize="small">{/* All components use small size */}</ConfigProvider>
 ```
 
 #### Chakra UI
+
 ```tsx
 const theme = extendTheme({
-  components: {
-    Button: { defaultProps: { size: 'sm' } },
-  },
+    components: {
+        Button: { defaultProps: { size: "sm" } },
+    },
 });
 ```
 
@@ -96,34 +100,34 @@ Our current theme uses a custom `size="compact"` that bundles both dimensions AN
 ```tsx
 // Current: inputs.ts
 const compactInputVars = {
-  wrapper: {
-    "--input-size": "24px",      // Dimension ✓
-    "--input-fz": "11px",        // Dimension ✓
-    "--input-bg": "var(--mantine-color-default)", // Visual style ✗
-    "--input-bd": "none",        // Visual style ✗
-  },
+    wrapper: {
+        "--input-size": "24px", // Dimension ✓
+        "--input-fz": "11px", // Dimension ✓
+        "--input-bg": "var(--mantine-color-default)", // Visual style ✗
+        "--input-bd": "none", // Visual style ✗
+    },
 };
 
 const compactInputStyles = {
-  label: {
-    fontSize: 11,
-    color: "var(--mantine-color-dimmed)", // Visual style ✗
-  },
-  input: {
-    border: "none", // Visual style ✗
-  },
+    label: {
+        fontSize: 11,
+        color: "var(--mantine-color-dimmed)", // Visual style ✗
+    },
+    input: {
+        border: "none", // Visual style ✗
+    },
 };
 ```
 
 ### Problems with Current Approach
 
-| Problem | Impact |
-|---------|--------|
-| **Conflated concerns** | Size includes border/background styling |
-| **Non-standard size value** | `size="compact"` isn't a Mantine standard |
-| **Requires explicit prop** | Every component needs `size="compact"` |
-| **Can't mix sizes** | No way to have compact dimensions with different visual styles |
-| **Verbose conditional logic** | Every component checks `if (props.size === "compact")` |
+| Problem                       | Impact                                                         |
+| ----------------------------- | -------------------------------------------------------------- |
+| **Conflated concerns**        | Size includes border/background styling                        |
+| **Non-standard size value**   | `size="compact"` isn't a Mantine standard                      |
+| **Requires explicit prop**    | Every component needs `size="compact"`                         |
+| **Can't mix sizes**           | No way to have compact dimensions with different visual styles |
+| **Verbose conditional logic** | Every component checks `if (props.size === "compact")`         |
 
 ### Current File Structure
 
@@ -161,11 +165,11 @@ src/theme/
 
 ### 1. Separation of Concerns
 
-| Concern | Mechanism | Controlled By |
-|---------|-----------|---------------|
-| **Dimensions** | Global tokens + `vars` | `size` prop or theme defaults |
-| **Visual style** | `styles` or `variant` | `variant` prop or theme defaults |
-| **Behavior** | `defaultProps` | Individual props |
+| Concern          | Mechanism              | Controlled By                    |
+| ---------------- | ---------------------- | -------------------------------- |
+| **Dimensions**   | Global tokens + `vars` | `size` prop or theme defaults    |
+| **Visual style** | `styles` or `variant`  | `variant` prop or theme defaults |
+| **Behavior**     | `defaultProps`         | Individual props                 |
 
 ### 2. Sensible Defaults
 
@@ -174,7 +178,7 @@ Applications should get a complete dense UI experience with zero configuration:
 ```tsx
 // This should "just work" with compact styling
 <MantineProvider theme={compactTheme}>
-  <TextInput label="Name" />
+    <TextInput label="Name" />
 </MantineProvider>
 ```
 
@@ -184,7 +188,9 @@ Easy to override defaults when needed:
 
 ```tsx
 // Override for specific components
-<Button size="md" variant="filled">Important Action</Button>
+<Button size="md" variant="filled">
+    Important Action
+</Button>
 ```
 
 ### 4. Composability
@@ -193,16 +199,17 @@ Support compact regions within non-compact apps via nested `MantineProvider`:
 
 ```tsx
 <MantineProvider theme={existingTheme}>
-  <MainContent />  {/* Normal styling */}
-  <MantineProvider theme={compactTheme}>
-    <Sidebar />    {/* Compact styling */}
-  </MantineProvider>
+    <MainContent /> {/* Normal styling */}
+    <MantineProvider theme={compactTheme}>
+        <Sidebar /> {/* Compact styling */}
+    </MantineProvider>
 </MantineProvider>
 ```
 
 ### 5. Mantine Idioms
 
 Use standard Mantine patterns:
+
 - Standard size values (`xs`, `sm`, `md`, `lg`, `xl`)
 - Standard variants (`filled`, `outline`, `light`, `subtle`)
 - CSS variables for theming
@@ -257,36 +264,36 @@ A single, well-tuned set of compact tokens:
 // tokens/compact.ts
 
 export interface CompactTokens {
-  // Component heights
-  inputHeight: string;
-  buttonHeight: string;
-  controlHeight: string;
+    // Component heights
+    inputHeight: string;
+    buttonHeight: string;
+    controlHeight: string;
 
-  // Typography
-  fontSize: string;
-  labelFontSize: string;
+    // Typography
+    fontSize: string;
+    labelFontSize: string;
 
-  // Spacing
-  inputPaddingX: string;
-  inputPaddingY: string;
-  gap: string;
+    // Spacing
+    inputPaddingX: string;
+    inputPaddingY: string;
+    gap: string;
 
-  // Icons
-  iconSize: string;
-  chevronSize: string;
+    // Icons
+    iconSize: string;
+    chevronSize: string;
 }
 
 export const compactTokens: CompactTokens = {
-  inputHeight: "24px",
-  buttonHeight: "24px",
-  controlHeight: "24px",
-  fontSize: "11px",
-  labelFontSize: "11px",
-  inputPaddingX: "8px",
-  inputPaddingY: "4px",
-  gap: "4px",
-  iconSize: "14px",
-  chevronSize: "12px",
+    inputHeight: "24px",
+    buttonHeight: "24px",
+    controlHeight: "24px",
+    fontSize: "11px",
+    labelFontSize: "11px",
+    inputPaddingX: "8px",
+    inputPaddingY: "4px",
+    gap: "4px",
+    iconSize: "14px",
+    chevronSize: "12px",
 };
 ```
 
@@ -302,50 +309,50 @@ Instead of custom `size="compact"`, override Mantine's standard tokens:
 import { createTheme } from "@mantine/core";
 
 export const compactTheme = createTheme({
-  // Override global tokens to be compact by default
-  fontSizes: {
-    xs: "10px",
-    sm: "11px",   // Our compact size
-    md: "13px",
-    lg: "14px",
-    xl: "16px",
-  },
+    // Override global tokens to be compact by default
+    fontSizes: {
+        xs: "10px",
+        sm: "11px", // Our compact size
+        md: "13px",
+        lg: "14px",
+        xl: "16px",
+    },
 
-  spacing: {
-    xs: "4px",
-    sm: "6px",
-    md: "8px",    // Tighter than Mantine default
-    lg: "12px",
-    xl: "16px",
-  },
+    spacing: {
+        xs: "4px",
+        sm: "6px",
+        md: "8px", // Tighter than Mantine default
+        lg: "12px",
+        xl: "16px",
+    },
 
-  radius: {
-    xs: "2px",
-    sm: "4px",
-    md: "6px",
-    lg: "8px",
-    xl: "12px",
-  },
+    radius: {
+        xs: "2px",
+        sm: "4px",
+        md: "6px",
+        lg: "8px",
+        xl: "12px",
+    },
 
-  // Component defaults
-  components: {
-    // All inputs default to sm size with filled variant
-    TextInput: TextInput.extend({
-      defaultProps: {
-        size: "sm",
-        variant: "filled",
-      },
-    }),
+    // Component defaults
+    components: {
+        // All inputs default to sm size with filled variant
+        TextInput: TextInput.extend({
+            defaultProps: {
+                size: "sm",
+                variant: "filled",
+            },
+        }),
 
-    // All buttons default to sm size
-    Button: Button.extend({
-      defaultProps: {
-        size: "sm",
-      },
-    }),
+        // All buttons default to sm size
+        Button: Button.extend({
+            defaultProps: {
+                size: "sm",
+            },
+        }),
 
-    // etc.
-  },
+        // etc.
+    },
 });
 ```
 
@@ -360,26 +367,26 @@ Move visual styling to variants or dedicated style functions:
  * Compact visual styles: borderless, semantic backgrounds, subtle shadows
  */
 export const compactInputStyles = {
-  root: {},
-  wrapper: {},
-  input: {
-    border: "none",
-    backgroundColor: "var(--mantine-color-default)",
-    "&:focus": {
-      outline: "2px solid var(--mantine-color-blue-filled)",
-      outlineOffset: "-2px",
+    root: {},
+    wrapper: {},
+    input: {
+        border: "none",
+        backgroundColor: "var(--mantine-color-default)",
+        "&:focus": {
+            outline: "2px solid var(--mantine-color-blue-filled)",
+            outlineOffset: "-2px",
+        },
     },
-  },
-  label: {
-    color: "var(--mantine-color-dimmed)",
-    marginBottom: "2px",
-  },
+    label: {
+        color: "var(--mantine-color-dimmed)",
+        marginBottom: "2px",
+    },
 };
 
 export const compactButtonStyles = {
-  root: {
-    // Compact button styling
-  },
+    root: {
+        // Compact button styling
+    },
 };
 ```
 
@@ -392,31 +399,31 @@ import { TextInput, NumberInput, Select } from "@mantine/core";
 import { compactInputStyles } from "../styles/compact";
 
 export const inputExtensions = {
-  TextInput: TextInput.extend({
-    defaultProps: {
-      size: "sm",
-      variant: "filled",
-    },
-    styles: () => compactInputStyles,
-  }),
+    TextInput: TextInput.extend({
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
+        },
+        styles: () => compactInputStyles,
+    }),
 
-  NumberInput: NumberInput.extend({
-    defaultProps: {
-      size: "sm",
-      variant: "filled",
-    },
-    styles: () => compactInputStyles,
-  }),
+    NumberInput: NumberInput.extend({
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
+        },
+        styles: () => compactInputStyles,
+    }),
 
-  Select: Select.extend({
-    defaultProps: {
-      size: "sm",
-      variant: "filled",
-    },
-    styles: () => compactInputStyles,
-  }),
+    Select: Select.extend({
+        defaultProps: {
+            size: "sm",
+            variant: "filled",
+        },
+        styles: () => compactInputStyles,
+    }),
 
-  // ... etc
+    // ... etc
 };
 ```
 
@@ -432,11 +439,11 @@ import { MantineProvider } from "@mantine/core";
 import { compactTheme } from "@graphty/compact-mantine";
 
 function App() {
-  return (
-    <MantineProvider theme={compactTheme}>
-      <MyApplication />
-    </MantineProvider>
-  );
+    return (
+        <MantineProvider theme={compactTheme}>
+            <MyApplication />
+        </MantineProvider>
+    );
 }
 ```
 
@@ -447,17 +454,17 @@ function App() {
 import { compactTheme } from "@graphty/compact-mantine";
 
 const customTheme = {
-  ...compactTheme,
-  primaryColor: "teal",
-  // Override any Mantine theme property
+    ...compactTheme,
+    primaryColor: "teal",
+    // Override any Mantine theme property
 };
 
 function App() {
-  return (
-    <MantineProvider theme={customTheme}>
-      <MyApplication />
-    </MantineProvider>
-  );
+    return (
+        <MantineProvider theme={customTheme}>
+            <MyApplication />
+        </MantineProvider>
+    );
 }
 ```
 
@@ -471,18 +478,18 @@ import { MantineProvider } from "@mantine/core";
 import { compactTheme } from "@graphty/compact-mantine";
 
 function App() {
-  return (
-    <MantineProvider theme={existingTheme}>
-      {/* Normal Mantine styling */}
-      <Header />
-      <MainContent />
+    return (
+        <MantineProvider theme={existingTheme}>
+            {/* Normal Mantine styling */}
+            <Header />
+            <MainContent />
 
-      {/* Only this region uses compact styling */}
-      <MantineProvider theme={compactTheme}>
-        <Sidebar />
-      </MantineProvider>
-    </MantineProvider>
-  );
+            {/* Only this region uses compact styling */}
+            <MantineProvider theme={compactTheme}>
+                <Sidebar />
+            </MantineProvider>
+        </MantineProvider>
+    );
 }
 ```
 
@@ -505,12 +512,12 @@ This avoids the complexity of multiple density systems while giving users escape
 
 ### Use Case Summary
 
-| Use Case | API | Example |
-|----------|-----|---------|
-| **Entire app is compact** | `compactTheme` | Dense data app, design tool |
-| **Customize colors/fonts** | Spread override | `{ ...compactTheme, primaryColor: "violet" }` |
-| **Compact region in normal app** | Nested `MantineProvider` | Sidebar, modal, panel |
-| **One component larger/smaller** | Mantine `size` prop | `<Button size="xs">` |
+| Use Case                         | API                      | Example                                       |
+| -------------------------------- | ------------------------ | --------------------------------------------- |
+| **Entire app is compact**        | `compactTheme`           | Dense data app, design tool                   |
+| **Customize colors/fonts**       | Spread override          | `{ ...compactTheme, primaryColor: "violet" }` |
+| **Compact region in normal app** | Nested `MantineProvider` | Sidebar, modal, panel                         |
+| **One component larger/smaller** | Mantine `size` prop      | `<Button size="xs">`                          |
 
 ### Export Structure
 
@@ -545,9 +552,9 @@ The API is intentionally minimal. Users customize via spread and create regions 
 ### Phase 3: Component Extensions
 
 1. Refactor each component extension to use:
-   - `defaultProps` for size/variant defaults
-   - `styles` for visual styling (static)
-   - `vars` only when dynamic theming needed
+    - `defaultProps` for size/variant defaults
+    - `styles` for visual styling (static)
+    - `vars` only when dynamic theming needed
 2. Remove conditional `if (props.size === "compact")` logic
 
 ### Phase 4: Theme Assembly
@@ -569,11 +576,11 @@ For each component:
 
 ### Size Mapping
 
-| Current | New |
-|---------|-----|
+| Current          | New                   |
+| ---------------- | --------------------- |
 | `size="compact"` | `size="sm"` (default) |
-| `size="sm"` | `size="xs"` |
-| Default | `size="md"` |
+| `size="sm"`      | `size="xs"`           |
+| Default          | `size="md"`           |
 
 ---
 
@@ -582,12 +589,14 @@ For each component:
 ### For Applications Using `size="compact"`
 
 **Before:**
+
 ```tsx
 <TextInput size="compact" label="Name" />
 <Button size="compact">Submit</Button>
 ```
 
 **After:**
+
 ```tsx
 // No size prop needed - sm is the default
 <TextInput label="Name" />
@@ -600,12 +609,14 @@ For each component:
 ### For Applications Mixing Sizes
 
 **Before:**
+
 ```tsx
 <TextInput size="compact" />  {/* Compact */}
 <TextInput />                 {/* Mantine default */}
 ```
 
 **After:**
+
 ```tsx
 <TextInput />                 {/* Compact (new default) */}
 <TextInput size="md" />       {/* Larger size */}
@@ -652,10 +663,12 @@ For each component:
 ### 1. Keep `size="compact"` as Alias?
 
 **Option A**: Remove entirely, use only `size="sm"`
+
 - Pro: Cleaner, follows Mantine conventions
 - Con: Breaking change for existing users
 
 **Option B**: Keep as alias that maps to `size="sm"`
+
 - Pro: Backwards compatible
 - Con: Non-standard, confusing
 
@@ -664,10 +677,12 @@ For each component:
 ### 2. Dark Theme Handling
 
 **Option A**: Single theme with CSS `light-dark()` functions
+
 - Pro: Simpler, one theme export
 - Con: Less explicit control
 
 **Option B**: Separate `compactTheme` and `compactDarkTheme`
+
 - Pro: Explicit, easy to understand
 - Con: More exports, potential sync issues
 
@@ -678,6 +693,7 @@ For each component:
 Should all components get compact styling (borderless, semantic backgrounds), or only inputs/buttons?
 
 **Recommendation**:
+
 - **Full styling**: Inputs, buttons, controls (interactive elements)
 - **Minimal styling**: Display components (Badge, Card) - just size adjustments
 - **No styling**: Layout components (Stack, Grid) - not applicable
@@ -687,6 +703,7 @@ Should all components get compact styling (borderless, semantic backgrounds), or
 Per Material Design guidelines, dialogs shouldn't use compact density.
 
 **Options**:
+
 - A) Leave popovers/dialogs at default density
 - B) Apply compact everywhere for consistency
 - C) Make it configurable
@@ -699,31 +716,31 @@ Per Material Design guidelines, dialogs shouldn't use compact density.
 
 ### Full Styling (Interactive)
 
-| Component | Size | Variant | Visual Styles |
-|-----------|------|---------|---------------|
-| TextInput | sm | filled | borderless, semantic bg |
-| NumberInput | sm | filled | borderless, semantic bg |
-| Select | sm | filled | borderless, semantic bg |
-| Textarea | sm | filled | borderless, semantic bg |
-| PasswordInput | sm | filled | borderless, semantic bg |
-| Autocomplete | sm | filled | borderless, semantic bg |
-| MultiSelect | sm | filled | borderless, semantic bg |
-| TagsInput | sm | filled | borderless, semantic bg |
-| Checkbox | sm | - | compact checkbox |
-| Switch | sm | - | compact switch |
-| Slider | sm | - | compact slider |
-| Button | sm | light | compact button |
-| ActionIcon | sm | subtle | compact icon button |
+| Component     | Size | Variant | Visual Styles           |
+| ------------- | ---- | ------- | ----------------------- |
+| TextInput     | sm   | filled  | borderless, semantic bg |
+| NumberInput   | sm   | filled  | borderless, semantic bg |
+| Select        | sm   | filled  | borderless, semantic bg |
+| Textarea      | sm   | filled  | borderless, semantic bg |
+| PasswordInput | sm   | filled  | borderless, semantic bg |
+| Autocomplete  | sm   | filled  | borderless, semantic bg |
+| MultiSelect   | sm   | filled  | borderless, semantic bg |
+| TagsInput     | sm   | filled  | borderless, semantic bg |
+| Checkbox      | sm   | -       | compact checkbox        |
+| Switch        | sm   | -       | compact switch          |
+| Slider        | sm   | -       | compact slider          |
+| Button        | sm   | light   | compact button          |
+| ActionIcon    | sm   | subtle  | compact icon button     |
 
 ### Size Only (Display)
 
-| Component | Size | Notes |
-|-----------|------|-------|
-| Badge | sm | Just smaller |
-| Text | sm | Just smaller font |
-| Title | - | Adjusted scale |
-| Tooltip | - | Tighter padding |
-| Table | - | Compact rows |
+| Component | Size | Notes             |
+| --------- | ---- | ----------------- |
+| Badge     | sm   | Just smaller      |
+| Text      | sm   | Just smaller font |
+| Title     | -    | Adjusted scale    |
+| Tooltip   | -    | Tighter padding   |
+| Table     | -    | Compact rows      |
 
 ### No Changes (Layout/Utility)
 
@@ -740,6 +757,7 @@ This section analyzes existing Mantine theme packages and tools to inform our AP
 ### Key Finding
 
 **There are very few pre-built, installable Mantine theme packages.** Most "themes" are either:
+
 - Theme generators/builders (web tools that output code to copy)
 - Organization-specific themes (not general-purpose)
 - Integration tools (Tailwind, Storybook)
@@ -750,11 +768,13 @@ This represents an opportunity for `@graphty/compact-mantine` to fill a gap in t
 ### Existing Theme Packages & Tools
 
 #### 1. MantineHub (mantine-theme-builder)
+
 **GitHub**: [RubixCube-Innovations/mantine-theme-builder](https://github.com/RubixCube-Innovations/mantine-theme-builder)
 **Stars**: 318 (most popular)
 **Type**: Web-based theme generator
 
 **How it works**:
+
 - Visual editor at mantinehub.com
 - Select color palettes (Zinc, Slate, Gray, etc.)
 - Adjust border radius
@@ -762,19 +782,20 @@ This represents an opportunity for `@graphty/compact-mantine` to fill a gap in t
 - **Copy generated theme object** into your project
 
 **Usage** (copy-paste approach):
+
 ```tsx
 // 1. Generate theme at mantinehub.com
 // 2. Copy the generated theme object
 // 3. Paste into your project:
-import { MantineProvider } from '@mantine/core';
-import { yourCustomTheme } from './your-custom-theme';
+import { MantineProvider } from "@mantine/core";
+import { yourCustomTheme } from "./your-custom-theme";
 
 function App() {
-  return (
-    <MantineProvider theme={yourCustomTheme}>
-      <YourAppComponents />
-    </MantineProvider>
-  );
+    return (
+        <MantineProvider theme={yourCustomTheme}>
+            <YourAppComponents />
+        </MantineProvider>
+    );
 }
 ```
 
@@ -783,26 +804,29 @@ function App() {
 ---
 
 #### 2. manthemes
+
 **npm**: [manthemes](https://www.npmjs.com/package/manthemes)
 **GitHub**: [manthemes-dev/manthemes](https://github.com/manthemes-dev/manthemes)
 **Status**: ⚠️ Archived (July 2024)
 
 **Installation**:
+
 ```bash
 npm install manthemes
 ```
 
 **Usage**:
+
 ```tsx
 import { MantineProvider } from "@mantine/core";
 import { retro } from "manthemes/daisyui";
 
 function App() {
-  return (
-    <MantineProvider theme={retro} withGlobalStyles withNormalizeCSS>
-      <YourOutlet />
-    </MantineProvider>
-  );
+    return (
+        <MantineProvider theme={retro} withGlobalStyles withNormalizeCSS>
+            <YourOutlet />
+        </MantineProvider>
+    );
 }
 ```
 
@@ -813,11 +837,13 @@ function App() {
 ---
 
 #### 3. Remoraid (mantine-theme-generator)
+
 **GitHub**: [kahvilei/mantine-theme-generator](https://github.com/kahvilei/mantine-theme-generator)
 **Stars**: 48
 **Type**: Visual theme editor for Mantine v8
 
 **Features**:
+
 - Real-time preview
 - Customize colors, typography, spacing, components
 - Export to JSON or TypeScript
@@ -828,21 +854,25 @@ function App() {
 ---
 
 #### 4. tailwind-preset-mantine
+
 **GitHub**: [songkeys/tailwind-preset-mantine](https://github.com/songkeys/tailwind-preset-mantine)
 **npm**: [tailwind-preset-mantine](https://www.npmjs.com/package/tailwind-preset-mantine)
 **Type**: Tailwind CSS integration
 
 **Installation**:
+
 ```bash
 npm install tailwind-preset-mantine
 ```
 
 **Usage**:
+
 ```css
 @import "tailwind-preset-mantine";
 ```
 
 **Custom theme integration**:
+
 ```bash
 # Generate CSS from custom Mantine theme
 npx tailwind-preset-mantine theme.js -o theme.css
@@ -853,21 +883,19 @@ npx tailwind-preset-mantine theme.js -o theme.css
 ---
 
 #### 5. @rss3/mantine-theme
+
 **npm**: [@rss3/mantine-theme](https://www.npmjs.com/package/@rss3/mantine-theme)
 **GitHub**: [RSS3-Network/mantine-theme](https://github.com/RSS3-Network/mantine-theme)
 **Type**: Organization-specific theme
 
 **Usage** (presumed):
+
 ```tsx
-import { MantineProvider } from '@mantine/core';
-import { rss3Theme } from '@rss3/mantine-theme';
+import { MantineProvider } from "@mantine/core";
+import { rss3Theme } from "@rss3/mantine-theme";
 
 function App() {
-  return (
-    <MantineProvider theme={rss3Theme}>
-      {/* ... */}
-    </MantineProvider>
-  );
+    return <MantineProvider theme={rss3Theme}>{/* ... */}</MantineProvider>;
 }
 ```
 
@@ -876,10 +904,12 @@ function App() {
 ---
 
 #### 6. @refinedev/mantine (RefineThemes)
+
 **Docs**: [Refine Mantine Theming](https://refine.dev/core/docs/ui-integrations/mantine/theming/)
 **Type**: Part of Refine framework
 
 **Installation** (as part of Refine):
+
 ```bash
 npm install @refinedev/mantine
 ```
@@ -887,28 +917,30 @@ npm install @refinedev/mantine
 **Available themes**: Blue, Purple, Magenta, Red, Orange, Yellow
 
 **Usage**:
+
 ```tsx
 import { Refine } from "@refinedev/core";
 import { ThemedLayout, RefineThemes } from "@refinedev/mantine";
 import { MantineProvider } from "@mantine/core";
 
 const App = () => (
-  <MantineProvider theme={RefineThemes.Blue}>
-    <Refine>
-      <ThemedLayout>{/* ... */}</ThemedLayout>
-    </Refine>
-  </MantineProvider>
+    <MantineProvider theme={RefineThemes.Blue}>
+        <Refine>
+            <ThemedLayout>{/* ... */}</ThemedLayout>
+        </Refine>
+    </MantineProvider>
 );
 ```
 
 **Extending themes**:
+
 ```tsx
 const customTheme = {
-  ...RefineThemes.Blue,
-  colors: {
-    ...RefineThemes.Blue.colors,
-    brand: ["#fff", "#eee", /* ... */],
-  },
+    ...RefineThemes.Blue,
+    colors: {
+        ...RefineThemes.Blue.colors,
+        brand: ["#fff", "#eee" /* ... */],
+    },
 };
 ```
 
@@ -917,12 +949,14 @@ const customTheme = {
 ---
 
 #### 7. mantine-themes (willpinha)
+
 **GitHub**: [willpinha/mantine-themes](https://github.com/willpinha/mantine-themes)
 **Status**: ⚠️ Archived (April 2025)
 
 **Approach**: Semantic colors (primary, secondary, tertiary)
 
 **Usage** (copy function approach):
+
 ```tsx
 import { createMantineTheme } from "./create-mantine-theme.ts";
 
@@ -946,22 +980,24 @@ const theme = createMantineTheme({
 ---
 
 #### 8. storybook-addon-mantine
+
 **npm**: [storybook-addon-mantine](https://www.npmjs.com/package/storybook-addon-mantine)
 **Type**: Storybook integration
 
 **Usage**:
+
 ```tsx
 // .storybook/preview.js
-import { withMantine } from 'storybook-addon-mantine';
+import { withMantine } from "storybook-addon-mantine";
 
 export const decorators = [withMantine];
 export const parameters = {
-  mantine: {
-    themes: [
-      { id: 'light', name: 'Light', theme: lightTheme },
-      { id: 'dark', name: 'Dark', theme: darkTheme },
-    ],
-  },
+    mantine: {
+        themes: [
+            { id: "light", name: "Light", theme: lightTheme },
+            { id: "dark", name: "Dark", theme: darkTheme },
+        ],
+    },
 };
 ```
 
@@ -971,27 +1007,29 @@ export const parameters = {
 
 ### API Patterns Comparison
 
-| Package | Import Style | Customization | Type |
-|---------|--------------|---------------|------|
-| **manthemes** | `import { retro } from "manthemes/daisyui"` | None (use as-is) | Pre-built |
-| **RefineThemes** | `import { RefineThemes } from "@refinedev/mantine"` | Spread & override | Pre-built |
-| **MantineHub** | Copy/paste generated code | Full (before copy) | Generator |
-| **tailwind-preset** | CSS import | CLI generation | Integration |
-| **mantine-themes** | `createMantineTheme({...})` | Factory function | Factory |
+| Package             | Import Style                                        | Customization      | Type        |
+| ------------------- | --------------------------------------------------- | ------------------ | ----------- |
+| **manthemes**       | `import { retro } from "manthemes/daisyui"`         | None (use as-is)   | Pre-built   |
+| **RefineThemes**    | `import { RefineThemes } from "@refinedev/mantine"` | Spread & override  | Pre-built   |
+| **MantineHub**      | Copy/paste generated code                           | Full (before copy) | Generator   |
+| **tailwind-preset** | CSS import                                          | CLI generation     | Integration |
+| **mantine-themes**  | `createMantineTheme({...})`                         | Factory function   | Factory     |
 
 ### Lessons for Our Design
 
 #### What Works Well
 
 1. **Simple imports** (manthemes, RefineThemes):
-   ```tsx
-   import { compactTheme } from "@graphty/compact-mantine";
-   ```
+
+    ```tsx
+    import { compactTheme } from "@graphty/compact-mantine";
+    ```
 
 2. **Spread-based customization** (RefineThemes):
-   ```tsx
-   const custom = { ...compactTheme, primaryColor: "violet" };
-   ```
+
+    ```tsx
+    const custom = { ...compactTheme, primaryColor: "violet" };
+    ```
 
 3. **Minimal API surface** - fewer exports = easier to understand and maintain
 
@@ -1006,14 +1044,14 @@ export const parameters = {
 
 Our `@graphty/compact-mantine` package fills a gap:
 
-| Feature | MantineHub | manthemes | RefineThemes | **Ours** |
-|---------|------------|-----------|--------------|----------|
-| npm installable | ❌ | ✅ | ✅ (framework) | ✅ |
-| Maintained | ✅ | ❌ Archived | ✅ | ✅ |
-| Dense/compact focus | ❌ | ❌ | ❌ | ✅ |
-| Zero-config default | N/A | ✅ | ✅ | ✅ |
-| Minimal API | N/A | ✅ | ⚠️ | ✅ |
-| Framework agnostic | ✅ | ✅ | ❌ | ✅ |
+| Feature             | MantineHub | manthemes   | RefineThemes   | **Ours** |
+| ------------------- | ---------- | ----------- | -------------- | -------- |
+| npm installable     | ❌         | ✅          | ✅ (framework) | ✅       |
+| Maintained          | ✅         | ❌ Archived | ✅             | ✅       |
+| Dense/compact focus | ❌         | ❌          | ❌             | ✅       |
+| Zero-config default | N/A        | ✅          | ✅             | ✅       |
+| Minimal API         | N/A        | ✅          | ⚠️             | ✅       |
+| Framework agnostic  | ✅         | ✅          | ❌             | ✅       |
 
 ### Recommended API (Based on Research)
 
@@ -1021,23 +1059,21 @@ Our `@graphty/compact-mantine` package fills a gap:
 // Primary: Zero-config import (like manthemes)
 import { compactTheme } from "@graphty/compact-mantine";
 
-<MantineProvider theme={compactTheme}>
-  {/* Everything compact by default */}
-</MantineProvider>
+<MantineProvider theme={compactTheme}>{/* Everything compact by default */}</MantineProvider>;
 
 // Secondary: Spread-based override (like RefineThemes)
 const customTheme = {
-  ...compactTheme,
-  primaryColor: "teal",
+    ...compactTheme,
+    primaryColor: "teal",
 };
 
 // Tertiary: Compact region in non-compact app (nested MantineProvider)
 <MantineProvider theme={existingTheme}>
-  <MainContent />
-  <MantineProvider theme={compactTheme}>
-    <Sidebar />
-  </MantineProvider>
-</MantineProvider>
+    <MainContent />
+    <MantineProvider theme={compactTheme}>
+        <Sidebar />
+    </MantineProvider>
+</MantineProvider>;
 ```
 
 The API is minimal: one export (`compactTheme`), customize via spread, create regions via standard Mantine nesting.

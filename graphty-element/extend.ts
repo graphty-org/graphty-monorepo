@@ -108,7 +108,7 @@ export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
  */
 export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
-export type { RegisteredFormat } from "./src/catalog/formatRegistry";
+export type { GraphLister, RegisteredFormat } from "./src/catalog/formatRegistry";
 export { clearRegisteredFormatsForTesting, registeredFormatDescriptors } from "./src/catalog/formatRegistry";
 export type { FormatDescriptor, FormatId } from "./src/catalog/types";
 export { KNOWN_FORMAT_IDS } from "./src/catalog/types";
@@ -135,7 +135,9 @@ export { ErrorAggregator } from "./src/data/ErrorAggregator";
 export type { GraphSink } from "@graphty/graph-format";
 export type {
     CommonImportOptions,
+    GraphChoiceOptions,
     GraphImporter,
+    GraphListing,
     ImportReport as ImporterReport,
     ImportInput,
     ImportIssue,
@@ -153,7 +155,13 @@ export { ImportError } from "@graphty/graph-io";
  */
 export type { FormatWriterRegistration } from "./src/catalog/writerRegistry";
 export { clearRegisteredFormatWritersForTesting, registerFormatWriter } from "./src/catalog/writerRegistry";
-export type { ExportGraphOptions, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportStyleLossCode,
+} from "./src/data/export";
 export type { CommonExportOptions, ExportCapabilities, GraphExporter, LossNote } from "@graphty/graph-io";
 
 // ---------------------------------------------------------------------------------------------
@@ -237,6 +245,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 export type { Node, NodeIdType } from "./src/Node";
@@ -290,10 +299,17 @@ export type { AlgorithmOutput, AlgorithmRunContext, ResultFieldSpec } from "./sr
 export { declaredCaveats, forEachChunked } from "./src/algorithms/results/types";
 export type { RegisteredAlgorithm } from "./src/catalog/registry";
 export { clearRegisteredAlgorithmsForTesting, registeredAlgorithmDescriptors } from "./src/catalog/registry";
-export type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, ResultShape } from "./src/catalog/types";
+export type {
+    AlgorithmDescriptor,
+    AlgorithmKey,
+    FieldDescriptor,
+    ResultShape,
+    SuggestedName,
+} from "./src/catalog/types";
 export type { RunId } from "./src/catalog/types";
 export type { ResultElementValues } from "./src/session/results/RunResult";
 export { checkShapeContract } from "./src/session/results/types";
+export type { CaveatCode, PartialCode } from "./src/session/runs/caveatFacts";
 export type { Caveats, Progress, WeightMeaning } from "./src/session/runs/types";
 
 /*

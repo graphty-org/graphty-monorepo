@@ -61,6 +61,7 @@
 import type { Binding, Channel, ChannelValue, PaletteDescriptor, Path, Rgba } from "../../catalog/types";
 import { OTHER_GROUP_COLOR } from "../../config/palettes/categorical";
 import { GraphtyError } from "../../errors";
+import { clamp } from "../../utils/clamp";
 import { compareGroupKeys } from "../results/types";
 import {
     type ChannelDescriptor,
@@ -72,6 +73,7 @@ import {
     type NodeShapeValue,
     toColorValue,
 } from "./channels";
+import type { LegendFact } from "./legend";
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
@@ -152,16 +154,33 @@ export interface PreparedBinding {
      * policy -- largest first. Empty when nothing folded.
      */
     readonly lumped: readonly string[];
+    /**
+     * Each category as the data spells it -- the number `0`, not the name `"0"` -- so a legend
+     * hands back the value a result or a column published. Empty when there are no categories.
+     */
+    readonly categoryValues: ReadonlyMap<string, unknown>;
+    /** How many elements carry each category, by name. Empty when there are no categories. */
+    readonly categoryCounts: ReadonlyMap<string, number>;
+    /** The values the binding was told not to paint, as category names. Empty when none are. */
+    readonly hidden: ReadonlySet<string>;
     /** How many distinct values the encoding paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
+    /**
+     * The two ends of the range the binding maps values onto, in the channel's own units and
+     * clamped to what the channel draws, in the order the range was authored: `reverse` does not
+     * swap them, and only an authored range such as `[3, 1]` reads high to low. Present only for a
+     * channel that carries a number, such as a node's size or an edge's width, through a scale
+     * that maps onto a range, and absent when a `map` or an `other` value paints values of its own.
+     */
+    readonly range?: readonly [number, number];
     /** What the column held. */
     readonly counts: BindingCounts;
     /**
-     * What a reader has to be told about this encoding, in sentences a legend prints unedited.
+     * What a reader has to be told about this encoding, as coded facts the legend hands over.
      *
      * Empty when the encoding has nothing to confess.
      */
-    readonly departures: readonly string[];
+    readonly facts: readonly LegendFact[];
     /**
      * The channel value for one element.
      * @param value - What the element carries for the bound path, including the absent value of
@@ -169,6 +188,46 @@ export interface PreparedBinding {
      * @returns The value to paint, or undefined when the element is not painted at all.
      */
     paint(value: unknown): EncodedValue | undefined;
+    /**
+     * What the encoding would paint a value if it were not hidden: what a legend shows beside a
+     * hidden row, so the reader sees which colour comes back when it is shown again.
+     * @param value - The value.
+     * @returns The value to paint, or undefined when the encoding paints nothing for it.
+     */
+    paintIgnoringHidden(value: unknown): EncodedValue | undefined;
+    /**
+     * What the element does to the value it paints for one element, when what is drawn differs
+     * from what the layer worked out.
+     * @param value - What the element carries for the bound path.
+     * @returns The code, or undefined when the value is drawn as worked out or not painted at all.
+     */
+    adjustment(value: unknown): StyleAdjustmentCode | undefined;
+}
+
+/**
+ * What the element did to a value a layer worked out, because the channel cannot draw it as it is.
+ * Nothing is refused for either; the value is drawn as described.
+ *
+ * - `style.out-of-range` -- a number outside what the channel draws (a negative node size, an
+ *   opacity above 1), drawn at the nearest end the channel does draw.
+ * - `style.alpha-not-drawn` -- a color with transparency on a channel that draws it opaque (a
+ *   node's color; a node's transparency is its `node.opacity`).
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ */
+export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
+
+/** The channels that draw a color's red, green and blue but not its alpha. */
+const ALPHA_NOT_DRAWN: ReadonlySet<Channel> = new Set<Channel>(["node.color"]);
+
+/**
+ * Whether a painted value is a transparent color on a channel that draws it opaque.
+ * @param channel - The channel.
+ * @param painted - What was painted.
+ * @returns True when the alpha is dropped.
+ */
+function dropsAlpha(channel: Channel, painted: EncodedValue | undefined): boolean {
+    return ALPHA_NOT_DRAWN.has(channel) && isRgba(painted) && painted.a < 1;
 }
 
 /** Everything {@link prepareBinding} is given. */
@@ -332,17 +391,6 @@ function readCategory(value: unknown): string | null {
 }
 
 /**
- * Hold a number inside an interval.
- * @param value - The number.
- * @param low - The lower bound.
- * @param high - The upper bound.
- * @returns The number, moved to the nearest bound when it was outside.
- */
-function hold(value: number, low: number, high: number): number {
-    return Math.max(low, Math.min(high, value));
-}
-
-/**
  * Whether a value carries red, green and blue components.
  * @param value - The value to test.
  * @returns True when it is a colour written as components rather than as a string.
@@ -398,6 +446,8 @@ interface ColumnFacts {
     readonly nonPositive: number;
     /** How often each category appeared. */
     readonly categoryCounts: ReadonlyMap<string, number>;
+    /** The first value each category was read from, as the data spells it. */
+    readonly categoryValues: ReadonlyMap<string, unknown>;
 }
 
 /**
@@ -413,6 +463,7 @@ interface ColumnFacts {
 function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): ColumnFacts {
     const numbers: number[] = [];
     const categoryCounts = new Map<string, number>();
+    const categoryValues = new Map<string, unknown>();
     let seen = 0;
     let unreadable = 0;
     let nonPositive = 0;
@@ -441,12 +492,17 @@ function walkColumn(column: Iterable<unknown> | undefined, numeric: boolean): Co
             continue;
         }
 
-        categoryCounts.set(name, (categoryCounts.get(name) ?? 0) + 1);
+        const count = categoryCounts.get(name);
+        if (count === undefined) {
+            categoryValues.set(name, value);
+        }
+
+        categoryCounts.set(name, (count ?? 0) + 1);
     }
 
     numbers.sort((left, right) => left - right);
 
-    return { seen, unreadable, sorted: numbers, nonPositive, categoryCounts };
+    return { seen, unreadable, sorted: numbers, nonPositive, categoryCounts, categoryValues };
 }
 
 /**
@@ -460,7 +516,7 @@ function percentileValue(sorted: readonly number[], percentile: number): number 
         return Number.NaN;
     }
 
-    const at = ((sorted.length - 1) * hold(percentile, 0, 100)) / 100;
+    const at = ((sorted.length - 1) * clamp(percentile, 0, 100)) / 100;
     const below = Math.floor(at);
     const above = Math.min(below + 1, sorted.length - 1);
 
@@ -495,7 +551,7 @@ interface SettledDomain {
     /** How many numbers fell outside a domain a percentile clamp narrowed. */
     readonly clamped: number;
     /** What a reader has to be told about how the extent was chosen. */
-    readonly departures: readonly string[];
+    readonly facts: readonly LegendFact[];
 }
 
 /** The scale's options while a domain is being settled, minus the domain itself. */
@@ -550,7 +606,7 @@ function assertClamp(clamp: readonly [number, number]): void {
  * @param facts - What the column held.
  * @param map - The scale.
  * @param base - The scale's other options.
- * @param scale - The scale's name, for the sentences a legend prints.
+ * @param scale - The scale's name, for the facts a legend reports.
  * @returns The domain, the counts it excluded, and what to tell a reader.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` when a domain and a clamp both claim to set
  *   the extent, or when a clamp is not a pair of percentiles.
@@ -579,9 +635,9 @@ function settleDomain(
             domain: explicit,
             notPlottable: places ? 0 : facts.sorted.length,
             clamped: 0,
-            departures: places
+            facts: places
                 ? []
-                : [`no value has a place between ${String(explicit[0])} and ${String(explicit[1])}`],
+                : [{ code: "legend.no-value-in-domain", params: { min: explicit[0], max: explicit[1] } }],
         };
     }
 
@@ -591,25 +647,30 @@ function settleDomain(
 /**
  * Work out an extent from the column itself.
  * @param clamp - The percentiles to cut the extent at, when the binding declared them.
- * @param facts - What the column held.
+ * @param column - What the column held.
  * @param map - The scale.
  * @param base - The scale's other options.
- * @param scale - The scale's name, for the sentences a legend prints.
+ * @param scale - The scale's name, for the facts a legend reports.
  * @returns The domain, the counts it excluded, and what to tell a reader.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` when the clamp is not a pair of percentiles.
  */
 function settleAutomaticDomain(
     clamp: RuleBinding["clamp"],
-    facts: ColumnFacts,
+    column: ColumnFacts,
     map: ScaleFn,
     base: DomainlessContext,
     scale: string,
 ): SettledDomain {
-    const { sorted } = facts;
-    const departures: string[] = [];
+    const { sorted } = column;
+    const facts: LegendFact[] = [];
 
     if (sorted.length === 0) {
-        return { domain: [0, 1], notPlottable: 0, clamped: 0, departures: ["nothing measured"] };
+        return {
+            domain: [0, 1],
+            notPlottable: 0,
+            clamped: 0,
+            facts: [{ code: "legend.nothing-measured", params: {} }],
+        };
     }
 
     let low = sorted[0];
@@ -621,23 +682,23 @@ function settleAutomaticDomain(
         low = percentileValue(sorted, clamp[0]);
         high = percentileValue(sorted, clamp[1]);
         clamped = sorted.filter((value) => value < low || value > high).length;
-        departures.push(`clamped at p${String(clamp[0])}/p${String(clamp[1])}`);
+        facts.push({ code: "legend.clamped", params: { from: clamp[0], to: clamp[1] } });
     }
 
     if (placesDomain(map, base, [low, high])) {
-        return { domain: [low, high], notPlottable: 0, clamped, departures };
+        return { domain: [low, high], notPlottable: 0, clamped, facts };
     }
 
     const floor = smallestPositive(sorted);
     if (floor !== null && floor <= high && placesDomain(map, base, [floor, high])) {
-        departures.push(`${String(facts.nonPositive)} not plottable on a ${scale} scale`);
+        facts.push({ code: "legend.not-plottable", params: { count: column.nonPositive, scale } });
 
-        return { domain: [floor, high], notPlottable: facts.nonPositive, clamped, departures };
+        return { domain: [floor, high], notPlottable: column.nonPositive, clamped, facts };
     }
 
-    departures.push(`no value is plottable on a ${scale} scale`);
+    facts.push({ code: "legend.none-plottable", params: { scale } });
 
-    return { domain: [low, high], notPlottable: sorted.length, clamped, departures };
+    return { domain: [low, high], notPlottable: sorted.length, clamped, facts };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -750,7 +811,7 @@ function converterFor(descriptor: ChannelDescriptor): ChannelConverter {
             return (scaled): EncodedValue | undefined => {
                 const value = typeof scaled === "number" ? scaled : readNumber(scaled);
 
-                return Number.isFinite(value) ? hold(value, low, high) : undefined;
+                return Number.isFinite(value) ? clamp(value, low, high) : undefined;
             };
         }
         case "enum":
@@ -816,10 +877,9 @@ function unsupportedChannel(descriptor: ChannelDescriptor): GraphtyError {
  */
 function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string): GraphtyError {
     const { max, min, values } = descriptor;
+    const bound = (limit: number | undefined): string => (limit === undefined ? "any" : String(limit));
     const allowed =
-        values === undefined
-            ? `is drawn from ${min === undefined ? "any" : String(min)} to ${max === undefined ? "any" : String(max)}`
-            : `takes one of ${values.join(", ")}`;
+        values === undefined ? `is drawn from ${bound(min)} to ${bound(max)}` : `takes one of ${values.join(", ")}`;
 
     return new GraphtyError({
         code: "E_OPTION_RANGE",
@@ -920,10 +980,17 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         domain: null,
         categories: [],
         lumped: [],
+        categoryValues: new Map(),
+        categoryCounts: new Map(),
+        hidden: new Set(),
         groups: 0,
         counts: NO_COUNTS,
-        departures: [],
+        facts: [],
         paint: (): EncodedValue => value,
+        paintIgnoringHidden: (): EncodedValue => value,
+        adjustment: dropsAlpha(descriptor.channel, value)
+            ? (): StyleAdjustmentCode => "style.alpha-not-drawn"
+            : (): undefined => undefined,
     };
 }
 
@@ -1042,11 +1109,18 @@ interface Painter {
     readonly palette: PaletteDescriptor | null;
     /** How many distinct values it paints, or 0 when it is a continuous ramp. */
     readonly groups: number;
+    /** The ends of the range it maps onto, for a channel that carries a number. */
+    readonly range?: readonly [number, number];
     /**
      * The channel value for one element: what the element carries in, the value to paint out, and
      * undefined when the element is not painted at all.
      */
     readonly paint: (value: unknown) => EncodedValue | undefined;
+    /**
+     * Whether the number worked out for a value lies outside what the channel draws, so that
+     * `paint` drew it clamped. Absent on a painter that never clamps.
+     */
+    readonly outOfRange?: (value: unknown) => boolean;
 }
 
 /**
@@ -1134,18 +1208,23 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     };
     const ramp: PreparedRamp = prepareRamp(spec, parts.scales);
     const overrides = colorOverrides(binding, parts.categories.lumped, descriptor);
+    const skipUnmapped = binding.unmapped === "skip";
 
     return {
         palette: ramp.palette,
         groups: ramp.groups,
         paint:
-            overrides === null
+            overrides === null && !skipUnmapped
                 ? (value): EncodedValue | undefined => ramp.color(value)
                 : (value): EncodedValue | undefined => {
                       const name = readCategory(value);
-                      const override = name === null ? undefined : overrides.get(name);
+                      const override = name === null ? undefined : overrides?.get(name);
+                      if (override !== undefined) {
+                          return override;
+                      }
 
-                      return override ?? ramp.color(value);
+                      // A value the map has no entry for is left to the layers beneath.
+                      return skipUnmapped && name !== null ? undefined : ramp.color(value);
                   },
     };
 }
@@ -1262,23 +1341,54 @@ function valuePainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
     const { map } = parts;
+    // Passthrough reads neither the domain nor the range, so it maps onto no range at all. A `map`
+    // or an `other` value paints values of its own, so the range no longer bounds what is drawn.
+    const bounded = descriptor.accepts === "number" && parts.scale !== "passthrough" && overrides === null;
+    const ends = bounded ? (context.range ?? [0, 1]) : null;
+    const low = ends === null ? undefined : convert(ends[0]);
+    const high = ends === null ? undefined : convert(ends[1]);
+    const skipUnmapped = binding.unmapped === "skip";
+    const overrideOf = (value: unknown): EncodedValue | undefined => {
+        const name = overrides === null ? null : readCategory(value);
+
+        return name === null ? undefined : overrides?.get(name);
+    };
+    const channelMin = descriptor.min ?? Number.NEGATIVE_INFINITY;
+    const channelMax = descriptor.max ?? Number.POSITIVE_INFINITY;
 
     return {
         palette: null,
         groups,
+        ...(typeof low === "number" && typeof high === "number" ? { range: [low, high] as const } : {}),
         paint: (value): EncodedValue | undefined => {
-            if (overrides !== null) {
-                const name = readCategory(value);
-                const override = name === null ? undefined : overrides.get(name);
-                if (override !== undefined) {
-                    return override;
-                }
+            const override = overrideOf(value);
+            if (override !== undefined) {
+                return override;
+            }
+
+            // A value the map has no entry for is left to the layers beneath.
+            if (skipUnmapped && readCategory(value) !== null) {
+                return undefined;
             }
 
             const placed = map(value, context);
 
             return isScaleMiss(placed) ? absent : (convert(placed) ?? absent);
         },
+        ...(descriptor.accepts === "number"
+            ? {
+                  outOfRange: (value: unknown): boolean => {
+                      if (overrideOf(value) !== undefined) {
+                          return false;
+                      }
+
+                      const placed = map(value, context);
+                      const number = typeof placed === "number" ? placed : readNumber(placed);
+
+                      return !Number.isNaN(number) && (number < channelMin || number > channelMax);
+                  },
+              }
+            : {}),
     };
 }
 
@@ -1327,7 +1437,11 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
         );
     }
 
-    const capacity = overflowCapacity(binding.palette);
+    // A channel of a fixed list folds past the values it has; a color, past its palette.
+    const capacity =
+        overflow === "other" && descriptor.accepts === "enum"
+            ? (descriptor.values?.length ?? null)
+            : overflowCapacity(binding.palette);
 
     if (numeric || capacity === null || (overflow !== "other" && overflow !== "shape")) {
         return Number.POSITIVE_INFINITY;
@@ -1337,26 +1451,26 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
 }
 
 /**
- * The departures that come from the counts rather than from settling the domain.
+ * The facts that come from the counts rather than from settling the domain.
  * @param counts - What the column held.
- * @returns The sentences, in the order a legend reads them.
+ * @returns The facts, in the order a legend reads them.
  */
-function countDepartures(counts: BindingCounts): readonly string[] {
-    const departures: string[] = [];
+function countFacts(counts: BindingCounts): readonly LegendFact[] {
+    const facts: LegendFact[] = [];
 
     if (counts.unreadable > 0) {
-        departures.push(`${String(counts.unreadable)} carry no value the scale can read`);
+        facts.push({ code: "legend.unreadable", params: { count: counts.unreadable } });
     }
 
     if (counts.other > 0) {
-        departures.push(`${String(counts.other)} lumped into "other"`);
+        facts.push({ code: "legend.lumped", params: { count: counts.other } });
     }
 
     if (counts.unmeasured > 0) {
-        departures.push(`not measured (${String(counts.unmeasured)})`);
+        facts.push({ code: "legend.not-measured", params: { count: counts.unmeasured } });
     }
 
-    return departures;
+    return facts;
 }
 
 /**
@@ -1364,15 +1478,30 @@ function countDepartures(counts: BindingCounts): readonly string[] {
  * @param descriptor - The channel.
  * @param binding - The rule binding.
  * @param parts - What preparing it worked out.
+ * @param given - The painter, when the caller built one itself (stops do); absent, the channel's own.
  * @returns The prepared binding.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_CAP_EXCEEDED` when the palette, the
  *   channel or the missing value cannot carry what the binding asks of it.
  */
-function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): PreparedBinding {
+function assemble(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    parts: AssemblyParts,
+    given?: Painter,
+): PreparedBinding {
     const painter =
-        descriptor.accepts === "color"
+        given ??
+        (descriptor.accepts === "color"
             ? colorPainter(descriptor, binding, parts)
-            : valuePainter(descriptor, binding, parts);
+            : valuePainter(descriptor, binding, parts));
+    const hidden = new Set((binding.hidden ?? []).map((value) => readCategory(value)).filter((name) => name !== null));
+    const paint =
+        hidden.size === 0
+            ? painter.paint
+            : (value: unknown): EncodedValue | undefined => {
+                  const name = readCategory(value);
+                  return name !== null && hidden.has(name) ? undefined : painter.paint(value);
+              };
     const counts: BindingCounts = {
         seen: parts.facts.seen,
         unreadable: parts.facts.unreadable,
@@ -1390,10 +1519,27 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         domain: parts.numeric ? parts.settled.domain : null,
         categories: parts.categories.categories,
         lumped: parts.categories.lumped,
+        categoryValues: parts.facts.categoryValues,
+        categoryCounts: parts.facts.categoryCounts,
+        hidden,
         groups: painter.groups,
+        ...(painter.range === undefined ? {} : { range: painter.range }),
         counts,
-        departures: Object.freeze([...parts.settled.departures, ...countDepartures(counts)]),
-        paint: painter.paint,
+        facts: Object.freeze([...parts.settled.facts, ...countFacts(counts)]),
+        paint,
+        paintIgnoringHidden: painter.paint,
+        adjustment: (value): StyleAdjustmentCode | undefined => {
+            const painted = paint(value);
+            if (painted === undefined) {
+                return undefined;
+            }
+
+            if (painter.outOfRange?.(value) === true) {
+                return "style.out-of-range";
+            }
+
+            return dropsAlpha(descriptor.channel, painted) ? "style.alpha-not-drawn" : undefined;
+        },
     };
 }
 
@@ -1412,6 +1558,10 @@ function prepareRule(
     binding: RuleBinding,
     options: PrepareBindingOptions,
 ): PreparedBinding {
+    if (binding.stops !== undefined) {
+        return prepareStops(descriptor, binding, options);
+    }
+
     const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
@@ -1449,7 +1599,7 @@ function prepareRule(
     };
     const settled = numeric
         ? settleDomain(binding, facts, map, base, scale)
-        : { domain: [0, 1] as [number, number], notPlottable: 0, clamped: 0, departures: [] };
+        : { domain: [0, 1] as [number, number], notPlottable: 0, clamped: 0, facts: [] };
 
     return assemble(descriptor, binding, {
         scale,
@@ -1462,6 +1612,235 @@ function prepareRule(
         numeric,
         unmeasured: options.unmeasured ?? 0,
     });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Stops: a number read against points instead of a scale
+// ---------------------------------------------------------------------------------------------
+
+/** The binding fields `stops` replaces, refused beside it because the points already say them. */
+const NOT_WITH_STOPS = [
+    "palette",
+    "domain",
+    "clamp",
+    "range",
+    "reverse",
+    "midpoint",
+    "bins",
+    "exponent",
+    "map",
+    "other",
+    "overflow",
+] as const satisfies readonly (keyof RuleBinding)[];
+
+/** One point with its three values read into the form the channel carries. */
+interface ReadStop<T> {
+    readonly at: number;
+    readonly below: T;
+    readonly value: T;
+    readonly above: T;
+}
+
+/**
+ * Whether one stop value is one the channel carries.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param value - The value as authored.
+ * @returns True when it is a finite number on a numeric channel or a color on a color channel.
+ */
+function readableStopValue(descriptor: ChannelDescriptor, value: unknown): boolean {
+    if (descriptor.accepts === "number") {
+        return typeof value === "number" && Number.isFinite(value);
+    }
+
+    return typeof value === "string" && toColorValue(value) !== null;
+}
+
+/**
+ * What is wrong with a binding's `stops`, if anything.
+ *
+ * Numbers outside what the channel draws are NOT wrong here: they are drawn clamped and counted,
+ * as a scale's numbers are, because a file's points often run past what the element draws.
+ * @param descriptor - The channel.
+ * @param binding - The rule binding, which has `stops`.
+ * @returns A sentence saying what is wrong, or null when the stops can be painted.
+ */
+export function stopsProblem(descriptor: ChannelDescriptor, binding: RuleBinding): string | null {
+    const { stops } = binding;
+    if (descriptor.accepts !== "number" && descriptor.accepts !== "color") {
+        return `stops paint numbers or colors, and ${descriptor.channel} carries neither.`;
+    }
+
+    if (binding.scale !== undefined && binding.scale !== "linear") {
+        return `stops replace the scale, so the "${binding.scale}" scale cannot be used beside them.`;
+    }
+
+    const clashing = NOT_WITH_STOPS.filter((field) => binding[field] !== undefined);
+    if (clashing.length > 0) {
+        return `stops already say what ${clashing.join(", ")} would, so they cannot be given beside them.`;
+    }
+
+    if (!Array.isArray(stops) || stops.length === 0) {
+        return "stops is a list of points, such as [{ at: 0, value: 1 }, { at: 10, value: 5 }].";
+    }
+
+    return stopListProblem(descriptor, stops);
+}
+
+/**
+ * What is wrong with the points of a non-empty `stops` list, if anything.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param stops - The points.
+ * @returns A sentence saying what is wrong, or null when the points can be painted.
+ */
+function stopListProblem(descriptor: ChannelDescriptor, stops: NonNullable<RuleBinding["stops"]>): string | null {
+    let previous = Number.NEGATIVE_INFINITY;
+    for (const stop of stops) {
+        if (typeof stop !== "object" || typeof stop.at !== "number" || !Number.isFinite(stop.at)) {
+            return "Every stop has a number at `at`.";
+        }
+
+        if (stop.at < previous) {
+            return "stops are listed in ascending order of `at`.";
+        }
+
+        previous = stop.at;
+        const values = [stop.value, stop.below ?? stop.value, stop.above ?? stop.value];
+        if (!values.every((value) => readableStopValue(descriptor, value))) {
+            const kind = descriptor.accepts === "number" ? "a number" : "a color";
+            return `Every stop's value, below and above on ${descriptor.channel} is ${kind}.`;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Read a number against points, Cytoscape's way.
+ * @param stops - The points, ascending, at least one.
+ * @param x - The number.
+ * @param between - How two values blend at a fraction of the way from the first to the second.
+ * @returns What the number paints.
+ */
+function readAgainstStops<T>(stops: readonly ReadStop<T>[], x: number, between: (a: T, b: T, t: number) => T): T {
+    const [first] = stops;
+    if (x < first.at) {
+        return first.below;
+    }
+
+    for (let index = 0; index < stops.length - 1; index++) {
+        const point = stops[index];
+        const next = stops[index + 1];
+        if (x === point.at) {
+            return point.value;
+        }
+
+        if (x < next.at) {
+            return between(point.above, next.below, (x - point.at) / (next.at - point.at));
+        }
+    }
+
+    const last = stops.at(-1) ?? first;
+
+    return x === last.at ? last.value : last.above;
+}
+
+/**
+ * Blend two colors per component.
+ * @param from - The color at the start.
+ * @param to - The color at the end.
+ * @param t - How far along, 0 to 1.
+ * @returns The blend.
+ */
+function blendColors(from: ColorValue, to: ColorValue, t: number): ColorValue {
+    const at = (a: number, b: number): number => a + (b - a) * t;
+
+    return requireColor(
+        { r: at(from.r, to.r), g: at(from.g, to.g), b: at(from.b, to.b), a: at(from.a, to.a) },
+        "A blend",
+    );
+}
+
+/**
+ * Prepare a binding that reads a number against points.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param binding - The rule binding, which has `stops`.
+ * @param options - Everything preparing it was given.
+ * @returns The prepared binding.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when the stops cannot be painted.
+ */
+function prepareStops(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    options: PrepareBindingOptions,
+): PreparedBinding {
+    const problem = stopsProblem(descriptor, binding);
+    if (problem !== null) {
+        throw badBinding(problem, { channel: descriptor.channel, stops: binding.stops });
+    }
+
+    const stops = binding.stops ?? [];
+    const absent = missingValue(descriptor, binding);
+    const read = <T>(convert: (value: string | number) => T): ReadStop<T>[] =>
+        stops.map((stop) => ({
+            at: stop.at,
+            value: convert(stop.value),
+            below: convert(stop.below ?? stop.value),
+            above: convert(stop.above ?? stop.value),
+        }));
+    let painter: Painter;
+
+    if (descriptor.accepts === "color") {
+        const points = read((value) => requireColor(value, "A stop"));
+        painter = {
+            palette: null,
+            groups: 0,
+            paint: (value): EncodedValue | undefined => {
+                const x = readNumber(value);
+
+                return Number.isNaN(x) ? absent : readAgainstStops(points, x, blendColors);
+            },
+        };
+    } else {
+        const points = read(Number);
+        const low = descriptor.min ?? Number.NEGATIVE_INFINITY;
+        const high = descriptor.max ?? Number.POSITIVE_INFINITY;
+        const raw = (x: number): number => readAgainstStops(points, x, (a, b, t) => a + (b - a) * t);
+        painter = {
+            palette: null,
+            groups: 0,
+            paint: (value): EncodedValue | undefined => {
+                const x = readNumber(value);
+
+                return Number.isNaN(x) ? absent : clamp(raw(x), low, high);
+            },
+            outOfRange: (value): boolean => {
+                const x = readNumber(value);
+                const number = Number.isNaN(x) ? Number.NaN : raw(x);
+
+                return number < low || number > high;
+            },
+        };
+    }
+
+    const facts = walkColumn(options.column, true);
+    const domain: [number, number] = [stops[0].at, (stops.at(-1) ?? stops[0]).at];
+
+    return assemble(
+        descriptor,
+        binding,
+        {
+            scale: "linear",
+            map: BUILT_IN_SCALES.linear,
+            scales: options.scales,
+            facts,
+            settled: { domain, notPlottable: 0, clamped: 0, facts: [] },
+            categories: { categories: [], lumped: [], other: 0 },
+            context: { domain },
+            numeric: true,
+            unmeasured: options.unmeasured ?? 0,
+        },
+        painter,
+    );
 }
 
 // ---------------------------------------------------------------------------------------------

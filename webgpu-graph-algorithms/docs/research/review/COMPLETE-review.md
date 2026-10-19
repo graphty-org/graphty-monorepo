@@ -36,17 +36,17 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
 
 ## 1. Owner request coverage
 
-| Owner constraint | Covered? | Where / gap |
-| --- | --- | --- |
-| Force-directed layout first, after a walking skeleton | yes | P1 -> P3; but P2 inflates the pre-layout path (COMPLETE-5) and P5 adds an un-requested preset before P6 (COMPLETE-6) |
-| Uses graph-format | yes | 1.3, 4, G3 |
-| High performance at 100k-1M+ | yes | 7.7, 7.21, 10 |
-| Optional / DETECTED acceleration for the existing packages, end to end | partly | probe -> import -> create -> inject is specified (2.3, 9.5); GPU package absent = no injection; device missing = probe false. NOT specified: what the element does with a live LAYOUT engine after device loss / a kernel throw, who consumes `accelerator-changed`, where `gpuMinNodes` is evaluated (COMPLETE-3); how app-side tuning (`calibrate()` -> `exactMaxNodes`, `maxInFlight`) reaches the simulation the element creates (COMPLETE-2) |
-| NVIDIA input (Merrill, McLaughlin-Bader, cuGraph, Buffalo, cluster page) | yes | 8.4, 8.9: each used or set aside with a reason; note 04 did extract the Buffalo thesis text (`tmp/webgpu-plan/papers/buffalo-2023-06.txt`), so 1.2's "negative result" claim is sourced |
-| Node AND browser | yes | 2 |
-| Node-primary tests, light browser tests | yes | 11 (DEPARTURE-1 declared) |
-| CI: default runner + GPU runner, monorepo | yes | 12; but the staging repository does not exist on GitHub yet and P0 never creates it (COMPLETE-7); the GPU job lacks a browser-install step (COMPLETE-14); nightly issue creation contradicts the permission rules (COMPLETE-13) |
-| GPU package never falls back | yes | 2.4; the CPU short-circuits (n = 0, LCG seeding, renumbering, segmentOffsets) are correctly not fallbacks |
+| Owner constraint                                                         | Covered? | Where / gap                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Force-directed layout first, after a walking skeleton                    | yes      | P1 -> P3; but P2 inflates the pre-layout path (COMPLETE-5) and P5 adds an un-requested preset before P6 (COMPLETE-6)                                                                                                                                                                                                                                                                                                                              |
+| Uses graph-format                                                        | yes      | 1.3, 4, G3                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| High performance at 100k-1M+                                             | yes      | 7.7, 7.21, 10                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Optional / DETECTED acceleration for the existing packages, end to end   | partly   | probe -> import -> create -> inject is specified (2.3, 9.5); GPU package absent = no injection; device missing = probe false. NOT specified: what the element does with a live LAYOUT engine after device loss / a kernel throw, who consumes `accelerator-changed`, where `gpuMinNodes` is evaluated (COMPLETE-3); how app-side tuning (`calibrate()` -> `exactMaxNodes`, `maxInFlight`) reaches the simulation the element creates (COMPLETE-2) |
+| NVIDIA input (Merrill, McLaughlin-Bader, cuGraph, Buffalo, cluster page) | yes      | 8.4, 8.9: each used or set aside with a reason; note 04 did extract the Buffalo thesis text (`tmp/webgpu-plan/papers/buffalo-2023-06.txt`), so 1.2's "negative result" claim is sourced                                                                                                                                                                                                                                                           |
+| Node AND browser                                                         | yes      | 2                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Node-primary tests, light browser tests                                  | yes      | 11 (DEPARTURE-1 declared)                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| CI: default runner + GPU runner, monorepo                                | yes      | 12; but the staging repository does not exist on GitHub yet and P0 never creates it (COMPLETE-7); the GPU job lacks a browser-install step (COMPLETE-14); nightly issue creation contradicts the permission rules (COMPLETE-13)                                                                                                                                                                                                                   |
+| GPU package never falls back                                             | yes      | 2.4; the CPU short-circuits (n = 0, LCG seeding, renumbering, segmentOffsets) are correctly not fallbacks                                                                                                                                                                                                                                                                                                                                         |
 
 ## 2. Design contradictions not declared as DEPARTURE
 
@@ -58,9 +58,10 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
 ## 3. Findings
 
 ### COMPLETE-1 (major) -- The PageRank kernel needs 9 storage bindings, not "exactly 8"
+
 - Lines: 2028-2031 (8.2), 1257 (section 6 row 9), 797-801 (3.5), 82 (Summary), 2714 (11.3), 3166 (G7).
 - Claim: 8.2 lists `revRowPtr, revColIdx, revWeights, outWeightSum, rankIn, rankOut,
-  personalization-or-dummy, partials` = 8, but section 6 row 9 and 8.1 / 8.8 / P7 tier the pull by
+personalization-or-dummy, partials` = 8, but section 6 row 9 and 8.1 / 8.8 / P7 tier the pull by
   in-degree through `degreeOrder({ of: "reverse" }).perm` with `override USE_PERM`, and 3.5 reserves a
   `perm | dummy` slot in group 0. That is a 9th storage binding; the G7 descriptor test ("exactly 8")
   and the Summary's "every kernel fits the core default of 8" fail as written.
@@ -70,6 +71,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   Summary and G7 accordingly.
 
 ### COMPLETE-2 (major) -- GPU tuning has no path from the app / element to the simulation
+
 - Lines: 608 (`accelerator(): GpuAccelerator // one per context, cached`), 695-703
   (`GpuAccelerator.forceAtlas2(o?: ForceAtlas2Options)`), 2323 (9.2 "GPU-only tuning goes through
   the factory options, never through the dispatcher"), 2358-2363 (9.3 `LayoutAccelerator`),
@@ -83,10 +85,11 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   element steps; "calibrate() wiring" in P12 has no API to wire into.
 - Fix: give the accelerator factory defaults -- `ctx.accelerator({ layout?: GpuLayoutTuning })` --
   and let `GpuAccelerator.forceAtlas2` merge them; or add an opaque `tuning?: Record<string,
-  unknown>` field to `LayoutAccelerator.forceAtlas2` in 9.3 (owned by `@graphty/layout`) that the
+unknown>` field to `LayoutAccelerator.forceAtlas2` in 9.3 (owned by `@graphty/layout`) that the
   element forwards from `behavior.layout.gpu`. State which and update 3.3, 9.3, 9.4 item 7, 9.5, P12.
 
 ### COMPLETE-3 (major) -- Detection is specified up to injection; the failure half is not
+
 - Lines: 2389-2399 (9.4 item 1: `accelerator-changed` event; "the element never does it by
   itself"), 2429-2431 (bridge `.catch` -> `onError`), 2458-2460 (`gpuMinNodes`), 2485 (9.5
   `ctx.lost.then(... setAccelerator(null) ...)`, "CPU path for NEW runs"), 1204 (5.7: on device loss
@@ -106,10 +109,11 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   current `SimulationLayoutEngine` via `createSimulation(type, opts, newAccelerator)` and
   `load(snapshot, positions)` (positions survive because the array is element-owned); specify that
   `gpuMinNodes` is applied by the element in `_setLayoutInternal` (`nodeCount >= gpuMinNodes ?
-  graph.accelerator : null`) and, if wanted, by the adapters as `accelerated(n >= gpuMinNodes ? acc :
-  null)`; specify that the bridge attaches `.catch` once per distinct promise.
+graph.accelerator : null`) and, if wanted, by the adapters as `accelerated(n >= gpuMinNodes ? acc :
+null)`; specify that the bridge attaches `.catch` once per distinct promise.
 
 ### COMPLETE-4 (major) -- `exactMaxNodes` default 16,384 contradicts the plan's own crossover rule
+
 - Lines: 1594-1614 (7.8), 329-336 (2.2 `calibrate`), 1952 (7.21 row "32k ... grid 2D (exact would be
   2.8-3.7 ms)"), 181 (D7), 495 (`constants.ts`), 1755 (7.14), 3212 (R-2), 3239 (Q-6).
 - Claim: the mechanical rule is "the largest measured n with <= 4 ms per iteration, rounded down to a
@@ -125,6 +129,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   rule predicts or label 16,384 as "conservative until G4".
 
 ### COMPLETE-5 (major) -- P2 bundles infrastructure the first deliverable does not need
+
 - Lines: 3148-3149 (rule (b): "a phase adds only the primitives its slice needs"), 3160 (P2),
   1250-1252 (section 6 rows 2-4 "pulled in by": scan P4/P8, compact P4/P7/P8, segmentedReduce
   P3/P7), 1471-1476 (7.5: "The first slice (P3) ships the thread-per-row tier ... adds the tiers in
@@ -143,6 +148,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   or drop them from G2. Re-state the critical path (should fall to ~16-22 ed).
 
 ### COMPLETE-6 (major) -- P5 builds the spring-electrical preset that 7.20 / Q-9 say is reserved
+
 - Lines: 3164 (P5 deliverables and G5: "the `spring-electrical` preset with the velocity integrator
   and ngraph's settle rule ... settles within 1,000 steps on the 150-node story graph ... ngraph run on
   the CPU in the test, devDependency"), 1911-1921 (7.20: "The plan reserves `forceLaw` ... a
@@ -157,12 +163,13 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   accordingly.
 
 ### COMPLETE-7 (major) -- The CI plan presupposes a public GitHub repository that does not exist
+
 - Lines: 2842-2846 (12.1 "free for public repos"), 2864-2879 (12.2 "public repositories"
   mitigations, repository settings), 3025-3031 (12.4 `RUNNER_REPO=graphty-org/webgpu-graph-algorithms`,
   registration token), 3158 (P0 / G0 "GPU lane registered and green", "the deliberate red run
   recorded in the PR").
 - Evidence: `git log` -> "your current branch 'master' does not have any commits yet"; `git remote
-  -v` -> none; `package.json` `repository.url` = `https://github.com/graphty/webgpu-graph-algorithms`
+-v` -> none; `package.json` `repository.url` = `https://github.com/graphty/webgpu-graph-algorithms`
   (org `graphty`, not `graphty-org` used by every sibling package and by 12.4).
 - Claim: G0 cannot be reached as written: there is no repository to run `ubuntu-latest` on, no PR to
   record the red run in, no repo to register the ephemeral runner against, and the "free for public
@@ -174,6 +181,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   two settings of 12.4, and make G0's first line "the default lane ran on GitHub".
 
 ### COMPLETE-8 (minor) -- The `state` buffer is written by the host but has no `COPY_DST`
+
 - Lines: 1381 (7.3 `state` usage "storage read_write, COPY_SRC"), 1794-1797 (7.17 `reheat()` sets
   `speed = 1`, `speedEfficiency = 1`, `settledCount = 0` -- fields that live in `state` per 7.3 and are
   read by K4 as `S.speed`), 1403-1405 (7.4 `load()` seeds the initial centroid / bbox / radius into
@@ -185,6 +193,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   honours).
 
 ### COMPLETE-9 (minor) -- The build-output test is unsatisfiable against the plan's own API
+
 - Lines: 388-392 (2.5 item 1: "asserts the string `"webgpu"` (the module specifier) does not occur"
   in the root and browser bundles), 705 (3.3 `readonly kind: "webgpu"`), 2713 (11.3).
 - Claim: the root bundle necessarily contains the string literal `"webgpu"` (`GpuAccelerator.kind`),
@@ -193,6 +202,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   `require("webgpu")`), e.g. by parsing the bundle's import statements, not a substring match.
 
 ### COMPLETE-10 (minor) -- Bytes per node for the grid tier: 69, 73 and neither matches the table
+
 - Lines: 1040 (4.7 "FA2 grid ~69 B/node"), 1389-1391 (7.3 "grid tier + `4 + 4 + 8 + 4` = ~73"),
   2578 (10.1: 73 MB at 1M), 1383-1387 (7.3 table: `cellKey` 4n, `cellVal` 4n, sort scratch
   `2 x (4n + 4n)` = 16n, `sortedIdx` 4n).
@@ -202,6 +212,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   number in 4.7, 7.3 and 10.1.
 
 ### COMPLETE-11 (minor) -- Arena byte figures at the 1M and 10M tiers are off by 128 B
+
 - Lines: 908-909 (4.2 table), 1052-1054 (4 review notes), 2582 (10.1).
 - Evidence: probe `arena-bytes.mjs` with graph-format's `layoutSegments`: 1M / 10M hot prefix
   164,000,256 B, full 284,000,256 B; 10M / 100M 1,640,000,256 / 2,840,000,256 B (`rowPtr` of
@@ -211,6 +222,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   these constants would otherwise be written wrong.
 
 ### COMPLETE-12 (minor) -- Benchmark results paths and size ladders disagree
+
 - Lines: 2622 (10.4 `benchmarks/results/<host>-node<version>.json`), 2664 (11.1 bench sizes
   4k / 16k / 65k / 262k / 1M), 2805-2808 (11.7 `benchmarks/results/<runner-class>.json`),
   2999-3004 (12.3 `--outputJson bench/results.json`, artifact path `bench/results.json`), 1604-1610
@@ -222,15 +234,17 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   T-4 and P3.
 
 ### COMPLETE-13 (minor) -- The nightly tracking issue contradicts the permission and secret rules
+
 - Lines: 3124 (12.6 nightly "opens / refreshes a tracking issue on failure (`actions/github-script`)"),
   2876-2877 (12.2 "workflow permissions read-only; NO secrets in the GPU job"), 2916 (12.3
   `permissions: { contents: read }`).
 - Claim: creating an issue needs `issues: write` on the job's token; the plan grants nothing above
   `contents: read` and forbids secrets in the GPU job.
 - Fix: add a separate `notify` job on `ubuntu-latest` with `needs: test-gpu`, `if: failure() &&
-  github.event_name == 'schedule'` and `permissions: { issues: write }`; keep the GPU job read-only.
+github.event_name == 'schedule'` and `permissions: { issues: write }`; keep the GPU job read-only.
 
 ### COMPLETE-14 (minor) -- The GPU job runs the browser project without installing Chromium
+
 - Lines: 2965-3005 (12.3 `test-gpu` steps: no Playwright cache / install step), 2952-2959 (the
   default lane's install steps), 3020 (12.4 Dockerfile comment installs only `install-deps`, not the
   browser).
@@ -240,6 +254,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   the runner image and set `PLAYWRIGHT_BROWSERS_PATH`).
 
 ### COMPLETE-15 (minor) -- Goal ids collide with gate ids
+
 - Lines: 109-120 (goals G1-G9), 1359 ("Gate G3 (section 13)"), 2631-2645 (T-table gates "G1
   (P1)"), 3154-3172 (gates G0-G12), plus "graft: C G4 / G8" (draft C's gates).
 - Claim: "G3" means "consume graph-format" in 1.1 and "FA2 exact gate" in 7.2 / 10.4 / 13; a reader
@@ -247,6 +262,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
 - Fix: rename goals to `GOAL-1..9` (or gates to `GATE-0..12`).
 
 ### COMPLETE-16 (minor) -- Nine open questions are orphaned from the sections that depend on them
+
 - Lines: 3239 (Q-6, should be cited from 7.8), 3241 (Q-8 <- 7.17), 3244 (Q-11 <- 7.1 / 5.7),
   3248 (Q-15 <- 5.7), 3250 (Q-17 <- 7.21 / 10), 3251 (Q-18 <- 3.1 / P0), 3253 (Q-20 <- 12.3 / P0),
   3254 (Q-21 <- 7.7), 3255 (Q-22 <- 11.6). Also 185 and 3162 cite "(graft: C Q-10)" -- draft C's
@@ -254,6 +270,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
 - Fix: add the Q-id at each decision point; write "(draft C question Q-10, here Q-4)" at 185 / 3162.
 
 ### COMPLETE-17 (minor) -- Two undeclared departures in the "inherited decisions" table
+
 - Lines: 164 (1.3: honours 14.5 "injected as `runAlgorithm(snapshot, { accelerator: gpu })`") vs
   2259-2320 (9.2 defines `accelerated(acc).pageRank(s)`; D3 line 177 calls this a decision the design
   "left open"); 168 (1.3: honours 16.2 "`1e-5` relative for f32 GPU parity") vs 2510 (9.7 BC
@@ -263,6 +280,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   "1e-5 except BC 1e-4, Q-24").
 
 ### COMPLETE-18 (minor) -- Unverified assumptions stated as facts, and three now verifiable
+
 - Line 1424: "~5-10 us of GPU-side overhead per tiny dispatch" -- no basis label.
 - Line 2921: workflow note "0.5+ needs glibc 2.38" -- note 05 section 12 item 1 says 0.5.0 was NOT
   inspected (assumed); write "0.6.1 verified; 0.5.x assumed".
@@ -283,6 +301,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   16" is the ADAPTER value; the default DEVICE reports 256.
 
 ### COMPLETE-19 (minor) -- Public-contract statements that contradict the mechanism
+
 - Line 678: `step()` "resolves when `positions` holds the result of these iterations" vs 1835-1839
   (7.19 item 3: when saturated, return the OLDEST pending promise; the requested iterations are
   dropped, `iterationsSubmitted` does not grow). Say "may coalesce: the promise then belongs to an
@@ -297,6 +316,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   `SpringLayoutEngine` is FR) and distinct from the 7.20 `"spring-electrical"` preset.
 
 ### COMPLETE-20 (minor) -- Review-process residue reduces maintainability
+
 - 83 "draft A/B/C" references and 49 "judge" references, plus a "Review notes" subsection per
   section, embed the three-draft review into the implementation plan; Q-18 (line 3251) commits the
   seven notes under `docs/research/` but says nothing about the drafts the plan cites.
@@ -305,6 +325,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   `review-log.md` once the owner accepts the plan.
 
 ### COMPLETE-21 (minor) -- Time-to-"detected" understated
+
 - Lines: 3180-3186 ("Critical path ... P6 makes it 'detected' in the app"), 2531-2533 (9.8 E1
   precondition "A2 first commit + L1"), 2384-2470 (9.4 assumes `DataManager.getSnapshot()`,
   `snapshot-replaced`, the element-owned position column -- all products of the design's E1 port).
@@ -315,6 +336,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
   usable from Node and from a story with an injected accelerator".
 
 ### COMPLETE-22 (minor) -- Small numeric inconsistencies in budgets and tables
+
 - Lines 3161 (G2 "default lane <= 10 min") vs 2642 (T-12 "<= 15 min") vs 3122 (12.6 "target <= 15").
 - Lines 2606-2607 (10.3): PageRank x 100 iterations is given as 20-70 ms at 100k and 0.2-0.7 s at
   1M, but 100 x the per-iteration column (0.2-1.4 ms; 2-14 ms) is 20-140 ms and 0.2-1.4 s; T-8's
@@ -324,7 +346,7 @@ Probes written and run for this review (under `tmp/webgpu-plan/review/probes/`):
 ## 4. What was checked and found consistent (no finding)
 
 - `iterationsPerStep`, `maxInFlight = 2`, `settleThreshold = 1e-3`, `settleWindow = 10`, `nearMax =
-  64`, `gridMax2D = 512`, `gridMax3D = 128`, `warnUnreleasedSnapshots = 2`, the 16,776,960 rule, the
+64`, `gridMax2D = 512`, `gridMax3D = 128`, `warnUnreleasedSnapshots = 2`, the 16,776,960 rule, the
   8-storage-buffer budget for every FA2 kernel (K2 = 7, K3 = 6, K5 = 7, G7 = 8), pyramid sizes
   (349,520 cells / 5.59 MB; 2,396,736 / 38.3 MB), far-field evaluation counts (196 / 982), key
   widths (18 / 21 bits, 3 radix passes), the 100k-tier arena figures, the FA2 port line citations

@@ -1,0 +1,5 @@
+netscope: 3 nodes, 2 edges
+[
+  'W_NETSCOPE_PREAMBLE (line 1): skipped the NetScope preamble (instrument bench-3)',
+  'E_CSV_FIELD_COUNT (line 7): 2 fields, expected 3'
+]

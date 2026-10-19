@@ -79,68 +79,18 @@ bundle defined.
 
 ### React
 
-Web Components work in React with some considerations:
+React 19 renders `<graphty-element>` directly and passes arrays, objects and event listeners to it
+as properties. One extra line types the tag for JSX:
 
 ```tsx
 import "@graphty/graphty-element";
+import type {} from "@graphty/graphty-element/jsx";
 
-function GraphVisualization({ nodes, edges }) {
-    return (
-        <graphty-element
-            node-data={JSON.stringify(nodes)}
-            edge-data={JSON.stringify(edges)}
-            style={{ height: "500px" }}
-        />
-    );
-}
+export const graph = <graphty-element nodeData={[{ id: "a" }, { id: "b" }]} style={{ height: 500 }} />;
 ```
 
-#### Loading the element lazily
-
-React 19 sets a prop on a custom element as a property only if the element is already defined
-when React renders it. If `@graphty/graphty-element` is loaded lazily (a dynamic `import()`, a
-code-split route), React can render the tag first and then writes every prop as an attribute:
-`nodeData={nodes}` becomes `nodedata="[object Object]"`, the data is lost, and the graph comes up
-empty. The element reports this on the console when it sees it.
-
-Make sure the element is defined before React renders it. Either import it statically, as above,
-or wait for the definition before rendering the tag:
-
-```tsx
-import { useEffect, useState } from "react";
-
-function LazyGraph({ nodes }) {
-    const [ready, setReady] = useState(false);
-
-    useEffect(() => {
-        void import("@graphty/graphty-element");
-        void customElements.whenDefined("graphty-element").then(() => setReady(true));
-    }, []);
-
-    return ready ? <graphty-element nodeData={nodes} /> : null;
-}
-```
-
-For accessing the Graph instance:
-
-```tsx
-import { useRef, useEffect } from "react";
-import "@graphty/graphty-element";
-
-function GraphVisualization() {
-    const graphRef = useRef<HTMLElement>(null);
-
-    useEffect(() => {
-        const element = graphRef.current;
-        if (element) {
-            const graph = (element as any).graph;
-            graph.zoomToFit();
-        }
-    }, []);
-
-    return <graphty-element ref={graphRef} />;
-}
-```
+See [React](./frameworks/react) for the typed props and events, why `acceleration` belongs on
+the tag, loading the element lazily, and React 18.
 
 ### Vue
 

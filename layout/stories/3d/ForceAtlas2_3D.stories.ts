@@ -21,11 +21,11 @@ import {
     create3DStatusPanel,
     create3DStoryContainer,
     render3DGraph,
-    startAnimationLoop,
     update3DInfoPanel,
     update3DPositions,
     update3DStatus,
 } from "../utils/visualization-3d.js";
+import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -67,9 +67,6 @@ function createForceAtlas23DStory(args: ForceAtlas23DArgs): HTMLElement {
 
     // Render graph with random initial positions
     render3DGraph(scene3D, generatedGraph, randomPositions, 8, 200);
-
-    // Start animation loop for interactive controls
-    startAnimationLoop(scene3D);
 
     // Create info panel
     const infoPanel = create3DInfoPanel("ForceAtlas2 3D Layout");
@@ -202,12 +199,9 @@ export const ForceAtlas2_3D: Story = {
         await userEvent.click(applyButton);
 
         // Wait for animation and status update
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("applied");
-            },
-            { timeout: 5000 },
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("applied");
+        }, storyWaitOptions(5000));
     },
 };

@@ -14,8 +14,8 @@
  * order: a layer later in the list paints over a layer earlier in it. This is the fact every
  * consumer gets wrong once, so it is stated here, on `list`, on `move` and in the design.
  *
- * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`
- * and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
+ * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`,
+ * `agreement` and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
  * `remove`, `move`, `removeBySource`, `encode`, `highlight`, `applyTemplate` and
  * `resolveToStatic` each dispatch a command (`style.patch`, `style.encode`, `style.template`),
  * which is one undoable step in the session's history, and each returns a `Run` that can be
@@ -31,8 +31,13 @@
  *
  * A HIGHLIGHT IS EXCLUSIVE. `highlight()` takes every highlight layer out of the stack before it
  * adds its own, because a second route or a second chosen set REPLACES the first rather than being
- * painted beside it. Which layers those are is read from the run's shape -- a route, a node set
- * and an edge set are highlights -- and never from the algorithm's name.
+ * painted beside it. Which runs it accepts is read from the run's shape -- a route, a node set and
+ * an edge set -- and never from the algorithm's name.
+ *
+ * A MARK IS NOT. `mark()` paints the same chosen elements with the channel values it is given, as
+ * ordinary layers that stack with everything else; it is what an algorithm's own suggested style
+ * for a chosen subset is applied as, so two algorithms' pictures stay side by side and neither
+ * follows the element's highlight colour.
  *
  * NO WRITE VERB THROWS. A malformed spec, an unknown id, a locked layer: every refusal arrives as
  * a REJECTED run, never as a synchronous exception. A verb that threw would undo the thing the
@@ -72,13 +77,16 @@
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
 import type {
+    AttributeDescriptor,
     Binding,
     Channel,
     EdgeId,
+    Encoding,
     FieldDescriptor,
     LayerId,
     LayerSource,
     LayerSpec,
+    MeasurementDeclaration,
     NodeId,
     PaletteDescriptor,
     Path,
@@ -89,12 +97,16 @@ import type {
 } from "../../catalog/types";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
+import { quoteEach } from "../../utils/quote-each";
+import { resolveColumn } from "../columns";
 import {
     STYLE_DEFINITIONS,
     type StyleCommand,
     type StyleEncodeCommand,
     type StylePatchCommand,
 } from "../commands/style";
+import { englishRunLabel } from "../english";
 import { Dispatcher } from "../project/Dispatcher";
 import type { ProjectState } from "../project/state";
 import { nearestNames } from "../results/ResultsApi";
@@ -116,16 +128,31 @@ import {
     type RunTicket,
 } from "../runs";
 import { sealedSet } from "../sealed";
+import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { beneathAuthored } from "./autoApply";
 import { channelDescriptor, isChannel } from "./channels";
 import type { PreparedBinding } from "./encoding";
-import { type EncodingRun, type EncodingSource, type EncodingSpec, planEncoding } from "./EncodingSpec";
 import {
+    type ColumnEncodingSpec,
+    type EncodingProposal,
+    type EncodingRun,
+    type EncodingSource,
+    type EncodingSpec,
+    planColumnEncoding,
+    planEncoding,
+    proposeColumnBinding,
+} from "./EncodingSpec";
+import {
+    type AgreementElements,
     type ExplainSources,
     explainStyle,
     type ExplainTarget,
     resolveToStatic as resolveRule,
+    type StyleAgreement,
+    styleAgreement,
+    type StyleCounts,
+    styleCounts,
     type StyleExplanation,
     type UnboundLayer,
     unboundLayers,
@@ -148,7 +175,14 @@ import {
     specOf,
     type ValidationResult,
 } from "./Layer";
-import { buildLegend, type EncodingLookup, type FieldWords, type LegendBlock, type LegendSources } from "./legend";
+import {
+    buildLayerLegend,
+    buildLegend,
+    type EncodingLookup,
+    type FieldWords,
+    type LegendBlock,
+    type LegendSources,
+} from "./legend";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
@@ -180,6 +214,22 @@ export interface HighlightSpec {
     readonly set?: StaticStyle;
 }
 
+/**
+ * What `mark()` is asked for: a run that named a subset, and the channel values its chosen
+ * elements are painted with.
+ *
+ * The same fields as {@link HighlightSpec}, except that `set` is required: a mark is an ordinary
+ * layer that writes exactly the channels it names, and nothing about it follows the element's
+ * highlight colour.
+ */
+export interface MarkSpec extends HighlightSpec {
+    /**
+     * What a chosen element is painted. Channels of the half the run did not choose are ignored,
+     * so a route's `set` may name node and edge channels together.
+     */
+    readonly set: StaticStyle;
+}
+
 /** What applying a style document did, per layer. */
 export interface TemplateReport {
     /** The layers that bound and now paint, bottom first. */
@@ -202,7 +252,17 @@ export interface TemplateOptions extends RunOptions {
      * its own. That is what lets the whole import be swept away again in one call.
      */
     readonly templateId?: string;
+    /**
+     * Where the document's layers go: `"top"` (the default) above every layer, `"aboveBase"`
+     * directly above the element's own base layers and beneath every layer added since, or
+     * `{ before: id }` directly beneath one layer. A file's styles land above the base so that
+     * the layers a reader added stay on top of them.
+     */
+    readonly at?: TemplatePosition;
 }
+
+/** Where `applyTemplate` puts a document's layers. */
+export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId };
 
 /**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
@@ -323,13 +383,41 @@ export interface StylesApi {
      * over in place, keeping its id and its position, so a run that was encoded twice leaves one
      * layer and one legend block rather than two. Any other layer writing that channel is left
      * alone: an encoding replaces a derived layer, not a decision somebody made.
-     * @param spec - The run, the channel and the taste.
+     *
+     * A PLAIN DATA COLUMN is encoded the same way, with `column` in place of `run`. Whatever the
+     * spec leaves off is chosen from what the column measures (`session.data.declare`) and
+     * written into the new layer: one color per value for a categorical column, a ramp or a size
+     * range of 1 to 3 for a quantitative one, the declared order for an ordinal one. A later
+     * declaration or a new file never changes a layer that already exists. A column encoding adds
+     * a layer; it does not replace one.
+     *
+     * ```ts
+     * await session.styles.encode({ column: { kind: "node", name: "department" }, channel: "node.color" });
+     * ```
+     * @param spec - The run or the column, the channel and the taste.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer, and rejects with `E_UNKNOWN_RUN` for a run this
-     *     session does not hold, `E_UNKNOWN_ATTRIBUTE` for a field it does not publish, and
-     *     `E_BAD_COMMAND` when the result has nothing per element to bind a channel to.
+     *     session does not hold, `E_UNKNOWN_ATTRIBUTE` for a field or column that does not exist,
+     *     `E_BAD_COMMAND` when the result has nothing per element to bind a channel to, and with
+     *     the refusal's code (see {@link StylesApi.proposeEncoding}) when a column cannot be drawn
+     *     on the channel by default.
      */
-    encode(spec: EncodingSpec, options?: RunOptions): Run<Layer>;
+    encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
+    /**
+     * What `encode()` would store for a spec, without storing anything: the binding, or why the
+     * column or field cannot be drawn on that channel by default.
+     *
+     * SYNCHRONOUS and cheap: it reads the cached attribute descriptors, never the column, so a
+     * menu can ask it for every column and channel on every render.
+     *
+     * A refusal is a coded fact whose codes `EncodingRefusalCode` lists; a run spec's refusal carries
+     * the code `E_BAD_COMMAND` that `encode()` would reject with.
+     * @param spec - What `encode()` would be asked.
+     * @returns `{ ok: true, binding }` or `{ ok: false, refusal }`.
+     * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE`, `E_UNKNOWN_RUN` or `E_UNKNOWN_CHANNEL`
+     *     for something that does not exist.
+     */
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
     /**
      * Paint the elements a run chose: a route, a chosen set of nodes, a chosen set of edges.
      *
@@ -348,6 +436,24 @@ export interface StylesApi {
      */
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;
     /**
+     * Paint the elements a run chose with fixed channel values, as ordinary layers: what an
+     * algorithm's suggested style for a route, a chosen set of nodes or a chosen set of edges is.
+     *
+     * NOT EXCLUSIVE, unlike {@link StylesApi.highlight}: a mark stacks with every other layer, so
+     * two algorithms' marks both stay, and the one higher in the stack wins only on the elements
+     * both chose. Marking the same run's field again replaces that run's earlier mark rather than
+     * stacking a second copy. Each layer is scoped to the elements whose field is `true`, so an
+     * element the run did not choose is never painted.
+     *
+     * One layer per half the run chose and `set` names a channel of, so it resolves with a list.
+     * @param spec - The run, the field that says which elements it chose, and what they look like.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layers it added, bottom first, and rejects with
+     *     `E_UNKNOWN_RUN` for a run this session does not hold and `E_BAD_COMMAND` when the run
+     *     measured every element rather than choosing some, or `set` names nothing to paint.
+     */
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
+    /**
      * What the picture is telling a reader, derived from the encoding model and never from the
      * canvas.
      *
@@ -357,6 +463,17 @@ export interface StylesApi {
      *     {@link StylesApi.list} returns. Empty when nothing is bound to paint.
      */
     legend(): readonly LegendBlock[];
+    /**
+     * The legend blocks of one layer: what it paints, channel by channel, read the way
+     * {@link StylesApi.legend} reads it. Unlike `legend()`, a base layer is answered too, so a
+     * layer list can show every layer's paint (a fixed colour is one swatch). A hidden layer
+     * paints nothing and answers no blocks.
+     * @param id - The layer.
+     * @returns One block per channel the layer paints, fixed values included.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+     * @since 3.17.0
+     */
+    legendOf(id: LayerId): readonly LegendBlock[];
     /**
      * Resolve once the element has finished painting everything it started for itself.
      *
@@ -390,6 +507,35 @@ export interface StylesApi {
      */
     explain(target: ExplainTarget): StyleExplanation;
     /**
+     * How several elements look, channel by channel: whether they agree, and on what.
+     *
+     * The several-elements counterpart of {@link StylesApi.explain}, read through the same walk
+     * over the stack, so it says about each element what an explanation of that element says.
+     * Two elements agree on a channel only when they carry the same value AND the same layer
+     * decided it. The answer is counts, never lists of ids, and it costs one pass over the scope.
+     * @param scope - The elements to read: the selection, a kept set, a list of node ids, or any
+     *     other scope the session resolves.
+     * @param channel - One channel to restrict the answer to. Absent, every channel something
+     *     painted is answered.
+     * @returns Per channel, the value and deciding layer they all share or how they split, and how
+     *     many elements nothing painted on it.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     */
+    agreement(scope: Scope, channel?: Channel): StyleAgreement;
+    /**
+     * How many elements one layer covers, and on how many it decides each channel it writes.
+     *
+     * Read through the same walk over the stack as {@link StylesApi.explain} and
+     * {@link StylesApi.agreement}, so the three never disagree. Counts only, in one pass over the
+     * layer's kind of element. Re-read it when `revision` would change: on `style:changed`, and
+     * after a data or run change.
+     * @param id - The layer.
+     * @returns What it matches, where it wins each channel, and what it could not paint.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
+     * @since 3.16.0
+     */
+    counts(id: LayerId): StyleCounts;
+    /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
      * THE PAIRED VERB OF {@link StylesApi.explain}, which reports a channel worked out from the
@@ -407,6 +553,34 @@ export interface StylesApi {
      *     `E_BAD_COMMAND` when that layer works the channel out from nothing.
      */
     resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options?: RunOptions): Run<Layer>;
+    /**
+     * Hide or show the paint of one value of a layer's encoding -- one group of a community run's
+     * colours, say -- as one undoable step that is saved with the project.
+     *
+     * The value is hidden in `channel` and in every other channel of the layer that reads the same
+     * field, so a group drawn by colour and shape disappears from both; a channel reading another
+     * field is left alone, because a value of one field is not the same value in another. An
+     * element carrying it is drawn as the layers beneath paint it, as an unmeasured element is.
+     * The legend keeps the value's row, marked `hidden`, with the colour it comes back in. Values
+     * are compared as the legend spells them, so `0` and `"0"` are the same group; pass the
+     * `channel` and a swatch `value` of a legend block, or the `group` of a run summary's group.
+     * @param id - The layer, such as the one `encode()` returned.
+     * @param channel - The channel whose value it is, such as a legend block's `channel`.
+     * @param value - The value to hide or show.
+     * @param hidden - True to hide it, false to paint it again.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layer as it now stands (its bindings' `hidden` lists),
+     *     and rejects with `E_PROTECTED` for an element-owned layer, `E_UNKNOWN_LAYER` for an id
+     *     the stack does not hold, and `E_BAD_COMMAND` when the layer does not encode `channel`
+     *     from the data.
+     */
+    setValueHidden(
+        id: LayerId,
+        channel: Channel,
+        value: string | number | boolean,
+        hidden: boolean,
+        options?: RunOptions,
+    ): Run<Layer>;
     /**
      * Add a saved stack of layers to this one.
      *
@@ -511,6 +685,11 @@ export interface StyleChange {
      */
     readonly unresolvedPaths: readonly Path[];
     /**
+     * What the changed layers will paint nothing for, as codes; see
+     * {@link ValidationResult.warnings}. Empty for an undo, a redo, a restore or a rollback.
+     */
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
+    /**
      * What moved the stack: an edit (`"command"`), or an undo, a redo, a restore or a rollback,
      * which each publish one change per step they passed.
      */
@@ -547,6 +726,19 @@ export interface StylesSources {
      * checked would produce a selector that matches nothing and says nothing about why.
      */
     readonly runs?: EncodingSource;
+    /**
+     * Where a column encoding looks its column up. Absent, `encode({ column })` and
+     * `proposeEncoding({ column })` refuse with `E_UNSUPPORTED`.
+     */
+    readonly columns?: {
+        /** @returns What `session.data.attributes()` lists now. */
+        attributes(): readonly AttributeDescriptor[];
+        /**
+         * @param column - The column.
+         * @returns What it was declared to measure, if anything.
+         */
+        declaration(column: ColumnRef): MeasurementDeclaration | undefined;
+    };
     /**
      * The prepared bindings the last repaint painted from, by layer.
      *
@@ -595,6 +787,13 @@ export interface StylesSources {
      */
     readonly field?: (path: Path, target: SelectorTarget) => FieldWords | undefined;
     /**
+     * Each group's place by size in one run, from the run's `sizes` table, keyed by the group as
+     * a category name. Absent, a legend ranks a run's groups by their place among its swatches.
+     * @param runId - The run.
+     * @returns The rank by group, or undefined when the run has no sizes table.
+     */
+    readonly groupRanks?: (runId: RunId) => ReadonlyMap<string, number> | undefined;
+    /**
      * What paints the elements a change touched.
      *
      * THE SEAM, and the one thing this module does not do. Absent, an edit changes the stack and
@@ -629,6 +828,11 @@ export interface StylesSources {
      */
     readonly onChange?: (change: StyleChange) => void;
     /**
+     * A number that moves whenever the data or the run results change, which is half of what
+     * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
+     */
+    readonly inputRevision?: () => number;
+    /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
      * ever, and an edit issued afterwards is cancelled before it starts.
@@ -651,6 +855,9 @@ const NO_NOTES: readonly string[] = Object.freeze([]);
 
 /** No paths went unanswered. */
 const NO_PATHS: readonly Path[] = Object.freeze([]);
+
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
 
 /** A layer nothing prepared has no bindings to read. */
 const NO_BINDINGS: readonly PreparedBinding[] = Object.freeze([]);
@@ -693,13 +900,14 @@ const HALVES: readonly SelectorTarget[] = Object.freeze(["node", "edge"]);
  * asked: an encode that replaces a layer is an update to the repaint and an encode to the person
  * who called it, and both facts are worth keeping.
  */
-type StyleVerb = "encode" | "highlight" | "resolve" | "template" | RepaintReason;
+type StyleVerb = "encode" | "highlight" | "mark" | "resolve" | "template" | RepaintReason;
 
 /** Nothing qualifies a style edit's work: it is exact, it reads no weights, it samples nothing. */
 const EDIT_CAVEATS: Caveats = Object.freeze({
     direction: "as-loaded",
     exact: true,
     method: "layer-stack",
+    facts: [],
     notes: NO_NOTES,
     precision: "f64",
     seed: null,
@@ -716,6 +924,8 @@ interface EditPlan<T> {
     readonly layers: readonly LayerId[];
     /** The paths those layers read that nothing answers. */
     readonly unresolvedPaths: readonly Path[];
+    /** What those layers will paint nothing for, when the plan checked any. */
+    readonly warnings?: readonly CodedFact<GraphtyWarningCode>[];
     /**
      * What the change announcement says this edit was. Worked out by the plan, because an
      * `encode()` only knows whether it adds a layer or replaces one once it has looked at the
@@ -766,6 +976,21 @@ interface ImportedLayer {
     readonly spec: LayerSpec;
     /** The layer it compiled to, carrying the id it will keep. */
     readonly compiled: CompiledLayer;
+}
+
+/**
+ * The dense indices of the ids a scope resolved to, skipping any the session no longer holds.
+ * @param ids - The ids.
+ * @param indexOf - Where an id is resolved.
+ * @yields Each index, in the order the ids came.
+ */
+function* indicesOf<Id>(ids: Iterable<Id>, indexOf: (id: Id) => number | undefined): Generator<number> {
+    for (const id of ids) {
+        const index = indexOf(id);
+        if (index !== undefined) {
+            yield index;
+        }
+    }
 }
 
 /**
@@ -891,7 +1116,7 @@ function checkDocument(document: StyleDocument): void {
         throw new GraphtyError({
             code: "E_UNKNOWN_PALETTE",
             message:
-                `Nothing has registered the palette ${missing.map((id) => `"${id}"`).join(", ")}. ` +
+                `Nothing has registered the palette ${quoteEach(missing, ", ")}. ` +
                 "Register it with `registerPalette` before applying this document; applying it now would " +
                 "paint colours nobody chose.",
             source: "style",
@@ -949,6 +1174,24 @@ function carriedPalettes(specs: readonly LayerSpec[]): readonly PaletteDescripto
  */
 function badCommand(message: string, details: Readonly<Record<string, unknown>>): GraphtyError {
     return new GraphtyError({ code: "E_BAD_COMMAND", message, source: "style", details });
+}
+
+/**
+ * An error's details as a coded fact's params: the plain values only.
+ * @param details - The details.
+ * @returns The params.
+ */
+function plainParams(details: unknown): Record<string, CodedFactParam> {
+    const params: Record<string, CodedFactParam> = {};
+    for (const [key, value] of Object.entries((details ?? {}) as Record<string, unknown>)) {
+        const plain = (entry: unknown): boolean =>
+            entry === null || ["string", "number", "boolean"].includes(typeof entry);
+        if (plain(value) || (Array.isArray(value) && value.every(plain))) {
+            params[key] = value as CodedFactParam;
+        }
+    }
+
+    return params;
 }
 
 /**
@@ -1059,9 +1302,154 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget): Static
     return Object.keys(mine).length === 0 ? null : mine;
 }
 
+/**
+ * The field a highlight or a mark paints from, refusing a run that chose nothing to paint.
+ * @param run - The run.
+ * @param spec - The highlight or mark.
+ * @param exclusive - True for a highlight; false for a mark, which must name its channels.
+ * @returns The field.
+ * @throws `E_BAD_COMMAND` for a run that measured every element, or a mark naming no channel;
+ *     `E_UNKNOWN_ATTRIBUTE` for a field the run did not publish on a node or an edge.
+ */
+function chosenField(run: EncodingRun, spec: HighlightSpec, exclusive: boolean): string {
+    const verb = exclusive ? "highlight" : "mark";
+
+    if (!isHighlightShape(run.shape)) {
+        throw badCommand(
+            `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
+                `with encode() rather than with ${verb}().`,
+            { run: run.id, shape: run.shape },
+        );
+    }
+
+    if (!exclusive && spec.set === undefined) {
+        throw badCommand(`mark() paints only the channels its set names, and this one names none.`, {
+            run: run.id,
+        });
+    }
+
+    const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
+
+    if (!run.fields.some((entry) => entry.name === field && (entry.kind === "node" || entry.kind === "edge"))) {
+        const published = run.fields.map((entry) => entry.name);
+
+        throw new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
+            source: "style",
+            details: { run: run.id, field, available: published, candidates: nearestNames(field, published) },
+        });
+    }
+
+    return field;
+}
+
+/**
+ * What each half a run chose is painted: one entry per half the run chose AND the style has
+ * something to say about, so a route styled with an edge colour alone paints the route's edges and
+ * leaves its nodes to the layers underneath.
+ * @param run - The run.
+ * @param field - The field that says what it chose.
+ * @param set - The style, or undefined for the element's own highlight.
+ * @returns The style per half.
+ * @throws `E_BAD_COMMAND` when the style paints no half the run chose.
+ */
+function paintingOf(run: EncodingRun, field: string, set: StaticStyle | undefined): Map<SelectorTarget, StaticStyle> {
+    const chosen = run.fields.filter((entry) => entry.name === field);
+    const painting = new Map<SelectorTarget, StaticStyle>();
+
+    for (const half of HALVES) {
+        const style = chosen.some((entry) => entry.kind === half) ? halfOfStyle(set, half) : null;
+
+        if (style !== null) {
+            painting.set(half, style);
+        }
+    }
+
+    if (painting.size === 0) {
+        throw badCommand(
+            `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
+                `the run "${run.id}" chose, so it would paint nothing.`,
+            { run: run.id, field, set },
+        );
+    }
+
+    return painting;
+}
+
+/**
+ * Which layers a new highlight or mark takes out of the stack. A highlight replaces every other
+ * highlight. A mark replaces only this run's earlier mark of the same field, so marking it again
+ * does not stack a copy, and every other layer -- another algorithm's mark among them -- stays.
+ * @param exclusive - True for a highlight; false for a mark.
+ * @param runId - The run.
+ * @param where - The selector expression the new layers carry.
+ * @returns Whether a layer is replaced.
+ */
+function replacedBy(exclusive: boolean, runId: RunId, where: string): (layer: Layer) => boolean {
+    if (exclusive) {
+        return (layer) => layer.kind === "highlight";
+    }
+
+    return (layer) =>
+        layer.kind !== "highlight" &&
+        layer.source.by === "run" &&
+        layer.source.runId === runId &&
+        layer.selector.match === "expression" &&
+        layer.selector.where === where;
+}
+
 // ---------------------------------------------------------------------------------------------
 // The model
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * The patch that hides or shows one value in the bindings of a layer that read one field.
+ *
+ * Only the bindings reading the same field as `channel` are touched: a value of one field is not
+ * the same value in another, so hiding community 2 must not hide the nodes whose degree is 2.
+ * @param layer - The layer, or undefined when the stack holds none with that id.
+ * @param channel - The channel whose field the value belongs to.
+ * @param value - The value.
+ * @param hidden - Whether to hide it.
+ * @returns The patch: the layer's whole `encode` with the matching bindings' `hidden` lists
+ *   updated, or nothing to change for a layer that is not there (the update then refuses it).
+ * @throws `E_BAD_COMMAND` when the layer does not encode `channel` from the data.
+ */
+function hiddenValuePatch(
+    layer: Layer | undefined,
+    channel: Channel,
+    value: string | number | boolean,
+    hidden: boolean,
+): Partial<LayerSpec> {
+    if (layer === undefined) {
+        return {};
+    }
+
+    const own = layer.encode?.[channel];
+    if (own === undefined || !("by" in own)) {
+        throw badCommand(`Layer ${layer.id} does not encode ${channel} from the data, so it has no value to hide.`, {
+            id: layer.id,
+            channel,
+        });
+    }
+
+    const encode: Encoding = {};
+    for (const [name, binding] of Object.entries(layer.encode ?? {}) as [Channel, Binding][]) {
+        if (!("by" in binding) || binding.by !== own.by) {
+            encode[name] = binding;
+            continue;
+        }
+
+        // The same spelling the legend compares by: 0 and "0" are one value.
+        const kept = (binding.hidden ?? []).filter((entry) => String(entry) !== String(value));
+        const list = hidden ? [...kept, value] : kept;
+        const { hidden: _previous, ...rest } = binding;
+        encode[name] = list.length === 0 ? rest : { ...rest, hidden: list };
+    }
+
+    return { encode };
+}
 
 /**
  * Build the style stack one session holds.
@@ -1082,6 +1470,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         readonly byId: ReadonlyMap<LayerId, CompiledLayer>;
     } | null = null;
     let edits = 0;
+    /** How many `style:changed` events this stack has published, for {@link StyleCounts.revision}. */
+    let styleRevision = 0;
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
@@ -1150,12 +1540,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
     };
 
+    /**
+     * The elements a scope resolves to, as dense indices.
+     * @param scope - The scope.
+     * @returns Its nodes and edges.
+     */
+    const elementsOf = (scope: Scope): AgreementElements => {
+        const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+
+        return {
+            nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
+            edges: indicesOf(resolved.edges, (id) => explainSources.edgeIndex(id)),
+        };
+    };
+
     /** What a legend is read from. */
     const legendSources: LegendSources = {
         layers: listLayers,
         encoding: encodingOf,
         scales,
         ...(sources.field === undefined ? {} : { field: sources.field }),
+        ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         // Only a `{match:"has"}` layer below can be answered: its elements are the ones a column
         // lists, and each is put to the compiled test of the layer above. Every other shape would
         // need a walk over the whole graph, and a legend is read on every style change.
@@ -1464,11 +1869,78 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * Where a style document's layers go.
+     * @param at - The position, or undefined for the top.
+     * @returns The index they are inserted at, bottom first.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a position that is none of the three, and
+     *     `E_UNKNOWN_LAYER` when the layer to sit beneath is not in the stack.
+     */
+    const templateIndex = (at: TemplatePosition | undefined): number => {
+        const stack = current();
+        if (at === undefined || at === "top") {
+            return stack.length;
+        }
+
+        if (at === "aboveBase") {
+            // Directly above the last of the element's own base layers, wherever it sits.
+            let index = 0;
+            stack.forEach((entry, position) => {
+                const { source } = entry.layer;
+                if (source.by === "element" && source.reason === "default") {
+                    index = position + 1;
+                }
+            });
+            return index;
+        }
+
+        if (typeof at === "object" && at !== null && typeof at.before === "string") {
+            require(at.before);
+            return positionOf(at.before);
+        }
+
+        throw badCommand('A style document goes at "top", "aboveBase" or { before: <layer id> }.', { field: "at" });
+    };
+
+    /**
      * The runs this session can look up, or the refusal a session that cannot look one up gives.
      * @param verb - What was being attempted, for the refusal.
      * @returns Where a run is looked up.
      * @throws A `GraphtyError` with code `E_UNSUPPORTED` when no lookup was handed in.
      */
+    /**
+     * The column a column encoding names, and its declaration.
+     * @param spec - The column encoding.
+     * @returns The column's descriptor and declaration.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` in a session with no columns, and
+     *     `E_UNKNOWN_ATTRIBUTE` for a column no record carries.
+     */
+    const columnOf = (
+        spec: ColumnEncodingSpec,
+    ): { column: AttributeDescriptor; declaration: MeasurementDeclaration | undefined } => {
+        const { columns } = sources;
+        if (columns === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session holds no data columns to encode.",
+                source: "style",
+                details: { op: "styles.encode" },
+            });
+        }
+
+        const column = resolveColumn(columns.attributes(), spec.column);
+        return { column, declaration: columns.declaration(column) };
+    };
+
+    /**
+     * The layer a column encoding adds, with its defaults written in.
+     * @param spec - The column encoding.
+     * @returns The layer.
+     */
+    const planColumn = (spec: ColumnEncodingSpec): LayerSpec => {
+        const { column, declaration } = columnOf(spec);
+        return planColumnEncoding(spec, column, declaration, scales);
+    };
+
     const requireRuns = (verb: string): EncodingSource => {
         const { runs } = sources;
 
@@ -1502,6 +1974,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             result: checked.layer.layer,
             layers: [checked.layer.layer.id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            warnings: checked.result.warnings,
             reason: "add",
         };
     };
@@ -1541,6 +2014,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             result: checked.layer.layer,
             layers: [id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            warnings: checked.result.warnings,
             reason: "update",
         };
     };
@@ -1673,72 +2147,30 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             result: checked.layer.layer,
             layers: [id],
             unresolvedPaths: checked.result.unresolvedPaths,
+            warnings: checked.result.warnings,
             reason: "update",
         };
     };
 
     /**
-     * The plan for a highlight, which takes every other highlight out first.
-     * @param spec - The highlight, naming its run by id.
+     * The plan for a highlight, which takes every other highlight out first, or for a mark, which
+     * is an ordinary layer and replaces only the same run's earlier mark of the same field.
+     * @param spec - The highlight or mark, naming its run by id.
      * @param beneath - Place it beneath the authored layers driving a colour it paints.
+     * @param exclusive - True for a highlight; false for a mark.
      * @returns The plan.
      */
     const planHighlight = (
-        spec: Extract<StylePatchCommand, { action: "highlight" }>["spec"],
+        spec: Extract<StylePatchCommand, { action: "highlight" | "mark" }>["spec"],
         beneath = false,
+        exclusive = true,
     ): EditPlan<readonly Layer[]> => {
-        const run = requireRun(spec.run, requireRuns("highlight"));
-
-        if (!isHighlightShape(run.shape)) {
-            throw badCommand(
-                `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
-                    "with encode() rather than highlighted.",
-                { run: run.id, shape: run.shape },
-            );
-        }
-
-        const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
-        const chosen = run.fields.filter((entry) => entry.name === field);
-
-        if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
-            const published = run.fields.map((entry) => entry.name);
-
-            throw new GraphtyError({
-                code: "E_UNKNOWN_ATTRIBUTE",
-                message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
-                source: "style",
-                details: {
-                    run: run.id,
-                    field,
-                    available: published,
-                    candidates: nearestNames(field, published),
-                },
-            });
-        }
-
-        // One entry per half the run chose AND the style has something to say about, so a route
-        // styled with an edge colour alone paints the route's edges and leaves its nodes to the
-        // layers underneath.
-        const painting = new Map<SelectorTarget, StaticStyle>();
-
-        for (const half of HALVES) {
-            const set = chosen.some((entry) => entry.kind === half) ? halfOfStyle(spec.set, half) : null;
-
-            if (set !== null) {
-                painting.set(half, set);
-            }
-        }
-
-        if (painting.size === 0) {
-            throw badCommand(
-                `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
-                    `the run "${run.id}" chose, so the highlight would paint nothing.`,
-                { run: run.id, field, set: spec.set },
-            );
-        }
-
+        const run = requireRun(spec.run, requireRuns(exclusive ? "highlight" : "mark"));
+        const field = chosenField(run, spec, exclusive);
+        const painting = paintingOf(run, field, spec.set);
         const path = resultPath(run.id, field);
-        const called = spec.name ?? run.label;
+        const where = `${quotePath(path)} == \`true\``;
+        const called = spec.name ?? englishRunLabel(run);
         const id = minter();
         const added: CompiledLayer[] = [];
         const unresolved = new Set<Path>();
@@ -1747,12 +2179,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const layerSpec: LayerSpec = {
                 name: painting.size > 1 ? `${called} (${half}s)` : called,
                 target: half,
-                kind: "highlight",
+                kind: exclusive ? "highlight" : "encoding",
                 // The membership column carries FALSE for the elements the run looked at and did
                 // not choose, so a presence test would paint the whole neighbourhood of a route in
                 // the colour of the route. The value is what says "chosen", so the value is what
                 // is asked about.
-                selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
+                selector: { match: "expression", where },
                 set,
                 source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
             };
@@ -1770,10 +2202,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const stack = current();
+        const replaced = replacedBy(exclusive, run.id, where);
         const removing = new Set(
-            stack
-                .filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight")
-                .map((entry) => entry.layer.id),
+            stack.filter((entry) => !entry.layer.locked && replaced(entry.layer)).map((entry) => entry.layer.id),
         );
 
         const kept = stack.filter((entry) => !removing.has(entry.layer.id));
@@ -1797,14 +2228,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The plan for applying a style document: every layer lands, bound or disabled, or none does.
      * @param document - The document.
      * @param templateId - What to record as the template.
+     * @param at - Where the layers go.
      * @returns The plan.
      */
-    const planTemplate = (document: StyleDocument, templateId: string | undefined): EditPlan<TemplateReport> => {
+    const planTemplate = (
+        document: StyleDocument,
+        templateId: string | undefined,
+        at: TemplatePosition | undefined,
+    ): EditPlan<TemplateReport> => {
         checkDocument(document);
+        const index = templateIndex(at);
 
         const id = minter();
         const imported: ImportedLayer[] = [];
         const unresolved = new Set<Path>();
+        const warnings: CodedFact<GraphtyWarningCode>[] = [];
 
         for (const spec of document.layers) {
             const authored = stamped(spec, templateId);
@@ -1830,6 +2268,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 unresolved.add(unanswered);
             }
 
+            warnings.push(...checked.result.warnings);
+
             imported.push({ spec: authored, compiled: checked.layer });
         }
 
@@ -1854,8 +2294,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return off.layer;
         });
 
+        const stack = [...current()];
+        stack.splice(index, 0, ...final);
+
         return {
-            stack: [...current(), ...final],
+            stack,
             result: Object.freeze({
                 applied: Object.freeze(
                     final.filter((entry) => !disabled.has(entry.layer.id)).map((entry) => entry.layer.id),
@@ -1864,6 +2307,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }),
             layers: final.map((entry) => entry.layer.id),
             unresolvedPaths: Object.freeze([...unresolved]),
+            warnings: Object.freeze(warnings),
             reason: "add",
         };
     };
@@ -1879,7 +2323,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            return planTemplate(command.document, command.templateId);
+            return planTemplate(command.document, command.templateId, command.at);
         }
 
         switch (command.action) {
@@ -1906,6 +2350,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planSweep(command.ids);
             case "highlight":
                 return planHighlight(command.spec, command.beneathAuthored);
+            case "mark":
+                return planHighlight(command.spec, command.beneathAuthored, false);
             case "resolveToStatic":
                 // The value and the patch are worked out by the same reading that reported the
                 // channel uneditable, and applied by the same update any other patch goes through.
@@ -1941,13 +2387,19 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
             painted.catch(() => undefined);
             announcements.push({
-                change: { reason: planned.reason, layers: planned.layers, unresolvedPaths: planned.unresolvedPaths },
+                change: {
+                    reason: planned.reason,
+                    layers: planned.layers,
+                    unresolvedPaths: planned.unresolvedPaths,
+                    warnings: planned.warnings ?? NO_WARNINGS,
+                },
                 settle,
                 refuse,
             });
 
             return { result: planned.result, painted } satisfies EditOutcome<unknown>;
         },
+        validate: (spec) => check(spec, mint(spec.name)).result,
     };
 
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
@@ -1979,6 +2431,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 each.refuse(failure);
             }
 
+            styleRevision++;
             sources.onChange?.({ ...each.change, painted, cause: "command" });
         }
     });
@@ -1989,11 +2442,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
         if (change.cause !== "command" && change.slices.includes("styles")) {
+            styleRevision++;
             sources.onChange?.({
                 reason: lastPass.reason,
                 layers: lastPass.layers,
                 painted: lastPass.painted,
                 unresolvedPaths: NO_PATHS,
+                warnings: NO_WARNINGS,
                 cause: change.cause,
             });
         }
@@ -2080,7 +2535,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        encode(spec: EncodingSpec, options: RunOptions = {}): Run<Layer> {
+        encode(spec: EncodingSpec | ColumnEncodingSpec, options: RunOptions = {}): Run<Layer> {
+            if ("column" in spec) {
+                // Planned when the edit runs and stored as a plain layer, so undo, redo and a
+                // replay draw exactly the binding chosen now.
+                return edit<Layer>(
+                    "encode",
+                    `Encode ${spec.channel}`,
+                    () => ({ op: "style.patch", action: "add", spec: planColumn(spec) }),
+                    options,
+                );
+            }
+
             return edit<Layer>(
                 "encode",
                 `Encode ${spec.channel}`,
@@ -2089,11 +2555,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
+        proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal {
+            if ("column" in spec) {
+                const { column, declaration } = columnOf(spec);
+                return proposeColumnBinding(spec, column, declaration, scales);
+            }
+
+            try {
+                const planned = planEncoding(spec, requireRuns("proposeEncoding"));
+                return { ok: true, binding: planned.encode?.[spec.channel] as Extract<Binding, { by: Path }> };
+            } catch (error) {
+                if (!(error instanceof GraphtyError) || error.code !== "E_BAD_COMMAND") {
+                    throw error;
+                }
+
+                return { ok: false, refusal: { code: error.code, params: plainParams(error.details) } };
+            }
+        },
+
         highlight(spec: HighlightSpec, options: RunOptions = {}): Run<readonly Layer[]> {
             return edit<readonly Layer[]>(
                 "highlight",
                 "Highlight a result",
                 { op: "style.patch", action: "highlight", spec: { ...spec, run: runIdOf(spec.run) } },
+                options,
+            );
+        },
+
+        mark(spec: MarkSpec, options: RunOptions = {}): Run<readonly Layer[]> {
+            return edit<readonly Layer[]>(
+                "mark",
+                "Mark a result",
+                { op: "style.patch", action: "mark", spec: { ...spec, run: runIdOf(spec.run) } },
                 options,
             );
         },
@@ -2107,6 +2600,31 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
+        setValueHidden(
+            id: LayerId,
+            channel: Channel,
+            value: string | number | boolean,
+            hidden: boolean,
+            options: RunOptions = {},
+        ): Run<Layer> {
+            return edit<Layer>(
+                "update",
+                `${hidden ? "Hide" : "Show"} ${String(value)} on layer ${id}`,
+                (state) => ({
+                    op: "style.patch",
+                    action: "update",
+                    id,
+                    patch: hiddenValuePatch(
+                        state.styles.find((entry) => entry.layer.id === id)?.layer,
+                        channel,
+                        value,
+                        hidden,
+                    ),
+                }),
+                options,
+            );
+        },
+
         applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
             return edit<TemplateReport>(
                 "template",
@@ -2115,6 +2633,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.template",
                     document,
                     ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
+                    ...(options.at === undefined ? {} : { at: options.at }),
                 },
                 options,
             );
@@ -2122,6 +2641,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         legend(): readonly LegendBlock[] {
             return buildLegend(legendSources);
+        },
+
+        legendOf(id: LayerId): readonly LegendBlock[] {
+            const blocks = buildLayerLegend(legendSources, id);
+
+            if (blocks === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNKNOWN_LAYER",
+                    message: `There is no style layer with the id "${id}".`,
+                    source: "style",
+                    target: { kind: "layer", id },
+                    details: { id, known: listLayers().map((layer) => layer.id) },
+                });
+            }
+
+            return blocks;
         },
 
         async settled(): Promise<void> {
@@ -2133,6 +2668,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         explain(target: ExplainTarget): StyleExplanation {
             return explainStyle(target, explainSources);
+        },
+
+        agreement(scope: Scope, channel?: Channel): StyleAgreement {
+            return styleAgreement(elementsOf(scope), explainSources, channel);
+        },
+
+        counts(id: LayerId): StyleCounts {
+            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+            return styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
@@ -2218,7 +2763,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             for (const { layer, channels } of stale) {
                 const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
                 for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] } as Binding;
+                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
                     defaulted.add(`${layer.id}/${channel}`);
                 }
 

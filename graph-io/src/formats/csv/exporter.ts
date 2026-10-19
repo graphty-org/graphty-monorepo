@@ -4,7 +4,7 @@
  * <attributes>` in the generic one) or, with `table: "nodes"`, the node table (`Id,Label,
  * <attributes>`), RFC 4180 quoted, one row per logical edge with expanded pairs folded back
  * through the `pair` role column; or, with `table: "adjacency"`, an adjacency table: a node and its
- * neighbours per row (`id:weight` for an explicit weight), no header, no attribute columns.
+ * neighbors per row (`id:weight` for an explicit weight), no header, no attribute columns.
  *
  * What survives a re-import exactly: ids (as text under the canonical rule), topology and
  * orientation, explicit weights (blank cells for defaulted ones), the per-row direction of the
@@ -18,11 +18,18 @@
  *
  * The adjacency table keeps ids, the node order, isolated nodes, the edge order, orientation and
  * explicit weights: consecutive edges with the same source share a row, a node the rows would
- * otherwise introduce out of index order gets a row of its own first, and a neighbour id holding a
+ * otherwise introduce out of index order gets a row of its own first, and a neighbor id holding a
  * colon is written `id:` when it has no weight so the importer does not read its tail as one.
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import {
+    type Column,
+    type F32Column,
+    type F64Column,
+    GraphFormatError,
+    type GraphSnapshot,
+    type NodeId,
+} from "@graphty/graph-format";
 
 import { DICT_SAMPLE_ROWS, DictHeuristic } from "../../common/attributes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
@@ -31,7 +38,8 @@ import { capabilities, checkCapabilities, countMixedEdges, LOSS } from "../../co
 import { formatDecimal, formatInteger } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
-import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { inferTextDtype, type TextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
@@ -39,31 +47,59 @@ import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, 
 import { EDGE_ID_NAMES, findColumn, LABEL_NAMES } from "./header.js";
 import { DELIMITER_CANDIDATES } from "./records.js";
 
-/** The format-specific options of the CSV exporter. */
-export interface CsvExportOptions {
+/**
+ * The format-specific options of the CSV exporter.
+ * @category Built-in formats
+ */
+export interface CsvExportOptions extends CommonExportOptions {
     /**
-     * The header spelling: "gephi" (default) writes `Source,Target,Type,...,Weight` with the per-row
-     * direction; "generic" writes `source,target,...,weight` and no direction column.
+     * The header spelling: "gephi" writes `Source,Target,Type,...,Weight`, with each edge's
+     * direction in `Type`; "generic" writes `source,target,...,weight` and no direction column. A JSON
+     * dialect name, from an options object shared with JSON saves, is ignored.
+     * @defaultValue "gephi"
      */
     dialect?: "gephi" | "generic" | undefined;
     /**
-     * Which table to write: the edge table (default), the node table, or an adjacency table (a node
-     * and its neighbours per row; read back with the importer's `table: "adjacency"`).
+     * Which table to write. "edges": one edge per row, with the edge attributes; isolated nodes and
+     * node attributes are not in it. "nodes": one node per row, with the node attributes and no
+     * edges. "adjacency": a node and its neighbors per row, which keeps every node and the node
+     * order but no attributes (read it back with `table: "adjacency"`). To keep both nodes and
+     * edges, write the node table and the edge table to two files and read them back with the
+     * `nodes` import option.
+     * @defaultValue "edges"
      */
     table?: "edges" | "nodes" | "adjacency" | undefined;
-    /** The field delimiter; "," by default. */
+    /**
+     * The field delimiter.
+     * @defaultValue ","
+     */
     delimiter?: string | undefined;
-    /** The line terminator; "\n" by default. */
+    /**
+     * The line terminator.
+     * @defaultValue "\n"
+     */
     newline?: "\n" | "\r\n" | undefined;
-    /** Whether to write the header row; true by default (an adjacency table never has one). */
+    /**
+     * Whether to write the header row (an adjacency table never has one). A file without a header is
+     * read back by position: source, target, weight, then unnamed columns. checkExport() returns
+     * W_CSV_HEADERLESS when the table has other columns; for a plain headerless edge list, pass
+     * `dialect: "generic"` and write a graph whose edges have only weights.
+     * @defaultValue true
+     */
     header?: boolean | undefined;
 }
 
-/** The CSV loss-note codes of check(); the shared ones are LOSS's. */
+/**
+ * The CSV loss-note codes of check(); the shared ones are LOSS's.
+ * @category Built-in formats
+ */
 export const CSV_LOSS = Object.freeze({
-    /** Two node ids share one text (a number and a string); export() throws E_INVALID_ID. */
+    /**
+     * Two node ids would be written as the same text (the number 5 and the text "5"); the save fails with
+     * E_INVALID_ID.
+     */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
-    /** Ids whose text reads back as the other type under the canonical rule. */
+    /** Ids that read back as a different type, such as the text "7" as the number 7. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
      * The generic dialect has no direction column; an undirected or mixed graph reads back as
@@ -75,29 +111,54 @@ export const CSV_LOSS = Object.freeze({
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
     /** An attribute column named like a reserved header is not written. */
     RESERVED_NAME: "W_CSV_RESERVED_NAME",
-    /** A column without a role that the importer gives one back by its name. */
+    /**
+     * An attribute without a role is written where the format keeps a role (for example, a `name` column as the label), and
+     * reads back with that role.
+     */
     ROLE_ASSUMED: LOSS.ROLE_ASSUMED,
-    /** A role column (id, label) whose name the importer does not recognise; the role is lost. */
+    /** A role column (id, label) whose name the importer does not recognize; the role is lost. */
     ROLE_NAME: "W_CSV_ROLE_NAME",
-    /** A role column (id, label) that is not string / dict reads back as string. */
+    /** An id or label attribute that is not text reads back as text. */
     TEXT_ROLE: "W_CSV_TEXT_ROLE",
     /** NaN / Infinity in a numeric column read back as text. */
     NONFINITE: "W_CSV_NONFINITE",
-    /** A text column whose every value reads back as a number or boolean. */
+    /**
+     * A text value that reads back as a number or a boolean, because the format does not record that it was text (the
+     * text "42" reads back as the number 42).
+     */
     TEXT_INFERRED: LOSS.TEXT_INFERRED,
-    /** A dict column whose cardinality makes the importer read it back as string, or the reverse. */
+    /**
+     * A text attribute reads back as a dictionary attribute, or the reverse, because the importer chooses by how often
+     * its values repeat. The values are the same.
+     */
     STORAGE_CLASS_CHANGED: LOSS.STORAGE_CLASS,
     /** Node attributes are written by a `table: "nodes"` export only. */
     NODE_TABLE: "W_CSV_NODE_TABLE",
-    /** The edge table carries no node without an edge: isolated nodes vanish on re-import. */
+    /**
+     * The edge table has no row for a node without edges, so isolated nodes are missing when the file is read back.
+     * Write the node table too (`table: "nodes"`).
+     */
     ISOLATED_NODES: "W_CSV_ISOLATED_NODES",
-    /** The edge table lists nodes by first appearance; the node order (and indices) change on re-import. */
+    /**
+     * The edge table lists nodes in the order they first appear in an edge, so the node order changes when the file is
+     * read back.
+     */
     NODE_ORDER: "W_CSV_NODE_ORDER",
     /** An adjacency table holds no edge column but the weight: edge ids, labels and attributes are not written. */
     EDGE_COLUMNS: "W_CSV_EDGE_COLUMNS",
+    /**
+     * `header: false` with columns a file without a header cannot name: graph-io reads such a file by position
+     * (source, target, weight, then columns it names column4, column5, ...), so these columns read back under other
+     * names or in the wrong place (for example, an edge id in the weight's place). Write the header, or write only source,
+     * target and weight with `dialect: "generic"`.
+     */
+    HEADERLESS: "W_CSV_HEADERLESS",
 });
 
-/** What the CSV format keeps as declared. */
+/**
+ * What the CSV format keeps as declared.
+ * @category Built-in formats
+ */
 export const CSV_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: true,
     multiEdges: true,
@@ -190,7 +251,12 @@ function resolveCsvExportOptions(
     options: (CsvExportOptions & CommonExportOptions) | undefined,
 ): ResolvedCsvExportOptions {
     const o: CsvExportOptions = options ?? {};
-    if (o.dialect !== undefined && o.dialect !== "gephi" && o.dialect !== "generic") {
+    if (
+        o.dialect !== undefined &&
+        o.dialect !== "gephi" &&
+        o.dialect !== "generic" &&
+        !otherFormatDialect("csv", o.dialect)
+    ) {
         throw new GraphFormatError("E_UNSUPPORTED", 'option dialect: expected "gephi" or "generic"', {
             option: "dialect",
             found: o.dialect,
@@ -235,7 +301,8 @@ function resolveCsvExportOptions(
         });
     }
     return {
-        dialect: DIALECTS[o.dialect ?? "gephi"],
+        // another format's dialect (a JSON "d3" in a shared options object) leaves CSV's default
+        dialect: DIALECTS[o.dialect === "generic" ? "generic" : "gephi"],
         table: o.table ?? "edges",
         delimiter: o.delimiter ?? ",",
         newline: o.newline ?? "\n",
@@ -312,15 +379,50 @@ function cellText(column: Column, row: number): string | null {
 }
 
 /**
- * Build the plan of an export: resolve options, choose the rows and columns, and collect the
- * CSV-specific loss notes (check() adds the generic ones). The value-level notes need a pass over
- * every written cell and are collected for check() only; export() needs the plan and the fatal
- * id-collision note alone.
- * @param snapshot - the snapshot
- * @param options - the caller's options
- * @param values - whether to scan the values for notes
- * @returns the plan
+ * W_CSV_NODE_TABLE: the node columns an edge-table or adjacency export leaves for a second, node-table export.
+ * @param names - the node columns, label first
+ * @param table - the table being written ("edges" or "adjacency")
+ * @param notes - receives the note
  */
+function nodeTableNote(names: readonly string[], table: string, notes: LossNote[]): void {
+    const written = names.length;
+    if (written > 0) {
+        const shown =
+            names
+                .slice(0, 3)
+                .map((n) => JSON.stringify(n))
+                .join(", ") + (written > 3 ? ", ..." : "");
+        notes.push(
+            Object.freeze({
+                code: CSV_LOSS.NODE_TABLE,
+                message: `the ${table === "adjacency" ? "adjacency" : "edge"} table has no room for node attributes: ${written} node column${plural(written)} (${shown}) ${agree(written, "is", "are")} written only by a second export with table: "nodes"`,
+                column: null,
+                count: written,
+                columns: Object.freeze([...names]),
+            }),
+        );
+    }
+}
+
+/**
+ * The number of node ids whose text an earlier id already has (a number and a string).
+ * @param ids - the snapshot's ids
+ * @returns the collisions
+ */
+function idTextCollisions(ids: GraphSnapshot["ids"]): number {
+    const seen = new Set<string>();
+    let collisions = 0;
+    for (let i = 0; i < ids.size; i++) {
+        const text = String(ids.idOf(i));
+        if (seen.has(text)) {
+            collisions++;
+        } else {
+            seen.add(text);
+        }
+    }
+    return collisions;
+}
+
 /**
  * The id notes: text collisions are fatal (export() throws E_INVALID_ID); type changes under the
  * canonical re-read are reported.
@@ -335,20 +437,11 @@ function idNotes(
 ): void {
     const { ids } = snapshot;
     if (ids.kind === "mixed") {
-        const seen = new Set<string>();
-        let collisions = 0;
-        for (let i = 0; i < ids.size; i++) {
-            const text = String(ids.idOf(i));
-            if (seen.has(text)) {
-                collisions++;
-            } else {
-                seen.add(text);
-            }
-        }
+        const collisions = idTextCollisions(ids);
         if (collisions > 0) {
             note(
                 CSV_LOSS.ID_TEXT_COLLISION,
-                `${collisions} node id(s) share their text with another id (a number and a string); export() will throw E_INVALID_ID`,
+                `${collisions} node id${plural(collisions)} ${agree(collisions, "shares", "share")} their text with another id (a number and a string); the save fails with E_INVALID_ID`,
                 null,
                 collisions,
             );
@@ -365,7 +458,7 @@ function idNotes(
         if (changed > 0) {
             note(
                 CSV_LOSS.ID_TEXT_TYPE,
-                `${changed} node id(s) read back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
+                `${changed} node id${plural(changed)} ${agree(changed, "reads", "read")} back as the other type under ids: "canonical" (a string "1" becomes 1, a number 1.5 becomes "1.5")`,
                 null,
                 changed,
             );
@@ -373,6 +466,16 @@ function idNotes(
     }
 }
 
+/**
+ * Build the plan of an export: resolve options, choose the rows and columns, and collect the
+ * CSV-specific loss notes (check() adds the generic ones). The value-level notes need a pass over
+ * every written cell and are collected for check() only; export() needs the plan and the fatal
+ * id-collision note alone.
+ * @param snapshot - the snapshot
+ * @param options - the caller's options
+ * @param values - whether to scan the values for notes
+ * @returns the plan
+ */
 function planExport(
     snapshot: GraphSnapshot,
     options: (CsvExportOptions & CommonExportOptions) | undefined,
@@ -396,36 +499,11 @@ function planExport(
             edgeRows.push(e);
         }
     }
-    if (csv.dialect.type === null || csv.table === "adjacency") {
-        const where = csv.table === "adjacency" ? "an adjacency table" : "the generic dialect";
-        const mixed = countMixedEdges(snapshot);
-        if (!snapshot.directed) {
-            note(
-                CSV_LOSS.DIRECTION_DROPPED,
-                `${where} has no direction column; ${snapshot.edgeCount} undirected edge(s) read back as directed unless the importer is told otherwise`,
-                null,
-                snapshot.edgeCount,
-            );
-        } else if (mixed > 0) {
-            note(
-                CSV_LOSS.DIRECTION_DROPPED,
-                `${where} has no direction column; ${mixed} undirected edge(s) of a mixed graph read back as one directed edge each`,
-                null,
-                mixed,
-            );
-        }
-    } else if (csv.table === "edges" && !snapshot.directed && edgeRows.length === 0) {
-        note(
-            CSV_LOSS.DIRECTION_DROPPED,
-            "the direction lives in the Type cell of each edge row; an undirected graph without edges reads back as directed",
-            null,
-            0,
-        );
-    }
-    if (folding.mutualCount > 0) {
+    directionNotes(snapshot, csv, edgeRows.length, note);
+    if (folding.mutualCount > 0 && csv.table !== "nodes") {
         note(
             CSV_LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed rows; the mutual mark is lost`,
+            `${folding.mutualCount} mutual pair${plural(folding.mutualCount)} ${agree(folding.mutualCount, "is", "are")} written as two directed rows; the mutual mark is lost`,
             null,
             folding.mutualCount,
         );
@@ -437,7 +515,95 @@ function planExport(
     // weights
     const weights = explicitWeights(snapshot);
 
-    // the edge table's columns
+    const { edgeId, edgeLabel, edgeColumns } = planEdgeColumns(snapshot, csv, edgeRows, values, note);
+    const { nodeLabel, nodeColumns } = planNodeColumns(snapshot, csv, values, note);
+    if (csv.table !== "nodes") {
+        nodeTableNote(
+            [...(nodeLabel === null ? [] : [nodeLabel.meta.name]), ...nodeColumns.map((c) => c.column.meta.name)],
+            csv.table,
+            notes,
+        );
+    }
+
+    return {
+        csv,
+        common,
+        notes,
+        edgeRows,
+        folding,
+        edgeId,
+        edgeLabel,
+        weights,
+        edgeColumns,
+        nodeLabel,
+        nodeColumns,
+        idText,
+    };
+}
+
+/** Records one loss note. */
+type NoteFn = (code: string, message: string, column?: string | null, count?: number | null) => void;
+
+/**
+ * W_CSV_DIRECTION_DROPPED: a table with no direction column (the generic dialect, an adjacency
+ * table) loses the direction of undirected edges, and the Gephi edge table of an undirected graph
+ * without edges has no Type cell to carry it. A node table holds no edge, so it gets no note.
+ * @param snapshot - the snapshot
+ * @param csv - the resolved CSV options
+ * @param edgeRowCount - how many edge rows are written
+ * @param note - the recorder
+ */
+function directionNotes(
+    snapshot: GraphSnapshot,
+    csv: ResolvedCsvExportOptions,
+    edgeRowCount: number,
+    note: NoteFn,
+): void {
+    if (csv.table !== "nodes" && (csv.dialect.type === null || csv.table === "adjacency")) {
+        const where = csv.table === "adjacency" ? "an adjacency table" : "the generic dialect";
+        const mixed = countMixedEdges(snapshot);
+        if (!snapshot.directed) {
+            note(
+                CSV_LOSS.DIRECTION_DROPPED,
+                `${where} has no direction column; ${snapshot.edgeCount} undirected edge${plural(snapshot.edgeCount)} ${agree(snapshot.edgeCount, "reads", "read")} back as directed unless the importer is told otherwise`,
+                null,
+                snapshot.edgeCount,
+            );
+        } else if (mixed > 0) {
+            note(
+                CSV_LOSS.DIRECTION_DROPPED,
+                `${where} has no direction column; ${mixed} undirected edge${plural(mixed)} of a mixed graph read back as one directed edge each`,
+                null,
+                mixed,
+            );
+        }
+    } else if (csv.table === "edges" && !snapshot.directed && edgeRowCount === 0) {
+        note(
+            CSV_LOSS.DIRECTION_DROPPED,
+            "the direction lives in the Type cell of each edge row; an undirected graph without edges reads back as directed",
+            null,
+            0,
+        );
+    }
+}
+
+/**
+ * The edge table's columns, with their notes: the attribute columns' names (edge table only), the
+ * columns an adjacency table drops, and the values of every column the edge table writes.
+ * @param snapshot - the snapshot
+ * @param csv - the resolved CSV options
+ * @param edgeRows - the edge rows written
+ * @param values - whether the values are inspected
+ * @param note - the recorder
+ * @returns the id and label role columns and the attribute columns
+ */
+function planEdgeColumns(
+    snapshot: GraphSnapshot,
+    csv: ResolvedCsvExportOptions,
+    edgeRows: readonly number[],
+    values: boolean,
+    note: NoteFn,
+): { edgeId: Column | null; edgeLabel: Column | null; edgeColumns: ColumnOut[] } {
     const edgeId = snapshot.edges.byRole("id");
     const edgeLabel = snapshot.edges.byRole("label");
     const edgeReserved = new Set<string>([csv.dialect.source, csv.dialect.target, csv.dialect.weight].map(lower));
@@ -457,7 +623,7 @@ function planExport(
         if (dropped > 0) {
             note(
                 CSV_LOSS.EDGE_COLUMNS,
-                `${dropped} edge column(s) are not written: an adjacency table holds the weight only`,
+                `${dropped} edge column${plural(dropped)} ${agree(dropped, "is", "are")} not written: an adjacency table holds the weight only`,
                 null,
                 dropped,
             );
@@ -470,8 +636,23 @@ function planExport(
             checkValues(column, "edge", edgeRows, note);
         }
     }
+    return { edgeId, edgeLabel, edgeColumns };
+}
 
-    // the node table's columns
+/**
+ * The node table's columns, with their notes when the node table is the one written.
+ * @param snapshot - the snapshot
+ * @param csv - the resolved CSV options
+ * @param values - whether the values are inspected
+ * @param note - the recorder
+ * @returns the label role column and the attribute columns
+ */
+function planNodeColumns(
+    snapshot: GraphSnapshot,
+    csv: ResolvedCsvExportOptions,
+    values: boolean,
+    note: NoteFn,
+): { nodeLabel: Column | null; nodeColumns: ColumnOut[] } {
     const nodeLabel = snapshot.nodes.byRole("label");
     const nodeReserved = new Set<string>([lower(csv.dialect.id)]);
     const nodeRows: number[] = [];
@@ -488,39 +669,13 @@ function planExport(
         nodeLabel,
         csv.table === "nodes" ? note : null,
     );
-    if (csv.table === "nodes") {
-        if (values) {
-            checkRoleColumn(nodeLabel, "label", LABEL_NAMES, "node", nodeRows, note);
-            for (const { column } of nodeColumns) {
-                checkValues(column, "node", nodeRows, note);
-            }
-        }
-    } else {
-        const written = nodeColumns.length + (nodeLabel === null ? 0 : 1);
-        if (written > 0) {
-            note(
-                CSV_LOSS.NODE_TABLE,
-                `${written} node column(s) are written by a table: "nodes" export only`,
-                null,
-                written,
-            );
+    if (csv.table === "nodes" && values) {
+        checkRoleColumn(nodeLabel, "label", LABEL_NAMES, "node", nodeRows, note);
+        for (const { column } of nodeColumns) {
+            checkValues(column, "node", nodeRows, note);
         }
     }
-
-    return {
-        csv,
-        common,
-        notes,
-        edgeRows,
-        folding,
-        edgeId,
-        edgeLabel,
-        weights,
-        edgeColumns,
-        nodeLabel,
-        nodeColumns,
-        idText,
-    };
+    return { nodeLabel, nodeColumns };
 }
 
 /**
@@ -563,7 +718,7 @@ function noteNodeCoverage(
     if (isolated > 0) {
         note(
             CSV_LOSS.ISOLATED_NODES,
-            `${isolated} node(s) have no edge and cannot be written by the edge table; write the node table (table: "nodes") to keep them`,
+            `${isolated} node${plural(isolated)} ${agree(isolated, "has", "have")} no edge and cannot be written by the edge table; write the node table (table: "nodes") to keep them`,
             null,
             isolated,
         );
@@ -571,7 +726,7 @@ function noteNodeCoverage(
     if (reordered > 0) {
         note(
             CSV_LOSS.NODE_ORDER,
-            `${reordered} node(s) are first mentioned by an edge row out of index order; a re-import numbers nodes by first appearance`,
+            `${reordered} node${plural(reordered)} ${agree(reordered, "is", "are")} first mentioned by an edge row out of index order; a re-import numbers nodes by first appearance`,
             null,
             reordered,
         );
@@ -616,38 +771,79 @@ function attributeColumns(
         if (role !== null && SKIPPED_ROLES.has(role)) {
             continue;
         }
-        const low = lower(name);
         const set = column.length - column.nullCount;
-        const isIdName = domain === "edge" ? findColumn([name], EDGE_ID_NAMES) >= 0 : false;
-        if (reserved.has(low) || isIdName || (idColumn !== null && lower(idColumn.meta.name) === low)) {
-            note?.(
-                CSV_LOSS.RESERVED_NAME,
-                `${domain} column "${name}" is not written: the name is reserved for the ${isIdName ? "edge id" : low} column`,
-                name,
-                set,
-            );
+        if (isReservedName(name, domain, reserved, idColumn, set, note)) {
             continue;
         }
-        if (findColumn([name], LABEL_NAMES) >= 0) {
-            if (labelColumn !== null) {
-                note?.(
-                    CSV_LOSS.RESERVED_NAME,
-                    `${domain} column "${name}" is not written: the name is reserved for the label column`,
-                    name,
-                    set,
-                );
-                continue;
-            }
-            note?.(
-                CSV_LOSS.ROLE_ASSUMED,
-                `${domain} column "${name}" reads back with the label role (string)`,
-                name,
-                set,
-            );
+        if (findColumn([name], LABEL_NAMES) >= 0 && !labelNameWritten(name, domain, labelColumn, set, note)) {
+            continue;
         }
         out.push({ column, header: name });
     }
     return out;
+}
+
+/**
+ * Whether an attribute column's name is reserved for a structural column (a dialect header, an
+ * edge id name, the id column's name), with its note.
+ * @param name - the column name
+ * @param domain - node or edge, for messages
+ * @param reserved - lower-case header names the dialect writes for structure
+ * @param idColumn - the table's id role column, or null
+ * @param set - the column's set cells
+ * @param note - the recorder, or null when this table's notes are not wanted
+ * @returns true when the column is not written
+ */
+function isReservedName(
+    name: string,
+    domain: "node" | "edge",
+    reserved: ReadonlySet<string>,
+    idColumn: Column | null,
+    set: number,
+    note: ((code: string, message: string, column?: string | null, count?: number | null) => void) | null,
+): boolean {
+    const low = lower(name);
+    const isIdName = domain === "edge" ? findColumn([name], EDGE_ID_NAMES) >= 0 : false;
+    if (reserved.has(low) || isIdName || (idColumn !== null && lower(idColumn.meta.name) === low)) {
+        note?.(
+            CSV_LOSS.RESERVED_NAME,
+            `${domain} column "${name}" is not written: the name is reserved for the ${isIdName ? "edge id" : low} column`,
+            name,
+            set,
+        );
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Whether an attribute column with a label header name is written, with its note: not when the
+ * table has a label column (the name is reserved for it), else it reads back with the label role.
+ * @param name - the column name
+ * @param domain - node or edge, for messages
+ * @param labelColumn - the table's label role column, or null
+ * @param set - the column's set cells
+ * @param note - the recorder, or null when this table's notes are not wanted
+ * @returns true when the column is written
+ */
+function labelNameWritten(
+    name: string,
+    domain: "node" | "edge",
+    labelColumn: Column | null,
+    set: number,
+    note: ((code: string, message: string, column?: string | null, count?: number | null) => void) | null,
+): boolean {
+    if (labelColumn !== null) {
+        note?.(
+            CSV_LOSS.RESERVED_NAME,
+            `${domain} column "${name}" is not written: the name is reserved for the label column`,
+            name,
+            set,
+        );
+        return false;
+    }
+    note?.(CSV_LOSS.ROLE_ASSUMED, `${domain} column "${name}" reads back with the label role (string)`, name, set);
+    return true;
 }
 
 /**
@@ -725,62 +921,33 @@ function checkValues(
     column: Column,
     domain: "node" | "edge",
     rows: readonly number[],
-    note: (code: string, message: string, column?: string | null, count?: number | null) => void,
+    note: NoteFn,
     roleColumn = false,
 ): void {
     const { name, dtype } = column.meta;
     const label = `${domain} column "${name}"`;
     if (column.dtype === "f32" || column.dtype === "f64") {
-        let nonFinite = 0;
-        const { components } = column.meta;
-        const { data } = column;
-        for (const row of rows) {
-            if (!column.isSet(row)) {
-                continue;
-            }
-            for (let k = 0; k < components; k++) {
-                if (!Number.isFinite(data[row * components + k])) {
-                    nonFinite++;
-                    break;
-                }
-            }
-        }
+        const nonFinite = countNonFinite(column, rows);
         if (nonFinite > 0) {
-            note(CSV_LOSS.NONFINITE, `${label}: ${nonFinite} non-finite value(s) read back as text`, name, nonFinite);
+            note(
+                CSV_LOSS.NONFINITE,
+                `${label}: ${nonFinite} non-finite value${plural(nonFinite)} ${agree(nonFinite, "reads", "read")} back as text`,
+                name,
+                nonFinite,
+            );
         }
         return;
     }
     if (dtype !== "string" && dtype !== "dict") {
         return;
     }
-    let widest = -1;
-    let candidate = true;
-    let set = 0;
-    const heuristic = new DictHeuristic(DICT_SAMPLE_ROWS);
-    for (const row of rows) {
-        if (!column.isSet(row)) {
-            continue;
-        }
-        const text = column.value(row);
-        if (typeof text !== "string") {
-            continue;
-        }
-        set++;
-        const kind = inferTextDtype(text);
-        widest = Math.max(widest, WIDENING[kind]);
-        if (!heuristic.decided) {
-            if (kind !== "string") {
-                candidate = false;
-            }
-            heuristic.observe(text);
-        }
-    }
-    if (roleColumn || widest < 0) {
+    const scan = scanText(column, rows);
+    if (roleColumn || scan.widest < 0) {
         return;
     }
-    const readsAsDict = candidate && heuristic.decide() === "dict";
-    if (widest < WIDENING.string && !readsAsDict) {
-        note(CSV_LOSS.TEXT_INFERRED, `${label}: every value reads back as ${TEXT_DTYPES[widest]}`, name, set);
+    const readsAsDict = scan.candidate && scan.heuristic.decide() === "dict";
+    if (scan.widest < WIDENING.string && !readsAsDict) {
+        note(CSV_LOSS.TEXT_INFERRED, `${label}: every value reads back as ${TEXT_DTYPES[scan.widest]}`, name, scan.set);
         return;
     }
     if (dtype === "dict" && !readsAsDict) {
@@ -793,6 +960,70 @@ function checkValues(
     } else if (dtype === "string" && readsAsDict) {
         note(CSV_LOSS.STORAGE_CLASS_CHANGED, `${label}: reads back as dict (low cardinality)`, name, null);
     }
+}
+
+/**
+ * The rows of a float column holding at least one non-finite component.
+ * @param column - the f32 or f64 column
+ * @param rows - the rows written
+ * @returns how many rows hold one
+ */
+function countNonFinite(column: F32Column | F64Column, rows: readonly number[]): number {
+    let nonFinite = 0;
+    const { components } = column.meta;
+    const { data } = column;
+    for (const row of rows) {
+        if (!column.isSet(row)) {
+            continue;
+        }
+        for (let k = 0; k < components; k++) {
+            if (!Number.isFinite(data[row * components + k])) {
+                nonFinite++;
+                break;
+            }
+        }
+    }
+    return nonFinite;
+}
+
+/** What a text column's written values read back as. */
+interface TextScan {
+    /** The widest dtype the values infer to (WIDENING), -1 when no value is set. */
+    readonly widest: number;
+    /** Whether every value the dict heuristic sampled infers to string. */
+    readonly candidate: boolean;
+    /** How many rows hold a string. */
+    readonly set: number;
+    /** The dict heuristic over the sampled values. */
+    readonly heuristic: DictHeuristic;
+}
+
+/**
+ * Infer the dtype every written value of a text column reads back as, and sample the values for
+ * the dict heuristic.
+ * @param column - the string or dict column
+ * @param rows - the rows written
+ * @returns the scan
+ */
+function scanText(column: Column, rows: readonly number[]): TextScan {
+    let widest = -1;
+    let candidate = true;
+    let set = 0;
+    const heuristic = new DictHeuristic(DICT_SAMPLE_ROWS);
+    for (const row of rows) {
+        const text = column.isSet(row) ? column.value(row) : null;
+        if (typeof text !== "string") {
+            continue;
+        }
+        set++;
+        const kind = inferTextDtype(text);
+        widest = Math.max(widest, WIDENING[kind]);
+        if (!heuristic.decided) {
+            candidate &&= kind === "string";
+            heuristic.observe(text);
+        }
+    }
+    return { widest, candidate, set, heuristic };
 }
 
 /**
@@ -810,10 +1041,10 @@ function typeText(snapshot: GraphSnapshot, plan: Plan, e: number): string {
 }
 
 /**
- * A neighbour cell of the adjacency table: `id:weight` for an explicit weight; `id:` for an id
+ * A neighbor cell of the adjacency table: `id:weight` for an explicit weight; `id:` for an id
  * holding a colon without one, so the importer does not read the id's tail as a weight; `id`
  * otherwise.
- * @param id - the neighbour's id text
+ * @param id - the neighbor's id text
  * @param weight - the weight text, or null
  * @returns the cell text (unquoted)
  */
@@ -822,6 +1053,22 @@ function neighbourCell(id: string, weight: string | null): string {
         return `${id}:${weight}`;
     }
     return id.includes(":") ? `${id}:` : id;
+}
+
+/**
+ * The end of the run of consecutive edge rows that share the source of row `r`.
+ * @param src - the edge sources by edge index
+ * @param edgeRows - the edges in write order
+ * @param r - the run's first row
+ * @returns the index after the run's last row
+ */
+function sourceRunEnd(src: ArrayLike<number>, edgeRows: ArrayLike<number>, r: number): number {
+    const source = src[edgeRows[r]];
+    let end = r;
+    while (end < edgeRows.length && src[edgeRows[end]] === source) {
+        end++;
+    }
+    return end;
 }
 
 /**
@@ -837,7 +1084,7 @@ function neighbourCell(id: string, weight: string | null): string {
  */
 function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { delimiter, newline } = plan.csv;
-    const forced = (text: string): string => `"${text.replace(/"/g, '""')}"`;
+    const forced = (text: string): string => `"${text.replaceAll('"', '""')}"`;
     // rows vary in width by design, so a bare cell holding any delimiter the importer sniffs for
     // (a space in "New York") can win the sniff over the real delimiter: such a cell is quoted
     const quote = (text: string): string =>
@@ -865,10 +1112,7 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
     let r = 0;
     while (r < edgeRows.length) {
         const source = list.src[edgeRows[r]];
-        let end = r;
-        while (end < edgeRows.length && list.src[edgeRows[end]] === source) {
-            end++;
-        }
+        const end = sourceRunEnd(list.src, edgeRows, r);
         // the nodes this row introduces, in the order the importer meets them; in index order from
         // `next` they need nothing more
         const fresh: number[] = [];
@@ -912,58 +1156,78 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
  * @returns nothing
  */
 function* lines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
-    const { csv } = plan;
-    if (csv.table === "adjacency") {
+    if (plan.csv.table === "adjacency") {
         yield* adjacencyLines(snapshot, plan);
-        return;
+    } else if (plan.csv.table === "nodes") {
+        yield* nodeLines(snapshot, plan);
+    } else {
+        yield* edgeLines(snapshot, plan);
     }
-    const { delimiter, newline } = csv;
+}
+
+/**
+ * The cell writers of a delimiter.
+ * @param delimiter - the field delimiter
+ * @returns `quote` for a text and `cell` for a column value (an unset value is the empty cell)
+ */
+function cellWriters(delimiter: string): {
+    quote: (text: string) => string;
+    cell: (column: Column, row: number) => string;
+} {
     const quote = (text: string): string => quoteCsvCell(text, delimiter);
     const cell = (column: Column, row: number): string => {
         const text = cellText(column, row);
         return text === null ? "" : quote(text);
     };
-    if (csv.table === "nodes") {
-        const headers = [csv.dialect.id];
-        if (plan.nodeLabel !== null) {
-            headers.push(plan.nodeLabel.meta.name);
-        }
-        for (const { header } of plan.nodeColumns) {
-            headers.push(header);
-        }
-        if (csv.header) {
-            yield headers.map(quote).join(delimiter) + newline;
-        }
-        for (let i = 0; i < snapshot.nodeCount; i++) {
-            const cells = [quote(plan.idText(i))];
-            if (plan.nodeLabel !== null) {
-                cells.push(cell(plan.nodeLabel, i));
-            }
-            for (const { column } of plan.nodeColumns) {
-                cells.push(cell(column, i));
-            }
-            yield cells.join(delimiter) + newline;
-        }
-        return;
+    return { quote, cell };
+}
+
+/**
+ * The lines of the node table: the id, the label and the attribute columns of every node.
+ * @param snapshot - the snapshot
+ * @param plan - the plan
+ * @yields one line at a time
+ * @returns nothing
+ */
+function* nodeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
+    const { csv } = plan;
+    const { delimiter, newline } = csv;
+    const { quote, cell } = cellWriters(delimiter);
+    const headers = [csv.dialect.id];
+    if (plan.nodeLabel !== null) {
+        headers.push(plan.nodeLabel.meta.name);
     }
-    const headers = [csv.dialect.source, csv.dialect.target];
-    if (csv.dialect.type !== null) {
-        headers.push(csv.dialect.type);
-    }
-    if (plan.edgeId !== null) {
-        headers.push(plan.edgeId.meta.name);
-    }
-    if (plan.edgeLabel !== null) {
-        headers.push(plan.edgeLabel.meta.name);
-    }
-    if (plan.weights.weighted) {
-        headers.push(csv.dialect.weight);
-    }
-    for (const { header } of plan.edgeColumns) {
+    for (const { header } of plan.nodeColumns) {
         headers.push(header);
     }
     if (csv.header) {
         yield headers.map(quote).join(delimiter) + newline;
+    }
+    for (let i = 0; i < snapshot.nodeCount; i++) {
+        const cells = [quote(plan.idText(i))];
+        if (plan.nodeLabel !== null) {
+            cells.push(cell(plan.nodeLabel, i));
+        }
+        for (const { column } of plan.nodeColumns) {
+            cells.push(cell(column, i));
+        }
+        yield cells.join(delimiter) + newline;
+    }
+}
+
+/**
+ * The lines of the edge table: one row per written edge.
+ * @param snapshot - the snapshot
+ * @param plan - the plan
+ * @yields one line at a time
+ * @returns nothing
+ */
+function* edgeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
+    const { csv } = plan;
+    const { delimiter, newline } = csv;
+    const { quote, cell } = cellWriters(delimiter);
+    if (csv.header) {
+        yield edgeHeaders(plan).map(quote).join(delimiter) + newline;
     }
     const list = snapshot.edgeList();
     for (const e of plan.edgeRows) {
@@ -988,6 +1252,32 @@ function* lines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, un
 }
 
 /**
+ * The header of the edge table.
+ * @param plan - the plan
+ * @returns the header names, unquoted
+ */
+function edgeHeaders(plan: Plan): string[] {
+    const { dialect } = plan.csv;
+    const headers = [dialect.source, dialect.target];
+    if (dialect.type !== null) {
+        headers.push(dialect.type);
+    }
+    if (plan.edgeId !== null) {
+        headers.push(plan.edgeId.meta.name);
+    }
+    if (plan.edgeLabel !== null) {
+        headers.push(plan.edgeLabel.meta.name);
+    }
+    if (plan.weights.weighted) {
+        headers.push(dialect.weight);
+    }
+    for (const { header } of plan.edgeColumns) {
+        headers.push(header);
+    }
+    return headers;
+}
+
+/**
  * Plan an export and refuse it when a fatal note is present (E_INVALID_ID for id text collisions),
  * before anything is written.
  * @param snapshot - the snapshot
@@ -1007,6 +1297,69 @@ function prepare(snapshot: GraphSnapshot, options: (CsvExportOptions & CommonExp
 }
 
 /**
+ * The note of a table written without its header: a headerless file is read by position (source, target, weight,
+ * then unnamed columns; a node table: id, then unnamed columns), so any other column reads back elsewhere or unnamed.
+ * @param plan - the export plan
+ * @returns the note, or nothing when the header is written or the positions match
+ */
+function headerlessNotes(plan: Plan): LossNote[] {
+    const { csv } = plan;
+    if (csv.header || csv.table === "adjacency") {
+        return [];
+    }
+    const names = csv.table === "nodes" ? headerlessNodeColumns(plan) : headerlessEdgeColumns(plan);
+    if (names.length === 0) {
+        return [];
+    }
+    const shown = names.map((n) => JSON.stringify(n)).join(", ");
+    return [
+        Object.freeze({
+            code: CSV_LOSS.HEADERLESS,
+            message: `without a header the file is read back by position (${csv.table === "nodes" ? "id" : "source, target, weight"}, then unnamed columns), so ${names.length === 1 ? "the column" : "the columns"} ${shown} ${agree(names.length, "reads", "read")} back unnamed or in another column's place; write the header, or for an edge list pass dialect: "generic" and write only source, target and weight`,
+            column: null,
+            count: names.length,
+            columns: Object.freeze([...names]),
+        }),
+    ];
+}
+
+/**
+ * The node columns a headerless node table does not read back by position: every one after the id.
+ * @param plan - the export plan
+ * @returns their names
+ */
+function headerlessNodeColumns(plan: Plan): string[] {
+    const label = plan.nodeLabel === null ? [] : [plan.nodeLabel.meta.name];
+    return [...label, ...plan.nodeColumns.map((c) => c.header)];
+}
+
+/**
+ * The edge columns a headerless edge list does not read back by position: every one after the
+ * endpoints and the weight, and the weight when another column comes before it.
+ * @param plan - the export plan
+ * @returns their names
+ */
+function headerlessEdgeColumns(plan: Plan): string[] {
+    const { dialect } = plan.csv;
+    const names: string[] = [];
+    if (dialect.type !== null) {
+        names.push(dialect.type);
+    }
+    if (plan.edgeId !== null) {
+        names.push(plan.edgeId.meta.name);
+    }
+    if (plan.edgeLabel !== null) {
+        names.push(plan.edgeLabel.meta.name);
+    }
+    // a weight right after the target is where a headerless read expects it
+    if (plan.weights.weighted && names.length > 0) {
+        names.push(dialect.weight);
+    }
+    names.push(...plan.edgeColumns.map((c) => c.header));
+    return names;
+}
+
+/**
  * Pre-flight: what a CSV export would lose. The generic notes describe the snapshot as a whole
  * against the format; the CSV notes concern the table selected by `table`.
  * @param snapshot - the snapshot
@@ -1016,14 +1369,22 @@ function prepare(snapshot: GraphSnapshot, options: (CsvExportOptions & CommonExp
 function check(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): readonly LossNote[] {
     const plan = planExport(snapshot, options, true);
     return Object.freeze([
-        ...checkCapabilities(snapshot, CSV_CAPABILITIES, plan.common, { roles: KEPT_ROLES }),
+        ...checkCapabilities(snapshot, CSV_CAPABILITIES, plan.common, {
+            roles: KEPT_ROLES,
+            ...(plan.csv.table === "nodes" ? { tables: ["node"] as const } : {}),
+        }),
         ...plan.notes,
+        ...headerlessNotes(plan),
     ]);
 }
 
-/** The CSV / TSV exporter plugin (subpath `@graphty/graph-io/csv`). */
+/**
+ * The CSV / TSV exporter plugin (subpath `@graphty/graph-io/csv`).
+ * @category Built-in formats
+ */
 export const csvExporter: GraphExporter<CsvExportOptions> = Object.freeze({
     format: "csv",
+    options: Object.freeze(["delimiter", "dialect", "header", "newline", "table"]),
     capabilities: CSV_CAPABILITIES,
     check,
     export(snapshot: GraphSnapshot, options?: CsvExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {

@@ -89,6 +89,9 @@ describe("package.json (contract 2.1)", () => {
         expect(packageJson.sideEffects).toBe(false);
         expect(packageJson.browser).toBeUndefined();
         for (const [subpath, entry] of Object.entries(packageJson.exports)) {
+            if (subpath === "./acquire") {
+                continue;
+            }
             expect(Object.keys(entry), subpath).toEqual(["types", "import", "default"]);
             expect(entry.require, subpath).toBeUndefined();
             expect(entry.node, subpath).toBeUndefined();
@@ -108,6 +111,14 @@ describe("package.json (contract 2.1)", () => {
             import: "./dist/node.js",
             default: "./dist/node.js",
         });
+        // one specifier for both runtimes: the export condition picks the build, so the two never meet in one bundle
+        expect(packageJson.exports["./acquire"]).toEqual({
+            types: "./dist/acquire.d.ts",
+            browser: "./dist/browser.js",
+            node: "./dist/node.js",
+            default: "./dist/browser.js",
+        });
+        expect(Object.keys(packageJson.exports["./acquire"] ?? {})).toEqual(["types", "browser", "node", "default"]);
         expect(packageJson.files).toEqual(["dist/", "!dist/*.tsbuildinfo", "src/", "README.md", "LICENSE"]);
         expect(packageJson.publishConfig).toEqual({ access: "public", provenance: true });
         expect(packageJson.engines.node).toBe(">=18.19.0");
@@ -119,7 +130,7 @@ describe("package.json (contract 2.1)", () => {
         const names = entryNames();
         expect(names).toEqual(["webgpu-graph-algorithms", "browser", "node"]);
         const expected = names.map((name) => (name === "webgpu-graph-algorithms" ? "." : `./${name}`));
-        expect(Object.keys(packageJson.exports)).toEqual(expected);
+        expect(Object.keys(packageJson.exports)).toEqual([...expected, "./acquire"]);
         for (const name of ["browser", "node"]) {
             expect(existsSync(resolve(`./src/${name}/index.ts`)), name).toBe(true);
         }
@@ -147,13 +158,13 @@ describe("package.json (contract 2.1)", () => {
         // imports from it, so 1.x, 2.x and 3.x are all accepted; the range holds the current version before and after
         // the 3.0.0 bump, as nx release requires.
         expect(packageJson.peerDependencies["@graphty/algorithms"]).toBe("^1.0.0 || ^2.0.0 || ^3.0.0");
-        expect(packageJson.devDependencies.webgpu).toBe("0.4.0");
+        expect(packageJson.devDependencies.webgpu).toBe("0.6.1");
         expect(packageJson.devDependencies["@vitest/browser-playwright"]).toBeTypeOf("string");
         expect(packageJson.devDependencies.playwright).toBeTypeOf("string");
         expect(packageJson.devDependencies["fast-check"]).toBeTypeOf("string");
     });
 
-    it("has the standard script set, the strict-consumer compile inside lint, and a test:run over both node projects", () => {
+    it("has the standard script set, the strict-consumer compile inside lint, and a test:run over every node project", () => {
         for (const name of [
             "build",
             "build:bundle",
@@ -179,13 +190,14 @@ describe("package.json (contract 2.1)", () => {
             expect(packageJson.scripts[name], `script ${name}`).toBeTypeOf("string");
         }
         expect(packageJson.scripts.lint).toContain("tsconfig.strict-consumer.json");
-        // Both node projects, so the local gate covers the device-error files too: they were split into their own
-        // project so one worker death cannot take the rest of the run with it, and that split silently removed
-        // them from every local command until this assertion was widened with them.
-        const bothProjects = "vitest run --project=node --project=node-device-errors";
-        expect(packageJson.scripts["test:run"]).toBe(bothProjects);
-        expect(packageJson.scripts["test:node"]).toBe(bothProjects);
-        expect(packageJson.scripts.coverage).toBe(`${bothProjects} --coverage`);
+        // Every node project, so the local gate covers the device-error files and the GPU-alone files too: each
+        // was split into a project of its own (one worker death cannot take the rest of the run with it; a file
+        // that holds the GPU for seconds must not share it, issue #1884), and the first split silently removed
+        // its files from every local command until this assertion was widened with them.
+        const nodeProjects = "vitest run --project=node --project=node-gpu-alone --project=node-device-errors";
+        expect(packageJson.scripts["test:run"]).toBe(nodeProjects);
+        expect(packageJson.scripts["test:node"]).toBe(nodeProjects);
+        expect(packageJson.scripts.coverage).toBe(`${nodeProjects} --coverage`);
         expect(packageJson.scripts["test:browser:ci"]).toBe("node scripts/run-browser-project.js");
         expect(packageJson.scripts["test:node:ci"]).toBe("node scripts/run-node-shard.js");
         // No fixed port: servherd assigns one through PORT, and the script refuses to start without it.
@@ -286,6 +298,9 @@ describe("dist (spec 2.5; hard failure under CI, skip locally)", () => {
             browser: 'export * from "./src/browser/index.js";',
             node: 'export * from "./src/node/index.js";',
         };
+        expect(readFileSync(resolve("./dist/acquire.d.ts"), "utf-8")).toContain(
+            'export { acquireAccelerator } from "./src/browser/index.js";',
+        );
         for (const [name, shim] of Object.entries(shims)) {
             expect(existsSync(resolve(`./dist/${name}.js`)), name).toBe(true);
             expect(existsSync(resolve(`./dist/${name}.js.map`)), name).toBe(true);

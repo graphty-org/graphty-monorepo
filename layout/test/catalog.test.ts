@@ -64,6 +64,7 @@ const oneShot = entries.filter(([, e]) => e.fn !== null);
 // Exports that are functions but not layouts.
 const NOT_LAYOUTS = new Set([
     "createSimulation",
+    "fitToBox",
     "fromPositionColumn",
     "fromPositionMap",
     "rescaleInPlace",

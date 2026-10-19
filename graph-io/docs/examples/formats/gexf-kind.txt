@@ -1,0 +1,8 @@
+[ 'kind' ]
+[
+  'W_EDGE_IDS_GENERATED',
+  'W_COLUMN_NAME_CHANGED',
+  'W_OPTIONS_GAINED',
+  'W_GEXF_KIND_DROPPED'
+]
+[ 'relation', 'id' ]

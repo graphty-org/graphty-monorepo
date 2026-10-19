@@ -31,6 +31,11 @@ const dataUrl = await graph.captureScreenshot({
 | `quality`     | `number`          | `0.9`         | JPEG quality (0-1)      |
 | `transparent` | `boolean`         | `false`       | Transparent background  |
 
+Before capturing, a screenshot waits for queued operations and for a moving layout to come to
+rest. `timing` changes that: `{ waitForOperations: false }` or `{ waitForSettle: false }` skips a
+wait, and `{ settleTimeoutMs: 5000 }` sets how long to wait for the layout (default 30,000 ms)
+before the capture fails with the `LAYOUT_SETTLE_TIMEOUT` error code.
+
 ### Examples
 
 ```typescript

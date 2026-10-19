@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="36" label="Network" cy:view="0" cy:registered="0" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <att>
+    <graph id="52" label="Network" cy:registered="1">
+      <node id="62" label="G1"><att><graph id="63" label="63" cy:registered="0">
+        <node id="74" label="Node 2"/>
+        <node id="73" label="Node 1"/>
+        <edge id="75" label="Node 1 (interaction) Node 2" source="73" target="74" cy:directed="1"/>
+      </graph></att></node>
+      <node id="76" label="G2"><att><graph id="77" label="77" cy:registered="0">
+        <node xlink:href="#62"/>
+        <node id="87" label="Node 3"/>
+        <edge id="88" label="meta-null" source="62" target="87" cy:directed="1"/>
+      </graph></att></node>
+      <node xlink:href="#73"/>
+      <node xlink:href="#74"/>
+      <node xlink:href="#87"/>
+      <node id="89" label="Node 4"/>
+      <edge xlink:href="#75"/>
+      <edge id="92" label="Node 2 (interaction) Node 3" source="74" target="87" cy:directed="1"/>
+      <edge id="91" label="Node 3 (interaction) Node 4" source="87" target="89" cy:directed="1"/>
+    </graph>
+  </att>
+  <edge id="90" label="meta-null" source="76" target="89" cy:directed="1"/>
+  <edge id="93" label="93" source="62" target="89" cy:directed="1"/>
+</graph>

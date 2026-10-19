@@ -12,7 +12,7 @@ const session = document.querySelector("graphty-element").session;
 await session.undo(); // take the last step back
 await session.redo(); // put it back again
 session.canUndo; // whether undo() would do anything
-session.history.steps; // the steps, oldest first, each with a label
+session.history.steps; // the steps, oldest first, each with a fact: { code, params }
 ```
 
 With the canvas focused, Ctrl+Z (Cmd+Z on macOS) undoes, and Ctrl+Shift+Z or Ctrl+Y redoes, with
@@ -28,7 +28,7 @@ A change is undoable when it changes something a project saves, and only then:
 
 | Undoable                         | Examples                                                                                                              |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| The graph                        | Loading or importing data, adding, editing and removing nodes and edges, expanding a neighbourhood, clearing          |
+| The graph                        | Loading or importing data, adding, editing and removing nodes and edges, expanding a neighborhood, clearing           |
 | Algorithm runs and their results | A finished run, and removing one; the style layers a run applies come and go with it                                  |
 | Style layers                     | Adding, editing, moving and removing a layer; applying a template                                                     |
 | What is showing                  | A filter, the time window, whether context is shown                                                                   |
@@ -73,16 +73,72 @@ returns to the baseline, not to an empty element.
 
 ## Steps
 
-One call is one step, labelled for a history list: "Added 3 nodes", "Ran Degree", "Changed
-colour of Hubs". A node drag is one step, and so is one message to the AI assistant.
+One call is one step, and a node drag is one step, and so is one message to the AI assistant.
+Each step says what it did as a `fact`: a code and the values it is about, never a sentence. Your
+application writes the words, in its own language:
 
 ```typescript
+const words = {
+    "data.add-nodes": (p) => (p.count === 1 ? "Added a node" : `Added ${p.count} nodes`),
+    "algo.run": (p) => `Ran ${p.algorithm}`,
+    "data.expand": (p) => `Expanded ${p.node}`,
+    transaction: (p) => p.label ?? "Changes",
+};
+const describe = ({ code, params }) => words[code]?.(params) ?? "Change"; // new codes may be added
+
 for (const step of session.history.steps) {
-    console.log(step.label, step.ops, step.slices, step.provenance);
+    console.log(describe(step.fact), step.ops, step.slices, step.provenance);
 }
 session.history.position; // how many steps are applied; steps[position..] can be redone
 await session.history.restoreTo(session.history.steps[1].id); // jump; null jumps to the baseline
 ```
+
+Every step's `fact.code` is one of the `HistoryCode` values, each documenting its `params`:
+
+| Code                                                                              | Params                                                     |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `algo.run`, `algo.legacy`                                                         | `algorithm`                                                |
+| `algo.remove`                                                                     | `run`, `algorithm` (null when unknown)                     |
+| `algo.batch`                                                                      | `label` (the name given to `runs.batch`, or null), `count` |
+| `algo.template`                                                                   | none: the runs a style template asks for                   |
+| `batch`                                                                           | `label` (the batch's own, or null), `steps`                |
+| `data.add-nodes`, `data.add-edges`, `data.remove-nodes`, `data.remove-edges`      | `count`                                                    |
+| `data.edit`                                                                       | `target` (`"node"` or `"edge"`), `count`                   |
+| `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges`              | none                                                       |
+| `data.import`                                                                     | `name` (the source's name, or null), `type` (or null)      |
+| `data.expand`                                                                     | `node`                                                     |
+| `data.declare`                                                                    | `kind` (`"node"` or `"edge"`), `column`                    |
+| `data.set-source`                                                                 | `name` (or null)                                           |
+| `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer` (its name, or its id)                              |
+| `style.remove-layers`                                                             | `count`                                                    |
+| `style.highlight`                                                                 | `run`                                                      |
+| `style.fix-channel`                                                               | `channel`, `layer`                                         |
+| `style.encode`                                                                    | `channel`, `run`                                           |
+| `style.template`                                                                  | none                                                       |
+| `style.suggested`                                                                 | `algorithms`                                               |
+| `visibility.filter`                                                               | `kind` (the filter's kind)                                 |
+| `visibility.clear-filter`, `visibility.window`, `visibility.clear-window`         | none                                                       |
+| `visibility.show-context`, `visibility.hide-context`                              | none                                                       |
+| `set.create`                                                                      | `name` (or null)                                           |
+| `set.rename`                                                                      | `set` (its name before, or its id), `name`                 |
+| `set.redefine`, `set.members`, `set.remove`, `set.restore`                        | `set` (its name, or its id)                                |
+| `note.add`, `note.update`, `note.remove`                                          | none                                                       |
+| `note.merge`                                                                      | `source` (the document's name, or null)                    |
+| `view.save`, `view.remove`                                                        | `names`                                                    |
+| `view.dimension`                                                                  | `dimension` (`"2d"` or `"3d"`)                             |
+| `view.immersive`                                                                  | `mode` (`"vr"` or `"ar"`): a switch to 3D on the way in    |
+| `config.set`                                                                      | `keys` (the setting paths changed)                         |
+| `positions.set`, `positions.pin`, `positions.release`                             | `count`                                                    |
+| `node.drag`                                                                       | `node`                                                     |
+| `layout.set`, `layout.behavior`                                                   | `layout` (the layout's id)                                 |
+| `layout.scope`, `layout.whole-graph`                                              | none                                                       |
+| `project.open`                                                                    | `name` (or null)                                           |
+| `document.open`                                                                   | none                                                       |
+| `transaction`                                                                     | `label` (the label given to `transaction`, or null)        |
+
+A parameter that came from the data (a node id, a set's name) is the data's own text: escape it
+before putting it into HTML. `step.label`, an English sentence, is deprecated and goes in the next
+major release.
 
 **Coalescing.** Edits of the same thing within a second of each other merge into the step on top:
 dragging a colour picker, typing into a filter, moving the time window, placing nodes one at a
@@ -126,6 +182,22 @@ await session.transaction("Load and colour", async (tx) => {
 
 `element.batchOperations(async (tx) => { ... })` is the same thing on the element.
 
+**One step from several short transactions.** Work that waits between its changes -- on a person,
+a network or a model -- need not hold a transaction open while it waits. Pass the step an earlier
+transaction recorded as `after`, and what this transaction changes merges into that step while it
+is still the newest one:
+
+```typescript
+await session.transaction("Tidy up", (tx) => tx.styles.add(highlight));
+const tidy = session.history.steps.at(-1)?.id;
+// ...wait for anything...
+await session.transaction("Tidy up", (tx) => tx.layout.set("circular"), { after: tidy });
+```
+
+If anything else was recorded on top of that step in between, or it was undone, the transaction
+records as a step of its own, with `provenance.after` naming the step it continued. While such a
+transaction is open, an undo cancels it rather than undoing the step it continues.
+
 **Two writers at once.** While a transaction is open, a change made outside it that touches a node
 or edge the transaction added, removed or edited fails at once with `E_HELD_BY_TRANSACTION`, rather
 than wait for a transaction that may be waiting on it. Make that change through the transaction's
@@ -166,13 +238,13 @@ A run or a load becomes a step when it finishes. Until then it is **pending**, l
 - Undo while a transaction is open aborts it and rolls it back.
 
 `session.history.nextUndo` says which of these the next press will do, so a button can read
-"Cancel Betweenness" or "Undo Changed colour of Hubs":
+"Cancel Ran Betweenness" or "Undo Added 3 nodes" (`describe` is the function above):
 
 ```typescript
 function undoLabel(session) {
     const next = session.history.nextUndo;
     if (next === null) return "Undo";
-    return next.kind === "cancel" ? `Cancel ${next.pending[0].label}` : `Undo ${next.step.label}`;
+    return next.kind === "cancel" ? `Cancel ${describe(next.pending[0].fact)}` : `Undo ${describe(next.step.fact)}`;
 }
 ```
 
@@ -320,6 +392,29 @@ A change made through `graph` instead is a step of its own and is not rolled bac
 fails. Stop when `ctx.abortSignal` fires: that is the message being cancelled, or undone while it
 is still going.
 
+Each batch of tool calls the model returns runs in its own short transaction, which is recorded
+before the model is asked again, and each batch continues the message's step (`after`, above). So
+nothing is held while the model thinks: the reader can go on editing, even the nodes the message
+has just added. `ctx.tx` belongs to one batch; do not keep it past your command's own call. Every
+step a message records carries `provenance.via` `"assistant"` and the same `provenance.message`.
+
+What happens when the reader edits during a message:
+
+- **An edit between two batches splits the message.** The batches after it record as their own
+  step on top of the reader's, with `provenance.after` naming the message's earlier step, because
+  undo takes steps back in the order they happened.
+- **Cancelling the message, a tool that throws, or a failed model call** takes back every step the
+  message recorded, newest first, for as long as each is the next thing undo would undo. It stops
+  at the reader's own step, or at pending work of theirs: the message's steps under it stay, and
+  undo takes them back in order. The reader's edit is never reverted to clear the way.
+- **An undo while the message is going** cancels the batch that is running, or, while the model
+  thinks, undoes the message's newest step. Either ends the message, and what the message still
+  has on top of the history is taken back with it.
+- **The same node or edge edited by both** never conflicts: a batch's transaction is open only
+  while its tools run, and a reader's edit to something an open batch holds fails with
+  `E_HELD_BY_TRANSACTION` exactly as for any other transaction. A setting or the style stack is
+  handed over as described under "Two writers at once".
+
 ## Plugin algorithms without a descriptor
 
 An algorithm registered the 1.x way, by `namespace` and `type` with no catalogue descriptor, is
@@ -353,8 +448,10 @@ await session.data.addEdges([
 ]);
 await session.data.updateNodes([{ id: "a", values: { team: "red" } }]);
 
-session.history.steps.map((step) => step.label);
-// ["Added 3 nodes", "Added 2 edges", "Edited 1 node"]
+session.history.steps.map((step) => step.fact);
+// [{ code: "data.add-nodes", params: { count: 3 } },
+//  { code: "data.add-edges", params: { count: 2 } },
+//  { code: "data.edit", params: { target: "node", count: 1 } }]
 
 await session.undo(); // node a has no team again
 await session.redo(); // and now it does

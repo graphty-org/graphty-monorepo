@@ -34,6 +34,26 @@ export * from "./src/catalog/index";
 // The tables
 // ---------------------------------------------------------------------------------------------
 
+export type {
+    AiKeyShape,
+    AiKeyShapeCheck,
+    AiKeyShapeCode,
+    AiModelDescriptor,
+    AiProviderDescriptor,
+    AiProviderId,
+    AiResultCode,
+    AiResultParams,
+} from "./src/catalog/ai";
+export {
+    AI_PROVIDER_DESCRIPTORS,
+    AI_PROVIDER_IDS,
+    AI_RESULT_CODES,
+    AI_STAGES,
+    AI_STATES,
+    AI_TOOL_CALL_STATUSES,
+    aiProviderDescriptor,
+    checkApiKeyShape,
+} from "./src/catalog/ai";
 export type { BuiltInAlgorithmDescriptor, LegacyAlgorithmKey, LegacyAlgorithmMapping } from "./src/catalog/algorithms";
 export { algorithmByKey, algorithmByLegacyKey, BUILT_IN_ALGORITHMS } from "./src/catalog/algorithms";
 export { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "./src/catalog/cameras";
@@ -41,7 +61,12 @@ export type { DetectionInput } from "./src/catalog/detect";
 export { detectFormat, detectFormats } from "./src/catalog/detect";
 export type { UnservedFormat } from "./src/catalog/formats";
 export { FORMAT_DESCRIPTORS, formatDescriptor, formatsForExtension, UNSERVED_FORMAT_IDS } from "./src/catalog/formats";
-export type { LayoutCatalogEntry, LayoutImplementation, UnservedLayout } from "./src/catalog/layouts";
+export type {
+    LayoutCatalogEntry,
+    LayoutImplementation,
+    LayoutImplementationCode,
+    UnservedLayout,
+} from "./src/catalog/layouts";
 export {
     LAYOUT_CATALOG,
     LAYOUT_DESCRIPTORS,
@@ -50,9 +75,12 @@ export {
     layoutIdForEngine,
     UNSERVED_LAYOUT_IDS,
 } from "./src/catalog/layouts";
+export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { GraphListing } from "@graphty/graph-io";
 
 // The style channels a layer can paint, described as data: the plain name, the kind of value
 // each accepts, its enum values or numeric bounds, where it lands in a parsed style, and whether
@@ -62,6 +90,12 @@ export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catal
 // `src/session/styles/channels.ts`; it is plain data and carries no renderer.
 export type { ChannelDescriptor, ChannelGroup, ChannelValueKind } from "./src/session/styles/channels";
 export { CHANNEL_DESCRIPTORS, channelDescriptor, CHANNELS, channelsFor } from "./src/session/styles/channels";
+// The one color reader a channel uses: a hex string, any CSS color the element understands, or
+// Rgba components in, a clamped and rounded color with its `#rrggbb[aa]` hex out (null when the
+// value is not a color). A color control reads a layer's value through this rather than
+// building hex by hand.
+export type { ColorValue } from "./src/session/styles/channels";
+export { toColorValue } from "./src/session/styles/channels";
 
 // ---------------------------------------------------------------------------------------------
 // Sets: what a kept set holds, and the one validator for it

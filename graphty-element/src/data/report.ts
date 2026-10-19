@@ -10,7 +10,10 @@
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
 
+import type { EdgeId } from "../catalog/types";
+import type { LoadStyleReport } from "../session/styles/fileStyles/apply";
 import type { EndpointSpelling } from "./endpoints";
+import type { DataLoadingError } from "./ErrorAggregator";
 
 /** How many repeated edges a load saw, and what the policy did with them. */
 export interface RepeatedEdgeCounts {
@@ -50,7 +53,11 @@ export interface ImportReport {
         readonly nodeRecords: number;
         /** Edge records handed over, however many of them became edges. */
         readonly edgeRecords: number;
-        /** Records whose endpoint ids the store would not take, so they became no edge at all. */
+        /**
+         * Records that became nothing: an edge record whose endpoint ids the store would not
+         * take, and a node record with no usable id (absent, null, or not a string or a finite
+         * number). `LoadDraft.rows(id, { only: "rejected" })` lists them before a load.
+         */
         readonly rejected: number;
     };
     /** What happened to the records that named a pair the graph already held. */
@@ -78,6 +85,76 @@ export interface ImportReport {
         /** Edges stored without one, matched by position among their pair's edges. */
         readonly byPosition: number;
     };
+}
+
+/**
+ * One problem a load met, as facts rather than words: a reader words it from `code` and `params`.
+ *
+ * `code` is the kind of problem. A reader's own codes are `"parse-error"` (the file breaks off or
+ * is not well formed here; what came before is kept), `"validation-error"`, `"missing-value"`,
+ * `"unsupported"`, `"precision"`, `"coercion"` and `"merged"`; `"refused-row"` is a record the
+ * graph would not store (no usable node id, or edge endpoints it cannot hold). Codes may be added
+ * in a minor release.
+ */
+export interface LoadError {
+    /** The kind of problem. */
+    readonly code: string;
+    /**
+     * The facts the code needs: for a graph file, `issue` (graph-io's own code, such as
+     * `E_XML_SYNTAX`) and `element` (the element or key concerned); for a refused row, `rowsAre`
+     * (`"nodes"` or `"edges"`).
+     */
+    readonly params: Readonly<Record<string, unknown>>;
+    /** The line of the file (or the row) the problem is on, when the reader knows it. */
+    readonly line?: number;
+    /** The field or column concerned, when there is one. */
+    readonly field?: string;
+}
+
+/** What `E_TOO_LARGE` carries in `details` when a load would pass the element's limit. */
+export interface TooLargeDetails {
+    /** The most the element holds of {@link of}. */
+    readonly limit: number;
+    /** How many the graph would hold. */
+    readonly count: number;
+    /** What is counted. */
+    readonly of: "nodes" | "edges";
+    /** What the graph held when the load was refused. */
+    readonly graph: { readonly nodes: number; readonly edges: number };
+}
+
+/**
+ * An {@link ImportReport} plus two facts a reader checks before and after a load:
+ * `session.data.lastImport()` and `LoadDraft.report()` both return it.
+ */
+export interface LoadReport extends ImportReport {
+    /** Edge rows naming a node no node row (nor the graph, for a merge) held, and how many distinct such names. */
+    readonly unmatched: { readonly rows: number; readonly values: number };
+    /** The details `E_TOO_LARGE` would carry; null when the load fits. Always null after a real load, which refuses instead. */
+    readonly tooLarge: TooLargeDetails | null;
+    /**
+     * Node rows whose id an earlier node row of the same load already gave: `rows` is how many
+     * such rows there are, and `ids` the distinct ids, in the order they first repeated. What
+     * became of them is `LoadChoices.duplicateIds`; under `"refuse"` a load refuses with
+     * `E_DUPLICATE_ID` and a report counts them here. Counted for CSV and JSON node records; a
+     * graph file (GraphML, GEXF, GML, ...) has a repeated id folded by its parser before the
+     * element sees it, so it is not counted.
+     */
+    readonly duplicates: { readonly rows: number; readonly ids: readonly (string | number)[] };
+    /**
+     * Every problem the load met, in the order met, at most the source's `errorLimit` of them:
+     * the source's own (a GraphML or GEXF file that breaks off, a CSV row it could not read),
+     * then the records the graph refused. Empty for a clean load. A recognisable graph file that
+     * breaks off keeps what was read before the break, and its `"parse-error"` entry carries the
+     * `line` it broke on.
+     */
+    readonly errors: readonly LoadError[];
+    /**
+     * What the load did with the file's styles, when it was asked to read them (`styles: "file"`):
+     * the layers they made, bottom first, and what reading and translating them met, as codes and
+     * facts. Absent when the load was not asked to read styles.
+     */
+    readonly styles?: LoadStyleReport;
 }
 
 /**
@@ -109,7 +186,28 @@ export interface ImportTally {
     edgesById: number;
     /** Edges stored without one. */
     edgesByPosition: number;
+    /** Edge records naming a node no node record held. */
+    unmatchedRows: number;
+    /** The distinct names those records used. */
+    readonly unmatchedValues: Set<unknown>;
+    /** The first limit a measured load passed. */
+    tooLarge: TooLargeDetails | null;
+    /** The node ids this load's node records have given so far. */
+    readonly nodeIds: Set<unknown>;
+    /** Node records repeating an id an earlier one gave. */
+    duplicateRows: number;
+    /** The distinct ids they repeated. */
+    readonly duplicateIds: Set<string | number>;
+    /** The problems met so far. */
+    readonly errors: LoadError[];
+    /** How many of them the report keeps: the source's error limit. */
+    errorLimit: number;
+    /** The id each edge record became, in record order; null for a record that made no edge of its own. */
+    readonly edgeIds: (EdgeId | null)[];
 }
+
+/** The error limit a data source has when none is configured, and so of a load with no source. */
+const DEFAULT_ERROR_LIMIT = 100;
 
 /**
  * A fresh, zeroed tally.
@@ -128,6 +226,15 @@ export function newImportTally(): ImportTally {
         weightsAttribute: null,
         edgesById: 0,
         edgesByPosition: 0,
+        unmatchedRows: 0,
+        unmatchedValues: new Set(),
+        tooLarge: null,
+        nodeIds: new Set(),
+        duplicateRows: 0,
+        duplicateIds: new Set(),
+        errors: [],
+        errorLimit: DEFAULT_ERROR_LIMIT,
+        edgeIds: [],
     };
 }
 
@@ -148,12 +255,26 @@ interface ImportReportContext {
 }
 
 /**
+ * One recorded source error as a report entry: its category as the code, and no message.
+ * @param error - what the data source recorded
+ * @returns the entry
+ */
+export function loadErrorOf(error: DataLoadingError): LoadError {
+    return {
+        code: error.category ?? "unknown",
+        params: Object.freeze({ ...error.params }),
+        ...(error.line === undefined ? {} : { line: error.line }),
+        ...(error.field === undefined ? {} : { field: error.field }),
+    };
+}
+
+/**
  * Freeze one load's tally and its context into the report a consumer reads.
  * @param tally - what the load counted
  * @param context - who loaded what, and what the graph holds now
  * @returns the frozen report
  */
-export function sealImportReport(tally: ImportTally, context: ImportReportContext): ImportReport {
+export function sealImportReport(tally: ImportTally, context: ImportReportContext): LoadReport {
     return Object.freeze({
         format: context.format,
         endpoints: Object.freeze({ ...context.endpoints }),
@@ -180,5 +301,9 @@ export function sealImportReport(tally: ImportTally, context: ImportReportContex
             byId: tally.edgesById,
             byPosition: tally.edgesByPosition,
         }),
+        unmatched: Object.freeze({ rows: tally.unmatchedRows, values: tally.unmatchedValues.size }),
+        tooLarge: tally.tooLarge,
+        duplicates: Object.freeze({ rows: tally.duplicateRows, ids: Object.freeze([...tally.duplicateIds]) }),
+        errors: Object.freeze(tally.errors.slice(0, tally.errorLimit).map((error) => Object.freeze(error))),
     });
 }

@@ -4,7 +4,6 @@ import "../src/graphty-element";
 
 import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
-import isChromatic from "chromatic/isChromatic";
 
 import {
     assertDistinctPicture,
@@ -16,7 +15,15 @@ import {
     drawn,
     holds,
 } from "./assertions";
-import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup, waitForGraphSettled } from "./helpers";
+import { catSocialNetwork2FixedUrl, catSocialNetwork2Url } from "./datasets";
+import {
+    eventWaitingDecorator,
+    isVisualCapture,
+    renderFn,
+    type StoryArgs,
+    storySetup,
+    waitForGraphSettled,
+} from "./helpers";
 import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry, labelMotion } from "./label-geometry";
 
 /**
@@ -39,7 +46,7 @@ import { drawnMargins, drawnText, labelDigest, type LabelGeometry, labelGeometry
 const CAT_NETWORK = {
     dataSource: "json",
     dataSourceConfig: {
-        data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2.json",
+        data: catSocialNetwork2Url,
     },
     layout: "ngraph",
     layoutConfig: { seed: 42 },
@@ -486,7 +493,7 @@ export const FontSize: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/cat-social-network-2-fixed-positions-actual-engine.json",
+            data: catSocialNetwork2FixedUrl,
         },
         setup: storySetup({
             node: { "node.labelStyle": { sizePx: 96 } },
@@ -1171,7 +1178,7 @@ export const Pointer: Story = {
  * A label that moves.
  *
  * TWO READINGS A FEW FRAMES APART, because one reading of an animated label is a still label at
- * some scale, which is indistinguishable from a label that never moved. Under Chromatic the
+ * some scale, which is indistinguishable from a label that never moved. Under visual capture the
  * animation is switched off, so that a per-story baseline is a picture of one thing rather than of
  * whatever the pulse happened to be doing -- and the reading below asks for stillness instead.
  */
@@ -1181,7 +1188,7 @@ export const Animation: Story = {
         setup: storySetup({
             node: {
                 "node.labelStyle": {
-                    animation: isChromatic() ? "none" : "pulse",
+                    animation: isVisualCapture() ? "none" : "pulse",
                     animationSpeed: 2,
                     background: "#FF3B30",
                     color: "#FFFFFF",
@@ -1199,7 +1206,7 @@ export const Animation: Story = {
         const scene = await labelled(canvasElement, "Animation");
         const moved = await labelMotion(scene);
 
-        if (isChromatic()) {
+        if (isVisualCapture()) {
             await holds(
                 moved.scale === 0,
                 `Styles/Label Animation: the animation is switched off for the baseline and a label still ` +

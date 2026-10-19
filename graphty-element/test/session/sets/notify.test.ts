@@ -160,7 +160,7 @@ describe("change notification", () => {
                 { id: "b", weight: 10 },
                 { id: "zz", weight: 10 },
             ],
-            (id) => h.nodeAttributes.get(indexOf(id)) as Record<string, unknown> | undefined,
+            (id) => h.nodeAttributes.get(indexOf(id)),
         );
 
         assert.deepStrictEqual(heavy.readies, [

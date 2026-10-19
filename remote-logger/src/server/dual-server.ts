@@ -6,14 +6,15 @@
  * @module server/dual-server
  */
 
+import * as http from "node:http";
+import * as https from "node:https";
+import * as net from "node:net";
+import * as os from "node:os";
+import * as path from "node:path";
+
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import * as http from "http";
-import * as https from "https";
 import { internalIpV4Sync } from "internal-ip";
-import * as net from "net";
-import * as os from "os";
-import * as path from "path";
 
 import { createMcpServer } from "../mcp/mcp-server.js";
 import { JsonlWriter } from "./jsonl-writer.js";
@@ -99,9 +100,7 @@ async function tryBindWithRetry(
 
             if (!quiet) {
                 // eslint-disable-next-line no-console
-                console.log(
-                    `${colors.green}HTTP server listening on ${host}:${boundPort}${colors.reset}`,
-                );
+                console.log(`${colors.green}HTTP server listening on ${host}:${boundPort}${colors.reset}`);
             }
             return { server, port: boundPort };
         } catch (err) {
@@ -116,7 +115,8 @@ async function tryBindWithRetry(
     }
 
     // Exhausted retries
-    const errorMsg = `Could not bind to any port after ${attempts} attempts. ` +
+    const errorMsg =
+        `Could not bind to any port after ${attempts} attempts. ` +
         `Ports ${startPort}-${port - 1} are all in use or were claimed during bind.`;
 
     if (!quiet) {
@@ -136,14 +136,9 @@ async function isPortAvailable(port: number, host: string): Promise<boolean> {
     return new Promise((resolve) => {
         const server = net.createServer();
 
-        // Enable SO_REUSEADDR to allow faster port reuse after server shutdown
-        server.once("error", (err: NodeJS.ErrnoException) => {
-            if (err.code === "EADDRINUSE") {
-                resolve(false);
-            } else {
-                // Other errors (permission, etc.) - port is not usable
-                resolve(false);
-            }
+        // Any bind error (in use, permission, ...) means the port is not usable
+        server.once("error", () => {
+            resolve(false);
         });
 
         server.once("listening", () => {
@@ -185,9 +180,7 @@ export async function findAvailablePort(
         if (await isPortAvailable(port, host)) {
             if (port !== basePort && !quiet) {
                 // eslint-disable-next-line no-console
-                console.log(
-                    `${colors.yellow}Port ${basePort} in use, using port ${port} instead${colors.reset}`,
-                );
+                console.log(`${colors.yellow}Port ${basePort} in use, using port ${port} instead${colors.reset}`);
             }
             return port;
         }
@@ -204,12 +197,12 @@ export async function findAvailablePort(
     }
 
     // No available port found
-    const errorMsg = `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
+    const errorMsg =
+        `Could not find available port after ${attempts} attempts starting from ${basePort}. ` +
         `Ports ${basePort}-${Math.min(port - 1, maxPort)} are all in use. ` +
         `Try killing existing processes: pkill -f "remote-log-server"`;
 
     if (!quiet) {
-
         console.error(`${colors.red}${errorMsg}${colors.reset}`);
     }
 
@@ -262,6 +255,41 @@ export interface DualServerResult {
     httpPort?: number;
     /** Graceful shutdown function */
     shutdown: () => Promise<void>;
+}
+
+/**
+ * The mode the server reports, from its configuration.
+ * @param logReceiveOnly - Whether the HTTP server only receives logs
+ * @param mcpEnabled - Whether the MCP interface is enabled
+ * @returns The server mode
+ */
+function serverMode(logReceiveOnly: boolean, mcpEnabled: boolean): ServerMode {
+    if (logReceiveOnly && mcpEnabled) {
+        return "mcp-only";
+    }
+    return mcpEnabled ? "dual" : "http-only";
+}
+
+/**
+ * The host to put in endpoint URLs. When bound to all interfaces (0.0.0.0), detect
+ * the machine's IP address, since 0.0.0.0 is not a routable address for clients.
+ * @param httpHost - The host the HTTP server is bound to
+ * @param quiet - Whether to suppress the warning when no LAN IP is found
+ * @returns The endpoint host
+ */
+function endpointHostFor(httpHost: string, quiet: boolean): string {
+    if (httpHost !== "0.0.0.0") {
+        return httpHost;
+    }
+    const internalIp = internalIpV4Sync();
+    if (internalIp) {
+        return internalIp;
+    }
+    // Fallback for local-only use - don't use hostname as it may not resolve
+    if (!quiet) {
+        console.warn(`${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`);
+    }
+    return "127.0.0.1";
 }
 
 /**
@@ -321,13 +349,7 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         };
 
         // Bind with retry logic to handle race conditions
-        const bindResult = await tryBindWithRetry(
-            createServerInstance,
-            startPort,
-            httpHost,
-            quiet,
-            maxPortNumber,
-        );
+        const bindResult = await tryBindWithRetry(createServerInstance, startPort, httpHost, quiet, maxPortNumber);
         httpServer = bindResult.server;
         actualHttpPort = bindResult.port;
 
@@ -346,32 +368,8 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
         // Determine protocol based on whether valid cert files were provided
         const useHttps = certPath && keyPath && certFilesExist(certPath, keyPath);
         const protocol = useHttps ? "https" : "http";
-        // Determine mode based on configuration
-        let mode: ServerMode;
-        if (logReceiveOnly && mcpEnabled) {
-            mode = "mcp-only";
-        } else if (!mcpEnabled) {
-            mode = "http-only";
-        } else {
-            mode = "dual";
-        }
-        // When bound to all interfaces (0.0.0.0), detect the machine's IP address
-        // for the endpoint URL since 0.0.0.0 is not a routable address for clients
-        let endpointHost = httpHost;
-        if (httpHost === "0.0.0.0") {
-            const internalIp = internalIpV4Sync();
-            if (internalIp) {
-                endpointHost = internalIp;
-            } else {
-                // Fallback for local-only use - don't use hostname as it may not resolve
-                endpointHost = "127.0.0.1";
-                if (!quiet) {
-                    console.warn(
-                        `${colors.yellow}Could not detect LAN IP. Endpoint URL will only work locally.${colors.reset}`,
-                    );
-                }
-            }
-        }
+        const mode = serverMode(logReceiveOnly, mcpEnabled);
+        const endpointHost = endpointHostFor(httpHost, quiet);
         const scriptUrl = `${protocol}://${endpointHost}:${actualHttpPort}/remote-logger.js`;
         const proxyBaseUrl = `/proxy/`;
 
@@ -411,7 +409,9 @@ export async function createDualServer(options: DualServerOptions = {}): Promise
             activeConnections.clear();
 
             await new Promise<void>((resolve) => {
-                httpServer.close(() => { resolve(); });
+                httpServer.close(() => {
+                    resolve();
+                });
             });
         }
 

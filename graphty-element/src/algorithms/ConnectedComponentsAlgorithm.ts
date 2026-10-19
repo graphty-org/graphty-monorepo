@@ -1,4 +1,5 @@
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { type ScopeInputDeclaration, scopeNodeIds } from "./input/ScopedInput";
 import {
@@ -61,7 +62,7 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
                 direction: "undirected",
                 weight: null,
                 precision,
-                notes: ["Strength: weak. An edge joins its two nodes whichever way it was declared."],
+                facts: [caveat("components.weak")],
             }),
         };
     }

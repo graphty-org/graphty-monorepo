@@ -4,14 +4,17 @@
  * any combination of a filename (its extension), a MIME type and the first bytes of the content.
  *
  * Every importer declares `extensions`, `mimeTypes` and a `sniff(head)` content confidence in
- * 0..1 (design section 8.4); this module combines them into one ranked answer so that content
+ * 0..1; this module combines them into one ranked answer so that content
  * always beats a hint: a `.csv` whose first line is a neo4j-admin header is Neo4j, a `.xml` is
  * GEXF or GraphML by its root element, a `.txt` holding `graph [` is GML. The confidence of a
  * candidate is
  *
  * - `0.5 + 0.35 * content + 0.1 * [extension matches] + 0.05 * [MIME type matches]` when the
- *   importer recognises the content (`content > 0`), so a content match always scores at least
+ *   importer recognizes the content (`content > 0`), so a content match always scores at least
  *   0.5 and at most 1;
+ * - `0.25 * content + 0.05 * [MIME type matches]` for a weak content match (content below 0.5,
+ *   such as plain delimited text read as CSV) when the file name's extension belongs to another
+ *   format, so that format wins;
  * - `0.3 * [extension matches] + 0.1 * [MIME type matches]` when the content is absent or the
  *   importer rejects it, so a hint alone never reaches 0.5;
  * - nothing (the format is not a candidate) otherwise.
@@ -24,24 +27,29 @@
 import { type JsonImportDialect, sniffJsonDialect } from "./formats/json/dialect.js";
 import { type GraphImporter } from "./types.js";
 
-/** The format names of the eight built-in importers and exporters. */
+/**
+ * The names of the built-in formats.
+ * @category Formats and detection
+ */
 export type GraphFormatName =
-    | "gexf"
-    | "graphml"
-    | "gml"
-    | "dot"
-    | "pajek"
-    | "csv"
-    | "json"
-    | "neo4j"
-    | "cx2"
-    | "cx"
-    | "obo";
+    "gexf" | "graphml" | "gml" | "dot" | "pajek" | "csv" | "json" | "neo4j" | "xgmml" | "cx2" | "cx" | "obo" | "cys";
+
+/**
+ * A format name: one of the built-in names (with editor autocomplete) or the name of a format you
+ * registered yourself.
+ * @example
+ * ```ts
+ * const format: FormatName = "pajek"; // or "my-format" after registry.registerImporter(myImporter)
+ * ```
+ * @category Formats and detection
+ */
+export type FormatName = GraphFormatName | (string & {}); // NOSONAR(S4335): keeps editor completion of the built-in names
 
 /**
  * The built-in format names in the default registry's order, which is also the tie-break order of
  * sniffing: the more common format wins an extension two formats claim (`.xml` GraphML before GEXF,
  * `.csv` CSV before Neo4j) when the content does not decide.
+ * @category Formats and detection
  */
 export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "json",
@@ -52,29 +60,43 @@ export const GRAPH_FORMATS: readonly GraphFormatName[] = Object.freeze([
     "dot",
     "pajek",
     "neo4j",
+    "xgmml",
     "cx2",
     "cx",
     "obo",
+    "cys",
 ]);
 
-/** How many bytes of the input the sniffers look at; the registry reads no more than this before deciding. */
+/** Content confidence below this is a weak guess, which loses to a file extension another format claims. */
+const WEAK_CONTENT = 0.5;
+
+/**
+ * How many bytes of the input the sniffers look at; the registry reads no more than this before deciding.
+ * @category Formats and detection
+ */
 export const SNIFF_HEAD_BYTES = 8192;
 
-/** What is known about an input before it is read. */
+/**
+ * What is known about an input before it is read.
+ * @category Formats and detection
+ */
 export interface SniffHints {
     /** A file name or path; only its extension is used. */
     readonly filename?: string | null | undefined;
     /** A MIME type, with or without parameters (`text/csv; charset=utf-8`). */
     readonly mimeType?: string | null | undefined;
-    /** The first bytes (or characters) of the content. */
+    /** The first bytes (or characters) of the content; detection reads at most SNIFF_HEAD_BYTES of it. */
     readonly head?: Uint8Array | string | null | undefined;
 }
 
-/** One ranked candidate of a sniff. */
+/**
+ * One ranked candidate of a sniff.
+ * @category Formats and detection
+ */
 export interface SniffResult {
     /** The importer's format name. */
     readonly format: string;
-    /** The combined confidence in 0..1 (at least 0.5 when the content was recognised). */
+    /** The combined confidence in 0..1: at least 0.5 when the content was clearly recognized, at most 0.4 from a name or MIME type alone. */
     readonly confidence: number;
     /** The importer's own content confidence, 0 when no head was given or it rejected the head. */
     readonly content: number;
@@ -87,12 +109,35 @@ export interface SniffResult {
 }
 
 /**
- * The lower-cased extension of a file name or path, with its dot.
- * @param filename - the name or path
+ * Where the query or fragment of a name starts: at the first `?` or `#` of a URL; in a plain name, at
+ * the first `?` or `#` that no dot follows.
+ * @param filename - the name, path or URL
+ * @param url - whether the name is a URL
+ * @returns the offset, or the name's length when it has neither
+ */
+function queryStart(filename: string, url: boolean): number {
+    const from = url ? 0 : filename.lastIndexOf(".") + 1;
+    for (let i = from; i < filename.length; i++) {
+        if (filename[i] === "?" || filename[i] === "#") {
+            return i;
+        }
+    }
+    return filename.length;
+}
+
+/**
+ * The lower-cased extension of a file name, path or URL, with its dot. A URL's `?query` and
+ * `#fragment` are not part of it; in a plain name, `?` and `#` are ordinary characters (`net#2.gexf`)
+ * unless no dot follows them (`g.graphml#v2`).
+ * @param filename - the name, path or URL
  * @returns the extension (`.gexf`), or null when the name has none
+ * @category Formats and detection
  */
 export function extensionOf(filename: string): string | null {
-    const base = filename.slice(Math.max(filename.lastIndexOf("/"), filename.lastIndexOf("\\")) + 1);
+    // a scheme of two or more letters, so a Windows drive (`C:`) is not one
+    const url = /^[a-z][a-z\d+.-]+:/i.test(filename);
+    const path = filename.slice(0, queryStart(filename, url));
+    const base = path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
     const dot = base.lastIndexOf(".");
     if (dot <= 0 || dot === base.length - 1) {
         return null;
@@ -104,6 +149,7 @@ export function extensionOf(filename: string): string | null {
  * A MIME type without parameters, lower-cased, for comparison with an importer's list.
  * @param mimeType - the type as received (`Text/CSV; charset=utf-8`)
  * @returns the bare type (`text/csv`)
+ * @category Plugin helpers
  */
 export function normalizeMimeType(mimeType: string): string {
     const semicolon = mimeType.indexOf(";");
@@ -115,6 +161,7 @@ export function normalizeMimeType(mimeType: string): string {
  * encoded as UTF-8, a UTF-16 head with a byte order mark transcoded to UTF-8.
  * @param head - the head as given
  * @returns the bytes
+ * @category Plugin helpers
  */
 export function headBytes(head: Uint8Array | string): Uint8Array {
     if (typeof head === "string") {
@@ -129,32 +176,39 @@ export function headBytes(head: Uint8Array | string): Uint8Array {
 }
 
 /**
- * Rank the registered importers for an input by the rule of the module comment: every importer
- * whose content confidence is positive or whose extension / MIME type matches is a candidate,
- * ordered by confidence (ties in registration order).
- * @param hints - what is known about the input
- * @param importers - the registered importers, in registration order
+ * Rank a list of importers for an input. Most callers want `registry.sniffAll(hints)`, which passes
+ * the registered importers for you. An importer is a candidate when it recognizes the content or
+ * its extension or MIME type matches. A content match scores 0.5 to 1 (more with a matching
+ * extension or MIME type); a name or MIME type alone scores at most 0.4; a weak content guess (a
+ * confidence below 0.5 from the importer, such as plain delimited text for CSV) scores below 0.25
+ * when the file's extension belongs to another format. Ties go to the importer listed first.
+ * @param hints - `{ filename, mimeType, head }`, any of them
+ * @param importers - the importers to rank, in tie-break order (`registry.importers()`)
+ * @param onSniffError - called with the format and the error when an importer's sniff() throws
+ * (that importer is then treated as not recognizing the head)
  * @returns the candidates, best first; empty when nothing matches
+ * @category Formats and detection
  */
-export function rankFormats(hints: SniffHints, importers: Iterable<GraphImporter>): readonly SniffResult[] {
+export function rankFormats(
+    hints: SniffHints,
+    importers: Iterable<GraphImporter>,
+    onSniffError?: (format: string, error: unknown) => void,
+): readonly SniffResult[] {
     const extension = typeof hints.filename === "string" ? extensionOf(hints.filename) : null;
     const mime = typeof hints.mimeType === "string" ? normalizeMimeType(hints.mimeType) : null;
     const head = hints.head === undefined || hints.head === null ? null : headBytes(hints.head);
+    const all = [...importers];
+    const extensionClaimed =
+        extension !== null && all.some((i) => i.extensions.some((e) => e.toLowerCase() === extension));
     const candidates: { readonly result: SniffResult; readonly rank: number }[] = [];
     let rank = 0;
-    for (const importer of importers) {
+    for (const importer of all) {
         const extensionMatch = extension !== null && importer.extensions.some((e) => e.toLowerCase() === extension);
         const mimeMatch = mime !== null && importer.mimeTypes.some((m) => m.toLowerCase() === mime);
-        let content = 0;
-        if (head !== null && head.byteLength > 0 && typeof importer.sniff === "function") {
-            content = clamp(importer.sniff(head));
-        }
-        let confidence: number;
-        if (content > 0) {
-            confidence = 0.5 + 0.35 * content + (extensionMatch ? 0.1 : 0) + (mimeMatch ? 0.05 : 0);
-        } else if (extensionMatch || mimeMatch) {
-            confidence = (extensionMatch ? 0.3 : 0) + (mimeMatch ? 0.1 : 0);
-        } else {
+        const sniffed = head !== null && head.byteLength > 0 && typeof importer.sniff === "function";
+        const content = sniffed ? contentConfidence(importer, head, onSniffError) : 0;
+        const confidence = combinedConfidence(content, { extensionMatch, mimeMatch, extensionClaimed, sniffed });
+        if (confidence === null) {
             continue;
         }
         const dialect = importer.format === "json" && head !== null ? sniffJsonDialectHead(head) : null;
@@ -173,10 +227,66 @@ export function rankFormats(hints: SniffHints, importers: Iterable<GraphImporter
 }
 
 /**
- * The best candidate of rankFormats(), or null when no importer matches.
- * @param hints - what is known about the input
- * @param importers - the registered importers, in registration order
+ * An importer's confidence that it recognizes a head, 0 when its sniffer throws (one buggy
+ * importer must not break the detection of every other format, but the error is handed on).
+ * @param importer - the importer, which has a sniffer
+ * @param head - the head
+ * @param onSniffError - called with the format and the error when the sniffer throws
+ * @returns the confidence in 0..1
+ */
+function contentConfidence(
+    importer: GraphImporter,
+    head: Uint8Array,
+    onSniffError: ((format: string, error: unknown) => void) | undefined,
+): number {
+    try {
+        return clamp(importer.sniff?.(head) ?? 0);
+    } catch (err) {
+        onSniffError?.(importer.format, err);
+        return 0;
+    }
+}
+
+/**
+ * The ranking score of one importer from what matched, or null when it is not a candidate.
+ * @param content - the importer's content confidence
+ * @param match - what else matched
+ * @param match.extensionMatch - the file's extension is one the importer claims
+ * @param match.mimeMatch - the MIME type is one the importer claims
+ * @param match.extensionClaimed - some importer claims the file's extension
+ * @param match.sniffed - the importer looked at the content
+ * @returns the score, or null
+ */
+function combinedConfidence(
+    content: number,
+    match: { extensionMatch: boolean; mimeMatch: boolean; extensionClaimed: boolean; sniffed: boolean },
+): number | null {
+    const { extensionMatch, mimeMatch } = match;
+    const mimeBonus = mimeMatch ? 0.05 : 0;
+    if (content > 0 && content < WEAK_CONTENT && match.extensionClaimed && !extensionMatch) {
+        // a weak guess (plain delimited text read as CSV) never overrides another format's extension
+        return 0.25 * content + mimeBonus;
+    }
+    if (content > 0) {
+        return 0.5 + 0.35 * content + (extensionMatch ? 0.1 : 0) + mimeBonus;
+    }
+    if (extensionMatch || (mimeMatch && !match.sniffed)) {
+        // a MIME type alone does not override an importer that looked at the content and said no:
+        // servers send text/plain for any text file, and a sentence is not a CSV edge list
+        return (extensionMatch ? 0.3 : 0) + (mimeMatch ? 0.1 : 0);
+    }
+    return null;
+}
+
+/**
+ * Format detection over a list of importers you pass in, for code that keeps importers outside any
+ * registry. To detect a file's format, call `sniff(hints)` instead: it takes the same hints and
+ * knows every built-in and registered format. Returns the best candidate of rankFormats(), or null
+ * when no importer matches.
+ * @param hints - `{ filename, mimeType, head }`, any of them
+ * @param importers - the importers to rank, in tie-break order (`registry.importers()`)
  * @returns the best candidate, or null
+ * @category Plugin helpers
  */
 export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter>): SniffResult | null {
     const ranked = rankFormats(hints, importers);
@@ -191,6 +301,7 @@ export function sniffFormat(hints: SniffHints, importers: Iterable<GraphImporter
  * document.
  * @param head - the first bytes or characters of the document
  * @returns the dialect, or null when the head is not a JSON graph document
+ * @category Plugin helpers
  */
 export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDialect | null {
     const text = typeof head === "string" ? head : new TextDecoder("utf-8", { fatal: false }).decode(head);
@@ -203,21 +314,26 @@ export function sniffJsonDialectHead(head: Uint8Array | string): JsonImportDiale
     try {
         root = JSON.parse(trimmed);
     } catch {
-        root = skeletonOf(trimmed);
+        const skeleton = skeletonOf(trimmed);
+        root = skeleton;
+        // a head cut inside a long `nodes` array has not reached the keys that tell node-link from d3
+        // (`links`, `directed`, `graph`, ...): no guess rather than a wrong one
+        if (
+            typeof skeleton === "object" &&
+            skeleton !== null &&
+            !Array.isArray(skeleton) &&
+            !["edges", "links", "directed", "multigraph", "graph"].some((key) => key in skeleton)
+        ) {
+            const guess = sniffJsonDialect(skeleton);
+            return guess === "node-link" ? null : guess;
+        }
     }
     return sniffJsonDialect(root);
 }
 
 /** Where a key was seen while scanning a truncated head. */
 type KeyPath =
-    | ""
-    | "graph"
-    | "options"
-    | "nodes[0]"
-    | "edges[0]"
-    | "links[0]"
-    | "graphs[0].nodes[]"
-    | "graphs[0].edges[]";
+    "" | "graph" | "options" | "nodes[0]" | "edges[0]" | "links[0]" | "graphs[0].nodes[]" | "graphs[0].edges[]";
 
 /**
  * A partial document rebuilt from the keys a truncated head reveals: every key gets a placeholder
@@ -240,38 +356,55 @@ function skeletonOf(text: string): unknown {
     }
     const root: Record<string, unknown> = {};
     for (const key of rootKeys) {
-        switch (key) {
-            case "graph":
-            case "options":
-                root[key] = objectOf(keys.get(key));
-                break;
-            case "graphs": {
-                // the keys of any node or edge of the first graph: OBO Graphs or JGF (design 1.6)
-                const nodes = keys.get("graphs[0].nodes[]");
-                const edges = keys.get("graphs[0].edges[]");
-                const graph: Record<string, unknown> = {};
-                if (nodes !== undefined) {
-                    graph.nodes = [objectOf(nodes)];
-                }
-                if (edges !== undefined) {
-                    graph.edges = [objectOf(edges)];
-                }
-                root[key] = nodes === undefined && edges === undefined ? [] : [graph];
-                break;
-            }
-            case "nodes":
-            case "edges":
-            case "links": {
-                const first = keys.get(`${key}[0]`);
-                root[key] = first === undefined ? [] : [objectOf(first)];
-                break;
-            }
-            default:
-                root[key] = true;
-                break;
-        }
+        root[key] = placeholderOf(key, keys);
     }
     return root;
+}
+
+/**
+ * The placeholder value of a root key: the shape the dialect rule tests that key for.
+ * @param key - the root key
+ * @param keys - the key sets by path
+ * @returns the placeholder
+ */
+function placeholderOf(key: string, keys: ReadonlyMap<KeyPath, Set<string>>): unknown {
+    switch (key) {
+        case "graph":
+        case "options":
+            return objectOf(keys.get(key));
+        case "graphs":
+            return graphsPlaceholder(keys);
+        case "nodes":
+        case "edges":
+        case "links": {
+            const first = keys.get(`${key}[0]`);
+            return first === undefined ? [] : [objectOf(first)];
+        }
+        default:
+            return true;
+    }
+}
+
+/**
+ * The placeholder of `graphs`: the keys of any node or edge of the first graph, which tell OBO
+ * Graphs from JGF (design 1.6).
+ * @param keys - the key sets by path
+ * @returns `[]` when neither was seen, else one graph holding them
+ */
+function graphsPlaceholder(keys: ReadonlyMap<KeyPath, Set<string>>): unknown[] {
+    const nodes = keys.get("graphs[0].nodes[]");
+    const edges = keys.get("graphs[0].edges[]");
+    if (nodes === undefined && edges === undefined) {
+        return [];
+    }
+    const graph: Record<string, unknown> = {};
+    if (nodes !== undefined) {
+        graph.nodes = [objectOf(nodes)];
+    }
+    if (edges !== undefined) {
+        graph.edges = [objectOf(edges)];
+    }
+    return [graph];
 }
 
 /**
@@ -308,34 +441,6 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
     const counts: number[] = [];
     let pendingKey: string | null = null;
     let expectingKey = false;
-    const pathOf = (): KeyPath | null => {
-        const depth = kinds.length;
-        if (depth === 1) {
-            return kinds[0] === "object" ? "" : null;
-        }
-        if (depth === 2 && kinds[0] === "array" && kinds[1] === "object" && labels[1] === "0") {
-            return "nodes[0]";
-        }
-        if (depth === 2 && kinds[0] === "object" && kinds[1] === "object") {
-            return labels[1] === "graph" || labels[1] === "options" ? labels[1] : null;
-        }
-        if (
-            depth === 5 &&
-            kinds.join() === "object,array,object,array,object" &&
-            labels[1] === "graphs" &&
-            labels[2] === "0" &&
-            (labels[3] === "nodes" || labels[3] === "edges")
-        ) {
-            return labels[3] === "nodes" ? "graphs[0].nodes[]" : "graphs[0].edges[]";
-        }
-        if (depth === 3 && kinds[0] === "object" && kinds[1] === "array" && kinds[2] === "object") {
-            const section = labels[1];
-            if ((section === "nodes" || section === "edges" || section === "links") && labels[2] === "0") {
-                return `${section}[0]`;
-            }
-        }
-        return null;
-    };
     let i = 0;
     const n = text.length;
     while (i < n) {
@@ -356,7 +461,7 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
         if (ch === "{" || ch === "[") {
             let label = "";
             if (kinds.length > 0) {
-                label = kinds[kinds.length - 1] === "object" ? (pendingKey ?? "") : String(counts[counts.length - 1]);
+                label = kinds.at(-1) === "object" ? (pendingKey ?? "") : String(counts.at(-1));
             }
             kinds.push(ch === "{" ? "object" : "array");
             labels.push(label);
@@ -371,7 +476,7 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
             pendingKey = null;
         } else if (ch === ":") {
             if (pendingKey !== null) {
-                const path = pathOf();
+                const path = keyPathOf(kinds, labels);
                 if (path !== null) {
                     let set = found.get(path);
                     if (set === undefined) {
@@ -392,6 +497,73 @@ function scanKeys(text: string): Map<KeyPath, Set<string>> {
         i++;
     }
     return found;
+}
+
+/**
+ * The watched path of the innermost open object, from the container stack.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null when keys there are not watched
+ */
+function keyPathOf(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    switch (kinds.length) {
+        case 1:
+            return kinds[0] === "object" ? "" : null;
+        case 2:
+            return nestedObjectPath(kinds, labels);
+        case 3:
+            return sectionElementPath(kinds, labels);
+        case 5:
+            return graphsMemberPath(kinds, labels);
+        default:
+            return null;
+    }
+}
+
+/**
+ * At depth 2: the first element of a top-level array, or the `graph` / `options` object.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null
+ */
+function nestedObjectPath(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    if (kinds[0] === "array" && kinds[1] === "object" && labels[1] === "0") {
+        return "nodes[0]";
+    }
+    if (kinds[0] === "object" && kinds[1] === "object") {
+        return labels[1] === "graph" || labels[1] === "options" ? labels[1] : null;
+    }
+    return null;
+}
+
+/**
+ * At depth 3: the first element of the root's `nodes`, `edges` or `links` array.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null
+ */
+function sectionElementPath(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    if (kinds[0] !== "object" || kinds[1] !== "array" || kinds[2] !== "object" || labels[2] !== "0") {
+        return null;
+    }
+    const section = labels[1];
+    return section === "nodes" || section === "edges" || section === "links" ? `${section}[0]` : null;
+}
+
+/**
+ * At depth 5: any node or edge of the first graph of the root's `graphs` array.
+ * @param kinds - the kind of each open container, outermost first
+ * @param labels - the key or index each open container sits under
+ * @returns the path, or null
+ */
+function graphsMemberPath(kinds: readonly ("object" | "array")[], labels: readonly string[]): KeyPath | null {
+    if (kinds.join() !== "object,array,object,array,object" || labels[1] !== "graphs" || labels[2] !== "0") {
+        return null;
+    }
+    if (labels[3] === "nodes") {
+        return "graphs[0].nodes[]";
+    }
+    return labels[3] === "edges" ? "graphs[0].edges[]" : null;
 }
 
 /**
@@ -441,5 +613,5 @@ function clamp(value: number): number {
     if (!(value > 0)) {
         return 0;
     }
-    return value > 1 ? 1 : value;
+    return Math.min(value, 1);
 }

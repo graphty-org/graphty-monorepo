@@ -1,6 +1,6 @@
 [
 {"numberVerification":[{"longNumber":281474976710655}]},
-{"nodes":[{"@id":1}],"edges":[{"@id":1,"s":1,"t":1}]},
+{"nodes":[{"@id":1}],"edges":{"@id":1,"s":1,"t":1}},
 {"nodes":[{"@id":2}]},
 {"status":[{"error":"","success":true}]}
 ]

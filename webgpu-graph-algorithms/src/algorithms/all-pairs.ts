@@ -34,14 +34,18 @@ import { APSP_PARAMS, FILL_PARAMS, graphBindings, graphOverrides, kernelSpec } f
 import { assertWholeCore } from "../primitives/core-shape.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type ApspOptions, type GpuApspResult } from "../types/all-pairs.js";
+import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
-import { algorithmScope } from "./scope.js";
+import { type AlgorithmScope, algorithmScope } from "./scope.js";
 import { aborted, bindingOf, checkDest } from "./sssp.js";
 
 const ALGORITHM = "allPairsShortestPath";
 
-/** The rounds one submit holds by default: three dispatches per round. */
-const DEFAULT_ROUNDS_PER_SUBMIT = Math.floor(APSP_MAX_DISPATCHES_PER_SUBMIT / 3);
+/**
+ * The rounds one submit holds by default: three dispatches per round.
+ * @internal
+ */
+export const DEFAULT_ROUNDS_PER_SUBMIT = Math.floor(APSP_MAX_DISPATCHES_PER_SUBMIT / 3);
 
 /**
  * The knobs the tests need and nothing public offers.
@@ -77,6 +81,83 @@ export function allPairsCeiling(limits: Pick<GPUSupportedLimits, "maxStorageBuff
         maxNodes += 1;
     }
     return { maxNodes, limit, limitName };
+}
+
+/**
+ * The blocked sweep itself, shared with closeness's all-pairs route: the `n x n` matrix leased from `scope`, filled,
+ * initialised from the arcs and swept to the shortest distances, every submit awaited; the matrix stays on the device.
+ * The caller has checked the ceiling and the weights.
+ * @internal
+ * @param ctx - the context
+ * @param s - the snapshot (n > 0)
+ * @param scope - the scope that leases the matrix and the params records (`min(roundsPerSubmit, blocks) + 2` slots)
+ * @param weighted - true sums the snapshot's weights, false counts hops
+ * @param roundsPerSubmit - the rounds recorded per submit
+ * @param options - signal / onProgress (rounds done of `ceil(n / 32)`)
+ * @param algorithm - the name errors carry
+ * @returns the matrix binding (`4 n^2` bytes, row-major, `dist[i * n + j]` from `i` to `j`)
+ */
+export async function sweepAllPairs(
+    ctx: GpuContext,
+    s: GraphSnapshot,
+    scope: AlgorithmScope,
+    weighted: boolean,
+    roundsPerSubmit: number,
+    options: GpuRunOptions | undefined,
+    algorithm: string,
+): Promise<Binding> {
+    const n = s.nodeCount;
+    const core = ctx.residency.core(s);
+    assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, algorithm);
+    const blocks = Math.ceil(n / APSP_TILE);
+    const wg = ctx.workgroupSize;
+    const bytes = 4 * n * n;
+    const matrix = bindingOf(scope.scratch(bytes, "dist"), bytes);
+    await ctx.allocator.check();
+    const weightsBinding = weighted ? undefined : null;
+    const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
+    const init = await ctx.pipelines.kernel(kernelSpec("apsp-init", graphOverrides(core, null, weightsBinding)));
+    const phases = await Promise.all(
+        [0, 1, 2].map((phase) => ctx.pipelines.kernel(kernelSpec("apsp-fw", { PHASE: phase }))),
+    );
+    const graph = graphBindings(core, null, weightsBinding);
+    const others = blocks - 1;
+    const phasePlans = [plan2d(1, ctx.caps), plan2d(2 * others, ctx.caps), plan2d(others * others, ctx.caps)];
+
+    for (let first = 0; first < blocks; first += roundsPerSubmit) {
+        const batch = new CommandBatch(ctx, `${algorithm}/sweep`);
+        const pass = batch.pass("apsp");
+        if (first === 0) {
+            const fillParams = scope.params(FILL_PARAMS, { count: n * n, value: F32_INF_BITS, mode: 0, pad0: 0 });
+            fill.dispatch(pass, fill.bind({ dst: matrix, P: fillParams.binding }), plan1d(n * n, wg, ctx.caps), [
+                fillParams.offset,
+            ]);
+            const initParams = scope.params(APSP_PARAMS, { n, round: 0, blocks, infBits: F32_INF_BITS });
+            init.dispatch(pass, init.bind({ ...graph, dist: matrix, P: initParams.binding }), plan1d(n, wg, ctx.caps), [
+                initParams.offset,
+            ]);
+        }
+        const last = Math.min(first + roundsPerSubmit, blocks);
+        for (let round = first; round < last; round++) {
+            const params = scope.params(APSP_PARAMS, { n, round, blocks, infBits: F32_INF_BITS });
+            for (let phase = 0; phase < 3; phase++) {
+                const kernel = phases[phase];
+                kernel.dispatch(pass, kernel.bind({ dist: matrix, P: params.binding }), phasePlans[phase], [
+                    params.offset,
+                ]);
+            }
+        }
+        batch.endPass();
+        scope.flush();
+        const submitted = batch.submit();
+        await submitted.readback;
+        ctx.assertReady();
+        options?.onProgress?.(last, blocks);
+        if (options?.signal?.aborted) {
+            throw aborted(algorithm, submitted.id);
+        }
+    }
+    return matrix;
 }
 
 /**
@@ -145,61 +226,10 @@ export async function allPairsWithTuning(
         return { dist, n };
     }
     await assertDeviceComputes(ctx);
-    const core = ctx.residency.core(s);
-    assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
-    const blocks = Math.ceil(n / APSP_TILE);
-    const scope = algorithmScope(ctx, ALGORITHM, Math.min(roundsPerSubmit, blocks) + 2);
+    const scope = algorithmScope(ctx, ALGORITHM, Math.min(roundsPerSubmit, Math.ceil(n / APSP_TILE)) + 2);
     try {
-        const wg = ctx.workgroupSize;
+        const matrix = await sweepAllPairs(ctx, s, scope, weighted, roundsPerSubmit, options, ALGORITHM);
         const bytes = 4 * n * n;
-        const matrix = bindingOf(scope.scratch(bytes, "dist"), bytes);
-        await ctx.allocator.check();
-        const weightsBinding = weighted ? undefined : null;
-        const fill = await ctx.pipelines.kernel(kernelSpec("fill"));
-        const init = await ctx.pipelines.kernel(kernelSpec("apsp-init", graphOverrides(core, null, weightsBinding)));
-        const phases = await Promise.all(
-            [0, 1, 2].map((phase) => ctx.pipelines.kernel(kernelSpec("apsp-fw", { PHASE: phase }))),
-        );
-        const graph = graphBindings(core, null, weightsBinding);
-        const others = blocks - 1;
-        const phasePlans = [plan2d(1, ctx.caps), plan2d(2 * others, ctx.caps), plan2d(others * others, ctx.caps)];
-
-        for (let first = 0; first < blocks; first += roundsPerSubmit) {
-            const batch = new CommandBatch(ctx, `${ALGORITHM}/sweep`);
-            const pass = batch.pass("apsp");
-            if (first === 0) {
-                const fillParams = scope.params(FILL_PARAMS, { count: n * n, value: F32_INF_BITS, mode: 0, pad0: 0 });
-                fill.dispatch(pass, fill.bind({ dst: matrix, P: fillParams.binding }), plan1d(n * n, wg, ctx.caps), [
-                    fillParams.offset,
-                ]);
-                const initParams = scope.params(APSP_PARAMS, { n, round: 0, blocks, infBits: F32_INF_BITS });
-                init.dispatch(
-                    pass,
-                    init.bind({ ...graph, dist: matrix, P: initParams.binding }),
-                    plan1d(n, wg, ctx.caps),
-                    [initParams.offset],
-                );
-            }
-            const last = Math.min(first + roundsPerSubmit, blocks);
-            for (let round = first; round < last; round++) {
-                const params = scope.params(APSP_PARAMS, { n, round, blocks, infBits: F32_INF_BITS });
-                for (let phase = 0; phase < 3; phase++) {
-                    const kernel = phases[phase];
-                    kernel.dispatch(pass, kernel.bind({ dist: matrix, P: params.binding }), phasePlans[phase], [
-                        params.offset,
-                    ]);
-                }
-            }
-            batch.endPass();
-            scope.flush();
-            const submitted = batch.submit();
-            await submitted.readback;
-            ctx.assertReady();
-            options?.onProgress?.(last, blocks);
-            if (options?.signal?.aborted) {
-                throw aborted(ALGORITHM, submitted.id);
-            }
-        }
         await ctx.readback.read(matrix.buffer, bytes, dist);
         ctx.assertReady();
         return { dist, n };

@@ -111,7 +111,7 @@ defineDataSource({
     credential: { name: "API token" },
     options: { endpoint: "https://api.acme.example/graph" },
     async *load({ options, fetch }) {
-        for (let url: string | null = options.endpoint; url !== null; ) {
+        for (let url: string | null = options.endpoint; url !== null;) {
             const page = (await (await fetch(url)).json()) as {
                 nodes: Record<string, unknown>[];
                 edges: Record<string, unknown>[];

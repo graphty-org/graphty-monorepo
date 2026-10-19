@@ -17,7 +17,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import type { AttributeDescriptor, AttributeType } from "../catalog/types";
+import type { AttributeDescriptor, AttributeType, Measurement } from "../catalog/types";
 import type { MovedInput } from "./sets/notify";
 import { ATTRIBUTE_SAMPLE_CAP, ATTRIBUTE_UNIQUE_CAP, type SessionRecordSource } from "./types";
 
@@ -138,6 +138,26 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
 }
 
 /**
+ * What a column's values measure, read from their type alone.
+ *
+ * Never from how many distinct values there are: the same column must not change meaning when
+ * next month's file has more rows. Numbers are amounts until someone declares them codes.
+ * @param type - the settled type
+ * @returns the measurement
+ */
+function inferMeasurement(type: AttributeType): Measurement {
+    switch (type) {
+        case "number":
+        case "integer":
+            return "quantitative";
+        case "time":
+            return "time";
+        default:
+            return "categorical";
+    }
+}
+
+/**
  * Turn one accumulator into the descriptor a consumer reads.
  * @param name - the attribute's key
  * @param kind - whether it was found on nodes or on edges
@@ -158,12 +178,48 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         technicalName: name,
         kind,
         type,
+        ...(accumulator.present === 0
+            ? {}
+            : { measurement: inferMeasurement(settled), measurementSource: "inferred" as const }),
         origin: "imported",
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
         ...(numeric ? { min: accumulator.min, max: accumulator.max } : {}),
         sampleValues: Object.freeze([...accumulator.samples]),
     } satisfies AttributeDescriptor);
+}
+
+/**
+ * An accumulator that has seen nothing.
+ * @returns the accumulator
+ */
+function newAccumulator(): Accumulator {
+    return {
+        present: 0,
+        types: new Set<AttributeType>(),
+        unique: new Set<unknown>(),
+        min: Number.POSITIVE_INFINITY,
+        max: Number.NEGATIVE_INFINITY,
+        samples: [],
+    };
+}
+
+/**
+ * The columns of rows not yet loaded, described as {@link describeAttributes} will describe them
+ * once they are.
+ * @param rows - the rows
+ * @param kind - whether they will be nodes or edges
+ * @param order - column names to list first, in this order, even when no row carries a value
+ * @returns the descriptors
+ */
+export function describeRows(
+    rows: readonly Readonly<Record<string, unknown>>[],
+    kind: "node" | "edge",
+    order: readonly string[] = [],
+): readonly AttributeDescriptor[] {
+    const found = walk(rows.length, (index) => rows[index]);
+    const names = new Set([...order, ...found.keys()]);
+    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length));
 }
 
 /**
@@ -187,14 +243,7 @@ function walk(
         for (const key of Object.keys(record)) {
             let accumulator = found.get(key);
             if (accumulator === undefined) {
-                accumulator = {
-                    present: 0,
-                    types: new Set<AttributeType>(),
-                    unique: new Set<unknown>(),
-                    min: Number.POSITIVE_INFINITY,
-                    max: Number.NEGATIVE_INFINITY,
-                    samples: [],
-                };
+                accumulator = newAccumulator();
                 found.set(key, accumulator);
             }
 

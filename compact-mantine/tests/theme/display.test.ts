@@ -31,9 +31,15 @@ describe("displayComponentExtensions", () => {
         expect(displayComponentExtensions.Kbd).toBeDefined();
     });
 
-    it("exports exactly 7 display components", () => {
+    it("exports Avatar.Group's extension (the 21px avatar stack)", () => {
+        expect(displayComponentExtensions.AvatarGroup).toBeDefined();
+        expect(displayComponentExtensions.AvatarGroup.defaultProps?.spacing).toBe("7px");
+    });
+
+    it("exports exactly 9 display components", () => {
         const components = Object.keys(displayComponentExtensions);
-        expect(components).toHaveLength(7);
+        expect(components).toHaveLength(9);
+        expect(components).toContain("AvatarGroup");
         expect(components).toContain("Text");
         expect(components).toContain("Badge");
         expect(components).toContain("Pill");
@@ -41,5 +47,6 @@ describe("displayComponentExtensions", () => {
         expect(components).toContain("ThemeIcon");
         expect(components).toContain("Indicator");
         expect(components).toContain("Kbd");
+        expect(components).toContain("Card");
     });
 });

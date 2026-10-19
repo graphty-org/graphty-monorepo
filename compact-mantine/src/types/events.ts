@@ -62,7 +62,7 @@ export type ActivationHandler = (event: ActivationEvent) => void;
  * Called when a control is activated, with the activation source stated
  * separately.
  *
- * Use this in place of {@link ActivationHandler} only where the behaviour
+ * Use this in place of {@link ActivationHandler} only where the behavior
  * genuinely differs between a pointer and a key -- selectable list rows, where a
  * click extends a selection and Enter does not. Everywhere else the plain event
  * is enough, and a second parameter is noise.
@@ -86,7 +86,7 @@ export type GestureChangeHandler<T = number> = (value: T, event: React.PointerEv
 
 /**
  * Called once when a continuous gesture finishes, including when it is
- * cancelled.
+ * canceled.
  */
 export type GestureEndHandler = (event: React.PointerEvent) => void;
 
@@ -111,7 +111,7 @@ export interface GestureHandlers<T = number> {
     onGestureStart?: GestureStartHandler;
     /** Called repeatedly while the gesture is in progress. */
     onGestureChange?: GestureChangeHandler<T>;
-    /** Called when the gesture finishes or is cancelled. Commit the undo transaction here. */
+    /** Called when the gesture finishes or is canceled. Commit the undo transaction here. */
     onGestureEnd?: GestureEndHandler;
 }
 
@@ -140,10 +140,13 @@ export interface DisclosureProps {
     onOpenChange?: OpenChangeHandler;
 }
 
-// A pointer event a browser synthesises from Enter or Space reports an empty
-// pointerType; a plain MouseEvent synthesised the same way reports a click
-// count of zero. Both are the browser telling us the activation came from the
-// keyboard, and both are more reliable than guessing from the element.
+// The click a browser synthesizes from Enter or Space carries a click count
+// (`detail`) of zero in every browser, whether it arrives as a MouseEvent or,
+// as in Chromium, a PointerEvent with an empty pointerType. A real pointer
+// click counts at least one, and a real pointer names its pointerType. Either
+// signal means a pointer; only an event with neither came from the keyboard.
+// A PointerEvent with an empty pointerType but a click count (what
+// Testing Library's user-event dispatches under jsdom 30) is a pointer click.
 //
 // Note for tests: Testing Library's `fireEvent.click` builds a MouseEvent whose
 // `detail` defaults to 0, so it reads as a keyboard activation. Use
@@ -152,10 +155,9 @@ export interface DisclosureProps {
 /**
  * Works out whether an activation came from a pointer or from the keyboard.
  *
- * A keyboard activation is recognised three ways: the event is a keyboard event;
- * or it is a pointer event with no pointer type; or it is a mouse event with a
- * click count of zero, which is how a browser reports the click it synthesises
- * from Enter or Space on a button.
+ * A keyboard activation is either a keyboard event, or a click with a click
+ * count of zero and no pointer type, which is how a browser reports the click it
+ * synthesizes from Enter or Space on a button.
  * @param event - The event that activated the control
  * @returns The activation source, ready to hand to an {@link ActivationHandlerWithMeta}
  */
@@ -166,9 +168,7 @@ export function getActivationMeta(event: ActivationEvent): ActivationMeta {
 
     const native = event.nativeEvent;
 
-    if (typeof PointerEvent !== "undefined" && native instanceof PointerEvent) {
-        return { source: native.pointerType === "" ? "keyboard" : "pointer" };
-    }
+    const pointerType = "pointerType" in native ? native.pointerType : "";
 
-    return { source: native.detail === 0 ? "keyboard" : "pointer" };
+    return { source: native.detail > 0 || pointerType !== "" ? "pointer" : "keyboard" };
 }

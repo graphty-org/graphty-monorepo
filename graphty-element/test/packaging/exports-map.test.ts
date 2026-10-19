@@ -84,7 +84,7 @@ const REGISTRATION_MODULES = [
  * and its Storybook do -- and writes the documented `import "@graphty/graphty-element"` gets
  * nothing if these are declared pure: the bundler drops the import, the tag is never defined, and
  * the page shows an empty box where the graph should be. The dev server does not tree-shake, so
- * only a production build (a static Storybook, a Chromatic snapshot) shows it.
+ * only a production build (a static Storybook, a visual-review capture) shows it.
  */
 const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
 
@@ -198,6 +198,15 @@ describe("the exports map", () => {
         assert.include(entry, 'export { GraphtyLogger } from "./logging";');
     });
 
+    it("publishes ./jsx as types alone: an opt-in declaration with no JavaScript behind it", () => {
+        // A consumer writes `import type {} from "@graphty/graphty-element/jsx"`, which the
+        // compiler erases, so nothing ever loads a module from this subpath. An import condition
+        // would name a file the build does not make.
+        assert.deepEqual(manifest.exports["./jsx"], { types: "./dist/jsx.d.ts" });
+        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "jsx.ts")));
+        assert.notInclude(Object.keys(viteEntries()), "jsx");
+    });
+
     it("publishes the custom elements manifest, and points the tooling field at it", () => {
         assert.strictEqual(manifest.exports["./custom-elements.json"], "./dist/custom-elements.json");
         assert.strictEqual(manifest.customElements, "./dist/custom-elements.json");
@@ -283,8 +292,8 @@ describe("the sibling packages", () => {
         assert.isTrue(manifest.peerDependenciesMeta["@graphty/webgpu-graph-algorithms"]?.optional);
         assert.isUndefined(manifest.dependencies["@graphty/webgpu-graph-algorithms"]);
         // A workspace reference: pnpm rewrites it on publish to a
-        // caret range on whatever version the workspace holds. That is what now keeps 0.5.x out --
-        // `webgpu.ts` calls `verifyDevice`, which 0.5.x does not export, so a consumer who satisfied
+        // caret range on whatever version the workspace holds. That is what keeps older peers out --
+        // `webgpu.ts` calls `acquireAccelerator`, which 0.6.x does not export, so a consumer who satisfied
         // an older range would crash when the element attached an accelerator. The explicit
         // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
         // every time the requirement moved.
@@ -368,5 +377,11 @@ describe("the data entry points carry data, not objects", () => {
         assert.include(schema.EdgeArrowTypes.options, "open-diamond");
         assert.typeOf(schema.defaultNodeStyle, "object");
         assert.match(schema.MISSING_DATA_COLOR, /^#[0-9a-f]{6}$/i);
+    });
+
+    it("publishes the color reader a color control uses instead of building hex by hand", () => {
+        assert.strictEqual(catalog.toColorValue({ r: 300, g: -5, b: 127.6, a: 1 })?.hex, "#ff0080");
+        assert.strictEqual(catalog.toColorValue("red")?.hex, "#ff0000");
+        assert.isNull(catalog.toColorValue("not a color"));
     });
 });

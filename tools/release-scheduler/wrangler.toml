@@ -1,0 +1,9 @@
+# The release scheduler Worker. See README.md. Secrets (APP_ID, INSTALLATION_ID, PRIVATE_KEY) are
+# set with `npx wrangler@4 secret put`, never written here.
+name = "graphty-release-scheduler"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+# UTC: the release train's 00:00, 06:00, 12:00 and 18:00 slots
+crons = ["0 0,6,12,18 * * *"]

@@ -2,7 +2,9 @@ import type { StorybookConfig } from "@storybook/web-components-vite";
 
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
-    addons: ["@chromatic-com/storybook", "@storybook/addon-vitest", "@storybook/addon-docs"],
+    addons: ["@storybook/addon-vitest", "@storybook/addon-docs"],
+    // the brand logo and favicon (manager.ts)
+    staticDirs: [{ from: "./brand", to: "/" }],
     framework: {
         name: "@storybook/web-components-vite",
         options: {},
@@ -10,40 +12,12 @@ const config: StorybookConfig = {
     core: {
         disableTelemetry: true,
     },
-    async viteFinal(config, { configType }) {
-        const fs = await import("fs");
+    async viteFinal(config) {
         const path = await import("path");
-        const { mergeConfig, loadEnv } = await import("vite");
+        const { mergeConfig } = await import("vite");
 
-        // Load env file from monorepo root (one level up from this package)
-        const monorepoRoot = path.resolve(__dirname, "../..");
-        const env = loadEnv(configType === "DEVELOPMENT" ? "development" : "production", monorepoRoot, "");
-
-        // SSL configuration via environment variables
-        const sslKeyPath = env.HTTPS_KEY_PATH;
-        const sslCertPath = env.HTTPS_CERT_PATH;
-        const useHttps = sslKeyPath && sslCertPath && fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath);
-
-        const server: Record<string, unknown> = {
-            host: env.HOST ?? true,
-            allowedHosts: true,
-        };
-
-        if (useHttps) {
-            server.https = {
-                key: fs.readFileSync(sslKeyPath),
-                cert: fs.readFileSync(sslCertPath),
-            };
-        }
-
-        if (configType === "DEVELOPMENT") {
-            // Your development configuration goes here
-        }
-
-        if (configType === "PRODUCTION") {
-            // Your production configuration goes here.
-        }
-
+        // Host, port and HTTPS come from the `storybook` npm script's CLI flags (--host, --https,
+        // --ssl-cert, --ssl-key), which servherd fills in. Nothing here reads them.
         const merged = mergeConfig(config, {
             // Allow access from any host (needed when accessing via custom hostnames like dev.ato.ms)
             server: {
@@ -61,6 +35,11 @@ const config: StorybookConfig = {
                     "@babylonjs/core/Meshes/instancedMesh",
                     "@babylonjs/core/Culling/ray",
                     "@babylonjs/core/Animations/animatable",
+                    // The shaders src/meshes/bundledStandardShaders.ts loads with the element.
+                    "@babylonjs/core/Shaders/default.vertex",
+                    "@babylonjs/core/Shaders/default.fragment",
+                    "@babylonjs/core/ShadersWGSL/default.vertex",
+                    "@babylonjs/core/ShadersWGSL/default.fragment",
                 ],
             },
             resolve: {

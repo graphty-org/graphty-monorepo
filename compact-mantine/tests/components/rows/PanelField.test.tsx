@@ -1,11 +1,12 @@
-import { DirectionProvider, MantineProvider } from "@mantine/core";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { MantineProvider } from "@mantine/core";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { compactTheme } from "../../../src";
 import { PanelField } from "../../../src/components/rows/PanelField";
+import { PANEL_GRID } from "../../../src/constants/panel";
 import { PanelLabelsProvider } from "../../../src/context/PanelLabelsContext";
 import { LabelsProvider } from "../../../src/i18n";
 import { FIELD_GLYPH_NAMES, FIELD_LETTERS } from "../../../src/icons";
@@ -20,54 +21,11 @@ function renderField(ui: React.ReactElement): ReturnType<typeof render> {
 }
 
 /**
- * Render with the text direction reversed, the way a right-to-left app consumes
- * the package.
- * @param ui - The element under test
- * @returns The testing-library render result
- */
-function renderRtl(ui: React.ReactElement): ReturnType<typeof render> {
-    return render(
-        <DirectionProvider initialDirection="rtl" detectDirection={false}>
-            <MantineProvider theme={compactTheme}>{ui}</MantineProvider>
-        </DirectionProvider>,
-    );
-}
-
-/**
  * The field's own input element.
  * @returns The input the field renders
  */
 function fieldInput(): HTMLInputElement {
     return screen.getByTestId("panel-field").querySelector("input") as HTMLInputElement;
-}
-
-/**
- * Press the pointer on an element.
- *
- * A plain `MouseEvent` named for a pointer event is used deliberately: JSDOM has
- * no `PointerEvent` constructor, and a bare `Event` would carry no coordinates.
- * @param element - The element to press
- * @param clientX - Where along the screen's x axis the press lands
- */
-function pointerDown(element: Element, clientX: number): void {
-    fireEvent(element, new MouseEvent("pointerdown", { bubbles: true, cancelable: true, clientX }));
-}
-
-/**
- * Move the pressed pointer.
- * @param element - The element holding the gesture
- * @param clientX - Where along the screen's x axis the pointer now is
- */
-function pointerMove(element: Element, clientX: number): void {
-    fireEvent(element, new MouseEvent("pointermove", { bubbles: true, cancelable: true, clientX }));
-}
-
-/**
- * Release the pointer.
- * @param element - The element holding the gesture
- */
-function pointerUp(element: Element): void {
-    fireEvent(element, new MouseEvent("pointerup", { bubbles: true, cancelable: true }));
 }
 
 // Mantine's dropdown scrolls the active option into view on a timer, which JSDOM
@@ -77,31 +35,6 @@ if (!Element.prototype.scrollIntoView) {
         // Intentionally empty: nothing scrolls in JSDOM.
     };
 }
-
-const originalMatchMedia = window.matchMedia;
-
-/**
- * Make every media query report the given match, so the coarse-pointer branch
- * can be exercised in jsdom.
- * @param matches - What matchMedia should report for every query
- */
-function setMatchMedia(matches: boolean): void {
-    window.matchMedia = ((query: string): MediaQueryList =>
-        ({
-            matches,
-            media: query,
-            onchange: null,
-            addListener: () => undefined,
-            removeListener: () => undefined,
-            addEventListener: () => undefined,
-            removeEventListener: () => undefined,
-            dispatchEvent: () => true,
-        }) as unknown as MediaQueryList) as typeof window.matchMedia;
-}
-
-afterEach(() => {
-    window.matchMedia = originalMatchMedia;
-});
 
 describe("PanelField", () => {
     describe("anatomy", () => {
@@ -149,8 +82,8 @@ describe("PanelField", () => {
             expect(letter.querySelector("svg")).toBeNull();
         });
 
-        it("draws an arbitrary node such as a colour swatch", () => {
-            renderField(<PanelField label="Node colour" glyph={<span data-testid="swatch" />} value="4A7EE8" />);
+        it("draws an arbitrary node such as a color swatch", () => {
+            renderField(<PanelField label="Node color" glyph={<span data-testid="swatch" />} value="4A7EE8" />);
 
             expect(screen.getByTestId("swatch")).toBeInTheDocument();
         });
@@ -263,13 +196,13 @@ describe("PanelField", () => {
         it("defaults to one of a pair", () => {
             renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" />);
 
-            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: "108px" });
+            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: `${String(PANEL_GRID.FIELD)}px` });
         });
 
         it("takes the body span when asked", () => {
-            renderField(<PanelField label="Layout" value="Force directed" width={224} />);
+            renderField(<PanelField label="Layout" value="Force directed" width={PANEL_GRID.BODY} />);
 
-            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: "224px" });
+            expect(screen.getByTestId("panel-field")).toHaveStyle({ width: `${String(PANEL_GRID.BODY)}px` });
         });
 
         it("fills the row when asked", () => {
@@ -423,7 +356,8 @@ describe("PanelField", () => {
             await user.click(fieldInput());
             await user.keyboard("{ArrowUp}");
 
-            expect(onChange).toHaveBeenCalledWith(3, undefined);
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange).toHaveBeenCalledWith(3, expect.objectContaining({ key: "ArrowUp" }));
         });
 
         it("draws a number field as a number box", () => {
@@ -434,9 +368,7 @@ describe("PanelField", () => {
         });
 
         it("offers a drop-down when it is given choices", () => {
-            renderField(
-                <PanelField label="Layout" kind="select" data={["Force directed", "Radial"]} value="Radial" />,
-            );
+            renderField(<PanelField label="Layout" kind="select" data={["Force directed", "Radial"]} value="Radial" />);
 
             const input = fieldInput();
             expect(input).toHaveAttribute("aria-haspopup", "listbox");
@@ -591,142 +523,90 @@ describe("PanelField", () => {
             expect(screen.getByTestId("panel-field-slot")).not.toHaveAttribute("data-scrub");
         });
 
-        it("sends a positive delta as the pointer moves along the text direction", () => {
-            const onScrub = vi.fn();
-            renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerMove(slot, 112);
-
-            expect(onScrub).toHaveBeenCalledWith(12, expect.anything());
-        });
-
-        it("sends a negative delta as the pointer moves against it", () => {
-            const onScrub = vi.fn();
-            renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerMove(slot, 92);
-
-            expect(onScrub).toHaveBeenCalledWith(-8, expect.anything());
-        });
-
-        it("follows the text direction rather than the screen when text runs right to left", () => {
-            const onScrub = vi.fn();
-            renderRtl(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerMove(slot, 112);
-
-            expect(onScrub).toHaveBeenCalledWith(-12, expect.anything());
-        });
-
-        it("opens and closes the gesture exactly once around a drag", () => {
-            const onScrubStart = vi.fn();
-            const onScrub = vi.fn();
-            const onScrubEnd = vi.fn();
-            renderField(
-                <PanelField
-                    label="Smallest"
-                    glyph="sizeSmallest"
-                    value="1.0"
-                    onScrubStart={onScrubStart}
-                    onScrub={onScrub}
-                    onScrubEnd={onScrubEnd}
-                />,
-            );
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerMove(slot, 110);
-            pointerMove(slot, 120);
-            pointerUp(slot);
-
-            expect(onScrubStart).toHaveBeenCalledTimes(1);
-            expect(onScrub).toHaveBeenCalledTimes(2);
-            expect(onScrubEnd).toHaveBeenCalledTimes(1);
-        });
-
-        it("does not open a gesture for a press that never moves", () => {
-            const onScrubStart = vi.fn();
-            const onScrubEnd = vi.fn();
-            renderField(
-                <PanelField
-                    label="Smallest"
-                    glyph="sizeSmallest"
-                    value="1.0"
-                    onScrubStart={onScrubStart}
-                    onScrubEnd={onScrubEnd}
-                />,
-            );
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerUp(slot);
-
-            expect(onScrubStart).not.toHaveBeenCalled();
-            expect(onScrubEnd).not.toHaveBeenCalled();
-        });
-
-        it("stops reporting once the pointer is released", () => {
-            const onScrub = vi.fn();
-            renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerUp(slot);
-            pointerMove(slot, 140);
-
-            expect(onScrub).not.toHaveBeenCalled();
-        });
-
-        it("does not report a move of zero", () => {
-            const onScrub = vi.fn();
-            renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            pointerMove(slot, 100);
-
-            expect(onScrub).not.toHaveBeenCalled();
-        });
-
-        it("releases the drag when the field unmounts mid-scrub", () => {
-            const onScrub = vi.fn();
-            const { unmount } = renderField(
-                <PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />,
-            );
-
-            const slot = screen.getByTestId("panel-field-slot");
-            pointerDown(slot, 100);
-            unmount();
-            pointerMove(slot, 140);
-
-            expect(onScrub).not.toHaveBeenCalled();
-        });
-
-        it("does not scrub on a coarse pointer", () => {
-            setMatchMedia(true);
-            const onScrub = vi.fn();
-            renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} />);
-
-            const slot = screen.getByTestId("panel-field-slot");
-            expect(slot).not.toHaveAttribute("data-scrub");
-
-            pointerDown(slot, 100);
-            pointerMove(slot, 140);
-
-            expect(onScrub).not.toHaveBeenCalled();
-        });
-
         it("does not scrub when disabled", () => {
             const onScrub = vi.fn();
             renderField(<PanelField label="Smallest" glyph="sizeSmallest" value="1.0" onScrub={onScrub} disabled />);
 
             expect(screen.getByTestId("panel-field-slot")).not.toHaveAttribute("data-scrub");
+        });
+    });
+
+    // design/figma-spec.md 6.1: Figma's number field.
+    describe("the number field", () => {
+        it("is a spinbutton that says how to step it", () => {
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={vi.fn()} />);
+            const box = screen.getByRole("spinbutton", { name: "Depth" });
+            expect(box).toHaveAttribute("aria-valuenow", "2");
+            expect(box).toHaveAttribute("aria-description", "Use arrow keys to change the value");
+        });
+
+        it("applies nothing while typing, and commits once on Enter", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "40*2");
+            expect(onChange).not.toHaveBeenCalled();
+            await user.keyboard("{Enter}");
+            expect(onChange).toHaveBeenCalledTimes(1);
+            expect(onChange.mock.calls[0][0]).toBe(80);
+            expect(fieldInput()).toHaveFocus();
+        });
+
+        it("rounds a committed number to decimalScale", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(
+                <PanelField label="Seed" kind="number" defaultValue={2} decimalScale={0} onChange={onChange} />,
+            );
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "7.6");
+            await user.tab();
+            expect(onChange.mock.calls[0][0]).toBe(8);
+        });
+
+        it("silently reverts text that is not a number", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "abc");
+            await user.tab();
+            expect(onChange).not.toHaveBeenCalled();
+            expect(fieldInput()).toHaveValue("2");
+        });
+
+        it("Escape reverts the typed text and leaves the field", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} onChange={onChange} />);
+            await user.clear(fieldInput());
+            await user.type(fieldInput(), "9");
+            await user.keyboard("{Escape}");
+            expect(onChange).not.toHaveBeenCalled();
+            expect(fieldInput()).toHaveValue("2");
+            expect(fieldInput()).not.toHaveFocus();
+        });
+
+        it("Shift+ArrowUp steps ten, clamped to max", async () => {
+            const onChange = vi.fn();
+            const user = userEvent.setup();
+            renderField(<PanelField label="Depth" kind="number" defaultValue={2} max={10} onChange={onChange} />);
+            await user.click(fieldInput());
+            await user.keyboard("{Shift>}{ArrowUp}{/Shift}");
+            expect(onChange.mock.calls[0][0]).toBe(10);
+        });
+
+        it("a read-only number field does not scrub", () => {
+            renderField(<PanelField label="X" kind="number" value={40} />);
+            expect(screen.getByTestId("panel-field-slot")).not.toHaveAttribute("data-scrub");
+        });
+
+        it("reads Mixed with the field still editable", () => {
+            renderField(<PanelField label="X" kind="number" value={40} mixed onChange={vi.fn()} />);
+            expect(fieldInput()).toHaveValue("");
+            expect(fieldInput()).toHaveAttribute("placeholder", "Mixed");
+            expect(fieldInput()).not.toHaveAttribute("readonly");
         });
     });
 

@@ -15,7 +15,7 @@
 import { INVALID_INDEX } from "@graphty/graph-format";
 import { assert, describe, test } from "vitest";
 
-import type { Graph } from "../../src/Graph";
+import { Graph } from "../../src/Graph";
 
 /**
  * A triangle with one extra node hanging off it, over a fresh canvas.
@@ -26,8 +26,7 @@ import type { Graph } from "../../src/Graph";
  */
 async function makeGraph(): Promise<Graph> {
     document.body.innerHTML = '<canvas id="removal-canvas"></canvas>';
-    const { Graph: GraphClass } = await import("../../src/Graph.js");
-    const graph = new GraphClass(document.getElementById("removal-canvas") as HTMLCanvasElement);
+    const graph = new Graph(document.getElementById("removal-canvas") as HTMLCanvasElement);
     await graph.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }], undefined, { skipQueue: true });
     await graph.addEdges(
         [

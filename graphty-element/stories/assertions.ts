@@ -32,21 +32,19 @@ import {
     type StandardMaterial,
     Vector3,
 } from "@babylonjs/core";
-import isChromatic from "chromatic/isChromatic";
 import { expect } from "storybook/test";
 
+import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
+import { isUnderRunner, isVisualCapture } from "./helpers";
 
 /** How long a story may wait for its graph to arrive and its style stack to come to rest. */
 const SETTLE_BUDGET_MS = 15000;
 
 /** How often to look again while waiting. */
 const POLL_MS = 50;
-
-/** How many frames to let the renderer draw after the model settles, before reading the scene. */
-const RENDER_SETTLE_MS = 350;
 
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;
@@ -62,9 +60,6 @@ const CURVE_MIN_SAGITTA = 0.05;
 
 /** How far apart two colour channels may be and still count as the same colour. */
 const COLOUR_TOLERANCE = 24;
-
-/** How many frames to draw before reading the frame buffer, so the shaders have compiled. */
-const WARMUP_FRAMES = 40;
 
 /** What one node is actually drawn as. */
 interface DrawnNode {
@@ -154,8 +149,20 @@ export interface Drawn {
     readonly curvedEdges: number;
     /** The largest distance any curved edge's path leaves its own straight line, in world units. */
     readonly maxSagitta: number;
-    /** The distinct arrow-cap meshes in the scene, by the name the renderer gave each one. */
+    /** The distinct arrow-cap shapes in the picture, by the name the renderer gave each one. */
     readonly arrowMeshNames: readonly string[];
+    /**
+     * Every arrow cap in the picture: the shape it is drawn as, how wide it is drawn and how
+     * see-through it is.
+     *
+     * READ OFF THE EDGES, because a cap has no mesh of its own. Every cap of one appearance is a
+     * thin instance of a single batch mesh whose name deliberately does not say "arrow", so the
+     * scene walk that counted caps by name finds none of them and would count the batch as a cap
+     * nothing is drawing. `Edge.drawnCaps` is where the answer moved to: the shape is the name
+     * the cap's mesh used to carry, and the span is the reading a story used to take off its
+     * bounding box -- the same number, so a measurement written before this change still holds.
+     */
+    readonly arrowCaps: readonly { readonly name: string; readonly span: number; readonly visibility: number }[];
     /** The distinct line-pattern meshes in the scene, by name. */
     readonly linePatternNames: readonly string[];
     /** Label planes in the scene that belong to an edge rather than to a node. */
@@ -172,9 +179,11 @@ export interface Drawn {
     /**
      * The distinct appearances the edge lines in the picture are drawn with.
      *
-     * TWO RENDERERS DRAW AN EDGE AND THIS HAS TO SEE BOTH. In 3D a solid edge is an instance of a
-     * source mesh the element interns per appearance, and Babylon names the instance after the
-     * cache key -- `edge-style-s1|#d55e00|` -- so the name IS the appearance. In 2D there is no
+     * THREE RENDERERS DRAW AN EDGE AND THIS HAS TO SEE ALL OF THEM. In 3D a straight solid edge
+     * is one thin instance of a batch the element interns per appearance, and the batch carries
+     * the cache key as its name -- `edge-style-s1|#d55e00|` -- so the name IS the appearance; a
+     * batched line has no mesh of its own, so it is read off the edge rather than off the scene.
+     * A bezier or a patterned line in 3D still owns its mesh and is read off it. In 2D there is no
      * interning at all: `EdgeMesh.createLineMesh` routes a solid line to
      * `Simple2DLineRenderer.create`, which builds one mesh per edge, names every one of them
      * `line-2d`, and puts the colour in that mesh's own material. Counting names alone therefore
@@ -257,7 +266,7 @@ function listed(offenders: readonly string[]): string {
 /**
  * Wait for something to become true, and fail with a sentence when it never does.
  * @param done - What is being waited for.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` under a runner, which brings its own.
  * @param complaint - What to say when it never happened.
  */
 async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
@@ -270,10 +279,15 @@ async function until(done: () => boolean, deadline: number, complaint: string): 
 /**
  * Give a promise a deadline, so a queue that never drains fails with a sentence.
  * @param work - The promise to wait on.
- * @param deadline - When to give up, as a timestamp.
+ * @param deadline - When to give up, as a timestamp; `Infinity` waits on the promise alone.
  * @param complaint - What to say when it never finished.
  */
 async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
+    if (!Number.isFinite(deadline)) {
+        await work;
+        return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const expired = new Promise<"expired">((resolve) => {
         timer = setTimeout(
@@ -373,7 +387,7 @@ function labelInk(mesh: AbstractMesh | null | undefined): { ink: number; colours
     return { ink, colours };
 }
 
-/** The names the element gives a mesh that draws one edge line on its own, rather than as an instance. */
+/** The names the element gives a mesh that draws one edge line on its own, rather than as an instance of a batch. */
 const OWN_LINE_MESHES = ["line-2d", "custom-line", "edge-plain"] as const;
 
 /**
@@ -414,6 +428,23 @@ function materialPaint(mesh: AbstractMesh): { hex: string; alpha: number } | nul
 }
 
 /**
+ * What one pattern element is drawn as: its shape, its colour, its opacity and its scale.
+ *
+ * Keyed the way {@link edgeLineAppearance} keys a line that owns its mesh, so an edge drawn with
+ * dots in two colours counts as two appearances. A 3D element carries its colour in its slot; a
+ * 2D one on its batch's material.
+ * @param element - One element of a patterned line.
+ * @returns The appearance.
+ */
+function patternAppearance(element: Edge["drawnPattern"][number]): string {
+    const slotColour = element.drawnAppearance?.colour.toHexString().toLowerCase();
+    const paint = element.batchMesh === null ? null : materialPaint(element.batchMesh);
+    const hex = slotColour ?? paint?.hex ?? "no-colour";
+
+    return `${element.name}|${hex}|a${String(paint?.alpha ?? element.visibility)}|w${element.span.toFixed(3)}`;
+}
+
+/**
  * What one mesh draws an edge line as, or null when it is not a drawn edge line.
  *
  * The one reading of edge appearance there is, because the element publishes no way to enumerate
@@ -428,12 +459,20 @@ function edgeLineAppearance(mesh: AbstractMesh): string | null {
         return null;
     }
 
+    // A BATCH IS NOT AN EDGE. A 3D solid line is now one thin instance of a mesh shared by every
+    // edge of the same appearance, so this one visible mesh stands for however many edges are in
+    // it -- counting it here would report one line for a thousand. Those edges are read off the
+    // edges themselves, in `drawn()` below.
+    if (mesh.hasThinInstances) {
+        return null;
+    }
+
     // 3D: the instance is named after the cache key, which the element mints per appearance.
     if (mesh.name.startsWith("edge-style-")) {
         return mesh.name;
     }
 
-    if (!OWN_LINE_MESHES.includes(mesh.name as (typeof OWN_LINE_MESHES)[number]) && !mesh.name.startsWith("pattern-")) {
+    if (!OWN_LINE_MESHES.includes(mesh.name as (typeof OWN_LINE_MESHES)[number])) {
         return null;
     }
 
@@ -447,41 +486,25 @@ function edgeLineAppearance(mesh: AbstractMesh): string | null {
 
 /**
  * How far a line's drawn path leaves the straight segment between its own two ends.
- * @param mesh - The line mesh.
+ * @param points - The points the line is drawn through, in order.
  * @returns The largest perpendicular distance, in world units.
  */
-function sagittaOf(mesh: AbstractMesh): number {
-    const positions = mesh.getVerticesData("position");
-
-    if (!positions || positions.length < 9) {
+function sagittaOf(points: readonly Vector3[]): number {
+    if (points.length < 3) {
         return 0;
     }
 
-    const last = positions.length - 3;
-    const ax = positions[0];
-    const ay = positions[1];
-    const az = positions[2];
-    const bx = positions[last] - ax;
-    const by = positions[last + 1] - ay;
-    const bz = positions[last + 2] - az;
-    const span = Math.hypot(bx, by, bz);
+    const start = points[0];
+    const chord = points[points.length - 1].subtract(start);
+    const span = chord.length();
 
     if (span === 0) {
         return 0;
     }
 
-    let furthest = 0;
-
-    for (let offset = 0; offset < positions.length; offset += 3) {
-        const px = positions[offset] - ax;
-        const py = positions[offset + 1] - ay;
-        const pz = positions[offset + 2] - az;
-        const cross = Math.hypot(by * pz - bz * py, bz * px - bx * pz, bx * py - by * px);
-
-        furthest = Math.max(furthest, cross / span);
-    }
-
-    return furthest;
+    return points.reduce((furthest, point) => {
+        return Math.max(furthest, Vector3.Cross(chord, point.subtract(start)).length() / span);
+    }, 0);
 }
 
 /**
@@ -497,21 +520,19 @@ function sagittaOf(mesh: AbstractMesh): number {
  * @returns What is on screen.
  */
 export async function drawn(canvasElement: HTMLElement, story: string): Promise<Drawn> {
-    const element = canvasElement.querySelector<HTMLElement>("graphty-element") as Graphty | null;
-
-    await holds(element !== null, `${story}: the story rendered no <graphty-element> at all`);
-
-    const live = element as Graphty;
+    const live = await renderedElement(canvasElement, `${story}: the story rendered no <graphty-element> at all`);
     const { graph, session } = live;
-    const deadline = Date.now() + SETTLE_BUDGET_MS;
+    // Under a runner (the Storybook test project, a visual capture) its own timeout is the only
+    // backstop: a wall-clock deadline here fails a stalled machine whose work still finishes.
+    const deadline = isUnderRunner() ? Infinity : Date.now() + SETTLE_BUDGET_MS;
 
-    // Pre-stepping is for Chromatic's repeatable snapshot only. Anywhere else a pre-stepped
+    // Pre-stepping is for the visual capture's repeatable snapshot only. Anywhere else a pre-stepped
     // layout is already settled on the first frame, and the reader never sees it animate.
     const preSteps = live.layoutBehavior?.layout?.preSteps ?? 0;
 
     await holds(
-        isChromatic() || preSteps === 0,
-        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside Chromatic, ` +
+        isVisualCapture() || preSteps === 0,
+        `${story}: the layout runs ${String(preSteps)} steps before the first frame outside a capture, ` +
             "so the reader never sees it animate",
     );
 
@@ -530,8 +551,10 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     );
 
     // The renderer is a frame behind the style model by design: a pass marks an element dirty and
-    // the render loop hands the new paint over on its next tick.
-    await new Promise((resolve) => setTimeout(resolve, RENDER_SETTLE_MS));
+    // the render loop hands the new paint over on its next tick. So ask the element when the frame
+    // on screen is the finished one, rather than guessing how long that takes. It throws, naming
+    // what was still moving, if the picture has not come to rest by the deadline.
+    await graph.waitForStableFrame(Number.isFinite(deadline) ? { timeoutMs: Math.max(1, deadline - Date.now()) } : {});
 
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
@@ -582,7 +605,7 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             shape: source?.name ?? node.mesh.name,
             geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
             vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? (node.mesh as unknown as Parameters<typeof digestOf>[0])),
+            geometryDigest: digestOf(source ?? node.mesh),
             wireframe: source?.material?.wireframe ?? false,
             enabled: node.mesh.isEnabled(),
             opacity: node.mesh.visibility,
@@ -596,9 +619,6 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     });
 
     const scope = await session.scope.resolve("graph");
-    const curves = graph.scene.meshes.filter(
-        (mesh) => (mesh.metadata as { isBezierCurve?: boolean } | null)?.isBezierCurve === true,
-    );
     const planes = graph.scene.meshes.filter((mesh) => mesh.name.startsWith("richTextPlane"));
 
     // READ OFF THE EDGES THEMSELVES, the way a node's label is read off its node. A caption, an
@@ -620,9 +640,30 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             }),
     );
     const nodePlanes = nodes.filter((node) => node.hasLabelMesh).length;
-    const drawnEdgeLines = graph.scene.meshes
-        .map((mesh) => edgeLineAppearance(mesh))
-        .filter((appearance): appearance is string => appearance !== null);
+    const edges = [...graph.getDataManager().edges.values()];
+
+    // Every cap in the picture, in the order the edges hold them. A cap is a slot in a shared
+    // batch and has no mesh in `scene.meshes` to be found by name.
+    const drawnCaps = edges.flatMap((edge) => edge.drawnCaps);
+
+    // A curve is a run of slots in a shared line batch and a patterned line a run of slots in
+    // shared shape batches (issue #444), so neither has a mesh of its own in the scene: both are
+    // read off the edge that draws them.
+    const curves = edges.flatMap((edge) => (edge.drawnCurve === null ? [] : [edge.drawnCurve]));
+    const patternElements = edges.flatMap((edge) => edge.drawnPattern);
+
+    // The lines drawn from a shared batch, which have no mesh of their own to be read off the
+    // scene, and the lines that do, together and in one list -- what an edge is drawn BY is a
+    // renderer decision and no assertion should have to know which half an edge fell into.
+    const drawnEdgeLines = [
+        ...edges.flatMap((edge) =>
+            edge.drawnLine === null ? [] : [`${edge.drawnLine.name}|w${edge.drawnLine.width.toFixed(3)}`],
+        ),
+        ...patternElements.map((element) => patternAppearance(element)),
+        ...graph.scene.meshes
+            .map((mesh) => edgeLineAppearance(mesh))
+            .filter((appearance): appearance is string => appearance !== null),
+    ];
 
     return {
         story,
@@ -634,33 +675,48 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         nodeCount: session.status.counts.nodes,
         edgeCount: session.status.counts.edges,
         curvedEdges: curves.length,
-        maxSagitta: curves.reduce((most, mesh) => Math.max(most, sagittaOf(mesh)), 0),
-        arrowMeshNames: [
-            ...new Set(graph.scene.meshes.filter((mesh) => mesh.name.includes("arrow")).map((mesh) => mesh.name)),
-        ].sort(),
-        linePatternNames: [
-            ...new Set(graph.scene.meshes.filter((mesh) => mesh.name.startsWith("pattern-")).map((mesh) => mesh.name)),
-        ].sort(),
+        maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
+        arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
+        arrowCaps: drawnCaps,
+        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
         edgeMeshNames: [...drawnEdgeLines].sort(),
-        edgeDigest: graph.scene.meshes
-            .filter(
-                (mesh) =>
-                    mesh.name.startsWith("edge-style-") ||
-                    mesh.name.startsWith("pattern-") ||
-                    mesh.name.startsWith("custom-line") ||
-                    mesh.name.includes("arrow"),
-            )
-            .map((mesh) => {
-                const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        edgeDigest: [
+            // A cap's drawn extent is its own, not its batch's, for the same reason a batched
+            // line's is: the batch mesh is one shape and each slot scales it.
+            ...drawnCaps.map((cap) => `${cap.name}@${cap.span.toFixed(3)}:${String(cap.visibility)}`),
+            // A pattern element likewise: a slot in its shape's batch.
+            ...patternElements.map(
+                (element) => `${element.name}@${element.span.toFixed(3)}:${String(element.visibility)}`,
+            ),
+            // A batched line's drawn extent is its own, not its batch's: the batch mesh is a unit
+            // segment and the matrix in the slot carries the length. Spelled the way the scene
+            // walk below spells a mesh's extent, so the two halves of the list are comparable.
+            ...edges.flatMap((edge) =>
+                edge.drawnLine === null
+                    ? []
+                    : [
+                          `${edge.drawnLine.name}@0.000,0.000,${(edge.drawnLine.length / 2).toFixed(3)}:${String(
+                              edge.drawnLine.visibility,
+                          )}`,
+                      ],
+            ),
+            ...graph.scene.meshes
+                .filter(
+                    (mesh) =>
+                        (mesh.name.startsWith("edge-style-") && !mesh.hasThinInstances) ||
+                        mesh.name.startsWith("custom-line"),
+                )
+                .map((mesh) => {
+                    const box = mesh.getBoundingInfo().boundingBox.extendSizeWorld;
 
-                return `${mesh.name}@${box.x.toFixed(3)},${box.y.toFixed(3)},${box.z.toFixed(3)}:${String(
-                    mesh.visibility,
-                )}`;
-            })
-            .sort(),
+                    return `${mesh.name}@${box.x.toFixed(3)},${box.y.toFixed(3)},${box.z.toFixed(3)}:${String(
+                        mesh.visibility,
+                    )}`;
+                }),
+        ].sort(),
         backgroundHex: `#${[graph.scene.clearColor.r, graph.scene.clearColor.g, graph.scene.clearColor.b]
             .map((value) =>
                 Math.round(Math.min(1, Math.max(0, value)) * 255)
@@ -1185,7 +1241,7 @@ const pictures = new Map<string, Map<string, string>>();
 /**
  * No two stories in this family draw the same picture.
  *
- * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Chromatic compares a story to its own past
+ * THE ONLY THING THAT CAN SEE THE REPORTED SYMPTOM. Visual review compares a story to its own past
  * and never to its siblings, so "these fourteen stories render identically to one another" is
  * invisible to it, and was invisible to every test in this package. The digest is built from what
  * the SCENE drew -- shape, geometry, size, opacity, colour, label ink -- and deliberately not
@@ -1325,6 +1381,28 @@ export async function assertEdgeVariety(scene: Drawn, atLeast: number): Promise<
         scene.edgeStyleNames.length >= atLeast,
         `${scene.story}: the story's layers ask for ${String(atLeast)} different edge appearances and the scene ` +
             `draws ${String(scene.edgeStyleNames.length)} -- [${scene.edgeStyleNames.join(", ")}]`,
+    );
+}
+
+/**
+ * The edges in the picture are drawn at this many different widths.
+ *
+ * Read off the same appearance keys as {@link assertEdgeVariety}, which carry the width every
+ * line is drawn with: a line in a shared batch reports the width its batch was built with, and a
+ * line the renderer built on its own its mesh's width. A line keyed only by an interned 3D source
+ * mesh name carries no width and is not counted.
+ * @param scene - What the story drew.
+ * @param atLeast - How many widths the story promises.
+ */
+export async function assertEdgeWidthVariety(scene: Drawn, atLeast: number): Promise<void> {
+    const widths = [
+        ...new Set(scene.edgeStyleNames.flatMap((name) => /\|w([^|]+)$/.exec(name)?.slice(1) ?? [])),
+    ].sort();
+
+    await holds(
+        widths.length >= atLeast,
+        `${scene.story}: the story promises ${String(atLeast)} different edge widths and the scene draws ` +
+            `${String(widths.length)} -- [${widths.join(", ")}]`,
     );
 }
 
@@ -1501,12 +1579,12 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
     const { engine } = scene.graph;
 
-    for (let frame = 0; frame < WARMUP_FRAMES; frame++) {
-        scene.graph.scene.render();
-        await new Promise<void>((done) => {
-            setTimeout(done, 10);
-        });
-    }
+    // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
+    // the buffer read is the frame just drawn. A fixed warm-up of frames stood here before: forty
+    // full-canvas renders per call, which a play function reading four colours paid 160 times over,
+    // about 19 s on an idle machine and past the 30 s limit on a loaded one (#2413).
+    await scene.graph.scene.whenReadyAsync();
+    scene.graph.scene.render();
 
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
@@ -1799,18 +1877,46 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
 }
 
 /**
- * Selecting a node puts the element's own highlight on screen.
+ * Click a node the way a mouse does: move onto it, press and release, on the canvas, at the spot
+ * the element says the node is drawn.
+ *
+ * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
+ * a CLICK selects: a story that selected through the API passed with the canvas's pointer
+ * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
+ * defaults to the left button, which Babylon reads as a press).
+ * @param scene - What the story drew.
+ * @param id - The node to click.
+ */
+export async function clickNode(scene: Drawn, id: string): Promise<void> {
+    const at = scene.element.nodeScreenPosition(id);
+
+    await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    const { canvas } = scene.graph;
+    const box = canvas.getBoundingClientRect();
+    const point = { clientX: box.left + (at?.x ?? 0), clientY: box.top + (at?.y ?? 0) };
+    const pointer = { ...point, bubbles: true, pointerId: 1, pointerType: "mouse", isPrimary: true };
+
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1 }));
+    canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0 }));
+}
+
+/**
+ * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
  * mesh around the selected node and around nothing else, so the picture and the model can be
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
- * @param id - The node the story selects.
+ * @param id - The node the story clicks.
  */
 export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    scene.graph.selectNode(id);
+    await clickNode(scene, id);
 
-    await new Promise((resolve) => setTimeout(resolve, RENDER_SETTLE_MS));
+    // The halo is drawn by the render loop after the selection lands, so wait for the element to
+    // say the frame on screen shows it.
+    await scene.graph.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: SETTLE_BUDGET_MS });
 
     const selected = [...scene.session.selection.nodes].map(String);
 

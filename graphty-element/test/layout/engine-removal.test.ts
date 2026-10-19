@@ -14,7 +14,7 @@
  * The nodes and edges are the bare shape a layout engine uses -- a real `Node` builds a Babylon
  * mesh in its constructor, and none of this has anything to do with a mesh.
  */
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
@@ -23,6 +23,7 @@ import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
 import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
+import { assertScalesLinearly } from "../helpers/cost";
 
 /**
  * A node as a layout engine sees one: an id and the row it owns in the position array.
@@ -139,5 +140,173 @@ describe("a layout engine gives back a node the graph has removed", () => {
             simulation.removeEdge(edge(a, stranger));
         });
         assert.deepStrictEqual([...simulation.nodes], [a]);
+    });
+
+    it("keeps the order of what it still holds, and puts a node added back at the end", () => {
+        const [a, b, c, d] = ["a", "b", "c", "d"].map((id, i) => node(id, i));
+        const layout = new CircularLayout({});
+        layoutEngineInternals.addNodes(layout, [a, b, c, d]);
+
+        layout.removeNode(b);
+        layout.removeNode(d);
+        assert.deepStrictEqual([...layout.nodes], [a, c]);
+
+        layout.removeNode(a);
+        layoutEngineInternals.addNode(layout, a);
+        assert.deepStrictEqual([...layout.nodes], [c, a]);
+    });
+
+    it("tears a whole graph down in work linear in its size (issue #1373)", () => {
+        // Each removal used to find the node with indexOf and splice it out, moving the rest of
+        // the list: n removals in insertion order cost n^2/2 moves, 8.6 s at 100,000 nodes. Counted
+        // as membership tests rather than timed, so machine load cannot move the result.
+        const n = 2000;
+        const nodes = Array.from({ length: n }, (_, i) => node(`n${i}`, i));
+        const edges = nodes.slice(1).map((dst, i) => edge(nodes[i], dst));
+        const layout = new CircularLayout({});
+        layoutEngineInternals.addNodes(layout, nodes);
+        layoutEngineInternals.addEdges(layout, edges);
+
+        const indexOf = vi.spyOn(Array.prototype, "indexOf");
+        const splice = vi.spyOn(Array.prototype, "splice");
+        const has = vi.spyOn(Set.prototype, "has");
+        try {
+            for (const e of edges) {
+                layoutEngineInternals.removeEdge(layout, e);
+            }
+
+            for (const v of nodes) {
+                layoutEngineInternals.removeNode(layout, v);
+            }
+
+            const held = [...layout.nodes].length + [...layout.edges].length;
+            const searches = indexOf.mock.calls.length + splice.mock.calls.length;
+            const tests = has.mock.calls.length;
+            vi.restoreAllMocks();
+
+            assert.strictEqual(held, 0, "the engine holds nothing");
+            assert.strictEqual(searches, 0, "no search per element");
+            assert.isAtMost(tests, 2 * n, "one membership test per element held");
+        } finally {
+            vi.restoreAllMocks();
+        }
+    });
+
+    describe("removes a batch of nodes visiting only their own edges (issue #1425)", () => {
+        // Each removal used to scan every edge the engine held, so k removals from E edges cost
+        // k x E. Counted as reads of an edge's (or link's) endpoints rather than timed: removing
+        // the same 100 nodes from a graph four times larger reads about as many endpoints.
+        const sizes = [1000, 4000] as const;
+        const removed = 100;
+
+        /**
+         * A ring of `n` nodes with two chords per node: 3n edges.
+         * @param n - how many nodes
+         * @returns the nodes, the edges, and a counter of endpoint reads
+         */
+        function graph(n: number): { nodes: Node[]; edges: Edge[]; reads: { count: number } } {
+            const reads = { count: 0 };
+            const nodes = Array.from({ length: n }, (_, i) => node(`n${i}`, i));
+            const edges: Edge[] = [];
+            for (let i = 0; i < n; i++) {
+                for (const step of [1, 7, 31]) {
+                    const src = nodes[i];
+                    const dst = nodes[(i + step) % n];
+                    const e = {} as Edge;
+                    Object.defineProperties(e, {
+                        srcId: { get: () => (reads.count++, src.id) },
+                        dstId: { get: () => (reads.count++, dst.id) },
+                        srcNode: { value: src },
+                        dstNode: { value: dst },
+                    });
+                    edges.push(e);
+                }
+            }
+
+            return { nodes, edges, reads };
+        }
+
+        /**
+         * The edges that survive removing the first `removed` nodes.
+         * @param nodes - all nodes
+         * @param edges - all edges
+         * @returns how many endpoint reads a removal may make, and the edges left
+         */
+        function expected(nodes: Node[], edges: Edge[]): { touched: number; left: Edge[] } {
+            const gone = new Set(nodes.slice(0, removed));
+            const left = edges.filter((e) => !gone.has(e.srcNode) && !gone.has(e.dstNode));
+            return { touched: edges.length - left.length, left };
+        }
+
+        it("in a d3 simulation", async () => {
+            await assertScalesLinearly(
+                (n) => {
+                    const { nodes, edges, reads } = graph(n);
+                    const { touched, left } = expected(nodes, edges);
+                    const simulation = new D3GraphEngine({});
+                    layoutEngineInternals.addNodes(simulation, nodes);
+                    layoutEngineInternals.addEdges(simulation, edges);
+                    simulation.step();
+
+                    reads.count = 0;
+                    for (const v of nodes.slice(0, removed)) {
+                        simulation.removeNode(v);
+                    }
+
+                    const visits = reads.count;
+                    assert.isAtMost(visits, 2 * touched, "two endpoint reads per edge removed, not per edge held");
+                    assert.deepStrictEqual(
+                        [...simulation.nodes],
+                        nodes.slice(removed),
+                        "exactly the other nodes remain",
+                    );
+                    assert.sameMembers([...simulation.edges], left, "exactly the edges between them remain");
+                    assert.doesNotThrow(() => {
+                        simulation.step();
+                    }, "and the simulation still steps");
+                    return visits;
+                },
+                { sizes, growth: "constant", counter: "endpoint reads removing 100 nodes" },
+            );
+        });
+
+        it("in an ngraph simulation", async () => {
+            await assertScalesLinearly(
+                (n) => {
+                    const { nodes, edges } = graph(n);
+                    const { touched, left } = expected(nodes, edges);
+                    const simulation = new NGraphEngine({});
+                    layoutEngineInternals.addNodes(simulation, nodes);
+                    layoutEngineInternals.addEdges(simulation, edges);
+
+                    // The engine keys its sweep on ngraph's links, so count reads of THEIR endpoints.
+                    const reads = { count: 0 };
+                    for (const link of simulation.edgeMapping.values()) {
+                        const { fromId, toId } = link;
+                        Object.defineProperties(link, {
+                            fromId: { get: () => (reads.count++, fromId) },
+                            toId: { get: () => (reads.count++, toId) },
+                        });
+                    }
+
+                    for (const v of nodes.slice(0, removed)) {
+                        simulation.removeNode(v);
+                    }
+
+                    const visits = reads.count;
+                    assert.isAtMost(visits, 4 * touched, "a few endpoint reads per link removed, not per link held");
+                    assert.deepStrictEqual(
+                        [...simulation.nodes],
+                        nodes.slice(removed),
+                        "exactly the other nodes remain",
+                    );
+                    assert.sameMembers([...simulation.edges], left, "exactly the edges between them remain");
+                    assert.strictEqual(simulation.ngraph.getNodesCount(), n - removed, "ngraph holds the same nodes");
+                    assert.strictEqual(simulation.ngraph.getLinksCount(), left.length, "and the same links");
+                    return visits;
+                },
+                { sizes, growth: "constant", counter: "link endpoint reads removing 100 nodes" },
+            );
+        });
     });
 });

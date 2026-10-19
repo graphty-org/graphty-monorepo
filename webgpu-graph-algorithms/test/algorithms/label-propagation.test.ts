@@ -1,12 +1,12 @@
 /**
  * Label propagation (design 8.6, 9.7; the P11 plan's P11-T6) against the synchronous reference with the same rules
- * (lowest-label tie-break, alternating direction, fixed-point stop): labels IDENTICAL -- not merely the same
+ * (scrambled-label tie-break, alternating direction, fixed-point stop): labels IDENTICAL -- not merely the same
  * partition -- on every named fixture, weighted and not, directed and not, because the result is bitwise reproducible.
  * Plus the gate's item (the planted partitions recovered with an adjusted Rand index of at least 0.9 on ten seeds),
  * disjoint cliques, a complete graph, the two-node path the direction rule exists for, pass caps that end inside and
  * across a submit, run twice, and the run options. And a differential against the CPU package's own synchronous port
- * (`labelPropagationSynchronous`), which moves up first and keeps a label that ties for the lead, so it is held to the
- * same partition (adjusted Rand index) and the same modularity rather than to identical labels.
+ * (`labelPropagationSynchronous`), whose rules the kernel follows: identical labels on planted partitions, karate, and
+ * the 1,000-node path and cycle numbered in order, which settle inside the default cap (issue #694).
  */
 
 import { labelPropagationSynchronous } from "@graphty/algorithms";
@@ -20,8 +20,10 @@ import { planGroupRows } from "../../src/primitives/group-by-key.js";
 import { radixHistBytes } from "../../src/primitives/radix-sort.js";
 import {
     completeEdges,
+    cycleEdges,
     type EdgeSpec,
     fixture,
+    gridEdges,
     KARATE_EDGES,
     pathEdges,
     snapshotOf,
@@ -112,21 +114,45 @@ describe("labelPropagation (GPU, design 8.6)", () => {
         }
     });
 
-    it("agrees with the CPU package's labelPropagationSynchronous: same planted partition, same karate modularity", async (t) => {
+    it("gives the CPU package's labelPropagationSynchronous labels: planted partitions, karate, weighted and not", async (t) => {
         const ctx = await context(t);
         for (let seed = 1; seed <= 10; seed++) {
             const { edges } = plantedPartition(4, 50, 0.3, 0.005, seed);
             const s = snapshotOf(edges, { nodeCount: 200 });
-            const gpu = await labelPropagation(ctx, s);
-            const cpu = labelPropagationSynchronous(s);
-            expect(adjustedRandIndex(gpu.labels, cpu.labels), `seed ${seed}`).toBeGreaterThanOrEqual(0.9);
+            expectBitwiseEqual(
+                (await labelPropagation(ctx, s)).labels,
+                labelPropagationSynchronous(s).labels,
+                `seed ${seed}`,
+            );
             ctx.release(s);
         }
         const karate = track(snapshotOf(KARATE_EDGES));
-        const csr = simpleSymmetricOracle(karate);
-        const gpu = modularityOf(csr, (await labelPropagation(ctx, karate)).labels);
-        const cpu = modularityOf(csr, labelPropagationSynchronous(karate).labels);
-        expect(Math.abs(gpu - cpu), `gpu ${gpu} cpu ${cpu}`).toBeLessThanOrEqual(0.05);
+        for (const weighted of [true, false]) {
+            expectBitwiseEqual(
+                (await labelPropagation(ctx, karate, { weighted })).labels,
+                labelPropagationSynchronous(karate, { weighted }).labels,
+                `karate weighted ${weighted}`,
+            );
+        }
+    });
+
+    it("a 1,000-node path and cycle numbered in order settle inside the default cap, as the CPU port does (issue #694)", async (t) => {
+        const ctx = await context(t);
+        for (const [name, edges] of [
+            ["path1k", pathEdges(1000)],
+            ["cycle1k", cycleEdges(1000)],
+        ] as const) {
+            const s = track(snapshotOf(edges));
+            const cpu = labelPropagationSynchronous(s);
+            expect(cpu.converged, name).toBe(true);
+            expect(cpu.iterations, name).toBeLessThan(20);
+            const gpu = await labelPropagation(ctx, s);
+            expectBitwiseEqual(gpu.labels, cpu.labels, name);
+            // settled: a cap of exactly the passes the port ran gives the same labels as the default cap
+            const capped = await labelPropagation(ctx, s, { maxIterations: cpu.iterations });
+            expectBitwiseEqual(capped.labels, gpu.labels, `${name} capped`);
+            expect(gpu.count, name).toBeGreaterThan(100);
+        }
     });
 
     it("disjoint cliques are one community each, a complete graph is one, the two-node path converges; karate's modularity is above 0.35", async (t) => {
@@ -151,11 +177,11 @@ describe("labelPropagation (GPU, design 8.6)", () => {
 
     it("maxIterations: 0 is the identity; caps inside and across a submit match the reference's passes", async (t) => {
         const ctx = await context(t);
-        const s = snapshotOf(pathEdges(300));
+        const s = snapshotOf(gridEdges(30, 30));
         const csr = simpleSymmetricOracle(s);
         expect(labelPropagationOracle(csr, { maxIterations: 100, weighted: true }).passes).toBeGreaterThan(10);
         const zero = await labelPropagation(ctx, s, { maxIterations: 0 });
-        expect(zero.count).toBe(300);
+        expect(zero.count).toBe(900);
         for (const cap of [1, 3, 8, 9, 17]) {
             const want = labelPropagationOracle(csr, { maxIterations: cap, weighted: true });
             expectBitwiseEqual(

@@ -135,7 +135,7 @@ In the notation of a network paper:
 | s_i                                          | `node.strength(w)`                          |
 
 On a graph with parallel edges, `node.degree` counts each of them, so the number of distinct
-neighbours is `node.neighbors().length`, not `node.degree`.
+neighbors is `node.neighbors().length`, not `node.degree`.
 
 ### Coming from NetworkX
 

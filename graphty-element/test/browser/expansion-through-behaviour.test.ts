@@ -17,7 +17,6 @@
 import { ActionManager } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import type { AdHocData } from "../../src/config";
 import { Graph } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
 
@@ -34,7 +33,8 @@ function doubleClick(graph: Graph, id: string): void {
     const action = actions.find((candidate) => candidate.trigger === ActionManager.OnDoublePickTrigger);
 
     assert.isDefined(action, "double-clicking a node does something");
-    (action as unknown as { execute?: () => void }).execute?.();
+    // The action is shared by every node of the scene and reads the node from the picked mesh.
+    (action as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
 }
 
 describe("expansion switched on through the element's own behaviour setting", () => {
@@ -62,7 +62,7 @@ describe("expansion switched on through the element's own behaviour setting", ()
         graph.setLayoutBehavior({ fetchNodes, fetchEdges });
 
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "a" } as unknown as AdHocData);
+        dataManager.addNode({ id: "a" });
         vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
         vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
 
@@ -74,7 +74,7 @@ describe("expansion switched on through the element's own behaviour setting", ()
 
     test("a behaviour set after a node is on screen still reaches that node", () => {
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "a" } as unknown as AdHocData);
+        dataManager.addNode({ id: "a" });
 
         const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
         const fetchNodes = vi.fn().mockReturnValue([{ id: "b", data: {} }]);
@@ -128,7 +128,7 @@ describe("expansion switched on through the element's own behaviour setting", ()
         graph.setLayoutBehavior({ layout: { preSteps: 5 } });
 
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "a" } as unknown as AdHocData);
+        dataManager.addNode({ id: "a" });
         vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
         vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
 

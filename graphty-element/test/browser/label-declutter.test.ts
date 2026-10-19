@@ -11,17 +11,19 @@
  * box after a frame, projected through the scene's own transform.
  */
 
+import "../../src/graphty-element";
+
 import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
-import { LabelDeclutter } from "../../src/managers/LabelDeclutter";
+import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { nextFrame } from "../helpers/real-input";
 
 const WIDTH = 640;
 const HEIGHT = 480;
 const FRAMES = 8;
-const FRAME_MS = 10;
 
 /** A hub with two leaves: the hub has the most edges, so its label is the one that is kept. */
 const EDGES = [
@@ -89,9 +91,7 @@ describe("node labels do not overlap", () => {
 
         for (let at = 0; at < FRAMES; at++) {
             g.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
+            await nextFrame();
         }
 
         if (view) {
@@ -252,11 +252,11 @@ describe("node labels do not overlap", () => {
     });
 
     it("keeps a hidden label hidden when its animation starts", async () => {
-        // The element starts every label's animation once the layout settles, and again 100 ms
-        // after init for a layout that settled at once. Neither moves a node or the camera, so
-        // the pass does not run again afterwards: a start that showed a label the pass had hidden
-        // left it drawn over the one it lost to, and whether that happened depended on whether
-        // the timer fired before or after the pass.
+        // The element starts every label's animation once the layout settles, or on the first
+        // frame that finds it at rest. Neither moves a node or the camera, so the pass does not
+        // run again afterwards: a start that showed a label the pass had hidden left it drawn
+        // over the one it lost to, and whether that happened depended on whether the start came
+        // before or after the pass.
         const g = await draw(PILED);
         const label = RichTextLabel.createLabel(g.scene, { text: "A LONG LABEL FOR THIS NODE" });
         const mesh = label.labelMesh;
@@ -319,6 +319,335 @@ describe("node labels do not overlap", () => {
                     `the words of ${entries[i][0]} and ${entries[j][0]} overlap`,
                 );
             }
+        }
+    });
+});
+
+describe("nodeLabelCounts counts the labels drawn and why the rest are not", () => {
+    let container: HTMLElement | undefined;
+    let graph: Graph | undefined;
+
+    afterEach(() => {
+        graph?.dispose();
+        container?.remove();
+    });
+
+    async function frames(g: Graph, count = FRAMES): Promise<void> {
+        for (let at = 0; at < count; at++) {
+            g.scene.render();
+            await nextFrame();
+        }
+    }
+
+    async function piled(declutter: boolean): Promise<Graph> {
+        container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        const g = new Graph(container);
+        graph = g;
+        await g.init();
+        g.setLayoutBehavior({ labels: { declutter } });
+        await g.addNodes(PILED);
+        await g.addEdges(EDGES);
+        await g.setLayout("fixed", { dim: 3 });
+        await operationQueueOf(g).waitForCompletion();
+        await g.getSession().styles.add({
+            name: "labels",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+        });
+        await operationQueueOf(g).waitForCompletion();
+        await frames(g);
+        await g.setCameraState(PILED_VIEW);
+        await frames(g, 12);
+
+        return g;
+    }
+
+    /**
+     * The nodes whose label is enabled but not drawn, read off the meshes.
+     * @param g - The graph.
+     * @returns The ids, sorted.
+     */
+    function hiddenOnScreen(g: Graph): string[] {
+        return ["hub", "left", "right"]
+            .filter((id) => {
+                const mesh = g.getNode(id)?.label?.labelMesh;
+                return mesh?.isEnabled() === true && !mesh.isVisible;
+            })
+            .sort();
+    }
+
+    it("counts the two labels it hid, matching the label meshes that are not drawn", async () => {
+        const g = await piled(true);
+
+        assert.deepEqual(g.nodeLabelCounts, { labeled: 3, nodeHidden: 0, hiddenByOverlap: 2 });
+        assert.deepEqual(hiddenOnScreen(g), ["left", "right"]);
+    });
+
+    it("counts every label and none hidden while declutter is off", async () => {
+        const g = await piled(false);
+
+        assert.deepEqual(g.nodeLabelCounts, { labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 });
+        assert.deepEqual(hiddenOnScreen(g), []);
+    });
+
+    it("never counts a label outside the view as hidden, and draws it again", async () => {
+        const g = await piled(true);
+
+        await g.setCameraState({ position: { x: 0, y: 0.6, z: -11 }, target: { x: 0, y: 0.6, z: -20 } });
+        await frames(g, 2);
+        assert.deepEqual(g.nodeLabelCounts, { labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 });
+        assert.deepEqual(hiddenOnScreen(g), [], "no label keeps a hide for a reason that no longer holds");
+
+        await g.setCameraState(PILED_VIEW);
+        await frames(g, 2);
+        assert.strictEqual(g.nodeLabelCounts.hiddenByOverlap, 2);
+    });
+
+    it("counts a node a filter hides as nodeHidden, with the declutter switch on or off", async () => {
+        const g = await piled(true);
+        const session = g.getSession();
+
+        // The hub has two edges, each leaf one: a degree filter hides the leaves.
+        await session.visibility.set({ kind: "degree", min: 2 });
+        await frames(g, 2);
+        assert.deepEqual(g.nodeLabelCounts, { labeled: 3, nodeHidden: 2, hiddenByOverlap: 0 });
+
+        g.setLayoutBehavior({ labels: { declutter: false } });
+        await frames(g, 2);
+        assert.deepEqual(g.nodeLabelCounts, { labeled: 3, nodeHidden: 2, hiddenByOverlap: 0 });
+    });
+
+    it("drops to zero when the label layer goes", async () => {
+        const g = await piled(true);
+        const session = g.getSession();
+        const [layer] = session.styles.list().filter((each) => each.name === "labels");
+        assert.isOk(layer);
+
+        await session.styles.remove(layer.id);
+        await operationQueueOf(g).waitForCompletion();
+        await frames(g);
+        assert.deepEqual(g.nodeLabelCounts, { labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
+    });
+
+    it("publishes once the view is still, and at most once for a 120-frame orbit", async () => {
+        const g = await piled(true);
+        const heard: NodeLabelCounts[] = [];
+        g.onNodeLabelCounts.add((counts) => heard.push(counts));
+
+        // Orbit away from the pile and back: every frame moves the camera, so nothing publishes
+        // until it stops.
+        for (let at = 0; at < 120; at++) {
+            const angle = (at / 120) * Math.PI * 2;
+            await g.setCameraState({
+                position: { x: Math.sin(angle) * 11, y: 0.6, z: -Math.cos(angle) * 11 },
+                target: PILED_VIEW.target,
+            });
+            g.scene.render();
+        }
+
+        assert.lengthOf(heard, 0, "nothing is published during the gesture");
+        await g.setCameraState(PILED_VIEW);
+        await frames(g, 12);
+        assert.isAtMost(heard.length, 1);
+
+        // A real change, once still, publishes once.
+        heard.length = 0;
+        g.setLayoutBehavior({ labels: { declutter: false } });
+        await frames(g, 12);
+        assert.deepEqual(heard, [{ labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 }]);
+    });
+});
+
+describe("the labels guide's example (docs/guide/labels.md)", () => {
+    it("says how many labels are hidden, and shows them all when asked", async () => {
+        const host = document.createElement("div");
+        host.innerHTML = `<p id="label-status"></p><input id="show-all-labels" type="checkbox">`;
+        document.body.appendChild(host);
+        const tag = document.createElement("graphty-element");
+        tag.style.cssText = `display: block; width: ${String(WIDTH)}px; height: ${String(HEIGHT)}px`;
+        host.appendChild(tag);
+        await tag.updateComplete;
+        const g = tag.graph;
+        // The event bubbles, so a listener on the document hears it too.
+        const heardOnDocument: NodeLabelCounts[] = [];
+        const onDocument = (e: CustomEvent<NodeLabelCounts>): void => {
+            heardOnDocument.push(e.detail);
+        };
+        document.addEventListener("graphty-label-change", onDocument);
+        try {
+            await operationQueueOf(g).waitForCompletion();
+            await g.addNodes(PILED);
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            await operationQueueOf(g).waitForCompletion();
+            await tag.session.styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+            });
+            await g.setCameraState(PILED_VIEW);
+
+            // The guide's code, as written.
+            const element = document.querySelector("graphty-element")!;
+            const status = document.querySelector<HTMLElement>("#label-status")!;
+            const showAll = document.querySelector<HTMLInputElement>("#show-all-labels")!;
+
+            // Label every node, with its id as the words.
+            await element.session.styles.add({
+                name: "Labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.labelStyle": { enabled: true } },
+            });
+            element.layoutBehavior = { labels: { declutter: true } }; // off by default
+
+            function render({ labeled, nodeHidden, hiddenByOverlap }: NodeLabelCounts): void {
+                const drawn = labeled - nodeHidden - hiddenByOverlap;
+                status.textContent = `${String(drawn)} labels drawn, ${String(hiddenByOverlap)} hidden to avoid overlap`;
+            }
+            render(element.nodeLabelCounts);
+            element.addEventListener("graphty-label-change", (e) => render(e.detail));
+            showAll.onchange = () => {
+                element.layoutBehavior = { labels: { declutter: !showAll.checked } };
+            };
+            // End of the guide's code.
+
+            await operationQueueOf(g).waitForCompletion();
+            await waitFor(() => status.textContent === "1 labels drawn, 2 hidden to avoid overlap");
+
+            showAll.checked = true;
+            showAll.dispatchEvent(new Event("change"));
+            await waitFor(() => status.textContent === "3 labels drawn, 0 hidden to avoid overlap");
+            assert.deepEqual(heardOnDocument.at(-1), { labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 });
+        } finally {
+            document.removeEventListener("graphty-label-change", onDocument);
+            host.remove();
+        }
+    });
+});
+
+describe("waitForStableFrame waits for the label counts to be announced", () => {
+    it("resolves only after graphty-label-change has carried the counts the frame drew", async () => {
+        const tag = document.createElement("graphty-element");
+        tag.style.cssText = `display: block; width: ${String(WIDTH)}px; height: ${String(HEIGHT)}px`;
+        document.body.appendChild(tag);
+        await tag.updateComplete;
+        const heard: NodeLabelCounts[] = [];
+        tag.addEventListener("graphty-label-change", (e) => heard.push(e.detail));
+        try {
+            const g = tag.graph;
+            await operationQueueOf(g).waitForCompletion();
+            await g.addNodes(PILED);
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            tag.layoutBehavior = { labels: { declutter: true } };
+            await tag.session.styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+            });
+
+            // The counts are published after the last pass, which is after the first stable
+            // frame: a page reading them on that frame without the wait read zeros.
+            await tag.waitForStableFrame();
+
+            assert.notDeepEqual(tag.nodeLabelCounts, { labeled: 0, nodeHidden: 0, hiddenByOverlap: 0 });
+            assert.deepEqual(heard.at(-1), tag.nodeLabelCounts);
+            // Announced on the first still frame after the last pass, not after the ten-frame
+            // debounce a gesture gets: each of those frames is most of a second on a software GPU.
+            const declutter = g.scene.metadata?.labelDeclutter as unknown as { quiet: number };
+            assert.isBelow(declutter.quiet, 10);
+        } finally {
+            tag.remove();
+        }
+    });
+});
+
+/**
+ * Wait, while the element draws frames, until a condition holds.
+ * @param done - The condition.
+ */
+async function waitFor(done: () => boolean): Promise<void> {
+    for (let at = 0; at < 300 && !done(); at++) {
+        await nextFrame();
+    }
+
+    assert.isTrue(done(), "the condition held within 5 seconds");
+}
+
+describe("the label counts are published once the labels have settled, not after a fixed count of frames", () => {
+    it("publishes to a waiter on the first frame with nothing to re-decide, and never while labels move", async () => {
+        const container = document.createElement("div");
+        container.style.width = `${String(WIDTH)}px`;
+        container.style.height = `${String(HEIGHT)}px`;
+        document.body.appendChild(container);
+        const g = new Graph(container);
+        try {
+            await g.init();
+            g.setLayoutBehavior({ labels: { declutter: true } });
+            await g.addNodes(PILED);
+            await g.addEdges(EDGES);
+            await g.setLayout("fixed", { dim: 3 });
+            await g.getSession().styles.add({
+                name: "labels",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.label": "A LONG LABEL FOR THIS NODE" },
+            });
+            await g.setCameraState(PILED_VIEW);
+            await g.waitForStableFrame();
+
+            // From here every frame is one this test draws.
+            g.engine.stopRenderLoop();
+            const declutter: unknown = g.scene.metadata?.labelDeclutter;
+            if (!(declutter instanceof LabelDeclutter)) {
+                throw new Error("the labels have no declutter pass");
+            }
+
+            const heard: NodeLabelCounts[] = [];
+            const observer = g.onNodeLabelCounts.add((counts) => heard.push(counts));
+
+            // Turning declutter off shows every label: there are new counts to publish.
+            g.setLayoutBehavior({ labels: { declutter: false } });
+            let published = false;
+            void declutter.whenPublished().then(() => {
+                published = true;
+            });
+
+            // A node keeps moving: every frame has a label to re-decide, so nothing is published.
+            const left = g.getNode("left");
+            assert.isDefined(left);
+            for (let at = 0; at < 20; at++) {
+                left.mesh.position.x += 0.01;
+                g.scene.render();
+                await Promise.resolve();
+            }
+
+            assert.isFalse(published, "the counts were published while a label was still moving");
+            assert.lengthOf(heard, 0, "graphty-label-change fired while a label was still moving");
+
+            // It stops: the next frame has nothing to re-decide, and that is when they publish.
+            let frames = 0;
+            while (!published && frames < 30) {
+                g.scene.render();
+                frames++;
+                await Promise.resolve();
+                await Promise.resolve();
+            }
+
+            assert.isTrue(published, "the counts were never published");
+            assert.isAtMost(frames, 2, "the counts waited for frames after the labels had settled");
+            assert.deepEqual(heard, [{ labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 }]);
+            g.onNodeLabelCounts.remove(observer);
+        } finally {
+            g.dispose();
+            container.remove();
         }
     });
 });

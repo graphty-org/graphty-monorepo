@@ -8,6 +8,7 @@ import { decodeChunks } from "../../../src/common/writer.js";
 import { DOT_LOSS, dotExporter } from "../../../src/formats/dot/exporter.js";
 import { dotImporter } from "../../../src/formats/dot/importer.js";
 import { CLUSTER_COLUMN, PARENT_COLUMN } from "../../../src/formats/dot/names.js";
+import { createRegistry } from "../../../src/registry.js";
 import { corpusFiles, readCorpusText } from "../../helpers/corpus.js";
 import { compareSnapshots, describeDiffs, expectSameSnapshot, roundTrip } from "../../helpers/roundtrip.js";
 
@@ -86,6 +87,19 @@ describe("dot exporter: capabilities and shape", () => {
         expect(anonymous).toBe("digraph {\n}\n");
     });
 
+    it("refuses an option of the wrong type with E_UNSUPPORTED, in check() and export()", async () => {
+        const snapshot = await imported("graph { a -- b }");
+        for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
+            const option = Object.keys(options ?? {})[0];
+            expect(() => dotExporter.check(snapshot, options)).toThrow(
+                expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
+            );
+            await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
+                code: "E_UNSUPPORTED",
+            });
+        }
+    });
+
     it("quotes ids and values exactly when the grammar needs it and writes HTML strings bare", async () => {
         const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
         for (const id of ["plain", "with space", 'has "quote"', "node", "Graph", "", "1e21", "-3", "1.5", "_x9"]) {
@@ -113,6 +127,41 @@ describe("dot exporter: capabilities and shape", () => {
             "7;",
             "-2.5;",
         ]);
+    });
+
+    it("quotes a value that starts with U+FEFF, which the reader skips between tokens", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        builder.addNode("a");
+        builder.declareNodeColumn({ name: "name", dtype: "string" });
+        builder.setNodeValue("name", 0, "\uFEFFKRAS");
+        const snapshot = builder.freeze();
+        const text = await dotExporter.exportToString(snapshot);
+        expect(lines(text)[1]).toBe('a [name="\uFEFFKRAS"];');
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.nodes.get("name")?.value(0)).toBe("\uFEFFKRAS");
+    });
+
+    it("writes the same text again from what it wrote, when nodes and edges hold different columns", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        builder.addNode("a");
+        builder.addNode("b");
+        builder.addEdge("a", "b");
+        builder.addEdge("b", "a");
+        for (const name of ["url", "description"]) {
+            builder.declareNodeColumn({ name, dtype: "string" });
+            builder.declareEdgeColumn({ name, dtype: "string" });
+        }
+        // the first node and edge hold only the second column, which a reader then meets first
+        builder.setNodeValue("description", 0, "first");
+        builder.setNodeValue("url", 1, "u");
+        builder.setNodeValue("description", 1, "second");
+        builder.setEdgeValue("description", 0, "first");
+        builder.setEdgeValue("url", 1, "u");
+        builder.setEdgeValue("description", 1, "second");
+        const first = await dotExporter.exportToString(builder.freeze());
+        expect(lines(first)[2]).toBe("b [description=second, url=u];");
+        const again = await dotExporter.exportToString(await imported(first));
+        expect(again).toBe(first);
     });
 
     it("formats bool, i32 and f64 cells so their dtype survives re-import", async () => {
@@ -198,6 +247,19 @@ describe("dot exporter: capabilities and shape", () => {
 });
 
 describe("dot exporter: clusters", () => {
+    it("notes a parent that is a plain node: it reads back marked as a cluster", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("g");
+        b.addNode("m");
+        b.declareNodeColumn({ name: "parent", dtype: "u32", role: "parent", refersTo: "node", nullable: true });
+        b.setNodeValue("parent", 1, 0);
+        const snapshot = b.freeze();
+        const note = dotExporter.check(snapshot).find((n) => n.code === DOT_LOSS.CLUSTER_MARKED);
+        expect(note?.column).toBe(CLUSTER_COLUMN);
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.nodes.get(CLUSTER_COLUMN)?.value(0)).toBe(true);
+    });
+
     it("emits a cluster block for a container node with its attributes and nested members", async () => {
         const snapshot = await imported(
             'digraph { subgraph cluster_0 { label="one"; a; subgraph cluster_1 { b } } c; subgraph cluster_0 { c } }',
@@ -346,6 +408,17 @@ describe("dot exporter: mixed direction", () => {
 });
 
 describe("dot exporter: check() loss notes", () => {
+    it("writes a graph charset as UTF-8, the encoding it writes, so the text reads back as written", async () => {
+        const snapshot = await imported('digraph { graph [charset="ISO-8859-1"]; a [label="Z\u00fcrich"]; a -> b }');
+        expect(noteCodes(snapshot)).toContain(DOT_LOSS.CHARSET_REWRITTEN);
+        const text = await dotExporter.exportToString(snapshot);
+        expect(text).toContain(`charset="UTF-8"`);
+        const { snapshot: back } = await createRegistry().importGraph(new TextEncoder().encode(text), {
+            format: "dot",
+        });
+        expect(back.nodes.value("label", back.ids.requireIndex("a"))).toBe("Z\u00fcrich");
+    });
+
     it("reports nothing for a snapshot DOT holds exactly", async () => {
         const snapshot = await imported(readCorpusText("dot", "cluster.gv"));
         expect(dotExporter.check(snapshot)).toEqual([]);

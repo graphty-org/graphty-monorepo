@@ -5,9 +5,19 @@
  * the direction rule exists for, and the planted partitions the gate names. No device is touched.
  */
 
-import { completeEdges, type EdgeSpec, KARATE_EDGES, snapshotOf } from "../helpers/graphs.js";
+import { labelPropagationSynchronous } from "@graphty/algorithms";
+
+import {
+    completeEdges,
+    cycleEdges,
+    type EdgeSpec,
+    gridEdges,
+    KARATE_EDGES,
+    pathEdges,
+    snapshotOf,
+} from "../helpers/graphs.js";
 import { adjustedRandIndex, plantedPartition } from "../helpers/partitions.js";
-import { labelPropagationOracle, modularityOf } from "./community.js";
+import { fmix32, labelPropagationOracle, modularityOf } from "./community.js";
 import { simpleSymmetricOracle } from "./coo.js";
 import { groupByKeyOracle, quantize, rowScale } from "./group-by-key.js";
 
@@ -29,14 +39,16 @@ function cliques(sizes: readonly number[]): EdgeSpec[] {
 }
 
 describe("groupByKeyOracle (pure)", () => {
-    it("the weighted mode, the lowest key on a tie, INVALID_INDEX for an empty row", () => {
-        // row 0: keys 5, 3, 5, 3 (tie of two each -> 3); row 1: empty; row 2: key 9 twice, key 1 once -> 9
+    it("the weighted mode, the row's own key on a tie, else the lowest, INVALID_INDEX for an empty row", () => {
+        // row 0 (own key 5): keys 5, 3, 5, 3 (tie of two each -> 5); row 1: empty; row 2: key 9 twice, key 1 once -> 9
         const rowPtr = [0, 4, 4, 7];
         const colIdx = [0, 1, 2, 3, 4, 4, 5];
         const keyIn = [5, 3, 5, 3, 9, 1];
         const r = groupByKeyOracle(rowPtr, colIdx, null, keyIn);
-        expect(Array.from(r.bestKey)).toEqual([3, 0xffffffff, 9]);
+        expect(Array.from(r.bestKey)).toEqual([5, 0xffffffff, 9]);
         expect(Array.from(r.bestScore)).toEqual([2, 0, 2]);
+        // own key 7 is not among the tied: the lowest, 3
+        expect(groupByKeyOracle(rowPtr, colIdx, null, [7, 3, 5, 3, 9, 1]).bestKey[0]).toBe(3);
     });
 
     it("the scale is the power of two that keeps maxW x d x scale below 2^30; negatives count 0", () => {
@@ -86,6 +98,38 @@ describe("adjustedRandIndex and plantedPartition (pure)", () => {
 });
 
 describe("labelPropagationOracle (pure)", () => {
+    it("fmix32 is murmur3's finalizer: known values", () => {
+        expect([0, 1, 2, 1000].map(fmix32)).toEqual([0, 0x514e28b7, 0x30f4c306, 0x66692658]);
+    });
+
+    it("gives labelPropagationSynchronous's labels and passes: path, cycle, grid, karate, planted, weighted and not", () => {
+        const graphs: [string, EdgeSpec[], number | undefined][] = [
+            ["path1k", pathEdges(1000), undefined],
+            ["cycle1k", cycleEdges(1000), undefined],
+            ["grid30", gridEdges(30, 30), undefined],
+            ["karate", [...KARATE_EDGES], undefined],
+            ["planted", plantedPartition(4, 50, 0.3, 0.005, 3).edges, 200],
+        ];
+        for (const [name, edges, nodeCount] of graphs) {
+            const s = snapshotOf(edges, nodeCount === undefined ? undefined : { nodeCount });
+            for (const weighted of [true, false]) {
+                const cpu = labelPropagationSynchronous(s, { weighted });
+                const r = labelPropagationOracle(simpleSymmetricOracle(s), { maxIterations: 100, weighted });
+                expect(Array.from(r.labels), `${name} weighted ${weighted}`).toEqual(Array.from(cpu.labels));
+                expect(r.passes, `${name} passes`).toBe(cpu.iterations);
+            }
+        }
+    });
+
+    it("path1k settles well inside the default cap of 100 passes (issue #694)", () => {
+        const r = labelPropagationOracle(simpleSymmetricOracle(snapshotOf(pathEdges(1000))), {
+            maxIterations: 100,
+            weighted: true,
+        });
+        expect(r.passes).toBeLessThan(20);
+        expect(r.count).toBeGreaterThan(100);
+    });
+
     it("disjoint cliques: every clique is one community; a single clique is one community", () => {
         const r = labelPropagationOracle(simpleSymmetricOracle(snapshotOf(cliques([4, 6, 3]))), {
             maxIterations: 100,

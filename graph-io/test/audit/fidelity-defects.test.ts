@@ -67,43 +67,43 @@ const c = String.fromCharCode;
 
 const GEXF: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "gexf",
-    gexfExporter as GraphExporter<AnyExportOptions>,
-    gexfImporter as GraphImporter<AnyImportOptions>,
+    gexfExporter,
+    gexfImporter,
 ];
 const GRAPHML: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "graphml",
-    graphmlExporter as GraphExporter<AnyExportOptions>,
-    graphmlImporter as GraphImporter<AnyImportOptions>,
+    graphmlExporter,
+    graphmlImporter,
 ];
 const GML: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "gml",
-    gmlExporter as GraphExporter<AnyExportOptions>,
-    gmlImporter as GraphImporter<AnyImportOptions>,
+    gmlExporter,
+    gmlImporter,
 ];
 const DOT: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "dot",
-    dotExporter as GraphExporter<AnyExportOptions>,
-    dotImporter as GraphImporter<AnyImportOptions>,
+    dotExporter,
+    dotImporter,
 ];
 const JSON_: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "json",
-    jsonExporter as GraphExporter<AnyExportOptions>,
-    jsonImporter as GraphImporter<AnyImportOptions>,
+    jsonExporter,
+    jsonImporter,
 ];
 const NEO4J: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "neo4j",
-    neo4jExporter as GraphExporter<AnyExportOptions>,
-    neo4jImporter as GraphImporter<AnyImportOptions>,
+    neo4jExporter,
+    neo4jImporter,
 ];
 const PAJEK: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "pajek",
-    pajekExporter as GraphExporter<AnyExportOptions>,
-    pajekImporter as GraphImporter<AnyImportOptions>,
+    pajekExporter,
+    pajekImporter,
 ];
 const CSV: [string, GraphExporter<AnyExportOptions>, GraphImporter<AnyImportOptions>] = [
     "csv",
-    csvExporter as GraphExporter<AnyExportOptions>,
-    csvImporter as GraphImporter<AnyImportOptions>,
+    csvExporter,
+    csvImporter,
 ];
 
 describe("D1 CSV exporter (edge table): isolated nodes and node order are lost without a note", () => {

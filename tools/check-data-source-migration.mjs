@@ -17,30 +17,17 @@
  * Usage: node tools/check-data-source-migration.mjs              (exit 1 on a problem)
  *        node tools/check-data-source-migration.mjs --self-test  (prove each rule fires)
  */
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { scratchWorkspace } from "./scratch-workspace.mjs";
+import { sourceFiles } from "./workspace-files.mjs";
 
 const DATA_DIR = "graphty-element/src/data";
 const SRC_DIR = "graphty-element/src";
 const PARSER_PACKAGES = ["papaparse", "fast-xml-parser"];
 const PARSER_FUNCTIONS = ["parsePajek", "tokenizeLine", "tokenize"];
-
-/**
- * Every source file under a directory.
- * @param dir - the directory
- * @returns absolute paths of its .ts, .tsx, .js and .mjs files, recursively
- */
-function sourceFiles(dir) {
-    if (!existsSync(dir)) {
-        return [];
-    }
-    return readdirSync(dir, { withFileTypes: true, recursive: true })
-        .filter((e) => e.isFile() && /\.(?:[cm]?[jt]s|tsx)$/.test(e.name))
-        .map((e) => join(e.parentPath, e.name));
-}
 
 /**
  * The module specifiers a source file imports or re-exports, statically or dynamically.
@@ -63,16 +50,39 @@ function importsOf(source, values = false) {
  *          `const name =`; a call such as `name(x);` is not a definition
  */
 function defines(source, name) {
-    const mods = "(?:(?:private|public|protected|static|async|export|default|readonly|override|abstract|declare)\\s+)*";
+    const mods = String.raw`(?:(?:private|public|protected|static|async|export|default|readonly|override|abstract|declare)\s+)*`;
     return new RegExp(
         [
-            `\\bfunction\\s*\\*?\\s*${name}\\s*[(<]`,
-            `^\\s*${mods}\\*?${name}\\s*(?:<[^>]*>)?\\([^)]*\\)\\s*[:{]`,
-            `^\\s*${mods}${name}\\s*[?!]?\\s*(?::|=(?!=))`,
-            `\\b(?:const|let|var)\\s+${name}\\s*[:=]`,
+            String.raw`\bfunction\s*\*?\s*${name}\s*[(<]`,
+            String.raw`^\s*${mods}\*?${name}\s*(?:<[^>]*>)?\([^)]*\)\s*[:{]`,
+            String.raw`^\s*${mods}${name}\s*[?!]?\s*(?::|=(?!=))`,
+            String.raw`\b(?:const|let|var)\s+${name}\s*[:=]`,
         ].join("|"),
         "m",
     ).test(source);
+}
+
+/**
+ * Checks one file of the data directory: a data source imports its importer from graph-io, and no
+ * file defines a parser function.
+ * @param file - the file's path
+ * @param name - the file's path as a problem names it
+ * @returns one line per problem
+ */
+function dataFileProblems(file, name) {
+    const problems = [];
+    const source = readFileSync(file, "utf8");
+    if (/^\w+DataSource\.ts$/.test(file.split(/[\\/]/).pop())) {
+        if (!importsOf(source, true).some((s) => s === "@graphty/graph-io" || s.startsWith("@graphty/graph-io/"))) {
+            problems.push(`${name}: does not import its importer from @graphty/graph-io`);
+        }
+    }
+    for (const fn of PARSER_FUNCTIONS) {
+        if (defines(source, fn)) {
+            problems.push(`${name}: defines the parser function ${fn}`);
+        }
+    }
+    return problems;
 }
 
 /**
@@ -82,7 +92,7 @@ function defines(source, name) {
  */
 function check(rootDir) {
     const problems = [];
-    const rel = (file) => relative(rootDir, file).split("\\").join("/");
+    const rel = (file) => relative(rootDir, file).replaceAll("\\", "/");
     for (const file of sourceFiles(join(rootDir, SRC_DIR))) {
         const imports = importsOf(readFileSync(file, "utf8"));
         for (const pkg of PARSER_PACKAGES) {
@@ -93,18 +103,7 @@ function check(rootDir) {
     }
     const dataDir = join(rootDir, DATA_DIR);
     for (const file of sourceFiles(dataDir)) {
-        const source = readFileSync(file, "utf8");
-        const name = file.split(/[\\/]/).pop();
-        if (/^\w+DataSource\.ts$/.test(name)) {
-            if (!importsOf(source, true).some((s) => s === "@graphty/graph-io" || s.startsWith("@graphty/graph-io/"))) {
-                problems.push(`${rel(file)}: does not import its importer from @graphty/graph-io`);
-            }
-        }
-        for (const fn of PARSER_FUNCTIONS) {
-            if (defines(source, fn)) {
-                problems.push(`${rel(file)}: defines the parser function ${fn}`);
-            }
-        }
+        problems.push(...dataFileProblems(file, rel(file)));
     }
     if (existsSync(join(dataDir, "csv-variant-detection.ts"))) {
         problems.push(`${DATA_DIR}/csv-variant-detection.ts: exists`);

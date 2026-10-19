@@ -671,3 +671,17 @@ describe("graphmlExporter and importer issue codes stay distinct", () => {
         expect(new Set(values).size).toBe(values.length);
     });
 });
+
+describe("graphmlExporter: a long column read as text", () => {
+    it("is written back with attr.type long, so other readers see a number", async () => {
+        const { exportGraphToString, importGraph } = await import("../../../src/index.js");
+        const doc =
+            '<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><key id="k" for="node" attr.name="big" attr.type="long"/>' +
+            '<graph edgedefault="directed"><node id="a"><data key="k">9007199254740993</data></node></graph></graphml>';
+        const { snapshot } = await importGraph(doc, { format: "graphml", long: "string" });
+        const out = await exportGraphToString(snapshot, "graphml");
+        expect(out).toContain('attr.type="long"');
+        const back = await importGraph(out, { format: "graphml", long: "string" });
+        expect(back.snapshot.nodes.value("big", 0)).toBe("9007199254740993");
+    });
+});

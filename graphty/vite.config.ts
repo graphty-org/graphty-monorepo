@@ -1,10 +1,12 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { sentryVitePlugin } from "@sentry/vite-plugin";
 import react from "@vitejs/plugin-react";
-import { readFileSync } from "fs";
-import { resolve } from "path";
 import { defineConfig, loadEnv, UserConfig } from "vite";
 
 import { aliases } from "./vite.aliases";
+import { buildStampPlugin } from "./vite.build-stamp";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -14,6 +16,8 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, monorepoRoot, "");
     const plugins = [
         react(),
+        // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
+        buildStampPlugin(),
         // Only include Sentry plugin in CI when auth token is available
         process.env.SENTRY_AUTH_TOKEN &&
             sentryVitePlugin({
@@ -40,6 +44,22 @@ export default defineConfig(({ mode }) => {
         build: {
             outDir: "dist",
             sourcemap: true,
+            rollupOptions: {
+                output: {
+                    // Babylon.js and graphty-element (bundled from source, see vite.aliases.ts) in
+                    // chunks of their own. In one entry chunk with the app they made an 11 MB chunk
+                    // whose 44 MB sourcemap took the build past Node's default heap (#2563).
+                    manualChunks(id) {
+                        if (id.includes("/node_modules/@babylonjs/")) {
+                            return "babylon";
+                        }
+                        if (id.includes("/graphty-element/") && !id.includes("/node_modules/")) {
+                            return "graphty-element";
+                        }
+                        return undefined;
+                    },
+                },
+            },
         },
     };
 

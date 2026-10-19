@@ -40,6 +40,7 @@ const UP = {
     algorithms: ["../algorithms/*", "../algorithms/**", "./algorithms/*", "./algorithms/**"],
     layouts: ["../layouts/*", "./layouts/*"],
     accelerator: ["../accelerator.js", "./accelerator.js"],
+    managed: ["../managed.js", "./managed.js"],
     entries: ["../browser/*", "../node/*", "./browser/*", "./node/*"],
     barrel: ["../index.js", "./index.js"],
 };
@@ -73,6 +74,7 @@ const TYPES_PATTERNS = [
             ...UP.algorithms,
             ...UP.layouts,
             ...UP.accelerator,
+            ...UP.managed,
             ...UP.entries,
             ...UP.barrel,
             "../device/*",
@@ -100,6 +102,7 @@ export default tseslint.config(
             "algorithms",
             "layouts",
             "accelerator",
+            "managed",
             "entries",
             "barrel",
         ],
@@ -116,6 +119,7 @@ export default tseslint.config(
             "algorithms",
             "layouts",
             "accelerator",
+            "managed",
             "entries",
             "barrel",
         ],
@@ -131,23 +135,42 @@ export default tseslint.config(
             "algorithms",
             "layouts",
             "accelerator",
+            "managed",
             "entries",
             "barrel",
         ],
     ),
     zone(
         ["src/kernel/**/*.ts"],
-        ["context", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"],
+        [
+            "context",
+            "registry",
+            "wgsl",
+            "primitives",
+            "algorithms",
+            "layouts",
+            "accelerator",
+            "managed",
+            "entries",
+            "barrel",
+        ],
     ),
-    zone(["src/kernels.ts"], ["context", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
+    zone(
+        ["src/kernels.ts"],
+        ["context", "primitives", "algorithms", "layouts", "accelerator", "managed", "entries", "barrel"],
+    ),
     zone(
         ["src/context.ts"],
-        ["registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "entries", "barrel"],
+        ["registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "managed", "entries", "barrel"],
     ),
-    zone(["src/primitives/**/*.ts"], ["context", "wgsl", "algorithms", "layouts", "accelerator", "entries", "barrel"]),
-    zone(["src/algorithms/**/*.ts"], ["wgsl", "layouts", "accelerator", "entries", "barrel"]),
-    zone(["src/layouts/**/*.ts"], ["wgsl", "algorithms", "accelerator", "entries", "barrel"]),
-    zone(["src/accelerator.ts"], ["wgsl", "entries", "barrel"]),
+    zone(
+        ["src/primitives/**/*.ts"],
+        ["context", "wgsl", "algorithms", "layouts", "accelerator", "managed", "entries", "barrel"],
+    ),
+    zone(["src/algorithms/**/*.ts"], ["wgsl", "layouts", "accelerator", "managed", "entries", "barrel"]),
+    zone(["src/layouts/**/*.ts"], ["wgsl", "algorithms", "accelerator", "managed", "entries", "barrel"]),
+    zone(["src/accelerator.ts"], ["wgsl", "managed", "entries", "barrel"]),
+    zone(["src/managed.ts"], ["memory", "kernel", "registry", "wgsl", "algorithms", "layouts", "entries", "barrel"]),
     zone(
         ["src/browser/**/*.ts", "src/node/**/*.ts"],
         ["memory", "kernel", "registry", "wgsl", "primitives", "algorithms", "layouts", "accelerator", "barrel"],
@@ -236,6 +259,19 @@ export default tseslint.config(
             "no-restricted-imports": "off",
             "@typescript-eslint/no-restricted-imports": "off",
             "no-restricted-globals": "off",
+        },
+    },
+    // ---- strict type rules this package has no violation of, back on so none creeps in (#2345). The
+    // root lists them per package for packages without their own config; its globs are relative to
+    // the repo root and do not reach this config, so this package lists its own. Benchmarks and
+    // configs have no type information and are not under src/ or test/.
+    {
+        files: ["src/**/*.ts", "test/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
         },
     },
 );

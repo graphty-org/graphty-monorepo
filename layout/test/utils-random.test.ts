@@ -2,7 +2,7 @@
  * Tests for random number generator utilities
  */
 
-import { describe, expect,it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { RandomNumberGenerator } from "../src/utils/random";
 

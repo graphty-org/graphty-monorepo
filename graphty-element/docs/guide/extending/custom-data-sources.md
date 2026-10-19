@@ -1,8 +1,8 @@
 # Custom file formats
 
-The element reads JSON, GraphML, GEXF, CSV, GML, DOT and Pajek. A format it does not ship is a
-class extending `DataSource`, and registering it puts the format everywhere the built-in seven
-are: in the catalogue an import dialog reads, in extension and content detection, and in every
+The element reads JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, XGMML, CX, CX2, Cytoscape sessions
+and OBO. A format it does not ship is a class extending `DataSource`, and registering it puts the
+format everywhere the built-in ones are: in the catalogue an import dialog reads, in extension and content detection, and in every
 call that names a format by string.
 
 There are two ways to write one:
@@ -79,7 +79,8 @@ class RosterDataSource extends DataSource {
     }
 
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
-        // Inherited: reads from `data`, a `File` or a `url`, with retries and a timeout.
+        // Inherited: reads from `data` (text or bytes), a `File` or a `url`, with retries and a
+        // timeout, and decodes bytes as UTF-8 unless a byte-order mark names another encoding.
         const text = await this.getContent();
         const nodes = [];
         const edges = [];
@@ -94,9 +95,9 @@ class RosterDataSource extends DataSource {
             const [verb, first, second, third] = line.split(/\s+/);
 
             if (verb === "person") {
-                nodes.push(DataSource.toRecord({ id: first, team: second, score: Number(third) * this.#scoreScale }));
+                nodes.push({ id: first, team: second, score: Number(third) * this.#scoreScale });
             } else if (verb === "knows") {
-                edges.push(DataSource.toRecord({ source: first, target: second }));
+                edges.push({ source: first, target: second });
             } else {
                 throw new GraphtyError({
                     code: "E_PARSE_FAILED",
@@ -121,9 +122,18 @@ class RosterDataSource extends DataSource {
 DataSource.register(RosterDataSource);
 ```
 
+A record is any plain object: yield `{ id: "a" }` as it is, with no cast and no wrapper.
+
 That is a whole format. Fetching the bytes from a string, a `File` or a URL, three attempts with
 exponential backoff, chunking, per-record validation, error aggregation, progress reporting and
 the direction declaration are all inherited.
+
+A reader that needs the bytes themselves -- a binary format, or one that reads an encoding
+declaration -- calls `this.getBytes()` instead of `this.getContent()`, and gets a `Uint8Array`
+with nothing decoded. A format whose file can hold several graphs declares
+`static listGraphs(input)`, answering `[{ index, name, nodes, edges }, ...]` for the file's text or
+bytes; it then reads the graph `this.graphChoice()` names (`{ graphIndex }`, `{ graphName }`, or
+`{}` for the first), and `listGraphs` from `./catalog` lists a file's graphs through it.
 
 **Name your endpoint keys `source` and `target`.** The element probes `source`/`target` first,
 then `src`/`dst`, then `from`/`to`, so all three work -- but `source`/`target` is the spelling
@@ -154,9 +164,12 @@ const tradeFlowsImporter: GraphImporter = {
     mimeTypes: ["text/vnd.acme.trade-flows"],
 
     import(input, sink) {
-        if (typeof input !== "string") {
-            return Promise.reject(new TypeError("the trade-flows importer reads text"));
+        // Inline text arrives as it was given; a file or a URL arrives as its bytes.
+        if (typeof input !== "string" && !(input instanceof Uint8Array)) {
+            return Promise.reject(new TypeError("the trade-flows importer reads text or bytes"));
         }
+
+        const text = typeof input === "string" ? input : new TextDecoder().decode(input);
 
         const issues: ImportIssue[] = [];
         const report = (): ImporterReport => ({
@@ -172,7 +185,7 @@ const tradeFlowsImporter: GraphImporter = {
 
         // A shipment goes one way: the file states that the graph is directed.
         sink.setDirected(true);
-        for (const [index, line] of input.split("\n").entries()) {
+        for (const [index, line] of text.split("\n").entries()) {
             if (line.trim() === "") {
                 continue;
             }
@@ -224,7 +237,13 @@ DataSource.register(
 What the class does around your importer:
 
 - It reads the input the way every reader does -- inline `data`, a `File` or a `url` -- and hands
-  your importer the text.
+  your importer inline text as a string and everything else as a `Uint8Array` of the file's bytes,
+  so your importer decides the encoding (graph-io's own importers read a byte-order mark and an
+  encoding declaration). A binary format, such as a zip, arrives intact.
+- When your importer has `listGraphs(input)`, the class has it too: `listGraphs` from `./catalog`
+  lists a file's graphs through it, and the `graphIndex` / `graphName` load options reach your
+  importer's `import` options. Without it, the format holds one graph and any other choice is
+  refused with `E_OPTION_RANGE`.
 - Every node and edge attribute you set becomes a key of the record, under the column's name; an
   edge's weight becomes `weight`. A node you add with `addNode` becomes a node record; one that an
   edge names without declaring it is created by the element, as for every format. A repeated node
@@ -246,8 +265,42 @@ What the class does around your importer:
   value the host passes wins over it, and a declared option's default fills only what
   `importOptions` leaves open.
 
+- When your importer has a `styles` member -- graph-io's way for a format to say where its
+  colors, sizes and shapes are -- a load with `styles: "file"` draws them as style layers, exactly
+  as it draws a built-in format's, and the catalog entry says `styles: { read: true }` so an
+  application offers the choice for your format too. A descriptor that states `styles` itself wins.
+
 Remote and streaming loaders -- a service query, a paged API, a database -- will get a contract of
 their own, separate from file readers. It is not published yet.
+
+### A format with styles
+
+Say each trade-flows line may carry a fourth field, a CSS color, which the importer stores as the
+edge attribute `color` (`sink.addEdgeRecord(from, to, { weight: Number(value), color })`). One
+member tells graph-io where the colors are, and the element does the rest:
+
+```ts
+import { DataSource, type GraphImporter } from "@graphty/graphty-element/extend";
+
+const coloredTradeFlows: GraphImporter = {
+    ...tradeFlowsImporter,
+    // Which column holds which style, and how its values are spelled.
+    styles: () => ({ dialect: "css", edge: { color: { data: "color" } } }),
+};
+
+// Registered in place of the plain reader above.
+DataSource.register(DataSource.fromImporter(coloredTradeFlows, TRADE_FLOWS));
+await element.loadFromUrl("https://example.com/2026.trade", { styles: "file" });
+```
+
+The load finds the rules the colors follow ("fill by team") and draws each as a layer; see
+[Styles from Files](../file-styles). graph-io's guide to new formats describes the rest of the
+`styles` member: the spellings it reads, and style data kept outside the elements.
+
+A reader that is its own class (a `DataSource` subclass that parses the file itself) has no styles
+to draw: its catalog entry says `styles: { read: false, write: "none" }` unless its descriptor says
+otherwise, and a load with `styles: "file"` reads its data alone. To give such a format styles,
+read it with a graph-io importer instead.
 
 ## Using it
 
@@ -320,7 +373,13 @@ Two record conventions, both inherited:
 
 - a `position` key on a node record -- `{ x, y, z }`, `[x, y]` or `[x, y, z]` -- seeds that node's
   coordinates, so a file that arrives arranged stays arranged with no placement code in the
-  format;
+  format. It is the node's center, with y growing upward, in the file's own units; the element
+  multiplies it by `positionScale`. A file that writes y downward (screen order) or a box's
+  top-left corner converts before it writes `position`;
+- a reader made with `DataSource.fromImporter` writes no `position` itself: the element reads the
+  importer's role-`position` column, or its `positions()` hook, with
+  `extractPositions` from `@graphty/graph-io/positions`, the same way it reads every built-in
+  format (see [Drawing a file where it was saved](../data-sources.md#drawing-a-file-where-it-was-saved));
 - a `weight` key on an edge record is read through the configured weight path.
 
 ## How it is refused
@@ -434,6 +493,9 @@ What the element does around it:
   `shape`, `thickness` role columns). Write what your format has a place for; report the rest from
   `check()` as loss notes, which `exportGraph` returns with the document. The element's own
   bookkeeping columns are never in it.
+- With `exportGraph(format, { styles: true })` your exporter is handed the graph's style layers
+  through graph-io's exporter style contract, and the `color`, `size`, `shape` and `thickness`
+  role columns are left out. What it keeps is your exporter's `styles` member (below).
 - `writerOptions` declares the options your writer takes, as `OptionDescriptor`s. An export that
   names any other option is refused with `E_UNKNOWN_OPTION`, exactly as for the built-in
   writers; graph-io's `sanitizeIds` and `onMixedDirection` are always accepted. The catalogue
@@ -444,6 +506,33 @@ What the element does around it:
 - Registration refuses a built-in id (`E_DUPLICATE_PLUGIN`), a descriptor without
   `canExport: true`, an exporter without the three methods, and an exporter whose `format` is not
   the descriptor's id (`E_BAD_COMMAND`, `details.field` naming it).
+
+### Styles in your format
+
+An exporter with no `styles` member keeps none of the graph's styles: an export with
+`styles: true` reports every property as `W_STYLE_NOT_WRITTEN` and the layers as
+`W_STYLE_RULES_NOT_KEPT`, so nothing is lost silently. One line keeps them for graphty in any format
+that writes graph, node and edge attributes:
+
+```ts
+const exporter: GraphExporter = {
+    // ...the members above, with graphAttributes: true in capabilities...
+    styles: { capabilities: { node: [], edge: [], block: "attributes" } },
+};
+```
+
+The layers then travel as a `graphty.styles` graph attribute and the values they read as
+`graphty.style.*` attributes, so loading the file back with `styles: "file"` (through a reader of
+the same format) rebuilds the same layers. Other programs see no styles in such a file, so each
+property is still a `W_STYLE_NOT_WRITTEN` loss for them. A format with style slots of its own lists
+the properties it writes in `capabilities.node` and `capabilities.edge` and writes each element's
+value from `options.styles.picture(target, property)`; a value written as the nearest one the
+format allows is reported from `check()` as `W_STYLE_APPROXIMATED`.
+
+The catalog entry's `styles.write` is derived from that member unless your descriptor states it:
+`"rules"` when the exporter keeps the layers (`block` is `"attributes"` or `"native"`), `"values"`
+when it writes only some properties into its own slots, and `"none"` with no `styles` member. An
+application reads it to warn a reader before a save loses their styles.
 
 ## Deliberate limits
 

@@ -337,7 +337,7 @@
                 },
                 "edited": {
                     "$ref": "#/$defs/timestamp",
-                    "description": "When the note's text, targets, cites, mediaType or extensions last changed. Absent when it never changed."
+                    "description": "When the note's text, targets, cites, mediaType, extensions or done last changed. Absent when it never changed."
                 },
                 "cites": {
                     "type": "array",
@@ -350,6 +350,10 @@
                 "extensions": {
                     "$ref": "#/$defs/extensions",
                     "description": "Other applications' data about the note, under reverse-domain keys. Plain JSON, at most 32 levels deep and 65,536 bytes serialized. Kept and written back untouched; graphty-element never reads it."
+                },
+                "done": {
+                    "$ref": "#/$defs/timestamp",
+                    "description": "When the note was marked done. Absent: not done. A later version 1 field: an older reader keeps it as an unknown field and writes it back."
                 }
             },
             "description": "One note. Open: a reader keeps fields it does not know and writes them back. A later version 1 field MUST stay valid when text, targets or cites change without it. Reserved field names for later: inReplyTo, tags.",

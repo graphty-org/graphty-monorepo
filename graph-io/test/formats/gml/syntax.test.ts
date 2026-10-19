@@ -163,7 +163,7 @@ describe("tokenizeGml: structure", () => {
         const err = syntaxError("graph [\n  node [\n    id 1\n");
         expect(err.code).toBe(SYNTAX_BRACKET_CODE);
         expect(err.line).toBe(2);
-        expect(err.message).toContain("2 bracket(s) still open");
+        expect(err.message).toContain("2 brackets still open");
         const outer = syntaxError("graph [\n  node [\n    id 1\n]");
         expect(outer.line).toBe(1);
     });
@@ -244,5 +244,18 @@ describe("keys", () => {
         expect(mangleGmlKey("1a")).toBe("x1a");
         expect(mangleGmlKey("a b")).toBe("a_b");
         expect(isGmlKey(mangleGmlKey(""))).toBe(true);
+    });
+});
+
+describe("the OGDF creator check", () => {
+    it("finishes on a long comment banner of '#' characters", () => {
+        const banner = `${"#".repeat(200)}\n${"# ".repeat(150)}\n`;
+        const tokens = tokenizeGml(`${banner}graph [ node [ id 1 ] ]`);
+        expect(tokens.backslashEscapes).toBe(false);
+    });
+
+    it("finds the creator line after comments and whitespace", () => {
+        const tokens = tokenizeGml('### banner\n  # more\n\tCreator "ogdf::writeGML"\ngraph [ node [ id 1 ] ]');
+        expect(tokens.backslashEscapes).toBe(true);
     });
 });

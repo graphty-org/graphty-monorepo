@@ -29,7 +29,7 @@ interface UseFloatingPanelOptions {
     onDragStart?: GestureStartHandler;
     /** Called on every movement of a drag, with the offset from where the panel opened. */
     onDrag?: GestureChangeHandler<PopoutPosition>;
-    /** Called when a drag finishes or is cancelled. */
+    /** Called when a drag finishes or is canceled. */
     onDragEnd?: GestureEndHandler;
 }
 
@@ -63,9 +63,7 @@ interface UseFloatingPanelReturn {
  * @returns Props to spread on drag trigger element, the current drag offset, and the drag state a click handler needs
  */
 export function useFloatingPanel(options: UseFloatingPanelOptions): UseFloatingPanelReturn {
-    const {
-        isOpen, onPress, onDragStart, onDrag, onDragEnd,
-    } = options;
+    const { isOpen, onPress, onDragStart, onDrag, onDragEnd } = options;
 
     // Track drag offset (how far user dragged from initial position)
     const [dragOffset, setDragOffset] = useState<PopoutPosition>({ left: 0, top: 0 });
@@ -153,8 +151,7 @@ export function useFloatingPanel(options: UseFloatingPanelOptions): UseFloatingP
                 // Written as "has it moved far enough" rather than "is it still
                 // close", so that a pointer event carrying no coordinates at all
                 // counts as no movement instead of as an unmeasurable drag.
-                const movedFarEnough =
-                    Math.abs(deltaX) >= DRAG_THRESHOLD || Math.abs(deltaY) >= DRAG_THRESHOLD;
+                const movedFarEnough = Math.abs(deltaX) >= DRAG_THRESHOLD || Math.abs(deltaY) >= DRAG_THRESHOLD;
                 if (!movedFarEnough) {
                     return;
                 }

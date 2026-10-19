@@ -37,7 +37,7 @@ Two findings make this materially cheaper than expected. Upgrading `ai` to versi
 force a zod major version: `ai@7` imports from `zod/v4`, and zod 3.25.76 -- the exact version
 installed in this repository -- already exports that subpath. Measured, minified, tree-shaken and
 browser-targeted, `ai@7` plus the Anthropic provider against the existing zod is 172 kB gzipped,
-which is *smaller* than the same build against zod 4.
+which is _smaller_ than the same build against zod 4.
 
 The two alternatives worth taking seriously, OpenAI's Agents SDK and LangChain's LangGraph, both
 bundle for a browser and both cost more for capabilities that are not the ones being asked for.
@@ -58,8 +58,8 @@ messages, call again; repeat until it stops calling tools or a limit trips. Ever
 list is a refinement of that loop. It is the difference between "the model tells you what to do"
 and "the model does it and then sees whether it worked". Universal in 2026; table stakes.
 
-*graphty-element has one model call per user input and never returns tool results to the model.
-This is the capability being asked for.*
+_graphty-element has one model call per user input and never returns tool results to the model.
+This is the capability being asked for._
 
 ### Loop control: stop conditions and per-step reconfiguration
 
@@ -69,7 +69,7 @@ once this specific tool has been called", a custom function that sees the whole 
 `prepareStep`, a hook that runs before each iteration and can swap the model, restrict which tools
 are legal at this phase, force a tool choice, or rewrite the message array.
 
-This matters more than it sounds, because several other capabilities are implemented *through* it
+This matters more than it sounds, because several other capabilities are implemented _through_ it
 rather than bolted on beside it: context compaction, routing easy steps to a cheap model, and
 "during planning only read-only tools exist" are all `prepareStep` return values.
 
@@ -125,7 +125,7 @@ public types, including a signature error type, which means approvals are signed
 approval in a serialized state is detectable. OpenAI's Agents SDK models it as an interruption you
 can inspect, approve or reject.
 
-*graphty-element has none. Every registered command runs the moment the model asks for it.*
+_graphty-element has none. Every registered command runs the moment the model asks for it._
 
 ### Context management and compaction
 
@@ -178,7 +178,7 @@ directory name) and `description` (1,024 chars) are required; `license`, `compat
 `metadata` and an experimental `allowed-tools` are optional; the body is free Markdown. A parser is
 an afternoon's work.
 
-The *execution model* is what a page breaks, and section 4 answers it.
+The _execution model_ is what a page breaks, and section 4 answers it.
 
 ### MCP
 
@@ -211,7 +211,7 @@ whose schemas alone can exceed the context budget.
 Tokens surface as they arrive and the user can stop mid-flight. Purely a UX floor now: an agent
 that runs eight turns silently is unusable in a page.
 
-*graphty-element implements streaming on all three providers and never calls it.* The status value
+_graphty-element implements streaming on all three providers and never calls it._ The status value
 named "streaming" and the stream-chunk event both fire exactly once, after the entire response has
 already arrived. The status vocabulary describes behaviour the code does not have.
 
@@ -284,18 +284,18 @@ sourcemaps, source trees and dual module formats -- so they are not quoted.
 
 ### Table A -- can it be used here at all
 
-| Candidate | Runs the loop in a page | Multi-LLM | License | Bundle (gzip) | Maintained | Library or application |
-|---|---|---|---|---|---|---|
-| `ai` v7 (Vercel AI SDK) | **yes**, built and verified [1] | **yes**, broad [2] | Apache-2.0 | 107 kB alone; 250 kB with 2 providers; **172 kB with Anthropic on the existing zod 3** [3] | 7.0.108, 2026-09-21 | library |
-| `@openai/agents-core` | **yes**, built | partial [4] | MIT | 331 kB; 332 kB with its MCP transports | 0.18.0, 2026-09-10 | library |
-| `@langchain/langgraph` | **yes**, built | yes, via separate packages [5] | MIT | 335 kB | 1.4.17, 2026-09-21 | library |
-| `@tanstack/ai` + `ai-skills` | **unverified** [6] | yes | MIT | 133 kB | 0.58.0 / 0.1.7, 2026-09-21 | library |
-| `@cline/agents` (+ `@cline/llms`) | **no -- fails to build** [7] | yes, ~25 providers | Apache-2.0 on the loop; **no license declared** on the model layer [8] | n/a | 0.0.83, 2026-09-15 | library, in principle |
-| `@anthropic-ai/claude-agent-sdk` browser entry | **no** -- transport to a remote session [9] | no, Anthropic | proprietary | n/a | 0.3.278, 2026-09-19 | application |
-| Pi (`@earendil-works/pi-agent-core`) | **no** -- Node HTTP stack [10] | yes | not declared | n/a | 0.87.0, 2026-09-21 | application |
-| Mastra, VoltAgent, Cloudflare `agents`, Inngest AgentKit, LlamaIndex.TS | **no** [11] | yes | mixed | n/a | mixed | application |
-| Goose, Cline (the product), smolagents, pydantic-ai | **no** -- wrong runtime [12] | yes | Apache-2.0 / MIT | n/a | active | application |
-| **The incumbent, as it stands** | yes | yes, 3 cloud + 1 in-page | -- | already shipped | -- | library |
+| Candidate                                                               | Runs the loop in a page                     | Multi-LLM                      | License                                                                | Bundle (gzip)                                                                              | Maintained                 | Library or application |
+| ----------------------------------------------------------------------- | ------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------- | ---------------------- |
+| `ai` v7 (Vercel AI SDK)                                                 | **yes**, built and verified [1]             | **yes**, broad [2]             | Apache-2.0                                                             | 107 kB alone; 250 kB with 2 providers; **172 kB with Anthropic on the existing zod 3** [3] | 7.0.108, 2026-09-21        | library                |
+| `@openai/agents-core`                                                   | **yes**, built                              | partial [4]                    | MIT                                                                    | 331 kB; 332 kB with its MCP transports                                                     | 0.18.0, 2026-09-10         | library                |
+| `@langchain/langgraph`                                                  | **yes**, built                              | yes, via separate packages [5] | MIT                                                                    | 335 kB                                                                                     | 1.4.17, 2026-09-21         | library                |
+| `@tanstack/ai` + `ai-skills`                                            | **unverified** [6]                          | yes                            | MIT                                                                    | 133 kB                                                                                     | 0.58.0 / 0.1.7, 2026-09-21 | library                |
+| `@cline/agents` (+ `@cline/llms`)                                       | **no -- fails to build** [7]                | yes, ~25 providers             | Apache-2.0 on the loop; **no license declared** on the model layer [8] | n/a                                                                                        | 0.0.83, 2026-09-15         | library, in principle  |
+| `@anthropic-ai/claude-agent-sdk` browser entry                          | **no** -- transport to a remote session [9] | no, Anthropic                  | proprietary                                                            | n/a                                                                                        | 0.3.278, 2026-09-19        | application            |
+| Pi (`@earendil-works/pi-agent-core`)                                    | **no** -- Node HTTP stack [10]              | yes                            | not declared                                                           | n/a                                                                                        | 0.87.0, 2026-09-21         | application            |
+| Mastra, VoltAgent, Cloudflare `agents`, Inngest AgentKit, LlamaIndex.TS | **no** [11]                                 | yes                            | mixed                                                                  | n/a                                                                                        | mixed                      | application            |
+| Goose, Cline (the product), smolagents, pydantic-ai                     | **no** -- wrong runtime [12]                | yes                            | Apache-2.0 / MIT                                                       | n/a                                                                                        | active                     | application            |
+| **The incumbent, as it stands**                                         | yes                                         | yes, 3 cloud + 1 in-page       | --                                                                     | already shipped                                                                            | --                         | library                |
 
 Footnotes to Table A:
 
@@ -344,13 +344,13 @@ Footnotes to Table A:
 
 ### Table B -- core loop capabilities
 
-| Candidate | Multi-turn loop | Loop control | Planning | Self-verification | Approvals | Context compaction | Streaming + abort | Structured output |
-|---|---|---|---|---|---|---|---|---|
-| `ai` v7 | yes | **yes, best in class** [13] | build it [14] | substrate only [15] | **yes, signed** | yes, message pruning [16] | yes | yes |
-| `@openai/agents-core` | yes | yes, turn cap + input filter | build it [14] | **yes, guardrails** [17] | yes, inspectable | yes, session-level | yes | yes |
-| `@langchain/langgraph` | yes | yes, graph edges | build it as a graph | build it | yes, via interrupt | via its own state model | yes | yes |
-| `@tanstack/ai` | yes | yes | build it | build it | build it | build it | yes | yes |
-| **The incumbent** | **no** [18] | no | no | no | no | no | **implemented, never called** | via Zod parse |
+| Candidate              | Multi-turn loop | Loop control                 | Planning            | Self-verification        | Approvals          | Context compaction        | Streaming + abort             | Structured output |
+| ---------------------- | --------------- | ---------------------------- | ------------------- | ------------------------ | ------------------ | ------------------------- | ----------------------------- | ----------------- |
+| `ai` v7                | yes             | **yes, best in class** [13]  | build it [14]       | substrate only [15]      | **yes, signed**    | yes, message pruning [16] | yes                           | yes               |
+| `@openai/agents-core`  | yes             | yes, turn cap + input filter | build it [14]       | **yes, guardrails** [17] | yes, inspectable   | yes, session-level        | yes                           | yes               |
+| `@langchain/langgraph` | yes             | yes, graph edges             | build it as a graph | build it                 | yes, via interrupt | via its own state model   | yes                           | yes               |
+| `@tanstack/ai`         | yes             | yes                          | build it            | build it                 | build it           | build it                  | yes                           | yes               |
+| **The incumbent**      | **no** [18]     | no                           | no                  | no                       | no                 | no                        | **implemented, never called** | via Zod parse     |
 
 Footnotes to Table B:
 
@@ -364,7 +364,7 @@ Footnotes to Table B:
 16. A prune function documented for use inside the per-step hook once token use crosses a
     threshold. Note that Anthropic's own API also offers server-side compaction as a request field,
     which any HTTPS client can use, including a page.
-17. Guardrails on the final output *and* on tool inputs and outputs, each able to trip and abort.
+17. Guardrails on the final output _and_ on tool inputs and outputs, each able to trip and abort.
     The closest thing to a verification mechanism in any candidate.
 18. One model call per user input. Tool results are collected and returned to the caller; they are
     never appended to a message history and sent back. There is no history parameter to send them
@@ -374,13 +374,13 @@ Footnotes to Table B:
 
 ### Table C -- extension capabilities
 
-| Candidate | Sub-agents | MCP | Skills | Cross-session memory | Tool search | Checkpoint / resume | Cost accounting | Observability |
-|---|---|---|---|---|---|---|---|---|
-| `ai` v7 | no | **separate package** [19] | provider-hosted only [20] | **no** | yes | no | yes, per step and total | yes, needs a collector |
-| `@openai/agents-core` | **yes**, handoffs + agent-as-tool | yes, in-house client, 3 transports [21] | types only, shell-bound [22] | transcript sessions only [23] | yes | **yes, JSON round trip** | yes | yes, on by default |
-| `@langchain/langgraph` | yes, sub-graphs | via separate packages | no | **interface only** [24] | no | **yes, its core model** | via its tracing platform | yes, needs a collector |
-| `@tanstack/ai` + `ai-skills` | no | no | **yes, and browser-shaped** [25] | **no, none at all** | no | no | usage middleware | tracing middleware |
-| **The incumbent** | no | **no** | **no** | **no** | no | no | no | status events only |
+| Candidate                    | Sub-agents                        | MCP                                     | Skills                           | Cross-session memory          | Tool search | Checkpoint / resume      | Cost accounting          | Observability          |
+| ---------------------------- | --------------------------------- | --------------------------------------- | -------------------------------- | ----------------------------- | ----------- | ------------------------ | ------------------------ | ---------------------- |
+| `ai` v7                      | no                                | **separate package** [19]               | provider-hosted only [20]        | **no**                        | yes         | no                       | yes, per step and total  | yes, needs a collector |
+| `@openai/agents-core`        | **yes**, handoffs + agent-as-tool | yes, in-house client, 3 transports [21] | types only, shell-bound [22]     | transcript sessions only [23] | yes         | **yes, JSON round trip** | yes                      | yes, on by default     |
+| `@langchain/langgraph`       | yes, sub-graphs                   | via separate packages                   | no                               | **interface only** [24]       | no          | **yes, its core model**  | via its tracing platform | yes, needs a collector |
+| `@tanstack/ai` + `ai-skills` | no                                | no                                      | **yes, and browser-shaped** [25] | **no, none at all**           | no          | no                       | usage middleware         | tracing middleware     |
+| **The incumbent**            | no                                | **no**                                  | **no**                           | **no**                        | no          | no                       | no                       | status events only     |
 
 Footnotes to Table C:
 
@@ -414,17 +414,17 @@ Footnotes to Table C:
 These are not candidates to replace the AI layer. They are the components any answer is assembled
 from, and each earns its place in the recommendation.
 
-| Piece | What it gives | Runs in a page | Bundle (gzip) | License | Maintained |
-|---|---|---|---|---|---|
-| `@modelcontextprotocol/client` 2.0 | MCP client, current protocol revision, full OAuth with PKCE | **yes, verified live against a public server** [26] | 85 kB | MIT | 2.0.0, 2026-07-27; only stable release, no patch in 56 days |
-| `@modelcontextprotocol/sdk` 1.x | the older monolithic SDK, browser-usable by deep import | partial [27] | 89 kB | MIT | 1.30.0, 2026-07-27 |
-| `@anthropic-ai/sdk` memory tool | the six-command memory contract, storage-agnostic | **yes** [28] | 50 kB with the tool | MIT | 0.127.0, 2026-09-18 |
-| `@tanstack/ai-skills` | the browser-viable skills pattern: a bytes-only source interface plus two tools that replace the shell | yes, root entry is filesystem-free | part of the 133 kB above | MIT | 0.1.7, 2026-09-21 |
-| `@mlc-ai/web-llm` | a model running in the page on WebGPU, no key, no network | yes, already an optional peer here | 14 MB of library plus a 200 MB - 2 GB model download | Apache-2.0 | 0.2.85, 2026-09-08 [29] |
-| `@browser-ai/core` | Chrome and Edge's built-in on-device model, wrapped as an AI SDK provider | yes, built | **28 kB** | Apache-2.0 | 3.0.3, 2026-09-08 [30] |
-| `@mcp-b/transports` | the page publishing its own tools to a browser agent | yes, built | 34 kB | MIT | 5.1.0, 2026-08-31 |
-| `oauth4webapi` | low-level OAuth 2 and OpenID Connect for a browser, zero dependencies | yes | small | MIT | 3.8.8, 2026-09-05 |
-| `@orama/orama` | in-page full-text and vector search | yes, built | 22 kB | Apache-2.0 | **3.1.18, 2025-12-19 -- 9 months old** |
+| Piece                              | What it gives                                                                                          | Runs in a page                                      | Bundle (gzip)                                        | License    | Maintained                                                  |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------- | ---------------------------------------------------- | ---------- | ----------------------------------------------------------- |
+| `@modelcontextprotocol/client` 2.0 | MCP client, current protocol revision, full OAuth with PKCE                                            | **yes, verified live against a public server** [26] | 85 kB                                                | MIT        | 2.0.0, 2026-07-27; only stable release, no patch in 56 days |
+| `@modelcontextprotocol/sdk` 1.x    | the older monolithic SDK, browser-usable by deep import                                                | partial [27]                                        | 89 kB                                                | MIT        | 1.30.0, 2026-07-27                                          |
+| `@anthropic-ai/sdk` memory tool    | the six-command memory contract, storage-agnostic                                                      | **yes** [28]                                        | 50 kB with the tool                                  | MIT        | 0.127.0, 2026-09-18                                         |
+| `@tanstack/ai-skills`              | the browser-viable skills pattern: a bytes-only source interface plus two tools that replace the shell | yes, root entry is filesystem-free                  | part of the 133 kB above                             | MIT        | 0.1.7, 2026-09-21                                           |
+| `@mlc-ai/web-llm`                  | a model running in the page on WebGPU, no key, no network                                              | yes, already an optional peer here                  | 14 MB of library plus a 200 MB - 2 GB model download | Apache-2.0 | 0.2.85, 2026-09-08 [29]                                     |
+| `@browser-ai/core`                 | Chrome and Edge's built-in on-device model, wrapped as an AI SDK provider                              | yes, built                                          | **28 kB**                                            | Apache-2.0 | 3.0.3, 2026-09-08 [30]                                      |
+| `@mcp-b/transports`                | the page publishing its own tools to a browser agent                                                   | yes, built                                          | 34 kB                                                | MIT        | 5.1.0, 2026-08-31                                           |
+| `oauth4webapi`                     | low-level OAuth 2 and OpenID Connect for a browser, zero dependencies                                  | yes                                                 | small                                                | MIT        | 3.8.8, 2026-09-05                                           |
+| `@orama/orama`                     | in-page full-text and vector search                                                                    | yes, built                                          | 22 kB                                                | Apache-2.0 | **3.1.18, 2025-12-19 -- 9 months old**                      |
 
 Footnotes to Table D:
 
@@ -497,7 +497,7 @@ not behind the runtime guard that the more-discussed Node fetch path sits behind
 
 **Strengths.** The richest feature set of any browser-viable candidate, and several of its
 capabilities are the ones nobody else has. Sub-agents as both control transfer and agent-as-tool.
-Guardrails on final output *and* on tool inputs and outputs, each able to trip and abort -- the
+Guardrails on final output _and_ on tool inputs and outputs, each able to trip and abort -- the
 closest thing in this survey to a verification mechanism. A run state with a JSON round trip that
 carries pending approvals on the same object, so you serialize at an interruption, store it,
 rehydrate and resume: exactly what makes an approval gate survive a page reload. Three MCP
@@ -675,13 +675,13 @@ except a browser.
 
 **What cannot be reached, and this is the important part.**
 
-*Every stdio server.* A page has no subprocess and there is no in-page workaround. This is not a
+_Every stdio server._ A page has no subprocess and there is no in-page workaround. This is not a
 marginal exclusion -- stdio is what nearly everyone actually runs: filesystem, git, SQLite, and
 every server launched with `npx`. The standard bridge that lets a stdio client reach a remote HTTP
 server runs as a Node process on the user's machine and is the opposite plumbing; it cannot help a
 page.
 
-*The user's own localhost servers, from a public site.* Verified as blocked: a real Chrome 145
+_The user's own localhost servers, from a public site._ Verified as blocked: a real Chrome 145
 session on a public origin fetching a CORS-enabled local MCP server failed with a console message
 stating that permission was denied for the request to access the loopback address space. This is
 not a mixed-content problem -- loopback is treated as a secure origin -- it is Chrome's Local
@@ -707,7 +707,7 @@ blocked -- and the reference client ships a retry that falls through to it. So O
 a page works regardless; what fails on those three servers is the MCP POST itself.
 
 **Framed honestly for the owner's actual question.** MCP in the browser buys graphty-element access
-to a growing set of *hosted SaaS* tools -- issue trackers, documentation, code search. It does not
+to a growing set of _hosted SaaS_ tools -- issue trackers, documentation, code search. It does not
 buy "point it at your data and get a graph", because **the data-loading half of the MCP ecosystem
 is local-first and structurally out of reach.** The servers that read a CSV, a SQLite file or a
 local database are exactly the stdio ones a page cannot touch. Shipping MCP and describing it as a
@@ -753,11 +753,11 @@ port cleanly and the third has an honest answer.
   runtime" and a comment that a later phase will change it. Nobody has shipped skill-script
   execution outside a virtual machine.
 
-  For completeness, the one thing that *would* provide bash and a filesystem in a page is
-  disqualifying for this component. It requires cross-origin isolation, which is a header change on
-  the **consumer's own page** that breaks most third-party embeds, and its own documentation says
-  the required isolation mode is Chromium-only. A drop-in web component cannot impose that. Its
-  last stable release was 2026-04-14, five months ago.
+    For completeness, the one thing that _would_ provide bash and a filesystem in a page is
+    disqualifying for this component. It requires cross-origin isolation, which is a header change on
+    the **consumer's own page** that breaks most third-party embeds, and its own documentation says
+    the required isolation mode is Chromium-only. A drop-in web component cannot impose that. Its
+    last stable release was 2026-04-14, five months ago.
 
 **What graphty-element could offer, in ascending cost.**
 
@@ -830,7 +830,7 @@ Safari gives a cross-origin frame roughly a tenth of its parent's quota.
    colourblind-safe palette." "When I say important nodes I mean betweenness centrality." This is
    the requirement as the owner stated it, it needs no new dependency, and the store is small enough
    to load wholesale into the system prompt every turn. It is also the tier where an end user can
-   *see* the entire memory in a settings panel, which resolves most of the privacy question by
+   _see_ the entire memory in a settings panel, which resolves most of the privacy question by
    construction.
 2. **The six-command memory tool over the origin private file system**, exposed as a plain function
    tool to every provider. This is the tier that makes "verify its own work across multiple turns"
@@ -872,22 +872,22 @@ written by somebody who did not write the code that wrote it.
 ships from its own entry point, `@graphty/graphty-element/ai`, and is reached from the root entry
 through a dynamic import, so it is dynamically loaded even when the root barrel is used.
 
-| Area | Lines |
-|---|---|
-| Commands: 11 files, 17 verbs | 2,651 |
+| Area                                                                                       | Lines |
+| ------------------------------------------------------------------------------------------ | ----- |
+| Commands: 11 files, 17 verbs                                                               | 2,651 |
 | Providers: in-page WebGPU model 674, AI SDK wrapper 344, mock 247, interface and index 219 | 1,484 |
-| Core: controller 510, manager 408, status 291, index 93 | 1,302 |
-| Schema extraction and formatting | 1,086 |
-| Input adapters: voice 239, text 84, types and index 60 | 383 |
-| System prompt builder (unused -- see below) | 240 |
-| Encrypted API key store | 217 |
+| Core: controller 510, manager 408, status 291, index 93                                    | 1,302 |
+| Schema extraction and formatting                                                           | 1,086 |
+| Input adapters: voice 239, text 84, types and index 60                                     | 383   |
+| System prompt builder (unused -- see below)                                                | 240   |
+| Encrypted API key store                                                                    | 217   |
 
 ### What it does well, and none of it comes from a harness
 
 **Schema extraction, 1,086 lines.** It samples up to 1,000 node and edge attribute objects, evenly
 spaced, and runs two analyses over them. One infers type, string format and numeric range. The other
 decides whether a string field is categorical, using a published dual-threshold rule the code cites
-by name: at most ten distinct values *or* a distinct ratio of at most 0.2, with every value at most
+by name: at most ten distinct values _or_ a distinct ratio of at most 0.2, with every value at most
 64 characters and at least 25 samples. Results merge into a per-property summary, recursing three
 levels deep with dotted names, and render as Markdown for the prompt with enum values truncated at
 ten. It re-extracts on new data behind a 300 ms debounce.
@@ -899,14 +899,14 @@ you this, because no general-purpose harness knows what a graph node is.**
 **Commands that write through the element's own contracts, 2,651 lines.** The element knowledge
 inside them is the expensive part and it does not transfer:
 
-- The style commands validate a selector through the element's own validator *before* adding a
+- The style commands validate a selector through the element's own validator _before_ adding a
   layer, so a malformed selector is refused with every problem at once including a character offset.
   The file's header comment records why: the previous version ran the selector per element and
   turned an unparseable selector into an empty result, which reached the reader as "no nodes
   matched" -- the same words a correct answer of zero uses.
 - Layers are tagged with a source and swept by source predicate rather than by a list that goes
   stale.
-- Requested style properties that have no channel are *reported back* rather than silently dropped.
+- Requested style properties that have no channel are _reported back_ rather than silently dropped.
 - The camera command's description is a **getter**, not a string, so it is evaluated each time the
   prompt is built and a camera view registered by a third party at run time is named to the model.
   Its parameter is deliberately a free string rather than an enum for the same reason.
@@ -960,7 +960,7 @@ and it must not be regressed.
   -- the model can set it and it vanishes.
 - **The in-page model receives no system prompt at all**, because it declares that it cannot take a
   system prompt alongside tool definitions and the controller therefore skips the entire system
-  message -- which means it skips the command list *and the extracted schema*. All 1,086 lines of
+  message -- which means it skips the command list _and the extracted schema_. All 1,086 lines of
   schema work are discarded on exactly the path that needs them most, since a one-billion-parameter
   local model has the least prior knowledge.
 - **The tool schemas sent to the in-page model carry no parameter names.** Its tool conversion puts
@@ -983,15 +983,15 @@ and it must not be regressed.
 
 **Replaced by any competent harness -- 1,851 lines, 25%:**
 
-| Piece | Lines | Why it goes |
-|---|---|---|
-| Controller | 510 | the single-turn flow being replaced; also the smallest piece |
-| Provider interface, AI SDK wrapper, mock, index | 810 | every harness brings its own model abstraction |
-| Status | 291 | replaced by the harness's step and event stream |
-| System prompt builder | 240 | already dead; delete it either way |
+| Piece                                           | Lines | Why it goes                                                  |
+| ----------------------------------------------- | ----- | ------------------------------------------------------------ |
+| Controller                                      | 510   | the single-turn flow being replaced; also the smallest piece |
+| Provider interface, AI SDK wrapper, mock, index | 810   | every harness brings its own model abstraction               |
+| Status                                          | 291   | replaced by the harness's step and event stream              |
+| System prompt builder                           | 240   | already dead; delete it either way                           |
 
 **Rewritten on top, or kept -- 5,512 lines, 75%:** the 2,651 lines of commands (a harness gives you
-a tool *registration* mechanism; it never gives you the verbs), the 1,086 lines of schema
+a tool _registration_ mechanism; it never gives you the verbs), the 1,086 lines of schema
 extraction, the 674-line in-page model provider unless the new harness ships its own in-page model
 adapter -- none do -- the 217-line key store, the 383 lines of input adapters, and most of the
 408-line manager.
@@ -1030,7 +1030,7 @@ SDK's agent loop with a stop condition, a per-step hook, approvals and message p
 - **Bundle: 172 kB gzipped** for the loop plus Anthropic against the existing zod; 250 kB with a
   second provider. All behind the `./ai` entry, so a graph-only consumer pays nothing.
 - **No zod major.** `ai@7` imports from `zod/v4` and the installed zod 3.25.76 already exports that
-  subpath, verified by building it. Measured, the build against the old zod is *smaller* than against
+  subpath, verified by building it. Measured, the build against the old zod is _smaller_ than against
   zod 4.
 
 Net effect: the line count goes **down** by roughly a thousand, and the layer gains multi-turn tool
@@ -1173,7 +1173,7 @@ project's own front page.
    tree-shaken and gzipped from such a build. Unpacked npm sizes are not quoted anywhere, because
    they include sourcemaps, source trees and dual module formats and are useless for this decision.
 2. **Reading the JavaScript inside the published package.** Which modules reference Node builtins, and
-   crucially *where in the exports map* they sit. The reliable pattern across all three strong
+   crucially _where in the exports map_ they sit. The reliable pattern across all three strong
    candidates is identical: the main entry is transport-agnostic and pure, and everything that spawns
    a process lives behind a separate subpath a browser never imports. Verified in each case by
    confirming the quarantined subpath correctly fails to build.
@@ -1204,13 +1204,13 @@ backed by a small Node server that owns the MCP connections, and says that serve
 can spawn processes on your machine. Even the official MCP web tool does not run MCP in the page.
 
 **Things that are stale enough to matter.** Flagged where they appear: a vector search engine at nine
-months, a React hook widely cited as *the* browser MCP library that is fourteen months old with no
+months, a React hook widely cited as _the_ browser MCP library that is fourteen months old with no
 license field and predates both the SDK split and the current protocol revision, two abandoned
 vector search packages at three years each, and the incumbent's own schema inference library at over
 three years and selector library at over four.
 
 **One correction to a claim that will otherwise resurface.** Pi -- the harness that prompted this
-question -- is *not* stale. Its packages moved scope and were published 2026-09-21. It is excluded
+question -- is _not_ stale. Its packages moved scope and were published 2026-09-21. It is excluded
 for its dependency graph: a Node HTTP request handler, two proxy agents and the AWS Bedrock client,
 with no browser field or condition. The confirming detail is a sibling package whose stated purpose
 is being a CORS and authentication proxy for it -- the project conceding that its provider layer

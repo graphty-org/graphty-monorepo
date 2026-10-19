@@ -37,8 +37,9 @@ import type { SetService } from "../commands/sets";
 import type { StyleService } from "../commands/style";
 import type { CameraService } from "../commands/view";
 import type { VisibilityService } from "../commands/visibility";
-import type { ProjectConfig } from "../types";
-import { Arrangement, type ArrangementOp } from "./arrangement";
+import type { CodedFact, ProgressChange } from "../shared";
+import type { HistoryCode, HistoryStepId, ProjectConfig } from "../types";
+import { Arrangement, type ArrangementOp, mergeRowPatches } from "./arrangement";
 import { DerivationLane } from "./derive";
 import {
     createProjectStore,
@@ -54,8 +55,9 @@ import {
     touchedBy,
     withoutNoOps,
 } from "./draft";
-import { GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
-import { History, type HistoryChangeReason, type OpenArrangement } from "./History";
+import { createdNodes, GraphOps, nodeKey, reshapes, restoresNodes, TouchedIds } from "./graphOps";
+import { frozenFact, History, type HistoryChangeReason, type OpenArrangement } from "./History";
+import { retainedVersion } from "./retained";
 import { createProjectState, type ProjectState } from "./state";
 import { checkInlineKey, checkSoleHolder, strictStateEnabled, verifyRetainedArrays } from "./strict";
 
@@ -98,6 +100,8 @@ interface CommandServices {
     layoutAdvice?: LayoutAdvice;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
+    /** Where a data source's ingest reports how far a load has got; the session publishes it. */
+    progress?: (change: ProgressChange) => void;
 }
 
 /** What the queue hands a queued command when its slot comes up. */
@@ -202,7 +206,11 @@ interface DefinitionBase<C extends CommandLike> {
      * For a compound op (`batch`): the commands it is made of. It runs as a transaction of
      * them, one step, and its own `execute` is never called.
      */
-    members?(command: C): { readonly label: string; readonly steps: readonly CommandLike[] };
+    members?(command: C): {
+        readonly label: string;
+        readonly fact: CodedFact<HistoryCode>;
+        readonly steps: readonly CommandLike[];
+    };
     /** Settling, whether it commits or fails, closes the baseline window (an import). */
     readonly closesBaseline?: boolean;
     /**
@@ -218,6 +226,8 @@ export interface UndoableDefinition<C extends CommandLike> extends DefinitionBas
         readonly kind: "undoable";
         /** What the step is called in the history ("Changed colour of Hubs"). */
         label(command: C, state: ProjectState): string;
+        /** What the step did, as a code and its values, for an application to word. */
+        fact(command: C, state: ProjectState): CodedFact<HistoryCode>;
         /** Steps with equal keys recorded close together become one step. */
         coalesce?(command: C): string | null;
     };
@@ -252,9 +262,11 @@ export interface TransactionScope {
 
 type TransactionBody<T> = (tx: TransactionScope, signal: AbortSignal) => T | Promise<T>;
 
-interface TransactionOptions {
+export interface TransactionOptions {
     /** Stamped on the recorded step, e.g. `{ via: "assistant" }`. */
     readonly provenance?: Readonly<Record<string, string>>;
+    /** What the step did; `{ code: "transaction", params: { label } }` when absent. */
+    readonly fact?: CodedFact<HistoryCode>;
     /** Declared at construction: while the baseline window is open it commits into the baseline. */
     readonly setup?: boolean;
     /**
@@ -267,6 +279,12 @@ interface TransactionOptions {
      * pointer moves write the lane before anything is dispatched (design section 5.3).
      */
     readonly moves?: boolean;
+    /**
+     * A step this transaction continues: its patch merges into that step while the step is the
+     * newest applied one, and otherwise records as its own step with `provenance.after` set to it,
+     * as a deferred member does.
+     */
+    readonly after?: HistoryStepId;
 }
 
 /** What moved live project state. */
@@ -276,6 +294,11 @@ type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 interface ProjectChange {
     readonly slices: readonly string[];
     readonly cause: HistoryCause;
+    /**
+     * The note ids a command wrote, so the `note:changed` publisher compares those alone. Absent
+     * when the change does not say (an undo, a redo, a restore, a rollback): compare the slice.
+     */
+    readonly notes?: readonly string[];
 }
 
 /** Why the history, or what the next undo will do, changed. */
@@ -292,6 +315,14 @@ interface DispatcherEvents {
     /** Every command dispatched, as it arrives, before it runs; the doors test spies here. */
     dispatched?: (command: CommandLike) => void;
     /**
+     * A command dispatched on its own, or as a member of a transaction or a batch, finished
+     * executing: called synchronously, before its promise resolves; a transaction's members
+     * are called, in order, when the transaction records, and never when it rolls back. Not
+     * called for a command that failed or was cancelled, for one a running command dispatched
+     * inline, or for an exempt one. The journal appends here.
+     */
+    executed?: (done: ExecutedCommand) => void;
+    /**
      * After an undo, a redo or a restore that touched node or edge ids: the session selects them
      * (design section 8). Not called when the steps touched none, or {@link TouchedIds.skip}.
      */
@@ -300,6 +331,17 @@ interface DispatcherEvents {
         readonly cap: () => number;
         select(ids: TouchedIds): void;
     };
+}
+
+/** A command that finished executing, as {@link DispatcherEvents.executed} hears it. */
+export interface ExecutedCommand {
+    readonly command: CommandLike;
+    /** What its `execute` returned. */
+    readonly value: unknown;
+    /** Its undo coalescing key, or null. */
+    readonly coalesceKey: string | null;
+    /** How long it executed, in milliseconds of the dispatcher's clock. */
+    readonly durationMs: number;
 }
 
 /** One slot a queued command holds on the queue. */
@@ -426,6 +468,7 @@ const NO_SCHEDULER: Scheduler = {
 interface PendingStep {
     readonly id: string;
     readonly label: string;
+    readonly fact: CodedFact<HistoryCode>;
     /** ISO 8601 of the dispatch. */
     readonly since: string;
     readonly runIds: readonly string[];
@@ -505,6 +548,8 @@ interface Job {
     revert: (() => readonly Slice[]) | null;
     /** What the queue handed its slot. */
     slotContext: SlotContext;
+    /** When it started executing, on the dispatcher's clock. */
+    startedAt: number;
     readonly promise: Promise<unknown>;
     resolve(value: unknown): void;
     reject(error: unknown): void;
@@ -518,6 +563,7 @@ interface Group {
     readonly id: string;
     readonly since: string;
     label: string;
+    fact: CodedFact<HistoryCode>;
     key: string | null;
     readonly provenance: Readonly<Record<string, string>>;
     readonly draft: Draft;
@@ -530,6 +576,8 @@ interface Group {
     readonly jobs: Set<Job>;
     /** A deferred member's transaction step, which it merges into when that step is still on top. */
     readonly after: string | null;
+    /** Labelled by its transaction, whose only work it is: its member starting does not rename it. */
+    named?: true;
     /** Set on a transaction's group. Open until `fn` settles; aborted when it rolled back. */
     readonly tx: { status: "open" | "closed" | "aborted"; readonly controller: AbortController } | null;
     /** Sealed or rolled back. */
@@ -541,6 +589,8 @@ interface Group {
     readonly compound: boolean;
     /** Work to start once it is recorded, by key; see `UndoableContext.after`. */
     readonly onSeal: Map<string, (dispatch: DispatchFunction) => void>;
+    /** A transaction's finished members, published to the journal when it records. */
+    readonly executed: ExecutedCommand[];
     /** Its before-arrangement, once a member that needs one has started; see `History.open`. */
     arrangement: OpenArrangement | null;
     /** The graph epoch when it took its before-arrangement. */
@@ -640,6 +690,16 @@ function slicesOf(patch: Patch): readonly Slice[] {
 }
 
 /**
+ * The note ids a patch wrote, each once, for a change; nothing when it wrote no note.
+ * @param patch - The patch.
+ * @returns The change's `notes`, or an empty object.
+ */
+function notesOf(patch: Patch): Pick<ProjectChange, "notes"> {
+    const notes = [...new Set(patch.entries.filter((entry) => entry.slice === "notes").map((entry) => entry.key))];
+    return notes.length === 0 ? {} : { notes };
+}
+
+/**
  * The error a `tx` dispatch gets once its transaction has been aborted or has failed.
  * @param label - The transaction.
  * @returns An `AbortError`.
@@ -731,6 +791,8 @@ export class Dispatcher {
     /** Node coordinates at rest: captures, the `arrangement` and `pins` hooks, rest points. */
     readonly arrangement: Arrangement;
     private readonly store: ProjectStore;
+    /** The clock of the coalescing window, and of how long a command executed. */
+    private readonly clock: () => number;
     private readonly definitions = new Map<string, CommandDefinition<CommandLike>>();
     private readonly scheduler: Scheduler;
     private readonly strict = strictStateEnabled();
@@ -746,6 +808,10 @@ export class Dispatcher {
     private readonly steps = new Map<string, StepMeta>();
     /** Orders dispatches, records, undos and hold acquisitions against each other. */
     private tick = 0;
+    /** The newest `seq` ever listed as pending: no pending group is newer. */
+    private newestEntered = -1;
+    /** How many pending groups amend a recorded step (`after` set). */
+    private openAfter = 0;
     /** Moves whenever the pending list changes. */
     private changes = 0;
     /** Moves whenever a hold is taken, which can change what the next undo does. */
@@ -754,6 +820,10 @@ export class Dispatcher {
     private nextCache: { key: string; value: NextUndo } | undefined;
     /** `history` reasons not yet published. */
     private readonly reasons: HistoryReason[] = [];
+    /** What the history's charges were last measured against: the resident token and the retained version. */
+    private charged = { token: Number.NaN, retained: -1 };
+    /** The token of every snapshot id index a charged run result reads through. */
+    private readonly indexTokens = new Set<number>();
     /** Above zero while a listener runs: a history call made then waits for a microtask. */
     private emitting = 0;
     /** The ids the steps passed by the history call under way touched; null outside one. */
@@ -802,6 +872,7 @@ export class Dispatcher {
             session: true,
         });
         this.events = { ...options.events };
+        this.clock = options.now ?? Date.now;
         this.scheduler = options.scheduler ?? NO_SCHEDULER;
         this.baselineOpen = options.baselineWindow === true;
         this.history = new History<Patch>({
@@ -972,17 +1043,16 @@ export class Dispatcher {
 
         const controller = new AbortController();
         const group = this.group(
-            label,
+            { label, fact: options.fact ?? { code: "transaction", params: { label } } },
             null,
             options.provenance ?? {},
-            null,
+            options.after ?? null,
             this.tick++,
             {
                 status: "open",
                 controller,
             },
-            options.setup === true,
-            options.compound === true,
+            { setup: options.setup === true, compound: options.compound === true },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1081,7 +1151,7 @@ export class Dispatcher {
      * @param write - Writes through a draft of its own.
      */
     seed(write: (draft: Draft) => void): void {
-        if (this.history.steps.length > 0 || this.open.size > 0) {
+        if (this.history.length > 0 || this.open.size > 0) {
             throw new GraphtyError({
                 code: "E_INTERNAL",
                 message: "The baseline can only be written before anything is recorded or pending.",
@@ -1208,6 +1278,24 @@ export class Dispatcher {
     }
 
     /**
+     * A patch that created rows for nodes an arrangement the history holds places -- other nodes
+     * of the same ids, removed since -- with those rows as the lane has them now. Without it a
+     * restore through that older arrangement would put the earlier nodes' coordinates on the new
+     * ones, and so would the baseline eviction folds it into.
+     * @param patch - The patch.
+     * @returns The patch, with the rows added to its row patch when there are any.
+     */
+    private withRecreatedRows(patch: Patch): Patch {
+        const recreated = this.history.placed(createdNodes(patch.log));
+        const rows = recreated.length === 0 ? null : this.arrangement.rowsNow(recreated);
+        if (rows === null) {
+            return patch;
+        }
+
+        return Object.freeze({ ...patch, rows: patch.rows === null ? rows : mergeRowPatches(rows, patch.rows) });
+    }
+
+    /**
      * Act now, or after the current call when called from inside a listener, and settle once the
      * pass that derives the change has run.
      * @param act - The history call.
@@ -1226,7 +1314,7 @@ export class Dispatcher {
         try {
             outcome = act();
         } catch (error) {
-            return Promise.reject(error as Error);
+            return Promise.reject(error);
         }
 
         return this.lane.settled().then(() => {
@@ -1302,7 +1390,7 @@ export class Dispatcher {
             const direction = target < position ? "undo" : "redo";
             const passing = target < position ? steps.slice(target, position).reverse() : steps.slice(position, target);
             for (const step of passing) {
-                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan; ) {
+                for (let plan = this.plan(direction, step); plan !== null && "cancel" in plan;) {
                     cancelled.push(...this.cancelAll(plan.cancel, direction));
                     plan = this.plan(direction, step);
                 }
@@ -1393,10 +1481,17 @@ export class Dispatcher {
      */
     private emit(change: ProjectChange, derived: readonly ProjectChange[]): void {
         if (["graph", "runs", "sets", "notes"].some((slice) => change.slices.includes(slice))) {
-            // What run results and their id indexes cost depends on which snapshot is resident.
+            // What run results and their id indexes cost depends on which snapshot is resident:
+            // a new one moves the charge of an index of the old or the new snapshot. And what
+            // something held by reference retains can grow after it was charged.
             const { token } = this.store.state.graph;
-            const seen = new WeakSet();
-            this.history.recharge((patch) => patchCharge(patch, token, seen));
+            const retained = retainedVersion();
+            const before = this.charged;
+            const full =
+                retained !== before.retained ||
+                (token !== before.token && (this.indexTokens.has(token) || this.indexTokens.has(before.token)));
+            this.charged = { token, retained };
+            this.history.recharge((patch, seen) => patchCharge(patch, token, seen, this.indexTokens), full);
         }
 
         this.notify(() => this.events.project?.(change));
@@ -1525,7 +1620,7 @@ export class Dispatcher {
 
         const compound = definition.members?.(concrete);
         if (compound !== undefined) {
-            return this.compound(compound.label, compound.steps, tx, isSetup(concrete), options.beside === true);
+            return this.compound(compound, tx, isSetup(concrete), options.beside === true);
         }
 
         const undoable = definition as UndoableDefinition<CommandLike>;
@@ -1559,13 +1654,13 @@ export class Dispatcher {
         const group =
             tx ??
             this.group(
-                undoable.undo.label(concrete, state),
+                { label: undoable.undo.label(concrete, state), fact: undoable.undo.fact(concrete, state) },
                 origin === null ? (undoable.undo.coalesce?.(concrete) ?? null) : null,
                 {},
                 origin?.step ?? null,
                 this.tick,
                 null,
-                isSetup(concrete) || origin?.setup === true,
+                { setup: isSetup(concrete) || origin?.setup === true },
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
@@ -1615,8 +1710,10 @@ export class Dispatcher {
     /**
      * Run a compound command's members as one transaction, or inside the one dispatching it.
      * Every member is dispatched before any is awaited, so immediate members run now, in order.
-     * @param label - The step's label.
-     * @param steps - The members.
+     * @param name - The step's label and fact.
+     * @param name.label - The step's label.
+     * @param name.fact - The step's fact.
+     * @param name.steps - The members.
      * @param tx - The transaction it was dispatched in, or null.
      * @param setup - Whether it was declared at construction.
      * @param beside - Whether its queued members start at once, beside the queue, as a
@@ -1624,8 +1721,7 @@ export class Dispatcher {
      * @returns Settles when every member has.
      */
     private compound(
-        label: string,
-        steps: readonly CommandLike[],
+        { label, fact, steps }: { label: string; fact: CodedFact<HistoryCode>; steps: readonly CommandLike[] },
         tx: Group | null,
         setup: boolean,
         beside: boolean,
@@ -1641,6 +1737,7 @@ export class Dispatcher {
             {
                 setup,
                 compound: true,
+                fact,
             },
         );
         // As a single command's promise is: a batch nobody awaited, cancelled, is not an unhandled
@@ -1785,6 +1882,7 @@ export class Dispatcher {
         const { command, definition } = job;
         const { group } = job;
         job.status = "running";
+        job.startedAt = this.clock();
         job.blockedBy = null;
         this.acquire(group, opLogKeys(job.keys));
         if (group.arrangement === null && this.takesBefore(job)) {
@@ -1794,8 +1892,9 @@ export class Dispatcher {
         if (job.inline) {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
-        } else if (group.tx === null && group.after === null) {
+        } else if (group.tx === null && group.after === null && group.named === undefined) {
             group.label = definition.undo.label(command, state);
+            group.fact = definition.undo.fact(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
             if (this.open.has(group)) {
                 group.view = undefined;
@@ -1879,6 +1978,22 @@ export class Dispatcher {
             this.baselineOpen = false;
         }
 
+        if (!job.inline) {
+            const done: ExecutedCommand = {
+                command: job.command,
+                value,
+                coalesceKey: job.definition.undo.coalesce?.(job.command) ?? null,
+                durationMs: this.clock() - job.startedAt,
+            };
+            // A transaction member is published when the transaction records, and never when it
+            // rolls back: what it did is undone then, so it did not happen.
+            if (group.tx === null) {
+                this.events.executed?.(done);
+            } else {
+                group.executed.push(done);
+            }
+        }
+
         job.resolve(value);
     }
 
@@ -1959,16 +2074,34 @@ export class Dispatcher {
     private sealTransaction(group: Group): void {
         const runs = [...group.jobs];
         group.jobs.clear();
-        const stepId = this.seal(group);
+        const recorded = this.seal(group);
+        // A transaction that wrote nothing before its runs went on still continues the step it
+        // was told to (`after`): its runs join that step, not one of their own beside it.
+        const stepId = recorded ?? group.after;
+        for (const done of group.executed.splice(0)) {
+            this.events.executed?.(done);
+        }
         for (const job of runs) {
             const deferred = this.group(
-                job.definition.undo.label(job.command, this.store.state),
+                // A run that is all the transaction did is the transaction's step, under its label.
+                recorded === null
+                    ? { label: group.label, fact: group.fact }
+                    : {
+                          label: job.definition.undo.label(job.command, this.store.state),
+                          fact: job.definition.undo.fact(job.command, this.store.state),
+                      },
                 null,
-                {},
+                // Recorded as its own step when the transaction's is no longer on top: it is
+                // still the transaction's work, by the same hand.
+                group.provenance,
                 stepId,
                 job.seq,
                 null,
             );
+            if (recorded === null) {
+                deferred.named = true;
+            }
+
             job.group = deferred;
             deferred.jobs.add(job);
             for (const key of job.keys) {
@@ -1986,7 +2119,7 @@ export class Dispatcher {
     private checkStrict(): void {
         if (this.strict) {
             this.graph.checkStore();
-            verifyRetainedArrays([this.arrangement]);
+            verifyRetainedArrays([], [this.state.arrangement?.coords, ...this.history.arrangementArrays()]);
         }
     }
 
@@ -2002,7 +2135,7 @@ export class Dispatcher {
         // A group that took a before-arrangement records even when it wrote the value it found: a
         // `layout.set` of the current layout runs it again, and where it lands is the step.
         const sealed = group.draft.seal();
-        const patch = open === null ? withoutNoOps(sealed) : sealed;
+        let patch = open === null ? withoutNoOps(sealed) : sealed;
         this.checkStrict();
         const oplog = [...group.holds.keys()];
         if (open !== null) {
@@ -2013,6 +2146,9 @@ export class Dispatcher {
         // seeded coordinates, so no later restore maps the dataset it replaced onto it.
         const newEpoch =
             open !== null && this.store.state.graph.epoch !== group.epoch ? this.arrangement.settledCapture() : null;
+        if (newEpoch === null) {
+            patch = this.withRecreatedRows(patch);
+        }
         let id: string | null = null;
         const baseline = !isEmptyPatch(patch) && this.intoBaseline(group, slicesOf(patch));
         if (isEmptyPatch(patch) || baseline) {
@@ -2027,7 +2163,7 @@ export class Dispatcher {
         }
 
         if (baseline) {
-            const change = { slices: slicesOf(patch), cause: "command" as const };
+            const change = { slices: slicesOf(patch), cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
             this.release(group, true);
             this.startDeferred(group, null);
@@ -2044,6 +2180,7 @@ export class Dispatcher {
             const bytes = patchBytes(kept);
             const input = {
                 label: group.label,
+                fact: group.fact,
                 patch: kept,
                 key: group.key,
                 ops: group.ops,
@@ -2065,8 +2202,7 @@ export class Dispatcher {
                 // once (design section 5.2).
                 const top = this.adjacent("undo");
                 const since = top === undefined ? undefined : this.steps.get(top.id)?.recorded;
-                const pendingSinceTop =
-                    since !== undefined && [...this.open].some((other) => other !== group && other.seq > since);
+                const pendingSinceTop = since !== undefined && this.openSince(since, group);
                 id = this.history.record({ ...input, provenance, pendingSinceTop });
             }
 
@@ -2085,7 +2221,7 @@ export class Dispatcher {
             // else is a pin no step records.
             this.arrangement.checkPins();
 
-            const change = { slices, cause: "command" as const };
+            const change = { slices, cause: "command" as const, ...notesOf(patch) };
             this.emit(change, [change]);
         }
 
@@ -2126,7 +2262,7 @@ export class Dispatcher {
         }
 
         if (group.setup) {
-            return this.history.steps.length === 0;
+            return this.history.length === 0;
         }
 
         return open && !graph;
@@ -2202,6 +2338,7 @@ export class Dispatcher {
             group.tx.status = "aborted";
         }
 
+        group.executed.length = 0;
         for (const job of [...group.jobs]) {
             this.stop(job, group.tx === null ? reason : cancelledError(job.command.op, why));
         }
@@ -2257,13 +2394,22 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get graphWritesWaiting(): boolean {
+        return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Whether a dispatched, unfinished command matches.
+     * @param match - Tests one command.
+     * @returns True while one does.
+     */
+    commandWaiting(match: (command: CommandLike) => boolean): boolean {
+        return this.waiting((job) => match(job.command));
+    }
+
+    private waiting(match: (job: Job) => boolean): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
-                if (
-                    job.status !== "done" &&
-                    job.status !== "cancelled" &&
-                    job.keys.some((key) => sliceOf(key) === "graph")
-                ) {
+                if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
                     return true;
                 }
             }
@@ -2307,12 +2453,12 @@ export class Dispatcher {
 
         const meta = target === undefined ? undefined : this.steps.get(target.id);
         const since = (direction === "undo" ? meta?.recorded : meta?.undone) ?? -1;
-        const open = this.ordered();
 
-        // Rule 0: an open group in the way of the step.
+        // Rule 0: an open group in the way of the step. Only a group holding a key of a slice the
+        // step touched can be, so only those are looked at, not every pending group.
         if (meta !== undefined && meta.oplog.length > 0) {
             const touchesGraph = meta.oplog.some((key) => sliceOf(key) === "graph");
-            const inWay = open.filter((group) =>
+            const inWay = this.holdingAny(meta.oplog).filter((group) =>
                 [...group.holds].some(
                     ([key, at]) =>
                         meta.oplog.some((touched) => overlaps(key, touched)) ||
@@ -2324,9 +2470,14 @@ export class Dispatcher {
             }
         }
 
-        // Rule 1: pending work newer than the step.
-        const newer = open.filter(
-            (group) => group.seq > since || (direction === "undo" && target !== undefined && group.after === target.id),
+        // Rule 1: pending work newer than the step. None was listed after it, and no pending
+        // group amends it: a run of queued commands behind the step is not walked on every read.
+        if (this.newestEntered <= since && (direction !== "undo" || this.openAfter === 0)) {
+            return target === undefined ? null : { step: target };
+        }
+
+        const newer = this.ordered().filter(
+            (group) => group.seq > since || (direction === "undo" && group.after === target?.id),
         );
         const newest = newer.at(-1);
         if (newest !== undefined) {
@@ -2343,12 +2494,13 @@ export class Dispatcher {
      * @returns The step, or undefined at the end of the history.
      */
     private adjacent(direction: "undo" | "redo"): HistoryStepView | undefined {
-        const { steps, position } = this.history;
+        const { history } = this;
+        const { position } = history;
         if (direction === "redo") {
-            return steps[position];
+            return history.stepAt(position);
         }
 
-        return position === 0 ? undefined : steps[position - 1];
+        return position === 0 ? undefined : history.stepAt(position - 1);
     }
 
     /**
@@ -2465,31 +2617,34 @@ export class Dispatcher {
 
     /**
      * A new group, with its draft open.
-     * @param label - Its label.
+     * @param name - What it is called.
+     * @param name.label - Its label.
+     * @param name.fact - Its fact.
      * @param key - Its history coalesce key.
      * @param provenance - Stamped on its step.
      * @param after - The step it is a deferred member of, or null.
      * @param seq - Its dispatch order.
      * @param tx - Its transaction state, for a transaction's group.
-     * @param setup - Declared at construction.
-     * @param compound - A batch's transaction.
+     * @param flags - What kind of group it is.
+     * @param flags.setup - Declared at construction.
+     * @param flags.compound - A batch's transaction.
      * @returns The group.
      */
     private group(
-        label: string,
+        { label, fact }: { readonly label: string; readonly fact: CodedFact<HistoryCode> },
         key: string | null,
         provenance: Readonly<Record<string, string>>,
         after: string | null,
         seq: number,
         tx: Group["tx"],
-        setup = false,
-        compound = false,
+        { setup = false, compound = false }: { readonly setup?: boolean; readonly compound?: boolean } = {},
     ): Group {
         return {
             seq,
             id: `pending-${seq}`,
             since: new Date().toISOString(),
             label,
+            fact,
             key,
             provenance: Object.freeze({ ...provenance }),
             draft: this.store.open(),
@@ -2504,6 +2659,7 @@ export class Dispatcher {
             setup,
             compound,
             onSeal: new Map(),
+            executed: [],
             arrangement: null,
             epoch: 0,
         };
@@ -2550,6 +2706,7 @@ export class Dispatcher {
             slot: null,
             blockedBy: null,
             revert: null,
+            startedAt: 0,
             slotContext: {},
             promise,
             // The caller hears last, after the pass and the events it publishes.
@@ -2573,8 +2730,32 @@ export class Dispatcher {
     private enter(group: Group): void {
         if (!this.open.has(group)) {
             this.open.add(group);
+            this.newestEntered = Math.max(this.newestEntered, group.seq);
+            this.openAfter += group.after === null ? 0 : 1;
             this.changed();
         }
+    }
+
+    /**
+     * Whether a pending group other than `self` was dispatched after `since`. Answered without
+     * walking the pending list when nothing listed since then is newer, so a run of queued
+     * commands -- `addNode` in a loop -- does not cost the whole run at every commit.
+     * @param since - A tick.
+     * @param self - The group to leave out.
+     * @returns True when one was.
+     */
+    private openSince(since: number, self: Group): boolean {
+        if (this.newestEntered <= since) {
+            return false;
+        }
+
+        for (const other of this.open) {
+            if (other !== self && other.seq > since) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2584,8 +2765,27 @@ export class Dispatcher {
     private leave(group: Group): void {
         group.done = true;
         if (this.open.delete(group)) {
+            this.openAfter -= group.after === null ? 0 : 1;
             this.changed();
         }
+    }
+
+    /**
+     * The pending groups holding a key of a slice one of `keys` names.
+     * @param keys - Op-log keys.
+     * @returns The groups, each once.
+     */
+    private holdingAny(keys: readonly SliceKey[]): Group[] {
+        const out = new Set<Group>();
+        for (const slice of new Set(keys.map(sliceOf))) {
+            for (const group of this.bySlice.get(slice) ?? []) {
+                if (this.open.has(group)) {
+                    out.add(group);
+                }
+            }
+        }
+
+        return [...out];
     }
 
     /**
@@ -2605,6 +2805,7 @@ export class Dispatcher {
         group.view ??= Object.freeze({
             id: group.id,
             label: group.label,
+            fact: frozenFact(group.fact),
             since: group.since,
             runIds: Object.freeze([]),
         });
@@ -2630,7 +2831,7 @@ export class Dispatcher {
 
     /** Forget the record times of steps the history no longer has. */
     private prune(): void {
-        if (this.steps.size <= this.history.steps.length * 2) {
+        if (this.steps.size <= this.history.length * 2) {
             return;
         }
 

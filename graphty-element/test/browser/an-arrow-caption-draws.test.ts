@@ -42,12 +42,6 @@ const WIDTH = 640;
 /** How tall it is. */
 const HEIGHT = 480;
 
-/** How many frames to render before reading one. */
-const FRAMES = 8;
-
-/** How long to leave between them. */
-const FRAME_MS = 10;
-
 /** How many buckets the frame histogram has: four bits per channel, three channels. */
 const BUCKETS = 16 * 16 * 16;
 
@@ -108,7 +102,7 @@ describe("a caption at the end of an arrow", () => {
         // Drawn before the first measurement, so that every "the frame moved" below is a change
         // to a graph that was already on screen rather than to a graph that had never been drawn.
         await frame();
-    }, 60000);
+    });
 
     afterEach(() => {
         graph.dispose();
@@ -120,14 +114,11 @@ describe("a caption at the end of an arrow", () => {
      * @returns How many pixels fall in each coarse colour bucket.
      */
     async function frame(): Promise<Uint32Array> {
-        await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // The element's own word that the picture is final -- the queue drained, the layout
+        // converged, the paint applied and every shader compiled -- then one more frame so
+        // the buffer read below is a frame of that picture.
+        await graph.waitForStableFrame();
+        graph.scene.render();
 
         const { engine } = graph;
         const pixels = (await engine.readPixels(
@@ -286,6 +277,21 @@ describe("a caption at the end of an arrow", () => {
             PIXEL_CHANGE,
             "and the picture is the one that was there before the layer was added",
         );
+    });
+
+    it("draws an arrow glyph at an end that is switched on with no words", async () => {
+        const edge = edgeObject();
+
+        await addLayer("captions with no words", { "edge.arrowHeadText": "", "edge.arrowTailText": "" });
+
+        const words = (caption: RichTextLabel | null): string =>
+            (caption?.textRuns ?? [])
+                .flat()
+                .map((segment) => segment.text)
+                .join("");
+
+        assert.strictEqual(words(edge.arrowHeadText), "\u2192", "the head falls back to a right arrow");
+        assert.strictEqual(words(edge.arrowTailText), "\u2190", "and the tail to a left arrow");
     });
 
     it("draws a caption at each end, and each one says what its own channel asked for", async () => {

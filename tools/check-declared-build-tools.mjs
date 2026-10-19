@@ -23,6 +23,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { scratchWorkspace } from "./scratch-workspace.mjs";
+import { workspaceDirs } from "./workspace-files.mjs";
 
 /**
  * Reads a package.json.
@@ -95,7 +96,7 @@ function commandsOf(line) {
         let i = 0;
         while (i < words.length) {
             const w = words[i];
-            if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(w) || RUNNERS.has(w) || w.startsWith("-") || /^\d+$/.test(w)) {
+            if (/^[A-Za-z_]\w*=/.test(w) || RUNNERS.has(w) || w.startsWith("-") || /^\d+$/.test(w)) {
                 i++;
             } else if (w === "pnpm" || w === "npm" || w === "yarn") {
                 // `pnpm exec x` / `pnpm x` runs x; `npm run x` runs a script, which is checked on its own
@@ -151,9 +152,7 @@ function check(rootDir) {
     const root = readJson(join(rootDir, "package.json"));
     const rootDeps = declared(root);
     const bins = rootBinaries(rootDir, rootDeps);
-    const workspaceYaml = readFileSync(join(rootDir, "pnpm-workspace.yaml"), "utf8");
-    const packagesBlock = workspaceYaml.split(/^packages:\s*$/m)[1]?.split(/^\S/m)[0] ?? "";
-    const dirs = [...packagesBlock.matchAll(/^\s*-\s*["']?([^"'\s]+)["']?/gm)].map((m) => m[1]);
+    const dirs = workspaceDirs(rootDir);
     const problems = [];
     for (const dir of dirs) {
         const pkgFile = join(rootDir, dir, "package.json");

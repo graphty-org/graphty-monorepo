@@ -4,19 +4,19 @@ category: dialog
 description: Dialog for generating analysis reports. Select content sections, format, and export options.
 status: planned
 implements_capabilities:
-  - report-generation
+    - report-generation
 used_in_workflows:
-  - W15
+    - W15
 dependencies:
-  - checkbox
-  - select
-  - button
-  - divider
+    - checkbox
+    - select
+    - button
+    - divider
 props:
-  open: boolean - Whether dialog is open
-  onClose: () => void - Close handler
-  onGenerate: "(options: ReportOptions) => void - Generate report handler"
-  availableSections: string[] - Available report sections
+    open: boolean - Whether dialog is open
+    onClose: () => void - Close handler
+    onGenerate: "(options: ReportOptions) => void - Generate report handler"
+    availableSections: string[] - Available report sections
 sources: []
 version: 1.0.0
 created_at: 2026-01-16T04:02:23.783Z

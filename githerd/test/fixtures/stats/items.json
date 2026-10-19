@@ -1,0 +1,131 @@
+[
+    {
+        "number": 1,
+        "title": "graphty-element: a long-standing bug",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [{ "name": "bug" }, { "name": "priority:high" }],
+        "state": "open",
+        "created_at": "2026-09-01T10:00:00Z",
+        "closed_at": null,
+        "body": "## What happens\n\n`thing` breaks."
+    },
+    {
+        "number": 2,
+        "title": "Flaky test: renders a node (graphty-element)",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [{ "name": "bug" }, { "name": "intermittent" }, { "name": "priority:medium" }],
+        "state": "open",
+        "created_at": "2026-10-05T03:00:00Z",
+        "closed_at": null,
+        "body": "fails intermittently\n\ngitherd-flaky-test: abc123"
+    },
+    {
+        "number": 3,
+        "title": "Red master: CI failed on 1234567",
+        "user": { "login": "github-actions[bot]", "type": "Bot" },
+        "labels": [{ "name": "bug" }, { "name": "priority:critical" }],
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2026-10-05T04:00:00Z",
+        "closed_at": "2026-10-05T09:00:00Z",
+        "body": "CI failed on master."
+    },
+    {
+        "number": 4,
+        "title": "add a dark mode",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [{ "name": "enhancement" }],
+        "state": "closed",
+        "state_reason": "not_planned",
+        "created_at": "2026-10-05T05:00:00Z",
+        "closed_at": "2026-10-05T06:00:00Z",
+        "body": "would be nice"
+    },
+    {
+        "number": 5,
+        "title": "tools: the pre-push runner exits 0 after a failed shard",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [{ "name": "infrastructure" }, { "name": "priority:low" }],
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2026-10-04T05:00:00Z",
+        "closed_at": "2026-10-05T12:00:00Z",
+        "body": "Found while fixing #1."
+    },
+    {
+        "number": 6,
+        "title": "research the layout options",
+        "user": { "login": "someone", "type": "User" },
+        "labels": [{ "name": "research" }],
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2026-10-05T07:00:00Z",
+        "closed_at": "2026-10-05T08:00:00Z",
+        "body": ""
+    },
+    {
+        "number": 7,
+        "title": "Intermittent failure: CI / Build",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [{ "name": "bug" }, { "name": "intermittent" }],
+        "state": "closed",
+        "state_reason": "completed",
+        "created_at": "2026-10-03T07:00:00Z",
+        "closed_at": "2026-10-05T08:00:00Z",
+        "body": "failed and passed\n\ngitherd-key: CI / Build"
+    },
+    {
+        "number": 8,
+        "title": "githerd heartbeat",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [{ "name": "githerd-heartbeat" }],
+        "state": "open",
+        "created_at": "2026-10-05T01:00:00Z",
+        "closed_at": null,
+        "body": "alive"
+    },
+    {
+        "number": 10,
+        "title": "fix(tools): fail the runner on a failed shard",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [],
+        "state": "closed",
+        "created_at": "2026-10-05T00:00:00Z",
+        "closed_at": "2026-10-05T12:00:00Z",
+        "pull_request": { "merged_at": "2026-10-05T12:00:00Z" },
+        "body": "Fixes #5"
+    },
+    {
+        "number": 11,
+        "title": "feat: something abandoned",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [],
+        "state": "closed",
+        "created_at": "2026-10-04T00:00:00Z",
+        "closed_at": "2026-10-05T01:00:00Z",
+        "pull_request": { "merged_at": null },
+        "body": ""
+    },
+    {
+        "number": 12,
+        "title": "fix: still open",
+        "user": { "login": "owner", "type": "User" },
+        "labels": [],
+        "state": "open",
+        "created_at": "2026-10-05T02:00:00Z",
+        "closed_at": null,
+        "pull_request": { "merged_at": null },
+        "body": ""
+    },
+    {
+        "number": 13,
+        "title": "merge queue: checking #10 on master (abc1234)",
+        "user": { "login": "mergify[bot]", "type": "Bot" },
+        "labels": [],
+        "state": "closed",
+        "created_at": "2026-10-05T10:00:00Z",
+        "closed_at": "2026-10-05T11:00:00Z",
+        "pull_request": { "merged_at": null },
+        "body": ""
+    }
+]

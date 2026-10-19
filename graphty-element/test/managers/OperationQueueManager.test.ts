@@ -1,11 +1,7 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
-import {
-    type OperationCategory,
-    type OperationContext,
-    OperationQueueManager,
-} from "../../src/managers/OperationQueueManager";
+import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
 
 describe("OperationQueueManager", () => {
     let eventManager: EventManager;
@@ -138,7 +134,8 @@ describe("OperationQueueManager", () => {
         });
 
         // Check stats immediately after queueing
-        await new Promise((resolve) => setTimeout(resolve, 5)); // Wait for microtask
+        // The batch is scheduled on a microtask; one macrotask yield lets it start
+        await new Promise((resolve) => setTimeout(resolve, 0));
         const stats = queueManager.getStats();
 
         assert.isDefined(stats.pending);
@@ -158,8 +155,9 @@ describe("OperationQueueManager", () => {
             executionOrder.push("data-add");
         });
 
-        // Wait a bit - operation should not execute while paused
-        await new Promise((resolve) => setTimeout(resolve, 50));
+        // Operation should not execute while paused: the queue schedules work on a microtask,
+        // so one macrotask yield is past the point it would have run
+        await new Promise((resolve) => setTimeout(resolve, 0));
         assert.equal(executionOrder.length, 0);
 
         queueManager.resume();
@@ -196,11 +194,11 @@ describe("OperationQueueManager", () => {
         const executionOrder: string[] = [];
 
         // Queue operations that don't have dependencies defined
-        queueManager.queueOperation("camera-update" as OperationCategory, () => {
+        queueManager.queueOperation("camera-update", () => {
             executionOrder.push("camera-update");
         });
 
-        queueManager.queueOperation("render-update" as OperationCategory, () => {
+        queueManager.queueOperation("render-update", () => {
             executionOrder.push("render-update");
         });
 

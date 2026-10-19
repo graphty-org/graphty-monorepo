@@ -13,18 +13,22 @@
 
 import { assert, describe, it } from "vitest";
 
+import { AStarAlgorithm } from "../../../src/algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../../../src/algorithms/BellmanFordAlgorithm";
 import { BFSAlgorithm } from "../../../src/algorithms/BFSAlgorithm";
 import { BipartiteMatchingAlgorithm } from "../../../src/algorithms/BipartiteMatchingAlgorithm";
 import { ConnectedComponentsAlgorithm } from "../../../src/algorithms/ConnectedComponentsAlgorithm";
 import { DFSAlgorithm } from "../../../src/algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../../../src/algorithms/DijkstraAlgorithm";
+import { EdgeBetweennessCentralityAlgorithm } from "../../../src/algorithms/EdgeBetweennessCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "../../../src/algorithms/FloydWarshallAlgorithm";
 import { GirvanNewmanAlgorithm } from "../../../src/algorithms/GirvanNewmanAlgorithm";
+import { HierarchicalClusteringAlgorithm } from "../../../src/algorithms/HierarchicalClusteringAlgorithm";
 import { KruskalAlgorithm } from "../../../src/algorithms/KruskalAlgorithm";
 import { LabelPropagationAlgorithm } from "../../../src/algorithms/LabelPropagationAlgorithm";
 import { LeidenAlgorithm } from "../../../src/algorithms/LeidenAlgorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
+import { MarkovClusteringAlgorithm } from "../../../src/algorithms/MarkovClusteringAlgorithm";
 import { MaxFlowAlgorithm } from "../../../src/algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../../../src/algorithms/MinCutAlgorithm";
 import { PrimAlgorithm } from "../../../src/algorithms/PrimAlgorithm";
@@ -35,6 +39,7 @@ import {
     detachedRunContext,
     type ResultFieldSpec,
 } from "../../../src/algorithms/results";
+import { SpectralClusteringAlgorithm } from "../../../src/algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../../../src/algorithms/StronglyConnectedComponentsAlgorithm";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import type { FieldDescriptor, ResultShape } from "../../../src/catalog/types";
@@ -161,6 +166,41 @@ const CASES: readonly Case[] = [
         shape: "edge-set",
         method: "stoer-wagner",
         make: (g) => new MinCutAlgorithm(g),
+    },
+    {
+        name: "markov clustering",
+        key: "markov-clustering",
+        shape: "community",
+        method: "markov-clustering",
+        make: (g) => new MarkovClusteringAlgorithm(g),
+    },
+    {
+        name: "spectral clustering",
+        key: "spectral-clustering",
+        shape: "community",
+        method: "spectral-clustering",
+        make: (g) => new SpectralClusteringAlgorithm(g),
+    },
+    {
+        name: "hierarchical clustering",
+        key: "hierarchical-clustering",
+        shape: "community",
+        method: "hierarchical-clustering-single",
+        make: (g) => new HierarchicalClusteringAlgorithm(g),
+    },
+    {
+        name: "a-star",
+        key: "astar",
+        shape: "path",
+        method: "astar",
+        make: (g) => new AStarAlgorithm(g, { source: "A", target: "F" }),
+    },
+    {
+        name: "edge betweenness",
+        key: "edge-betweenness",
+        shape: "edge-metric",
+        method: "brandes-edge",
+        make: (g) => new EdgeBetweennessCentralityAlgorithm(g),
     },
 ];
 

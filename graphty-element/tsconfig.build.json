@@ -20,6 +20,7 @@
         "commands.ts",
         "extend.ts",
         "format.ts",
+        "jsx.ts",
         "logging.ts",
         "react.ts",
         "schema.ts",
@@ -33,6 +34,7 @@
         "**/*.stories.ts",
         ".storybook/**/*",
         "src/debug/**/*",
+        "src/testing/**/*",
         "coverage/**/*",
         "dist/**/*",
         "node_modules/**/*"

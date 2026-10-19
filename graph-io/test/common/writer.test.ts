@@ -125,3 +125,23 @@ describe("joinText / collectBytes / toReadableStream", () => {
         expect(finished).toBe(true);
     });
 });
+
+describe("the indent option of the JSON and DOT exporters", () => {
+    it("takes a number of spaces or the text itself in both formats", async () => {
+        const { exportGraphToString, importGraph } = await import("../../src/index.js");
+        const { snapshot } = await importGraph("a,b\n", { format: "csv" });
+        const two = await exportGraphToString(snapshot, "json", { indent: 2 });
+        expect(two).toContain('\n  "');
+        expect(await exportGraphToString(snapshot, "json", { indent: "  " })).toBe(two);
+        expect(await exportGraphToString(snapshot, "json", { indent: "\t" })).toContain('\n\t"');
+        const dot = await exportGraphToString(snapshot, "dot", { indent: 2 });
+        expect(dot).toContain("\n  ");
+        expect(await exportGraphToString(snapshot, "dot", { indent: "  " })).toBe(dot);
+        await expect(exportGraphToString(snapshot, "dot", { indent: "x" })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+        await expect(exportGraphToString(snapshot, "json", { indent: 17 })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+});

@@ -11,6 +11,8 @@ import storybookPlugin from "eslint-plugin-storybook";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
+import { MANTINE_REPLACEMENTS } from "../compact-mantine/eslint/mantine-replacements.js";
+import storyWaitOptions from "../tools/eslint-rules/story-wait-options.mjs";
 import noElementMutation from "./eslint-rules/no-element-mutation.js";
 
 // The graphty app is only HTML around graphty-element (CLAUDE.md, "Architectural Principles"):
@@ -21,7 +23,7 @@ const ELEMENT_EXPORTS = Object.keys(
     JSON.parse(readFileSync(new URL("../graphty-element/package.json", import.meta.url), "utf8")).exports,
 )
     .filter((key) => key !== ".")
-    .map((key) => key.slice(2).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    .map((key) => key.slice(2).replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`));
 const RULE = "The graphty app consumes graphty-element and nothing else (CLAUDE.md, Architectural Principles).";
 const RESTRICTED_IMPORT_PATTERNS = [
     {
@@ -41,7 +43,7 @@ const RESTRICTED_IMPORT_PATTERNS = [
         message: `${RULE} Import a package's published entry points, never its source.`,
     },
     {
-        regex: "^\\.{1,2}/(.*/)?graphty-element(/|$)",
+        regex: String.raw`^\.{1,2}/(.*/)?graphty-element(/|$)`,
         message: `${RULE} Import @graphty/graphty-element by package name, never by a relative path.`,
     },
 ];
@@ -104,14 +106,28 @@ export default tseslint.config(
                     allowConstantExport: true,
                 },
             ],
-            "@typescript-eslint/no-restricted-imports": ["error", { patterns: RESTRICTED_IMPORT_PATTERNS }],
+            // compact-mantine's replacements for stock Mantine components: see the list's own file.
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                { patterns: RESTRICTED_IMPORT_PATTERNS, paths: MANTINE_REPLACEMENTS },
+            ],
         },
     },
 
     // The app's own lint rules are tooling, not app code: their tests read graphty-element's door
-    // list at its source, which is the list the rule enforces against.
+    // list at its source, which is the list the rule enforces against. The build scripts are
+    // tooling too: scripts/write-sample-gml.ts writes the sample files with graph-io at build time,
+    // and nothing it imports reaches the app.
     {
-        files: ["eslint-rules/**/*.ts"],
+        files: ["eslint-rules/**/*.ts", "scripts/**/*.ts"],
         rules: { "@typescript-eslint/no-restricted-imports": "off" },
+    },
+
+    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
+    // of its own under a test runner (#2930). The rule: tools/eslint-rules/story-wait-options.mjs.
+    {
+        files: ["src/**/*.stories.{ts,tsx}"],
+        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
+        rules: { "local-stories/story-wait-options": "error" },
     },
 );

@@ -10,6 +10,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../../src/Graph";
 import type { ElementSession } from "../../../src/session/types";
+import { nextFrame } from "../../helpers/real-input";
 
 /** The colour the layer paints. */
 const RED = "#ff0000";
@@ -46,7 +47,7 @@ describe("a style layer naming a set, on screen", () => {
         await graph.getSession().styles.settled();
         for (let frame = 0; frame < 10; frame++) {
             graph.scene.render();
-            await new Promise((resolve) => setTimeout(resolve, 10));
+            await nextFrame();
         }
     };
 
@@ -60,8 +61,7 @@ describe("a style layer naming a set, on screen", () => {
             .getNodes()
             .filter((node) => {
                 const color = (node.mesh as InstancedMesh).instancedBuffers.color as
-                    | { r: number; g: number; b: number }
-                    | undefined;
+                    { r: number; g: number; b: number } | undefined;
                 return (
                     color !== undefined &&
                     Math.abs(color.r - red.r) < 0.01 &&

@@ -518,7 +518,7 @@ describe("AI Commands End-to-End", () => {
 
             provider.setResponse("find servers", {
                 text: "",
-                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "type == 'server'" } }],
+                toolCalls: [{ id: "1", name: "findNodes", arguments: { selector: "data.type == 'server'" } }],
             });
 
             const result = await graph.aiCommand("find servers");
@@ -710,7 +710,7 @@ describe("AI Commands End-to-End", () => {
                         id: "1",
                         name: "findAndStyleNodes",
                         arguments: {
-                            selector: "type == 'nonexistent'",
+                            selector: "data.type == 'nonexistent'",
                             style: { color: "#ff0000" },
                         },
                     },
@@ -1043,7 +1043,7 @@ describe("AI Commands End-to-End", () => {
         it("zooms to fit all nodes", async () => {
             const provider = getProvider();
 
-            provider.setResponse("zoom all", {
+            provider.setResponse("zoom to fit all", {
                 text: "",
                 toolCalls: [
                     {
@@ -1060,21 +1060,21 @@ describe("AI Commands End-to-End", () => {
             const result = await graph.aiCommand("zoom to fit all");
 
             assert.strictEqual(result.success, true);
+            assert.include(result.message, "Zoomed to fit");
         });
 
         it("zooms to nodes matching selector", async () => {
             const provider = getProvider();
 
-            // Note: E2E data has type at top level, so selector is "type == 'server'"
-            // But the command expects "data.type" - this tests how the system handles selectors
-            provider.setResponse("zoom servers", {
+            // The same selector findNodes and the style commands take: fields under data.
+            provider.setResponse("zoom to servers", {
                 text: "",
                 toolCalls: [
                     {
                         id: "1",
                         name: "zoomToNodes",
                         arguments: {
-                            selector: "type == 'server'",
+                            selector: "data.type == 'server'",
                             animate: false,
                         },
                     },
@@ -1083,14 +1083,15 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("zoom to servers");
 
-            // Command should succeed - selector matching may vary
             assert.strictEqual(result.success, true);
+            // We have 2 server nodes (A and C)
+            assert.deepStrictEqual([...(result.affectedNodes ?? [])].sort(), ["A", "C"]);
         });
 
         it("handles animation option", async () => {
             const provider = getProvider();
 
-            provider.setResponse("smooth zoom", {
+            provider.setResponse("smoothly zoom", {
                 text: "",
                 toolCalls: [
                     {
@@ -1107,19 +1108,20 @@ describe("AI Commands End-to-End", () => {
             const result = await graph.aiCommand("smoothly zoom to fit");
 
             assert.strictEqual(result.success, true);
+            assert.deepStrictEqual(result.data, { nodeCount: graph.getNodeCount(), animated: true });
         });
 
         it("handles non-matching selector gracefully", async () => {
             const provider = getProvider();
 
-            provider.setResponse("zoom none", {
+            provider.setResponse("zoom to nonexistent", {
                 text: "",
                 toolCalls: [
                     {
                         id: "1",
                         name: "zoomToNodes",
                         arguments: {
-                            selector: "type == 'nonexistent'",
+                            selector: "data.type == 'nonexistent'",
                         },
                     },
                 ],
@@ -1127,8 +1129,10 @@ describe("AI Commands End-to-End", () => {
 
             const result = await graph.aiCommand("zoom to nonexistent");
 
-            // Should succeed even with no matching nodes (zooms to fitToGraph)
+            // Succeeds, moves nothing, and says nothing matched
             assert.strictEqual(result.success, true);
+            assert.isEmpty(result.affectedNodes ?? []);
+            assert.include(result.message, "No nodes matched");
         });
     });
 

@@ -7,11 +7,13 @@ const dst = new Uint32Array([1, 2, 0]);
 const s = fromEdgeArrays({ directed: true, nodeCount: 3, src, dst });
 const sib = s.withColumns({ mass: new Float32Array([1, 2, 3]) });
 const und = s.toUndirected();
-console.log(JSON.stringify({
-    serial: s.serial,
-    siblingSerial: sib.serial,
-    siblingSharesRowPtr: sib.rowPtr === s.rowPtr,
-    undirectedIsSameObject: und.snapshot === s,
-    undirectedSerial: und.snapshot.serial,
-    undirectedSharesRowPtr: und.snapshot.rowPtr === s.rowPtr,
-}));
+console.log(
+    JSON.stringify({
+        serial: s.serial,
+        siblingSerial: sib.serial,
+        siblingSharesRowPtr: sib.rowPtr === s.rowPtr,
+        undirectedIsSameObject: und.snapshot === s,
+        undirectedSerial: und.snapshot.serial,
+        undirectedSharesRowPtr: und.snapshot.rowPtr === s.rowPtr,
+    }),
+);

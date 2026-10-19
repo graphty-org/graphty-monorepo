@@ -568,10 +568,7 @@ export const ArrowSizeVariations: Story = {
         // the mesh's name carries only its shape, so nothing else in the scene can see it. Measured:
         // 0.466, 0.933 and 1.865 across. Without the top layer's size the edges leaving A keep 0.5
         // and 2 and only two sizes are drawn.
-        const spans = scene.graph.scene.meshes
-            .filter((mesh) => mesh.name.includes("arrow"))
-            .map((mesh) => mesh.getBoundingInfo().boundingBox.extendSizeWorld.length())
-            .sort((first, second) => second - first);
+        const spans = scene.arrowCaps.map((cap) => cap.span).sort((first, second) => second - first);
         const sizes = new Set(spans.map((span) => span.toFixed(2)));
 
         await holds(
@@ -720,6 +717,141 @@ export const AxisAlignedColoredSpheres: Story = {
                     target: "node",
                     selector: { match: "expression", where: "data.id == 'z-axis'" },
                     set: { "node.color": "blue", "node.size": 1.5 },
+                },
+            ],
+        }),
+    },
+};
+
+/**
+ * An alpha written inside a color, beside the same color written opaque with the opacity channel.
+ *
+ * Left column: the color carries the alpha (`#rrggbbaa`). Right column: the color is opaque and
+ * the channel's opacity says 0.5. Each row must look the same on both sides, except the outline,
+ * which cannot be drawn translucent and so draws its color opaque on both sides.
+ * Rows, top to bottom: node fill, glow, outline, edge line (its arrow caps follow its color),
+ * arrow head and tail colors.
+ */
+export const ColorAlpha: Story = {
+    play: async ({ canvasElement }) => {
+        const scene = await drawn(canvasElement, "Styles/Layered ColorAlpha");
+        await assertGraphLoaded(scene, { nodes: 14, edges: 4 });
+        await assertDrawnColour(scene, { fillAlpha: "#ff0000", fillOpacity: "#ff0000" });
+        await assertDrawnOpacity(scene, { fillAlpha: 128 / 255, fillOpacity: 128 / 255 });
+        await assertDistinctPicture(scene, "Styles/Layered");
+    },
+    args: {
+        nodeData: [
+            { id: "fillAlpha", position: { x: -2, y: 4, z: 0 } },
+            { id: "fillOpacity", position: { x: 2, y: 4, z: 0 } },
+            { id: "glowAlpha", position: { x: -2, y: 2, z: 0 } },
+            { id: "glowOpacity", position: { x: 2, y: 2, z: 0 } },
+            { id: "outlineAlpha", position: { x: -2, y: 0, z: 0 } },
+            { id: "outlineOpacity", position: { x: 2, y: 0, z: 0 } },
+            { id: "lineAlphaFrom", row: "end", position: { x: -4, y: -2, z: 0 } },
+            { id: "lineAlphaTo", row: "end", position: { x: -1, y: -2, z: 0 } },
+            { id: "lineOpacityFrom", row: "end", position: { x: 1, y: -2, z: 0 } },
+            { id: "lineOpacityTo", row: "end", position: { x: 4, y: -2, z: 0 } },
+            { id: "capAlphaFrom", row: "end", position: { x: -4, y: -4, z: 0 } },
+            { id: "capAlphaTo", row: "end", position: { x: -1, y: -4, z: 0 } },
+            { id: "capOpacityFrom", row: "end", position: { x: 1, y: -4, z: 0 } },
+            { id: "capOpacityTo", row: "end", position: { x: 4, y: -4, z: 0 } },
+        ],
+        edgeData: [
+            { src: "lineAlphaFrom", dst: "lineAlphaTo", side: "alpha", row: "line" },
+            { src: "lineOpacityFrom", dst: "lineOpacityTo", side: "opacity", row: "line" },
+            { src: "capAlphaFrom", dst: "capAlphaTo", side: "alpha", row: "caps" },
+            { src: "capOpacityFrom", dst: "capOpacityTo", side: "opacity", row: "caps" },
+        ],
+        setup: storySetup({
+            layers: [
+                {
+                    name: "edge ends small and gray",
+                    target: "node",
+                    selector: { match: "expression", where: "data.row == 'end'" },
+                    set: { "node.color": "#9ca3af", "node.size": 0.4 },
+                },
+                {
+                    name: "fill: #ff000080",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["fillAlpha"] },
+                    set: { "node.color": "#ff000080" },
+                },
+                {
+                    name: "fill: #ff0000 at opacity 0.5",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["fillOpacity"] },
+                    set: { "node.color": "#ff0000", "node.opacity": 128 / 255 },
+                },
+                {
+                    name: "glow: #ff000080",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["glowAlpha"] },
+                    set: { "node.glow": "#ff000080" },
+                },
+                {
+                    name: "glow: #800000",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["glowOpacity"] },
+                    set: { "node.glow": "#800000" },
+                },
+                {
+                    name: "outline: #ff000080 (alpha ignored)",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["outlineAlpha"] },
+                    set: { "node.outline": "#ff000080" },
+                },
+                {
+                    name: "outline: #ff0000",
+                    target: "node",
+                    selector: { match: "ids", nodes: ["outlineOpacity"] },
+                    set: { "node.outline": "#ff0000" },
+                },
+                {
+                    name: "every edge: caps at both ends, wide",
+                    target: "edge",
+                    selector: { match: "everything" },
+                    set: {
+                        "edge.width": 3,
+                        "edge.arrowHead": "normal",
+                        "edge.arrowTail": "normal",
+                        "edge.arrowHeadSize": 2,
+                        "edge.arrowTailSize": 2,
+                    },
+                },
+                {
+                    name: "line: #0000ff80, caps follow",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.row == 'line' && data.side == 'alpha'" },
+                    set: { "edge.color": "#0000ff80" },
+                },
+                {
+                    name: "line: #0000ff at opacity 0.5, caps too",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.row == 'line' && data.side == 'opacity'" },
+                    set: {
+                        "edge.color": "#0000ff",
+                        "edge.opacity": 128 / 255,
+                        "edge.arrowHeadOpacity": 128 / 255,
+                        "edge.arrowTailOpacity": 128 / 255,
+                    },
+                },
+                {
+                    name: "caps: #00a00080 head, #a000a080 tail",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.row == 'caps' && data.side == 'alpha'" },
+                    set: { "edge.arrowHeadColor": "#00a00080", "edge.arrowTailColor": "#a000a080" },
+                },
+                {
+                    name: "caps: #00a000 head, #a000a0 tail, at opacity 0.5",
+                    target: "edge",
+                    selector: { match: "expression", where: "data.row == 'caps' && data.side == 'opacity'" },
+                    set: {
+                        "edge.arrowHeadColor": "#00a000",
+                        "edge.arrowTailColor": "#a000a0",
+                        "edge.arrowHeadOpacity": 128 / 255,
+                        "edge.arrowTailOpacity": 128 / 255,
+                    },
                 },
             ],
         }),

@@ -1,6 +1,6 @@
 import { type F32, type GraphSnapshot, INVALID_INDEX, type NumericVector } from "@graphty/graph-format";
 import { kamadaKawai } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { GraphtyLogger } from "../logging/GraphtyLogger.js";
@@ -103,6 +103,7 @@ const kamadaKawaiLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     scale: {
@@ -131,6 +132,7 @@ const kamadaKawaiLayoutOptionsSchema = defineOptions({
 
 const KamadaKawaiLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(50),
     dist: z.record(z.number(), z.record(z.number(), z.number())).or(z.null()).default(null),
     pos: z.record(z.number(), z.array(z.number()).min(1).max(3)).or(z.null()).default(null),
     weighted: z.boolean().default(true),
@@ -149,8 +151,6 @@ export class KamadaKawaiLayout extends SnapshotLayoutEngine {
     static maxDimensions = 3;
     static override honoursWeights = true;
     static zodOptionsSchema: OptionsSchema = kamadaKawaiLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 50;
     protected readonly dimensions: 2 | 3;
     config: KamadaKawaiLayoutConfigType;
 
@@ -200,13 +200,13 @@ export class KamadaKawaiLayout extends SnapshotLayoutEngine {
         return sceneUnits(
             kamadaKawai(weighted ?? input.graph, {
                 dist: this.distances(),
-                pos: startFrom(input, dim, KamadaKawaiLayout.scale) ?? this.rowsOfRecord(this.config.pos, dim),
+                pos: startFrom(input, dim, this.config.scalingFactor) ?? this.rowsOfRecord(this.config.pos, dim),
                 weight: weighted === null ? false : DISTANCE_COLUMN,
                 scale: this.config.scale,
                 center: this.config.center ?? undefined,
                 dim,
             }),
-            KamadaKawaiLayout.scale,
+            this.config.scalingFactor,
         );
     }
 

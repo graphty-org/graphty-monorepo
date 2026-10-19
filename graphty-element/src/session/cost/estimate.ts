@@ -37,6 +37,8 @@ import {
     type Scope,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { caveat, type CaveatCode, noted } from "../runs/caveatFacts";
+import type { CodedFact } from "../shared";
 import type { GraphStatistics } from "../types";
 
 // ---------------------------------------------------------------------------------------------
@@ -161,6 +163,18 @@ export interface MachineCalibration {
     readonly machine: string;
     /** Whether the numbers were measured here or are the built-in defaults. */
     readonly basis: "probe" | "defaults";
+    /**
+     * How fast random reads that miss every cache complete here, against the machine the default
+     * rates were fitted on: 1 there, 0.25 where such a read takes four times as long. Absent when
+     * memory was not measured, and then nothing is charged for it.
+     *
+     * Ordinary machines, desktops and cloud runners alike, read 0.6 or more, and on them a run over
+     * a large graph keeps pace with the cores the rates already measure. Memory loaded by another
+     * process can read far lower, and then a run over a graph too large for the cache takes longer
+     * than its rates say, by up to `0.5 / memorySpeed`; the estimate charges that.
+     * @since 3.24.2
+     */
+    readonly memorySpeed?: number;
 }
 
 /**
@@ -221,6 +235,57 @@ const BYTES_PER_VALUE = 8;
 
 /** Bytes a graph-level field is charged, which is a nominal figure for a scalar or a small table. */
 const BYTES_PER_GRAPH_FIELD = 1024;
+
+/**
+ * The memory speed (see {@link MachineCalibration.memorySpeed}) under which memory counts as
+ * loaded. At or above it, large-graph runs kept pace with the cores on every machine measured: CI
+ * runners whose cores read 0.47x to 1.07x the reference, with memory at 0.63x to 0.85x, held the
+ * same estimate / measured ratios. A runner whose memory another tenant was loading (issue #2025)
+ * ran those rows 3 to 6x slower than the cores said.
+ */
+const LOADED_MEMORY_SPEED = 0.5;
+
+/**
+ * Working sets at or under this many bytes stay in a core's own cache (256 KB to 2 MB per core),
+ * so memory speed does not reach them: on the loaded runner, eigenvector centrality on a
+ * 10,000-node grid (about 240 KB) and betweenness and closeness on a few thousand nodes ran as
+ * fast as ever.
+ */
+const CACHE_RESIDENT_BYTES = 256 * 1024;
+
+/**
+ * Working sets at or over this many bytes are charged the whole memory factor. A shared
+ * last-level cache is 32 MB or more, but loaded memory is loaded cache too: on the loaded runner,
+ * Louvain on 50,000 nodes and 250,000 edges (about 2.4 MB) already ran 3x slower.
+ */
+const CACHE_MISSING_BYTES = 4 * 1024 * 1024;
+
+/**
+ * How much longer than its rates say a run over this graph takes on this machine's memory.
+ *
+ * 1 unless memory reads as loaded. Then the factor is `LOADED_MEMORY_SPEED / memorySpeed`, applied
+ * to the share of the work that misses the cache. That share is read from the working set, one
+ * 8-byte value per node and per edge, from none at {@link CACHE_RESIDENT_BYTES} to all of it at
+ * {@link CACHE_MISSING_BYTES}, by the logarithm of the size. How local a graph's edges are (a
+ * path's neighbours sit side by side in memory, a random graph's do not) decides how much of that
+ * work misses too, but the statistics do not say, so every shape is charged as a random one: the
+ * cautious side.
+ * @param nodes - Nodes in scope.
+ * @param edges - Edges in scope.
+ * @param calibration - This machine's calibration, when it has one.
+ * @returns The factor, 1 or more.
+ */
+function memoryStretch(nodes: number, edges: number, calibration: MachineCalibration | undefined): number {
+    const speed = calibration?.memorySpeed;
+    if (speed === undefined || !Number.isFinite(speed) || speed <= 0 || speed >= LOADED_MEMORY_SPEED) {
+        return 1;
+    }
+
+    const bytes = BYTES_PER_VALUE * (nodes + edges);
+    const missing = Math.log2(bytes / CACHE_RESIDENT_BYTES) / Math.log2(CACHE_MISSING_BYTES / CACHE_RESIDENT_BYTES);
+
+    return 1 + Math.min(1, Math.max(0, missing)) * (LOADED_MEMORY_SPEED / speed - 1);
+}
 
 // ---------------------------------------------------------------------------------------------
 // What is being estimated
@@ -467,8 +532,17 @@ function workUnits(costClass: CostClass, nodes: number, edges: number, iteration
 interface OwnCostModel {
     /** The work term as a person reads it in a basis line, given the iteration bound. */
     readonly term: (iterations: number) => string;
-    /** Seconds over the whole graph, given its sizes, the rates in force and the iteration bound. */
-    readonly seconds: (nodes: number, edges: number, rates: Readonly<CostRates>, iterations: number) => number;
+    /**
+     * Seconds over the whole graph, given its sizes, the rates in force, the iteration bound and the
+     * graph's statistics, for a model whose work depends on the graph's shape and not its size alone.
+     */
+    readonly seconds: (
+        nodes: number,
+        edges: number,
+        rates: Readonly<CostRates>,
+        iterations: number,
+        statistics: GraphStatistics,
+    ) => number;
 }
 
 /**
@@ -485,16 +559,21 @@ interface OwnCostModel {
  * code 5x to 300x faster than the Map-based code the 2026-09-23 rates were fitted on.
  */
 const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
-    /* One pass over the snapshot's edge list counting each end, then one result object per node.
-       Measured on 2026-09-29 on random m = 5n graphs of 25,000 to 400,000 nodes: 3.6 to 4.1 ns per
-       element of n + m up to 100,000 nodes, then about 10 ns from 200,000 up, once the result
-       objects outgrow V8's young generation and every scavenge copies them. Pinned at 11 ns,
-       1 / (90 * the linear rate): about 3x over the small graphs and 1.1x over the large ones. The
-       linear rate was fitted to the object-graph route this used to take, and read about 280x over
-       the snapshot. */
+    /* One pass over the snapshot's edge list counting each end, then each node's id looked up and
+       its counts written into three Float64Array columns. Until 2026-10-04 it built two objects
+       per node instead, and their cost depended on the garbage collector's state, not on the graph:
+       5.5 to 7 ns per element of n + m when V8 pretenured them, 12.4 to 23 ns when it kept
+       scavenging them (which the directed snapshot's cached reverse view, or any other recent
+       allocation, could tip it into), so no rate fitted both and CI failed in both directions.
+       Measured on the columns on 2026-10-04, random m = 5n at 400,000 and 800,000 nodes, with and
+       without the reverse view cached, fresh and warm processes, between allocation-heavy
+       calibration probes: 4.6 to 8.1 ns, one mode. Pinned at 10 ns, 1 / (100 * the linear rate):
+       1.33x over the slowest run measured, and under 3x over CI's fastest reading of the object
+       path (3.8 ns), which the columns have no reason to beat. The linear rate was fitted to the
+       object-graph route this used to take, and read about 280x over the snapshot. */
     degree: {
         term: () => "n + m",
-        seconds: (nodes, edges, rates) => (nodes + edges) / (90 * rates.linearElementsPerSecond),
+        seconds: (nodes, edges, rates) => (nodes + edges) / (100 * rates.linearElementsPerSecond),
     },
     /* Power iteration over the snapshot, charged the whole bound: how many passes it takes nothing
        the estimate sees predicts (1 or 2 on a star, 11 on random m = 50n, 41 to 46 on random
@@ -530,19 +609,41 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
         seconds: (nodes, edges, rates) => (nodes * (nodes + edges)) / (24 * rates.heavyPairsPerSecond),
     },
     /* Multilevel Louvain over the snapshot: local-moving sweeps over the edges, then a fold, until
-       nothing moves. It takes 5 to 150 sweeps summed over its levels, stopping on its tolerance long
-       before `maxIterations`, so the bound is not charged. Refitted on 2026-09-29, when the element
-       moved it off the Map-based object graph and onto the dispatcher's CPU port: measured 7.8 to
-       19.4 ns per element of n + m per unit of log2(n + m) on random (m = 1.2n to 20n), scale-free
-       and planted-partition graphs of 10,000 to 100,000 nodes, the most on random m = 5n at 50,000
-       nodes and the least on planted partitions. Pinned at 22 ns, 1 / (15 * the iterative rate):
-       1.1x to 3.2x over those graphs, and far more over the
-       grid, path, star and clique-ring shapes, where it settles in a handful of sweeps. The model
-       fitted to the object graph charged 148 ns and read 10x to 21x over the snapshot. */
+       nothing moves. It stops on its tolerance long before `maxIterations`, so the bound is not
+       charged. Refitted on 2026-09-29, when the element moved it off the Map-based object graph and
+       onto the dispatcher's CPU port, and given a structure term on 2026-10-03.
+       Where the time goes, counted with an instrumented copy of the port: an arc scan costs a
+       steady 7.5 to 9 ns, so the cost is the NUMBER of scans, and that is set by the graph's
+       community structure rather than its size. On a graph with none, the first two levels only
+       pair nodes up, halving the node count while keeping almost every arc, and the third level --
+       about n / 5 super-nodes with about 40 neighbours each -- runs 10 to 22 scans of each original
+       edge. On a graph with communities the first level gathers whole communities and the levels
+       after it are small. One rate per element of n + m per unit of log2(n + m) cannot cover both:
+       measured on 2026-10-03 it ran from 7.2 ns on planted partitions to 20.6 on random m = 5n and
+       24.5 on scale-free at 200,000 nodes, a 3.4x spread against the 4.2x the accuracy test allows
+       before CI runners' 10% scatter, and a flat 26.7 ns read 4.07 on a planted partition on CI.
+       What tells the two apart is the transitivity in the statistics: the share of two-edge paths
+       closed into triangles, which a community has and a graph without structure does not. The
+       charge is divided by 1 + min(10 T, 1), so it halves at T = 0.1 and no further. Measured at
+       10,000 to 200,000 nodes (ns per element-log, then the transitivity):
+       - no triangles: random m = 1.2n 10.6 to 11.9, m = 5n 14.0 to 20.6, m = 20n 10.7 to 12.2
+         (T 0.003 or less), scale-free 15.3 to 24.5 (T 0.002 or less);
+       - blocks of 50 with k_in / k_out edges per node inside and out: 4 / 1 7.2 to 8.8 (T 0.09),
+         3 / 2 13.1 (T 0.04), 2.5 / 2.5 15.2 (T 0.021), 2 / 3 15.8 (T 0.011), 1 / 4 20.8 (T 0.002);
+         blocks of 10 9.2 (T 0.26), of 500 10.2 (T 0.011);
+       - Watts-Strogatz rings 2.4 to 9.6 (T 0.07 to 0.47), a random geometric graph 6.9 (T 0.59),
+         a ring of 10-cliques 2.6 (T 0.95).
+       The discount stops at 2 because more triangles stop predicting a cheaper run: blocks of 10
+       (T 0.26) cost more than blocks of 50 (T 0.09). Pinned at 30.3 ns, 1 / (11 * the iterative
+       rate), over that divisor: 1.24x to 2.9x over every graph above with T under 0.6, 1.24x over
+       the slowest (scale-free at 200,000 nodes) and 1.5x over the slowest held to both bounds
+       (random m = 5n at 70,000). Far more over grid, path, star and clique-ring shapes, which settle
+       in a handful of sweeps. Statistics with no transitivity are charged as a graph with none. */
     louvain: {
-        term: () => "(n + m) log2(n + m)",
-        seconds: (nodes, edges, rates) =>
-            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) / (15 * rates.iterativeElementsPerSecond),
+        term: () => "(n + m) log2(n + m) / (1 + min(10 T, 1)), T the transitivity",
+        seconds: (nodes, edges, rates, _iterations, statistics) =>
+            ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) /
+            (11 * rates.iterativeElementsPerSecond * (1 + Math.min(10 * (statistics.transitivity ?? 0), 1))),
     },
     /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
        (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the
@@ -801,13 +902,10 @@ export function estimateCost(input: CostInput): CostEstimate {
         modelFromRates(
             descriptor,
             costClass,
-            nodes,
-            edges,
-            units,
-            iterations,
-            sampleFactor,
+            { nodes, edges, units, iterations, sampleFactor },
             calibration,
             ownUnits !== undefined,
+            statistics,
         );
     const confidence = iterationsAreGuessed && modelled.confidence !== "modelled" ? "modelled" : modelled.confidence;
     const derivation = input.derivationSeconds ?? 0;
@@ -826,7 +924,7 @@ export function estimateCost(input: CostInput): CostEstimate {
         notes.push(`sampled at ${group(sample)} of ${group(nodes)} nodes`);
     }
 
-    if (scope !== undefined && scope.exact === false) {
+    if (scope?.exact === false) {
         notes.push("sizes scaled from the whole graph rather than counted");
     }
 
@@ -860,27 +958,33 @@ export function estimateCost(input: CostInput): CostEstimate {
  * one is calibrated.
  * @param descriptor - The algorithm's descriptor.
  * @param costClass - The class it declares.
- * @param nodes - Nodes in scope.
- * @param edges - Edges in scope.
- * @param units - The work term already computed.
- * @param iterations - The iteration bound the run would use.
- * @param sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
+ * @param work - The size of the run.
+ * @param work.nodes - Nodes in scope.
+ * @param work.edges - Edges in scope.
+ * @param work.units - The work term already computed.
+ * @param work.iterations - The iteration bound the run would use.
+ * @param work.sampleFactor - The share of the graph a sampled run would cover, or 1 for an exact run.
  * @param calibration - This machine's calibration, when it has one.
  * @param ownUnits - Whether `units` came from the plugin's `static costUnits`, which supersedes a
  *   seconds model.
+ * @param statistics - The graph's shape, for an own model that reads more than its size.
  * @returns The seconds and how much they are worth.
  */
 function modelFromRates(
     descriptor: AlgorithmDescriptor,
     costClass: CostClass,
-    nodes: number,
-    edges: number,
-    units: number,
-    iterations: number,
-    sampleFactor: number,
+    work: {
+        readonly nodes: number;
+        readonly edges: number;
+        readonly units: number;
+        readonly iterations: number;
+        readonly sampleFactor: number;
+    },
     calibration: MachineCalibration | undefined,
     ownUnits: boolean,
+    statistics: GraphStatistics,
 ): ModelledSeconds {
+    const { nodes, edges, units, iterations, sampleFactor } = work;
     /* THE REGISTRATION IS ASKED FIRST, AND IT IS THE ONLY PLACE A PLUGIN CAN PUT ONE. A cost
        model is a function, and a function stops a descriptor surviving `JSON.stringify` and a
        `postMessage` -- so the model lives beside the class reference in the registry, read from
@@ -902,7 +1006,7 @@ function modelFromRates(
         }
     }
 
-    const probed = calibration !== undefined && calibration.basis === "probe";
+    const probed = calibration?.basis === "probe";
     const rates = calibration?.rates ?? DEFAULT_COST_RATES;
     const rate = rateFor(costClass, rates);
 
@@ -914,15 +1018,25 @@ function modelFromRates(
         };
     }
 
+    // The own models are the walks over a snapshot's arcs with a read of a node-indexed array at
+    // each -- the work that slows when memory does. The class rates were fitted to the object-graph
+    // route and run 50x to 600x over the snapshot, and a plugin's units say nothing about how its
+    // work touches memory, so neither is stretched.
     const own = OWN_COST_MODELS[descriptor.key];
+    const stretch = own === undefined || ownUnits ? 1 : memoryStretch(nodes, edges, calibration);
     const seconds =
-        own === undefined || ownUnits ? units / rate : own.seconds(nodes, edges, rates, iterations) * sampleFactor;
+        own === undefined || ownUnits
+            ? units / rate
+            : own.seconds(nodes, edges, rates, iterations, statistics) * sampleFactor * stretch;
 
     if (probed) {
         return {
             seconds,
             confidence: "calibrated",
-            provenance: `calibrated ${calibration.at} on this device`,
+            provenance:
+                stretch > 1
+                    ? `calibrated ${calibration.at} on this device, whose memory reads ${calibration.memorySpeed?.toFixed(2) ?? ""}x the reference, so the work is charged ${stretch.toFixed(2)}x`
+                    : `calibrated ${calibration.at} on this device`,
         };
     }
 
@@ -1012,7 +1126,15 @@ export type CostGateDecision =
           readonly sampleSize: number;
           /** Whether the method takes a seed, so `caveats.seed` can be filled or left null. */
           readonly seeded: boolean;
-          /** Sentences for `caveats.notes`, stating plainly what the numbers are. */
+          /**
+           * Facts for `caveats.facts`, stating plainly what the numbers are.
+           * @since 3.18.0
+           */
+          readonly facts: readonly CodedFact<CaveatCode>[];
+          /**
+           * The same facts as English sentences, for `caveats.notes`.
+           * @deprecated Word `facts` yourself. Removed in the next major.
+           */
           readonly notes: readonly string[];
       }
     | {
@@ -1148,7 +1270,7 @@ function fittingScopes(
         if (estimate.available && estimate.seconds <= cap) {
             fitting.push(
                 Object.freeze({
-                    scope: "largest-component" as Scope,
+                    scope: "largest-component",
                     label: "The largest connected piece",
                     nodes: largestSize,
                     edges,
@@ -1352,20 +1474,21 @@ function approximateDecision(
 ): CostGateDecision {
     const estimate = estimateCost({ ...input, sample: sampleSize });
     const nodes = input.scope?.nodes ?? input.statistics.nodeCount;
-    const notes = [
-        `Sampled rather than exact: ${approximable.plainName} over ${group(sampleSize)} of ${group(nodes)} nodes.`,
+    const facts = [
+        caveat("sampled.instead-of-exact", {
+            method: approximable.method,
+            name: approximable.plainName,
+            sampleSize,
+            nodes,
+        }),
     ];
 
     if (exactEstimate.seconds > cap) {
-        notes.push(
-            `An exact run was estimated at ${exactEstimate.seconds.toPrecision(3)} s, past the ${cap} s cap, so the approximate method was used instead.`,
-        );
+        facts.push(caveat("sampled.exact-past-cap", { seconds: exactEstimate.seconds, cap }));
     }
 
     if (estimate.seconds > cap) {
-        notes.push(
-            `The sampled run is itself estimated at ${estimate.seconds.toPrecision(3)} s, which is still past the cap.`,
-        );
+        facts.push(caveat("sampled.still-past-cap", { seconds: estimate.seconds, cap }));
     }
 
     return {
@@ -1376,7 +1499,7 @@ function approximateDecision(
         plainName: approximable.plainName,
         sampleSize,
         seeded: approximable.seeded,
-        notes: Object.freeze(notes),
+        ...noted(facts),
     };
 }
 

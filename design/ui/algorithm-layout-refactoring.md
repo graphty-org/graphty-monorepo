@@ -28,6 +28,7 @@ src/
 ```
 
 **Issues:**
+
 1. Schemas duplicated from graphty-element (maintenance burden)
 2. No metadata (labels, descriptions) - generated from camelCase field names
 3. Manual `HIDDEN_FIELDS` map instead of schema-based `advanced` flag
@@ -46,6 +47,7 @@ src/
 ```
 
 **Issues:**
+
 1. `ALGORITHM_CATALOG` is manually maintained, duplicates graphty-element info
 2. Only supports source/target node selection, not algorithm-specific options
 3. No dynamic form generation from schemas
@@ -68,6 +70,7 @@ import { getOptionsMeta, getOptionsFiltered, getOptionsGrouped, parseOptions } f
 ```
 
 Each schema includes rich metadata:
+
 ```typescript
 defineOptions({
     dampingFactor: {
@@ -139,15 +142,16 @@ export function OptionsForm({
 
 **Rendering Logic:**
 
-| Schema Type | Mantine Control | Notes |
-|-------------|-----------------|-------|
-| `z.number()` | `NumberInput` | Uses `min`, `max`, `step` from metadata |
-| `z.boolean()` | `Checkbox` | Simple toggle |
-| `z.enum()` | `Select` | Options from enum values |
-| `z.string()` | `TextInput` | For simple string options |
-| Complex types | Hidden | Arrays, records, objects skipped |
+| Schema Type   | Mantine Control | Notes                                   |
+| ------------- | --------------- | --------------------------------------- |
+| `z.number()`  | `NumberInput`   | Uses `min`, `max`, `step` from metadata |
+| `z.boolean()` | `Checkbox`      | Simple toggle                           |
+| `z.enum()`    | `Select`        | Options from enum values                |
+| `z.string()`  | `TextInput`     | For simple string options               |
+| Complex types | Hidden          | Arrays, records, objects skipped        |
 
 **Features:**
+
 - Uses explicit `label` and `description` from metadata
 - Respects `advanced` flag for show/hide
 - Uses `step` for number input increments
@@ -167,6 +171,7 @@ const layoutsByCategory = groupLayoutsByCategory(layoutInfos);
 ```
 
 **Changes from current:**
+
 1. Remove import of `layoutSchemas.ts` and `layoutMetadata.ts`
 2. Use `getAllLayoutInfo()` for layout catalog
 3. Use `zodOptionsSchema` from each layout for form generation
@@ -194,6 +199,7 @@ const ALGORITHM_CATEGORIES = {
 ```
 
 **Changes from current:**
+
 1. Remove static `ALGORITHM_CATALOG` (or derive from `getAllAlgorithmInfo()`)
 2. Add `OptionsForm` for algorithm-specific options
 3. Keep source/target node selection for algorithms that need it
@@ -204,80 +210,80 @@ const ALGORITHM_CATEGORIES = {
 ### Phase 1: Merge & Setup
 
 1. **Merge master branch into algorithms worktree**
-   - Brings in layout modal implementation
-   - Resolves any conflicts
+    - Brings in layout modal implementation
+    - Resolves any conflicts
 
 2. **Verify graphty-element exports**
-   - Confirm `getAllLayoutInfo()`, `getAllAlgorithmInfo()` work
-   - Confirm `getOptionsMeta()`, `getOptionsFiltered()` work
-   - Update `src/types/graphty-element.ts` if needed
+    - Confirm `getAllLayoutInfo()`, `getAllAlgorithmInfo()` work
+    - Confirm `getOptionsMeta()`, `getOptionsFiltered()` work
+    - Update `src/types/graphty-element.ts` if needed
 
 ### Phase 2: Create Shared OptionsForm
 
 1. **Create `src/components/options/OptionsForm.tsx`**
-   - Generic form component using graphty-element utilities
-   - Renders NumberInput, Checkbox, Select based on schema type
-   - Supports `showAdvanced` toggle
-   - Uses metadata for labels, descriptions, step values
+    - Generic form component using graphty-element utilities
+    - Renders NumberInput, Checkbox, Select based on schema type
+    - Supports `showAdvanced` toggle
+    - Uses metadata for labels, descriptions, step values
 
 2. **Create `src/components/options/OptionsForm.test.tsx`**
-   - Test rendering for each field type
-   - Test value changes and callbacks
-   - Test advanced options toggle
-   - Test with real schemas from graphty-element
+    - Test rendering for each field type
+    - Test value changes and callbacks
+    - Test advanced options toggle
+    - Test with real schemas from graphty-element
 
 ### Phase 3: Refactor RunLayoutsModal
 
 1. **Update imports**
-   - Import `getAllLayoutInfo` from graphty-element
-   - Import shared `OptionsForm`
-   - Remove imports from `layoutSchemas.ts`, `layoutMetadata.ts`
+    - Import `getAllLayoutInfo` from graphty-element
+    - Import shared `OptionsForm`
+    - Remove imports from `layoutSchemas.ts`, `layoutMetadata.ts`
 
 2. **Replace layout catalog**
-   - Use `getAllLayoutInfo()` instead of static metadata
-   - Derive categories from layout types or add category to `LayoutInfo`
+    - Use `getAllLayoutInfo()` instead of static metadata
+    - Derive categories from layout types or add category to `LayoutInfo`
 
 3. **Replace form component**
-   - Use `OptionsForm` with `zodOptionsSchema`
-   - Remove `hiddenFields` prop (use `showAdvanced` instead)
+    - Use `OptionsForm` with `zodOptionsSchema`
+    - Remove `hiddenFields` prop (use `showAdvanced` instead)
 
 4. **Update tests**
-   - Adjust mocks for new data flow
-   - Test with graphty-element schemas
+    - Adjust mocks for new data flow
+    - Test with graphty-element schemas
 
 ### Phase 4: Refactor RunAlgorithmModal
 
 1. **Add options form section**
-   - Add `OptionsForm` below algorithm selection
-   - Show/hide based on `hasOptions`
-   - Manage options state
+    - Add `OptionsForm` below algorithm selection
+    - Show/hide based on `hasOptions`
+    - Manage options state
 
 2. **Update algorithm catalog**
-   - Consider deriving from `getAllAlgorithmInfo()` or keep manual for categories
-   - Add descriptions from graphty-element if available
+    - Consider deriving from `getAllAlgorithmInfo()` or keep manual for categories
+    - Add descriptions from graphty-element if available
 
 3. **Update runAlgorithm call**
-   - Merge form options with source/target options
-   - Pass all via `algorithmOptions`
+    - Merge form options with source/target options
+    - Pass all via `algorithmOptions`
 
 4. **Update tests**
-   - Test options form rendering
-   - Test option values passed to runAlgorithm
+    - Test options form rendering
+    - Test option values passed to runAlgorithm
 
 ### Phase 5: Cleanup
 
 1. **Delete obsolete files**
-   - `src/data/layoutMetadata.ts`
-   - `src/data/layoutSchemas.ts`
-   - `src/utils/zodSchemaParser.ts`
-   - `src/components/layout-options/LayoutOptionsForm.tsx`
+    - `src/data/layoutMetadata.ts`
+    - `src/data/layoutSchemas.ts`
+    - `src/utils/zodSchemaParser.ts`
+    - `src/components/layout-options/LayoutOptionsForm.tsx`
 
 2. **Update any remaining imports**
 
 3. **Run full test suite**
-   - `npm run test:ci`
-   - `npm run lint`
-   - `npm run build`
+    - `npm run test:ci`
+    - `npm run lint`
+    - `npm run build`
 
 ## Type Updates for graphty-element.d.ts
 
@@ -341,22 +347,41 @@ None expected - this is an internal refactoring.
 During Phase 3, we discovered that several utilities needed from graphty-element are not exported from the main package:
 
 1. **Not exported from main package:**
-   - `getAllLayoutInfo()` - exists in layout/index but not re-exported
-   - `getAllAlgorithmInfo()` - exists in algorithms/index but not re-exported
-   - `getDefaults()`, `getOptionsMeta()`, `getOptionsFiltered()` - exist in config/OptionsSchema but not re-exported
+    - `getAllLayoutInfo()` - exists in layout/index but not re-exported
+    - `getAllAlgorithmInfo()` - exists in algorithms/index but not re-exported
+    - `getDefaults()`, `getOptionsMeta()`, `getOptionsFiltered()` - exist in config/OptionsSchema but not re-exported
 
 2. **Workarounds implemented:**
-   - Created local implementations of `getDefaults()`, `getOptionsMeta()`, `getOptionsFiltered()` in OptionsForm.tsx
-   - For algorithms: Use `Algorithm.getZodOptionsSchema()` which IS exported and works
-   - For layouts: Keep existing `LayoutOptionsForm` until graphty-element exports are added
+    - Created local implementations of `getDefaults()`, `getOptionsMeta()`, `getOptionsFiltered()` in OptionsForm.tsx
+    - For algorithms: Use `Algorithm.getZodOptionsSchema()` which IS exported and works
+    - For layouts: Keep existing `LayoutOptionsForm` until graphty-element exports are added
 
 ### graphty-element Changes Needed
 
 Add to main package exports:
+
 ```typescript
 // From config/OptionsSchema
-export type { ConfigurableInfo, InferOptions, OptionDefinition, OptionMeta, OptionsSchema, PartialOptions, SafeParseResult } from "./src/config/OptionsSchema";
-export { defineOptions, getDefaults, getOptionsFiltered, getOptionsGrouped, getOptionsMeta, hasOptions, parseOptions, safeParseOptions, toZodSchema } from "./src/config/OptionsSchema";
+export type {
+    ConfigurableInfo,
+    InferOptions,
+    OptionDefinition,
+    OptionMeta,
+    OptionsSchema,
+    PartialOptions,
+    SafeParseResult,
+} from "./src/config/OptionsSchema";
+export {
+    defineOptions,
+    getDefaults,
+    getOptionsFiltered,
+    getOptionsGrouped,
+    getOptionsMeta,
+    hasOptions,
+    parseOptions,
+    safeParseOptions,
+    toZodSchema,
+} from "./src/config/OptionsSchema";
 
 // From layout/index
 export { getAllLayoutInfo, getAllLayoutSchemas } from "./src/layout/index";

@@ -10,11 +10,12 @@
  */
 
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { EdgeId } from "../catalog/types";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config";
 import type { ResultElementValues } from "../session/results";
+import { caveat } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import { scopeEdges, type ScopeInputDeclaration } from "./input/ScopedInput";
 import {
@@ -141,7 +142,7 @@ export class PrimAlgorithm extends DeclaredAlgorithm<PrimOptions> {
                 direction: "undirected",
                 weight: { attribute: "weight", meaning: "distance" },
                 precision,
-                notes: [`The tree joins the graph with ${String(tree.edges.length)} edges.`],
+                facts: [caveat("tree.edge-count", { edges: tree.edges.length })],
             }),
         };
     }

@@ -33,7 +33,6 @@ import {
     makeMask,
     maskTest,
     type NodeMask,
-    type TypedArrayData,
     type U32,
 } from "@graphty/graph-format";
 
@@ -384,7 +383,7 @@ function completeNumericColumns(table: GraphSnapshot["edges"]): Record<string, C
             "data" in column
         ) {
             out[column.meta.name] = {
-                data: column.data as TypedArrayData,
+                data: column.data,
                 decl: { dtype: column.dtype, components: column.meta.components, role: column.meta.role ?? undefined },
             };
         }

@@ -155,9 +155,7 @@ describe("browser-entry auto-init", () => {
         result = initRemoteLogger();
 
         expect(result).toBeUndefined();
-        expect(warnSpy).toHaveBeenCalledWith(
-            expect.stringContaining("Could not detect server URL"),
-        );
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Could not detect server URL"));
 
         warnSpy.mockRestore();
         Object.defineProperty(window.location, "origin", { value: origOrigin, configurable: true });

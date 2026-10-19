@@ -13,7 +13,7 @@
 import { LAYOUT_TUNING_DEFAULTS } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { isWebGpuGraphError } from "../../src/errors.js";
-import { gridPyramidBytes, gridSpecFor, prepareGridBuild } from "../../src/primitives/grid.js";
+import { ceilRoot, gridPyramidBytes, gridSpecFor, prepareGridBuild } from "../../src/primitives/grid.js";
 import { bindingOf, uploadBuffer } from "../helpers/device.js";
 import {
     GRID_FIXTURES,
@@ -43,7 +43,15 @@ const DEFAULT_TUNING = {
 describe("gridSpecFor (spec 7.7 geometry table; P4-T8 PD-9)", () => {
     it("n = 4 in 2D: G 8, levels 2, cells 64 plus 4 orthant pseudo-cells, levelOffsets [0, 68], pyramidCells 84", () => {
         const spec = gridSpecFor(4, 2, DEFAULT_TUNING);
-        expect(spec).toMatchObject({ g: 8, levels: 2, cells: 64, outsideCells: 4, histWords: 69, pyramidCells: 84, dim: 2 });
+        expect(spec).toMatchObject({
+            g: 8,
+            levels: 2,
+            cells: 64,
+            outsideCells: 4,
+            histWords: 69,
+            pyramidCells: 84,
+            dim: 2,
+        });
         expect(Array.from(spec.levelOffsets)).toEqual([0, 68]);
         expect(gridPyramidBytes(spec)).toBe(16 * 84);
     });
@@ -72,6 +80,57 @@ describe("gridSpecFor (spec 7.7 geometry table; P4-T8 PD-9)", () => {
         expect(gridSpecFor(1000, 2, DEFAULT_TUNING).g).toBe(64);
         expect(gridSpecFor(1001, 2, DEFAULT_TUNING).g).toBe(64);
         expect(gridSpecFor(1025, 2, DEFAULT_TUNING).g).toBe(128);
+    });
+
+    it("sizes the side in integer arithmetic: every perfect cube and square, and one above and below", () => {
+        const wrong: string[] = [];
+        for (let s = 1; s <= 200_000; s++) {
+            for (const dim of [2, 3] as const) {
+                const power = dim === 3 ? s * s * s : s * s;
+                for (const [n, side] of [
+                    [power - 1, s === 1 ? 0 : s],
+                    [power, s],
+                    [power + 1, s + 1],
+                ]) {
+                    if (ceilRoot(n, dim) !== side) {
+                        wrong.push(`ceilRoot(${String(n)}, ${String(dim)}) = ${String(ceilRoot(n, dim))}`);
+                    }
+                }
+            }
+        }
+        expect(wrong).toEqual([]);
+        expect(ceilRoot(0, 3)).toBe(0);
+        expect(ceilRoot(0, 2)).toBe(0);
+    });
+
+    it("gives the grid the engine's cbrt gave, without calling Math.cbrt", () => {
+        /** The side the grid had before, from the engine's cbrt and sqrt. */
+        const engineG = (n: number, dim: 2 | 3): number => {
+            const side = Math.ceil(dim === 3 ? Math.cbrt(n) : Math.sqrt(n));
+            let p = 8;
+            while (p < 2 * side) {
+                p *= 2;
+            }
+            return Math.min(dim === 3 ? 128 : 512, p);
+        };
+        const wrong: number[] = [];
+        for (let n = 0; n <= 300_000; n++) {
+            for (const dim of [2, 3] as const) {
+                if (gridSpecFor(n, dim, DEFAULT_TUNING).g !== engineG(n, dim)) {
+                    wrong.push(n);
+                }
+            }
+        }
+        expect(wrong).toEqual([]);
+        const cbrt = vi.spyOn(Math, "cbrt").mockImplementation(() => {
+            throw new Error("Math.cbrt called");
+        });
+        try {
+            expect(gridSpecFor(27, 3, DEFAULT_TUNING).g).toBe(8);
+            expect(gridSpecFor(1_000_000, 3, DEFAULT_TUNING).g).toBe(128);
+        } finally {
+            cbrt.mockRestore();
+        }
     });
 });
 
@@ -267,9 +326,27 @@ describe("gridBuild (spec 7.7 G1-G3; P4-T8): equals the oracle bitwise, twice bi
             writeNoiseFixture("grid-cell-key", "random20k", cls, sampleStrided(run.cellKey, KEY_STRIDE), "u32");
             writeNoiseFixture("histogram", "random20k-cellHist", cls, sampleStrided(run.cellHist, CELL_STRIDE), "u32");
             writeNoiseFixture("scan-add", "random20k-cellStart", cls, sampleStrided(run.cellStart, CELL_STRIDE), "u32");
-            writeNoiseFixture("grid-cell-key", "random20k", "oracle-f64", sampleStrided(want.cellKey, KEY_STRIDE), "u32");
-            writeNoiseFixture("histogram", "random20k-cellHist", "oracle-f64", sampleStrided(want.cellHist, CELL_STRIDE), "u32");
-            writeNoiseFixture("scan-add", "random20k-cellStart", "oracle-f64", sampleStrided(want.cellStart, CELL_STRIDE), "u32");
+            writeNoiseFixture(
+                "grid-cell-key",
+                "random20k",
+                "oracle-f64",
+                sampleStrided(want.cellKey, KEY_STRIDE),
+                "u32",
+            );
+            writeNoiseFixture(
+                "histogram",
+                "random20k-cellHist",
+                "oracle-f64",
+                sampleStrided(want.cellHist, CELL_STRIDE),
+                "u32",
+            );
+            writeNoiseFixture(
+                "scan-add",
+                "random20k-cellStart",
+                "oracle-f64",
+                sampleStrided(want.cellStart, CELL_STRIDE),
+                "u32",
+            );
         } finally {
             ctx.dispose();
         }

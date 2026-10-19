@@ -296,10 +296,7 @@ export interface GroupingDefinition<O extends OptionsShorthand> extends Algorith
 }
 
 export type AlgorithmDefinition<O extends OptionsShorthand> =
-    | NodeScoreDefinition<O>
-    | EdgeScoreDefinition<O>
-    | WholeGraphScoreDefinition<O>
-    | GroupingDefinition<O>;
+    NodeScoreDefinition<O> | EdgeScoreDefinition<O> | WholeGraphScoreDefinition<O> | GroupingDefinition<O>;
 
 /** Build a DeclaredAlgorithm subclass from the definition and register it. Synchronous. */
 export declare function defineAlgorithm<const O extends OptionsShorthand = {}>(

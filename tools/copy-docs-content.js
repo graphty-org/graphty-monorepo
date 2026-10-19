@@ -34,6 +34,24 @@ const contentMap = [
         dest: "layout",
         exclude: [".vitepress", "decisions"],
     },
+    // The landing page (index.md), the guide and recipes under guide/, and the reference pages under reference/,
+    // whose tables cytoscape-extensions/scripts/reference.ts generates.
+    {
+        src: "cytoscape-extensions/docs",
+        dest: "cytoscape-extensions",
+        exclude: [".vitepress", "decisions"],
+    },
+    {
+        src: "graph-io/docs",
+        dest: "graph-io",
+        exclude: [".vitepress", "decisions", "/docs/samples"],
+    },
+    // The sample files the graph-io guide loads by URL, served as they are at /docs/graph-io/samples/.
+    {
+        src: "graph-io/docs/samples",
+        dest: "public/graph-io/samples",
+        exclude: [],
+    },
     // One page, index.md, which includes visual-review/README.md when the site is built.
     {
         src: "visual-review/docs",
@@ -64,8 +82,8 @@ for (const { src, dest, exclude } of contentMap) {
 
     // Clean destination (but preserve api/generated which is created by typedoc)
     if (existsSync(destPath)) {
-        // Remove everything except api/generated
-        const items = ["guide", "index.md", "api/index.md"];
+        // Remove everything except api/generated (examples too, so a renamed example leaves no stale copy)
+        const items = ["guide", "reference", "examples", "index.md", "api/index.md"];
         for (const item of items) {
             const itemPath = join(destPath, item);
             if (existsSync(itemPath)) {

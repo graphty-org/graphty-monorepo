@@ -1,0 +1,8 @@
+[INFO]  Bootstrapper: Retrieving info from "package.json" file
+[INFO]  Bootstrapper: Platform: linux x64
+[INFO]  Bootstrapper: Server URL: http://sonarqube.example.lan:9000
+[INFO]  Bootstrapper: Using SonarScanner for NPM (@sonar/scan)
+[INFO]  Bootstrapper: Version: 5.0.1
+[ERROR] Bootstrapper: Failed to fetch server version: Error: getaddrinfo ENOTFOUND sonarqube.example.lan
+[ERROR] Bootstrapper: Verify that http://sonarqube.example.lan:9000 is a valid SonarQube server
+[ERROR] Bootstrapper: An error occurred: Error: getaddrinfo ENOTFOUND sonarqube.example.lan

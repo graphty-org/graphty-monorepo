@@ -59,7 +59,15 @@ export function erdosRenyiRows(options: ErdosRenyiOptions, start: number, end: n
  * @param end - one past the last row
  * @param out - receives the arcs
  */
-function directedRows(n: number, p: number, logQ: number, seed: number, start: number, end: number, out: EdgeBuffer): void {
+function directedRows(
+    n: number,
+    p: number,
+    logQ: number,
+    seed: number,
+    start: number,
+    end: number,
+    out: EdgeBuffer,
+): void {
     if (p === 0) {
         return;
     }

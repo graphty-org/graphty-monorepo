@@ -86,7 +86,7 @@ const lightness = (hex: string): number => oklab(linearRgb(hex))[0];
 function hueDegrees(hex: string): number {
     const [, a, b] = oklab(linearRgb(hex));
 
-    return (((Math.atan2(b, a) * 180) / Math.PI) % 360 + 360) % 360;
+    return ((((Math.atan2(b, a) * 180) / Math.PI) % 360) + 360) % 360;
 }
 
 function contrast(left: string, right: string): number {
@@ -208,25 +208,76 @@ describe("the default palette for groups", () => {
     });
 });
 
+/**
+ * A colour as a lit 3D node draws it, at one point of its surface.
+ *
+ * The node material (`NodeMesh.createMaterial` with `InstanceColorShading`) multiplies the node's
+ * colour by the light term inside the clamp: the scene's hemispheric light (`RenderManager`, sky
+ * 1.0, ground 0.35) plus an emissive floor of 0.2. A point on a sphere is lit somewhere between
+ * the ground and the sky, so the factor runs from 0.55 to 1.2; a rendered #808080 node read back
+ * in a browser has its median pixel at 0.875 of the colour, the sphere's middle tone.
+ * @param hex - The colour the node is given.
+ * @param factor - The light term at that point.
+ * @returns The colour drawn there.
+ */
+function shaded(hex: string, factor: number): string {
+    const digits = hex.replace(/^#/, "");
+
+    return `#${[0, 2, 4]
+        .map((at) =>
+            Math.min(255, Math.round(parseInt(digits.slice(at, at + 2), 16) * factor))
+                .toString(16)
+                .padStart(2, "0"),
+        )
+        .join("")}`;
+}
+
+/** The shadow side, the middle and the lit side of a node, as factors of its colour. */
+const NODE_TONES = { shadow: 0.55, middle: 0.875, lit: 1.2 } as const;
+
 describe("the grey an overflowing encoding paints its smallest groups", () => {
     const eight = ["a", "b", "c", "d", "e", "f", "g", "h"];
     const ramp = prepareRamp({ scale: "ordinal", domain: [0, 0], categories: eight }, registry);
     const slots = eight.map((category) => ramp.color(category)?.hex ?? "");
+    const tones = Object.entries(NODE_TONES);
 
-    it("stands off the background (>= 2:1)", () => {
-        assert.isAtLeast(contrast(OTHER_GROUP_COLOR, background), 2, `${OTHER_GROUP_COLOR} on ${background}`);
-    });
-
-    it("is apart from every colour of the default group palette (Delta E >= 15)", () => {
-        for (const color of slots) {
-            assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color), 15, `${OTHER_GROUP_COLOR} vs ${color}`);
+    // Every check compares two NODES at the same tone, because two groups side by side are lit
+    // alike; a flat swatch is the brightest of the three and hides how close two darks come.
+    it("stands off the background at every tone of a node (>= 3:1)", () => {
+        for (const [tone, factor] of tones) {
+            const grey = shaded(OTHER_GROUP_COLOR, factor);
+            assert.isAtLeast(contrast(grey, background), 3, `${tone} ${grey} on ${background}`);
         }
     });
 
-    it("is apart from them under protanopia and deuteranopia too (Delta E >= 6)", () => {
+    it("is clearly apart from the palette's black at every tone of a node (Delta E >= 33)", () => {
+        // The case that made the grey hard to read: a black group and the leftovers, side by
+        // side. A darker grey's shadow side sinks towards black (#505050 is 29.3 there).
+        for (const [tone, factor] of tones) {
+            const grey = shaded(OTHER_GROUP_COLOR, factor);
+            assert.isAtLeast(deltaE(grey, "#000000"), 33, `${tone}: ${grey} vs black`);
+        }
+    });
+
+    it("is apart from every colour of the default group palette, flat (Delta E >= 13) and on a node (>= 8)", () => {
+        // 15, the floor between two palette colours, is out of reach for any grey light enough
+        // to stand off black: blue #0072B2 sits 13.2 from every grey from #606060 to #808080.
+        for (const color of slots) {
+            assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color), 13, `flat: ${OTHER_GROUP_COLOR} vs ${color}`);
+            for (const [tone, factor] of tones) {
+                const [grey, group] = [shaded(OTHER_GROUP_COLOR, factor), shaded(color, factor)];
+                assert.isAtLeast(deltaE(grey, group), 8, `${tone}: ${grey} vs ${group}`);
+            }
+        }
+    });
+
+    it("is apart from them under protanopia and deuteranopia at every tone of a node (Delta E >= 6)", () => {
         for (const vision of ["protan", "deutan"] as const) {
             for (const color of slots) {
-                assert.isAtLeast(deltaE(OTHER_GROUP_COLOR, color, vision), 6, `${vision}: ${color}`);
+                for (const [tone, factor] of [["flat", 1], ...tones] as const) {
+                    const [grey, group] = [shaded(OTHER_GROUP_COLOR, factor), shaded(color, factor)];
+                    assert.isAtLeast(deltaE(grey, group, vision), 6, `${vision} ${tone}: ${grey} vs ${group}`);
+                }
             }
         }
     });
@@ -244,7 +295,11 @@ describe("the element's own highlight colour", () => {
     const underneath = { node: hexOf(nodeColor), edge: hexOf(edgeColor), background };
 
     it("stands off the background as a graphical object must (>= 3:1)", () => {
-        assert.isAtLeast(contrast(DEFAULT_HIGHLIGHT.color, background), 3, `${DEFAULT_HIGHLIGHT.color} on ${background}`);
+        assert.isAtLeast(
+            contrast(DEFAULT_HIGHLIGHT.color, background),
+            3,
+            `${DEFAULT_HIGHLIGHT.color} on ${background}`,
+        );
     });
 
     it("is apart from the default node, the default edge and the background for every kind of vision (Delta E >= 15)", () => {

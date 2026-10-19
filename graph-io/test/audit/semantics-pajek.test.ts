@@ -163,9 +163,7 @@ describe("Pajek corpus facts: simple.net (mixed *Arcs and *Edges, coordinates)",
         expect(position?.meta.extra).toMatchObject({ sourceDims: 3, units: "file" });
         for (let i = 0; i < 5; i++) {
             expect(snapshot.nodes.value("label", i)).toBe(net.vertices[i].label);
-            expect(Array.from(position?.value(i) as ArrayLike<number>)).toEqual(
-                net.vertices[i].coords.map(Math.fround),
-            );
+            expect(Array.from(position?.value(i) as ArrayLike<number>)).toEqual(net.vertices[i].coords);
         }
         expect(snapshot.nodes.get("label")?.meta.role).toBe("label");
     });

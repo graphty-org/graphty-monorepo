@@ -23,7 +23,8 @@ import { mintedEdgeId, pairsOrdered } from "../../../src/data/edgeIdentity";
 import { isGraphtyError } from "../../../src/errors";
 import { resolveSet, SetsCache } from "../../../src/session/sets/cache";
 import { resolvePath } from "../../../src/session/sets/path";
-import { digestOf, edgeMemberKey, type Resolution, resolveFixed } from "../../../src/session/sets/resolve";
+import { edgeMemberKey } from "../../../src/session/sets/prepare";
+import { digestOf, type Resolution, resolveFixed } from "../../../src/session/sets/resolve";
 import type { SetsStore } from "../../../src/session/sets/store";
 import type { SetsApi } from "../../../src/session/sets/types";
 import type { EdgeRecord, LoadOptions } from "./graphs";
@@ -302,12 +303,12 @@ function bind(model: Model, member: EdgeMember, seed: number | undefined): numbe
         return seed;
     }
 
+    const [source, target] = [held(model, member.source), held(model, member.target)];
     const hits: number[] = [];
     for (const [counter, edge] of model.edges) {
         const pair = model.ordered
-            ? edge.s === member.source && edge.t === member.target
-            : (edge.s === member.source && edge.t === member.target) ||
-              (edge.s === member.target && edge.t === member.source);
+            ? edge.s === source && edge.t === target
+            : (edge.s === source && edge.t === target) || (edge.s === target && edge.t === source);
         if (!pair) {
             continue;
         }
@@ -324,6 +325,25 @@ function bind(model: Model, member: EdgeMember, seed: number | undefined): numbe
     }
 
     return verdict(hits);
+}
+
+/**
+ * The node an id names: itself, or the other spelling of an integer id when only that is held
+ * (`"1"` names node `1`), as every element lookup reads an id.
+ * @param model - The model.
+ * @param id - The id as a set names it.
+ * @returns The id the model holds, or the id as named when it holds neither spelling.
+ */
+function held(model: Model, id: NodeId): NodeId {
+    if (model.nodes.has(id)) {
+        return id;
+    }
+
+    if (typeof id === "number") {
+        return model.nodes.has(String(id)) ? String(id) : id;
+    }
+
+    return /^-?\d+$/.test(id) && model.nodes.has(Number(id)) ? Number(id) : id;
 }
 
 /**
@@ -382,7 +402,8 @@ function expect(model: Model, real: Driver, set: ModelSet): Expected {
         nodes.add(edge.t);
     };
 
-    for (const id of set.nodes) {
+    for (const named of set.nodes) {
+        const id = held(model, named);
         if (model.nodes.has(id)) {
             nodes.add(id);
         } else if (set.kind === "fixed") {
@@ -425,7 +446,7 @@ function expect(model: Model, real: Driver, set: ModelSet): Expected {
     };
 
     for (let i = 0; i + 1 < set.nodes.length; i++) {
-        const [from, to] = [set.nodes[i], set.nodes[i + 1]];
+        const [from, to] = [held(model, set.nodes[i]), held(model, set.nodes[i + 1])];
         const step = set.steps?.[i] ?? null;
         const found: number[] = [];
         if (step === null) {
@@ -957,6 +978,65 @@ function sorted(values: Iterable<unknown>): string[] {
 }
 
 /**
+ * Whether two values are equal item by item: primitives by `===`, arrays and typed arrays of one
+ * constructor recursively. Equal here means chai's deep equality holds; unequal here leaves the
+ * decision to chai.
+ * @param actual - One value.
+ * @param expected - The other.
+ * @returns True when they are equal.
+ */
+function same(actual: unknown, expected: unknown): boolean {
+    if (actual === expected) {
+        return true;
+    }
+
+    if (
+        !(Array.isArray(actual) || ArrayBuffer.isView(actual)) ||
+        (actual as object).constructor !== (expected as object | null)?.constructor
+    ) {
+        return false;
+    }
+
+    const a = actual as ArrayLike<unknown>;
+    const b = expected as ArrayLike<unknown>;
+    if (a.length !== b.length) {
+        return false;
+    }
+
+    for (let i = 0; i < a.length; i++) {
+        if (!same(a[i], b[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * The checks {@link verify} makes after every command, about 27,000 sets' worth per 1,000
+ * sequences. Each compares first and calls chai only on a mismatch, for its verdict and its
+ * message: chai builds a proxied Assertion per call, and passing calls were a fifth of the
+ * property's time (1.35 s of 7.05 s profiled).
+ */
+const check = {
+    strictEqual<T>(actual: T, expected: T, message?: string): void {
+        if (actual !== expected) {
+            assert.strictEqual(actual, expected, message);
+        }
+    },
+    deepStrictEqual<T>(actual: T, expected: T, message?: string): void {
+        if (!same(actual, expected)) {
+            assert.deepStrictEqual(actual, expected, message);
+        }
+    },
+    isTrue(value: boolean, message?: string): void {
+        if (!value) {
+            assert.isTrue(value, message);
+        }
+    },
+};
+
+/**
  * Compare every kept set's resolution with the model's.
  * @param model - The model.
  * @param real - The real graph.
@@ -965,15 +1045,17 @@ function verify(model: Model, real: Driver): void {
     const snapshot = real.snapshot();
     if (snapshot.edgeCount > 0) {
         // Latched when the store's first edge is completed; before that no hash depends on it.
-        assert.strictEqual(pairsOrdered(snapshot), model.ordered, "pair rule");
+        check.strictEqual(pairsOrdered(snapshot), model.ordered, "pair rule");
     }
-    assert.deepStrictEqual(real.counters(), liveCounters(model), "the model holds the graph's edges");
+    check.deepStrictEqual(real.counters(), liveCounters(model), "the model holds the graph's edges");
 
     for (const [id, set] of model.sets) {
         const record = real.sets.get(id);
-        assert.isDefined(record, id);
+        if (record === undefined) {
+            assert.isDefined(record, id);
+        }
         const definition = record?.definition;
-        assert.strictEqual(definition.kind, set.kind);
+        check.strictEqual(definition.kind, set.kind);
 
         // The door stored exactly the members the model says it made.
         const stored = new Set<string>();
@@ -989,7 +1071,7 @@ function verify(model: Model, real: Driver): void {
             }
         }
 
-        assert.deepStrictEqual(sorted(stored), sorted(keysOf(set)), `${id} members`);
+        check.deepStrictEqual(sorted(stored), sorted(keysOf(set)), `${id} members`);
 
         const seeds = real.setsStore.seedsOf(id);
         const resolution: Resolution =
@@ -1001,13 +1083,13 @@ function verify(model: Model, real: Driver): void {
             { id, definition },
             { snapshot, store: real.storeTag(), sets: real.setsStore, cache: model.cache },
         );
-        assert.strictEqual(served.serial, snapshot.serial, `${id} served from this serial`);
-        assert.deepStrictEqual(
+        check.strictEqual(served.serial, snapshot.serial, `${id} served from this serial`);
+        check.deepStrictEqual(
             [served.nodes, served.edges],
             [resolution.nodes, resolution.edges],
             `${id} served equals fresh`,
         );
-        assert.deepStrictEqual(
+        check.deepStrictEqual(
             [served.missingNodes, served.missingEdges, served.ambiguousEdges],
             [resolution.missingNodes, resolution.missingEdges, resolution.ambiguousEdges],
             `${id} served counts`,
@@ -1019,19 +1101,19 @@ function verify(model: Model, real: Driver): void {
         const edges = new Set(
             Array.from(maskToIndices(resolution.edges, snapshot.edgeCount), (e) => real.counterAt(e)),
         );
-        assert.deepStrictEqual(sorted(nodes), sorted(expected.nodes), `${id} nodes`);
-        assert.deepStrictEqual(sorted(edges), sorted(expected.edges), `${id} edges`);
-        assert.strictEqual(resolution.missingNodes, expected.missingNodes, `${id} missing nodes`);
-        assert.strictEqual(resolution.missingEdges, expected.missingEdges, `${id} missing edges`);
-        assert.strictEqual(resolution.ambiguousEdges, expected.ambiguous, `${id} ambiguous`);
+        check.deepStrictEqual(sorted(nodes), sorted(expected.nodes), `${id} nodes`);
+        check.deepStrictEqual(sorted(edges), sorted(expected.edges), `${id} edges`);
+        check.strictEqual(resolution.missingNodes, expected.missingNodes, `${id} missing nodes`);
+        check.strictEqual(resolution.missingEdges, expected.missingEdges, `${id} missing edges`);
+        check.strictEqual(resolution.ambiguousEdges, expected.ambiguous, `${id} ambiguous`);
         for (const e of maskToIndices(resolution.edges, snapshot.edgeCount)) {
             const ends = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-            assert.isTrue(
+            check.isTrue(
                 ends.every((i) => (resolution.nodes[i >>> 5] & (1 << (i & 31))) !== 0),
                 `${id} endpoint invariant`,
             );
         }
 
-        assert.strictEqual(digestOf(resolution, snapshot), modelDigest(model, expected), `${id} digest`);
+        check.strictEqual(digestOf(resolution, snapshot), modelDigest(model, expected), `${id} digest`);
     }
 }

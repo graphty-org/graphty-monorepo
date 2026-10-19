@@ -14,10 +14,15 @@
 #
 # Build first, as CI does: pnpm exec nx run-many -t build
 #
-# The environment CI sets up per shard is reproduced here: FC_FONTATIONS=1 for browser shards
-# (headless Chromium can crash at startup without it), and for the lavapipe shard the Mesa
+# The environment CI sets up per shard is reproduced here: CI=true for every shard (several
+# tests and configs are stricter under it, and it adds the junit reporter), FC_FONTATIONS=1 for
+# browser shards (headless Chromium can crash at startup without it) and the runner's fonts
+# (visual-fonts/, through FONTCONFIG_FILE), and for the lavapipe shard the Mesa
 # lavapipe Vulkan ICD with GRAPHTY_GPU_ADAPTER=llvmpipe and GRAPHTY_GPU_REQUIRE=any. Install
 # mesa-vulkan-drivers for that one, or set VK_DRIVER_FILES yourself.
+#
+# A shard passes only when its command exits 0 AND its output holds the vitest run summary of each
+# run, and the reports it asks vitest for were written (tools/shard-verdict.mjs).
 
 set -uo pipefail
 
@@ -42,7 +47,18 @@ run_shard() {
     fi
     IFS=$'\t' read -r _ browser lavapipe cmd <<<"$line"
     (
-        [ "$browser" = 1 ] && export FC_FONTATIONS=1
+        export CI=true
+        if [ "$browser" = 1 ]; then
+            export FC_FONTATIONS=1
+            # CI's runner draws with the fonts `playwright install --with-deps` puts on it; this machine
+            # has others (no emoji font, so a story asserting its emoji labels are inked fails here
+            # only). visual-fonts/ is a snapshot of the runner's fonts, so the browser uses it here.
+            if [ "$(head -c 7 "$ROOT/visual-fonts/fonts/truetype/noto/NotoColorEmoji.ttf" 2>/dev/null)" = "version" ]; then
+                echo "tools/run-tests.sh: visual-fonts/ holds Git LFS pointers; run git lfs pull --include 'visual-fonts/**'" >&2
+                exit 1
+            fi
+            export FONTCONFIG_FILE="$ROOT/visual-fonts/fonts.conf"
+        fi
         if [ "$lavapipe" = 1 ]; then
             if [ -z "${VK_DRIVER_FILES:-}" ]; then
                 # the same search CI does (ci.yml, "Locate the lavapipe ICD")
@@ -57,7 +73,17 @@ run_shard() {
             export GRAPHTY_GPU_ADAPTER=llvmpipe GRAPHTY_GPU_REQUIRE=any XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}"
         fi
         echo "==> $name: $cmd"
-        sh -c "$cmd"
+        # Exit 0 alone is not a pass: a pnpm older than 10.29.1 on PATH reports a pnpm exec killed by a
+        # signal as exit 0. tools/shard-verdict.mjs also asks for the vitest summary and the reports.
+        # The log lives in the checkout's own tmp/, not /tmp: other processes on this machine clear /tmp
+        # entries they did not make, and a log removed before the verdict read it failed a passing shard.
+        mkdir -p "$ROOT/tmp/run-tests" || exit 1
+        logdir="$(mktemp -d "$ROOT/tmp/run-tests/$name.XXXXXX")" || exit 1
+        trap 'rm -rf "$logdir"' EXIT
+        log="$logdir/output.log"
+        start="$(node -p 'Date.now()')"
+        sh -c "$cmd" 2>&1 | tee "$log"
+        node "$ROOT/tools/shard-verdict.mjs" "$name" "${PIPESTATUS[0]}" "$log" "$start"
     )
 }
 

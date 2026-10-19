@@ -44,12 +44,6 @@ import { afterEach, assert, describe, test } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 
-/** How long the element needs to connect, drain its queue and draw. */
-const SETTLE_MS = 1500;
-
-/** How long a promise gets to settle before the test calls it hung. */
-const PATIENCE_MS = 4000;
-
 /** A graph small enough that every request below finishes instantly. */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
 
@@ -60,8 +54,8 @@ const EDGES = [
     { src: "c", dst: "d" },
 ];
 
-/** What became of a promise, including the outcome that is not an outcome. */
-type Outcome = "resolved" | "rejected" | "never settled";
+/** What became of a promise. One that never settles is caught by the test's own timeout. */
+type Outcome = "resolved" | "rejected";
 
 let mounted: Graphty | null = null;
 
@@ -92,44 +86,47 @@ function mount(): Graphty {
  */
 async function settle(element: Graphty): Promise<void> {
     await operationQueueOf(element.graph).waitForCompletion();
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    await element.waitForStableFrame();
 }
 
 /**
- * Watch a promise for a while and report what it did, without ever letting it throw at the page.
+ * Wait for a promise and report how it settled, without ever letting it throw at the page.
  * @param promise - the promise under test
- * @returns how it settled, or that it did not
+ * @returns how it settled
  */
 function outcomeOf(promise: Promise<unknown>): Promise<Outcome> {
-    const watched: Promise<Outcome> = promise.then(
+    return promise.then(
         () => "resolved" as const,
         () => "rejected" as const,
     );
-
-    const patience = new Promise<Outcome>((resolve) => {
-        setTimeout(() => {
-            resolve("never settled");
-        }, PATIENCE_MS);
-    });
-
-    return Promise.race([watched, patience]);
 }
 
 /**
  * Hold the queue open so that everything asked for next waits its turn.
  * @param element - the mounted element
- * @returns a function that lets the queue go again
+ * @returns a function that lets the queue go again, once the slow operation has started -- so
+ * the requests asked for next are queued behind it rather than running the moment they are asked for
  */
-function blockTheQueue(element: Graphty): () => void {
+async function blockTheQueue(element: Graphty): Promise<() => void> {
     let release = (): void => undefined;
     const held = new Promise<void>((resolve) => {
         release = resolve;
     });
-
-    void operationQueueOf(element.graph).queueOperationAsync("data-update", () => held, {
-        description: "a slow operation, so the requests behind it have to wait",
+    let started = (): void => undefined;
+    const running = new Promise<void>((resolve) => {
+        started = resolve;
     });
 
+    void operationQueueOf(element.graph).queueOperationAsync(
+        "data-update",
+        () => {
+            started();
+            return held;
+        },
+        { description: "a slow operation, so the requests behind it have to wait" },
+    );
+
+    await running;
     return release;
 }
 
@@ -144,26 +141,19 @@ describe("a request the element supersedes", () => {
 
         await settle(element);
 
-        const release = blockTheQueue(element);
-
-        // Long enough for the slow operation to have started, so the two below are queued behind
-        // it rather than running the moment they are asked for.
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        const release = await blockTheQueue(element);
 
         const superseded = element.graph.setViewMode("2d");
         const winner = element.graph.setViewMode("3d");
 
         release();
 
+        // A hang here times the test out: a view-mode switch was superseded by the next line, and the
+        // promise the caller was handed never settled -- not a value, not an error. Anything that
+        // awaits its requests in order stops dead there. See applyObsolescenceRules in
+        // src/managers/OperationQueueManager.ts.
         const outcome = await outcomeOf(superseded);
 
-        assert.notEqual(
-            outcome,
-            "never settled",
-            "a view-mode switch was superseded by the next line, and the promise the caller was handed never " +
-                "settled -- not a value, not an error. Anything that awaits its requests in order stops dead " +
-                "there. See applyObsolescenceRules in src/managers/OperationQueueManager.ts.",
-        );
         assert.equal(
             outcome,
             "resolved",
@@ -181,9 +171,7 @@ describe("a request the element supersedes", () => {
 
         await settle(element);
 
-        const release = blockTheQueue(element);
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        const release = await blockTheQueue(element);
 
         const abandoned = element.graph.setLayout("circular");
 
@@ -192,12 +180,9 @@ describe("a request the element supersedes", () => {
         operationQueueOf(element.graph).clear();
         release();
 
-        assert.notEqual(
-            await outcomeOf(abandoned),
-            "never settled",
-            "the queue was cleared with a layout request still on it, and the caller awaiting that request " +
-                "was left waiting on a queue that had thrown the work away",
-        );
+        // A hang here times the test out: the queue was cleared with a layout request still on it,
+        // and the caller awaiting that request was left waiting on a queue that had thrown the work away.
+        await outcomeOf(abandoned);
     });
 
     test("and the ordinary sequence of two view-mode switches finishes", async () => {
@@ -205,19 +190,14 @@ describe("a request the element supersedes", () => {
 
         await settle(element);
 
-        const release = blockTheQueue(element);
-
-        await new Promise((resolve) => setTimeout(resolve, 100));
+        const release = await blockTheQueue(element);
 
         const both = Promise.all([element.graph.setViewMode("2d"), element.graph.setViewMode("3d")]);
 
         release();
 
-        assert.notEqual(
-            await outcomeOf(both),
-            "never settled",
-            "`await Promise.all([...])` over two view-mode switches never came back, because the first of " +
-                "them was superseded by the second and its promise was abandoned",
-        );
+        // A hang here times the test out: `await Promise.all([...])` over two view-mode switches never
+        // came back, because the first of them was superseded by the second and its promise was abandoned.
+        await outcomeOf(both);
     });
 });

@@ -5,8 +5,7 @@
  * The page's scenarios are in fault-scenarios.page.test.mjs.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -18,7 +17,7 @@ import { sessionToken } from "../trusted/lib/serve.mjs";
 import { storySettings } from "../capture/capture.mjs";
 import { hooks } from "./fault-hooks.mjs";
 import { captureLog, endedJob, injector, startApp, world } from "./faults.mjs";
-import { CONFIG, copyFixture, FIXTURE, git, isolateGit, job, makeRepo, pushCommit } from "./helpers.mjs";
+import { CONFIG, copyFixture, FIXTURE, git, isolateGit, job, makeRepo, pushCommit, tempDir } from "./helpers.mjs";
 
 vi.mock("node:fs", async (importOriginal) => (await import("./fault-hooks.mjs")).faultyFs(await importOriginal()));
 vi.mock("../trusted/lib/github.mjs", async (importOriginal) =>
@@ -55,7 +54,7 @@ afterEach(async () => {
  * @returns {Promise<object>} the started server
  */
 async function serve(r, w, options = {}) {
-    const s = await startApp(r, { gh: withRetries(w.gh, [0, 0, 0]), ...options });
+    const s = await startApp(r, { gh: withRetries(w.gh, [0, 0, 0]), retryDelays: [0, 0, 0], ...options });
     servers.push(s);
     return s;
 }
@@ -69,7 +68,6 @@ const finishJob = async (s, id = "123") => {
 };
 const projectOf = (body, id, project) =>
     body.targets.find((t) => t.id === id)?.projects.find((p) => p.project === project);
-const within = (ms, promise) => Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
 
 /**
  * A second pull request, #124 on branch `other`, with CI run 1001 capturing both projects.
@@ -333,7 +331,7 @@ describe("refreshing the targets", () => {
         const w = world(r);
         let down = false;
         const gh = async (args, input) => {
-            if (down && args[1]?.includes("head_sha=")) {
+            if (down && args[1] === "graphql") {
                 throw new Error("HTTP 403: API rate limit exceeded for user ID 1.");
             }
             return w.gh(args, input);
@@ -359,7 +357,7 @@ describe("refreshing the targets", () => {
         w.data.artifacts[2000] = ["visual-compact-mantine-1", "visual-graphty-element-1"];
         let down = false;
         const gh = async (args, input) => {
-            if (down && args[1]?.includes("/pulls?state=open")) {
+            if (down && args[1] === "graphql") {
                 throw new Error("HTTP 502: Bad Gateway");
             }
             return w.gh(args, input);
@@ -399,7 +397,7 @@ describe("refreshing the targets", () => {
         expect(out.graphty).toEqual({ conclusion: "success", url: "https://gh/job/g" });
     });
 
-    it("Swallowed git fetch failures make the 'merge master first' badge wrong with no log", async () => {
+    it("Swallowed git fetch failures make the 'behind master' badge wrong with no log", async () => {
         const r = makeRepo();
         const w = world(r);
         addPr124(w, OTHER, "deleted-branch");
@@ -474,11 +472,13 @@ describe("refreshing the targets", () => {
             }
             return w.gh(args, input);
         };
-        const s = await startApp(r, { gh });
+        // The list waits a fifth of a second for #124's download, not the default second.
+        const s = await startApp(r, { gh, patience: 200 });
         servers.push(s);
         try {
-            const res = await within(1500, s.api("GET", "/api/prs"));
-            expect(res, "GET /api/prs waited for #124's download").not.toBeNull();
+            // #124's download is held until `release()` below, so an answer at all shows the list
+            // did not wait for it. A server that waits never answers, and the test times out.
+            const res = await s.api("GET", "/api/prs");
             expect(res.body.targets.map((t) => t.id)).toContain("123");
             expect(JSON.stringify(res.body.targets.find((t) => t.id === "124"))).toMatch(/download/i);
         } finally {
@@ -497,7 +497,7 @@ describe("refreshing the targets", () => {
         for (let i = 0; i < 20; i++) {
             last = await s.api("GET", "/api/img/123/compact-mantine/capture/button--primary.dark.png");
         }
-        expect(w.data.calls.filter((c) => c.includes("pulls?state=open")).length).toBeLessThanOrEqual(3);
+        expect(w.data.calls.filter((c) => c === "api graphql").length).toBeLessThanOrEqual(3);
         expect(last.body.error).not.toMatch(/^no such/);
     });
 
@@ -525,8 +525,8 @@ describe("stalls", () => {
                 rules: [{ on: "git", match: /^git fetch -q origin \+refs\/heads\/feature/, kind: "stall" }],
             }).install();
             const s = await serve(r, w);
-            const res = await within(3000, s.api("GET", "/api/prs"));
-            expect(res, "GET /api/prs never answered").not.toBeNull();
+            // A hang here times the test out: GET /api/prs never answered.
+            await s.api("GET", "/api/prs");
             expect(log.lines.some((l) => l.includes("fetch"))).toBe(true);
         } finally {
             delete process.env[TIMEOUT];
@@ -543,13 +543,130 @@ describe("stalls", () => {
             await decide(s, "compact-mantine", "badge--default.light.png", "accept");
             injector({ rules: [{ on: "git", match: /^git push /, kind: "stall" }] }).install();
             await s.api("POST", "/api/finish", { id: "123" });
-            const j = await within(3000, endedJob(s));
-            expect(j, "the Finish never ended").not.toBeNull();
+            // A hang here times the test out: the Finish never ended.
+            const j = await endedJob(s);
             expect(j.error).toMatch(/push/);
             expect((await decide(s, "compact-mantine", "button--primary.dark.png", "accept")).status).toBe(200);
         } finally {
             delete process.env[TIMEOUT];
         }
+    });
+});
+
+describe("Finish over a failing network", () => {
+    /**
+     * A pull request's Finish of one accept and one reject, with a fake gh that fails each call
+     * `ghFails` matches with `ghError`.
+     * @param {object} [options] what fails
+     * @param {(args: string[], calls: string[]) => boolean} [options.ghFails] which gh calls fail
+     * @param {string} [options.ghError] their error
+     * @returns {object} the repository, the steps told, gh's calls and a `run`
+     */
+    function setup({ ghFails = () => false, ghError = "error connecting to api.github.com" } = {}) {
+        const r = makeRepo();
+        const at = { commit: r.head, headSha: r.head };
+        const projects = { "compact-mantine": copyFixture("compact-mantine", join(r.dir, "a/compact-mantine"), at) };
+        const steps = [];
+        const calls = [];
+        const gh = async (args) => {
+            calls.push(args.join(" "));
+            if (ghFails(args, calls)) {
+                throw new Error(ghError);
+            }
+            return JSON.stringify({ html_url: "https://gh/x" });
+        };
+        const run = () =>
+            finish({
+                repo: r.repo,
+                gh,
+                target: { pr: 123, branch: "feature" },
+                projects,
+                decisions: [
+                    accept("badge--default.light.png"),
+                    { ...accept("button--primary.dark.png"), decision: "reject", reason: "too wide" },
+                ],
+                now: NOW,
+                progress: (step) => steps.push(step),
+                config: CONFIG,
+                retryDelays: [0, 0, 0],
+            });
+        return { ...r, steps, calls, run };
+    }
+    const pushes = (inj) => inj.log.filter((e) => /^git push /.test(e.label));
+
+    it("A DNS failure on the fetch is retried, and the page's step says so", async () => {
+        const s = setup();
+        injector({ rules: [{ on: "git", match: /^git fetch /, nth: 1, kind: "network" }] }).install();
+        const out = await s.run();
+        expect(git(s.remote, "rev-parse", "feature")).toBe(out.commit);
+        expect(s.steps).toContain("checking (retrying after a network error, attempt 2 of 4)");
+    });
+
+    it("A push whose connection failed before it landed is pushed again, once", async () => {
+        const s = setup();
+        const inj = injector({ rules: [{ on: "git", match: /^git push /, nth: 1, kind: "timeout" }] });
+        inj.install();
+        const out = await s.run();
+        expect(git(s.remote, "rev-parse", "feature")).toBe(out.commit);
+        expect(pushes(inj).map((e) => e.kind)).toEqual(["timeout", null]);
+        expect(s.steps).toContain("pushing (retrying after a network error, attempt 2 of 4)");
+    });
+
+    it("A push that landed before its connection dropped is checked, not pushed again", async () => {
+        const s = setup();
+        const tree = join(s.repo, "tmp/visual-review/worktrees/accept-123");
+        const land = () => git(tree, "push", "-q", "--no-verify", "origin", "HEAD:refs/heads/feature");
+        const inj = injector({ rules: [{ on: "git", match: /^git push /, nth: 1, kind: "5xx", before: land }] });
+        inj.install();
+        const out = await s.run();
+        expect(git(s.remote, "rev-parse", "feature")).toBe(out.commit);
+        expect(pushes(inj)).toHaveLength(1);
+        expect(inj.log.some((e) => /^git ls-remote origin refs\/heads\/feature/.test(e.label))).toBe(true);
+    });
+
+    it("A refused push is never retried", async () => {
+        const s = setup();
+        const inj = injector({ rules: [{ on: "git", match: /^git push /, kind: "4xx" }] });
+        inj.install();
+        await expect(s.run()).rejects.toThrow(/403/);
+        expect(pushes(inj)).toHaveLength(1);
+        expect(s.steps.some((step) => step.includes("retrying"))).toBe(false);
+    });
+
+    it("A network failure that gives up after four tries fails the Finish", async () => {
+        const s = setup();
+        const inj = injector({ rules: [{ on: "git", match: /^git fetch /, kind: "network" }] });
+        inj.install();
+        await expect(s.run()).rejects.toThrow(/Could not resolve host/);
+        expect(inj.log.filter((e) => /^git fetch /.test(e.label))).toHaveLength(4);
+        expect(s.steps.at(-1)).toBe("checking (retrying after a network error, attempt 4 of 4)");
+    });
+
+    it("The comment is posted again after a DNS failure, which never reached GitHub", async () => {
+        let failed = 0;
+        const s = setup({ ghFails: (args) => args[1].endsWith("/comments") && failed++ === 0 });
+        const out = await s.run();
+        expect(out.rejects).toBe(1);
+        expect(s.calls.filter((c) => c.includes("/comments"))).toHaveLength(2);
+        expect(s.steps).toContain("posting the comment (retrying after a network error, attempt 2 of 4)");
+    });
+
+    it("The comment is not posted again after a server error, which GitHub may have applied", async () => {
+        const s = setup({ ghFails: (args) => args[1].endsWith("/comments"), ghError: "HTTP 502: Bad Gateway" });
+        const err = await s.run().catch((e) => e);
+        expect(err.message).toMatch(/comment with the rejects failed: HTTP 502/);
+        expect(s.calls.filter((c) => c.includes("/comments"))).toHaveLength(1);
+    });
+
+    it("The status is posted again after a server error, since posting it twice is harmless", async () => {
+        let failed = 0;
+        const s = setup({
+            ghFails: (args) => args[1].includes("/statuses/") && failed++ === 0,
+            ghError: "HTTP 502: Bad Gateway",
+        });
+        const out = await s.run();
+        expect(out.statusError).toBeNull();
+        expect(s.calls.filter((c) => c.includes("/statuses/"))).toHaveLength(2);
     });
 });
 
@@ -578,6 +695,7 @@ describe("Finish", () => {
                 decisions: [accept("badge--default.light.png")],
                 now: NOW,
                 config: CONFIG,
+                retryDelays: [0, 0, 0],
             });
         const branch = "visual/seed-2026-09-27";
         const err = await run().catch((e) => e);
@@ -726,7 +844,7 @@ describe("Finish", () => {
 
 describe("the session token", () => {
     it("An empty token file disables authentication", async () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-token-"));
+        const dir = tempDir("vr-token-");
         writeFileSync(join(dir, "token"), "\n");
         expect(sessionToken(dir).length).toBeGreaterThan(20);
         const r = makeRepo();
@@ -738,7 +856,7 @@ describe("the session token", () => {
 
 describe("the gate and the config", () => {
     it("The gate throws a stack trace on an unparseable results.json, hiding every other project's verdict", () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-gate-"));
+        const dir = tempDir("vr-gate-");
         mkdirSync(join(dir, "visual-a-1"));
         mkdirSync(join(dir, "visual-b-1"));
         writeFileSync(join(dir, "visual-a-1/results.json"), "{");

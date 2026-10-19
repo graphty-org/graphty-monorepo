@@ -56,7 +56,6 @@ describe("Option Schema at scale", () => {
         return schema;
     };
 
-
     it("validates a single in-range option and rejects an out-of-range one", () => {
         const def = {
             type: "number" as const,

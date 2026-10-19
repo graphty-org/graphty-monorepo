@@ -10,6 +10,8 @@ export interface DataLoadingError {
     category?: string;
     /** Optional field/column name related to the error */
     field?: string;
+    /** Optional facts about the error, without words: what `LoadReport.errors` carries as `params` */
+    params?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -33,9 +35,9 @@ export interface ErrorSummary {
  */
 export class ErrorAggregator {
     private errors: DataLoadingError[] = [];
-    private maxErrors: number;
-    private errorsByCategory = new Map<string, DataLoadingError[]>();
-    private errorsByField = new Map<string, DataLoadingError[]>();
+    private readonly maxErrors: number;
+    private readonly errorsByCategory = new Map<string, DataLoadingError[]>();
+    private readonly errorsByField = new Map<string, DataLoadingError[]>();
 
     /**
      * Creates a new ErrorAggregator instance.

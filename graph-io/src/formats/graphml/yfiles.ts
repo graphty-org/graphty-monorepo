@@ -1,9 +1,9 @@
 /**
  * yFiles / yEd graphics read out of the JSON tree of a `yfiles.type` key (tree.ts) into typed
  * columns, beside the tree itself: a `y:ShapeNode` gives the node's position, size, fill and
- * border colours, label and shape, and a `y:PolyLineEdge` gives the edge's line colour and width,
+ * border colors, label and shape, and a `y:PolyLineEdge` gives the edge's line color and width,
  * its arrows and the direction they draw. The values are the ones graphty-element's own GraphML
- * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colours
+ * parser produced, so a consumer rebuilds its records by dropping the `yfiles.` prefix: colors
  * are `#RRGGBB` in upper case (a `#RGB` is expanded, any other text is kept as written), numbers
  * are parsed with parseFloat, the position is `[x, y, 0]` and the shape is the yFiles shape type
  * as written. One difference: a label whose text is a number (`<y:NodeLabel>0</y:NodeLabel>`) is
@@ -14,11 +14,16 @@
  * re-importing the tree gives them back. A value edited after import (a layout writing the
  * position) or a tree column removed is therefore not written, and the exporter reports it as a
  * loss (staleGraphicsRows()).
+ *
+ * Deprecated and frozen, not fixed: these columns, the rule that a target arrow makes an edge
+ * directed and the label role of `yfiles.label` stay exactly as they are until the next major
+ * version removes them. The yEd and yFiles 3 style readers read the kept graphics tree instead.
  */
 
-import { type Column, type ColumnDecl, type JsonColumn } from "@graphty/graph-format";
+import { type Column, type ColumnDecl, type GraphSnapshot, type JsonColumn } from "@graphty/graph-format";
 
 import { localName } from "../../common/xml.js";
+import type { ImporterPositions } from "../../positions/types.js";
 
 /** The name prefix of every column mapped from yFiles graphics. */
 const YFILES_COLUMN_PREFIX = "yfiles.";
@@ -27,7 +32,20 @@ type Tree = Record<string, unknown>;
 
 /** The mapped node columns, by the field name graphty-element's records use. */
 const NODE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
-    position: { dtype: "f64", components: 3, role: "position", mutable: true },
+    // yEd writes the top-left corner of the node's box, y growing downward, in pixels
+    position: {
+        dtype: "f64",
+        components: 3,
+        role: "position",
+        mutable: true,
+        extra: {
+            units: "px",
+            yAxis: "down",
+            anchor: "top-left",
+            width: `${YFILES_COLUMN_PREFIX}width`,
+            height: `${YFILES_COLUMN_PREFIX}height`,
+        },
+    },
     width: { dtype: "f64" },
     height: { dtype: "f64" },
     color: { dtype: "string" },
@@ -52,6 +70,7 @@ const EDGE_FIELDS: Readonly<Record<string, Omit<ColumnDecl, "name">>> = {
  * @param field - the field name (a key of the values graphicsValues() returns)
  * @param keyId - the id of the GraphML key whose tree it is read from
  * @returns the declaration
+ * @category Plugin helpers
  */
 export function graphicsDecl(domain: "node" | "edge", field: string, keyId: string): ColumnDecl {
     const fields = domain === "node" ? NODE_FIELDS : EDGE_FIELDS;
@@ -70,12 +89,23 @@ export function graphicsDecl(domain: "node" | "edge", field: string, keyId: stri
 }
 
 /**
+ * The tool behind a GraphML file's positions, for `extractPositions()`: yEd when they come from
+ * yFiles graphics. The column's `meta.extra` already says how they are spelled.
+ * @param snapshot - the graph the GraphML importer read
+ * @returns the tool, or null to read the position column as declared
+ */
+export function yfilesPositions(snapshot: GraphSnapshot): ImporterPositions | null {
+    return snapshot.nodes.byRole("position")?.meta.origin?.namespace === "yfiles" ? { tool: "yed" } : null;
+}
+
+/**
  * Whether a column is one graphicsDecl() declared (a view of a yFiles tree, never exported).
  * @param meta - the column's name, dtype and origin
  * @param meta.name - the column name
  * @param meta.dtype - the column dtype
  * @param meta.origin - the column origin
  * @returns true for a mapped graphics column
+ * @category Plugin helpers
  */
 export function isGraphicsColumn(meta: {
     readonly name: string;
@@ -95,6 +125,7 @@ export function isGraphicsColumn(meta: {
  * @param table - the table it is in
  * @param domain - node or edge
  * @returns the number of rows that differ from the trees
+ * @category Plugin helpers
  */
 export function staleGraphicsRows(column: Column, table: Iterable<Column>, domain: "node" | "edge"): number {
     const field = column.meta.name.slice(YFILES_COLUMN_PREFIX.length);
@@ -106,16 +137,7 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
     }
     let stale = 0;
     for (let r = 0; r < column.length; r++) {
-        const wants = new Set<string>();
-        for (const tree of trees) {
-            const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
-            if (want !== undefined) {
-                wants.add(JSON.stringify(want[1]));
-            }
-        }
-        if (wants.size === 0) {
-            wants.add(JSON.stringify(undefined));
-        }
+        const wants = wantedGraphics(trees, domain, field, r);
         const value = column.value(r);
         const have = column.meta.components > 1 && value !== undefined ? Array.from(value as ArrayLike<number>) : value;
         if (!wants.has(JSON.stringify(have))) {
@@ -126,23 +148,51 @@ export function staleGraphicsRows(column: Column, table: Iterable<Column>, domai
 }
 
 /**
+ * The serialized values the trees want for one row of a mapped column.
+ * @param trees - the yFiles tree columns of the table
+ * @param domain - node or edge
+ * @param field - the mapped field name
+ * @param r - the row
+ * @returns the wanted values as JSON text; just `undefined`'s when no tree wants one
+ */
+function wantedGraphics(trees: JsonColumn[], domain: "node" | "edge", field: string, r: number): Set<string> {
+    const wants = new Set<string>();
+    for (const tree of trees) {
+        const want = graphicsValues(domain, tree.values[r]).find(([f]) => f === field);
+        if (want !== undefined) {
+            wants.add(JSON.stringify(want[1]));
+        }
+    }
+    if (wants.size === 0) {
+        wants.add(JSON.stringify(undefined));
+    }
+    return wants;
+}
+
+/**
  * The mapped values of one `<data>` tree of a yFiles key: a ShapeNode's for a node, a
- * PolyLineEdge's for an edge; nothing for any other graphics (GenericNode, BezierEdge, ...).
+ * PolyLineEdge's for an edge. A GenericNode, ImageNode, SVGNode or ProxyAutoBoundsNode (a group,
+ * read through the realizer `Realizers@active` names) gives its geometry only: position, width and
+ * height. Nothing for any other graphics (BezierEdge, ...).
  * @param domain - node or edge
  * @param tree - the `<data>` content as tree.ts builds it
+ * @param unmapped - receives the fields whose text is present but not a number (not mapped)
  * @returns field name -> value, in declaration order
+ * @category Plugin helpers
  */
-export function graphicsValues(domain: "node" | "edge", tree: unknown): [string, unknown][] {
+export function graphicsValues(domain: "node" | "edge", tree: unknown, unmapped: string[] = []): [string, unknown][] {
     const out: [string, unknown][] = [];
     if (domain === "node") {
         const shape = child(tree, "ShapeNode");
-        if (shape !== undefined) {
-            shapeNodeValues(shape, out);
+        if (shape === undefined) {
+            geometryValues(child(geometryNode(tree), "Geometry"), out, unmapped);
+        } else {
+            shapeNodeValues(shape, out, unmapped);
         }
     } else {
         const edge = child(tree, "PolyLineEdge");
         if (edge !== undefined) {
-            polyLineEdgeValues(edge, out);
+            polyLineEdgeValues(edge, out, unmapped);
         }
     }
     return out;
@@ -152,21 +202,14 @@ export function graphicsValues(domain: "node" | "edge", tree: unknown): [string,
  * Read a ShapeNode.
  * @param shape - the ShapeNode element
  * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
  */
-function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
-    const geometry = child(shape, "Geometry");
-    // yFiles requires x, y, width and height on Geometry; a position needs both coordinates
-    const x = number(attr(geometry, "x"));
-    const y = number(attr(geometry, "y"));
-    if (x !== undefined && y !== undefined) {
-        out.push(["position", [x, y, 0]]);
-    }
-    push(out, "width", number(attr(geometry, "width")));
-    push(out, "height", number(attr(geometry, "height")));
+function shapeNodeValues(shape: unknown, out: [string, unknown][], unmapped: string[]): void {
+    geometryValues(child(shape, "Geometry"), out, unmapped);
     push(out, "color", color(attr(child(shape, "Fill"), "color")));
     const border = child(shape, "BorderStyle");
     push(out, "borderColor", color(attr(border, "color")));
-    push(out, "borderWidth", number(attr(border, "width")));
+    push(out, "borderWidth", checked(attr(border, "width"), "borderWidth", unmapped));
     const label = child(shape, "NodeLabel");
     // an element with no text and no attributes is "" (no label); one with attributes but no text is a blank label
     if (typeof label === "string" ? label.length > 0 : label !== undefined) {
@@ -177,14 +220,67 @@ function shapeNodeValues(shape: unknown, out: [string, unknown][]): void {
 }
 
 /**
+ * Read a Geometry: the position of the box's top-left corner, its width and height.
+ * @param geometry - the Geometry element, or undefined
+ * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
+ */
+function geometryValues(geometry: unknown, out: [string, unknown][], unmapped: string[]): void {
+    // yFiles requires x, y, width and height on Geometry; a position needs both coordinates
+    const x = checked(attr(geometry, "x"), "x", unmapped);
+    const y = checked(attr(geometry, "y"), "y", unmapped);
+    if (x !== undefined && y !== undefined) {
+        out.push(["position", [x, y, 0]]);
+    }
+    push(out, "width", checked(attr(geometry, "width"), "width", unmapped));
+    push(out, "height", checked(attr(geometry, "height"), "height", unmapped));
+}
+
+/** The node graphics besides ShapeNode whose Geometry is read. */
+const GEOMETRY_NODES = ["GenericNode", "ImageNode", "SVGNode"] as const;
+
+/**
+ * The element holding a non-ShapeNode node's Geometry: a GenericNode, ImageNode or SVGNode, or
+ * the active realizer of a ProxyAutoBoundsNode (`Realizers@active`, default 0).
+ * @param tree - the `<data>` content
+ * @returns the element, or undefined
+ */
+function geometryNode(tree: unknown): unknown {
+    for (const local of GEOMETRY_NODES) {
+        const node = child(tree, local);
+        if (node !== undefined) {
+            return node;
+        }
+    }
+    const realizers = child(child(tree, "ProxyAutoBoundsNode"), "Realizers");
+    const active = Number.parseInt(attr(realizers, "active") ?? "0", 10);
+    return elements(realizers)[Number.isNaN(active) ? 0 : active];
+}
+
+/**
+ * Every child element of a tree node, in document order per name.
+ * @param node - the tree node
+ * @returns the children
+ */
+function elements(node: unknown): unknown[] {
+    if (typeof node !== "object" || node === null) {
+        return [];
+    }
+    return Object.entries(node as Tree)
+        .filter(([key]) => !key.startsWith("@_") && key !== "#text")
+        .flatMap(([, value]) => (Array.isArray(value) ? (value as unknown[]) : [value]));
+}
+
+/**
  * Read a PolyLineEdge.
  * @param edge - the PolyLineEdge element
  * @param out - receives the values
+ * @param unmapped - receives the fields whose text is not a number
  */
-function polyLineEdgeValues(edge: unknown, out: [string, unknown][]): void {
+function polyLineEdgeValues(edge: unknown, out: [string, unknown][], unmapped: string[]): void {
     const line = child(edge, "LineStyle");
     push(out, "color", color(attr(line, "color")));
-    push(out, "width", number(attr(line, "width")));
+    push(out, "width", checked(attr(line, "width"), "width", unmapped));
     const arrows = child(edge, "Arrows");
     if (arrows !== undefined && typeof arrows === "object") {
         const target = attr(arrows, "target");
@@ -273,9 +369,24 @@ function number(value: string | undefined): number | undefined {
 }
 
 /**
- * A colour attribute: `#RRGGBB` upper-cased, `#RGB` expanded, anything else as written.
+ * A number attribute, recording a present text that is not a number.
  * @param value - the text
- * @returns the colour, or undefined when absent or empty
+ * @param field - the field it maps to
+ * @param unmapped - receives the field when the text is not a number
+ * @returns the number, or undefined
+ */
+function checked(value: string | undefined, field: string, unmapped: string[]): number | undefined {
+    const n = number(value);
+    if (n === undefined && value !== undefined && value.length > 0) {
+        unmapped.push(field);
+    }
+    return n;
+}
+
+/**
+ * A color attribute: `#RRGGBB` upper-cased, `#RGB` expanded, anything else as written.
+ * @param value - the text
+ * @returns the color, or undefined when absent or empty
  */
 function color(value: string | undefined): string | undefined {
     if (value === undefined || value.length === 0) {

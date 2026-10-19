@@ -3,10 +3,13 @@ import {
     type F64,
     type GraphSnapshot,
     INVALID_INDEX,
+    type NodeRef,
     type NumericVector,
+    resolveNode,
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { walkPredArcs, walkPredEdges } from "./dijkstra.js";
 import { IndexedMinHeap } from "./structures/min-heap.js";
 
@@ -44,8 +47,8 @@ const NO_PATH: PathResult = { distance: Infinity, path: new Uint32Array(0), edge
  * the two next keys sum to at least the best path found. That is the point-to-point query legacy
  * `dijkstraPath` answers. The path is recorded as ARCS, so a parallel edge on it is the exact edge.
  * @param s - The snapshot to search
- * @param source - The node index to start from
- * @param target - The node index to reach
+ * @param sourceNode - The node to start from: its index, or `{ id }`
+ * @param targetNode - The node to reach: its index, or `{ id }`
  * @param options - Per-arc weight override
  * @returns The distance, the node path and the logical edges on it
  * @throws Error when any weight is negative
@@ -53,10 +56,12 @@ const NO_PATH: PathResult = { distance: Infinity, path: new Uint32Array(0), edge
  */
 export function bidirectionalDijkstra(
     s: GraphSnapshot,
-    source: number,
-    target: number,
+    sourceNode: NodeRef,
+    targetNode: NodeRef,
     options: PathOptions = {},
 ): PathResult {
+    const source = resolveNode(s, sourceNode);
+    const target = resolveNode(s, targetNode);
     if (source === target) {
         return { distance: 0, path: Uint32Array.of(source), edges: new Uint32Array(0) };
     }
@@ -65,7 +70,7 @@ export function bidirectionalDijkstra(
     // Checked up front, not per relaxed arc: the search stops early, so a per-arc check would miss
     // a negative edge beyond the meeting point that legacy (which runs both searches out) refuses.
     if (weights?.some((w) => w < 0) === true) {
-        throw new Error("Bidirectional Dijkstra does not support negative edge weights");
+        throw withCode(new Error("Bidirectional Dijkstra does not support negative edge weights"), "E_BAD_WEIGHT");
     }
     const rev = s.reverse();
     const weightOf = (arc: number): number => (weights === null ? 1 : weights[arc]);
@@ -157,13 +162,50 @@ export function bidirectionalDijkstra(
 }
 
 /**
+ * Relax every arc out of the just-closed node `u` to a node not yet closed, lowering its cost so far,
+ * its score and its queue key when the arc improves on them.
+ * @param g - The adjacency being searched
+ * @param u - The node just taken from the queue
+ * @param weights - Per-arc weights, or null for all ones
+ * @param estimate - Estimated remaining cost from a node index to the target
+ * @param st - The search state, updated in place
+ * @param st.gScore - Cost so far per node
+ * @param st.fScore - Cost so far plus the estimate, per node
+ * @param st.predArc - The relaxing arc per node
+ * @param st.closed - 1 for every expanded node
+ * @param st.heap - The queue, keyed by `fScore`
+ */
+function relaxAstarArcs(
+    g: AdjacencyView,
+    u: number,
+    weights: NumericVector | null,
+    estimate: (node: number) => number,
+    st: { gScore: Float64Array; fScore: Float64Array; predArc: Uint32Array; closed: Uint8Array; heap: IndexedMinHeap },
+): void {
+    const { gScore, fScore, predArc, closed, heap } = st;
+    for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
+        const v = g.colIdx[a];
+        if (closed[v] === 1) {
+            continue;
+        }
+        const tentative = gScore[u] + (weights === null ? 1 : weights[a]);
+        if (tentative < gScore[v]) {
+            gScore[v] = tentative;
+            fScore[v] = tentative + estimate(v);
+            predArc[v] = a;
+            heap.pushOrDecrease(v, fScore[v]);
+        }
+    }
+}
+
+/**
  * A* between two nodes: Dijkstra keyed by cost so far plus `heuristic(node, target)`, stopping when
  * the target is taken from the queue. An expanded node is never reopened, as in legacy `astar`, so
  * the path is shortest when the heuristic is consistent. The predecessor is the relaxing ARC, so a
  * parallel edge on the path is the exact edge.
  * @param g - The adjacency to search
- * @param source - The node index to start from
- * @param target - The node index to reach
+ * @param sourceNode - The node to start from: its index, or `{ id }`
+ * @param targetNode - The node to reach: its index, or `{ id }`
  * @param heuristic - Estimated remaining cost from a node index to the target index
  * @param options - Per-arc weight override
  * @returns The path, plus the per-node scores and the expansion order
@@ -171,14 +213,19 @@ export function bidirectionalDijkstra(
  */
 export function astar(
     g: AdjacencyView,
-    source: number,
-    target: number,
+    sourceNode: NodeRef,
+    targetNode: NodeRef,
     heuristic: (node: number, target: number) => number,
     options: PathOptions = {},
 ): AstarResult {
+    const source = resolveNode(g, sourceNode);
+    const target = resolveNode(g, targetNode);
     const n = g.nodeCount;
     if (!(target >= 0 && target < n)) {
-        throw new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`);
+        throw withCode(
+            new RangeError(`Target index ${String(target)} is outside the graph's ${String(n)} nodes`),
+            "E_BAD_NODE",
+        );
     }
     const weights: NumericVector | null = options.weights ?? g.weights;
     const gScore = new Float64Array(n).fill(Infinity);
@@ -197,19 +244,7 @@ export function astar(
         }
         closed[u] = 1;
         visited.push(u);
-        for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
-            const v = g.colIdx[a];
-            if (closed[v] === 1) {
-                continue;
-            }
-            const tentative = gScore[u] + (weights === null ? 1 : weights[a]);
-            if (tentative < gScore[v]) {
-                gScore[v] = tentative;
-                fScore[v] = tentative + heuristic(v, target);
-                predArc[v] = a;
-                heap.pushOrDecrease(v, fScore[v]);
-            }
-        }
+        relaxAstarArcs(g, u, weights, (v) => heuristic(v, target), { gScore, fScore, predArc, closed, heap });
     }
     const state = { gScore, fScore, visited: Uint32Array.from(visited) };
     if (gScore[target] === Infinity) {

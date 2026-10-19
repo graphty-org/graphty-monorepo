@@ -64,7 +64,7 @@ export class AllocationTracker {
     private readonly threshold: number;
     private readonly live = new Map<GPUBuffer, number>();
     private residentBytes = 0;
-    private pending: Promise<void>[] = [];
+    private readonly pending: Promise<void>[] = [];
     private failure: WebGpuGraphError | null = null;
     private serial = 0;
 

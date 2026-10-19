@@ -202,6 +202,12 @@ describe("the scope selector", () => {
         assert.deepStrictEqual(report.applied, []);
         assert.strictEqual(report.unbound.length, 1);
         assert.match(report.unbound[0].reason, /detached/);
+        assert.strictEqual(report.unbound[0].fact.code, "layer.detached");
+        assert.deepStrictEqual(report.unbound[0].fact.params, {
+            layerId: report.unbound[0].layerId,
+            name: "Suspects",
+            error: "E_BAD_COMMAND",
+        });
         const kept = h.session.styles.get(report.unbound[0].layerId);
         assert.deepStrictEqual(kept?.selector, { match: "member", of: { set: "set_elsewhere" } });
         assert.deepStrictEqual(

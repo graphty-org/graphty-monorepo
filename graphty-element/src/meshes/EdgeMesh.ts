@@ -6,7 +6,6 @@ import {
     Engine,
     GreasedLineBaseMesh,
     GreasedLineMeshColorMode,
-    type InstancedMesh,
     Mesh,
     MeshBuilder,
     RawTexture,
@@ -18,12 +17,23 @@ import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBu
 
 import type { EdgeStyleConfig } from "../config";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
+import { animatesEveryFrame } from "../managers/everyFrameAnimations";
+import type { ArrowCap } from "./ArrowCapBatch";
 import { CustomLineRenderer } from "./CustomLineRenderer";
+import type { EdgeLineBatch } from "./EdgeLineBatch";
+import { parseBends } from "./edgeRoute";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
+import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
+
+/** The line types drawn as a run of pattern elements rather than as one line. */
+/** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
+const animatedEdgeFrames = new FrameRoster();
+
+const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
 
 interface EdgeMeshOptions {
     styleId: string;
@@ -60,6 +70,10 @@ interface ArrowGeometry {
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class -- Static factory class for edge mesh creation
 export class EdgeMesh {
     private static readonly UNIT_VECTOR_POINTS = [0, 0, -0.5, 0, 0, 0.5];
+    /** A self-loop's radius around a node it clears. */
+    static readonly SELF_LOOP_RADIUS = 2;
+    /** How far a self-loop stays outside a node too big for {@link EdgeMesh.SELF_LOOP_RADIUS}. */
+    static readonly SELF_LOOP_CLEARANCE = 0.5;
     private static shadersRegistered = false;
 
     /**
@@ -226,109 +240,139 @@ void main() {
     }
 
     /**
-     * Creates an edge mesh based on the specified style configuration.
-     *
-     * This factory method handles all edge types:
-     * - Solid lines (with optional animation)
-     * - Patterned lines (dot, dash, diamond, sinewave, zigzag, etc.)
-     * - Bezier curves (smooth curved lines between nodes)
-     * - 2D and 3D rendering modes
-     *
-     * Solid lines in 3D mode are cached via MeshCache for performance.
-     * Bezier curves and patterned lines are created per-edge (no caching).
-     * @param cache - MeshCache instance for caching reusable meshes
-     * @param options - Edge mesh options including styleId, width, and color
-     * @param style - Full edge style configuration
-     * @param scene - Babylon.js scene
-     * @param srcPoint - Optional source point for bezier curves
-     * @param dstPoint - Optional destination point for bezier curves
-     * @returns The created edge mesh (AbstractMesh or PatternedLineMesh)
+     * Build the line for a patterned style: a run of pattern elements, each a slot in a batch
+     * shared by every element of its shape. Every other line is a slot in a line batch
+     * ({@link EdgeMesh.lineBatch}), and this is only ever asked for when that answered null.
+     * @param options - Edge mesh options including width and color.
+     * @param style - Full edge style configuration; its `line.type` is one of the patterns.
+     * @param scene - Babylon.js scene.
+     * @returns The patterned line.
      */
-    static create(
+    static createPatternedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): PatternedLineMesh {
+        // Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
+        return PatternedLineRenderer.create(
+            style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
+            new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
+            new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
+            scene,
+            {
+                width: options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
+                color: options.color,
+                opacity: style.line?.opacity ?? 1,
+                is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
+                patternCount: style.line?.patternCount, // undefined means follow the spacing rule
+            },
+        );
+    }
+
+    /**
+     * Whether a style's line is drawn as pattern elements (`PatternedLineMesh`) rather than as a
+     * slot in a line batch: a patterned type on a straight line. A curve, and a dashed or dotted
+     * line through bends, is a joined line in a batch.
+     * @param style - The resolved style.
+     * @returns True for pattern elements.
+     */
+    static drawsAsPattern(style: EdgeStyleConfig): boolean {
+        const lineType = style.line?.type ?? "solid";
+        if (!PATTERNED_TYPES.has(lineType) || style.line?.bezier === true) {
+            return false;
+        }
+
+        const bends = parseBends(style.line?.bends) !== null;
+        return !(bends && (lineType === "dash" || lineType === "dot"));
+    }
+
+    /**
+     * The thin-instance batch that draws one edge appearance, or null for a patterned line.
+     *
+     * EVERY LINE BUT A PATTERNED ONE IS A SLOT HERE (issues #419 and #444), so a style draws what
+     * it always drew:
+     *
+     * - a curve is a run of slots in the solid line's batch, one per straight segment, placed by
+     *   the edge as its ends move (`Edge.placeCurve`) -- in 2D as well, which is what it drew
+     * - a patterned line answers null: its elements are slots in batches of their own, kept by
+     *   `PatternedLineMesh`
+     * - a solid line in 2D is a slot in a batch of flat rectangles (`Simple2DLineRenderer`)
+     * - an animated line is a slot in a batch of the animated greased line, whose shader reads
+     *   `finalWorld` and so draws thin instances as it drew instanced meshes
+     * - everything else is the straight solid 3D line
+     *
+     * A slot is sixteen floats; the mesh and the material are the batch's, so the colour, the
+     * width and the opacity stay folded into the key, and there is one batch per appearance.
+     * @param cache - The mesh cache, which owns the batches so that they die when it does.
+     * @param options - Edge mesh options including styleId, width, and color.
+     * @param style - Full edge style configuration.
+     * @param scene - Babylon.js scene.
+     * @returns The batch to take a slot in, or null for a patterned line.
+     */
+    static lineBatch(
         cache: MeshCache,
         options: EdgeMeshOptions,
         style: EdgeStyleConfig,
         scene: Scene,
-        srcPoint?: Vector3,
-        dstPoint?: Vector3,
-    ): AbstractMesh | PatternedLineMesh {
+    ): EdgeLineBatch | null {
         const lineType = style.line?.type ?? "solid";
-        const PATTERNED_TYPES = ["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"];
+        const key = `edge-style-${options.styleId}`;
+        const staticLine = (): Mesh => this.createStaticLine(options, style, scene, cache);
+        const curve = style.line?.bezier === true;
 
-        // PHASE 5: Bezier curves use CustomLineRenderer with multi-point paths (individual meshes, no caching)
-        // Each bezier curve has unique geometry based on src/dst points, so can't be cached
-        if (style.line?.bezier && srcPoint && dstPoint) {
-            const bezierPoints = this.createBezierLine(srcPoint, dstPoint);
-
-            // Convert flat array to Vector3 array
-            const points: Vector3[] = [];
-            for (let i = 0; i < bezierPoints.length; i += 3) {
-                points.push(new Vector3(bezierPoints[i], bezierPoints[i + 1], bezierPoints[i + 2]));
-            }
-
-            // Create line mesh with bezier points
-            const lineConfig = style.line;
-            const mesh = CustomLineRenderer.create(
-                {
-                    points,
-                    width: options.width * 20, // Scale factor to match GreasedLine sizing
-                    color: options.color,
-                    opacity: lineConfig.opacity,
-                },
-                scene,
-            );
-
-            // Apply opacity to mesh visibility
-            if (lineConfig.opacity !== undefined) {
-                mesh.visibility = lineConfig.opacity;
-            }
-
-            // Mark as bezier curve so it's not transformed by transformEdgeMesh()
-            // Bezier curves have their geometry baked in world coordinates
-            mesh.metadata = { isBezierCurve: true };
-
-            return mesh;
+        if (this.drawsAsPattern(style)) {
+            return null;
         }
 
-        // PHASE 5: Pattern lines use PatternedLineRenderer (individual meshes, no caching)
-        // See: design/mesh-based-patterned-lines.md Phase 5
-        // Note: Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
-        if (PATTERNED_TYPES.includes(lineType)) {
-            return PatternedLineRenderer.create(
-                lineType as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
-                new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
-                new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-                options.width / 40, // Convert back from scaled width - need /40 to match solid line thickness
-                options.color,
-                style.line?.opacity ?? 1.0,
-                scene,
-                this.is2DMode(scene), // Pass 2D mode detection flag
-                style.line?.patternCount, // undefined means follow the spacing rule
-            );
-        }
-
-        // PHASE 2: Solid lines in 2D mode use Simple2DLineRenderer
-        // 2D mode uses world-space StandardMaterial meshes instead of billboard shaders
-        if (lineType === "solid" && this.is2DMode(scene)) {
-            return Simple2DLineRenderer.create(
-                new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
-                new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
-                options.width / 40, // Convert back from scaled width to match 3D line thickness
-                options.color,
-                style.line?.opacity ?? 1.0,
+        // A DASHED OR DOTTED LINE THAT BENDS IS ONE JOINED LINE, its dashes measured along the
+        // whole edge so they turn its corners (design/edges/sharp-corners.md). Pattern elements
+        // are placed along a straight line from end to end, so they cannot follow a bend. Its
+        // width and element sizes are the pattern elements' own (world units), so a bent dashed
+        // edge is as thick as the straight one beside it.
+        if (lineType === "dash" || lineType === "dot") {
+            const is2D = this.is2DMode(scene);
+            const width = options.width / 40;
+            return cache.getBatch(
+                `${key}-joined${is2D ? "-2d" : ""}`,
+                () =>
+                    CustomLineRenderer.createJoinedLineMesh(
+                        {
+                            width,
+                            color: options.color,
+                            opacity: style.line?.opacity ?? 1,
+                            worldWidth: true,
+                            pattern: {
+                                kind: lineType,
+                                elementLength: lineType === "dash" ? width * 3 : width,
+                                count: style.line?.patternCount,
+                            },
+                        },
+                        scene,
+                    ),
                 scene,
             );
         }
 
-        // Solid lines can use caching (3D mode only, since 2D is handled above)
-        const cacheKey = `edge-style-${options.styleId}`;
-        return cache.get(cacheKey, () => {
-            if (style.line?.animationSpeed) {
-                return this.createAnimatedLine(options, style, scene);
-            }
+        // A 2D CURVE IS A RUN OF FLAT RECTANGLES, like a straight 2D line (#125). It used to be
+        // a run of slots in the 3D line batch, whose width is screen pixels -- `width * 20` -- so
+        // under the 2D camera a curve drew ten pixels per unit of `line.width` at every zoom,
+        // while the straight edge beside it drew `width / 40` world units: dense curved graphs
+        // turned into wide hatched bands next to hairline straight edges.
+        if ((curve || lineType === "solid") && this.is2DMode(scene)) {
+            return cache.getBatch(
+                `${key}-2d`,
+                () =>
+                    Simple2DLineRenderer.createBatchMesh(
+                        options.width / 40, // Convert back from scaled width to match 3D line thickness
+                        options.color,
+                        style.line?.opacity ?? 1,
+                        scene,
+                    ),
+                scene,
+            );
+        }
 
-            return this.createStaticLine(options, style, scene, cache);
-        });
+        if (!curve && style.line?.animationSpeed) {
+            return cache.getBatch(key, () => this.createAnimatedLine(options, style, scene), scene);
+        }
+
+        return cache.getBatch(key, staticLine, scene);
     }
 
     /**
@@ -342,10 +386,10 @@ void main() {
      * In 2D mode, uses StandardMaterial with XY rotation.
      * In 3D mode, uses shader-based billboard rendering.
      *
-     * The head is an InstancedMesh of a batch its scene shares with every head of the same
+     * The head is a thin-instance slot in a batch its scene shares with every head of the same
      * shape (and, where the material holds them, the same colour and opacity), so a graph's
-     * arrowheads cost a draw call per batch rather than per edge. See
-     * `FilledArrowRenderer.instanceOf`.
+     * arrowheads cost one draw call and one material per batch, and nothing at all per edge.
+     * See `ArrowCapBatch`.
      * @param _cache - MeshCache instance (currently unused, kept for API compatibility)
      * @param _styleId - Style ID (currently unused, kept for API compatibility)
      * @param options - Arrow head options including type, width, color, size, and opacity
@@ -357,13 +401,15 @@ void main() {
         _styleId: string,
         options: ArrowHeadOptions,
         scene: Scene,
-    ): InstancedMesh | null {
-        if (!options.type || options.type === "none") {
+    ): ArrowCap | null {
+        // A SIZE OF 0 IS NO CAP (#2067), the same as type "none": a zero-scale slot would still be
+        // drawn, and the line runs as it would with no cap at that end.
+        const size = options.size ?? 1;
+        if (!options.type || options.type === "none" || size <= 0) {
             return null;
         }
 
-        const size = options.size ?? 1.0;
-        const opacity = options.opacity ?? 1.0;
+        const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
 
         // Detect 2D mode
@@ -387,6 +433,15 @@ void main() {
             "sphere-dot",
         ];
 
+        // A CAP IS A SLOT, NOT A MESH. The note that used to stand here said thin instances had
+        // been measured at a 1,147 ms bottleneck, 35 times slower than moving a mesh, and that
+        // sentence is why every cap and every line in this file was a scene object with its own
+        // material. What it measured was an API misuse: `thinInstanceSetMatrixAt` re-uploads the
+        // WHOLE buffer unless it is told not to, so moving n of them one at a time is O(n^2) --
+        // 42 seconds a frame at 20,000 instances. Writing the floats and uploading once a frame
+        // is 1.7 ms for the same 20,000. See EdgeLineBatch for the lines and ArrowCapBatch for
+        // these caps.
+
         const arrowType = options.type;
         if (!FILLED_ARROWS.includes(arrowType)) {
             throw new Error(`Unsupported arrow type: ${options.type}`);
@@ -394,8 +449,8 @@ void main() {
 
         if (is2D) {
             // StandardMaterial (no shader, XY rotation). Colour and opacity live on the material,
-            // so they are part of the batch; size and direction are the instance's transform.
-            const instance = FilledArrowRenderer.instanceOf(
+            // so they are part of the batch key; the size and the turn are the slot's matrix.
+            return FilledArrowRenderer.capOf(
                 scene,
                 `2d|${arrowType}|${options.color}|${String(opacity)}`,
                 () => {
@@ -403,11 +458,8 @@ void main() {
                     source.visibility = opacity;
                     return source;
                 },
+                { scale: length, billboard: false },
             );
-            instance.scaling.setAll(length);
-            instance.rotation.x = Math.PI / 2;
-            instance.metadata = { is2D: true };
-            return instance;
         }
 
         if (arrowType === "sphere-dot") {
@@ -415,7 +467,7 @@ void main() {
         }
 
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
-        return FilledArrowRenderer.createArrowInstance(
+        return FilledArrowRenderer.createArrowCap(
             arrowType,
             () => this.createArrowShape(arrowType, scene),
             {
@@ -429,33 +481,39 @@ void main() {
 
     /**
      * A 3D sphere-dot arrowhead: an unlit sphere, batched by colour and opacity, sized by the
-     * instance's scale.
+     * slot's own scale.
      * @param length - Arrow length in world units
      * @param color - Arrow color as hex string
      * @param opacity - Arrow opacity (0-1)
      * @param scene - Babylon.js scene
-     * @returns The sphere instance
+     * @returns The sphere cap
      */
-    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): InstancedMesh {
+    private static createSphereDot(length: number, color: string, opacity: number, scene: Scene): ArrowCap {
         // CRITICAL: The sphere size must match what positioning code expects
         // calculateArrowPosition() uses actualSize = length * scaleFactor
         // So the sphere's diameter must be length * scaleFactor
-        const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1.0;
+        const sphereDotScaleFactor = EdgeMesh.getArrowGeometry("sphere-dot").scaleFactor ?? 1;
         const sphereDiameter = length * sphereDotScaleFactor; // e.g., 0.5 * 0.25 = 0.125
 
-        const instance = FilledArrowRenderer.instanceOf(scene, `sphere-dot|${color}|${String(opacity)}`, () => {
-            const sphereMesh = MeshBuilder.CreateSphere("sphere-dot-arrow-3d", { diameter: 1, segments: 16 }, scene);
-            const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
-            sphereMaterial.diffuseColor = Color3.FromHexString(color);
-            sphereMaterial.emissiveColor = Color3.FromHexString(color);
-            sphereMaterial.disableLighting = true;
-            sphereMesh.material = sphereMaterial;
-            sphereMesh.visibility = opacity;
-            return sphereMesh;
-        });
-        instance.scaling.setAll(sphereDiameter);
-
-        return instance;
+        return FilledArrowRenderer.capOf(
+            scene,
+            `sphere-dot|${color}|${String(opacity)}`,
+            () => {
+                const sphereMesh = MeshBuilder.CreateSphere(
+                    "sphere-dot-arrow-3d",
+                    { diameter: 1, segments: 16 },
+                    scene,
+                );
+                const sphereMaterial = new StandardMaterial("sphere-dot-material-3d", scene);
+                sphereMaterial.diffuseColor = Color3.FromHexString(color);
+                sphereMaterial.emissiveColor = Color3.FromHexString(color);
+                sphereMaterial.disableLighting = true;
+                sphereMesh.material = sphereMaterial;
+                sphereMesh.visibility = opacity;
+                return sphereMesh;
+            },
+            { scale: sphereDiameter, billboard: false },
+        );
     }
 
     /**
@@ -505,30 +563,16 @@ void main() {
         // Use custom line renderer if flag is enabled
 
         if (this.USE_CUSTOM_RENDERER) {
-            const points = [
-                new Vector3(this.UNIT_VECTOR_POINTS[0], this.UNIT_VECTOR_POINTS[1], this.UNIT_VECTOR_POINTS[2]),
-                new Vector3(this.UNIT_VECTOR_POINTS[3], this.UNIT_VECTOR_POINTS[4], this.UNIT_VECTOR_POINTS[5]),
-            ];
-
-            // CustomLineRenderer only handles solid lines
-            // All patterns are handled by PatternedLineMesh
-            const mesh = CustomLineRenderer.create(
+            // A joined line: a straight edge is one piece with square ends, as it always was; a
+            // curve's or a bent edge's pieces meet at their corners (design/edges/sharp-corners.md).
+            return CustomLineRenderer.createJoinedLineMesh(
                 {
-                    points,
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
                     opacity: style.line?.opacity,
-                    enableInstancing: true, // Required for MeshCache InstancedMesh
                 },
                 scene,
             );
-
-            // Apply opacity to mesh visibility (in addition to shader opacity)
-            if (style.line?.opacity !== undefined) {
-                mesh.visibility = style.line.opacity;
-            }
-
-            return mesh;
         }
 
         // Fallback to GreasedLine
@@ -549,7 +593,7 @@ void main() {
             mesh.visibility = style.line.opacity;
         }
 
-        return mesh as Mesh;
+        return mesh;
     }
 
     private static createAnimatedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): Mesh {
@@ -590,7 +634,7 @@ void main() {
             mesh.visibility = style.line.opacity;
         }
 
-        return mesh as Mesh;
+        return mesh;
     }
 
     /**
@@ -668,7 +712,7 @@ void main() {
 
         const perFrame = EDGE_CONSTANTS.MOVING_TEXTURE_ANIMATION_SPEED * animationSpeed;
 
-        const observer = scene.onBeforeRenderObservable.add(() => {
+        const stopFrames = animatedEdgeFrames.join(scene, () => {
             // PARKED AT THE START OF THE GRADIENT WHEN THE SCENE SAYS NOT TO ANIMATE, rather than
             // left wherever the last frame put it. `scene.animationsEnabled` is Babylon's own
             // switch for "do not animate", and honouring it is what lets a visual baseline of an
@@ -684,10 +728,13 @@ void main() {
             texture.uOffset -= perFrame * scene.getAnimationRatio();
         });
 
+        const releaseFrames = animatesEveryFrame(scene);
+
         // The texture and the per-frame callback belong to this mesh alone; without this every
         // rebuilt animated line would leave both behind.
         mesh.onDisposeObservable.addOnce(() => {
-            scene.onBeforeRenderObservable.remove(observer);
+            releaseFrames();
+            stopFrames();
             texture.dispose();
         });
     }
@@ -792,7 +839,7 @@ void main() {
                 return {
                     positioningMode: "tip",
                     needsRotation: false, // Billboard shaders handle orientation
-                    positionOffset: 1.0, // Move arrow backward (toward sphere) to place base at surface
+                    positionOffset: 1, // Move arrow backward (toward sphere) to place base at surface
                 };
 
             default:
@@ -818,7 +865,7 @@ void main() {
         arrowLength: number,
         geometry: ArrowGeometry,
     ): Vector3 {
-        const scaleFactor = geometry.scaleFactor ?? 1.0;
+        const scaleFactor = geometry.scaleFactor ?? 1;
 
         if (geometry.positioningMode === "center") {
             // Center-based: position center back by radius so front edge touches surface
@@ -847,7 +894,7 @@ void main() {
         geometry: ArrowGeometry,
     ): Vector3 {
         // Line gap equals actual arrow size (base size × scale factor)
-        const scaleFactor = geometry.scaleFactor ?? 1.0;
+        const scaleFactor = geometry.scaleFactor ?? 1;
         const actualSize = arrowLength * scaleFactor;
         return surfacePoint.subtract(direction.scale(actualSize));
     }
@@ -880,20 +927,30 @@ void main() {
      * @param srcPoint - Start point of the curve
      * @param dstPoint - End point of the curve
      * @param controlPoints - Optional custom control points (default: auto-calculated)
+     * @param loopRadius - A self-loop's radius, when the two points are one (default
+     *     {@link EdgeMesh.SELF_LOOP_RADIUS}).
      * @returns Flat array of coordinates [x1, y1, z1, x2, y2, z2, ...]
      */
-    static createBezierLine(srcPoint: Vector3, dstPoint: Vector3, controlPoints?: Vector3[]): number[] {
+    static createBezierLine(
+        srcPoint: Vector3,
+        dstPoint: Vector3,
+        controlPoints?: Vector3[],
+        loopRadius = EdgeMesh.SELF_LOOP_RADIUS,
+    ): number[] {
         // Handle self-loops (source === destination)
         if (srcPoint.equalsWithEpsilon(dstPoint, 0.01)) {
-            return this.createSelfLoopCurve(srcPoint);
+            return this.createSelfLoopCurve(srcPoint, loopRadius);
         }
 
         // Calculate automatic control points if not provided
         const controls = controlPoints ?? this.calculateControlPoints(srcPoint, dstPoint);
 
-        // Determine point density based on curve length
+        // Determine point density based on curve length, up to a ceiling: see BEZIER_MAX_SEGMENTS.
         const estimatedLength = Vector3.Distance(srcPoint, dstPoint) * 1.5; // Curve is ~1.5x longer
-        const numPoints = Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY));
+        const numPoints = Math.min(
+            EDGE_CONSTANTS.BEZIER_MAX_SEGMENTS,
+            Math.max(10, Math.ceil(estimatedLength * EDGE_CONSTANTS.BEZIER_POINT_DENSITY)),
+        );
 
         const points: number[] = [];
 
@@ -967,10 +1024,10 @@ void main() {
     /**
      * Create a self-loop curve (circular arc) when source === destination
      * @param center - Center point for the self-loop
+     * @param radius - The loop's radius
      * @returns Flat array of coordinates forming a circular arc
      */
-    private static createSelfLoopCurve(center: Vector3): number[] {
-        const radius = 2.0; // Loop radius
+    private static createSelfLoopCurve(center: Vector3, radius: number): number[] {
         const segments = 32; // Smooth circle
         const points: number[] = [];
 

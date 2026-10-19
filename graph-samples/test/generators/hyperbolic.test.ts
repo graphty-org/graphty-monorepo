@@ -93,8 +93,7 @@ describe("hyperbolicGraph", () => {
             expect(Math.hypot(x[u], y[u])).toBeCloseTo(r[u], 9);
             for (let v = u + 1; v < 600; v++) {
                 const dTheta = Math.atan2(y[u], x[u]) - Math.atan2(y[v], x[v]);
-                const coshD =
-                    Math.cosh(r[u]) * Math.cosh(r[v]) - Math.sinh(r[u]) * Math.sinh(r[v]) * Math.cos(dTheta);
+                const coshD = Math.cosh(r[u]) * Math.cosh(r[v]) - Math.sinh(r[u]) * Math.sinh(r[v]) * Math.cos(dTheta);
                 if (Math.abs(coshD / Math.cosh(R) - 1) < 1e-9) {
                     continue;
                 }
@@ -152,7 +151,13 @@ describe("hyperbolicGraph", () => {
     });
 
     it("builds 5,000 nodes, round-trips through graph-format, and feeds euclidean weights", () => {
-        const g = hyperbolicGraph({ n: 5000, averageDegree: 8, exponent: 2.5, seed: 3, weights: { kind: "euclidean" } });
+        const g = hyperbolicGraph({
+            n: 5000,
+            averageDegree: 8,
+            exponent: 2.5,
+            seed: 3,
+            weights: { kind: "euclidean" },
+        });
         expect(fromEdgeArrays(g).edgeCount).toBe(g.src.length);
         expect(g.weights?.length).toBe(g.src.length);
     });
@@ -175,7 +180,9 @@ describe("determinism", () => {
      * a test to update.
      */
     it("reproduces the golden graphs", () => {
-        expect(fullGraphHash(hyperbolicGraph({ n: 300, averageDegree: 6, exponent: 2.5, seed: 1 }))).toMatchInlineSnapshot(`"53427d12"`);
+        expect(
+            fullGraphHash(hyperbolicGraph({ n: 300, averageDegree: 6, exponent: 2.5, seed: 1 })),
+        ).toMatchInlineSnapshot(`"53427d12"`);
         expect(
             fullGraphHash(hyperbolicGraph({ n: 300, averageDegree: 6, exponent: 2.5, temperature: 0.5, seed: 1 })),
         ).toMatchInlineSnapshot(`"adfe7cf8"`);

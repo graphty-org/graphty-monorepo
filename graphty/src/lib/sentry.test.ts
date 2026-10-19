@@ -1,25 +1,57 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { captureUserFeedback, initSentry, isSentryEnabled, resetSentryState, testCaptureError } from "./sentry";
+import {
+    captureUserFeedback,
+    initSentry,
+    isSentryEnabled,
+    resetSentryState,
+    stopSentry,
+    testCaptureError,
+} from "./sentry";
 
 // Use vi.hoisted to define mock functions that can be used in vi.mock factory
 // This is required because vi.mock is hoisted to the top of the file
-const { mockInit, mockCaptureException, mockCaptureFeedback, mockAddAttachment, mockClearAttachments, mockGetCurrentScope } = vi.hoisted(() => {
+const {
+    mockInit,
+    mockClose,
+    mockReplay,
+    mockReplayStart,
+    mockCaptureException,
+    mockCaptureFeedback,
+    mockAddAttachment,
+    mockClearAttachments,
+    mockGetCurrentScope,
+} = vi.hoisted(() => {
     const mockAddAttachment = vi.fn();
     const mockClearAttachments = vi.fn();
     const mockInit = vi.fn();
+    const mockClose = vi.fn(() => Promise.resolve(true));
+    const mockReplayStart = vi.fn();
+    const mockReplay = vi.fn(() => ({ name: "Replay", start: mockReplayStart, stop: vi.fn(() => Promise.resolve()) }));
     const mockCaptureException = vi.fn();
     const mockCaptureFeedback = vi.fn();
     const mockGetCurrentScope = vi.fn(() => ({
         addAttachment: mockAddAttachment,
         clearAttachments: mockClearAttachments,
     }));
-    return { mockInit, mockCaptureException, mockCaptureFeedback, mockAddAttachment, mockClearAttachments, mockGetCurrentScope };
+    return {
+        mockInit,
+        mockClose,
+        mockReplay,
+        mockReplayStart,
+        mockCaptureException,
+        mockCaptureFeedback,
+        mockAddAttachment,
+        mockClearAttachments,
+        mockGetCurrentScope,
+    };
 });
 
 // Mock Sentry module
 vi.mock("@sentry/react", () => ({
     init: mockInit,
+    close: mockClose,
+    replayIntegration: mockReplay,
     captureException: mockCaptureException,
     captureFeedback: mockCaptureFeedback,
     getCurrentScope: mockGetCurrentScope,
@@ -72,10 +104,35 @@ describe("Sentry initialization", () => {
             expect.objectContaining({
                 dsn: "https://test@test.ingest.sentry.io/123",
                 environment: "test",
-                replaysSessionSampleRate: 0,
-                replaysOnErrorSampleRate: 0,
+                replaysSessionSampleRate: 1.0,
             }),
         );
+    });
+
+    it("records each session's replay with every text, input and medium masked", () => {
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+
+        expect(mockReplay).toHaveBeenCalledWith({ maskAllText: true, maskAllInputs: true, blockAllMedia: true });
+    });
+
+    it("stops sending when usage data is turned off", () => {
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+        stopSentry();
+
+        expect(mockClose).toHaveBeenCalled();
+        expect(isSentryEnabled()).toBe(false);
+    });
+
+    it("keeps one replay when usage data is turned off and on again", () => {
+        mockReplay.mockClear();
+        mockReplayStart.mockClear();
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+        stopSentry();
+        initSentry({ dsn: "https://test@test.ingest.sentry.io/123" });
+
+        // Sentry throws on a second replayIntegration() in one page.
+        expect(mockReplay).toHaveBeenCalledTimes(1);
+        expect(mockReplayStart).toHaveBeenCalledTimes(1);
     });
 
     it("should use lower traces sample rate in production", () => {

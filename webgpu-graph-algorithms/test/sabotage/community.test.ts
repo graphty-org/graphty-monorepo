@@ -3,7 +3,7 @@
  * SABOTAGE row of `group-by-key-row` and `lpa-step` is spliced into the normative body and compiled on a FRESH
  * context, and the SAME check that passes on the real kernels fails on the mutant by at least minFactor. The checks
  * are bitwise (test/helpers/structure.ts): the group-by rows weighted and not in every tier split, with the exhausted
- * flag required to stay 0, and label propagation's labels on karate, a 300-node path that needs more than one
+ * flag required to stay 0, and label propagation's labels on karate, a 30 x 30 grid that needs more than one
  * submit of passes and the two-node path the direction rule exists for -- any mismatch, and any throw, is Infinity.
  */
 

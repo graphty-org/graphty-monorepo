@@ -65,32 +65,28 @@ function element(width: number, height: number, eye: Vector3): Element {
         { points: [new Vector3(0, 0, 0), new Vector3(1, 0, 0)], width: 4, color: "#ffffff" },
         scene,
     );
-    const arrowMesh = EdgeMesh.createArrowHead(
+    const arrowCap = EdgeMesh.createArrowHead(
         new MeshCache(),
         "arrow",
         { type: "normal", width: 1, color: "#ff0000" },
         scene,
     );
-    assert.isNotNull(arrowMesh);
-    const patternLine = PatternedLineRenderer.create(
-        "dot",
-        new Vector3(0, 0, 0),
-        new Vector3(0, 0, 5),
-        0.5,
-        "#ffffff",
-        1,
-        scene,
-    );
+    assert.isNotNull(arrowCap);
+    const patternLine = PatternedLineRenderer.create("dot", new Vector3(0, 0, 0), new Vector3(0, 0, 5), scene, {
+        width: 0.5,
+        color: "#ffffff",
+        opacity: 1,
+    });
 
     return {
         scene,
         line: lineMesh.material as ShaderMaterial,
-        arrow: arrowMesh.material as ShaderMaterial,
-        pattern: patternLine.meshes[0].material as ShaderMaterial,
+        arrow: arrowCap.batchMesh?.material as ShaderMaterial,
+        pattern: patternLine.elements[0].batchMesh?.material as ShaderMaterial,
         patternLine,
         dispose: () => {
             lineMesh.dispose(false, true);
-            arrowMesh.dispose();
+            arrowCap.dispose();
             patternLine.dispose();
         },
     };

@@ -1,121 +1,49 @@
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { NullEngine, Scene, ShaderMaterial, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
+import { JOIN_TEMPLATE_POSITIONS } from "../../src/meshes/edgeJoinShader";
+import { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import { Simple2DLineRenderer } from "../../src/meshes/Simple2DLineRenderer";
 
+// What a 2D line draws on screen -- the rectangle of a straight edge, the joins of a bent one -- is
+// held by the pixels in test/browser/edge-corner-joins.test.ts. These hold what the batch is built
+// from and what a slot records.
 describe("Simple2DLineRenderer", () => {
     let scene: Scene;
 
     beforeEach(() => {
-        const engine = new NullEngine();
-        scene = new Scene(engine);
+        scene = new Scene(new NullEngine());
     });
 
-    test("create generates rectangular mesh perpendicular to line direction", () => {
-        const start = new Vector3(0, 0, 0);
-        const end = new Vector3(1, 0, 0);
-        const mesh = Simple2DLineRenderer.create(start, end, 0.1, "#ff0000", 1.0, scene);
-
-        // Should have 4 vertices (rectangle)
-        assert.strictEqual(mesh.getTotalVertices(), 4, "Should have 4 vertices for rectangle");
-
-        // Should be marked as 2D line
-        assert.strictEqual(mesh.metadata?.is2DLine, true, "Should be marked as 2D line");
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
-    test("updatePositions recalculates vertices for new endpoints", () => {
-        const mesh = Simple2DLineRenderer.create(
-            new Vector3(0, 0, 0),
-            new Vector3(1, 0, 0),
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-        );
+    test("builds the joined line template, its width in world units, marked as a 2D line", () => {
+        const mesh = Simple2DLineRenderer.createBatchMesh(0.1, "#ff0000", 0.5, scene);
 
-        const newStart = new Vector3(0, 1, 0);
-        const newEnd = new Vector3(1, 1, 0);
-        Simple2DLineRenderer.updatePositions(mesh, newStart, newEnd);
-
-        // With transform-based approach, mesh position/rotation/scaling change, not vertices
-        // The midpoint should be at (0.5, 1, 0)
-        assert(Math.abs(mesh.position.x - 0.5) < 0.01, "X position should be near 0.5");
-        assert(Math.abs(mesh.position.y - 1.0) < 0.01, "Y position should be near 1.0");
-        assert(Math.abs(mesh.position.z - 0.0) < 0.01, "Z position should be near 0.0");
+        assert.strictEqual(mesh.getTotalVertices(), JOIN_TEMPLATE_POSITIONS.length / 3);
+        assert.strictEqual(mesh.metadata?.is2DLine, true);
+        assert.strictEqual(mesh.metadata?.joinedLine, true);
+        assert.strictEqual(mesh.metadata?.lineWidth, 0.1);
+        assert.strictEqual(mesh.metadata?.lineOpacity, 0.5);
+        assert.instanceOf(mesh.material, ShaderMaterial);
+        assert.include(mesh.material.options.defines, "#define WORLD_WIDTH");
+        assert.strictEqual(mesh.visibility, 0.5, "a translucent line is drawn in the transparent pass");
     });
 
-    test("a Z on an endpoint does not lengthen the line drawn in the XY plane", () => {
-        // The quad lies in XY and the camera looks down Z, so its length must be the XY distance.
-        // The 3D distance made a line whose endpoint carried a Z run past both of its nodes.
-        const start = new Vector3(0, 0, 0);
-        const end = new Vector3(3, 4, 20);
-        const created = Simple2DLineRenderer.create(start, end, 0.1, "#ff0000", 1.0, scene);
-        assert.closeTo(created.scaling.x, 5, 1e-6, "create: length is the XY distance");
+    test("a slot records the ends it was placed at, and a straight line has no neighbours", () => {
+        const batch = new EdgeLineBatch(Simple2DLineRenderer.createBatchMesh(0.2, "#ff0000", 1, scene), scene);
+        const slot = batch.acquire();
+        const start = new Vector3(1, 1, 0);
+        const end = new Vector3(4, 5, 0);
+        batch.place(slot, start, end);
 
-        const updated = Simple2DLineRenderer.create(start, new Vector3(1, 0, 0), 0.1, "#ff0000", 1.0, scene);
-        Simple2DLineRenderer.updatePositions(updated, start, end);
-        assert.closeTo(updated.scaling.x, 5, 1e-6, "updatePositions: length is the XY distance");
-    });
-
-    test("create handles vertical lines", () => {
-        const start = new Vector3(0, 0, 0);
-        const end = new Vector3(0, 1, 0);
-        const mesh = Simple2DLineRenderer.create(start, end, 0.1, "#00ff00", 1.0, scene);
-
-        assert.strictEqual(mesh.getTotalVertices(), 4, "Should have 4 vertices");
-        assert.strictEqual(mesh.metadata?.is2DLine, true, "Should be marked as 2D line");
-    });
-
-    test("create handles diagonal lines", () => {
-        const start = new Vector3(0, 0, 0);
-        const end = new Vector3(1, 1, 0);
-        const mesh = Simple2DLineRenderer.create(start, end, 0.1, "#0000ff", 1.0, scene);
-
-        assert.strictEqual(mesh.getTotalVertices(), 4, "Should have 4 vertices");
-        assert.strictEqual(mesh.metadata?.is2DLine, true, "Should be marked as 2D line");
-    });
-
-    test("create applies correct color", () => {
-        const mesh = Simple2DLineRenderer.create(
-            new Vector3(0, 0, 0),
-            new Vector3(1, 0, 0),
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-        );
-
-        assert(mesh.material !== null, "Material should be set");
-    });
-
-    test("create applies correct opacity", () => {
-        const mesh = Simple2DLineRenderer.create(
-            new Vector3(0, 0, 0),
-            new Vector3(1, 0, 0),
-            0.1,
-            "#ff0000",
-            0.5,
-            scene,
-        );
-
-        assert(mesh.material !== null, "Material should be set");
-    });
-
-    test("updatePositions handles position changes correctly", () => {
-        const mesh = Simple2DLineRenderer.create(
-            new Vector3(0, 0, 0),
-            new Vector3(1, 0, 0),
-            0.1,
-            "#ff0000",
-            1.0,
-            scene,
-        );
-
-        // Update to different position
-        Simple2DLineRenderer.updatePositions(mesh, new Vector3(2, 2, 0), new Vector3(3, 3, 0));
-
-        const positions = mesh.getVerticesData("position");
-        assert(positions !== null, "Positions should exist after update");
-        assert(positions.length >= 4, "Should have position data after update");
+        const [a, b] = batch.endsOf(slot);
+        assert.isTrue(a.equalsWithEpsilon(start, 1e-6));
+        assert.isTrue(b.equalsWithEpsilon(end, 1e-6));
+        assert.closeTo(batch.lengthOf(slot), 5, 1e-6);
+        assert.strictEqual(batch.drawnCount, 1);
+        assert.strictEqual(batch.mesh.forcedInstanceCount, 1, "one instance, not a thin instance");
     });
 });

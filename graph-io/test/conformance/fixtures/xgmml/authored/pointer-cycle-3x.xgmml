@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<graph id="100" label="Na" directed="1" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="http://www.cytoscape.org" xmlns="http://www.cs.rpi.edu/XGMML">
+  <node id="1" label="Node 1"><att><graph id="200" label="Nb" cy:registered="1">
+    <node id="6" label="Node 6"><att><graph xlink:href="#100"/></att></node>
+  </graph></att></node>
+  <node id="2" label="Node 2"/>
+  <edge id="9" label="Node 1 (pp) Node 2" source="1" target="2" cy:directed="1"/>
+</graph>

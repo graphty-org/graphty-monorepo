@@ -39,6 +39,15 @@ describe("OBO lexical layer (research-obo.md 4.1)", () => {
         expect(stripComment("a  \t")).toBe("a");
     });
 
+    it("strips a comment after escaped marks, a quoted !, and a trailing backslash", () => {
+        expect(stripComment('a \\" b ! c')).toBe('a \\" b');
+        expect(stripComment("a \\\\ ! c")).toBe("a \\\\");
+        expect(stripComment('"x \\" ! y" ! z')).toBe('"x \\" ! y"');
+        expect(stripComment("a ! b ! c")).toBe("a");
+        expect(stripComment("a\\")).toBe("a\\");
+        expect(stripComment(`${"x".repeat(100_000)} ! c`)).toBe("x".repeat(100_000));
+    });
+
     it("recognizes a continuation backslash only when it is not escaped", () => {
         expect(endsWithContinuation("name: a \\")).toBe(true);
         expect(endsWithContinuation("name: a \\\\")).toBe(false);
@@ -98,19 +107,20 @@ describe("OBO lexical layer (research-obo.md 4.1)", () => {
             id: "NIST Chemistry WebBook:110-63-4",
             description: "CAS Registry Number",
             qualifiers: null,
+            unterminated: false,
         });
         expect(parseXref("http://ecoliwiki.net/colipedia/index.php/Category\\:Cryptic_Prophage.w")?.id).toBe(
             "http://ecoliwiki.net/colipedia/index.php/Category:Cryptic_Prophage.w",
         );
         expect(parseXref("  ")).toBeNull();
         expect(parseXrefList('A:1, B:2 "d, e", C\\,D:3 {q="1, 2"}, ')).toEqual([
-            { id: "A:1", description: null, qualifiers: null },
-            { id: "B:2", description: "d, e", qualifiers: null },
-            { id: "C,D:3", description: null, qualifiers: { q: "1, 2" } },
+            { id: "A:1", description: null, qualifiers: null, unterminated: false },
+            { id: "B:2", description: "d, e", qualifiers: null, unterminated: false },
+            { id: "C,D:3", description: null, qualifiers: { q: "1, 2" }, unterminated: false },
         ]);
         expect(parseXrefList("")).toEqual([]);
         expect(parseXrefList("KEGG COMPOUND:")).toEqual([
-            { id: "KEGG COMPOUND:", description: null, qualifiers: null },
+            { id: "KEGG COMPOUND:", description: null, qualifiers: null, unterminated: false },
         ]);
     });
 
@@ -118,5 +128,9 @@ describe("OBO lexical layer (research-obo.md 4.1)", () => {
         expect(hasStrayBrace("a P{GawB} b")).toBe(true);
         expect(hasStrayBrace('"a {b}" []')).toBe(false);
         expect(hasStrayBrace("a \\{b\\}")).toBe(false);
+        expect(hasStrayBrace("[a {q=1}] b")).toBe(false);
+        expect(hasStrayBrace("[a] {b")).toBe(true);
+        expect(hasStrayBrace('"a \\" {b" c')).toBe(false);
+        expect(hasStrayBrace("a\\")).toBe(false);
     });
 });

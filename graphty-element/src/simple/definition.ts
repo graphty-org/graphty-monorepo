@@ -181,7 +181,7 @@ export function optionalOneOf(
  */
 export function sentenceCase(key: string): string {
     const words = key
-        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .replaceAll(/([a-z0-9])([A-Z])/g, "$1 $2")
         .split(/[\s_-]+/)
         .filter((word) => word !== "")
         .map((word) => word.toLowerCase());

@@ -1,3 +1,107 @@
+## 2.0.21 (2026-10-18)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.20 (2026-10-17)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.19 (2026-10-15)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.18 (2026-10-14)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.17 (2026-10-13)
+
+### 🩹 Fixes
+
+- **graphty-element:** free each test file's page under v8 coverage in browser tests ([#2247](https://github.com/graphty-org/graphty-monorepo/issues/2247))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.16 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.15 (2026-10-12)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.14 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.13 (2026-10-09)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.12 (2026-10-09)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.11 (2026-10-08)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.10 (2026-10-08)
+
+### 🩹 Fixes
+
+- **remote-logger:** refuse a non-numeric port, retention or line count instead of using NaN ([#1229](https://github.com/graphty-org/graphty-monorepo/issues/1229))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.0.9 (2026-10-07)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.8 (2026-10-07)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.7 (2026-10-06)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.6 (2026-10-05)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.5 (2026-10-05)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.4 (2026-10-04)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.3 (2026-10-04)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
+## 2.0.2 (2026-10-04)
+
+This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
+
 ## 2.0.1 (2026-10-02)
 
 This was a version bump only for @graphty/remote-logger to align it with other projects, there were no code changes.
@@ -6,11 +110,11 @@ This was a version bump only for @graphty/remote-logger to align it with other p
 
 ### 🩹 Fixes
 
-- ⚠️  **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
+- ⚠️ **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
 
-### ⚠️  Breaking Changes
+### ⚠️ Breaking Changes
 
-- **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge  ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
+- **remote-logger:** upgrade selfsigned to 5.5 to drop node-forge ([#8](https://github.com/graphty-org/graphty-monorepo/issues/8), [#1](https://github.com/graphty-org/graphty-monorepo/issues/1))
   generateSelfSignedCert() from
   @graphty/remote-logger/server now returns Promise<GeneratedCert>,
   because selfsigned 5 generates asynchronously. Callers must await it.

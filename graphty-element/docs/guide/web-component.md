@@ -35,6 +35,9 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                         |
 | `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                            |
 | `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                          |
+| `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                             |
+| `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                      |
+| `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                               |
 | `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                       |
 | `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                              |
 | `nodeIdPath`             | `node-id-path`             | `string`                                                            | `'id'`      | Path to node ID in data                                                                                                                                                |
@@ -96,9 +99,9 @@ element.selectionStyle = {
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
 on a selection that is already on screen.
 
-### Expanding a node's neighbourhood on demand
+### Expanding a node's neighborhood on demand
 
-Double-clicking a node asks you for that node's neighbours and adds what comes back, so a graph
+Double-clicking a node asks you for that node's neighbors and adds what comes back, so a graph
 too large to load at once can be explored a step at a time. Hand over the two functions through
 `layoutBehavior`:
 
@@ -134,15 +137,55 @@ element.layoutBehavior = {
 `preSteps` is what makes a screenshot of a physics layout the same picture twice. `minDelta` at
 its default of `0` leaves the engine to decide when it has finished.
 
-### Overlapping labels
+### Groups of nodes
 
-`layoutBehavior.labels.declutter` hides a node label whose words would be drawn over another
-label's. It is off by default, so every label a style asks for is drawn; see
-[Labels that would overlap](./styling#labels-that-would-overlap).
+A file can nest nodes inside another node: a Graphviz cluster, a yEd group, a Cytoscape.js
+compound node. When the file stores no position for such a group, the element does not lay it out
+as a node of its own. It is placed on the box its members make, with a little padding, every frame
+the layout moves them; it is drawn that size, behind its members; and it neither pushes nor pulls
+any other node. Framing the camera includes the box. A group the file does place keeps the position
+and size the file gives it.
+
+To lay groups out like every other node instead:
 
 ```javascript
-element.layoutBehavior = { labels: { declutter: true } };
+element.layoutBehavior = { layout: { groupsFollowMembers: false } };
 ```
+
+### Overlapping labels
+
+`labelDeclutter` hides a node label whose words would be drawn over another label's. It is off by
+default, so every label a style asks for is drawn; see
+[Labels that would overlap](./styling#labels-that-would-overlap). It is a preference of the view:
+switching it records no undo step and is not saved in a project file.
+
+```javascript
+element.labelDeclutter = true;
+```
+
+Assigning `layoutBehavior` is merged over what is already set, section by section, so this line
+leaves `layout`, `node` and the two fetch functions as they were.
+
+### Drawing only when something changes
+
+By default the element draws the graph on every animation frame, whether or not anything moved.
+`renderOnDemand` stops drawing once the layout has settled, the styles are painted and the camera
+is at rest, and draws again as soon as the data, a style, the layout, the camera, the selection or
+the reader's pointer, wheel or keys change the picture. A still graph then costs the page nothing
+per frame, which matters most where the GPU is emulated in software (virtual machines, CI runners,
+headless browsers): there each frame costs the page tens of milliseconds or more, and the page's
+own buttons and fields answer that much later.
+
+```html
+<graphty-element render-on-demand></graphty-element>
+```
+
+It can also be set as `layoutBehavior.rendering.onDemand`. If your own code changes the Babylon.js
+scene directly, through `element.graph.scene`: adding or removing a mesh, material, texture, light
+or camera is drawn, and so is a new background color, but changing a property of something already
+in the scene (a material's color, a mesh's position) is not drawn until something else changes the
+picture. Leave the option off in that case. Like `labelDeclutter`, it is a preference of the view,
+not saved in a project file.
 
 ## Basic Usage
 
@@ -255,7 +298,7 @@ Set the layout algorithm via the `layout` attribute:
 ```html
 <graphty-element layout="ngraph"></graphty-element>
 <graphty-element layout="circular"></graphty-element>
-<graphty-element layout="hierarchical"></graphty-element>
+<graphty-element layout="hierarchical" layout-config='{"start": "a"}'></graphty-element>
 <graphty-element layout="grid"></graphty-element>
 <graphty-element layout="random"></graphty-element>
 ```
@@ -263,9 +306,9 @@ Set the layout algorithm via the `layout` attribute:
 Available layouts:
 
 - `ngraph` - Force-directed (default, 2D/3D)
-- `d3-force` - D3's force simulation (2D)
+- `d3` - D3's force simulation (2D/3D)
 - `circular` - Nodes arranged in a circle
-- `hierarchical` - Tree-like structure
+- `hierarchical` - Tree-like structure, grown from the node `start` names (required)
 - `grid` - Regular grid pattern
 - `random` - Random positions
 
@@ -386,7 +429,7 @@ function GraphComponent({ nodes, edges, layout = "ngraph" }) {
 
 If the element module is loaded lazily, make sure it is defined before React renders the tag;
 otherwise React writes object props as `"[object Object]"` attributes. See
-[Loading the element lazily](./installation#loading-the-element-lazily).
+[Load the element before React renders it](./frameworks/react#load-the-element-before-react-renders-it).
 
 ### Vue
 

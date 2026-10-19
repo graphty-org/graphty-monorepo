@@ -113,6 +113,8 @@ function field(
 const BETWEENNESS: EncodingRun = {
     id: "betweenness",
     label: "Betweenness",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "betweenness",
     params: { normalized: true },
     shape: "node-metric",
@@ -123,6 +125,8 @@ const BETWEENNESS: EncodingRun = {
 const ROUTE: EncodingRun = {
     id: "route",
     label: "Shortest Path",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "shortest-path",
     params: {},
     shape: "path",
@@ -137,6 +141,8 @@ const ROUTE: EncodingRun = {
 const INFLUENCERS: EncodingRun = {
     id: "influencers",
     label: "Influencers",
+    distinguishedBy: null,
+    siblingsDifferBy: null,
     algorithm: "dominating-set",
     params: {},
     shape: "node-set",
@@ -829,7 +835,7 @@ describe("checking a layer before it is committed", () => {
             name: "Marker",
             target: "node",
             selector: { match: "everything" },
-            set: { "node.marker": "star" } as LayerSpec["set"],
+            set: { "node.marker": "star" },
         });
 
         assert.deepStrictEqual(codesOf(result), ["E_UNSUPPORTED"]);
@@ -1047,6 +1053,31 @@ describe("encode(), the one path an analysis layer takes", () => {
         assert.deepStrictEqual(namesOf(styles), ["Default", "Colour", "Size"]);
     });
 
+    it("sizes by a run over the same default range a column gets, unless a range or scale is named (#915)", async () => {
+        const { styles } = makeStyles();
+
+        assert.deepStrictEqual(styles.proposeEncoding({ run: "betweenness", channel: "node.size" }), {
+            ok: true,
+            binding: { by: "results.betweenness.value", scale: "linear", range: [1, 3] },
+        });
+        const layer = await styles.encode({ run: "betweenness", channel: "node.size" });
+        assert.deepStrictEqual(layer.encode?.["node.size"], {
+            by: "results.betweenness.value",
+            scale: "linear",
+            range: [1, 3],
+        });
+        assert.deepStrictEqual(
+            styles.proposeEncoding({ run: "betweenness", channel: "node.size", range: [2, 9] }),
+            { ok: true, binding: { by: "results.betweenness.value", scale: "linear", range: [2, 9] } },
+            "a range the caller named is kept",
+        );
+        assert.deepStrictEqual(
+            styles.proposeEncoding({ run: "betweenness", channel: "node.color" }),
+            { ok: true, binding: { by: "results.betweenness.value", scale: "linear" } },
+            "a colour has no size range",
+        );
+    });
+
     it("says which runs there are when it does not hold the one it was given", async () => {
         const { styles } = makeStyles();
 
@@ -1262,6 +1293,47 @@ describe("the legend, and why one element looks the way it does", () => {
         assert.isString(colour?.reason);
     });
 
+    it("says why a rule cannot be edited as a code and its values", async () => {
+        const { styles } = makeStyles();
+        const layer = await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
+
+        const colour = styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color");
+
+        assert.deepStrictEqual(colour?.fact, {
+            code: "channel.encoded",
+            params: {
+                layerId: layer.id,
+                name: "By betweenness",
+                channel: "node.color",
+                path: "results.betweenness.value",
+            },
+        });
+    });
+
+    it("says why the element's own layer cannot be edited as a code and its values", () => {
+        const { styles } = makeStyles();
+        const base = styles.list()[0];
+
+        const colour = styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color");
+
+        assert.isFalse(colour?.editable);
+        assert.deepStrictEqual(colour?.fact, {
+            code: "layer.locked",
+            params: { layerId: base?.id ?? "", name: "Default" },
+        });
+    });
+
+    it("gives an editable channel no fact", async () => {
+        const { styles } = makeStyles();
+        await styles.add(layerSpec("Mine", { set: { "node.color": "#00ff00" } }));
+
+        const colour = styles.explain({ node: "n1" }).channels.find((entry) => entry.channel === "node.color");
+
+        assert.isTrue(colour?.editable);
+        assert.isUndefined(colour?.fact);
+        assert.isUndefined(colour?.reason);
+    });
+
     it("lists the layers that contributed, bottom first", async () => {
         const { styles } = makeStyles();
         await styles.encode({ run: "betweenness", channel: "node.color", name: "By betweenness" });
@@ -1392,6 +1464,10 @@ describe("a style document, out and back in", () => {
             [["results.pagerank.score"]],
         );
         assert.include(unbound[0]?.reason ?? "", "results.pagerank.score");
+        assert.deepStrictEqual(unbound[0]?.fact, {
+            code: "layer.unanswered",
+            params: { layerId: unbound[0]?.layerId ?? "", name: "Waiting", paths: ["results.pagerank.score"] },
+        });
         assert.isFalse(waiting?.enabled);
         assert.isTrue(styles.get(applied[0] ?? "")?.enabled);
     });

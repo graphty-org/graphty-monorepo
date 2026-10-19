@@ -1,0 +1,7 @@
+/* The usage data text's disclosure. Colors come only from compact-mantine's --cm-* tokens. */
+
+.ws-collected summary {
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--cm-text-brand, var(--cm-text));
+}

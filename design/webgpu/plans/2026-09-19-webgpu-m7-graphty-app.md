@@ -74,17 +74,17 @@ acceleration logic, and it is the app's by design rather than by omission.
 
 ### Task deltas
 
-| Task | Delta |
-| --- | --- |
-| M7-T1 | UNCHANGED in substance. The stale commit-scope check, the Storybook certificate and the G12 restatement are unaffected; only the corpus-index row's wording follows this phase's new scope. |
+| Task  | Delta                                                                                                                                                                                                                                                                                                                                           |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M7-T1 | UNCHANGED in substance. The stale commit-scope check, the Storybook certificate and the G12 restatement are unaffected; only the corpus-index row's wording follows this phase's new scope.                                                                                                                                                     |
 | M7-T2 | REWORDED and widened. It still installs the dependency, fixes the lint build order, narrows the CI step and deletes the shadowing element type shim. It now also adds the one activation import, wires the `./webgpu` subpath through the app's vite alias and tsconfig paths, and tells knip the dependency is installed rather than imported. |
-| M7-T3 | REWORDED. The store and its versioned key SURVIVE unchanged -- the element does not persist this and the app must. What changes is where the control writes: the element's `acceleration` attribute, not an app-side probe. |
-| M7-T4 | OBSOLETE. `attachAccelerator`, the host guard and the inert calibrate arm are all element work now. |
-| M7-T5 | OBSOLETE. The graph-ready poll and `useGpuAccelerator` existed to know when to inject; the element injects itself and publishes the result as an event. |
-| M7-T6 | KEPT, re-sourced. The chip and the toast read the capability record the element publishes and subscribe to `graphty-capabilities-change`. This is the model case of the principle: reading a property the element publishes and rendering it IS consuming the element. |
-| M7-T7 | KEPT, re-sourced. The `metricCost` accelerator constant reads the same capability record instead of an app-side flag. |
-| M7-T8 | KEPT, simplified. The stories render the chip from fixed capability records, so every state is drawable and Chromatic is deterministic by construction rather than by what its renderer happens to expose. |
-| M7-T9 | REDUCED. The `acceleration.minNodes` measurement and the real-GPU settle / drag / pin check are the element's and belong to M6-T20's gate. What remains is the app's half of G12: the chip on a real GPU, the control, the preference surviving a reload, the stories, and the check that the app contains no acceleration logic at all. |
+| M7-T3 | REWORDED. The store and its versioned key SURVIVE unchanged -- the element does not persist this and the app must. What changes is where the control writes: the element's `acceleration` attribute, not an app-side probe.                                                                                                                     |
+| M7-T4 | OBSOLETE. `attachAccelerator`, the host guard and the inert calibrate arm are all element work now.                                                                                                                                                                                                                                             |
+| M7-T5 | OBSOLETE. The graph-ready poll and `useGpuAccelerator` existed to know when to inject; the element injects itself and publishes the result as an event.                                                                                                                                                                                         |
+| M7-T6 | KEPT, re-sourced. The chip and the toast read the capability record the element publishes and subscribe to `graphty-capabilities-change`. This is the model case of the principle: reading a property the element publishes and rendering it IS consuming the element.                                                                          |
+| M7-T7 | KEPT, re-sourced. The `metricCost` accelerator constant reads the same capability record instead of an app-side flag.                                                                                                                                                                                                                           |
+| M7-T8 | KEPT, simplified. The stories render the chip from fixed capability records, so every state is drawable and Chromatic is deterministic by construction rather than by what its renderer happens to expose.                                                                                                                                      |
+| M7-T9 | REDUCED. The `acceleration.minNodes` measurement and the real-GPU settle / drag / pin check are the element's and belong to M6-T20's gate. What remains is the app's half of G12: the chip on a real GPU, the control, the preference surviving a reload, the stories, and the check that the app contains no acceleration logic at all.        |
 
 Net: nine tasks become seven live ones, and the two that went were the two that contained all the
 graph logic. That is the intended result, not an accident of scoping -- if a task in this document
@@ -96,7 +96,7 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 
 - Never run `git add`, `git commit`, `git push`, `git stash`, `git checkout`, `git reset`, `git restore` or `git worktree` (global rule; in a subagent the last five block forever on an unanswered prompt as surely as the first three). Read-only git (`log`, `show`, `diff`, `ls-files`, `status`) is fine. Every commit in this plan is made by the owner running `tools/commit-changes.sh`; a task's "Commit" step means "leave the working tree in the described state and tell the owner which subject to commit". That script's STEPS / SUBJECTS / PATHS block is data tailored to one change set (`tools/commit-changes.sh:30-34`), so the owner re-points it at this phase before running it; `--dry-run` stages nothing.
 - Never add a `Co-Authored-By` or `Claude-Session` trailer to any commit message, script or file. The script validates every message before it stages anything.
-- Plain ASCII in every file this plan creates or edits; `--` for dashes, straight quotes, ` -> ` for an arrow. Each task's Checkpoint names the files it touched and runs `LC_ALL=C grep -nP '[^\x00-\x7F]'` over exactly those; no output is the pass.
+- Plain ASCII in every file this plan creates or edits; `--` for dashes, straight quotes, `->` for an arrow. Each task's Checkpoint names the files it touched and runs `LC_ALL=C grep -nP '[^\x00-\x7F]'` over exactly those; no output is the pass.
 - Never run `sudo`. Servers only on ports 9000-9099: the app's dev server is `PORT` from the monorepo root `.env` (9005 today; `graphty/vite.config.ts:41` defaults to 9000), its Storybook is 9035, its coverage preview 9054.
 - No `eslint-disable`, `@ts-expect-error` or `@ts-ignore`; never lower a coverage threshold. `graphty/vitest.config.ts` declares NO `thresholds` today, and this plan adds none -- adding one is a separate decision about the whole app, not a side effect of a GPU phase.
 - Project rule (root `CLAUDE.md`, WebGPU): never create a fallback if WebGPU is not supported. Nothing in this plan branches on the presence of a GPU: the app renders whatever the element reports, and "no GPU" is a capability record whose `state` is `"unavailable"` with a `reason` the chip's tooltip prints. The element runs the CPU path and says so; the app neither detects that nor compensates for it.
@@ -112,33 +112,33 @@ Copied from the spec and the owner's rules; every task's requirements implicitly
 
 ### 0.1 Where the repository stands (2026-09-19)
 
-| Fact | Evidence |
-| --- | --- |
-| Master is `07fba28b test(webgpu-graph-algorithms): let the minimum confirm the median in bench:compare`, ONE commit ahead of `origin/master` (`cde458a2`) and unpushed; the only thing in the working tree is the four untracked plan files of 2026-09-19 (M6, M7, M8a, M8b), this document among them. | `git log --oneline -1`; `git status --porcelain` (four `??` lines, all `design/webgpu/plans/2026-09-19-webgpu-m*.md`) |
-| `graphty` is version 0.7.0 and `"private": true`; the root `CLAUDE.md` package table still says 0.1.0. | `graphty/package.json:2-4`; root `CLAUDE.md` package directory |
-| The app knows nothing about the GPU: no `graphty/src/gpu/` directory, and `grep -rn "webgpu\|navigator.gpu"` over `graphty/src` returns no non-test hit. | `ls graphty/src` (no `gpu`); the grep |
-| `@graphty/webgpu-graph-algorithms` is ABSENT from graphty's dependencies and devDependencies. | `graphty/package.json:31-47,48-65` |
-| ...but it ALREADY resolves from graphty, because `.npmrc` sets `shamefully-hoist=true` and the root `node_modules/@graphty/webgpu-graph-algorithms` is a symlink to the workspace directory. A probe file importing both entries type-checked clean with the package undeclared. | `.npmrc`; `ls -la node_modules/@graphty/webgpu-graph-algorithms`; `cd graphty && npx tsc --noEmit` on the probe, 0 errors (2026-09-19) |
-| knip's `graphty` workspace ignores exactly one dependency, `jsdom`, so a package that is INSTALLED and imported by no file under `src` is reported as unused. The same situation is already handled by name one workspace up: the GPU package's own block ignores `webgpu`, with the comment "knip 5.77 reports referenced optional peers". | `knip.config.ts:159-162`; `knip.config.ts:50-56` |
-| `graphty/src/types/graphty-element.d.ts` is a 73-line ambient `declare module "@graphty/graphty-element"`, and it WINS over `graphty/tsconfig.json:24-31`'s `paths` alias: a probe importing `type { Edge }` (which the real barrel exports at `graphty-element/index.ts:11` and the shim does not) failed with `TS2305: Module '"@graphty/graphty-element"' has no exported member 'Edge'`. | the probe run of 2026-09-19 |
-| Deleting that shim leaves exactly TWO type errors, both in `graphty/src/components/Graphty.test.tsx:70-71` (`Property 'style' does not exist on type 'Element'`), and `container.querySelector<HTMLElement>(...)` fixes both. | `mv src/types/graphty-element.d.ts /tmp && npx tsc --noEmit` then the one-word edit, 0 errors (2026-09-19) |
-| The app already forwards element DOM events to React props twice, in one shape: an effect that reads `graphtyRef.current`, returns early when the callback is absent, adds the listener and removes it in the cleanup. `selection-changed` is at `Graphty.tsx:471-497` and `style-changed` at `:500-551`; both arrive as members of `CanvasGraphConfig` (`CanvasRegion.tsx:83-101`), are passed to the component at `CanvasRegion.tsx:444-445`, and are filled by `AppShell.tsx:4690-4697`. | the three files |
-| The app's tests run in REAL headless Chromium, and `<graphty-element>` is an unknown element there rather than a registered one -- which is still an `HTMLElement` and a working event target, so a test can dispatch a `CustomEvent` on it and assert the forwarder saw it. | `graphty/vitest.config.ts:16-22`; `Graphty.test.tsx:70-71` queries the tag today |
-| The `issues` status-bar slot is in the frozen nine-slot contract but has NO producer: `AppShell.tsx`'s slots memo builds `counts`, `layout` and `selection` and nothing else. | `graphty/src/components/shell/types.ts:700-708,734-746`; `AppShell.tsx:4253-4283` |
-| The app has ONE toast, `LoadCompleteToast`, and its producer is load-scoped: `loadCompletion` returns `undefined` unless `loadFailure !== null`, even though the component's own doc generalises it to "a load ends, and this is the line that says how it ended". | `AppShell.tsx:4314-4328`; `LoadCompleteToast.tsx:1-26` |
-| `@mantine/notifications` is not a dependency anywhere in the app, and `compact-mantine` publishes no toast, notification, alert or banner. | `graphty/package.json:31-65`; `compact-mantine/src/index.ts` |
-| Storybook `tags` are unused in the app: the only `tags:` hit in a STORY file is row DATA in a fixture (`data-view/DataView.stories.tsx:72`), and the other twelve hits under `graphty/src` are sample-manifest and panel data, not Storybook metadata. No story anywhere sets `chromatic.disableSnapshot`. | `grep -rn "tags:" graphty/src --include=*.stories.tsx` (one hit); `grep -rn "disableSnapshot" graphty/src` (no output, rc=1) |
-| Chromatic in CI already has TurboSnap off and `exitZeroOnChanges: false`, with the Vite `preview-stats.json` reason in a comment. The only TurboSnap left is `graphty/chromatic.config.json`'s `onlyChanged: true`, which the CI action does not read (it runs at repo root with `storybookBuildDir: ./graphty/storybook-static`). | `.github/workflows/ci.yml:625-660`; `graphty/chromatic.config.json` |
-| `graphty/project.json`'s `lint` target runs `eslint && tsc --noEmit` with NO `dependsOn`; `build` has `dependsOn: ["^build"]`. `webgpu-graph-algorithms/project.json`'s lint has `dependsOn: ["build"]`, so the house move exists. | `graphty/project.json`; `webgpu-graph-algorithms/project.json` |
-| The app resolves graphty-element to SOURCE, not to `dist`, in both tools: `graphty/vite.config.ts:33` aliases the package specifier to `../graphty-element/index.ts` and `graphty/tsconfig.json:24-31` maps it the same way. Neither carries an entry for any subpath. | the two files |
-| Nothing in the workspace depends on `@graphty/graph-io`; `webgpu-graph-algorithms` depends on `@graphty/graph-format` only. | `grep -rn "graph-io" */package.json`; `webgpu-graph-algorithms/package.json:84-86` |
-| `tools/commit-changes.sh:468-469`'s `VALID_SCOPES` is STALE: it omits `graph-format`, `graph-io` and `webgpu-graph-algorithms`, all three of which `commitlint.config.js:4-27` accepts (at `:8-10`). | the two files |
-| `graphty/package.json:23`'s `storybook` script is STALE: it passes `--ssl-cert ~/ssl/STAR_ato_ms.crt`, and that file does not exist. `~/ssl/` holds `atoms.crt`, `atoms.key`, `atoms_chain.crt`, `atoms.pem`, `atoms-cert.sh`, `atoms-cert.env` and the year directories. So `npm run storybook` does not start in this package today. | `sed -n 23p graphty/package.json`; `ls -l ~/ssl/` |
-| The APP's own dev server already serves HTTPS from paths that DO exist: `graphty/vite.config.ts:79-84` reads `HTTPS_KEY_PATH` / `HTTPS_CERT_PATH` from the monorepo root `.env`, which are `/home/apowers/ssl/atoms.key` and `/home/apowers/ssl/atoms.crt`, and `.env` also sets `HOST=dev.ato.ms` and `PORT=9005`. So `npm run dev` gives a secure context at `https://dev.ato.ms:9005`, which is what WebGPU needs before the element can find an adapter at all. | `graphty/vite.config.ts:70-84`; `.env:1-4`; the `ls -l` above |
-| Both of graphty's workspace dependencies use `workspace:*`, not the `workspace:^` the integration plan's M7 row prescribes. | `graphty/package.json:36-37` |
-| `eslint.config.js:40` IGNORES `**/stories/**`, so `npx eslint src/stories` exits 0 without reading anything. `tsc` DOES check them (`graphty/tsconfig.json` includes `src`), and so does prettier. | the config's ignore list; a measured run on 2026-09-19 printing "File ignored because of a matching ignore pattern" |
-| `StatusBarSlots.tsx` is NOT prettier-clean at `HEAD`, so a step that edits it must not add a prettier gate. | `git show HEAD:graphty/src/components/shell/statusbar/StatusBarSlots.tsx > /tmp/f && npx prettier --check /tmp/f` warns |
-| The status-bar widening Task M7-T6 needs was applied to master as a check on 2026-09-19: `tsc --noEmit` clean, `eslint src/components/shell/statusbar` clean, and `vitest run src/components/shell/statusbar src/gpu src/components/shell/analysis` gave `243 passed (243)`. | the run of 2026-09-19; the tree was restored afterwards |
+| Fact                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Evidence                                                                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Master is `07fba28b test(webgpu-graph-algorithms): let the minimum confirm the median in bench:compare`, ONE commit ahead of `origin/master` (`cde458a2`) and unpushed; the only thing in the working tree is the four untracked plan files of 2026-09-19 (M6, M7, M8a, M8b), this document among them.                                                                                                                                                                                     | `git log --oneline -1`; `git status --porcelain` (four `??` lines, all `design/webgpu/plans/2026-09-19-webgpu-m*.md`)                  |
+| `graphty` is version 0.7.0 and `"private": true`; the root `CLAUDE.md` package table still says 0.1.0.                                                                                                                                                                                                                                                                                                                                                                                      | `graphty/package.json:2-4`; root `CLAUDE.md` package directory                                                                         |
+| The app knows nothing about the GPU: no `graphty/src/gpu/` directory, and `grep -rn "webgpu\|navigator.gpu"` over `graphty/src` returns no non-test hit.                                                                                                                                                                                                                                                                                                                                    | `ls graphty/src` (no `gpu`); the grep                                                                                                  |
+| `@graphty/webgpu-graph-algorithms` is ABSENT from graphty's dependencies and devDependencies.                                                                                                                                                                                                                                                                                                                                                                                               | `graphty/package.json:31-47,48-65`                                                                                                     |
+| ...but it ALREADY resolves from graphty, because `.npmrc` sets `shamefully-hoist=true` and the root `node_modules/@graphty/webgpu-graph-algorithms` is a symlink to the workspace directory. A probe file importing both entries type-checked clean with the package undeclared.                                                                                                                                                                                                            | `.npmrc`; `ls -la node_modules/@graphty/webgpu-graph-algorithms`; `cd graphty && npx tsc --noEmit` on the probe, 0 errors (2026-09-19) |
+| knip's `graphty` workspace ignores exactly one dependency, `jsdom`, so a package that is INSTALLED and imported by no file under `src` is reported as unused. The same situation is already handled by name one workspace up: the GPU package's own block ignores `webgpu`, with the comment "knip 5.77 reports referenced optional peers".                                                                                                                                                 | `knip.config.ts:159-162`; `knip.config.ts:50-56`                                                                                       |
+| `graphty/src/types/graphty-element.d.ts` is a 73-line ambient `declare module "@graphty/graphty-element"`, and it WINS over `graphty/tsconfig.json:24-31`'s `paths` alias: a probe importing `type { Edge }` (which the real barrel exports at `graphty-element/index.ts:11` and the shim does not) failed with `TS2305: Module '"@graphty/graphty-element"' has no exported member 'Edge'`.                                                                                                | the probe run of 2026-09-19                                                                                                            |
+| Deleting that shim leaves exactly TWO type errors, both in `graphty/src/components/Graphty.test.tsx:70-71` (`Property 'style' does not exist on type 'Element'`), and `container.querySelector<HTMLElement>(...)` fixes both.                                                                                                                                                                                                                                                               | `mv src/types/graphty-element.d.ts /tmp && npx tsc --noEmit` then the one-word edit, 0 errors (2026-09-19)                             |
+| The app already forwards element DOM events to React props twice, in one shape: an effect that reads `graphtyRef.current`, returns early when the callback is absent, adds the listener and removes it in the cleanup. `selection-changed` is at `Graphty.tsx:471-497` and `style-changed` at `:500-551`; both arrive as members of `CanvasGraphConfig` (`CanvasRegion.tsx:83-101`), are passed to the component at `CanvasRegion.tsx:444-445`, and are filled by `AppShell.tsx:4690-4697`. | the three files                                                                                                                        |
+| The app's tests run in REAL headless Chromium, and `<graphty-element>` is an unknown element there rather than a registered one -- which is still an `HTMLElement` and a working event target, so a test can dispatch a `CustomEvent` on it and assert the forwarder saw it.                                                                                                                                                                                                                | `graphty/vitest.config.ts:16-22`; `Graphty.test.tsx:70-71` queries the tag today                                                       |
+| The `issues` status-bar slot is in the frozen nine-slot contract but has NO producer: `AppShell.tsx`'s slots memo builds `counts`, `layout` and `selection` and nothing else.                                                                                                                                                                                                                                                                                                               | `graphty/src/components/shell/types.ts:700-708,734-746`; `AppShell.tsx:4253-4283`                                                      |
+| The app has ONE toast, `LoadCompleteToast`, and its producer is load-scoped: `loadCompletion` returns `undefined` unless `loadFailure !== null`, even though the component's own doc generalises it to "a load ends, and this is the line that says how it ended".                                                                                                                                                                                                                          | `AppShell.tsx:4314-4328`; `LoadCompleteToast.tsx:1-26`                                                                                 |
+| `@mantine/notifications` is not a dependency anywhere in the app, and `compact-mantine` publishes no toast, notification, alert or banner.                                                                                                                                                                                                                                                                                                                                                  | `graphty/package.json:31-65`; `compact-mantine/src/index.ts`                                                                           |
+| Storybook `tags` are unused in the app: the only `tags:` hit in a STORY file is row DATA in a fixture (`data-view/DataView.stories.tsx:72`), and the other twelve hits under `graphty/src` are sample-manifest and panel data, not Storybook metadata. No story anywhere sets `chromatic.disableSnapshot`.                                                                                                                                                                                  | `grep -rn "tags:" graphty/src --include=*.stories.tsx` (one hit); `grep -rn "disableSnapshot" graphty/src` (no output, rc=1)           |
+| Chromatic in CI already has TurboSnap off and `exitZeroOnChanges: false`, with the Vite `preview-stats.json` reason in a comment. The only TurboSnap left is `graphty/chromatic.config.json`'s `onlyChanged: true`, which the CI action does not read (it runs at repo root with `storybookBuildDir: ./graphty/storybook-static`).                                                                                                                                                          | `.github/workflows/ci.yml:625-660`; `graphty/chromatic.config.json`                                                                    |
+| `graphty/project.json`'s `lint` target runs `eslint && tsc --noEmit` with NO `dependsOn`; `build` has `dependsOn: ["^build"]`. `webgpu-graph-algorithms/project.json`'s lint has `dependsOn: ["build"]`, so the house move exists.                                                                                                                                                                                                                                                          | `graphty/project.json`; `webgpu-graph-algorithms/project.json`                                                                         |
+| The app resolves graphty-element to SOURCE, not to `dist`, in both tools: `graphty/vite.config.ts:33` aliases the package specifier to `../graphty-element/index.ts` and `graphty/tsconfig.json:24-31` maps it the same way. Neither carries an entry for any subpath.                                                                                                                                                                                                                      | the two files                                                                                                                          |
+| Nothing in the workspace depends on `@graphty/graph-io`; `webgpu-graph-algorithms` depends on `@graphty/graph-format` only.                                                                                                                                                                                                                                                                                                                                                                 | `grep -rn "graph-io" */package.json`; `webgpu-graph-algorithms/package.json:84-86`                                                     |
+| `tools/commit-changes.sh:468-469`'s `VALID_SCOPES` is STALE: it omits `graph-format`, `graph-io` and `webgpu-graph-algorithms`, all three of which `commitlint.config.js:4-27` accepts (at `:8-10`).                                                                                                                                                                                                                                                                                        | the two files                                                                                                                          |
+| `graphty/package.json:23`'s `storybook` script is STALE: it passes `--ssl-cert ~/ssl/STAR_ato_ms.crt`, and that file does not exist. `~/ssl/` holds `atoms.crt`, `atoms.key`, `atoms_chain.crt`, `atoms.pem`, `atoms-cert.sh`, `atoms-cert.env` and the year directories. So `npm run storybook` does not start in this package today.                                                                                                                                                      | `sed -n 23p graphty/package.json`; `ls -l ~/ssl/`                                                                                      |
+| The APP's own dev server already serves HTTPS from paths that DO exist: `graphty/vite.config.ts:79-84` reads `HTTPS_KEY_PATH` / `HTTPS_CERT_PATH` from the monorepo root `.env`, which are `/home/apowers/ssl/atoms.key` and `/home/apowers/ssl/atoms.crt`, and `.env` also sets `HOST=dev.ato.ms` and `PORT=9005`. So `npm run dev` gives a secure context at `https://dev.ato.ms:9005`, which is what WebGPU needs before the element can find an adapter at all.                         | `graphty/vite.config.ts:70-84`; `.env:1-4`; the `ls -l` above                                                                          |
+| Both of graphty's workspace dependencies use `workspace:*`, not the `workspace:^` the integration plan's M7 row prescribes.                                                                                                                                                                                                                                                                                                                                                                 | `graphty/package.json:36-37`                                                                                                           |
+| `eslint.config.js:40` IGNORES `**/stories/**`, so `npx eslint src/stories` exits 0 without reading anything. `tsc` DOES check them (`graphty/tsconfig.json` includes `src`), and so does prettier.                                                                                                                                                                                                                                                                                          | the config's ignore list; a measured run on 2026-09-19 printing "File ignored because of a matching ignore pattern"                    |
+| `StatusBarSlots.tsx` is NOT prettier-clean at `HEAD`, so a step that edits it must not add a prettier gate.                                                                                                                                                                                                                                                                                                                                                                                 | `git show HEAD:graphty/src/components/shell/statusbar/StatusBarSlots.tsx > /tmp/f && npx prettier --check /tmp/f` warns                |
+| The status-bar widening Task M7-T6 needs was applied to master as a check on 2026-09-19: `tsc --noEmit` clean, `eslint src/components/shell/statusbar` clean, and `vitest run src/components/shell/statusbar src/gpu src/components/shell/analysis` gave `243 passed (243)`.                                                                                                                                                                                                                | the run of 2026-09-19; the tree was restored afterwards                                                                                |
 
 ### 0.2 Entry criteria: MET or NOT MET
 
@@ -146,20 +146,20 @@ The integration plan's Phase M7 entry is one line (`design/webgpu/plans/2026-09-
 
 What M7 needs from M6 is narrow and is worth naming member by member, because every task below reads one of these and nothing else:
 
-| Criterion | Status | Evidence |
-| --- | --- | --- |
-| The element publishes `session.capabilities.acceleration` with the six states | **NOT MET** | `grep -rn "interface Capabilities" graphty-element/src/` returns nothing; only the error codes it will carry exist (`graphty-element/src/errors/codes.ts:310-330`) |
-| ...mirrored to the DOM as `graphty-capabilities-change` | **NOT MET** | `grep -rn "graphty-capabilities-change" graphty-element/src/` returns nothing |
-| The `acceleration` attribute (`auto` / `off` / `required`) is settable and reflects | **NOT MET** | `grep -rn "acceleration" graphty-element/src/graphty-element.ts` returns nothing |
-| The `@graphty/graphty-element/webgpu` subpath exists and activates the optional peer | **NOT MET** | `graphty-element/package.json:9-15` exports `"."` alone; there is no `src/webgpu.ts` |
-| `acceleration.minNodes` is an element config key with a measured default | **NOT MET** | M6-T20's gate owns the measurement |
-| Phase M5 on master (the `layout/src/simulation/` seam M6 builds on) | **NOT MET** | `ls layout/src/` has no `simulation`; the work is on `feat/layout-simulation`, open as **draft PR #12** (`gh pr list --state all`: `{"isDraft":true,"number":12,"state":"OPEN"}`) |
-| Phase M5b on master (the GPU package's layout types) | **NOT MET** | branch `feat/webgpu-layout-types` exists locally and on origin; `gh pr list --state all` returns only #11 (merged) and #12 -- it has no PR |
-| Phase M8a on master (`algorithms/src/indexed/accelerator.ts` and `accelerated()`) | **NOT MET** | `ls algorithms/src/` has no `indexed` directory |
-| A1 on master (the `indexed.*` namespace M8a dispatches to) | **NOT MET** | same; `algorithms/package.json` declares no `@graphty/graph-format` |
-| F2 -- `@graphty/graph-format >= 1.0.0` on master | **MET** | `f6520f85 feat(graph-format)!: freeze the invariants and cut 1.0.0` is on master; `graph-format/package.json` version 1.0.0 |
-| Phase M3 -- `@graphty/webgpu-graph-algorithms` in the monorepo, building, releasing | **MET** | `webgpu-graph-algorithms/package.json` version 0.2.1; `dist/browser.d.ts`, `dist/webgpu-graph-algorithms.d.ts` present; `ci.yml:282+` carries its two shards |
-| The GPU package exports what the element's `webgpu` entry will import -- `probeBrowserWebGpu`, `requestGpuContext`, `createAccelerator` | **MET** | `webgpu-graph-algorithms/src/browser/index.ts:32,46`; `src/index.ts:44` |
+| Criterion                                                                                                                               | Status      | Evidence                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The element publishes `session.capabilities.acceleration` with the six states                                                           | **NOT MET** | `grep -rn "interface Capabilities" graphty-element/src/` returns nothing; only the error codes it will carry exist (`graphty-element/src/errors/codes.ts:310-330`)                |
+| ...mirrored to the DOM as `graphty-capabilities-change`                                                                                 | **NOT MET** | `grep -rn "graphty-capabilities-change" graphty-element/src/` returns nothing                                                                                                     |
+| The `acceleration` attribute (`auto` / `off` / `required`) is settable and reflects                                                     | **NOT MET** | `grep -rn "acceleration" graphty-element/src/graphty-element.ts` returns nothing                                                                                                  |
+| The `@graphty/graphty-element/webgpu` subpath exists and activates the optional peer                                                    | **NOT MET** | `graphty-element/package.json:9-15` exports `"."` alone; there is no `src/webgpu.ts`                                                                                              |
+| `acceleration.minNodes` is an element config key with a measured default                                                                | **NOT MET** | M6-T20's gate owns the measurement                                                                                                                                                |
+| Phase M5 on master (the `layout/src/simulation/` seam M6 builds on)                                                                     | **NOT MET** | `ls layout/src/` has no `simulation`; the work is on `feat/layout-simulation`, open as **draft PR #12** (`gh pr list --state all`: `{"isDraft":true,"number":12,"state":"OPEN"}`) |
+| Phase M5b on master (the GPU package's layout types)                                                                                    | **NOT MET** | branch `feat/webgpu-layout-types` exists locally and on origin; `gh pr list --state all` returns only #11 (merged) and #12 -- it has no PR                                        |
+| Phase M8a on master (`algorithms/src/indexed/accelerator.ts` and `accelerated()`)                                                       | **NOT MET** | `ls algorithms/src/` has no `indexed` directory                                                                                                                                   |
+| A1 on master (the `indexed.*` namespace M8a dispatches to)                                                                              | **NOT MET** | same; `algorithms/package.json` declares no `@graphty/graph-format`                                                                                                               |
+| F2 -- `@graphty/graph-format >= 1.0.0` on master                                                                                        | **MET**     | `f6520f85 feat(graph-format)!: freeze the invariants and cut 1.0.0` is on master; `graph-format/package.json` version 1.0.0                                                       |
+| Phase M3 -- `@graphty/webgpu-graph-algorithms` in the monorepo, building, releasing                                                     | **MET**     | `webgpu-graph-algorithms/package.json` version 0.2.1; `dist/browser.d.ts`, `dist/webgpu-graph-algorithms.d.ts` present; `ci.yml:282+` carries its two shards                      |
+| The GPU package exports what the element's `webgpu` entry will import -- `probeBrowserWebGpu`, `requestGpuContext`, `createAccelerator` | **MET**     | `webgpu-graph-algorithms/src/browser/index.ts:32,46`; `src/index.ts:44`                                                                                                           |
 
 So: M7 sits at the END of the chain, and the chain's first link is a draft PR. Nothing in this document may be started before the M6 plan's own gate record is green on master.
 
@@ -172,29 +172,29 @@ merge PR #12 (M5) -> merge M5b -> M8a (A1 + the six ports + the accelerator seam
 M8b is independent of that whole chain and may run in parallel with any of it.
 ```
 
-| Phase | Where | Entry criteria | Deliverable | Gate | Size |
-| --- | --- | --- | --- | --- | --- |
-| M5 Layout seam | `layout/` | F2 (MET) | `layout/src/simulation/` per design 9.3 | layout tests green; `chromatic-layout` re-baselined | draft PR #12 |
-| M5b GPU layout types | `webgpu-graph-algorithms/` | M5 on master | the real `@graphty/layout` types replace the D27 mirrors | both software shards green | branch, no PR |
-| M8a Algorithms | `algorithms/` | F2 (MET); A1 is NOT met and is ABSORBED into the phase (M8a DEP-8A-B); M5b on master for its Task M8a-T13 only | A1's `toSnapshot` + the differential harness + six `indexed.*` ports, then `indexed/accelerator.ts` + `accelerated()`, then the GPU package's W1b algorithms half | the G6 algorithms clause + the G10 algorithms clause + the 14.6 A1 gate string | own plan |
-| M6 Element | `graphty-element/` | M5 on master for E0 (M8a NOT required); M5 and M8a on master for E1 | graph-format 14.4 E0, then the accelerator seam, the capability record, the `acceleration` attribute, the `webgpu` subpath and the measured `acceleration.minNodes` | design G6, element part | own plan |
-| **M7 App (W2)** | `graphty/` | **M6 on master (NOT MET)** | the optional peer installed and the one activation import, the Settings control, the reader's preference, the acceleration chip and device-lost line, the `metricCost` constant, the acceleration story | design G12 (W2 subset) | **this document, 5-8.5 ed** |
-| M8b GPU SpMV family | `webgpu-graph-algorithms/` | M3 (MET) and the design's P2 gate (MET) | design P7 (the 8.2 / 8.3 kernels) | design G7 | own plan |
+| Phase                | Where                      | Entry criteria                                                                                                 | Deliverable                                                                                                                                                                                             | Gate                                                                           | Size                        |
+| -------------------- | -------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | --------------------------- |
+| M5 Layout seam       | `layout/`                  | F2 (MET)                                                                                                       | `layout/src/simulation/` per design 9.3                                                                                                                                                                 | layout tests green; `chromatic-layout` re-baselined                            | draft PR #12                |
+| M5b GPU layout types | `webgpu-graph-algorithms/` | M5 on master                                                                                                   | the real `@graphty/layout` types replace the D27 mirrors                                                                                                                                                | both software shards green                                                     | branch, no PR               |
+| M8a Algorithms       | `algorithms/`              | F2 (MET); A1 is NOT met and is ABSORBED into the phase (M8a DEP-8A-B); M5b on master for its Task M8a-T13 only | A1's `toSnapshot` + the differential harness + six `indexed.*` ports, then `indexed/accelerator.ts` + `accelerated()`, then the GPU package's W1b algorithms half                                       | the G6 algorithms clause + the G10 algorithms clause + the 14.6 A1 gate string | own plan                    |
+| M6 Element           | `graphty-element/`         | M5 on master for E0 (M8a NOT required); M5 and M8a on master for E1                                            | graph-format 14.4 E0, then the accelerator seam, the capability record, the `acceleration` attribute, the `webgpu` subpath and the measured `acceleration.minNodes`                                     | design G6, element part                                                        | own plan                    |
+| **M7 App (W2)**      | `graphty/`                 | **M6 on master (NOT MET)**                                                                                     | the optional peer installed and the one activation import, the Settings control, the reader's preference, the acceleration chip and device-lost line, the `metricCost` constant, the acceleration story | design G12 (W2 subset)                                                         | **this document, 5-8.5 ed** |
+| M8b GPU SpMV family  | `webgpu-graph-algorithms/` | M3 (MET) and the design's P2 gate (MET)                                                                        | design P7 (the 8.2 / 8.3 kernels)                                                                                                                                                                       | design G7                                                                      | own plan                    |
 
 Per-task sizes, in engineer-days for one engineer familiar with this code base (design 13's convention, `design/webgpu/webgpu-acceleration-plan.md:4198`):
 
-| Task | Size |
-| --- | --- |
-| M7-T1 the scope list, the stale Storybook certificate, the G12 restatement, the corpus index | 0.5-1 ed |
-| M7-T2 the optional peer, the activation import, the subpath wiring, the lint build order, the CI step, the element type shim | 0.5-1 ed |
-| M7-T3 the reader's preference and its Settings > Performance control | 0.5-1 ed |
-| M7-T4 | OBSOLETE, 0 ed |
-| M7-T5 | OBSOLETE, 0 ed |
-| M7-T6 the acceleration chip, the event forwarder and the device-lost report | 1.5-2 ed |
-| M7-T7 the `metricCost` accelerator constant | 0.5-1 ed |
-| M7-T8 the acceleration story and the Chromatic leftover | 0.5-1 ed |
-| M7-T9 the G12 gate: the real-GPU check, the no-logic check, the record | 1-1.5 ed |
-| **Total** | **5-8.5 ed** |
+| Task                                                                                                                         | Size           |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| M7-T1 the scope list, the stale Storybook certificate, the G12 restatement, the corpus index                                 | 0.5-1 ed       |
+| M7-T2 the optional peer, the activation import, the subpath wiring, the lint build order, the CI step, the element type shim | 0.5-1 ed       |
+| M7-T3 the reader's preference and its Settings > Performance control                                                         | 0.5-1 ed       |
+| M7-T4                                                                                                                        | OBSOLETE, 0 ed |
+| M7-T5                                                                                                                        | OBSOLETE, 0 ed |
+| M7-T6 the acceleration chip, the event forwarder and the device-lost report                                                  | 1.5-2 ed       |
+| M7-T7 the `metricCost` accelerator constant                                                                                  | 0.5-1 ed       |
+| M7-T8 the acceleration story and the Chromatic leftover                                                                      | 0.5-1 ed       |
+| M7-T9 the G12 gate: the real-GPU check, the no-logic check, the record                                                       | 1-1.5 ed       |
+| **Total**                                                                                                                    | **5-8.5 ed**   |
 
 The total is the column summed, not a figure carried over from prose: the minima add to 5 and the maxima to 8.5.
 
@@ -202,46 +202,46 @@ The design sizes P12 at 4-6 ed (`:4219`), and this plan is a little larger at th
 
 ### 0.4 Decisions (defaults stand unless the owner says otherwise before Task M7-T1 starts)
 
-| Id | Decision | Default and reason | Alternative |
-| --- | --- | --- | --- |
-| D-M7-1 | Branch and worktree | `feat/gpu-app-accelerator` in `.worktrees/gpu-app` (`git worktree add .worktrees/gpu-app -b feat/gpu-app-accelerator master`, owner). One PR for the whole phase, whose last commit is the G12 record. The app's Chromatic job runs on the PR and the owner accepts the new stories' baselines there. | Landing T1/T2 as their own PR first. Choose it only if the GPU package's PR loop (see R-M7-4) is already hurting: T2 is what lengthens it, and landing it early spreads the cost over fewer days but leaves master with a dependency nothing imports for a week. |
-| D-M7-2 | Dependency protocol | `"@graphty/webgpu-graph-algorithms": "workspace:*"`, matching the app's two existing workspace deps (`graphty/package.json:36-37`), NOT the `workspace:^` the integration plan's wording prescribes. graphty is `"private": true` with `"release": { "publish": false }` (`graphty/project.json`), and `nx.json` sets `preserveLocalDependencyProtocols: true`, so nothing ever rewrites the protocol into a published range and the two spellings are identical at install time. A third spelling in one manifest is a reader trap. Recorded as DEP-A. | `workspace:^`, if the owner wants the manifest to read the same as the integration plan's cell. It would then differ from both of its neighbours. |
+| Id     | Decision                                          | Default and reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Alternative                                                                                                                                                                                                                                                                                                                                          |
+| ------ | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-M7-1 | Branch and worktree                               | `feat/gpu-app-accelerator` in `.worktrees/gpu-app` (`git worktree add .worktrees/gpu-app -b feat/gpu-app-accelerator master`, owner). One PR for the whole phase, whose last commit is the G12 record. The app's Chromatic job runs on the PR and the owner accepts the new stories' baselines there.                                                                                                                                                                                                                                                                                                              | Landing T1/T2 as their own PR first. Choose it only if the GPU package's PR loop (see R-M7-4) is already hurting: T2 is what lengthens it, and landing it early spreads the cost over fewer days but leaves master with a dependency nothing imports for a week.                                                                                     |
+| D-M7-2 | Dependency protocol                               | `"@graphty/webgpu-graph-algorithms": "workspace:*"`, matching the app's two existing workspace deps (`graphty/package.json:36-37`), NOT the `workspace:^` the integration plan's wording prescribes. graphty is `"private": true` with `"release": { "publish": false }` (`graphty/project.json`), and `nx.json` sets `preserveLocalDependencyProtocols: true`, so nothing ever rewrites the protocol into a published range and the two spellings are identical at install time. A third spelling in one manifest is a reader trap. Recorded as DEP-A.                                                            | `workspace:^`, if the owner wants the manifest to read the same as the integration plan's cell. It would then differ from both of its neighbours.                                                                                                                                                                                                    |
 | D-M7-3 | Where `tsc --noEmit` gets the GPU package's types | `graphty/project.json`'s `lint` target gains `"dependsOn": ["^build"]`. The app never imports the GPU package, but it does import `@graphty/graphty-element/webgpu`, which the app resolves to element SOURCE -- and that file imports the GPU package, which resolves through `node_modules` to `webgpu-graph-algorithms/dist`. So an unbuilt `dist/` is an unresolved module two hops away and a red lint job whose message says nothing about build order. `webgpu-graph-algorithms/project.json` already carries `"dependsOn": ["build"]` on its own lint, so the move has a precedent in the same repository. | A `paths` alias to the GPU package's SOURCE. Rejected: `graphty/tsconfig.json:16-18` disables `noUnusedLocals` / `noUnusedParameters` precisely "to avoid checking sibling packages' source files via path aliases", and a further alias would pull the GPU package's strict source and its `@webgpu/types` reference into the app's own type-check. |
-| D-M7-4 | The element type shim | DELETE `graphty/src/types/graphty-element.d.ts`. It is verified to SHADOW the real package (0.1), so with it in place the app could never name a real element type -- and this phase's chip is built entirely out of one: the acceleration member of the element's own `Capabilities`. Deleting it is verified to cost exactly one word in one test file. | Keep it and widen it by hand. Rejected by the architectural principles outright: re-declaring the element's types in the app is one of the named forms of working around the element, and the shim would have to grow the capability record, the event map and the attribute -- three more things to keep in step. |
-| D-M7-5 | Where the reader's preference lives | A versioned `localStorage` key, `graphty.shell.gpu.v1`, with `readPersistedGpuSettings` / `writePersistedGpuSettings` / `resolveGpuSettings`, copying `loadDefaults.ts:63,103,149` field for field, and edited in Settings > Performance beside the label controls. This is not an app workaround: the element states that it persists nothing on a reader's behalf, and says the host application keeps its own key and writes the attribute. | A URL parameter or nothing at all. Rejected: the preference is a property of the reader's MACHINE, not of the dataset or the link, so it must survive a reload and must not travel in a shared URL. |
-| D-M7-6 | What the chip is | `StatusBarChip` in the `issues` slot, shaped exactly like `StatusBarPerformanceMode` (`types.ts:690-698`): `label` + `title` + `onClick`, with `onClick` opening Settings > Performance -- the same door the Performance chip uses. | A Mantine `Badge` like `components/ai/AiStatusIndicator.tsx`. Rejected by the project's UI rule: that badge belongs to the AI panel body, not to the shell chrome, and does not follow the chip register. |
-| D-M7-7 | The acceleration threshold | The app neither measures nor sets it. `acceleration.minNodes` is an element `ConfigValues` key with an element default, evaluated inside the element; the measurement that sets that default belongs to M6-T20's gate, which can reach a real GPU from the element's own Storybook. The app's Settings > Performance shows the reader's preference and nothing else. | The app writing `acceleration.minNodes` per instance. Rejected: an app-side number is a second answer that silently disagrees with the default every other consumer of the element gets, and the app has no way to measure it that the element does not have more directly. |
+| D-M7-4 | The element type shim                             | DELETE `graphty/src/types/graphty-element.d.ts`. It is verified to SHADOW the real package (0.1), so with it in place the app could never name a real element type -- and this phase's chip is built entirely out of one: the acceleration member of the element's own `Capabilities`. Deleting it is verified to cost exactly one word in one test file.                                                                                                                                                                                                                                                          | Keep it and widen it by hand. Rejected by the architectural principles outright: re-declaring the element's types in the app is one of the named forms of working around the element, and the shim would have to grow the capability record, the event map and the attribute -- three more things to keep in step.                                   |
+| D-M7-5 | Where the reader's preference lives               | A versioned `localStorage` key, `graphty.shell.gpu.v1`, with `readPersistedGpuSettings` / `writePersistedGpuSettings` / `resolveGpuSettings`, copying `loadDefaults.ts:63,103,149` field for field, and edited in Settings > Performance beside the label controls. This is not an app workaround: the element states that it persists nothing on a reader's behalf, and says the host application keeps its own key and writes the attribute.                                                                                                                                                                     | A URL parameter or nothing at all. Rejected: the preference is a property of the reader's MACHINE, not of the dataset or the link, so it must survive a reload and must not travel in a shared URL.                                                                                                                                                  |
+| D-M7-6 | What the chip is                                  | `StatusBarChip` in the `issues` slot, shaped exactly like `StatusBarPerformanceMode` (`types.ts:690-698`): `label` + `title` + `onClick`, with `onClick` opening Settings > Performance -- the same door the Performance chip uses.                                                                                                                                                                                                                                                                                                                                                                                | A Mantine `Badge` like `components/ai/AiStatusIndicator.tsx`. Rejected by the project's UI rule: that badge belongs to the AI panel body, not to the shell chrome, and does not follow the chip register.                                                                                                                                            |
+| D-M7-7 | The acceleration threshold                        | The app neither measures nor sets it. `acceleration.minNodes` is an element `ConfigValues` key with an element default, evaluated inside the element; the measurement that sets that default belongs to M6-T20's gate, which can reach a real GPU from the element's own Storybook. The app's Settings > Performance shows the reader's preference and nothing else.                                                                                                                                                                                                                                               | The app writing `acceleration.minNodes` per instance. Rejected: an app-side number is a second answer that silently disagrees with the default every other consumer of the element gets, and the app has no way to measure it that the element does not have more directly.                                                                          |
 
 ### 0.5 Departures from the design (all of them)
 
-| Id | Departure | Reason |
-| --- | --- | --- |
-| DEP-A | `workspace:*` rather than the integration plan's `workspace:^`. | D-M7-2. No design section fixes the protocol; the integration plan's cell is prose, and the app's two existing entries are the local convention. |
-| DEP-B | The app resolves `@graphty/graphty-element/webgpu` through its own vite alias and tsconfig path, to element SOURCE, rather than through the package's `exports` map to `dist`. | PLAN DECISION 1. The app already resolves the element's main entry to source in both tools, for a stated reason (tree-shaking, and not bundling all of Babylon). Two resolutions of one package in one build give two module instances and two accelerator registrations. |
-| DEP-C | knip's `graphty` workspace gains `@graphty/webgpu-graph-algorithms` under `ignoreDependencies`. | The app INSTALLS the element's optional peer and imports it nowhere, which is exactly what knip reports as an unused dependency. The GPU package's own block already carries the same kind of entry for the same kind of reason (`knip.config.ts:50-56`). |
-| DEP-D | The design's device-loss report becomes a `StatusBarCompletion` handed to the shell, which routes it into `LoadCompleteToast`. | PLAN DECISION 6. The app has no toast function to call; it has one toast COMPONENT with a typed model. |
-| DEP-E | G12's "nightly GPU lane green for a week" is replaced by "the GPU lane green on the master commits of this phase". | The nightly does not exist: `design/decisions/2026-09-19-no-nightly-gpu-lane.md`. Task M7-T1 writes the record. |
-| DEP-F | The `metricCost.ts` accelerator constants are all 1 at M7. | PLAN DECISION 8. No node metric has a GPU path until design P7 / Phase M8b, and a factor above 1 would be the interface claiming a speed the code cannot deliver. |
-| DEP-G | The `Build graph-format, graph-io and webgpu-graph-algorithms (PR)` step NARROWS to graph-io AND webgpu-graph-algorithms; it drops only graph-format, and it does not vanish. | Nothing in the workspace depends on `@graphty/graph-io`, so graph-io is outside every closure. `webgpu-graph-algorithms` is inside graphty's closure but NOT inside graph-io's, so a PR touching only `graph-io/` still leaves the GPU package's `dist/` unbuilt against an unconditional Upload step. Only `graph-format` is genuinely covered, because both named projects depend on it. The integration plan's cell says the step "becomes redundant for it" -- for the GPU package -- and that is true only of PRs that make graphty affected; M7-T2 Step 5 carries the counter-example. |
+| Id    | Departure                                                                                                                                                                      | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DEP-A | `workspace:*` rather than the integration plan's `workspace:^`.                                                                                                                | D-M7-2. No design section fixes the protocol; the integration plan's cell is prose, and the app's two existing entries are the local convention.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| DEP-B | The app resolves `@graphty/graphty-element/webgpu` through its own vite alias and tsconfig path, to element SOURCE, rather than through the package's `exports` map to `dist`. | PLAN DECISION 1. The app already resolves the element's main entry to source in both tools, for a stated reason (tree-shaking, and not bundling all of Babylon). Two resolutions of one package in one build give two module instances and two accelerator registrations.                                                                                                                                                                                                                                                                                                                    |
+| DEP-C | knip's `graphty` workspace gains `@graphty/webgpu-graph-algorithms` under `ignoreDependencies`.                                                                                | The app INSTALLS the element's optional peer and imports it nowhere, which is exactly what knip reports as an unused dependency. The GPU package's own block already carries the same kind of entry for the same kind of reason (`knip.config.ts:50-56`).                                                                                                                                                                                                                                                                                                                                    |
+| DEP-D | The design's device-loss report becomes a `StatusBarCompletion` handed to the shell, which routes it into `LoadCompleteToast`.                                                 | PLAN DECISION 6. The app has no toast function to call; it has one toast COMPONENT with a typed model.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| DEP-E | G12's "nightly GPU lane green for a week" is replaced by "the GPU lane green on the master commits of this phase".                                                             | The nightly does not exist: `design/decisions/2026-09-19-no-nightly-gpu-lane.md`. Task M7-T1 writes the record.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| DEP-F | The `metricCost.ts` accelerator constants are all 1 at M7.                                                                                                                     | PLAN DECISION 8. No node metric has a GPU path until design P7 / Phase M8b, and a factor above 1 would be the interface claiming a speed the code cannot deliver.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| DEP-G | The `Build graph-format, graph-io and webgpu-graph-algorithms (PR)` step NARROWS to graph-io AND webgpu-graph-algorithms; it drops only graph-format, and it does not vanish.  | Nothing in the workspace depends on `@graphty/graph-io`, so graph-io is outside every closure. `webgpu-graph-algorithms` is inside graphty's closure but NOT inside graph-io's, so a PR touching only `graph-io/` still leaves the GPU package's `dist/` unbuilt against an unconditional Upload step. Only `graph-format` is genuinely covered, because both named projects depend on it. The integration plan's cell says the step "becomes redundant for it" -- for the GPU package -- and that is true only of PRs that make graphty affected; M7-T2 Step 5 carries the counter-example. |
 
 ### 0.6 Where each PLAN DECISION is taken
 
-| # | Question | Taken in |
-| --- | --- | --- |
-| 1 | How the app resolves the element's `webgpu` subpath, in vite and in tsc | M7-T2, before Step 1 |
-| 2 | How the app hears that acceleration changed | M7-T6, before Step 1 |
-| 3 | What the chip says in each of the six states, and what it says in none of them | M7-T6, before Step 1 |
-| 4 | Where the reader's preference is stored and edited | M7-T3, before Step 1 |
-| 5 | Which slot produces the chip | M7-T6, before Step 1 |
-| 6 | How a lost device surfaces, given one load-scoped toast | M7-T6, before Step 1 |
-| 7 | How an acceleration story is deterministic on a runner with no GPU | M7-T8, before Step 1 |
-| 8 | What the per-metric accelerator constant is worth today | M7-T7, before Step 1 |
-| 9 | What the app's half of G12 can and cannot check | M7-T9, before Step 1 |
-| 10 | `workspace:^` versus `workspace:*` | D-M7-2 |
-| 11 | `dependsOn` versus a tsconfig alias | D-M7-3 |
-| 12 | The element type shim | D-M7-4 |
-| 13 | What happens to the `ci.yml` build step | M7-T2, Step 5 |
-| 14 | The G12 restatement | M7-T1 Step 2 |
+| #   | Question                                                                       | Taken in             |
+| --- | ------------------------------------------------------------------------------ | -------------------- |
+| 1   | How the app resolves the element's `webgpu` subpath, in vite and in tsc        | M7-T2, before Step 1 |
+| 2   | How the app hears that acceleration changed                                    | M7-T6, before Step 1 |
+| 3   | What the chip says in each of the six states, and what it says in none of them | M7-T6, before Step 1 |
+| 4   | Where the reader's preference is stored and edited                             | M7-T3, before Step 1 |
+| 5   | Which slot produces the chip                                                   | M7-T6, before Step 1 |
+| 6   | How a lost device surfaces, given one load-scoped toast                        | M7-T6, before Step 1 |
+| 7   | How an acceleration story is deterministic on a runner with no GPU             | M7-T8, before Step 1 |
+| 8   | What the per-metric accelerator constant is worth today                        | M7-T7, before Step 1 |
+| 9   | What the app's half of G12 can and cannot check                                | M7-T9, before Step 1 |
+| 10  | `workspace:^` versus `workspace:*`                                             | D-M7-2               |
+| 11  | `dependsOn` versus a tsconfig alias                                            | D-M7-3               |
+| 12  | The element type shim                                                          | D-M7-4               |
+| 13  | What happens to the `ci.yml` build step                                        | M7-T2, Step 5        |
+| 14  | The G12 restatement                                                            | M7-T1 Step 2         |
 
 ---
 
@@ -256,6 +256,7 @@ The design sizes P12 at 4-6 ed (`:4219`), and this plan is a little larger at th
 **Repository:** `/home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app` (`AT` below).
 
 **Files:**
+
 - Modify: `graphty/package.json:23` (the `storybook` script's certificate path)
 - Create: `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` (the restatement)
 - Modify: `design/decisions/README.md` (the index row)
@@ -264,6 +265,7 @@ The design sizes P12 at 4-6 ed (`:4219`), and this plan is a little larger at th
 - NOT touched: `tools/commit-changes.sh` (Task M8b-T1 Step 1 of the M8b plan owns that edit; Step 1 below only checks for it), `design/webgpu/webgpu-acceleration-plan.md` (a plan of record; the restatement supersedes line 4219 without editing it), `commitlint.config.js` (already correct)
 
 **Interfaces:**
+
 - Consumes: `commitlint.config.js:4-27` (the authoritative scope enum); `tools/commit-changes.sh`'s `VALID_SCOPES` as Task M8b-T1 Step 1 leaves it; `design/decisions/README.md` (the record format and the index).
 - Produces: the ONE G12 restatement record of the programme, `design/decisions/2026-09-19-g12-without-the-nightly-clause.md`, which the M6 plan (DEP-M6-I), the M8a plan (DEP-8A-F) and the M8b plan (its section 0.7) all cite instead of writing their own; a citable record for DEP-E.
 
@@ -301,7 +303,7 @@ Expected: the script line names `~/ssl/atoms.crt`, and both files listed by `ls`
 
 Create `design/decisions/2026-09-19-g12-without-the-nightly-clause.md`:
 
-````markdown
+```markdown
 # G12 is gated on the GPU lane green on master, not on a nightly week
 
 Date: 2026-09-19
@@ -361,7 +363,7 @@ because the element owns acceleration: the threshold is its `acceleration.minNod
 the story that settles, drags and pins on a real GPU is its own. They are recorded in the element
 phase's gate record, and the app's record cites them. The P0-P3 plan documents still describe the
 three-job lane and are deliberately left alone.
-````
+```
 
 Then add the index row to `design/decisions/README.md`, after the `bench-compare` row:
 
@@ -377,7 +379,7 @@ Expected: no output and `rc=1` (grep found nothing). Any hit is a Unicode charac
 Add one row to the table in `design/webgpu/README.md`, after the integration plan's row:
 
 ```markdown
-| `plans/2026-09-19-webgpu-m7-graphty-app.md`                                     | Phase M7: the app's acceleration chip, the Settings control, the reader's preference, the `metricCost` accelerator constant and the one import that turns the GPU on (gate G12's W2 subset)                                                                                                                                       | live plan     |
+| `plans/2026-09-19-webgpu-m7-graphty-app.md` | Phase M7: the app's acceleration chip, the Settings control, the reader's preference, the `metricCost` accelerator constant and the one import that turns the GPU on (gate G12's W2 subset) | live plan |
 ```
 
 Then bump the two counts in `design/README.md`'s Directory Structure table (`:14` is the `decisions/` row, `:21` is the `webgpu/` row): `webgpu/` from 8 to the real count, `decisions/` from 2 to the real count.
@@ -402,6 +404,7 @@ Reason and the merge hazard, stated because four plan documents of 2026-09-19 la
 **Repository:** `AT`.
 
 **Files:**
+
 - Modify: `graphty/package.json:31-47` (the dependency)
 - Modify: `graphty/src/main.tsx` (the one activation import)
 - Modify: `graphty/vite.config.ts:28-38` (the subpath alias, ABOVE the package alias)
@@ -415,6 +418,7 @@ Reason and the merge hazard, stated because four plan documents of 2026-09-19 la
 - NOT touched: `graphty/vite.config.ts`'s `build.rollupOptions.external` (the GPU package is bundled like any other source dependency; only `@mlc-ai/web-llm` is external there), `commitlint.config.js`
 
 **Interfaces:**
+
 - Consumes: `graphty-element/package.json`'s `exports` map and its `peerDependencies` + `peerDependenciesMeta.optional` entry for the GPU package, both added by Task M6-T1; `graphty-element/src/webgpu.ts`, added by Task M6-T20.
 - Produces: an app in which the GPU is on -- one import, no configuration -- and in which `@graphty/graphty-element` resolves to the REAL package so the rest of this phase can name the element's own types.
 
@@ -509,13 +513,13 @@ Expected: the GPU package (and graph-format, and the rest of graphty's closure) 
 Delete `graphty/src/types/graphty-element.d.ts` and change `graphty/src/components/Graphty.test.tsx:69` from
 
 ```ts
-        const graphtyElement = container.querySelector("graphty-element");
+const graphtyElement = container.querySelector("graphty-element");
 ```
 
 to
 
 ```ts
-        const graphtyElement = container.querySelector<HTMLElement>("graphty-element");
+const graphtyElement = container.querySelector<HTMLElement>("graphty-element");
 ```
 
 Reason: the shim is an ambient `declare module "@graphty/graphty-element"`, and TypeScript resolves an ambient module declaration BEFORE it consults `paths`. Verified on 2026-09-19: a probe file importing `type { Edge }` -- which `graphty-element/index.ts:11` exports and the shim does not -- failed with `TS2305: Module '"@graphty/graphty-element"' has no exported member 'Edge'`. So while the shim is in force the app cannot name a single real element type, and Task M7-T6 is built out of one: the acceleration member of the element's own `Capabilities`. Its `HTMLElementTagNameMap` augmentation is what those two test lines were using; the type parameter replaces it, and the element ships its own tag map and event map once M6 is on master. Verified: deleting the file produced exactly two errors, both on those lines, and this edit clears both.
@@ -528,33 +532,33 @@ Expected: exit 0, no output. If any OTHER error appears, it is a real disagreeme
 In `.github/workflows/ci.yml`, replace lines 85-92:
 
 ```yaml
-            # graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
-            # migration of design/graph-format section 14 is pending), so a PR that touches only the
-            # older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
-            # artifact and every test shard's Download step would fail with "Artifact not found".
-            # Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
-            - name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
-              if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
+# graph-format, graph-io and webgpu-graph-algorithms are not yet in graphty's dependency closure (the consumer
+# migration of design/graph-format section 14 is pending), so a PR that touches only the
+# older packages leaves their dist/ unbuilt; the Upload steps below would then produce no
+# artifact and every test shard's Download step would fail with "Artifact not found".
+# Build them explicitly; the Nx cache makes this a no-op when the affected build already did.
+- name: Build graph-format, graph-io and webgpu-graph-algorithms (PR)
+  if: github.event_name == 'pull_request'
+  run: pnpm exec nx run-many -t build --projects=graph-format,graph-io,webgpu-graph-algorithms --parallel=3
 ```
 
 with:
 
 ```yaml
-            # Neither graph-io nor webgpu-graph-algorithms is reached by every PR's affected set, and BOTH have an
-            # unconditional Upload step below, so a PR that leaves either one unbuilt produces an empty artifact and
-            # the shards that download it fail with "Artifact not found". Build both explicitly; the Nx cache makes
-            # this a no-op when the affected build already did.
-            #   - graph-io is in NO package's dependency closure (nothing in the workspace depends on it), so it is
-            #     affected only by a PR that touches it.
-            #   - webgpu-graph-algorithms is in graphty's closure, so a PR touching graphty reaches it -- but a PR
-            #     touching ONLY graph-io does not, because nothing depends on graph-io and the affected set is then
-            #     just {graph-io}. That case is exactly why it stays named here.
-            # graph-format is safe to drop: it is a dependency of BOTH projects named below, so `^build` reaches it
-            # from either one. Uploads: graph-io at :150, webgpu-graph-algorithms at :157, both unconditional.
-            - name: Build graph-io and webgpu-graph-algorithms (PR)
-              if: github.event_name == 'pull_request'
-              run: pnpm exec nx run-many -t build --projects=graph-io,webgpu-graph-algorithms --parallel=2
+# Neither graph-io nor webgpu-graph-algorithms is reached by every PR's affected set, and BOTH have an
+# unconditional Upload step below, so a PR that leaves either one unbuilt produces an empty artifact and
+# the shards that download it fail with "Artifact not found". Build both explicitly; the Nx cache makes
+# this a no-op when the affected build already did.
+#   - graph-io is in NO package's dependency closure (nothing in the workspace depends on it), so it is
+#     affected only by a PR that touches it.
+#   - webgpu-graph-algorithms is in graphty's closure, so a PR touching graphty reaches it -- but a PR
+#     touching ONLY graph-io does not, because nothing depends on graph-io and the affected set is then
+#     just {graph-io}. That case is exactly why it stays named here.
+# graph-format is safe to drop: it is a dependency of BOTH projects named below, so `^build` reaches it
+# from either one. Uploads: graph-io at :150, webgpu-graph-algorithms at :157, both unconditional.
+- name: Build graph-io and webgpu-graph-algorithms (PR)
+  if: github.event_name == 'pull_request'
+  run: pnpm exec nx run-many -t build --projects=graph-io,webgpu-graph-algorithms --parallel=2
 ```
 
 Reason the step narrows rather than vanishing, and why it narrows to TWO projects rather than one: `webgpu-graph-algorithms/package.json:84-86` depends on `@graphty/graph-format` and nothing else of the workspace, and `grep -rn "graph-io" */package.json` finds no dependant at all. So graph-io is outside every closure and `nx affected` reaches it only when the PR touches it. The tempting further narrowing -- "graphty depends on webgpu-graph-algorithms now, so drop it too" -- holds ONLY for a PR that makes `graphty` affected. A PR that touches only `graph-io/` makes `graph-io` the entire affected set, `nx affected -t build` builds graph-io and its `^build` (graph-format) and stops, `webgpu-graph-algorithms/dist/` is never written, `ci.yml:157-162`'s Upload step runs anyway and produces an empty artifact, and the `webgpu-graph-algorithms-node` and `-browser` shards fail at their Download step. Today that case is covered because the step being replaced builds the GPU package explicitly; the replacement must keep covering it. graph-format IS safe to drop, because it is a dependency of both projects named in the new step.
@@ -581,6 +585,7 @@ Expected: build, lint and knip green; the app's vitest suite passes in headless 
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `graphty/src/gpu/gpuPrefs.ts` (the versioned store)
 - Create: `graphty/src/gpu/__tests__/gpuPrefs.test.ts`
 - Modify: `graphty/src/components/Graphty.tsx` (the `acceleration` prop and the effect that writes it onto the element, beside the `layout` and `viewMode` effects at `:446-467`)
@@ -591,6 +596,7 @@ Expected: build, lint and knip green; the app's vitest suite passes in headless 
 - NOT touched: `graphty/src/components/shell/defaults/loadDefaults.ts` (the label settings keep their own key), `graphty/src/components/shell/types.ts`
 
 **Interfaces:**
+
 - Consumes: the persistence shape of `loadDefaults.ts:103-160` (`readPersisted*` / `writePersisted*` / `resolve*`); `SettingsOverlay.tsx:107`'s `SHIPPED_SECTION_IDS`, which already lists `performance`; the element's `acceleration` attribute, whose three values this store must spell the same way.
 - Produces: `GpuPreferenceValue`, `GPU_SETTINGS_STORAGE_KEY`, `GPU_PREFERENCE_VALUES`, `PersistedGpuSettings`, `DEFAULT_GPU_SETTINGS`, `readPersistedGpuSettings()`, `writePersistedGpuSettings(s)`, `resolveGpuSettings(partial)`; `GraphtyProps.acceleration`, `CanvasGraphConfig.acceleration`, `SettingsOverlayProps.acceleration`.
 
@@ -800,12 +806,12 @@ Expected: 5 tests pass.
 with `import type { GpuPreferenceValue } from "../gpu/gpuPrefs";` added, `acceleration` destructured in the component's parameter list (`:291`), and an effect beside the `layout` and `viewMode` ones (`:446-467`):
 
 ```ts
-    // Hand the reader's acceleration preference to the element, which owns everything after it.
-    useEffect(() => {
-        if (graphtyRef.current && acceleration !== undefined) {
-            graphtyRef.current.setAttribute("acceleration", acceleration);
-        }
-    }, [acceleration]);
+// Hand the reader's acceleration preference to the element, which owns everything after it.
+useEffect(() => {
+    if (graphtyRef.current && acceleration !== undefined) {
+        graphtyRef.current.setAttribute("acceleration", acceleration);
+    }
+}, [acceleration]);
 ```
 
 `CanvasGraphConfig` (`CanvasRegion.tsx:83-101`) gains the matching member and `:434-446` passes it through as `acceleration={graph?.acceleration}`, exactly as it already passes `onSelectionChange` and `onStylesChange` at `:444-445`.
@@ -815,11 +821,11 @@ The ATTRIBUTE rather than the property, deliberately and for two reasons. It is 
 Then one case in `graphty/src/components/Graphty.test.tsx`, which the app's own environment runs today with no element registered -- an unrecognised tag is still an `HTMLElement` and `setAttribute` on it is ordinary DOM:
 
 ```tsx
-    it("writes the reader's acceleration preference onto the element", () => {
-        const { container } = render(<Graphty layers={[]} acceleration="off" />);
+it("writes the reader's acceleration preference onto the element", () => {
+    const { container } = render(<Graphty layers={[]} acceleration="off" />);
 
-        expect(container.querySelector<HTMLElement>("graphty-element")?.getAttribute("acceleration")).toBe("off");
-    });
+    expect(container.querySelector<HTMLElement>("graphty-element")?.getAttribute("acceleration")).toBe("off");
+});
 ```
 
 Match the file's existing render call and `describe` placement rather than the sketch above if they differ.
@@ -934,10 +940,14 @@ function AccelerationSettingsPane(props: AccelerationSettingsProps): React.JSX.E
 destructured at `:471` beside `aiProviders`, and rendered immediately after `{section.id === "performance" && <LabelSettingsPane />}` (`:486`):
 
 ```tsx
-                        {/* Settings > Performance also owns the acceleration preference: it is a
+{
+    /* Settings > Performance also owns the acceleration preference: it is a
                             property of the reader's machine, like the label budget, and belongs
-                            to neither a dataset nor a link. */}
-                        {section.id === "performance" && <AccelerationSettingsPane {...acceleration} />}
+                            to neither a dataset nor a link. */
+}
+{
+    section.id === "performance" && <AccelerationSettingsPane {...acceleration} />;
+}
 ```
 
 The `find(...)` with an `undefined` guard rather than a cast: Mantine's `onChange` hands back `string | null`, `Array.prototype.find` returns `undefined` when nothing matches, and a `<Select>` handed `undefined` flips from controlled to uncontrolled. Nothing the control can draw fails the `find`, so the guard never fires in practice and that is the point -- it is there so that a value the control cannot draw changes nothing rather than clearing the preference.
@@ -947,17 +957,17 @@ The `find(...)` with an `undefined` guard rather than a cast: Mantine's `onChang
 In `graphty/src/components/shell/AppShell.tsx`, beside the other shell state:
 
 ```ts
-    /* The reader's acceleration preference. The shell owns it because the shell is what writes
+/* The reader's acceleration preference. The shell owns it because the shell is what writes
        it onto the element and what remembers it between visits -- the element deliberately
        persists nothing on a reader's behalf. Seeded from storage in the initialiser rather than
        an effect, so the control never draws the default for a frame before correcting itself. */
-    const [gpuPreference, setGpuPreference] = useState<GpuPreferenceValue>(
-        () => resolveGpuSettings(readPersistedGpuSettings()).gpu,
-    );
-    const changeGpuPreference = useCallback((value: GpuPreferenceValue) => {
-        setGpuPreference(value);
-        writePersistedGpuSettings({ gpu: value });
-    }, []);
+const [gpuPreference, setGpuPreference] = useState<GpuPreferenceValue>(
+    () => resolveGpuSettings(readPersistedGpuSettings()).gpu,
+);
+const changeGpuPreference = useCallback((value: GpuPreferenceValue) => {
+    setGpuPreference(value);
+    writePersistedGpuSettings({ gpu: value });
+}, []);
 ```
 
 with the imports added from `../../gpu/gpuPrefs`. The value is handed to both of its consumers in this same step, so it is never a state with no reader: the canvas graph config (`:4691-4697`) gains `acceleration: gpuPreference,` and the overlay (`:5019`) gains
@@ -984,6 +994,7 @@ Expected: all green. An `@typescript-eslint/no-unused-vars` error on `gpuPrefere
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `graphty/src/components/shell/statusbar/accelerationChip.ts` (the six states turned into one chip's words)
 - Create: `graphty/src/components/shell/statusbar/__tests__/accelerationChip.test.ts`
 - Modify: `graphty/src/components/Graphty.tsx` (the `onCapabilitiesChange` prop and its listener effect, beside the two forwarders at `:471-551`)
@@ -998,6 +1009,7 @@ Expected: all green. An `@typescript-eslint/no-unused-vars` error on `gpuPrefere
 - NOT touched: `graphty/src/components/shell/types.ts` (the frozen nine-slot contract; `statusBarModel.ts` is the documented place to extend it), `graphty/src/components/shell/constants.ts` (`issues` is already in `STATUS_BAR_NEVER_DROP`), `graphty/src/components/shell/statusbar/LoadCompleteToast.tsx`
 
 **Interfaces:**
+
 - Consumes: the element's `Capabilities` type and its `acceleration` member, the `graphty-capabilities-change` DOM event, `StatusBarChip` (`StatusBarChip.tsx:85`), the local `StatusDot` (`StatusBarSlots.tsx:74-80`), `StatusBarCompletion` (`statusBarModel.ts:117-150`).
 - Produces: `accelerationChipModel()` and `GPU_LABEL_PREFIX`; `GraphtyProps.onCapabilitiesChange`, `CanvasGraphConfig.onCapabilitiesChange`; `StatusBarAccelerationMode`, `StatusBarIssuesModel`, and a `StatusBarSlotsModel.issues` the app actually fills.
 
@@ -1214,27 +1226,27 @@ Expected: 7 tests pass; eslint and prettier exit 0.
 with `import type { Capabilities } from "@graphty/graphty-element";` at the top, `onCapabilitiesChange` destructured at `:291`, and an effect beside the other two forwarders:
 
 ```ts
-    // Forward the element's capability reports, which is how the shell learns whether this
-    // machine is accelerating. The element owns the answer; this is the wire it travels on.
-    useEffect(() => {
-        const element = graphtyRef.current;
+// Forward the element's capability reports, which is how the shell learns whether this
+// machine is accelerating. The element owns the answer; this is the wire it travels on.
+useEffect(() => {
+    const element = graphtyRef.current;
 
-        if (!element || !onCapabilitiesChange) {
-            return undefined;
-        }
+    if (!element || !onCapabilitiesChange) {
+        return undefined;
+    }
 
-        const handleCapabilitiesChanged = (event: Event): void => {
-            const customEvent = event as CustomEvent<{ capabilities: Capabilities }>;
+    const handleCapabilitiesChanged = (event: Event): void => {
+        const customEvent = event as CustomEvent<{ capabilities: Capabilities }>;
 
-            onCapabilitiesChange(customEvent.detail.capabilities);
-        };
+        onCapabilitiesChange(customEvent.detail.capabilities);
+    };
 
-        element.addEventListener("graphty-capabilities-change", handleCapabilitiesChanged);
+    element.addEventListener("graphty-capabilities-change", handleCapabilitiesChanged);
 
-        return () => {
-            element.removeEventListener("graphty-capabilities-change", handleCapabilitiesChanged);
-        };
-    }, [onCapabilitiesChange]);
+    return () => {
+        element.removeEventListener("graphty-capabilities-change", handleCapabilitiesChanged);
+    };
+}, [onCapabilitiesChange]);
 ```
 
 The `as CustomEvent<...>` is the same line the two forwarders beside it already write, and it is the one thing in this task that should get shorter later rather than staying: once the element's `GraphtyEventMap` augmentation ships, `addEventListener` types the handler on its own and all three casts go together. Adding it here now, in the shape the file already uses, is not a new workaround -- writing a private `CapabilitiesChangedDetail` interface beside `StylesChangedDetail` would be, because it would be a second declaration of a shape the element owns.
@@ -1244,19 +1256,19 @@ The `as CustomEvent<...>` is the same line the two forwarders beside it already 
 Then one case in `graphty/src/components/Graphty.test.tsx`, which the app's own environment can run today:
 
 ```tsx
-    it("hands on the element's capability reports", () => {
-        const onCapabilitiesChange = vi.fn();
-        const { container } = render(<Graphty layers={[]} onCapabilitiesChange={onCapabilitiesChange} />);
-        const element = container.querySelector<HTMLElement>("graphty-element");
+it("hands on the element's capability reports", () => {
+    const onCapabilitiesChange = vi.fn();
+    const { container } = render(<Graphty layers={[]} onCapabilitiesChange={onCapabilitiesChange} />);
+    const element = container.querySelector<HTMLElement>("graphty-element");
 
-        element?.dispatchEvent(
-            new CustomEvent("graphty-capabilities-change", {
-                detail: { capabilities: { acceleration: { state: "off" } } },
-            }),
-        );
+    element?.dispatchEvent(
+        new CustomEvent("graphty-capabilities-change", {
+            detail: { capabilities: { acceleration: { state: "off" } } },
+        }),
+    );
 
-        expect(onCapabilitiesChange).toHaveBeenCalledWith(expect.objectContaining({ acceleration: { state: "off" } }));
-    });
+    expect(onCapabilitiesChange).toHaveBeenCalledWith(expect.objectContaining({ acceleration: { state: "off" } }));
+});
 ```
 
 This works with no element registered: an unrecognised tag is still an `HTMLElement` and a working event target, which is why it is the one part of this task the app can prove on its own. Match the file's existing render call and `describe` placement rather than the sketch above if they differ.
@@ -1412,20 +1424,17 @@ const ACCELERATION_DOT: Record<StatusBarAccelerationMode["tone"], string> = {
 and, after the `performance` chip's block (`:341-345`):
 
 ```tsx
-            {acceleration === undefined ? null : (
-                <StatusBarChip
-                    leading={
-                        <StatusDot
-                            color={ACCELERATION_DOT[acceleration.tone]}
-                            size={STATUS_BAR_GEOMETRY.AI_DOT}
-                        />
-                    }
-                    onClick={acceleration.onClick}
-                    title={acceleration.title}
-                >
-                    {acceleration.label}
-                </StatusBarChip>
-            )}
+{
+    acceleration === undefined ? null : (
+        <StatusBarChip
+            leading={<StatusDot color={ACCELERATION_DOT[acceleration.tone]} size={STATUS_BAR_GEOMETRY.AI_DOT} />}
+            onClick={acceleration.onClick}
+            title={acceleration.title}
+        >
+            {acceleration.label}
+        </StatusBarChip>
+    );
+}
 ```
 
 with `StatusBarAccelerationMode` and `StatusBarIssuesModel` added to the `./statusBarModel` type import at `:29` and `StatusBarIssues` REMOVED from the `../types` import at `:17-25` -- not "if nothing else uses it": nothing else does, and leaving it is an eslint error. The dot reuses `StatusDot` (`:74-80`) and `STATUS_BAR_GEOMETRY.AI_DOT` (6 px, `statusBarGeometry.ts:85`) rather than a new glyph: the AI slot already draws a state dot at that size, and a second bolt beside the Performance bolt would read as two warnings.
@@ -1440,13 +1449,13 @@ This step both introduces the capability state and consumes it, so the value is 
 First, beside the other shell state:
 
 ```ts
-    /* What the element says this machine can do. The app holds it, renders it, and decides
+/* What the element says this machine can do. The app holds it, renders it, and decides
        nothing about it: probing, attaching, thresholds and device loss are all the element's,
        and this is the record it publishes when any of them changes. */
-    const [acceleration, setAcceleration] = useState<Capabilities["acceleration"] | undefined>(undefined);
-    const handleCapabilitiesChange = useCallback((capabilities: Capabilities) => {
-        setAcceleration(capabilities.acceleration);
-    }, []);
+const [acceleration, setAcceleration] = useState<Capabilities["acceleration"] | undefined>(undefined);
+const handleCapabilitiesChange = useCallback((capabilities: Capabilities) => {
+    setAcceleration(capabilities.acceleration);
+}, []);
 ```
 
 with `import type { Capabilities } from "@graphty/graphty-element";`, `accelerationChipModel` from `./statusbar/accelerationChip`, and `StatusBarIssuesModel` added to the existing type import at `:211`. The canvas graph config (`:4691-4697`) gains `onCapabilitiesChange: handleCapabilitiesChange,`.
@@ -1454,31 +1463,31 @@ with `import type { Capabilities } from "@graphty/graphty-element";`, `accelerat
 Then the producer. It goes IMMEDIATELY ABOVE the slots memo (`:4253`), not inside it:
 
 ```ts
-    /* The issues slot's FIRST producer in this app. Acceleration is a machine-level mode, so it
+/* The issues slot's FIRST producer in this app. Acceleration is a machine-level mode, so it
        belongs beside the Performance mode chip and opens the same door.
        Its own memo, above the slots memo, for one reason: the slots memo opens with
        `if (!dataLoaded) { return {}; }`, and whether this machine is accelerating has nothing to
        do with whether a dataset is drawn. A reader who opens Settings > Performance to change the
        preference is usually in the Welcome state, which is exactly the state that guard hides. */
-    const accelerationIssues = useMemo<StatusBarIssuesModel | undefined>(() => {
-        const chip = accelerationChipModel(acceleration);
+const accelerationIssues = useMemo<StatusBarIssuesModel | undefined>(() => {
+    const chip = accelerationChipModel(acceleration);
 
-        if (chip === undefined) {
-            return undefined;
-        }
+    if (chip === undefined) {
+        return undefined;
+    }
 
-        return {
-            acceleration: {
-                label: chip.label,
-                title: chip.title,
-                tone: chip.tone,
-                onClick: () => {
-                    setSettingsSection("performance");
-                    setSettingsOpen(true);
-                },
+    return {
+        acceleration: {
+            label: chip.label,
+            title: chip.title,
+            tone: chip.tone,
+            onClick: () => {
+                setSettingsSection("performance");
+                setSettingsOpen(true);
             },
-        };
-    }, [acceleration]);
+        },
+    };
+}, [acceleration]);
 ```
 
 `setSettingsSection` and `setSettingsOpen` are `useState` setters (`AppShell.tsx:1172,1179`), so they are stable and are not dependencies. Its own `useMemo` and not an inline object: an object literal built during render is a new reference every render and would invalidate the slots memo on every render.
@@ -1505,35 +1514,35 @@ What this decides, recorded because the G12 record's findings section asks for i
 Then widen the completion memo (`:4314-4328`). Its name stays `loadCompletion` only if it still reports loads alone; it does not, so rename it to `statusCompletion` and update the one use at `:5056`:
 
 ```ts
-    const statusCompletion = useMemo<StatusBarCompletion | undefined>(() => {
-        if (loadFailure !== null) {
-            return {
-                message: loadFailureSentence(loadFailure),
-                severity: "error",
-                actionLabel: OPEN_DATA_ACTION,
-                onDetails: () => {
-                    openPanelAt("data");
-                },
-            };
-        }
-
-        /* The device-lost report. The load failure wins when both are true: the reader just
-           acted, and the acceleration fact is still on the chip, which does not erase itself. No
-           `onDismiss`, for the reason the failed load has none. */
-        if (acceleration?.state !== "error") {
-            return undefined;
-        }
-
+const statusCompletion = useMemo<StatusBarCompletion | undefined>(() => {
+    if (loadFailure !== null) {
         return {
-            message: acceleration.reason ?? "The graphics processor stopped. Work continues on the processor.",
+            message: loadFailureSentence(loadFailure),
             severity: "error",
-            actionLabel: OPEN_SETTINGS_ACTION,
+            actionLabel: OPEN_DATA_ACTION,
             onDetails: () => {
-                setSettingsSection("performance");
-                setSettingsOpen(true);
+                openPanelAt("data");
             },
         };
-    }, [acceleration, loadFailure, openPanelAt]);
+    }
+
+    /* The device-lost report. The load failure wins when both are true: the reader just
+           acted, and the acceleration fact is still on the chip, which does not erase itself. No
+           `onDismiss`, for the reason the failed load has none. */
+    if (acceleration?.state !== "error") {
+        return undefined;
+    }
+
+    return {
+        message: acceleration.reason ?? "The graphics processor stopped. Work continues on the processor.",
+        severity: "error",
+        actionLabel: OPEN_SETTINGS_ACTION,
+        onDetails: () => {
+            setSettingsSection("performance");
+            setSettingsOpen(true);
+        },
+    };
+}, [acceleration, loadFailure, openPanelAt]);
 ```
 
 with one new constant beside `OPEN_DATA_ACTION`:
@@ -1568,12 +1577,14 @@ Expected: all green. If the AppShell test that asserts the status bar's slot ord
 **Repository:** `AT`.
 
 **Files:**
+
 - Modify: `graphty/src/components/shell/analysis/metricCost.ts` (the constant, the input flag, the divisor, and the optional speedup-table parameter on both entry points)
 - Modify: `graphty/src/components/shell/analysis/__tests__/metricCost.test.ts` (the constant's four pins plus the non-unit-table forwarding case)
 - Modify: `graphty/src/components/shell/AppShell.tsx:2750-2753, 2764-2786, 2847-2851` (the three call sites pass the flag)
 - NOT touched: `graphty/src/components/shell/insights/insightsRules.ts` (it reads `estimateSeconds[capability]`, which now carries the flag's effect automatically), `graphty/src/components/shell/panel/AnalyzePanel.tsx`
 
 **Interfaces:**
+
 - Consumes: the `acceleration` state M7-T6 Step 6 added to the shell.
 - Produces: `ACCELERATED_SPEEDUP_BY_METRIC`; `MetricCostInput.accelerated`; `estimateMetricSeconds(input, speedups?)` and `estimateSecondsByMetric({ nodeCount, edgeCount, accelerated? }, speedups?)`, both with the real table as the default second argument.
 
@@ -1755,14 +1766,14 @@ Expected: every pre-existing case still passes (all of them run with `accelerate
 In `graphty/src/components/shell/AppShell.tsx`, beside the memos, add:
 
 ```ts
-    /* The flag `metricCost` takes. "An accelerator is attached and usable" is BOTH of the
+/* The flag `metricCost` takes. "An accelerator is attached and usable" is BOTH of the
        element's working states: `active` means something is on it right now and `idle` means it
        is ready with nothing on it, and a graph below the element's acceleration.minNodes sits in
        the second one. Quoting a processor price there would be quoting for the wrong machine.
        It is not "this metric runs on the GPU": the element publishes no per-metric answer, and
        the per-metric half is ACCELERATED_SPEEDUP_BY_METRIC, which is 1 for every metric until
        the GPU has a path. */
-    const accelerated = acceleration?.state === "active" || acceleration?.state === "idle";
+const accelerated = acceleration?.state === "active" || acceleration?.state === "idle";
 ```
 
 then `:2751` becomes
@@ -1783,11 +1794,13 @@ Expected: green. Today the numbers are identical with the flag true or false (ev
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `graphty/src/stories/Acceleration.stories.tsx` (`Components/Acceleration`, `tags: ["gpu"]`, one story)
 - Modify: `graphty/chromatic.config.json` (`onlyChanged` false)
 - NOT touched: `graphty/src/stories/Graphty.stories.tsx` (its inline element mock stays where it is: this story draws no element, so there is no second registrar and nothing to extract), `graphty/.storybook/preview.tsx` (the two colour modes stay; see the cost note), `graphty/.storybook/main.ts`, `.github/workflows/ci.yml` (TurboSnap is already off there and `exitZeroOnChanges` already false -- this plan asks for no CI change here)
 
 **Interfaces:**
+
 - Consumes: `accelerationChipModel` and `GPU_LABEL_PREFIX` from M7-T6; `StatusBarChip`; the element's `Capabilities` type.
 - Produces: the story `Components/Acceleration/States`.
 
@@ -1918,11 +1931,13 @@ Expected: no config file, and the three Chromatic scripts all reading `../tools/
 **Repository:** `AT`.
 
 **Files:**
+
 - Create: `webgpu-graph-algorithms/docs/decisions/G12.md` (the gate record)
 - Create: `tmp/m7-app-auto.png`, `tmp/m7-app-never.png`, `tmp/m7-app-reloaded.png` (the visual evidence; `tmp/` is gitignored, so none of it ships)
 - NOT touched: `graphty-element/**` (the `acceleration.minNodes` default and the real-GPU layout checks belong to M6-T20's gate), `design/webgpu/webgpu-acceleration-plan.md` (a plan of record), `graphty/src/**` (this task writes no code)
 
 **Interfaces:**
+
 - Consumes: `design/decisions/2026-09-19-g12-without-the-nightly-clause.md` from M7-T1; M6-T20's gate record, for the measured `acceleration.minNodes` and the layout's real-GPU checks, which this record CITES and does not repeat.
 - Produces: `webgpu-graph-algorithms/docs/decisions/G12.md`, the phase's gate record. It lives beside `G0.md`..`G3.md` because the integration plan puts every gate record under `webgpu-graph-algorithms/docs/decisions/`.
 
@@ -1942,14 +1957,14 @@ Run `cd AT/graphty && npm run dev`, then drive a browser on the dev box with the
 
 Then ask the Nanobanana MCP these questions and record the answers VERBATIM in the record. They are yes/no and objective, and they come in pairs on purpose: the tool agrees with what it is asked, so each state is asked about twice, once in each direction, and a pair that answers yes to both has told you nothing -- read that screenshot yourself and record that you had to.
 
-| # | Image | Question | Expected |
-| --- | --- | --- | --- |
-| 1 | `m7-app-auto.png` | "Does this image contain the text 'GPU acceleration: on'?" | yes |
-| 2 | `m7-app-auto.png` | "Does this image contain the text 'GPU acceleration: off'?" | no |
-| 3 | `m7-app-auto.png` | "Are the graph's nodes distributed across the frame rather than clustered in one corner?" | yes |
-| 4 | `m7-app-never.png` | "Does this image contain the text 'GPU acceleration: off'?" | yes |
-| 5 | `m7-app-never.png` | "Does this image contain the text 'GPU acceleration: on'?" | no |
-| 6 | `m7-app-reloaded.png` | "Does this image contain the text 'GPU acceleration: off'?" | yes |
+| #   | Image                 | Question                                                                                  | Expected |
+| --- | --------------------- | ----------------------------------------------------------------------------------------- | -------- |
+| 1   | `m7-app-auto.png`     | "Does this image contain the text 'GPU acceleration: on'?"                                | yes      |
+| 2   | `m7-app-auto.png`     | "Does this image contain the text 'GPU acceleration: off'?"                               | no       |
+| 3   | `m7-app-auto.png`     | "Are the graph's nodes distributed across the frame rather than clustered in one corner?" | yes      |
+| 4   | `m7-app-never.png`    | "Does this image contain the text 'GPU acceleration: off'?"                               | yes      |
+| 5   | `m7-app-never.png`    | "Does this image contain the text 'GPU acceleration: on'?"                                | no       |
+| 6   | `m7-app-reloaded.png` | "Does this image contain the text 'GPU acceleration: off'?"                               | yes      |
 
 Question 6 is the one the app owns outright: the element remembers nothing across a reload, so a reloaded page that still says off proves the app's own storage and its attribute write both work. If question 1 answers no on a machine whose browser has a hardware adapter, STOP: either the activation import is missing (M7-T2 Step 2), the element found no adapter and is saying so in the chip's tooltip -- read it -- or the page is not on HTTPS.
 
@@ -1971,7 +1986,7 @@ Expected: as commented. Any hit in the first two is acceleration logic that crep
 
 Create `webgpu-graph-algorithms/docs/decisions/G12.md` with this content; every `<...>` is a number or a string copied from a named command's output, and the owner signs the last section.
 
-````markdown
+```markdown
 # G12 -- the app's acceleration surfaces (spec 13 row P12, W2 subset)
 
 Recorded by: Task M7-T9, <date>. Commits: the <n> of this phase's PR (<short hashes once committed>).
@@ -1986,30 +2001,30 @@ this phase, NOT a nightly week. There is no nightly lane.
 
 ## 1. The checklist
 
-| # | Item | Evidence | Result | Status |
-| --- | --- | --- | --- | --- |
-| 1 | the app's stories green | `pnpm exec nx run graphty:build-storybook`; the `chromatic-app` job of run <id> | <n> stories, <n> snapshots | pass / fail |
-| 2 | the acceleration story draws all six states, identically on every machine | the `Components/Acceleration/States` snapshot in build <id> | six rows, two of them "no chip" | pass / fail |
-| 3 | on a machine with a hardware adapter, the app's chip names it | `tmp/m7-app-auto.png`; Nanobanana Q1 and Q2 | <answer>, <answer> | pass / fail |
-| 4 | the graph draws while accelerated | `tmp/m7-app-auto.png`; Nanobanana Q3 | <answer> | pass / fail |
-| 5 | the Settings control turns it off | `tmp/m7-app-never.png`; Nanobanana Q4 and Q5 | <answer>, <answer> | pass / fail |
-| 6 | the reader's choice survives a reload, which only the app can do | `tmp/m7-app-reloaded.png`; Nanobanana Q6 | <answer> | pass / fail |
-| 7 | the app contains no acceleration logic | the five greps of Task M7-T9 Step 2 | <what each printed> | pass / fail |
-| 8 | the app imports the GPU package nowhere, and activates it in one line | `grep -rn "@graphty/webgpu-graph-algorithms" graphty/src` (nothing); `grep -rn "graphty-element/webgpu" graphty/src` (one line) | | pass / fail |
-| 9 | the GPU lane green on this phase's master commits | `gh run list --workflow GPU` | run <id>, <conclusion> | pass / fail |
-| 10a | the 20 CI shards still find nine build artifacts on a graphty-affected PR | this phase's PR, run <id> | <n>/20 green | pass / fail |
-| 10b | ...and on a PR that makes graphty NOT affected, which 10a cannot exercise | the scratch PR of M7-T2 Step 5, touching only `graph-io/README.md`, run <id> | nine non-empty artifacts, <n>/20 green | pass / fail |
+| #   | Item                                                                      | Evidence                                                                                                                        | Result                                 | Status      |
+| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------- |
+| 1   | the app's stories green                                                   | `pnpm exec nx run graphty:build-storybook`; the `chromatic-app` job of run <id>                                                 | <n> stories, <n> snapshots             | pass / fail |
+| 2   | the acceleration story draws all six states, identically on every machine | the `Components/Acceleration/States` snapshot in build <id>                                                                     | six rows, two of them "no chip"        | pass / fail |
+| 3   | on a machine with a hardware adapter, the app's chip names it             | `tmp/m7-app-auto.png`; Nanobanana Q1 and Q2                                                                                     | <answer>, <answer>                     | pass / fail |
+| 4   | the graph draws while accelerated                                         | `tmp/m7-app-auto.png`; Nanobanana Q3                                                                                            | <answer>                               | pass / fail |
+| 5   | the Settings control turns it off                                         | `tmp/m7-app-never.png`; Nanobanana Q4 and Q5                                                                                    | <answer>, <answer>                     | pass / fail |
+| 6   | the reader's choice survives a reload, which only the app can do          | `tmp/m7-app-reloaded.png`; Nanobanana Q6                                                                                        | <answer>                               | pass / fail |
+| 7   | the app contains no acceleration logic                                    | the five greps of Task M7-T9 Step 2                                                                                             | <what each printed>                    | pass / fail |
+| 8   | the app imports the GPU package nowhere, and activates it in one line     | `grep -rn "@graphty/webgpu-graph-algorithms" graphty/src` (nothing); `grep -rn "graphty-element/webgpu" graphty/src` (one line) |                                        | pass / fail |
+| 9   | the GPU lane green on this phase's master commits                         | `gh run list --workflow GPU`                                                                                                    | run <id>, <conclusion>                 | pass / fail |
+| 10a | the 20 CI shards still find nine build artifacts on a graphty-affected PR | this phase's PR, run <id>                                                                                                       | <n>/20 green                           | pass / fail |
+| 10b | ...and on a PR that makes graphty NOT affected, which 10a cannot exercise | the scratch PR of M7-T2 Step 5, touching only `graph-io/README.md`, run <id>                                                    | nine non-empty artifacts, <n>/20 green | pass / fail |
 
 ## 2. What the app shows for a device it cannot use
 
 Filled in from what was observed, not from what was expected. Every cell is a chip label and, where the
 chip has one, the tooltip the element supplied.
 
-| Preference | no adapter on this machine | hardware adapter |
-| --- | --- | --- |
-| `off` | <label> / <tooltip> | <label> / <tooltip> |
-| `auto` | <label> / <tooltip> | <label> / <tooltip> |
-| `required` | <label> / <tooltip> | <label> / <tooltip> |
+| Preference | no adapter on this machine | hardware adapter    |
+| ---------- | -------------------------- | ------------------- |
+| `off`      | <label> / <tooltip>        | <label> / <tooltip> |
+| `auto`     | <label> / <tooltip>        | <label> / <tooltip> |
+| `required` | <label> / <tooltip>        | <label> / <tooltip> |
 
 ## 3. What this record does NOT claim
 
@@ -2041,7 +2056,7 @@ Decisions this phase took that a reader of the shipped app can see:
   (`webgpu-graph-algorithms/src/accelerator.ts:87-117`).
 
 Signed off: <owner>, <date>.
-````
+```
 
 Run: `cd AT && LC_ALL=C grep -nP '[^\x00-\x7F]' webgpu-graph-algorithms/docs/decisions/G12.md; echo "rc=$?"`
 Expected: no output, `rc=1`.
@@ -2071,85 +2086,85 @@ Expected: as commented. If `pnpm install --frozen-lockfile` fails, the lockfile 
 
 ### 7.1 The owner's command sheet (in order)
 
-| When | Command (paste as an `!` command in this session, or run in a shell) |
-| --- | --- |
-| Before M7-T1 | `git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/gpu-app -b feat/gpu-app-accelerator master` |
+| When         | Command (paste as an `!` command in this session, or run in a shell)                                                                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Before M7-T1 | `git fetch origin && git merge --ff-only origin/master && git worktree add .worktrees/gpu-app -b feat/gpu-app-accelerator master`                                                                                                          |
 | Phase step 0 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app && HUSKY=0 pnpm install --frozen-lockfile && pnpm exec nx run-many -t build --projects=graph-format,webgpu-graph-algorithms,algorithms,layout,graphty-element --parallel=3` |
-| before M7-T1 | confirm `tools/commit-changes.sh:468` already lists `graph-format graph-io webgpu-graph-algorithms` (Task M8b-T1 Step 1 landed it); if not, land that one two-line `fix(tools)` commit first |
-| M7-T1 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app && ./tools/commit-changes.sh --dry-run` then without the flag, for the two subjects of M7-T1 Step 4 |
-| M7-T2 | `... && HUSKY=0 pnpm install` (the lockfile), then `./tools/commit-changes.sh` for the two subjects of M7-T2 Step 7 |
-| M7-T2 Step 5 | push a scratch branch whose only change is a line appended to `graph-io/README.md`, open it as a draft PR, read the `build` job's nine artifacts, then close it unmerged (G12 item 10b) |
-| M7-T9 Step 1 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app/graphty && npm run dev`, then drive `https://dev.ato.ms:9005` with the Playwright MCP for the three screenshots, and ask the six Nanobanana questions |
-| M7-T9 Step 4 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app && ./tools/prepush.sh` |
-| M7-T9 Step 5 | `./tools/commit-changes.sh --dry-run` then without the flag, for the five subjects of M7-T9 Step 5; then open the PR and accept the two new Chromatic snapshots |
+| before M7-T1 | confirm `tools/commit-changes.sh:468` already lists `graph-format graph-io webgpu-graph-algorithms` (Task M8b-T1 Step 1 landed it); if not, land that one two-line `fix(tools)` commit first                                               |
+| M7-T1        | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app && ./tools/commit-changes.sh --dry-run` then without the flag, for the two subjects of M7-T1 Step 4                                                                         |
+| M7-T2        | `... && HUSKY=0 pnpm install` (the lockfile), then `./tools/commit-changes.sh` for the two subjects of M7-T2 Step 7                                                                                                                        |
+| M7-T2 Step 5 | push a scratch branch whose only change is a line appended to `graph-io/README.md`, open it as a draft PR, read the `build` job's nine artifacts, then close it unmerged (G12 item 10b)                                                    |
+| M7-T9 Step 1 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app/graphty && npm run dev`, then drive `https://dev.ato.ms:9005` with the Playwright MCP for the three screenshots, and ask the six Nanobanana questions                       |
+| M7-T9 Step 4 | `cd /home/apowers/Projects/graphty-monorepo/.worktrees/gpu-app && ./tools/prepush.sh`                                                                                                                                                      |
+| M7-T9 Step 5 | `./tools/commit-changes.sh --dry-run` then without the flag, for the five subjects of M7-T9 Step 5; then open the PR and accept the two new Chromatic snapshots                                                                            |
 
 The agent never runs any of these; it prepares the tree and verifies the results.
 
 ### 7.2 Verification matrix
 
-| Check | Where | Command | Green means |
-| --- | --- | --- | --- |
-| The scope list matches commitlint | M7-T1 | `grep -n 'graph-format' tools/commit-changes.sh` | the script accepts every scope commitlint does |
-| The decision record is ASCII | M7-T1 | `LC_ALL=C grep -nP '[^\x00-\x7F]' design/decisions/2026-09-19-g12-without-the-nightly-clause.md` | no output |
-| The dependency resolves and the lockfile agrees | M7-T2 | `HUSKY=0 pnpm install --frozen-lockfile` | exit 0 with `link:../webgpu-graph-algorithms` in graphty's importer |
-| An installed-but-unimported peer does not fail the dead-code gate | M7-T2 | `pnpm run lint:knip` | exit 0, no unused-dependency line for graphty |
-| The activation import resolves in both tools | M7-T2 | `npx tsc --noEmit`, then `npm run dev` and load the app | no `Cannot find module '@graphty/graphty-element/webgpu'`, and the page boots |
-| The app type-checks against a built GPU package | M7-T2 | `pnpm exec nx run graphty:lint` | the dependency builds first, then eslint and `tsc --noEmit` exit 0 |
-| The element shim is gone without collateral | M7-T2 | `cd graphty && npx tsc --noEmit` | 0 errors; the real package's types are in force |
-| The CI file still parses and names the narrowed step | M7-T2 | the `yaml.safe_load` one-liner of M7-T2 Step 5 | `Build graph-io and webgpu-graph-algorithms (PR)` present, the three-project step gone |
-| ...and a PR that does NOT make graphty affected still uploads nine artifacts | M7-T2 | the scratch PR touching only `graph-io/README.md` | nine non-empty artifacts, 20/20 shards green |
-| The preference survives a bad store, an explicit undefined included | M7-T3 | `npx vitest run src/gpu/__tests__/gpuPrefs.test.ts` | 5 passed |
-| The preference reaches the element | M7-T3 | `npx vitest run src/components/Graphty.test.tsx` | the tag carries `acceleration="off"` |
-| Every one of the six states has words, and two of them have none | M7-T6 | `npx vitest run src/components/shell/statusbar/__tests__/accelerationChip.test.ts` | 7 passed, including the probing case and the idle-equals-active case |
-| The element's report reaches the shell | M7-T6 | `npx vitest run src/components/Graphty.test.tsx` | the dispatched `graphty-capabilities-change` calls the prop |
-| The issues slot renders with only the acceleration chip | M7-T6 | `npx vitest run src/components/shell/statusbar/__tests__/StatusBar.test.tsx` | the three new cases pass |
-| The chip is not gated on a dataset, and does not draw before the element speaks | M7-T6 | `npx vitest run src/components/shell/__tests__/AppShell.test.tsx` | the bar renders with no dataset and carries no `GPU acceleration` text |
-| `statusBarModel.ts` is still type-only | M7-T6 | `grep -nE '^(export )?(function\|const\|let\|class)' src/components/shell/statusbar/statusBarModel.ts` | no output, so the coverage exemption holds |
-| The cost gate's two surfaces agree, and BOTH forward the flag | M7-T7 | `npx vitest run src/components/shell/analysis/__tests__/metricCost.test.ts` | the record equals the single estimate for every metric, and the non-unit-table case halves the pagerank estimate through both entry points |
-| The story builds and is indexed | M7-T8 | `pnpm exec nx run graphty:build-storybook` then the `index.json` one-liner | `components-acceleration--states` present |
-| The app has no acceleration logic | M7-T9 | the five greps of M7-T9 Step 2 | the first two print nothing; the fourth prints one line |
-| The app on a real GPU says so | M7-T9 | `https://dev.ato.ms:9005` plus the six Nanobanana questions | the three pairs answer in opposite directions |
-| The whole app | M7-T9 | `pnpm exec nx run graphty:coverage` | the suite passes in headless Chromium |
-| The pre-push gate | M7-T9 | `./tools/prepush.sh` | exit 0 |
-| The GPU lane on this phase's master commits | M7-T9 | `gh run list --workflow GPU` | the run on the merge commit succeeded (G12's restated middle clause) |
+| Check                                                                           | Where | Command                                                                                                | Green means                                                                                                                                |
+| ------------------------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| The scope list matches commitlint                                               | M7-T1 | `grep -n 'graph-format' tools/commit-changes.sh`                                                       | the script accepts every scope commitlint does                                                                                             |
+| The decision record is ASCII                                                    | M7-T1 | `LC_ALL=C grep -nP '[^\x00-\x7F]' design/decisions/2026-09-19-g12-without-the-nightly-clause.md`       | no output                                                                                                                                  |
+| The dependency resolves and the lockfile agrees                                 | M7-T2 | `HUSKY=0 pnpm install --frozen-lockfile`                                                               | exit 0 with `link:../webgpu-graph-algorithms` in graphty's importer                                                                        |
+| An installed-but-unimported peer does not fail the dead-code gate               | M7-T2 | `pnpm run lint:knip`                                                                                   | exit 0, no unused-dependency line for graphty                                                                                              |
+| The activation import resolves in both tools                                    | M7-T2 | `npx tsc --noEmit`, then `npm run dev` and load the app                                                | no `Cannot find module '@graphty/graphty-element/webgpu'`, and the page boots                                                              |
+| The app type-checks against a built GPU package                                 | M7-T2 | `pnpm exec nx run graphty:lint`                                                                        | the dependency builds first, then eslint and `tsc --noEmit` exit 0                                                                         |
+| The element shim is gone without collateral                                     | M7-T2 | `cd graphty && npx tsc --noEmit`                                                                       | 0 errors; the real package's types are in force                                                                                            |
+| The CI file still parses and names the narrowed step                            | M7-T2 | the `yaml.safe_load` one-liner of M7-T2 Step 5                                                         | `Build graph-io and webgpu-graph-algorithms (PR)` present, the three-project step gone                                                     |
+| ...and a PR that does NOT make graphty affected still uploads nine artifacts    | M7-T2 | the scratch PR touching only `graph-io/README.md`                                                      | nine non-empty artifacts, 20/20 shards green                                                                                               |
+| The preference survives a bad store, an explicit undefined included             | M7-T3 | `npx vitest run src/gpu/__tests__/gpuPrefs.test.ts`                                                    | 5 passed                                                                                                                                   |
+| The preference reaches the element                                              | M7-T3 | `npx vitest run src/components/Graphty.test.tsx`                                                       | the tag carries `acceleration="off"`                                                                                                       |
+| Every one of the six states has words, and two of them have none                | M7-T6 | `npx vitest run src/components/shell/statusbar/__tests__/accelerationChip.test.ts`                     | 7 passed, including the probing case and the idle-equals-active case                                                                       |
+| The element's report reaches the shell                                          | M7-T6 | `npx vitest run src/components/Graphty.test.tsx`                                                       | the dispatched `graphty-capabilities-change` calls the prop                                                                                |
+| The issues slot renders with only the acceleration chip                         | M7-T6 | `npx vitest run src/components/shell/statusbar/__tests__/StatusBar.test.tsx`                           | the three new cases pass                                                                                                                   |
+| The chip is not gated on a dataset, and does not draw before the element speaks | M7-T6 | `npx vitest run src/components/shell/__tests__/AppShell.test.tsx`                                      | the bar renders with no dataset and carries no `GPU acceleration` text                                                                     |
+| `statusBarModel.ts` is still type-only                                          | M7-T6 | `grep -nE '^(export )?(function\|const\|let\|class)' src/components/shell/statusbar/statusBarModel.ts` | no output, so the coverage exemption holds                                                                                                 |
+| The cost gate's two surfaces agree, and BOTH forward the flag                   | M7-T7 | `npx vitest run src/components/shell/analysis/__tests__/metricCost.test.ts`                            | the record equals the single estimate for every metric, and the non-unit-table case halves the pagerank estimate through both entry points |
+| The story builds and is indexed                                                 | M7-T8 | `pnpm exec nx run graphty:build-storybook` then the `index.json` one-liner                             | `components-acceleration--states` present                                                                                                  |
+| The app has no acceleration logic                                               | M7-T9 | the five greps of M7-T9 Step 2                                                                         | the first two print nothing; the fourth prints one line                                                                                    |
+| The app on a real GPU says so                                                   | M7-T9 | `https://dev.ato.ms:9005` plus the six Nanobanana questions                                            | the three pairs answer in opposite directions                                                                                              |
+| The whole app                                                                   | M7-T9 | `pnpm exec nx run graphty:coverage`                                                                    | the suite passes in headless Chromium                                                                                                      |
+| The pre-push gate                                                               | M7-T9 | `./tools/prepush.sh`                                                                                   | exit 0                                                                                                                                     |
+| The GPU lane on this phase's master commits                                     | M7-T9 | `gh run list --workflow GPU`                                                                           | the run on the merge commit succeeded (G12's restated middle clause)                                                                       |
 
 ### 7.3 Risk register for this plan
 
-| Id | Risk | Mitigation |
-| --- | --- | --- |
-| R-M7-1 | The phase is started before Phase M6 is on master, and every live task from M7-T3 on names something the element does not publish. | Section 0.2 states each criterion as MET or NOT MET with its command, member by member. Each of those tasks names the symptom its own gate will show -- an unresolved module, a missing property, a chip that never appears -- and the answer to every one of them is "M6 is not on master", never a cast or a local declaration. |
-| R-M7-2 | Acceleration logic creeps back into the app: a probe added "just to know", a capability record recomputed, a threshold applied a second time. | G12 item 7 is five greps that fail on the first hit (M7-T9 Step 2), and they run in the gate rather than in review. The app's only acceleration files are a preference store, a copy function and a chip. |
-| R-M7-3 | The subpath alias is added AFTER the bare package alias in `vite.config.ts`, so `@graphty/graphty-element/webgpu` is rewritten to `.../index.ts/webgpu` and the dev server fails to resolve it -- or it is left out and resolves to `dist` instead of source, giving two module instances and two registrations. | PLAN DECISION 1 states the ordering rule and the two-instance failure; M7-T2 Step 2's gate loads the app rather than only type-checking, because a resolution that type-checks through `paths` can still fail in vite. |
-| R-M7-4 | After the dependency lands, a PR touching only `webgpu-graph-algorithms/` also rebuilds, re-lints and re-tests graphty, its Storybook and its Chromatic job -- the GPU package's own PR loop gets longer. | Accepted and named: it is the cost of the closure that makes the `ci.yml` step narrow. D-M7-1's alternative (landing M7-T2 early on its own PR) is the lever if it hurts. |
-| R-M7-5 | The `ci.yml` step is DELETED, or narrowed to graph-io alone, and a PR that makes graphty NOT affected leaves `webgpu-graph-algorithms/dist/` (or graph-io's) unbuilt against an unconditional Upload step -- the shards then fail at their Download step. | M7-T2 Step 5 replaces the step with a TWO-project one and carries the closure argument in the comment, including the graph-io-only counter-example; the verification matrix checks the step is present by name, and G12 item 10b checks it on a scratch PR that the landing PR structurally cannot stand in for. |
-| R-M7-6 | The element answers its probe before React runs the forwarder's effect, no further `graphty-capabilities-change` ever fires, and the chip is blank for the life of the page. | The forwarder seeds on attach as well as subscribing (PLAN DECISION 2), so the subscription only has to carry CHANGES. If the element exposes no way to read the current record, that is an element gap to file: the alternative -- polling for it in the app -- is the probe this phase exists to delete. |
-| R-M7-7 | The device-lost toast never appears, because the load-failure branch returns first and the reader has a failed load on screen. | Accepted by PLAN DECISION 6 and stated in the code comment: the chip carries the acceleration fact permanently and does not erase itself, so the toast is the second surface, never the only one. |
-| R-M7-8 | The real-GPU check is run over `http://dev.ato.ms:9005`, the element finds no adapter in an insecure context, and the chip correctly reads off -- so the check records a pass for the wrong reason, or a fail nobody can explain. | M7-T9 Step 1 names the secure-context requirement first, checks that both certificate files exist before starting, and pairs every Nanobanana question with its opposite so that "off" has to be confirmed twice to be believed. |
-| R-M7-9 | `metricCost`'s accelerator factors are set above 1 to "look finished", and the Run label promises a speed the processor then takes. | PLAN DECISION 8; the test pins every factor at 1 and a change has to change that test, which is where the reason for the new number gets written down. |
-| R-M7-10 | Four plan documents of 2026-09-19 each bump `design/README.md`'s directory counts and collide on merge. | M7-T1 Step 3 gives the resolution rule -- re-run `find design/webgpu -name '*.md' \| wc -l` and `ls design/decisions/*.md \| grep -cv README` in the merged tree, never take a side, and never use `ls \| wc -l` (which counts directories in the first cell and the README in the second) -- and the corpus-table rows do not collide because each plan adds its own line. |
-| R-M7-11 | Deleting `graphty/src/types/graphty-element.d.ts` is verified against TODAY's element, and Phase M6 changes types the app imports. | M7-T2 Step 4's Expected names this: any error other than the two known ones is a real disagreement with the element's own types, fixed in the app's usage or in the element, and never by re-adding the shim. |
-| R-M7-12 | The element does not export the `Capabilities` type from an entry the app can import, so the chip module and the forwarder cannot name what they are handed. | That is an element gap and is filed as one: a consumer who cannot name the record it is told to render cannot render it, and the design ships these types from `.` alongside the tag. The app must not answer it with a local interface -- re-declaring the element's types is one of the named forms of working around the element, and the 73-line shim this phase deletes is what that becomes. |
-| R-M7-13 | The `metricCost` seam lands as dead code: the flag is accepted by the type and read by nothing, and every test passes because every factor is 1 so `cpu / 1 === cpu`. Phase M8b then changes one number and nothing happens. | M7-T7 Step 1's fifth case drives both entry points with an injected table whose pagerank entry is 2 and asserts the estimate actually halved, and asserts an absent flag is not divided. That case fails if either forward is dropped; the other four cannot. |
+| Id      | Risk                                                                                                                                                                                                                                                                                                             | Mitigation                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R-M7-1  | The phase is started before Phase M6 is on master, and every live task from M7-T3 on names something the element does not publish.                                                                                                                                                                               | Section 0.2 states each criterion as MET or NOT MET with its command, member by member. Each of those tasks names the symptom its own gate will show -- an unresolved module, a missing property, a chip that never appears -- and the answer to every one of them is "M6 is not on master", never a cast or a local declaration.                                                                  |
+| R-M7-2  | Acceleration logic creeps back into the app: a probe added "just to know", a capability record recomputed, a threshold applied a second time.                                                                                                                                                                    | G12 item 7 is five greps that fail on the first hit (M7-T9 Step 2), and they run in the gate rather than in review. The app's only acceleration files are a preference store, a copy function and a chip.                                                                                                                                                                                          |
+| R-M7-3  | The subpath alias is added AFTER the bare package alias in `vite.config.ts`, so `@graphty/graphty-element/webgpu` is rewritten to `.../index.ts/webgpu` and the dev server fails to resolve it -- or it is left out and resolves to `dist` instead of source, giving two module instances and two registrations. | PLAN DECISION 1 states the ordering rule and the two-instance failure; M7-T2 Step 2's gate loads the app rather than only type-checking, because a resolution that type-checks through `paths` can still fail in vite.                                                                                                                                                                             |
+| R-M7-4  | After the dependency lands, a PR touching only `webgpu-graph-algorithms/` also rebuilds, re-lints and re-tests graphty, its Storybook and its Chromatic job -- the GPU package's own PR loop gets longer.                                                                                                        | Accepted and named: it is the cost of the closure that makes the `ci.yml` step narrow. D-M7-1's alternative (landing M7-T2 early on its own PR) is the lever if it hurts.                                                                                                                                                                                                                          |
+| R-M7-5  | The `ci.yml` step is DELETED, or narrowed to graph-io alone, and a PR that makes graphty NOT affected leaves `webgpu-graph-algorithms/dist/` (or graph-io's) unbuilt against an unconditional Upload step -- the shards then fail at their Download step.                                                        | M7-T2 Step 5 replaces the step with a TWO-project one and carries the closure argument in the comment, including the graph-io-only counter-example; the verification matrix checks the step is present by name, and G12 item 10b checks it on a scratch PR that the landing PR structurally cannot stand in for.                                                                                   |
+| R-M7-6  | The element answers its probe before React runs the forwarder's effect, no further `graphty-capabilities-change` ever fires, and the chip is blank for the life of the page.                                                                                                                                     | The forwarder seeds on attach as well as subscribing (PLAN DECISION 2), so the subscription only has to carry CHANGES. If the element exposes no way to read the current record, that is an element gap to file: the alternative -- polling for it in the app -- is the probe this phase exists to delete.                                                                                         |
+| R-M7-7  | The device-lost toast never appears, because the load-failure branch returns first and the reader has a failed load on screen.                                                                                                                                                                                   | Accepted by PLAN DECISION 6 and stated in the code comment: the chip carries the acceleration fact permanently and does not erase itself, so the toast is the second surface, never the only one.                                                                                                                                                                                                  |
+| R-M7-8  | The real-GPU check is run over `http://dev.ato.ms:9005`, the element finds no adapter in an insecure context, and the chip correctly reads off -- so the check records a pass for the wrong reason, or a fail nobody can explain.                                                                                | M7-T9 Step 1 names the secure-context requirement first, checks that both certificate files exist before starting, and pairs every Nanobanana question with its opposite so that "off" has to be confirmed twice to be believed.                                                                                                                                                                   |
+| R-M7-9  | `metricCost`'s accelerator factors are set above 1 to "look finished", and the Run label promises a speed the processor then takes.                                                                                                                                                                              | PLAN DECISION 8; the test pins every factor at 1 and a change has to change that test, which is where the reason for the new number gets written down.                                                                                                                                                                                                                                             |
+| R-M7-10 | Four plan documents of 2026-09-19 each bump `design/README.md`'s directory counts and collide on merge.                                                                                                                                                                                                          | M7-T1 Step 3 gives the resolution rule -- re-run `find design/webgpu -name '*.md' \| wc -l` and `ls design/decisions/*.md \| grep -cv README` in the merged tree, never take a side, and never use `ls \| wc -l` (which counts directories in the first cell and the README in the second) -- and the corpus-table rows do not collide because each plan adds its own line.                        |
+| R-M7-11 | Deleting `graphty/src/types/graphty-element.d.ts` is verified against TODAY's element, and Phase M6 changes types the app imports.                                                                                                                                                                               | M7-T2 Step 4's Expected names this: any error other than the two known ones is a real disagreement with the element's own types, fixed in the app's usage or in the element, and never by re-adding the shim.                                                                                                                                                                                      |
+| R-M7-12 | The element does not export the `Capabilities` type from an entry the app can import, so the chip module and the forwarder cannot name what they are handed.                                                                                                                                                     | That is an element gap and is filed as one: a consumer who cannot name the record it is told to render cannot render it, and the design ships these types from `.` alongside the tag. The app must not answer it with a local interface -- re-declaring the element's types is one of the named forms of working around the element, and the 73-line shim this phase deletes is what that becomes. |
+| R-M7-13 | The `metricCost` seam lands as dead code: the flag is accepted by the type and read by nothing, and every test passes because every factor is 1 so `cpu / 1 === cpu`. Phase M8b then changes one number and nothing happens.                                                                                     | M7-T7 Step 1's fifth case drives both entry points with an injected table whose pagerank entry is 2 and asserts the estimate actually halved, and asserts an absent flag is not divided. That case fails if either forward is dropped; the other four cannot.                                                                                                                                      |
 
 ### 7.4 Spec coverage: the integration plan's M7 deliverable cell, item by item
 
 The cell is `design/webgpu/plans/2026-09-16-graphty-monorepo-integration.md:3259`, written when the app owned detection. Every clause of it, and where it went:
 
-| Clause | Where it is now |
-| --- | --- |
-| `graphty/src/gpu/accelerator.ts` `attachAccelerator(...)` | RE-HOMED to the element: M6-T19 (the registry and the activation) and M6-T20 (the `webgpu` entry). The app's replacement is one import, M7-T2 Step 2 |
-| static imports from `@graphty/webgpu-graph-algorithms/browser` and the root | RE-HOMED to `graphty-element/src/webgpu.ts` (M6-T20). No file in `graphty/src` imports the GPU package, and G12 item 8 checks it |
-| `ctx.lost.then(...)` plus a toast | RE-HOMED for the recovery (M6-T19); the app keeps the REPORT, which is M7-T6's `"error"` state on the chip and in the one toast |
-| the "GPU acceleration: on (vendor arch) / off" indicator | M7-T6, from the element's capability record: `accelerationChipModel` (Step 2) and the chip (Steps 4-6) |
-| real-GPU stories under a `gpu` tag in the APP's Storybook | PARTLY RE-HOMED. The real-GPU story is the element's (M6-T20's gate). The app keeps a `gpu`-tagged story that draws all six states from fixed records, M7-T8 Step 1 |
-| ...that render a deterministic no-GPU state on Chromatic | M7-T8, deterministic by construction: no story in the app touches an adapter |
-| no TurboSnap there; `exitZeroOnChanges: false` | already true in CI (`ci.yml:625-660`); M7-T8 Step 2 clears the local leftover |
-| the `metricCost.ts` gate gains a per-metric accelerator constant | M7-T7 Step 2 |
-| ...once the element exposes the flag | M7-T7 Step 3: the element exposes the capability record, and the app reads "attached and usable" from it as `active` or `idle` |
-| the app is the only importer of the GPU package | SUPERSEDED. graphty-element is, through its `webgpu` entry; the app installs the optional peer and imports it nowhere (G12 item 8) |
-| `graphty/package.json` gains the dependency | M7-T2 Step 1 (as `workspace:*`, DEP-A), as the element's optional peer |
-| the `ci.yml` build step becomes redundant for it | M7-T2 Step 5 (it narrows to graph-io AND webgpu-graph-algorithms, dropping only graph-format, DEP-G) |
-| G12's `gpuMinNodes` default measured (design 7.21) | RE-HOMED. It is the element's `acceleration.minNodes`, measured under M6-T20's gate; G12 section 3 cites that record rather than repeating it |
-| G12's "the app's stories green" | M7-T8 Step 1 and G12 item 1 |
-| G12's "the story on the real GPU settles, drags and pins" | RE-HOMED to M6-T20's gate. The app's own real-GPU check is that its surfaces tell the truth: G12 items 3-6 |
-| G12's "nightly GPU lane green for a week" | VOID; restated by M7-T1 Step 2 and checked as G12 item 9 |
+| Clause                                                                      | Where it is now                                                                                                                                                     |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `graphty/src/gpu/accelerator.ts` `attachAccelerator(...)`                   | RE-HOMED to the element: M6-T19 (the registry and the activation) and M6-T20 (the `webgpu` entry). The app's replacement is one import, M7-T2 Step 2                |
+| static imports from `@graphty/webgpu-graph-algorithms/browser` and the root | RE-HOMED to `graphty-element/src/webgpu.ts` (M6-T20). No file in `graphty/src` imports the GPU package, and G12 item 8 checks it                                    |
+| `ctx.lost.then(...)` plus a toast                                           | RE-HOMED for the recovery (M6-T19); the app keeps the REPORT, which is M7-T6's `"error"` state on the chip and in the one toast                                     |
+| the "GPU acceleration: on (vendor arch) / off" indicator                    | M7-T6, from the element's capability record: `accelerationChipModel` (Step 2) and the chip (Steps 4-6)                                                              |
+| real-GPU stories under a `gpu` tag in the APP's Storybook                   | PARTLY RE-HOMED. The real-GPU story is the element's (M6-T20's gate). The app keeps a `gpu`-tagged story that draws all six states from fixed records, M7-T8 Step 1 |
+| ...that render a deterministic no-GPU state on Chromatic                    | M7-T8, deterministic by construction: no story in the app touches an adapter                                                                                        |
+| no TurboSnap there; `exitZeroOnChanges: false`                              | already true in CI (`ci.yml:625-660`); M7-T8 Step 2 clears the local leftover                                                                                       |
+| the `metricCost.ts` gate gains a per-metric accelerator constant            | M7-T7 Step 2                                                                                                                                                        |
+| ...once the element exposes the flag                                        | M7-T7 Step 3: the element exposes the capability record, and the app reads "attached and usable" from it as `active` or `idle`                                      |
+| the app is the only importer of the GPU package                             | SUPERSEDED. graphty-element is, through its `webgpu` entry; the app installs the optional peer and imports it nowhere (G12 item 8)                                  |
+| `graphty/package.json` gains the dependency                                 | M7-T2 Step 1 (as `workspace:*`, DEP-A), as the element's optional peer                                                                                              |
+| the `ci.yml` build step becomes redundant for it                            | M7-T2 Step 5 (it narrows to graph-io AND webgpu-graph-algorithms, dropping only graph-format, DEP-G)                                                                |
+| G12's `gpuMinNodes` default measured (design 7.21)                          | RE-HOMED. It is the element's `acceleration.minNodes`, measured under M6-T20's gate; G12 section 3 cites that record rather than repeating it                       |
+| G12's "the app's stories green"                                             | M7-T8 Step 1 and G12 item 1                                                                                                                                         |
+| G12's "the story on the real GPU settles, drags and pins"                   | RE-HOMED to M6-T20's gate. The app's own real-GPU check is that its surfaces tell the truth: G12 items 3-6                                                          |
+| G12's "nightly GPU lane green for a week"                                   | VOID; restated by M7-T1 Step 2 and checked as G12 item 9                                                                                                            |

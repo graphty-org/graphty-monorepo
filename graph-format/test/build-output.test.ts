@@ -1,6 +1,7 @@
-import { spawnSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
-import { resolve } from "path";
+import { spawnSync, type SpawnSyncReturns } from "child_process";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { basename, join, resolve } from "path";
 import { pathToFileURL } from "url";
 import { describe, expect, it } from "vitest";
 
@@ -160,7 +161,17 @@ describe("Build Output Tests", () => {
     // "@graphty/graph-format@dev" into every wire manifest (issue #101). The tarball ships the bundle
     // and the declarations, never that unstamped runtime code.
     it.skipIf(!bundleExists)("should publish no runtime code that stamps wire files as dev", async () => {
-        const pack = spawnSync("npm", ["pack", "--dry-run", "--json"], { encoding: "utf-8" });
+        // npm pack loads the package's node_modules tree first, and under pnpm that follows the
+        // links into the store: 5-10 s. What it packs comes only from package.json "files" and the
+        // package's own files, so packing a copy without node_modules lists the same files in ~1 s.
+        const packDir = mkdtempSync(join(tmpdir(), "graph-format-pack-"));
+        let pack: SpawnSyncReturns<string>;
+        try {
+            cpSync(".", packDir, { recursive: true, filter: (path) => basename(path) !== "node_modules" });
+            pack = spawnSync("npm", ["pack", "--dry-run", "--json"], { cwd: packDir, encoding: "utf-8" });
+        } finally {
+            rmSync(packDir, { recursive: true, force: true });
+        }
         expect(pack.status, pack.stderr).toBe(0);
         const [{ files }] = JSON.parse(pack.stdout) as [{ files: { path: string }[] }];
         const paths = files.map((f) => f.path);

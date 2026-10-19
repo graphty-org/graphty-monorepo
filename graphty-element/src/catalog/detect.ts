@@ -36,6 +36,9 @@
 
 import {
     csvImporter,
+    cx2Importer,
+    cxImporter,
+    cysImporter,
     dotImporter,
     gexfImporter,
     gmlImporter,
@@ -43,8 +46,10 @@ import {
     graphmlImporter,
     jsonImporter,
     neo4jImporter,
+    oboImporter,
     pajekImporter,
     rankFormats,
+    xgmmlImporter,
 } from "@graphty/graph-io";
 
 import { GraphtyError } from "../errors";
@@ -79,7 +84,21 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
     { id: "dot", importer: dotImporter },
     { id: "pajek", importer: pajekImporter },
     { id: "csv", importer: neo4jImporter },
+    { id: "xgmml", importer: xgmmlImporter },
+    { id: "cx2", importer: cx2Importer },
+    { id: "cx", importer: cxImporter },
+    { id: "obo", importer: oboImporter },
+    { id: "cys", importer: cysImporter },
 ];
+
+/**
+ * The graph-io importer behind one of the element's built-in formats.
+ * @param id - The format id.
+ * @returns The importer, or undefined when the id is not a built-in format.
+ */
+export function builtInImporter(id: string): GraphImporter | undefined {
+    return BUILT_IN_IMPORTERS.find((entry) => entry.id === id)?.importer;
+}
 
 /**
  * How sure a graph-io sniffer must be before the element names its format from content alone.
@@ -90,6 +109,9 @@ const BUILT_IN_IMPORTERS: readonly { id: FormatId; importer: GraphImporter }[] =
  */
 export const MIN_CONTENT_CONFIDENCE = 0.5;
 
+/** The characters opening the leading comment lines (SNAP `#`, KONECT `%`) the CSV reader skips. */
+const CSV_COMMENTS: ReadonlySet<string> = new Set(["#", "%"]);
+
 /**
  * Whether graph-io's CSV answer names a table the element's CSV reader can split.
  *
@@ -97,14 +119,14 @@ export const MIN_CONTENT_CONFIDENCE = 0.5;
  * for any other consistently delimited rows -- which is most real tables, headerless or with
  * column names of their own (`person,friend`). The element's reader takes those, so any score
  * counts. But graph-io also splits on spaces, which the element's reader does not, so a line of
- * prose (`Name of the report`) would be answered "csv"; the first line must hold one of the
- * reader's own delimiters.
+ * prose (`Name of the report`) would be answered "csv"; the first line after any leading comment
+ * lines must hold one of the reader's own delimiters.
  * @param content - graph-io's CSV content score.
  * @param sample - The first bytes of the file, trimmed.
  * @returns Whether the element should answer "csv".
  */
 function isReadableTable(content: number, sample: string): boolean {
-    const firstLine = sample.split(/\r?\n|\r/, 1)[0];
+    const firstLine = sample.split(/\r?\n|\r/).find((line) => !CSV_COMMENTS.has(line.charAt(0))) ?? "";
 
     return content > 0 && CSV_DELIMITERS.some((delimiter) => firstLine.includes(delimiter));
 }

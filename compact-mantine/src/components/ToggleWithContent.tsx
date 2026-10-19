@@ -12,16 +12,19 @@ import { useControlAnnotation } from "../utils/control-annotation";
 // value-first change handler with the event second, the forwarded focus and
 // blur, the logical properties, the ARIA and the user-facing documentation.
 //
-// Kept rather than deprecated in favour of ToggleRow, and the reasoning is
+// Kept rather than deprecated in favor of ToggleRow, and the reasoning is
 // worth recording: ToggleRow is one boolean on one row and has nowhere to put
 // dependent controls. Reveal is the whole of this component, so ToggleRow does
 // not replace it. What ToggleRow *does* replace is a bare checkbox row with
 // nothing underneath it, and the documentation below says so.
 //
-// It is not built out of ToggleRow either, for one concrete reason: the
-// checkbox has to carry aria-expanded and aria-controls to say that it opens
-// something, and ToggleRow forwards neither to its input. Both components
-// therefore render Mantine's own Checkbox, which is the shared primitive.
+// It is not built out of ToggleRow either. ToggleRow now forwards
+// aria-expanded and aria-controls, but its row is a different drawing: it
+// always reserves the 24px trailing slot, grows the control to push that slot
+// to the row's end, and spaces a bound marker 8px from the word where this
+// component spaces it 4px. Building this component from ToggleRow would move
+// every panel that uses it, so both render Mantine's own Checkbox, which is
+// the shared primitive.
 
 /**
  * The 4px this library puts between the parts of one control: here, between
@@ -34,7 +37,7 @@ const INLINE_GAP = 4;
  * as the row.
  *
  * WCAG 2.2 target size (2.5.8): the word is drawn at 11px, and stretching its
- * line box to the row pitch makes the clickable area 24px tall rather than the
+ * line box to the row pitch makes the clickable area 32px tall rather than the
  * 13px a 1.2 line height would give it.
  */
 const LABEL_LINE_HEIGHT = `${String(PANEL_GRID.TOGGLE_PITCH)}px`;
@@ -66,7 +69,7 @@ export interface ToggleWithContentProps {
      * @example
      * ```tsx
      * <ToggleWithContent label="Glow" onChange={(next) => { setGlow(next); }}>
-     *     <StyleNumberInput label="Radius" defaultValue={4} />
+     *     <PanelField label="Radius" kind="number" defaultValue={4} />
      * </ToggleWithContent>
      * ```
      */
@@ -75,7 +78,7 @@ export interface ToggleWithContentProps {
      * Whether the toggle can be changed.
      *
      * A disabled toggle keeps its place and its word, drops to the dimmed text
-     * colour Mantine's own disabled controls use, and is announced as
+     * color Mantine's own disabled controls use, and is announced as
      * unavailable rather than merely looking it. Controls already revealed stay
      * revealed; disable them yourself if they should not be touched either.
      */
@@ -89,12 +92,9 @@ export interface ToggleWithContentProps {
      * accessible description, so the reason reaches a pointer user and a screen
      * reader user alike.
      *
-     * THE DEFECT THIS REPAIRS: a feature that cannot be turned on yet used to
-     * be drawn as a dimmed checkbox with nothing to say for itself, which reads
-     * as a broken control rather than as an unfinished feature. spec:6641 asks
-     * for the one reason to travel with the disabled ink; until now this
-     * component had nowhere to put it. The caller supplies the sentence -- only
-     * the call site knows what would turn the feature back on.
+     * Write it as a whole sentence naming what would make the toggle usable.
+     * The library never invents one: only the caller knows what would turn the
+     * feature back on.
      */
     disabledReason?: string;
     /**
@@ -104,9 +104,7 @@ export interface ToggleWithContentProps {
      * The toggle draws a filled attribute glyph beside its word -- the same
      * filled glyph `PanelField` uses to say the same thing -- so a panel can
      * say "this follows the data" without spending a row on a
-     * fixed-or-by-attribute switch. A boolean channel can be bound just as a
-     * numeric one can, and until now `PanelField` was the only control in the
-     * library able to say so.
+     * fixed-or-by-attribute switch.
      * @default false
      */
     bound?: boolean;
@@ -140,7 +138,7 @@ export interface ToggleWithContentProps {
  * it.
  *
  * Reach for it when a setting is a yes or no that brings its own settings with
- * it -- a glow with a radius and a colour, an outline with a width, a legend
+ * it -- a glow with a radius and a color, an outline with a width, a legend
  * with a position. Turning the feature off takes its controls off the screen,
  * so a panel shows only what is currently in play.
  *
@@ -149,7 +147,7 @@ export interface ToggleWithContentProps {
  * 1. **The verb is deleted from the label.** The checkbox already says
  *    "enable", so `Enable glow` is written `Glow`.
  * 2. **A boolean with nothing underneath it is not this component.** Use
- *    `ToggleRow`, which packs a lone boolean onto a 24px row with a slot at its
+ *    `ToggleRow`, which packs a lone boolean onto a 32px row with a slot at its
  *    end, and use two or more of those inside a `ToggleRowGroup`.
  *
  * The checkbox says out loud that it opens something: it is marked as expanded
@@ -174,7 +172,7 @@ export interface ToggleWithContentProps {
  * ```tsx
  * <ToggleWithContent label="Glow" defaultChecked>
  *     <CompactColorInput label="Color" defaultColor="#5b8ff9" />
- *     <StyleNumberInput label="Radius" defaultValue={4} min={0} max={20} />
+ *     <PanelField label="Radius" kind="number" defaultValue={4} min={0} max={20} />
  * </ToggleWithContent>
  * ```
  */
@@ -213,7 +211,7 @@ export function ToggleWithContent({
     };
 
     // The minimum widths of zero are what let a label longer than the panel
-    // shrink and ellipsise rather than pushing the row wider, which is what a
+    // shrink and ellipsize rather than pushing the row wider, which is what a
     // translation of a short English word usually does.
     const controlStyles: Record<"root" | "body" | "labelWrapper" | "label", React.CSSProperties> = {
         root: { minWidth: 0 },
@@ -223,7 +221,10 @@ export function ToggleWithContent({
             display: "block",
             height: PANEL_GRID.TOGGLE_PITCH,
             // Logical, so the word sits after the box in both directions.
-            paddingInlineStart: INLINE_GAP,
+            paddingInlineStart: PANEL_GRID.GUTTER,
+            // The theme pads a label 4px above and below to make a 24 row; this
+            // one is already the full row tall.
+            paddingBlock: 0,
             fontSize: "var(--mantine-font-size-sm)",
             lineHeight: LABEL_LINE_HEIGHT,
             color: disabled ? PANEL_INK.DISABLED : PANEL_INK.VALUE,
@@ -236,7 +237,7 @@ export function ToggleWithContent({
     // The per-toggle string is an override of the shared one rather than the
     // only way to set it, so a toggle that says nothing about its own bound
     // state still announces it in whatever language LabelsProvider was given.
-    // An empty string is the caller saying "announce nothing", and is honoured.
+    // An empty string is the caller saying "announce nothing", and is honored.
     const boundText = boundDescription ?? labels.fieldBound;
 
     // Unlike the Input.Wrapper controls in this library, a Mantine Checkbox DOES
@@ -263,6 +264,7 @@ export function ToggleWithContent({
     // the document is worse than no reference at all.
     const checkbox = (
         <Checkbox
+            variant="neutral"
             data-testid="toggle-with-content-checkbox"
             label={label}
             checked={isChecked}
@@ -294,34 +296,34 @@ export function ToggleWithContent({
             {/* The row wrapper is added only when there is a marker to sit
                 beside the checkbox, so an ordinary toggle keeps the exact DOM
                 it has always had and no existing layout or snapshot moves. */}
-            {bound
-                ? (
-                    <Box
-                        data-testid="toggle-with-content-row"
-                        style={{ display: "flex", alignItems: "center", gap: INLINE_GAP }}
-                    >
-                        {checkbox}
-                        {/* The filled glyph is the whole of the visible bound
+            {bound ? (
+                <Box
+                    data-testid="toggle-with-content-row"
+                    style={{ display: "flex", alignItems: "center", gap: INLINE_GAP }}
+                >
+                    {checkbox}
+                    {/* The filled glyph is the whole of the visible bound
                             marker, and it is deliberately the same drawing
                             PanelField fills in: one convention for "this value
                             follows the data" across every control that can say
                             it. It is aria-hidden, so the meaning travels in the
                             description rather than in a picture. */}
-                        <Box
-                            component="span"
-                            data-testid="toggle-with-content-bound"
-                            style={{
-                                flex: "0 0 auto",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                color: PANEL_INK.CHROME,
-                            }}
-                        >
-                            <FieldGlyph name="attribute" filled />
-                        </Box>
+                    <Box
+                        component="span"
+                        data-testid="toggle-with-content-bound"
+                        style={{
+                            flex: "0 0 auto",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            color: PANEL_INK.CHROME,
+                        }}
+                    >
+                        <FieldGlyph name="attribute" filled />
                     </Box>
-                )
-                : checkbox}
+                </Box>
+            ) : (
+                checkbox
+            )}
 
             {annotation.description !== undefined && (
                 <VisuallyHidden id={annotation.describedBy}>{annotation.description}</VisuallyHidden>

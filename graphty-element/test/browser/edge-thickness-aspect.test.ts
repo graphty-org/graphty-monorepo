@@ -27,7 +27,6 @@ const LINE_WIDTH = 40;
 const RADIUS = 60;
 
 const FRAMES = 30;
-const FRAME_MS = 10;
 
 describe("solid edge thickness on a non-square canvas", () => {
     let canvas: HTMLCanvasElement;
@@ -108,9 +107,6 @@ describe("solid edge thickness on a non-square canvas", () => {
 
         for (let frame = 0; frame < FRAMES; frame++) {
             scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
         }
 
         const pixels = (await engine.readPixels(0, 0, WIDTH, HEIGHT)) as unknown as Uint8Array;
@@ -118,6 +114,11 @@ describe("solid edge thickness on a non-square canvas", () => {
 
         assert.isAbove(horizontal, 5, "the horizontal line is drawn");
         assert.closeTo(vertical, horizontal, 1, "vertical matches horizontal");
-        assert.closeTo(diagonal, horizontal, 1, `45-degree edge ${diagonal.toFixed(2)} px vs horizontal ${horizontal.toFixed(2)} px`);
+        assert.closeTo(
+            diagonal,
+            horizontal,
+            1,
+            `45-degree edge ${diagonal.toFixed(2)} px vs horizontal ${horizontal.toFixed(2)} px`,
+        );
     });
 });

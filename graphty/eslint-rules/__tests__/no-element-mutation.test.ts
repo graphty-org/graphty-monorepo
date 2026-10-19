@@ -1,5 +1,7 @@
 /**
- * The no-element-mutation rule, run with type information over the real graphty-element types.
+ * The no-element-mutation rule, run with type information over the real graphty-element types:
+ * the declarations its build publishes (`graphty-element/dist/*.d.ts`, see fixtures/tsconfig.json),
+ * so build graphty-element before running this file.
  *
  * The door list comes from the element's source (`doors.ts`) rather than from
  * `graphty-element/build/doors.json`, because this test runs in CI shards that download the
@@ -7,6 +9,7 @@
  * list, so the rule sees the same shape either way.
  */
 
+import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +26,14 @@ RuleTester.itOnly = it.only;
 
 const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const TS = resolve(fixtures, "file.ts");
+
+// Without the declarations every element import is `any` and each invalid case fails as "0 errors".
+const ELEMENT_TYPES = resolve(fixtures, "../../../../graphty-element/dist/index.d.ts");
+if (!existsSync(ELEMENT_TYPES)) {
+    throw new Error(
+        `${ELEMENT_TYPES} is missing. Build graphty-element first (pnpm exec nx run graphty-element:build).`,
+    );
+}
 
 const tester = new RuleTester({
     languageOptions: {

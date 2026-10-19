@@ -37,8 +37,7 @@ export function degreeTiersOf(view: ViewBinding): DegreeTiers {
     }
     const so: readonly number[] | undefined = view.scalars.segmentOffsets;
     const ascending =
-        so !== undefined &&
-        so.length === 5 &&
+        so?.length === 5 &&
         so[0] === 0 &&
         so.every((value, k) => Number.isInteger(value) && (k === 0 || value >= so[k - 1]));
     if (!ascending || so[4] !== perm.size / 4) {

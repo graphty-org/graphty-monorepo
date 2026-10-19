@@ -4,13 +4,12 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { renderTemplate } from "../trusted/lib/init.mjs";
-import { CONFIG } from "./helpers.mjs";
+import { CONFIG, tempDir } from "./helpers.mjs";
 
 const workflow = (name) => readFileSync(new URL(`../../.github/workflows/${name}`, import.meta.url), "utf8");
 const values = { branch: CONFIG.defaultBranch, manager: "pnpm", version: "0.0.0" };
@@ -34,8 +33,12 @@ describe("the monorepo's workflows", () => {
             .map((l) => l.trim());
         expect(lines).toHaveLength(4);
         for (const line of lines) {
+            // install-browser's apt step comes from the monorepo's cached playwright-system-deps action.
+            if (line.includes("install-browser")) continue;
             expect(ci).toContain(line);
         }
+        expect(ci).toContain("uses: ./.github/actions/playwright-system-deps");
+        expect(ci).toContain("run: pnpm exec playwright install chromium\n");
         expect(ci).toContain("name: visual (${{ matrix.project }})");
     });
 
@@ -55,7 +58,7 @@ describe("the monorepo's workflows", () => {
         const ci = job(workflow("ci.yml"), "visual", "all-checks");
         const swap = ci.indexOf("git archive HEAD^1 visual-review/capture visual-review/trusted | tar -x");
         expect(swap).toBeGreaterThan(0);
-        expect(ci.indexOf("visual-review install-browser")).toBeGreaterThan(swap);
+        expect(ci.indexOf("playwright-system-deps")).toBeGreaterThan(swap);
         expect(ci).toContain("fetch-depth: 2");
     });
 });
@@ -73,7 +76,7 @@ describe("visual-seed.yml", () => {
             .slice(0, end)
             .map((l) => l.slice(18))
             .join("\n");
-        const output = join(mkdtempSync(join(tmpdir(), "vr-seed-")), "out");
+        const output = join(tempDir("vr-seed-"), "out");
         const r = spawnSync("bash", ["-e", "-o", "pipefail", "-c", script], {
             cwd: ROOT,
             env: { ...process.env, WANT: want, GITHUB_OUTPUT: output },

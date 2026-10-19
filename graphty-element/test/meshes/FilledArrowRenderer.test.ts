@@ -11,6 +11,10 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
         scene = new Scene(engine);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     describe("Triangle Arrows", () => {
         test("createTriangle creates normal arrow with 3 vertices in XZ plane", () => {
             const mesh = FilledArrowRenderer.createTriangle(false, scene);
@@ -243,6 +247,10 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
         scene = new Scene(engine);
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     test("applyShader returns mesh with ShaderMaterial", () => {
         const mesh = FilledArrowRenderer.createTriangle(false, scene);
         const result = FilledArrowRenderer.applyShader(mesh, { size: 1.0, color: "#ff0000", opacity: 1.0 }, scene);
@@ -302,16 +310,6 @@ describe("FilledArrowRenderer - 3D Shader Application", () => {
 
         result.dispose();
     });
-
-    test("setLineDirection updates shader uniform", () => {
-        const mesh = FilledArrowRenderer.createTriangle(false, scene);
-        const result = FilledArrowRenderer.applyShader(mesh, { size: 1.0, color: "#ff0000", opacity: 1.0 }, scene);
-
-        // Should not throw
-        FilledArrowRenderer.setLineDirection(result, { x: 1, y: 0, z: 0 } as never);
-
-        result.dispose();
-    });
 });
 
 describe("FilledArrowRenderer - XZ Plane Geometry Verification (CRITICAL)", () => {
@@ -320,6 +318,10 @@ describe("FilledArrowRenderer - XZ Plane Geometry Verification (CRITICAL)", () =
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     // This test suite verifies the CRITICAL requirement from design/edge-styles-implementation-plan.md:
@@ -391,6 +393,10 @@ describe("FilledArrowRenderer - 2D Arrows", () => {
     beforeEach(() => {
         const engine = new NullEngine();
         scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     test("create2DArrow generates mesh with StandardMaterial", () => {
@@ -520,6 +526,7 @@ describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
 
     afterEach(() => {
         vi.restoreAllMocks();
+        scene.getEngine().dispose();
     });
 
     test("configuring a new arrow material does not walk every mesh already in the scene", () => {
@@ -547,12 +554,8 @@ describe("FilledArrowRenderer.applyShader and the size of the scene", () => {
 
         assert.isBelow(getMaterial.mock.calls.length, bystanders, "no scene-wide walk of the existing submeshes");
         assert.instanceOf(mesh.material, ShaderMaterial);
-        assert.strictEqual((mesh.material).backFaceCulling, false, "the setter still took effect");
-        assert.strictEqual(
-            (mesh.material).blockDirtyMechanism,
-            true,
-            "and stays blocked for the material's life",
-        );
+        assert.strictEqual(mesh.material.backFaceCulling, false, "the setter still took effect");
+        assert.strictEqual(mesh.material.blockDirtyMechanism, true, "and stays blocked for the material's life");
         assert.instanceOf(mesh, Mesh);
     });
 });

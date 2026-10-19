@@ -10,6 +10,7 @@
  */
 
 import type { Normalization, ResultElementValues } from "../../session/results";
+import type { ResultColumns } from "../../session/results/RunResult";
 import type { Caveats, RunProgressReport } from "../../session/runs";
 
 // ---------------------------------------------------------------------------------------------
@@ -57,8 +58,11 @@ export interface MetricRunContext {
  * "the highest value" means.
  */
 export interface MetricMeasurement {
-    /** One entry per measured node, in the order the result's column reads them. */
-    readonly nodes: readonly ResultElementValues[];
+    /**
+     * One entry per measured node, in the order the result's column reads them, or the same as
+     * columns when every value is a number (cheaper on a large graph: no object per node).
+     */
+    readonly nodes: readonly ResultElementValues[] | ResultColumns;
     /**
      * How the published `value` was scaled before publication.
      *

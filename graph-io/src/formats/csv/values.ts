@@ -21,6 +21,7 @@ import { inferTextDtype, parseTextCell, TextCellWriter } from "../../common/text
 
 /**
  * One inferred attribute column of a node or edge table, written cell by cell.
+ * @category Plugin helpers
  */
 export class InferredColumn {
     /** The column name in the sink. */

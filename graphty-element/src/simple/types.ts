@@ -12,7 +12,7 @@
  * Types only: nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { OptionDescriptor, OptionType, PaletteDescriptor } from "../catalog/types";
+import type { OptionDescriptor, OptionType, PaletteDescriptor, SuggestedName } from "../catalog/types";
 
 // =============================================================================================
 // Shared by every point
@@ -69,9 +69,10 @@ export type ShorthandValue<S> = S extends number
  * returns undefined.
  */
 export type OptionValuesOf<O extends OptionsShorthand> = {
-    // NonNullable<unknown> is "anything but null or undefined": a default of null leaves the
+    // The default's union is "anything but null or undefined": a default of null leaves the
     // option unbound, which is exactly the case the `| undefined` branch describes.
-    readonly [K in keyof O]: O[K] extends number | string | boolean | { readonly default: NonNullable<unknown> }
+    readonly [K in keyof O]: O[K] extends
+        number | string | boolean | { readonly default: object | string | number | boolean | bigint | symbol }
         ? ShorthandValue<O[K]>
         : ShorthandValue<O[K]> | undefined;
 };
@@ -248,6 +249,12 @@ interface AlgorithmDefinitionBase<O extends OptionsShorthand> extends Definition
     readonly weights?: { readonly option: keyof O & string; readonly meaning: "distance" | "strength" };
     /** For a whole-graph function that walks the graph repeatedly: the integer option that caps the passes. */
     readonly passes?: keyof O & string;
+    /**
+     * Optional: the name of a run's result, from its option values. `id` becomes the path a style
+     * layer reads (`results.<id>.value`): lower-case letters, digits and underscores. `label` is
+     * what the layer list and legend show. Return undefined to use the algorithm id.
+     */
+    readonly suggestedName?: (options: OptionValuesOf<O>) => SuggestedName | undefined;
 }
 
 /** A score per node, computed one node at a time. Published as a node-metric result, field "value". */
@@ -296,10 +303,7 @@ export interface GroupingDefinition<O extends OptionsShorthand> extends Algorith
 
 /** What defineAlgorithm takes: an id, options in short form and exactly one of node, edge, nodes or groups. */
 export type AlgorithmDefinition<O extends OptionsShorthand> =
-    | NodeScoreDefinition<O>
-    | EdgeScoreDefinition<O>
-    | WholeGraphScoreDefinition<O>
-    | GroupingDefinition<O>;
+    NodeScoreDefinition<O> | EdgeScoreDefinition<O> | WholeGraphScoreDefinition<O> | GroupingDefinition<O>;
 
 // =============================================================================================
 // Layout

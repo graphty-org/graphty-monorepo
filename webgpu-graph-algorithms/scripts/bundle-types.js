@@ -11,11 +11,11 @@
  * Copied from packages/graph-io/scripts/bundle-types.js; the code is unchanged, only this header differs.
  */
 
-import { existsSync, writeFileSync } from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { existsSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { declarationSpecifier, ENTRIES } from "./entries.js";
+import { ACQUIRE_SHIM, declarationSpecifier, ENTRIES } from "./entries.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,7 +38,10 @@ function bundleTypes() {
             process.exit(1);
         }
     }
-    console.log(`Successfully created dist/{${Object.keys(ENTRIES).join(",")}}.d.ts`);
+    // "./acquire" resolves to dist/browser.js or dist/node.js by export condition; its declarations are the names the
+    // two have in common, typed from the browser entry (test/types/acquire.test-d.ts holds the node one equal)
+    writeFileSync(path.resolve(distDir, "acquire.d.ts"), ACQUIRE_SHIM, "utf8");
+    console.log(`Successfully created dist/{${[...Object.keys(ENTRIES), "acquire"].join(",")}}.d.ts`);
 }
 
 bundleTypes();

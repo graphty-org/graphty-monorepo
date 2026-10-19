@@ -33,6 +33,10 @@ const meta: Meta = {
         setup: storySetup({
             edge: { "edge.color": "#666666", "edge.arrowHead": "normal" },
             node: { "node.color": "#5A67D8", "node.shape": "sphere", "node.size": 0.5 },
+            // The play function reads the scene once the element says the picture is final, which
+            // for a force layout means converged. Ten iterations a frame reaches the same resting
+            // picture in a tenth of the frames.
+            stepMultiplier: 10,
         }),
         nodeData: nodes150,
         edgeData: edges250,

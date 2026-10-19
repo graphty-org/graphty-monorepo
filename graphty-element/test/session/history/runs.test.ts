@@ -13,7 +13,7 @@ import { assert, describe, it } from "vitest";
 
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { RunChange } from "../../../src/session/runs";
-import type { ElementSession, GraphSession } from "../../../src/session/types";
+import type { GraphSession } from "../../../src/session/types";
 import { fixtureSession } from "./fixture-session";
 
 /** A session whose `betweenness` runs wait for the test, and a count of the work started. */
@@ -53,8 +53,10 @@ async function gated(): Promise<Gated> {
  * @param session - The session.
  */
 async function idle(session: GraphSession): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    await dispatcherOf(session as ElementSession).lane.settled();
+    // The session's queue and its passes run on promise chains, no timers: one macrotask yield
+    // lets them all run.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await dispatcherOf(session).lane.settled();
 }
 
 /**
@@ -77,7 +79,7 @@ function layersOf(session: GraphSession, runId: string): string[] {
  * @returns The entry, or undefined.
  */
 function entryOf(session: GraphSession, runId: string): unknown {
-    return dispatcherOf(session as ElementSession).state.runs.get(runId);
+    return dispatcherOf(session).state.runs.get(runId);
 }
 
 describe("a run is one step", () => {

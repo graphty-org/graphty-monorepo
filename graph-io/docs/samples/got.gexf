@@ -1,0 +1,471 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gexf xmlns="http://gexf.net/1.3" xmlns:viz="http://gexf.net/1.3/viz" version="1.3">
+  <graph defaultedgetype="undirected" mode="static" idtype="string">
+    <attributes class="edge" mode="static">
+      <attribute id="edgelabel" title="Edge Label" type="string"/>
+    </attributes>
+    <nodes count="107">
+      <node id="Aemon" label="Aemon"/>
+      <node id="Grenn" label="Grenn"/>
+      <node id="Samwell" label="Samwell"/>
+      <node id="Aerys" label="Aerys"/>
+      <node id="Jaime" label="Jaime"/>
+      <node id="Robert" label="Robert"/>
+      <node id="Tyrion" label="Tyrion"/>
+      <node id="Tywin" label="Tywin"/>
+      <node id="Alliser" label="Alliser"/>
+      <node id="Mance" label="Mance"/>
+      <node id="Amory" label="Amory"/>
+      <node id="Oberyn" label="Oberyn"/>
+      <node id="Arya" label="Arya"/>
+      <node id="Anguy" label="Anguy"/>
+      <node id="Beric" label="Beric"/>
+      <node id="Bran" label="Bran"/>
+      <node id="Brynden" label="Brynden"/>
+      <node id="Cersei" label="Cersei"/>
+      <node id="Gendry" label="Gendry"/>
+      <node id="Gregor" label="Gregor"/>
+      <node id="Joffrey" label="Joffrey"/>
+      <node id="Jon" label="Jon"/>
+      <node id="Rickon" label="Rickon"/>
+      <node id="Roose" label="Roose"/>
+      <node id="Sandor" label="Sandor"/>
+      <node id="Thoros" label="Thoros"/>
+      <node id="Balon" label="Balon"/>
+      <node id="Loras" label="Loras"/>
+      <node id="Belwas" label="Belwas"/>
+      <node id="Barristan" label="Barristan"/>
+      <node id="Illyrio" label="Illyrio"/>
+      <node id="Hodor" label="Hodor"/>
+      <node id="Jojen" label="Jojen"/>
+      <node id="Luwin" label="Luwin"/>
+      <node id="Meera" label="Meera"/>
+      <node id="Nan" label="Nan"/>
+      <node id="Theon" label="Theon"/>
+      <node id="Brienne" label="Brienne"/>
+      <node id="Bronn" label="Bronn"/>
+      <node id="Podrick" label="Podrick"/>
+      <node id="Lothar" label="Lothar"/>
+      <node id="Walder" label="Walder"/>
+      <node id="Catelyn" label="Catelyn"/>
+      <node id="Edmure" label="Edmure"/>
+      <node id="Hoster" label="Hoster"/>
+      <node id="Jeyne" label="Jeyne"/>
+      <node id="Lysa" label="Lysa"/>
+      <node id="Petyr" label="Petyr"/>
+      <node id="Robb" label="Robb"/>
+      <node id="Roslin" label="Roslin"/>
+      <node id="Sansa" label="Sansa"/>
+      <node id="Stannis" label="Stannis"/>
+      <node id="Elia" label="Elia"/>
+      <node id="Ilyn" label="Ilyn"/>
+      <node id="Meryn" label="Meryn"/>
+      <node id="Pycelle" label="Pycelle"/>
+      <node id="Shae" label="Shae"/>
+      <node id="Varys" label="Varys"/>
+      <node id="Craster" label="Craster"/>
+      <node id="Karl" label="Karl"/>
+      <node id="Daario" label="Daario"/>
+      <node id="Drogo" label="Drogo"/>
+      <node id="Irri" label="Irri"/>
+      <node id="Daenerys" label="Daenerys"/>
+      <node id="Aegon" label="Aegon"/>
+      <node id="Jorah" label="Jorah"/>
+      <node id="Kraznys" label="Kraznys"/>
+      <node id="Missandei" label="Missandei"/>
+      <node id="Rakharo" label="Rakharo"/>
+      <node id="Rhaegar" label="Rhaegar"/>
+      <node id="Viserys" label="Viserys"/>
+      <node id="Worm" label="Worm"/>
+      <node id="Davos" label="Davos"/>
+      <node id="Cressen" label="Cressen"/>
+      <node id="Salladhor" label="Salladhor"/>
+      <node id="Eddard" label="Eddard"/>
+      <node id="Eddison" label="Eddison"/>
+      <node id="Gilly" label="Gilly"/>
+      <node id="Qyburn" label="Qyburn"/>
+      <node id="Renly" label="Renly"/>
+      <node id="Tommen" label="Tommen"/>
+      <node id="Janos" label="Janos"/>
+      <node id="Bowen" label="Bowen"/>
+      <node id="Kevan" label="Kevan"/>
+      <node id="Margaery" label="Margaery"/>
+      <node id="Myrcella" label="Myrcella"/>
+      <node id="Dalla" label="Dalla"/>
+      <node id="Melisandre" label="Melisandre"/>
+      <node id="Orell" label="Orell"/>
+      <node id="Qhorin" label="Qhorin"/>
+      <node id="Rattleshirt" label="Rattleshirt"/>
+      <node id="Styr" label="Styr"/>
+      <node id="Val" label="Val"/>
+      <node id="Ygritte" label="Ygritte"/>
+      <node id="Jon Arryn" label="Jon Arryn"/>
+      <node id="Lancel" label="Lancel"/>
+      <node id="Olenna" label="Olenna"/>
+      <node id="Marillion" label="Marillion"/>
+      <node id="Robert Arryn" label="Robert Arryn"/>
+      <node id="Ellaria" label="Ellaria"/>
+      <node id="Mace" label="Mace"/>
+      <node id="Rickard" label="Rickard"/>
+      <node id="Ramsay" label="Ramsay"/>
+      <node id="Chataya" label="Chataya"/>
+      <node id="Shireen" label="Shireen"/>
+      <node id="Doran" label="Doran"/>
+      <node id="Walton" label="Walton"/>
+    </nodes>
+    <edges count="352">
+      <edge id="0" source="Aemon" target="Grenn" weight="5"/>
+      <edge id="1" source="Aemon" target="Samwell" weight="31"/>
+      <edge id="2" source="Aerys" target="Jaime" weight="18"/>
+      <edge id="3" source="Aerys" target="Robert" weight="6"/>
+      <edge id="4" source="Aerys" target="Tyrion" weight="5"/>
+      <edge id="5" source="Aerys" target="Tywin" weight="8"/>
+      <edge id="6" source="Alliser" target="Mance" weight="5"/>
+      <edge id="7" source="Amory" target="Oberyn" weight="5"/>
+      <edge id="8" source="Arya" target="Anguy" weight="11"/>
+      <edge id="9" source="Arya" target="Beric" weight="23"/>
+      <edge id="10" source="Arya" target="Bran" weight="9"/>
+      <edge id="11" source="Arya" target="Brynden" weight="6"/>
+      <edge id="12" source="Arya" target="Cersei" weight="5"/>
+      <edge id="13" source="Arya" target="Gendry" weight="43"/>
+      <edge id="14" source="Arya" target="Gregor" weight="7"/>
+      <edge id="15" source="Arya" target="Jaime" weight="11"/>
+      <edge id="16" source="Arya" target="Joffrey" weight="6"/>
+      <edge id="17" source="Arya" target="Jon" weight="7"/>
+      <edge id="18" source="Arya" target="Rickon" weight="8"/>
+      <edge id="19" source="Arya" target="Robert" weight="4"/>
+      <edge id="20" source="Arya" target="Roose" weight="5"/>
+      <edge id="21" source="Arya" target="Sandor" weight="46"/>
+      <edge id="22" source="Arya" target="Thoros" weight="18"/>
+      <edge id="23" source="Arya" target="Tyrion" weight="5"/>
+      <edge id="24" source="Balon" target="Loras" weight="4"/>
+      <edge id="25" source="Belwas" target="Barristan" weight="18"/>
+      <edge id="26" source="Belwas" target="Illyrio" weight="10"/>
+      <edge id="27" source="Beric" target="Anguy" weight="4"/>
+      <edge id="28" source="Beric" target="Gendry" weight="4"/>
+      <edge id="29" source="Beric" target="Thoros" weight="21"/>
+      <edge id="30" source="Bran" target="Hodor" weight="96"/>
+      <edge id="31" source="Bran" target="Jojen" weight="46"/>
+      <edge id="32" source="Bran" target="Jon" weight="12"/>
+      <edge id="33" source="Bran" target="Luwin" weight="4"/>
+      <edge id="34" source="Bran" target="Meera" weight="54"/>
+      <edge id="35" source="Bran" target="Nan" weight="14"/>
+      <edge id="36" source="Bran" target="Rickon" weight="35"/>
+      <edge id="37" source="Bran" target="Samwell" weight="11"/>
+      <edge id="38" source="Bran" target="Theon" weight="11"/>
+      <edge id="39" source="Brienne" target="Loras" weight="7"/>
+      <edge id="40" source="Bronn" target="Gregor" weight="5"/>
+      <edge id="41" source="Bronn" target="Podrick" weight="19"/>
+      <edge id="42" source="Brynden" target="Lothar" weight="4"/>
+      <edge id="43" source="Brynden" target="Walder" weight="5"/>
+      <edge id="44" source="Catelyn" target="Bran" weight="4"/>
+      <edge id="45" source="Catelyn" target="Brienne" weight="7"/>
+      <edge id="46" source="Catelyn" target="Brynden" weight="8"/>
+      <edge id="47" source="Catelyn" target="Cersei" weight="4"/>
+      <edge id="48" source="Catelyn" target="Edmure" weight="16"/>
+      <edge id="49" source="Catelyn" target="Hoster" weight="9"/>
+      <edge id="50" source="Catelyn" target="Jaime" weight="19"/>
+      <edge id="51" source="Catelyn" target="Jeyne" weight="10"/>
+      <edge id="52" source="Catelyn" target="Lysa" weight="8"/>
+      <edge id="53" source="Catelyn" target="Petyr" weight="5"/>
+      <edge id="54" source="Catelyn" target="Robb" weight="43"/>
+      <edge id="55" source="Catelyn" target="Roose" weight="4"/>
+      <edge id="56" source="Catelyn" target="Roslin" weight="6"/>
+      <edge id="57" source="Catelyn" target="Sansa" weight="8"/>
+      <edge id="58" source="Catelyn" target="Stannis" weight="4"/>
+      <edge id="59" source="Catelyn" target="Tyrion" weight="5"/>
+      <edge id="60" source="Catelyn" target="Walder" weight="19"/>
+      <edge id="61" source="Cersei" target="Brienne" weight="5"/>
+      <edge id="62" source="Cersei" target="Bronn" weight="4"/>
+      <edge id="63" source="Cersei" target="Elia" weight="4"/>
+      <edge id="64" source="Cersei" target="Gregor" weight="6"/>
+      <edge id="65" source="Cersei" target="Ilyn" weight="7"/>
+      <edge id="66" source="Cersei" target="Jaime" weight="36"/>
+      <edge id="67" source="Cersei" target="Joffrey" weight="23"/>
+      <edge id="68" source="Cersei" target="Meryn" weight="10"/>
+      <edge id="69" source="Cersei" target="Pycelle" weight="4"/>
+      <edge id="70" source="Cersei" target="Robert" weight="16"/>
+      <edge id="71" source="Cersei" target="Sandor" weight="6"/>
+      <edge id="72" source="Cersei" target="Shae" weight="4"/>
+      <edge id="73" source="Cersei" target="Tyrion" weight="46"/>
+      <edge id="74" source="Cersei" target="Varys" weight="4"/>
+      <edge id="75" source="Craster" target="Karl" weight="6"/>
+      <edge id="76" source="Daario" target="Drogo" weight="4"/>
+      <edge id="77" source="Daario" target="Irri" weight="5"/>
+      <edge id="78" source="Daenerys" target="Aegon" weight="8"/>
+      <edge id="79" source="Daenerys" target="Barristan" weight="20"/>
+      <edge id="80" source="Daenerys" target="Belwas" weight="26"/>
+      <edge id="81" source="Daenerys" target="Daario" weight="14"/>
+      <edge id="82" source="Daenerys" target="Drogo" weight="18"/>
+      <edge id="83" source="Daenerys" target="Irri" weight="17"/>
+      <edge id="84" source="Daenerys" target="Jorah" weight="47"/>
+      <edge id="85" source="Daenerys" target="Kraznys" weight="10"/>
+      <edge id="86" source="Daenerys" target="Missandei" weight="26"/>
+      <edge id="87" source="Daenerys" target="Rakharo" weight="7"/>
+      <edge id="88" source="Daenerys" target="Rhaegar" weight="12"/>
+      <edge id="89" source="Daenerys" target="Robert" weight="5"/>
+      <edge id="90" source="Daenerys" target="Viserys" weight="8"/>
+      <edge id="91" source="Daenerys" target="Worm" weight="14"/>
+      <edge id="92" source="Davos" target="Cressen" weight="4"/>
+      <edge id="93" source="Davos" target="Salladhor" weight="16"/>
+      <edge id="94" source="Eddard" target="Arya" weight="18"/>
+      <edge id="95" source="Eddard" target="Beric" weight="8"/>
+      <edge id="96" source="Eddard" target="Bran" weight="15"/>
+      <edge id="97" source="Eddard" target="Catelyn" weight="5"/>
+      <edge id="98" source="Eddard" target="Cersei" weight="6"/>
+      <edge id="99" source="Eddard" target="Jaime" weight="6"/>
+      <edge id="100" source="Eddard" target="Jon" weight="8"/>
+      <edge id="101" source="Eddard" target="Rickon" weight="8"/>
+      <edge id="102" source="Eddard" target="Robb" weight="13"/>
+      <edge id="103" source="Eddard" target="Robert" weight="10"/>
+      <edge id="104" source="Eddard" target="Sandor" weight="5"/>
+      <edge id="105" source="Eddard" target="Sansa" weight="6"/>
+      <edge id="106" source="Eddison" target="Grenn" weight="8"/>
+      <edge id="107" source="Edmure" target="Brynden" weight="7"/>
+      <edge id="108" source="Edmure" target="Lothar" weight="4"/>
+      <edge id="109" source="Edmure" target="Roslin" weight="16"/>
+      <edge id="110" source="Edmure" target="Walder" weight="9"/>
+      <edge id="111" source="Gendry" target="Thoros" weight="7"/>
+      <edge id="112" source="Gilly" target="Craster" weight="17"/>
+      <edge id="113" source="Gregor" target="Elia" weight="9"/>
+      <edge id="114" source="Gregor" target="Ilyn" weight="7"/>
+      <edge id="115" source="Gregor" target="Meryn" weight="7"/>
+      <edge id="116" source="Gregor" target="Oberyn" weight="24"/>
+      <edge id="117" source="Gregor" target="Sandor" weight="12"/>
+      <edge id="118" source="Hodor" target="Jojen" weight="35"/>
+      <edge id="119" source="Hodor" target="Meera" weight="41"/>
+      <edge id="120" source="Hoster" target="Edmure" weight="9"/>
+      <edge id="121" source="Irri" target="Drogo" weight="7"/>
+      <edge id="122" source="Jaime" target="Balon" weight="6"/>
+      <edge id="123" source="Jaime" target="Barristan" weight="4"/>
+      <edge id="124" source="Jaime" target="Brienne" weight="88"/>
+      <edge id="125" source="Jaime" target="Edmure" weight="5"/>
+      <edge id="126" source="Jaime" target="Elia" weight="4"/>
+      <edge id="127" source="Jaime" target="Gregor" weight="6"/>
+      <edge id="128" source="Jaime" target="Joffrey" weight="15"/>
+      <edge id="129" source="Jaime" target="Loras" weight="16"/>
+      <edge id="130" source="Jaime" target="Meryn" weight="11"/>
+      <edge id="131" source="Jaime" target="Qyburn" weight="11"/>
+      <edge id="132" source="Jaime" target="Renly" weight="7"/>
+      <edge id="133" source="Jaime" target="Robert" weight="17"/>
+      <edge id="134" source="Jaime" target="Stannis" weight="5"/>
+      <edge id="135" source="Jaime" target="Tommen" weight="8"/>
+      <edge id="136" source="Jaime" target="Tyrion" weight="31"/>
+      <edge id="137" source="Janos" target="Alliser" weight="9"/>
+      <edge id="138" source="Janos" target="Bowen" weight="5"/>
+      <edge id="139" source="Janos" target="Mance" weight="4"/>
+      <edge id="140" source="Joffrey" target="Gregor" weight="5"/>
+      <edge id="141" source="Joffrey" target="Ilyn" weight="4"/>
+      <edge id="142" source="Joffrey" target="Kevan" weight="8"/>
+      <edge id="143" source="Joffrey" target="Loras" weight="7"/>
+      <edge id="144" source="Joffrey" target="Margaery" weight="28"/>
+      <edge id="145" source="Joffrey" target="Meryn" weight="5"/>
+      <edge id="146" source="Joffrey" target="Myrcella" weight="5"/>
+      <edge id="147" source="Joffrey" target="Oberyn" weight="4"/>
+      <edge id="148" source="Joffrey" target="Sandor" weight="14"/>
+      <edge id="149" source="Joffrey" target="Stannis" weight="10"/>
+      <edge id="150" source="Joffrey" target="Tommen" weight="9"/>
+      <edge id="151" source="Joffrey" target="Tyrion" weight="54"/>
+      <edge id="152" source="Jojen" target="Meera" weight="33"/>
+      <edge id="153" source="Jojen" target="Samwell" weight="11"/>
+      <edge id="154" source="Jon" target="Aemon" weight="30"/>
+      <edge id="155" source="Jon" target="Alliser" weight="15"/>
+      <edge id="156" source="Jon" target="Craster" weight="7"/>
+      <edge id="157" source="Jon" target="Dalla" weight="6"/>
+      <edge id="158" source="Jon" target="Eddison" weight="4"/>
+      <edge id="159" source="Jon" target="Gilly" weight="9"/>
+      <edge id="160" source="Jon" target="Grenn" weight="25"/>
+      <edge id="161" source="Jon" target="Janos" weight="8"/>
+      <edge id="162" source="Jon" target="Mance" weight="69"/>
+      <edge id="163" source="Jon" target="Meera" weight="4"/>
+      <edge id="164" source="Jon" target="Melisandre" weight="7"/>
+      <edge id="165" source="Jon" target="Orell" weight="6"/>
+      <edge id="166" source="Jon" target="Qhorin" weight="31"/>
+      <edge id="167" source="Jon" target="Rattleshirt" weight="20"/>
+      <edge id="168" source="Jon" target="Robert" weight="5"/>
+      <edge id="169" source="Jon" target="Samwell" weight="52"/>
+      <edge id="170" source="Jon" target="Stannis" weight="9"/>
+      <edge id="171" source="Jon" target="Styr" weight="16"/>
+      <edge id="172" source="Jon" target="Theon" weight="8"/>
+      <edge id="173" source="Jon" target="Val" weight="12"/>
+      <edge id="174" source="Jon" target="Ygritte" weight="54"/>
+      <edge id="175" source="Jon Arryn" target="Lysa" weight="5"/>
+      <edge id="176" source="Jon Arryn" target="Robert" weight="6"/>
+      <edge id="177" source="Jorah" target="Barristan" weight="11"/>
+      <edge id="178" source="Jorah" target="Belwas" weight="13"/>
+      <edge id="179" source="Jorah" target="Daario" weight="7"/>
+      <edge id="180" source="Jorah" target="Drogo" weight="6"/>
+      <edge id="181" source="Kevan" target="Lancel" weight="7"/>
+      <edge id="182" source="Kevan" target="Varys" weight="5"/>
+      <edge id="183" source="Loras" target="Margaery" weight="9"/>
+      <edge id="184" source="Loras" target="Olenna" weight="5"/>
+      <edge id="185" source="Lothar" target="Roslin" weight="4"/>
+      <edge id="186" source="Luwin" target="Nan" weight="4"/>
+      <edge id="187" source="Lysa" target="Cersei" weight="4"/>
+      <edge id="188" source="Lysa" target="Hoster" weight="6"/>
+      <edge id="189" source="Lysa" target="Marillion" weight="10"/>
+      <edge id="190" source="Lysa" target="Petyr" weight="29"/>
+      <edge id="191" source="Lysa" target="Robert Arryn" weight="9"/>
+      <edge id="192" source="Lysa" target="Tyrion" weight="5"/>
+      <edge id="193" source="Lysa" target="Tywin" weight="4"/>
+      <edge id="194" source="Mance" target="Craster" weight="11"/>
+      <edge id="195" source="Mance" target="Dalla" weight="8"/>
+      <edge id="196" source="Mance" target="Gilly" weight="7"/>
+      <edge id="197" source="Mance" target="Qhorin" weight="10"/>
+      <edge id="198" source="Mance" target="Rattleshirt" weight="9"/>
+      <edge id="199" source="Mance" target="Styr" weight="7"/>
+      <edge id="200" source="Mance" target="Val" weight="8"/>
+      <edge id="201" source="Mance" target="Ygritte" weight="12"/>
+      <edge id="202" source="Meera" target="Samwell" weight="7"/>
+      <edge id="203" source="Melisandre" target="Davos" weight="30"/>
+      <edge id="204" source="Melisandre" target="Samwell" weight="5"/>
+      <edge id="205" source="Meryn" target="Ilyn" weight="5"/>
+      <edge id="206" source="Missandei" target="Irri" weight="4"/>
+      <edge id="207" source="Myrcella" target="Tommen" weight="5"/>
+      <edge id="208" source="Myrcella" target="Tyrion" weight="4"/>
+      <edge id="209" source="Oberyn" target="Ellaria" weight="6"/>
+      <edge id="210" source="Oberyn" target="Mace" weight="6"/>
+      <edge id="211" source="Podrick" target="Margaery" weight="4"/>
+      <edge id="212" source="Rattleshirt" target="Qhorin" weight="6"/>
+      <edge id="213" source="Renly" target="Loras" weight="8"/>
+      <edge id="214" source="Renly" target="Margaery" weight="7"/>
+      <edge id="215" source="Renly" target="Varys" weight="4"/>
+      <edge id="216" source="Rhaegar" target="Barristan" weight="5"/>
+      <edge id="217" source="Rhaegar" target="Elia" weight="7"/>
+      <edge id="218" source="Rhaegar" target="Jorah" weight="5"/>
+      <edge id="219" source="Rhaegar" target="Robert" weight="6"/>
+      <edge id="220" source="Rickard" target="Brynden" weight="4"/>
+      <edge id="221" source="Rickon" target="Theon" weight="8"/>
+      <edge id="222" source="Robb" target="Arya" weight="15"/>
+      <edge id="223" source="Robb" target="Balon" weight="6"/>
+      <edge id="224" source="Robb" target="Bran" weight="23"/>
+      <edge id="225" source="Robb" target="Brienne" weight="6"/>
+      <edge id="226" source="Robb" target="Brynden" weight="17"/>
+      <edge id="227" source="Robb" target="Edmure" weight="32"/>
+      <edge id="228" source="Robb" target="Hodor" weight="5"/>
+      <edge id="229" source="Robb" target="Jaime" weight="15"/>
+      <edge id="230" source="Robb" target="Jeyne" weight="18"/>
+      <edge id="231" source="Robb" target="Joffrey" weight="10"/>
+      <edge id="232" source="Robb" target="Jon" weight="14"/>
+      <edge id="233" source="Robb" target="Lothar" weight="10"/>
+      <edge id="234" source="Robb" target="Petyr" weight="5"/>
+      <edge id="235" source="Robb" target="Ramsay" weight="4"/>
+      <edge id="236" source="Robb" target="Rickard" weight="7"/>
+      <edge id="237" source="Robb" target="Rickon" weight="15"/>
+      <edge id="238" source="Robb" target="Roose" weight="4"/>
+      <edge id="239" source="Robb" target="Sansa" weight="15"/>
+      <edge id="240" source="Robb" target="Stannis" weight="4"/>
+      <edge id="241" source="Robb" target="Theon" weight="11"/>
+      <edge id="242" source="Robb" target="Tyrion" weight="12"/>
+      <edge id="243" source="Robb" target="Tywin" weight="12"/>
+      <edge id="244" source="Robb" target="Walder" weight="26"/>
+      <edge id="245" source="Robert" target="Aemon" weight="4"/>
+      <edge id="246" source="Robert" target="Barristan" weight="5"/>
+      <edge id="247" source="Robert" target="Renly" weight="4"/>
+      <edge id="248" source="Robert" target="Stannis" weight="5"/>
+      <edge id="249" source="Robert" target="Thoros" weight="4"/>
+      <edge id="250" source="Robert Arryn" target="Marillion" weight="4"/>
+      <edge id="251" source="Roose" target="Brienne" weight="4"/>
+      <edge id="252" source="Samwell" target="Bowen" weight="6"/>
+      <edge id="253" source="Samwell" target="Craster" weight="34"/>
+      <edge id="254" source="Samwell" target="Eddison" weight="12"/>
+      <edge id="255" source="Samwell" target="Gilly" weight="36"/>
+      <edge id="256" source="Samwell" target="Grenn" weight="43"/>
+      <edge id="257" source="Samwell" target="Janos" weight="6"/>
+      <edge id="258" source="Samwell" target="Mance" weight="10"/>
+      <edge id="259" source="Samwell" target="Qhorin" weight="5"/>
+      <edge id="260" source="Sandor" target="Beric" weight="15"/>
+      <edge id="261" source="Sandor" target="Gendry" weight="5"/>
+      <edge id="262" source="Sandor" target="Ilyn" weight="4"/>
+      <edge id="263" source="Sandor" target="Meryn" weight="4"/>
+      <edge id="264" source="Sandor" target="Robert" weight="6"/>
+      <edge id="265" source="Sandor" target="Thoros" weight="10"/>
+      <edge id="266" source="Sansa" target="Arya" weight="22"/>
+      <edge id="267" source="Sansa" target="Bran" weight="10"/>
+      <edge id="268" source="Sansa" target="Brienne" weight="5"/>
+      <edge id="269" source="Sansa" target="Cersei" weight="16"/>
+      <edge id="270" source="Sansa" target="Jaime" weight="10"/>
+      <edge id="271" source="Sansa" target="Joffrey" weight="35"/>
+      <edge id="272" source="Sansa" target="Jon" weight="4"/>
+      <edge id="273" source="Sansa" target="Kevan" weight="5"/>
+      <edge id="274" source="Sansa" target="Loras" weight="14"/>
+      <edge id="275" source="Sansa" target="Lysa" weight="28"/>
+      <edge id="276" source="Sansa" target="Margaery" weight="36"/>
+      <edge id="277" source="Sansa" target="Marillion" weight="9"/>
+      <edge id="278" source="Sansa" target="Myrcella" weight="4"/>
+      <edge id="279" source="Sansa" target="Olenna" weight="7"/>
+      <edge id="280" source="Sansa" target="Petyr" weight="28"/>
+      <edge id="281" source="Sansa" target="Podrick" weight="8"/>
+      <edge id="282" source="Sansa" target="Renly" weight="4"/>
+      <edge id="283" source="Sansa" target="Rickon" weight="7"/>
+      <edge id="284" source="Sansa" target="Robert" weight="5"/>
+      <edge id="285" source="Sansa" target="Robert Arryn" weight="6"/>
+      <edge id="286" source="Sansa" target="Sandor" weight="6"/>
+      <edge id="287" source="Sansa" target="Shae" weight="8"/>
+      <edge id="288" source="Sansa" target="Tyrion" weight="77"/>
+      <edge id="289" source="Shae" target="Chataya" weight="4"/>
+      <edge id="290" source="Shae" target="Varys" weight="8"/>
+      <edge id="291" source="Shireen" target="Davos" weight="5"/>
+      <edge id="292" source="Stannis" target="Aemon" weight="4"/>
+      <edge id="293" source="Stannis" target="Balon" weight="4"/>
+      <edge id="294" source="Stannis" target="Davos" weight="32"/>
+      <edge id="295" source="Stannis" target="Melisandre" weight="20"/>
+      <edge id="296" source="Stannis" target="Renly" weight="15"/>
+      <edge id="297" source="Stannis" target="Samwell" weight="13"/>
+      <edge id="298" source="Tommen" target="Margaery" weight="5"/>
+      <edge id="299" source="Tyrion" target="Balon" weight="4"/>
+      <edge id="300" source="Tyrion" target="Bronn" weight="31"/>
+      <edge id="301" source="Tyrion" target="Chataya" weight="5"/>
+      <edge id="302" source="Tyrion" target="Doran" weight="5"/>
+      <edge id="303" source="Tyrion" target="Elia" weight="5"/>
+      <edge id="304" source="Tyrion" target="Ellaria" weight="4"/>
+      <edge id="305" source="Tyrion" target="Gregor" weight="22"/>
+      <edge id="306" source="Tyrion" target="Ilyn" weight="5"/>
+      <edge id="307" source="Tyrion" target="Janos" weight="5"/>
+      <edge id="308" source="Tyrion" target="Kevan" weight="11"/>
+      <edge id="309" source="Tyrion" target="Loras" weight="6"/>
+      <edge id="310" source="Tyrion" target="Mace" weight="9"/>
+      <edge id="311" source="Tyrion" target="Margaery" weight="7"/>
+      <edge id="312" source="Tyrion" target="Meryn" weight="5"/>
+      <edge id="313" source="Tyrion" target="Oberyn" weight="25"/>
+      <edge id="314" source="Tyrion" target="Petyr" weight="12"/>
+      <edge id="315" source="Tyrion" target="Podrick" weight="28"/>
+      <edge id="316" source="Tyrion" target="Pycelle" weight="11"/>
+      <edge id="317" source="Tyrion" target="Renly" weight="6"/>
+      <edge id="318" source="Tyrion" target="Robert" weight="9"/>
+      <edge id="319" source="Tyrion" target="Sandor" weight="4"/>
+      <edge id="320" source="Tyrion" target="Shae" weight="21"/>
+      <edge id="321" source="Tyrion" target="Stannis" weight="6"/>
+      <edge id="322" source="Tyrion" target="Varys" weight="18"/>
+      <edge id="323" source="Tywin" target="Balon" weight="5"/>
+      <edge id="324" source="Tywin" target="Brynden" weight="4"/>
+      <edge id="325" source="Tywin" target="Cersei" weight="16"/>
+      <edge id="326" source="Tywin" target="Gregor" weight="7"/>
+      <edge id="327" source="Tywin" target="Jaime" weight="13"/>
+      <edge id="328" source="Tywin" target="Joffrey" weight="13"/>
+      <edge id="329" source="Tywin" target="Kevan" weight="14"/>
+      <edge id="330" source="Tywin" target="Mace" weight="5"/>
+      <edge id="331" source="Tywin" target="Oberyn" weight="6"/>
+      <edge id="332" source="Tywin" target="Petyr" weight="4"/>
+      <edge id="333" source="Tywin" target="Podrick" weight="5"/>
+      <edge id="334" source="Tywin" target="Pycelle" weight="5"/>
+      <edge id="335" source="Tywin" target="Robert" weight="11"/>
+      <edge id="336" source="Tywin" target="Stannis" weight="15"/>
+      <edge id="337" source="Tywin" target="Tommen" weight="4"/>
+      <edge id="338" source="Tywin" target="Tyrion" weight="39"/>
+      <edge id="339" source="Tywin" target="Val" weight="4"/>
+      <edge id="340" source="Tywin" target="Varys" weight="6"/>
+      <edge id="341" source="Tywin" target="Walder" weight="4"/>
+      <edge id="342" source="Val" target="Dalla" weight="7"/>
+      <edge id="343" source="Varys" target="Pycelle" weight="4"/>
+      <edge id="344" source="Viserys" target="Rhaegar" weight="7"/>
+      <edge id="345" source="Viserys" target="Tyrion" weight="4"/>
+      <edge id="346" source="Walder" target="Lothar" weight="12"/>
+      <edge id="347" source="Walder" target="Petyr" weight="6"/>
+      <edge id="348" source="Walder" target="Roslin" weight="6"/>
+      <edge id="349" source="Walton" target="Jaime" weight="10"/>
+      <edge id="350" source="Ygritte" target="Qhorin" weight="7"/>
+      <edge id="351" source="Ygritte" target="Rattleshirt" weight="9"/>
+    </edges>
+  </graph>
+</gexf>

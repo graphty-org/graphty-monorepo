@@ -2,15 +2,27 @@ import type { DuplicatePolicy } from "@graphty/graph-format";
 import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
-import { type AccelerationController, type AccelerationPolicy, isAccelerationPolicy } from "./acceleration";
-import { layoutIdForEngine } from "./catalog/layouts";
-import type { AlgorithmKey, FormatId, Scope, ScopeInput } from "./catalog/types";
+import {
+    type AccelerationCapabilities,
+    type AccelerationController,
+    type AccelerationPolicy,
+    isAccelerationPolicy,
+} from "./acceleration";
+import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
+import type { AlgorithmKey, ElementAtResult, FormatId, Scope, ScopeInput } from "./catalog/types";
 import type { GraphBackgroundConfig, GraphBehaviorConfig, GraphSelectionStyleInput, ViewMode } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
-import { isDomForwardableEvent, NODE_EVENT_DOM_NAMES, nodeEventDetail } from "./events";
-import { Graph, loadSourcePair, operationQueueOf } from "./Graph";
+import {
+    type GraphtyForwardedEventMap,
+    isDomForwardableEvent,
+    NODE_EVENT_DOM_NAMES,
+    type NodeEventDetail,
+    nodeEventDetail,
+} from "./events";
+import { Graph, loadSourcePair, type NodeScreenPosition, operationQueueOf } from "./Graph";
+import type { NodeLabel, NodeLabelCounts } from "./managers/LabelDeclutter";
 import type { RendererRequest, RendererStatus } from "./managers/RenderManager";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
@@ -25,10 +37,20 @@ import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT, type LayoutSetCommand } from "./session/commands/layout";
 import { recordsInRowOrder } from "./session/data";
 import { dispatcherOf } from "./session/GraphSession";
+import type { NoteChange } from "./session/notes/types";
 import type { GraphSlice } from "./session/project/state";
+import {
+    PROJECT_FILE,
+    projectFileName,
+    type ProjectSaveOptions,
+    type ProjectSaveReport,
+    type ProjectStatus,
+} from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import type { ProgressChange } from "./session/shared";
 import type { DefaultPalettes } from "./session/styles";
+import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
 
@@ -90,16 +112,19 @@ export class Graphty extends LitElement {
         }
     `;
 
-    #graph: Graph;
-    #element: Element;
+    #builtGraph: Graph | undefined;
+    readonly #element: Element;
     #resizeObserver: ResizeObserver | null = null;
     #capabilitiesMirrored = false;
     #unwatchRuns: (() => void) | null = null;
     #unwatchSelection: (() => void) | null = null;
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
+    #unwatchProjectStatus: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
-    #runProgressAt = new Map<string, number>();
+    #unwatchProgress: (() => void) | null = null;
+    readonly #progressAt = new Map<string, number>();
+    readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
 
     /**
@@ -113,7 +138,28 @@ export class Graphty extends LitElement {
         // the host's box, never from the canvas's intrinsic 2:1 ratio; being positioned also
         // anchors the absolutely positioned XR UI overlay.
         this.#element.setAttribute("style", "position: absolute; inset: 0; display: block;");
-        this.#graph = new Graph(this.#element);
+    }
+
+    /**
+     * The graph this element draws, built the first time anything needs it: being attached, or a
+     * property, attribute, method or `session` reached before that. Building it opens a Babylon
+     * engine and so a WebGL context, and a browser keeps only about 16 of those per page, evicting
+     * the oldest live one -- so an element that is created and never used opens none.
+     * @returns The graph.
+     */
+    get #graph(): Graph {
+        if (this.#builtGraph === undefined) {
+            const graph = new Graph(this.#element);
+            this.#builtGraph = graph;
+            // The graph is never rebuilt, so this subscription lives as long as the element.
+            graph.onNodeLabelCounts.add((counts) => {
+                this.dispatchEvent(
+                    new CustomEvent("graphty-label-change", { detail: counts, bubbles: true, composed: true }),
+                );
+            });
+        }
+
+        return this.#builtGraph;
     }
 
     /**
@@ -140,6 +186,32 @@ export class Graphty extends LitElement {
      */
     get session(): GraphSession {
         return this.#graph.getSession();
+    }
+
+    /**
+     * Save the project (`session.project.save`) and hand it to the reader as a download named
+     * `<project name>.graphty.json`. Lives on the element, not the session, because the session
+     * also runs in Node, where there is nothing to download to.
+     * @param options - What to leave out, your own extensions, and the file's name.
+     * @returns What the file holds.
+     * @example
+     * ```typescript
+     * saveButton.onclick = () => element.downloadProject();
+     * ```
+     */
+    async downloadProject(
+        options: Omit<ProjectSaveOptions, "markSaved"> & { readonly fileName?: string } = {},
+    ): Promise<ProjectSaveReport> {
+        // The download is the write, and the caller never sees a SavedProject to mark, so this
+        // save always clears `dirty`.
+        const { text, report } = await this.session.project.save({ ...options, markSaved: true });
+        const url = URL.createObjectURL(new Blob([text], { type: PROJECT_FILE.mediaType }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = options.fileName ?? projectFileName(this.session.project.name);
+        link.click();
+        URL.revokeObjectURL(url);
+        return report;
     }
 
     /**
@@ -247,10 +319,37 @@ export class Graphty extends LitElement {
 
         this.dispatchEvent(
             new CustomEvent("graphty-run-change", {
-                detail: { run: change.run, phase: change.phase },
+                detail: { run: change.run, phase: change.phase } satisfies GraphtyRunChangeDetail,
                 bubbles: true,
                 composed: true,
             }),
+        );
+    }
+
+    /**
+     * Mirror one progress report onto the DOM as `graphty-progress-change`.
+     *
+     * Steps are coalesced per task, at the run mirror's interval, so a fast load does not flood
+     * the page; the end of a task always arrives.
+     * @param change - What moved on, or stopped.
+     */
+    #mirrorProgressChange(change: ProgressChange): void {
+        const key = `${change.task}:${change.run ?? ""}`;
+        if (change.phase === "end") {
+            this.#progressAt.delete(key);
+        } else {
+            // The first change of a task is never held back (nothing was sent before it); only
+            // the steps after it are.
+            const now = Date.now();
+            if (now - (this.#progressAt.get(key) ?? 0) < RUN_PROGRESS_INTERVAL_MS) {
+                return;
+            }
+
+            this.#progressAt.set(key, now);
+        }
+
+        this.dispatchEvent(
+            new CustomEvent("graphty-progress-change", { detail: change, bubbles: true, composed: true }),
         );
     }
 
@@ -309,10 +408,11 @@ export class Graphty extends LitElement {
                     reason,
                     version: history.version,
                     position: history.position,
-                    steps: history.steps.length,
+                    // The count alone: the step list is rebuilt after every change.
+                    steps: dispatcherOf(session).history.length,
                     canUndo: session.canUndo,
                     canRedo: session.canRedo,
-                },
+                } satisfies GraphtyHistoryChangeDetail,
                 bubbles: true,
                 composed: true,
             }),
@@ -341,7 +441,7 @@ export class Graphty extends LitElement {
                         "so the value was lost. This happens when a framework renders the tag before " +
                         "@graphty/graphty-element is loaded. Import the element before rendering, or await " +
                         'customElements.whenDefined("graphty-element"). See ' +
-                        "https://graphty.app/docs/graphty-element/guide/installation#loading-the-element-lazily",
+                        "https://graphty.app/docs/graphty-element/guide/frameworks/react#load-the-element-before-react-renders-it",
                 );
             }
         }
@@ -405,10 +505,19 @@ export class Graphty extends LitElement {
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
                 new CustomEvent("graphty-note-change", {
-                    detail: { id, change, fields, cause },
+                    detail: { id, change, fields, cause } satisfies GraphtyNoteChangeDetail,
                     bubbles: true,
                     composed: true,
                 }),
+            );
+        });
+        this.#unwatchProgress ??= session.on("progress:changed", (change) => {
+            this.#mirrorProgressChange(change);
+        });
+        // The project's name and unsaved state, for a title bar or a Save button beside the tag.
+        this.#unwatchProjectStatus ??= session.on("project:status", (change) => {
+            this.dispatchEvent(
+                new CustomEvent("graphty-project-status", { detail: change, bubbles: true, composed: true }),
             );
         });
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
@@ -509,6 +618,103 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Listen for an event. The unprefixed graph events the element forwards (`style-changed`,
+     * `data-loaded`, `error` and the rest of {@link GraphtyForwardedEventMap}) reach the listener
+     * as a `CustomEvent` with a typed `detail`; the `graphty-*` events are typed through
+     * `HTMLElementEventMap`, and every other name behaves as on any element.
+     * @param type - The event name.
+     * @param listener - What to call.
+     * @param options - As for any element.
+     */
+    override addEventListener<K extends keyof GraphtyForwardedEventMap>(
+        type: K,
+        listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * An event of `HTMLElementEventMap`, typed as on any element, `graphty-*` events included.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * Any other event name, as on any element.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void;
+    /**
+     * Hands every overload to the element's own `EventTarget`.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | AddEventListenerOptions,
+    ): void {
+        super.addEventListener(type, listener, options);
+    }
+
+    /**
+     * Stop listening for an event, typed the same way as {@link Graphty.addEventListener}.
+     * @param type - The event name.
+     * @param listener - The listener that was added.
+     * @param options - As for any element.
+     */
+    override removeEventListener<K extends keyof GraphtyForwardedEventMap>(
+        type: K,
+        listener: (this: Graphty, ev: GraphtyForwardedEventMap[K]) => unknown,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * An event of `HTMLElementEventMap`, typed as on any element, `graphty-*` events included.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener<K extends keyof HTMLElementEventMap>(
+        type: K,
+        listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * Any other event name, as on any element.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | EventListenerOptions,
+    ): void;
+    /**
+     * Hands every overload to the element's own `EventTarget`.
+     * @param type - The event name.
+     * @param listener - The listener.
+     * @param options - As for any element.
+     */
+    override removeEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject,
+        options?: boolean | EventListenerOptions,
+    ): void {
+        super.removeEventListener(type, listener, options);
+    }
+
+    /**
      * Called when the element is removed from the DOM. Cleans up resources and shuts down the graph.
      */
     disconnectedCallback(): void {
@@ -526,8 +732,12 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility = null;
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
+        this.#unwatchProjectStatus?.();
+        this.#unwatchProjectStatus = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
+        this.#unwatchProgress?.();
+        this.#unwatchProgress = null;
 
         this.#graph.shutdown();
         super.disconnectedCallback();
@@ -671,13 +881,14 @@ export class Graphty extends LitElement {
     }
     /**
      * Replaces the graph's nodes with these, as one undoable step: a node the array names again
-     * keeps its row and its edges, and one it no longer names goes, with its edges.
+     * keeps its row, its position and its edges and takes its new record, and one it no longer
+     * names goes, with its edges.
      */
     set nodeData(value: Record<string, unknown>[] | undefined) {
         const oldValue = this.nodeData;
         if (value && Array.isArray(value)) {
             const { nodeIdPath } = this.#graph.getStyles().config.data.knownFields;
-            this.#replaceData((state, setup) => replaceNodesCommand([...state.nodes.keys()], value, nodeIdPath, setup));
+            this.#replaceData((state, setup) => replaceNodesCommand(state.nodes, value, nodeIdPath, setup));
         }
 
         this.requestUpdate("nodeData", oldValue);
@@ -803,7 +1014,7 @@ export class Graphty extends LitElement {
         const { config } = this.#source();
         // Reported without the inline text or the file: the graph keeps where it came from, not
         // a second copy of what it holds.
-        return config === undefined ? undefined : (describeSource({ config }).config as Record<string, unknown>);
+        return config === undefined ? undefined : describeSource({ config }).config;
     }
     /**
      * Sets the data source configuration. Loads the graph from it, replacing what the graph
@@ -1212,7 +1423,7 @@ export class Graphty extends LitElement {
          * hand the setter "true" and "false" as text) is right on its own.
          */
         converter: {
-            fromAttribute: (value: string | null): boolean | "auto" | undefined => {
+            fromAttribute: (value: string | null): Graphty["directed"] => {
                 if (value === null) {
                     return undefined;
                 }
@@ -1271,9 +1482,10 @@ export class Graphty extends LitElement {
     /**
      * Layout algorithm to use for positioning nodes.
      * @remarks
-     * Available layouts:
-     * - `ngraph`: Force-directed (3D optimized, recommended)
-     * - `d3-force`: Force-directed (2D)
+     * A catalog id from `catalog.layouts()` (such as `force`, drawn by its default engine) or a
+     * registered engine name (such as `ngraph`). Reading it back gives the engine. Some layouts:
+     * - `force`: Force-directed, drawn by `ngraph` (3D optimized, recommended)
+     * - `d3`: Force-directed, the d3 engine
      * - `circular`: Nodes arranged in a circle
      * - `grid`: Nodes arranged in a grid
      * - `hierarchical`: Tree/DAG layout
@@ -1322,7 +1534,7 @@ export class Graphty extends LitElement {
      */
     @property({ attribute: "layout-config" })
     get layoutConfig(): Record<string, unknown> | undefined {
-        return this.#layoutPair().options as Record<string, unknown>;
+        return this.#layoutPair().options;
     }
     /**
      * Sets layout-specific configuration: the layout is drawn again with it, as one undoable step.
@@ -1349,17 +1561,19 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Choose a layout from the property pair, as one step. The engine name maps to the catalogue
-     * id it serves, and the slice keeps the engine itself.
-     * @param engine - The engine name.
+     * Choose a layout from the property pair, as one step. A catalog id ("force") is drawn by
+     * its default engine; an engine name maps to the catalogue id it serves, and the slice keeps
+     * the engine itself.
+     * @param name - The catalog id or the engine name.
      * @param options - Its options.
      */
-    #setLayoutPair(engine: string, options: Readonly<Record<string, unknown>>): void {
+    #setLayoutPair(name: string, options: Readonly<Record<string, unknown>>): void {
+        const descriptor = layoutDescriptor(name);
         void dispatcherOf(this.#graph.getSession())
             .dispatch({
                 op: "layout.set",
-                id: layoutIdForEngine(engine) ?? engine,
-                engine,
+                id: descriptor?.id ?? layoutIdForEngine(name) ?? name,
+                engine: descriptor?.engine ?? name,
                 options: { ...options },
                 coalesce: ELEMENT_LAYOUT,
                 ...(this.#settingUp ? { setup: true } : {}),
@@ -1437,6 +1651,47 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * How many node labels the element is drawing, and why the rest are not, as of the last drawn
+     * frame. All zeros before data loads. Reading it never forces a frame.
+     *
+     * The `graphty-label-change` DOM event (detail: the same counts) fires when a count changes,
+     * once the view has stopped changing: never during a camera gesture or while a layout is
+     * still moving nodes. It also fires once after the first frame that has labels.
+     * @since 3.7.0
+     * @example
+     * ```typescript
+     * element.addEventListener("graphty-label-change", () => {
+     *     const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
+     * });
+     * ```
+     * @returns The counts.
+     */
+    get nodeLabelCounts(): NodeLabelCounts {
+        return this.#graph.nodeLabelCounts;
+    }
+
+    /**
+     * A node's label as it is drawn: the words on screen, and whether the label is shown at all.
+     *
+     * `text` is what the reader sees, after the label was bound to the node's data and its markup
+     * (`<bold>`, `<color='...'>`) was applied. `drawn` is false when the label is not on screen:
+     * its node is hidden, or `layoutBehavior.labels.declutter` hid it to avoid an overlap. A
+     * label outside the current view still reads `drawn: true`. Reads the last drawn frame and
+     * never forces one, so wait for {@link Graphty.waitForStableFrame} first.
+     * @param nodeId - The node's id.
+     * @returns The label, or undefined when there is no such node or it has no label.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * await element.waitForStableFrame();
+     * const label = element.labelOf("Valjean"); // { text: "Valjean", drawn: true }
+     * ```
+     */
+    labelOf(nodeId: string | number): NodeLabel | undefined {
+        return this.#graph.labelOf(nodeId);
+    }
+
+    /**
      * How the element DRIVES the layout, as distinct from what the layout engine is configured
      * with.
      * @remarks
@@ -1449,6 +1704,9 @@ export class Graphty extends LitElement {
      * a reader drags stays where they put it. `labels.declutter` (off by default) hides a node
      * label whose words would be drawn over another label's, keeping a selected node's label
      * first and then the label of the node with more edges; it takes effect on the next frame.
+     * {@link Graphty.nodeLabelCounts} says how many it hid. `camera.pivotOnSelection` (off by
+     * default) makes the selection the camera's pivot: one selected node, or the average position
+     * of several, is what the camera turns and zooms about, in 2D, 3D, VR and AR.
      *
      * Merged over what is already set, so naming one field leaves the others alone.
      * @since 2.0.0
@@ -1456,6 +1714,7 @@ export class Graphty extends LitElement {
      * ```typescript
      * element.layoutBehavior = { layout: { preSteps: 1000 } };
      * element.layoutBehavior = { labels: { declutter: true } };
+     * element.layoutBehavior = { camera: { pivotOnSelection: true } };
      * ```
      * @returns The view preferences set on this element, with the pacing settings saved in the
      *     project (`preSteps`, `stepMultiplier`, `minDelta`) as they are in effect
@@ -1487,6 +1746,81 @@ export class Graphty extends LitElement {
         }
 
         this.requestUpdate("layoutBehavior", oldValue);
+    }
+
+    /**
+     * Whether a node label that would be drawn over another label is hidden until the reader
+     * zooms in.
+     * @remarks
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. Off (the default), every label is drawn. It takes effect on
+     * the next frame. The same switch as `layoutBehavior.labels.declutter`, with a door of its
+     * own so a consumer can flip it without assigning `layoutBehavior`, which also carries the
+     * project's layout pacing.
+     * @since 3.10.0
+     * @example
+     * ```typescript
+     * showAllLabels.onchange = () => {
+     *     element.labelDeclutter = !showAllLabels.checked;
+     * };
+     * ```
+     * ```html
+     * <graphty-element label-declutter></graphty-element>
+     * ```
+     * @returns True when overlapping labels are hidden
+     */
+    @property({ attribute: "label-declutter", type: Boolean })
+    get labelDeclutter(): boolean {
+        return this.#graph.getLayoutBehavior()?.labels?.declutter === true;
+    }
+    /**
+     * Switches label decluttering on or off.
+     */
+    set labelDeclutter(value: boolean) {
+        const oldValue = this.labelDeclutter;
+        this.#graph.setLayoutBehavior({ labels: { declutter: value } });
+        this.requestUpdate("labelDeclutter", oldValue);
+    }
+
+    /**
+     * Whether a frame is drawn only when the picture can have changed.
+     * @remarks
+     * Off (the default), the graph is drawn on every animation frame, still or not. On, it stops
+     * drawing once the layout has settled, the styles are painted and the camera is at rest, and
+     * draws again as soon as anything changes the picture: data, styles, the layout, the camera,
+     * the selection, an animation, or the reader's pointer, wheel or keys on the canvas. A still
+     * graph then costs the page nothing per frame -- on a software GPU (a virtual machine, a CI
+     * runner, a headless browser) that is tens to hundreds of milliseconds of every frame, and
+     * the page's own controls answer that much faster.
+     *
+     * If your code changes the Babylon.js scene directly (through `graph.scene`), adding or
+     * removing a mesh, material, texture, light or camera is drawn, but changing a property of
+     * something already there (a material's color, a mesh's position) is not drawn until something
+     * else asks for a frame. Leave it off in that case.
+     *
+     * A preference of this view, not part of the project: switching it records no undo step and
+     * is not saved in a project file. The same switch as `layoutBehavior.rendering.onDemand`.
+     * @since 3.22.0
+     * @example
+     * ```html
+     * <graphty-element render-on-demand></graphty-element>
+     * ```
+     * ```typescript
+     * element.renderOnDemand = true;
+     * ```
+     * @returns True when frames are drawn only when the picture can have changed
+     */
+    @property({ attribute: "render-on-demand", type: Boolean })
+    get renderOnDemand(): boolean {
+        return this.#graph.getLayoutBehavior()?.rendering?.onDemand === true;
+    }
+    /**
+     * Switches drawing on demand on or off.
+     */
+    set renderOnDemand(value: boolean) {
+        const oldValue = this.renderOnDemand;
+        this.#graph.setLayoutBehavior({ rendering: { onDemand: value } });
+        this.requestUpdate("renderOnDemand", oldValue);
     }
 
     /**
@@ -1730,7 +2064,7 @@ export class Graphty extends LitElement {
     /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
-     * Set, it places the 3D camera at this distance from the orbit centre (never closer than the
+     * Set, it places the 3D camera at this distance from the orbit center (never closer than the
      * minimum zoom distance) and gives the 2D camera the same view height, and the element stops
      * framing the graph on its own after a data load or a layout change. `zoomToFit()` still
      * frames it when called. Unset (the default), every load is framed to fit. Setting it on a
@@ -1766,6 +2100,48 @@ export class Graphty extends LitElement {
 
         this.#startingCameraDistance = value;
         this.requestUpdate("startingCameraDistance", oldValue);
+    }
+
+    /**
+     * Whether the camera frames the graph on its own after a data load or a layout change.
+     * @remarks
+     * On (the default), every load and layout change is framed to fit, as long as no
+     * `startingCameraDistance` is set. Off, a load or a layout change leaves the camera where it
+     * is, and a re-frame already following a moving layout stops. `zoomToFit()` frames the graph
+     * either way. A preference of this view, not part of the project: switching it records no
+     * undo step and is not saved in a project file. Independent of `startingCameraDistance`, so
+     * turning framing off needs no invented distance.
+     *
+     * The attribute is on unless it reads `"false"`: `auto-frame="false"` turns framing off, and
+     * removing the attribute turns it back on.
+     * @since 3.10.0
+     * @example
+     * ```typescript
+     * reframe.onchange = () => {
+     *     element.autoFrame = reframe.checked;
+     * };
+     * ```
+     * ```html
+     * <graphty-element auto-frame="false"></graphty-element>
+     * ```
+     * @returns True when the camera frames each load and layout change
+     */
+    @property({
+        attribute: "auto-frame",
+        converter: {
+            fromAttribute: (value: string | null): boolean => value !== "false",
+        },
+    })
+    get autoFrame(): boolean {
+        return this.#graph.getAutoFrame();
+    }
+    /**
+     * Switches the camera's own framing on or off.
+     */
+    set autoFrame(value: boolean) {
+        const oldValue = this.autoFrame;
+        this.#graph.setAutoFrame(value);
+        this.requestUpdate("autoFrame", oldValue);
     }
 
     /**
@@ -2229,7 +2605,8 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Centre the camera on the selected nodes, keeping where it stands. With nothing selected
+     * Center the camera on the selection -- its nodes and the ends of its edges -- keeping where
+     * it stands. With nothing selected
      * the camera does not move. Not an undoable step: the camera is view state.
      * @param options - Animation options
      * @returns Promise that resolves when the camera has moved
@@ -2526,6 +2903,16 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2541,6 +2928,11 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromUrl(url, options);
@@ -2557,6 +2949,16 @@ export class Graphty extends LitElement {
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph with this data, but only once it has all parsed:
      *     a malformed or empty file rejects and leaves the current graph untouched
+     * @param options.graphIndex - Which graph to read, by position, from a file that holds several
+     *     (`listGraphs` from `@graphty/graphty-element/catalog` lists them); the first by default
+     * @param options.graphName - Which graph to read, by name, from a file that holds several
+     * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
+     *     labels) as style layers, so the graph looks as it does in the program that wrote it;
+     *     `"none"` (the default) loads the data alone
+     * @param options.styleOptions - How the file's styles are turned into layers
+     * @param options.layout - `"recommended"` chooses a layout for what was loaded once it is loaded:
+     *     `fixed`, which draws each node where the file put it, when every node arrived with a position,
+     *     and a computed one otherwise. `"keep"` (the default) leaves the layout as it is
      * @returns Promise that resolves to `{ loadId }`, the id every event about this load carries
      * @since 1.5.0
      * @example
@@ -2574,6 +2976,11 @@ export class Graphty extends LitElement {
             edgeSource?: string;
             edgeTarget?: string;
             replace?: boolean;
+            graphIndex?: number;
+            graphName?: string;
+            styles?: "file" | "none";
+            styleOptions?: FileStyleOptions;
+            layout?: "recommended" | "keep";
         },
     ): Promise<{ loadId: number }> {
         return this.#graph.loadFromFile(file, options);
@@ -2581,20 +2988,20 @@ export class Graphty extends LitElement {
 
     /**
      * Write the graph in a file format: data, current positions, algorithm results and the drawn
-     * colours and sizes, wherever the format has a place for them. `lossNotes` lists everything
-     * the format could not hold.
+     * colours and sizes, wherever the format has a place for them. `losses` lists everything the
+     * format could not hold, as codes with the columns and counts they are about.
      * @param format - The format id, as `session.catalog.formats()` lists it ("graphml", "gexf",
      *     "json", "csv", "gml", "dot", "pajek", or a registered writer's id)
      * @param options - The writer's options; `{ variant: "neo4j" }` with "csv" writes a Neo4j
      *     admin-import file; `{ notes: true }` adds the `graphty.notes.count` and
      *     `graphty.notes.text` columns (notes are left out by default, and reported as
      *     `W_GRAPHTY_NOTES`)
-     * @returns The loss notes, and the document as `text()` or as UTF-8 `bytes`
+     * @returns What the export loses, and the document as `text()` or as UTF-8 `bytes`
      * @since 3.0.0
      * @example
      * ```typescript
      * const result = await element.exportGraph("graphml");
-     * for (const note of result.lossNotes) console.warn(note.message);
+     * for (const loss of result.losses) console.warn(loss.code, loss.params.columns, loss.params.count);
      * download(await result.text());
      * ```
      */
@@ -2631,13 +3038,14 @@ export class Graphty extends LitElement {
 
     /**
      * Pin or release the nodes that answer to these ids, in either spelling, as one step. An id
-     * nothing answers to is skipped, as it always has been.
+     * nothing answers to is skipped, as it always has been; `session.positions.pin` is the verb
+     * that reports one.
      * @param ids - One node id, or several.
      * @param pinned - Pin, or release.
      */
     #pin(ids: (string | number) | readonly (string | number)[], pinned: boolean): void {
-        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).map(
-            (id) => this.#graph.getNode(id)?.id ?? id,
+        const nodes = (Array.isArray(ids) ? ids : [ids as string | number]).flatMap(
+            (id) => this.#graph.getNode(id)?.id ?? [],
         );
         void dispatcherOf(this.#graph.getSession()).dispatchNow({ op: "positions.pin", ids: nodes, pinned });
     }
@@ -2910,7 +3318,7 @@ export class Graphty extends LitElement {
      * @since 1.5.0
      * @example
      * ```typescript
-     * await element.setLayout('circular', { radius: 5 });
+     * await element.setLayout('circular', { scale: 2 });
      * await element.setLayout('force'); // the catalogue id; runs the "ngraph" engine
      * await element.setLayout('ngraph', { springLength: 100 });
      * ```
@@ -2946,6 +3354,11 @@ export class Graphty extends LitElement {
      * The QUEUE only -- data loading, layout changes, algorithm runs. The layout may still be
      * running and the camera may still be moving when this resolves. For a picture that will not
      * change again, wait for {@link Graphty.waitForStableFrame}.
+     *
+     * It does not wait for a frame either, and only a frame moves a new node's mesh to its layout
+     * position: {@link Graphty.nodeScreenPosition} read right after this can still report a new
+     * node at its mesh template's position, off screen. Wait for
+     * {@link Graphty.waitForStableFrame} before reading where nodes are drawn.
      * @returns Promise that resolves when all operations are complete
      * @since 1.5.0
      * @example
@@ -2963,8 +3376,9 @@ export class Graphty extends LitElement {
      * Wait until the picture is final.
      *
      * Resolves once every queued operation has run, the layout has converged, the camera has
-     * finished framing what it arrived at, and a frame has been drawn showing that. This is what
-     * a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
+     * finished framing what it arrived at, a frame has been drawn showing that, and that frame's
+     * {@link Graphty.nodeLabelCounts} have been announced (`graphty-label-change`, when they
+     * changed), so a page that shows the counts shows the final ones. This is what a screenshot, a video frame or a visual regression snapshot needs: the `graph-settled`
      * event fires one update pass earlier, before the final framing has even been requested, so
      * a picture taken on that event is a picture of a camera still in motion.
      *
@@ -3281,6 +3695,34 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Where a node is drawn on screen, and whether it can be seen there.
+     *
+     * `x` and `y` are the node's centre in CSS pixels from the element's top-left corner, the
+     * same pixels {@link worldToScreen} returns: a click there selects the node. `visible` is
+     * false when the centre is outside the element, behind the camera, or the node is hidden by
+     * a filter. `radius` is how big the node is drawn, in pixels; `bounds` is the rectangle it
+     * covers, which follows a box's corners or a tall node's height. Read it again after the camera
+     * or the layout moves; it is not a live value. It reads where a frame drew the node, so a node
+     * no frame has drawn yet reports its mesh template's position, off screen and not visible:
+     * wait for {@link Graphty.waitForStableFrame} first.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * await element.waitForStableFrame();
+     * const at = element.nodeScreenPosition("Valjean");
+     * if (at?.visible) {
+     *     marker.style.left = `${at.x - at.radius}px`;
+     *     marker.style.top = `${at.y - at.radius}px`;
+     * }
+     * ```
+     */
+    nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
+        return this.#graph.nodeScreenPosition(nodeId);
+    }
+
+    /**
      * Convert screen coordinates to world coordinates.
      * @param screenPos - Position in screen space
      * @param screenPos.x - X pixel coordinate
@@ -3297,6 +3739,36 @@ export class Graphty extends LitElement {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
+    }
+
+    /**
+     * The node under a point on the element: the node a click at that point would select.
+     * @remarks
+     * The point is in CSS pixels from the element's top-left corner, as `worldToScreen` returns.
+     * For a pointer event, that is `event.clientX - rect.left` and `event.clientY - rect.top`
+     * with `rect = element.getBoundingClientRect()`. A point on empty canvas gives `null`.
+     *
+     * Only nodes are found today: a point on an edge gives what is behind it, usually `null`.
+     * The result's `kind` already allows `"edge"`, so handle it; edges will be returned there
+     * once they can be clicked.
+     * @param point - The point, in CSS pixels from the element's top-left corner.
+     * @param point.x - X coordinate
+     * @param point.y - Y coordinate
+     * @returns `{ kind: "node", id }`, or `null` when no node is there.
+     * @since 3.15.0
+     * @example
+     * ```typescript
+     * element.addEventListener("contextmenu", (e) => {
+     *   const rect = element.getBoundingClientRect();
+     *   const hit = element.elementAt({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+     *   if (hit?.kind === "node") {
+     *     console.log("right-clicked node", hit.id);
+     *   }
+     * });
+     * ```
+     */
+    elementAt(point: { x: number; y: number }): ElementAtResult | null {
+        return this.#graph.elementAt(point);
     }
 
     // ============================================================================
@@ -3448,10 +3920,20 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * Set render settings for advanced rendering control.
-     * @param settings - Render settings object
-     * @param options - Queue options
+     * Set render settings: the `layoutBehavior.rendering` group.
+     * @remarks
+     * `onDemand` is the one setting, the same switch as `renderOnDemand`: whether a frame is
+     * drawn only when the picture can have changed. A field left out keeps its value. A
+     * preference of this view: it records no undo step and is not saved in a project file.
+     * @example
+     * ```typescript
+     * await element.setRenderSettings({ onDemand: true });
+     * ```
+     * @param settings - The fields to change
+     * @param options - Queue options; with `skipQueue` the settings apply at once
      * @returns Promise that resolves when settings are applied
+     * @throws A `GraphtyError` with `E_UNKNOWN_OPTION` for a field that is not a render setting
+     * (`details.available` lists them), or `E_OPTION_RANGE` for a value the setting does not take
      * @since 1.5.0
      */
     async setRenderSettings(
@@ -3493,8 +3975,13 @@ export class Graphty extends LitElement {
 
     /**
      * Enable AI control for the graph.
+     *
+     * `provider: "webllm"` runs a model in the browser: install the optional package
+     * `@mlc-ai/web-llm`; the model downloads on the first command.
      * @param config - AI manager configuration
      * @returns Promise that resolves when AI is enabled
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
+     * `@mlc-ai/web-llm` is not installed.
      * @since 1.5.0
      * @example
      * ```typescript
@@ -3739,7 +4226,7 @@ export class Graphty extends LitElement {
      * WebGPU the VR and AR buttons report the mode unavailable. See the renderer guide for what
      * else differs and the measured frame times.
      * @returns What the consumer asked for. `"webgl"` unless it was set.
-     * @since 3.1.0
+     * @since 3.3.0
      * @example HTML attribute
      * ```html
      * <graphty-element renderer="auto"></graphty-element>
@@ -3779,7 +4266,7 @@ export class Graphty extends LitElement {
      * Null until the element has initialised its renderer, which it does once connected; the
      * `render-initialized` event fires after.
      * @returns The status, or null before the renderer has been chosen.
-     * @since 3.1.0
+     * @since 3.3.0
      * @example
      * ```typescript
      * await element.updateComplete;
@@ -3864,7 +4351,7 @@ export class Graphty extends LitElement {
                 this.requestUpdate("acceleration");
                 this.dispatchEvent(
                     new CustomEvent("graphty-capabilities-change", {
-                        detail: { capabilities: controller.capabilities },
+                        detail: { capabilities: controller.capabilities } satisfies GraphtyCapabilitiesChangeDetail,
                         bubbles: true,
                         composed: true,
                     }),
@@ -3898,6 +4385,37 @@ if (registered === undefined) {
     );
 }
 
+/** The detail of `graphty-run-change`: the run as it stands now, and which phase it reached. */
+export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
+
+/**
+ * The detail of `graphty-history-change`: the undo cursor and what the next undo and redo would do,
+ * enough for an Undo and a Redo button. A history panel reads `session.history` for the steps.
+ */
+export interface GraphtyHistoryChangeDetail {
+    /** Why the history changed. */
+    readonly reason: SessionEventMap["history:changed"]["reason"];
+    /** `session.history.version`: bumps on every change. */
+    readonly version: number;
+    /** `session.history.position`: how many steps are applied. */
+    readonly position: number;
+    /** How many steps the history holds. */
+    readonly steps: number;
+    /** Whether an undo would do anything. */
+    readonly canUndo: boolean;
+    /** Whether a redo would do anything. */
+    readonly canRedo: boolean;
+}
+
+/** The detail of `graphty-note-change`: which note, what happened to it, and what caused it. */
+export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
+
+/** The detail of `graphty-capabilities-change`: the same document as `session.capabilities`. */
+export interface GraphtyCapabilitiesChangeDetail {
+    /** The acceleration capabilities after the change. */
+    readonly capabilities: AccelerationCapabilities;
+}
+
 /*
  * The tag, declared to TypeScript.
  *
@@ -3916,4 +4434,48 @@ declare global {
     interface HTMLElementTagNameMap {
         "graphty-element": Graphty;
     }
+
+    // The DOM events the element dispatches about itself. Every one is prefixed, so declaring them
+    // on every element names nothing a page could already be using, and
+    // `element.addEventListener("graphty-run-change", (e) => e.detail)` type-checks without a cast.
+    interface HTMLElementEventMap {
+        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
+        "graphty-progress-change": CustomEvent<ProgressChange>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-project-status": CustomEvent<ProjectStatus>;
+        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
+
+    // Every one bubbles and is composed, so a listener on the document is typed the same way.
+    interface DocumentEventMap {
+        "graphty-run-change": CustomEvent<GraphtyRunChangeDetail>;
+        "graphty-progress-change": CustomEvent<ProgressChange>;
+        "graphty-selection-change": CustomEvent<SelectionDelta>;
+        "graphty-visibility-change": CustomEvent<VisibilityChange>;
+        "graphty-history-change": CustomEvent<GraphtyHistoryChangeDetail>;
+        "graphty-note-change": CustomEvent<GraphtyNoteChangeDetail>;
+        "graphty-project-status": CustomEvent<ProjectStatus>;
+        "graphty-capabilities-change": CustomEvent<GraphtyCapabilitiesChangeDetail>;
+        "graphty-node-click": CustomEvent<NodeEventDetail>;
+        "graphty-node-hover": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
+        "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
+        "graphty-label-change": CustomEvent<NodeLabelCounts>;
+    }
 }
+
+/**
+ * The DOM events `<graphty-element>` dispatches about itself, by name. Each one bubbles, crosses
+ * shadow roots, and carries plain values as its `detail`.
+ */
+export type GraphtyElementEventMap = {
+    [K in keyof HTMLElementEventMap as K extends `graphty-${string}` ? K : never]: HTMLElementEventMap[K];
+};

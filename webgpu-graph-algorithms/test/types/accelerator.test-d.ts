@@ -86,6 +86,7 @@ expectTypeOf<keyof AlgorithmAccelerator>().toEqualTypeOf<
     | "sssp"
     | "bellmanFord"
     | "closenessCentrality"
+    | "harmonicCloseness"
     | "betweennessCentrality"
     | "edgeBetweennessCentrality"
     | "allPairsShortestPath"
@@ -126,6 +127,7 @@ expectTypeOf<NonNullable<Fa2Sim["inspect"]>>().returns.resolves.toEqualTypeOf<Fl
 // ---- the accelerator's own members (spec 3.3 GpuAccelerator)
 declare const acc: GpuAccelerator;
 expectTypeOf(acc.kind).toEqualTypeOf<"webgpu">();
+expectTypeOf(acc.harmonicCloseness).toEqualTypeOf<true>();
 expectTypeOf(acc.ctx).toEqualTypeOf<GpuContext>();
 expectTypeOf(acc.options).toEqualTypeOf<Readonly<AcceleratorOptions>>();
 expectTypeOf(acc.options.layout).toEqualTypeOf<GpuLayoutTuning | undefined>();

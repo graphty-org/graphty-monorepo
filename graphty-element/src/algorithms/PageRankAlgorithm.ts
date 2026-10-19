@@ -1,10 +1,12 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, type NodeId as AlgorithmNodeId } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
+import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { Graph } from "../Graph";
 import type { ResultElementValues } from "../session/results";
+import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
@@ -49,7 +51,6 @@ const pageRankOptionsSchema = defineOptions({
         meta: {
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
     },
     useDelta: {
@@ -87,7 +88,8 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 });
 
 /**
- * One value per node of a snapshot, read out of a Map the caller keyed by node id.
+ * One value per node of a snapshot, read out of a Map the caller keyed by node id. An integer id
+ * may be written either way: a key `"34"` names node `34`.
  * @param snapshot - The graph the values are for.
  * @param values - The caller's Map.
  * @param fill - What a node the Map does not name gets.
@@ -96,7 +98,9 @@ const PAGERANK_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
 function perNode(snapshot: GraphSnapshot, values: ReadonlyMap<AlgorithmNodeId, number>, fill: number): F64 {
     const out = new Float64Array(snapshot.nodeCount);
     for (let index = 0; index < out.length; index++) {
-        out[index] = values.get(snapshot.ids.idOf(index)) ?? fill;
+        const id = snapshot.ids.idOf(index);
+        const other = values.has(id) ? undefined : otherIdSpelling(id);
+        out[index] = values.get(other ?? id) ?? fill;
     }
 
     return out;
@@ -158,10 +162,9 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
         },
         weight: {
             type: "string",
-            default: null as unknown as string,
+            default: null,
             label: "Weight Attribute",
             description: "Edge attribute name for weighted PageRank (empty = unweighted)",
-            advanced: true,
         },
         useDelta: {
             type: "boolean",
@@ -176,7 +179,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     /**
      * Resolved options using the NEW Zod-based validation
      */
-    private zodOptions: PageRankSchemaOptions;
+    private readonly zodOptions: PageRankSchemaOptions;
 
     /**
      * The two Map-valued options, kept from what the caller passed.
@@ -271,37 +274,30 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             measured.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });
         });
 
-        const notes = [
-            `A reader follows a link with probability ${String(dampingFactor)} and jumps to a random node otherwise.`,
-            "The ranks sum to 1 across the graph.",
-        ];
+        const facts = [caveat("pagerank.damping", { dampingFactor }), caveat("pagerank.sums-to-one")];
 
         if (!snapshot.directed) {
-            notes.push("The graph is undirected, so every edge carries rank both ways.");
+            facts.push(caveat("pagerank.undirected"));
         }
 
         if (personalization !== undefined) {
             /* An entry naming a node outside this run's graph -- outside a scope, say -- has no
                node to land on, so it is left out and the rest share the jump. When nothing is
-               left, the port jumps anywhere, as an unpersonalized run does, and the notes say
+               left, the port jumps anywhere, as an unpersonalized run does, and the caveats say
                that rather than claiming a personalization that never applied. */
-            const outside = [...personalization.keys()].filter((id) => ids.indexOf(id) === INVALID_INDEX).length;
+            const outside = [...personalization.keys()].filter(
+                (id) => rowOfEitherSpelling(ids, id) === INVALID_INDEX,
+            ).length;
             const applies = perNode(snapshot, personalization, 0).some((share) => share > 0);
-            notes.push(
-                applies
-                    ? "The random jump lands on the personalization vector's nodes, in proportion to their values."
-                    : "No personalization entry gives a node of this graph a positive share, so the random jump lands on any node.",
-            );
+            facts.push(caveat(applies ? "pagerank.personalized" : "pagerank.personalization-unmatched"));
 
             if (outside > 0) {
-                notes.push(
-                    `${String(outside)} personalization ${outside === 1 ? "entry names a node" : "entries name nodes"} outside this graph, left out of the random jump.`,
-                );
+                facts.push(caveat("pagerank.personalization-outside", { count: outside }));
             }
         }
 
         if (weight === null) {
-            notes.push("Edge weights are not read.");
+            facts.push(caveat("weights.unread"));
         }
 
         return {
@@ -316,7 +312,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
                 method: "power-iteration",
                 converged: value.converged,
                 iterations: value.iterations,
-                notes,
+                ...noted(facts),
             },
         };
     }

@@ -1,6 +1,6 @@
 import { type F32, INVALID_INDEX, makeMask, maskSet } from "@graphty/graph-format";
 import { bipartite } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
@@ -15,6 +15,7 @@ const bipartiteLayoutOptionsSchema = defineOptions({
         meta: {
             label: "Scaling Factor",
             description: "Multiplier for node positions",
+            advanced: true,
         },
     },
     align: {
@@ -47,6 +48,7 @@ const bipartiteLayoutOptionsSchema = defineOptions({
 
 const BipartiteLayoutConfig = z.strictObject({
     ...SimpleLayoutConfig.shape,
+    scalingFactor: z.number().default(40),
     nodes: z.array(z.number().or(z.string())),
     align: z.enum(["vertical", "horizontal"]).default("vertical"),
     scale: z.number().positive().default(1),
@@ -66,8 +68,6 @@ export class BipartiteLayout extends SnapshotLayoutEngine {
     static type = "bipartite";
     static maxDimensions = 2;
     static zodOptionsSchema: OptionsSchema = bipartiteLayoutOptionsSchema;
-    /** Layout units to scene units. */
-    private static readonly scale = 40;
     protected readonly dimensions: 2 | 3;
     config: BipartiteLayoutConfigType;
 
@@ -126,7 +126,7 @@ export class BipartiteLayout extends SnapshotLayoutEngine {
                 center: this.config.center ?? undefined,
                 aspectRatio: this.config.aspectRatio,
             }),
-            BipartiteLayout.scale,
+            this.config.scalingFactor,
         );
     }
 }

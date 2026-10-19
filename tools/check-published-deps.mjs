@@ -7,7 +7,9 @@
  * reads the bare import specifiers of every shipped .js/.cjs/.mjs and .d.ts file, and fails on:
  *
  *   1. an import that is neither a dependency nor a peer dependency
- *      (node builtins and the package's own name are exempt);
+ *      (node builtins and the package's own name are exempt). In a .d.ts, an import of "x" is
+ *      also satisfied by a declared "@types/x" (or "@types/scope__x" for "@scope/x"), which is
+ *      where the types of a package such as `react` come from;
  *   2. a dependency or peer dependency that no shipped file imports. A `/// <reference types>`
  *      directive counts as an import, which is how a global-types package such as
  *      `@webgpu/types` earns its place;
@@ -35,6 +37,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import semver from "semver";
+
+import { workspaceDirs } from "./workspace-files.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -82,9 +86,7 @@ function walk(dir, out = []) {
 }
 
 function workspacePackages() {
-    const yaml = fs.readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8");
-    const dirs = [...yaml.matchAll(/^\s*-\s*["']?([^"'\n]+)["']?\s*$/gm)].map((m) => m[1]);
-    return dirs
+    return workspaceDirs(root)
         .filter((d) => fs.existsSync(path.join(root, d, "package.json")))
         .map((d) => ({ dir: d, manifest: JSON.parse(fs.readFileSync(path.join(root, d, "package.json"), "utf8")) }));
 }
@@ -116,15 +118,17 @@ function check(dir, packed, workspaceVersions) {
     for (const file of files) {
         // The top-level src/ is shipped for source maps; it is what dist was built FROM, not what runs.
         if (file.startsWith("src/")) continue;
-        if (!/\.(c|m)?js$|\.d\.(c|m)?ts$/.test(file)) continue;
+        if (!/\.[cm]?js$|\.d\.[cm]?ts$/.test(file)) continue;
         const text = fs.readFileSync(path.join(packed, file), "utf8");
         for (const re of IMPORT_PATTERNS) {
             for (const m of text.matchAll(re)) {
                 const spec = m[1];
                 if (spec.startsWith(".") || spec.startsWith("/") || /^[a-z]+:\/\//.test(spec)) continue;
                 if (builtins.has(spec) || builtins.has(packageName(spec)) || spec.startsWith("node:")) continue;
-                const name = packageName(spec);
+                let name = packageName(spec);
                 if (!VALID_NAME.test(name) || name === manifest.name) continue;
+                const types = `@types/${name.replace(/^@/, "").replace("/", "__")}`;
+                if (/\.d\.[cm]?ts$/.test(file) && !declared.has(name) && declared.has(types)) name = types;
                 if (!imported.has(name)) imported.set(name, file);
             }
         }

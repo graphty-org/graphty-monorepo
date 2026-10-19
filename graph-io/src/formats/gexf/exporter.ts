@@ -24,10 +24,12 @@ import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { agree, plural } from "../../common/plural.js";
 import { formatTemporal, formatTimeValue, type TimeFormat } from "../../common/temporal.js";
 import { explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     canonicalScalarType,
@@ -46,14 +48,27 @@ import {
     TEMPORAL_COLUMNS,
     VIZ_NAMESPACE,
 } from "./schema.js";
+import { GEXF_STYLE_CAPABILITIES, type GexfStyledExport, gexfStyledExport } from "./styles.js";
 
-/** The format-specific options of the GEXF exporter. */
-export interface GexfExportOptions {
-    /** The GEXF version to write: "1.3" (default) or "1.2". */
+/** What the writer takes: the format's options, the common ones and the styles. */
+type GexfWriteOptions = GexfExportOptions & CommonExportOptions & ExporterStyleOptions;
+
+/**
+ * The format-specific options of the GEXF exporter.
+ * @category Built-in formats
+ */
+export interface GexfExportOptions extends CommonExportOptions {
+    /**
+     * The GEXF version to write.
+     * @defaultValue "1.3"
+     */
     version?: GexfVersion | undefined;
 }
 
-/** LossNote codes specific to the GEXF exporter, next to the shared LOSS codes. */
+/**
+ * LossNote codes specific to the GEXF exporter, next to the shared LOSS codes.
+ * @category Built-in formats
+ */
 export const GEXF_LOSS = Object.freeze({
     /** GEXF 1.2 has no parallel-edge `kind`; the kind column is dropped. */
     KIND_DROPPED: "W_GEXF_KIND_DROPPED",
@@ -63,25 +78,41 @@ export const GEXF_LOSS = Object.freeze({
     LIST_SEPARATOR: "W_LIST_SEPARATOR",
     /** A role column of a shape GEXF cannot map (a string `start`, a 2-component color); written as a plain attribute. */
     ROLE_SHAPE: "W_ROLE_SHAPE",
-    /** A temporal extension table without the element / start / end / value columns of design section 5.10. */
+    /** A temporal extension table without the element / start / end / value columns. */
     TEMPORAL_TABLE_SHAPE: "W_TEMPORAL_TABLE_SHAPE",
-    /** An attribute whose title the importer would rename on re-import (a reserved name). */
+    /** An attribute's name is one GEXF reserves, so a GEXF import would give it another name. */
     ATTRIBUTE_RENAMED: "W_ATTRIBUTE_RENAMED",
     /** A cell, default or option the declared type cannot express (skipped). */
     VALUE_UNWRITABLE: "W_VALUE_UNWRITABLE",
-    /** A declared type the target version lacks (1.2: date, dateTime, typed lists...); the canonical type is written. */
+    /**
+     * An attribute type that this GEXF version does not have (GEXF 1.2 has no date, dateTime or typed lists) is
+     * written as the nearest type it has.
+     */
     DECLARED_TYPE: "W_DECLARED_TYPE",
-    /** A node id whose text reads back as the other type under the canonical rule (design section 4.1): a non-integer number, a string of integer text. */
+    /**
+     * A node id that reads back as a different type: a number that is not an integer comes back as text, and text that
+     * looks like an integer ("42") comes back as a number, unless you read the file with `ids: "string"` or `ids:
+     * "keep"`.
+     */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /** A numeric edge id column: GEXF edge ids read back as strings. */
     EDGE_ID_TEXT: "W_GEXF_EDGE_ID_TEXT",
-    /** A viz role column (position, color, size, thickness) that is not f32; the importer reads viz values as f32. */
+    /**
+     * A visual attribute (position, color, size, thickness) is stored at another precision than the importer gives it;
+     * a position reads back as a 64-bit float, a color, size or thickness as a 32-bit float.
+     */
     VIZ_DTYPE: "W_GEXF_VIZ_DTYPE",
-    /** A plain `weight` edge column reads back as THE weight (the importer's weightFrom default). */
+    /**
+     * An attribute named `weight` without the weight role reads back as the edge weight, because GEXF reads weights
+     * from `weight` by default.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
-    /** A dict column without declared options gains one from its dictionary on re-import. */
+    /**
+     * A text attribute stored as a dictionary, without a declared list of allowed values, reads back with its distinct
+     * values as that list.
+     */
     OPTIONS_GAINED: LOSS.OPTIONS_GAINED,
-    /** A string cell holding a character XML 1.0 forbids; export() throws E_COLUMN_TYPE. */
+    /** A text value holds a character XML 1.0 forbids (most control characters); the save fails with E_COLUMN_TYPE. */
     XML_ILLEGAL_CHAR: LOSS.XML_ILLEGAL_CHAR,
 });
 
@@ -245,9 +276,10 @@ function planExport(
         ...checkCapabilities(snapshot, caps, resolved, {
             openIntervals: version === "1.2",
             temporalText: true,
-            positionDtype: "f32",
+            positionDtype: "f64",
             roles: MAPPED_ROLES,
-            roleNames: ROLE_NAMES,
+            // GEXF 1.2 has no edge kind: the kind column is dropped (W_GEXF_KIND_DROPPED), not renamed
+            roleNames: version === "1.2" ? ROLE_NAMES_1_2 : ROLE_NAMES,
         }),
     ];
     const note = (code: string, message: string, column: string | null = null, count: number | null = null): void => {
@@ -264,7 +296,7 @@ function planExport(
     if (typeChanges > 0) {
         note(
             GEXF_LOSS.ID_TEXT_TYPE,
-            `${typeChanges} node id(s) change type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honoured by the importer`,
+            `${typeChanges} node id${plural(typeChanges)} ${agree(typeChanges, "changes", "change")} type when read back under ids: "canonical" (string ids that are integer text, non-integer numbers); the file's idtype is not honored by the importer`,
             null,
             typeChanges,
         );
@@ -489,6 +521,11 @@ const ROLE_NAMES: Readonly<Record<string, string>> = Object.freeze({
     parents: NODE_COLUMNS.parents,
 });
 
+/** ROLE_NAMES without the edge kind, which GEXF 1.2 cannot write. */
+const ROLE_NAMES_1_2: Readonly<Record<string, string>> = Object.freeze(
+    Object.fromEntries(Object.entries(ROLE_NAMES).filter(([role]) => role !== "kind")),
+);
+
 /**
  * Find the role columns of a table; a role column of the wrong shape is noted and left to the
  * attribute pass.
@@ -576,10 +613,12 @@ function collectRoles(
             }
             continue;
         }
-        if (VIZ_NUMERIC_ROLES.has(role) && column.dtype !== "f32") {
+        // the importer reads a position as f64 and every other viz value as f32
+        const vizDtype = role === "position" ? "f64" : "f32";
+        if (VIZ_NUMERIC_ROLES.has(role) && column.dtype !== vizDtype) {
             note(
                 GEXF_LOSS.VIZ_DTYPE,
-                `${domain} column "${meta.name}" (${role}) is ${column.dtype}; viz values read back as f32`,
+                `${domain} column "${meta.name}" (${role}) is ${column.dtype}; viz values read back as ${vizDtype}`,
                 meta.name,
                 column.length - column.nullCount,
             );
@@ -625,8 +664,7 @@ function collectTemporalTables(
         const end = table.get(TEMPORAL_COLUMNS.end);
         const value = table.get(TEMPORAL_COLUMNS.value);
         if (
-            element === null ||
-            element.dtype !== "u32" ||
+            element?.dtype !== "u32" ||
             start === null ||
             !isNumericScalar(start) ||
             end === null ||
@@ -918,8 +956,9 @@ function collectAttributes(
     const table = domain === "node" ? snapshot.nodes : snapshot.edges;
     const reserved = domain === "node" ? RESERVED_NODE_NAMES : RESERVED_EDGE_NAMES;
     const roleColumns = new Set<Column>();
-    for (const value of Object.values(roles)) {
-        if (value !== null && !(value instanceof Map)) {
+    const { companions: _companions, ...columns } = roles;
+    for (const value of Object.values(columns)) {
+        if (value !== null) {
             roleColumns.add(value);
         }
     }
@@ -947,7 +986,7 @@ function collectAttributes(
         if (domain === "edge" && column !== null && column.meta.role === null && title === DEFAULT_WEIGHT_TITLE) {
             note(
                 GEXF_LOSS.WEIGHT_KEY_CLASH,
-                `edge column "${name}" is written as an attribute titled "${title}", which the importer reads as THE weight (weightFrom); it reads back as the weight, not as a column`,
+                `edge column "${name}" is written as an attribute titled "${title}", which the importer reads as the edge weight (weightFrom); it reads back as the weight, not as a column`,
                 name,
                 column.length - column.nullCount,
             );
@@ -1108,7 +1147,7 @@ function declaredTexts(
         if (count > 0) {
             note(
                 GEXF_LOSS.LIST_SEPARATOR,
-                `${domain} column "${name}": ${count} row(s) hold an item containing "|", the 1.2 list separator`,
+                `${domain} column "${name}": ${count} row${plural(count)} ${agree(count, "holds", "hold")} an item containing "|", the 1.2 list separator`,
                 name,
                 count,
             );
@@ -1161,7 +1200,7 @@ function uniqueId(preferred: string, name: string, used: Set<string>): string {
  * @returns the text
  */
 function timeText(column: Column, companion: Column | null, row: number, timeFormat: TimeFormat | null): string {
-    if (companion !== null && companion.isSet(row)) {
+    if (companion?.isSet(row)) {
         return companion.value(row) as string;
     }
     return formatTimeValue(column.value(row) as number, timeFormat);
@@ -1178,11 +1217,11 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
     let out = "";
     const { timeFormat, version } = plan;
     let bits = 0;
-    if (version === "1.2" && roles.open !== null && roles.open.isSet(row)) {
+    if (version === "1.2" && roles.open?.isSet(row)) {
         bits = roles.open.value(row) as number;
     }
     const write = (name: string, column: Column | null, open: boolean): void => {
-        if (column === null || !column.isSet(row)) {
+        if (!column?.isSet(row)) {
             return;
         }
         const value = column.value(row) as number;
@@ -1192,9 +1231,10 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
         const text = timeText(column, roles.companions.get(column.meta.name) ?? null, row, timeFormat);
         // GEXF 1.2: `startopen` / `endopen` hold the time of a non-inclusive bound (dynamics.xsd
         // time-type) and replace `start` / `end`
-        out += ` ${open ? `${name}open` : name}="${escapeXmlAttribute(text)}"`;
+        const attribute = open ? `${name}open` : name;
+        out += ` ${attribute}="${escapeXmlAttribute(text)}"`;
     };
-    if (roles.timestamp !== null && roles.timestamp.isSet(row)) {
+    if (roles.timestamp?.isSet(row)) {
         if (version === "1.3" && plan.timeRepresentation === "timestamp") {
             write("timestamp", roles.timestamp, false);
         } else {
@@ -1205,11 +1245,33 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
         write("start", roles.start, (bits & OPEN_START) !== 0);
         write("end", roles.end, (bits & OPEN_END) !== 0);
     }
-    if (version === "1.3" && roles.timestamps !== null && roles.timestamps.isSet(row)) {
+    if (version === "1.3" && roles.timestamps?.isSet(row)) {
         const items = listItems(roles.timestamps, row).map((t) => formatTimeValue(t as number, timeFormat));
-        out += ` timestamps="${escapeXmlAttribute(`<[${items.join(", ")}]>`)}"`;
+        const stamps = `<[${items.join(", ")}]>`;
+        out += ` timestamps="${escapeXmlAttribute(stamps)}"`;
     }
     return out;
+}
+
+/**
+ * The `start` and `end` attributes of one `<spell>`.
+ * @param s - the start, or a non-finite value for an unbounded start
+ * @param e - the end, or a non-finite value for an unbounded end
+ * @param open - the open-bound bits
+ * @param plan - the plan
+ * @returns the attribute text, each with a leading space
+ */
+function spellBounds(s: number, e: number, open: number, plan: ExportPlan): string {
+    let attrs = "";
+    if (Number.isFinite(s)) {
+        const name = (open & OPEN_START) === 0 ? "start" : "startopen";
+        attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(s, plan.timeFormat))}"`;
+    }
+    if (Number.isFinite(e)) {
+        const name = (open & OPEN_END) === 0 ? "end" : "endopen";
+        attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(e, plan.timeFormat))}"`;
+    }
+    return attrs;
 }
 
 /**
@@ -1224,17 +1286,14 @@ function lifetimeAttrs(roles: RoleColumns, row: number, plan: ExportPlan): strin
  */
 function spellsElement(roles: RoleColumns, row: number, plan: ExportPlan, indent: string): string {
     const pairs: (readonly [number, number, number])[] = [];
-    if (roles.spells !== null && roles.spells.isSet(row)) {
-        const open =
-            plan.version === "1.2" && roles.spellsOpen !== null && roles.spellsOpen.isSet(row)
-                ? listItems(roles.spellsOpen, row)
-                : [];
+    if (roles.spells?.isSet(row)) {
+        const open = plan.version === "1.2" && roles.spellsOpen?.isSet(row) ? listItems(roles.spellsOpen, row) : [];
         listItems(roles.spells, row).forEach((pair, i) => {
             const [s, e] = Array.from(pair as ArrayLike<number>);
             pairs.push([s, e, (open[i] as number | undefined) ?? 0]);
         });
     }
-    if (plan.version === "1.2" && roles.timestamps !== null && roles.timestamps.isSet(row)) {
+    if (plan.version === "1.2" && roles.timestamps?.isSet(row)) {
         for (const t of listItems(roles.timestamps, row)) {
             pairs.push([t as number, t as number, 0]);
         }
@@ -1244,16 +1303,7 @@ function spellsElement(roles: RoleColumns, row: number, plan: ExportPlan, indent
     }
     let out = `${indent}<spells>\n`;
     for (const [s, e, open] of pairs) {
-        let attrs = "";
-        if (Number.isFinite(s)) {
-            const name = (open & OPEN_START) === 0 ? "start" : "startopen";
-            attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(s, plan.timeFormat))}"`;
-        }
-        if (Number.isFinite(e)) {
-            const name = (open & OPEN_END) === 0 ? "end" : "endopen";
-            attrs += ` ${name}="${escapeXmlAttribute(formatTimeValue(e, plan.timeFormat))}"`;
-        }
-        out += `${indent}  <spell${attrs}/>\n`;
+        out += `${indent}  <spell${spellBounds(s, e, open, plan)}/>\n`;
     }
     return `${out}${indent}</spells>\n`;
 }
@@ -1270,9 +1320,9 @@ function attvaluesElement(attrs: readonly AttributeSpec[], row: number, plan: Ex
     let out = "";
     for (const spec of attrs) {
         const { column } = spec;
-        if (column !== null && column.isSet(row)) {
+        if (column?.isSet(row)) {
             let text: string | null;
-            if (spec.companion !== null && spec.companion.isSet(row)) {
+            if (spec.companion?.isSet(row)) {
                 text = spec.companion.value(row) as string;
             } else {
                 text = spec.format(cellValue(column, row));
@@ -1294,7 +1344,7 @@ function attvaluesElement(attrs: readonly AttributeSpec[], row: number, plan: Ex
                 continue;
             }
             let text: string | null;
-            if (table.valueText !== null && table.valueText.isSet(r)) {
+            if (table.valueText?.isSet(r)) {
                 text = table.valueText.value(r) as string;
             } else {
                 text = table.format(cellValue(table.value, r));
@@ -1323,7 +1373,7 @@ function timedAttrs(table: TemporalTable, r: number, plan: ExportPlan): string {
         return ` timestamp="${escapeXmlAttribute(timeText(table.start, table.startText, r, plan.timeFormat))}"`;
     }
     let bits = 0;
-    if (plan.version === "1.2" && table.open !== null && table.open.isSet(r)) {
+    if (plan.version === "1.2" && table.open?.isSet(r)) {
         bits = table.open.value(r) as number;
     }
     if (Number.isFinite(start)) {
@@ -1404,6 +1454,10 @@ function listItems(column: Column, row: number): readonly unknown[] {
 
 /**
  * The viz elements of one node or edge.
+ *
+ * Deprecated path, unchanged until the next major version: without `styles`, the color, size,
+ * shape and thickness role columns are written into `viz:*`. With `styles`, gexfStyledExport()
+ * replaces those columns with what the graph draws, so the style writer is the only path.
  * @param roles - the domain's role columns
  * @param row - the element's row
  * @param indent - the indentation
@@ -1413,7 +1467,7 @@ function listItems(column: Column, row: number): readonly unknown[] {
 function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: boolean): string {
     let out = "";
     const { color } = roles;
-    if (color !== null && color.isSet(row)) {
+    if (color?.isSet(row)) {
         const lanes = Array.from(color.value(row) as ArrayLike<number>);
         const scale = color.dtype === "u8" ? 1 : 255;
         const channel = (v: number): string => String(Math.max(0, Math.min(255, Math.round(v * scale))));
@@ -1427,7 +1481,7 @@ function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: bo
         out += `${indent}<viz:color${attrs}/>\n`;
     }
     const { position } = roles;
-    if (position !== null && position.isSet(row)) {
+    if (position?.isSet(row)) {
         const lanes = Array.from(position.value(row) as ArrayLike<number>);
         const fmt = position.dtype === "f32" ? formatF32 : formatF64;
         let attrs = ` x="${fmt(lanes[0])}" y="${fmt(lanes[1])}"`;
@@ -1440,16 +1494,16 @@ function vizElements(roles: RoleColumns, row: number, indent: string, writeZ: bo
         ["size", roles.size],
         ["thickness", roles.thickness],
     ] as const) {
-        if (column !== null && column.isSet(row)) {
+        if (column?.isSet(row)) {
             const value = column.value(row) as number;
             const text = column.dtype === "f32" ? formatF32(value) : formatF64(value);
             out += `${indent}<viz:${name} value="${escapeXmlAttribute(text)}"/>\n`;
         }
     }
     const { shape } = roles;
-    if (shape !== null && shape.isSet(row)) {
+    if (shape?.isSet(row)) {
         let attrs = ` value="${escapeXmlAttribute(String(shape.value(row)))}"`;
-        if (roles.shapeUri !== null && roles.shapeUri.isSet(row)) {
+        if (roles.shapeUri?.isSet(row)) {
             attrs += ` uri="${escapeXmlAttribute(roles.shapeUri.value(row) as string)}"`;
         }
         out += `${indent}<viz:shape${attrs}/>\n`;
@@ -1517,15 +1571,14 @@ function edgeType(snapshot: GraphSnapshot, e: number, folding: PairFolding): Gex
 
 /**
  * Write the document as text parts.
- * @param snapshot - the snapshot
+ * @param given - the snapshot
  * @param options - the caller's options
  * @yields one part per element or line group
  * @returns nothing
  */
-function* writeGexf(
-    snapshot: GraphSnapshot,
-    options: (GexfExportOptions & CommonExportOptions) | undefined,
-): Generator<string, void, undefined> {
+function* writeGexf(given: GraphSnapshot, options: GexfWriteOptions | undefined): Generator<string, void, undefined> {
+    const styled = gexfStyledExport(given, options?.styles);
+    const snapshot = styled?.snapshot ?? given;
     const plan = planExport(snapshot, options);
     const { version } = plan;
     const ids = sanitizeIds(snapshot, "any", plan.options.sanitizeIds);
@@ -1535,7 +1588,7 @@ function* writeGexf(
 
     yield '<?xml version="1.0" encoding="UTF-8"?>\n';
     yield `<gexf xmlns="${ns.gexf}" xmlns:viz="${ns.viz}" version="${version}">\n`;
-    yield metaElement(meta);
+    yield metaElement(meta, styled);
     yield graphStart(snapshot, plan);
     yield attributesGroups("node", plan.nodeAttrs, "    ");
     yield attributesGroups("edge", plan.edgeAttrs, "    ");
@@ -1546,15 +1599,15 @@ function* writeGexf(
     yield `    <nodes count="${snapshot.nodeCount}">\n`;
     for (let i = 0; i < snapshot.nodeCount; i++) {
         let attrs = ` id="${idText(i)}"`;
-        if (nodeRoles.label !== null && nodeRoles.label.isSet(i)) {
+        if (nodeRoles.label?.isSet(i)) {
             attrs += ` label="${escapeXmlAttribute(String(nodeRoles.label.value(i)))}"`;
         }
-        if (nodeRoles.parent !== null && nodeRoles.parent.isSet(i)) {
+        if (nodeRoles.parent?.isSet(i)) {
             attrs += ` pid="${idText(nodeRoles.parent.value(i) as number)}"`;
         }
         attrs += lifetimeAttrs(nodeRoles, i, plan);
         let body = attvaluesElement(plan.nodeAttrs, i, plan, "        ");
-        if (nodeRoles.parents !== null && nodeRoles.parents.isSet(i)) {
+        if (nodeRoles.parents?.isSet(i)) {
             const parents = listItems(nodeRoles.parents, i) as readonly number[];
             if (parents.length > 0) {
                 body += "        <parents>\n";
@@ -1566,6 +1619,7 @@ function* writeGexf(
         }
         body += spellsElement(nodeRoles, i, plan, "        ");
         body += vizElements(nodeRoles, i, "        ", writeZ);
+        body += styled?.node(i, "        ") ?? "";
         yield body.length === 0 ? `      <node${attrs}/>\n` : `      <node${attrs}>\n${body}      </node>\n`;
     }
     yield "    </nodes>\n";
@@ -1590,7 +1644,7 @@ function* writeGexf(
             continue;
         }
         let attrs = "";
-        if (edgeRoles.id !== null && edgeRoles.id.isSet(e)) {
+        if (edgeRoles.id?.isSet(e)) {
             attrs += ` id="${escapeXmlAttribute(String(edgeRoles.id.value(e)))}"`;
         } else if (version === "1.2") {
             attrs += ` id="e${e}"`;
@@ -1603,16 +1657,17 @@ function* writeGexf(
         if (weight !== null) {
             attrs += ` weight="${weight}"`;
         }
-        if (edgeRoles.label !== null && edgeRoles.label.isSet(e)) {
+        if (edgeRoles.label?.isSet(e)) {
             attrs += ` label="${escapeXmlAttribute(String(edgeRoles.label.value(e)))}"`;
         }
-        if (version === "1.3" && edgeRoles.kind !== null && edgeRoles.kind.isSet(e)) {
+        if (version === "1.3" && edgeRoles.kind?.isSet(e)) {
             attrs += ` kind="${escapeXmlAttribute(String(edgeRoles.kind.value(e)))}"`;
         }
         attrs += lifetimeAttrs(edgeRoles, e, plan);
         let body = attvaluesElement(plan.edgeAttrs, e, plan, "        ");
         body += spellsElement(edgeRoles, e, plan, "        ");
         body += vizElements(edgeRoles, e, "        ", false);
+        body += styled?.edge(e, "        ") ?? "";
         yield body.length === 0 ? `      <edge${attrs}/>\n` : `      <edge${attrs}>\n${body}      </edge>\n`;
     }
     yield "    </edges>\n";
@@ -1623,9 +1678,10 @@ function* writeGexf(
 /**
  * The `<meta>` element.
  * @param meta - the graph meta
+ * @param styled - the export's styles, whose block goes into `<meta>`, or null
  * @returns the lines, or an empty string when nothing is set
  */
-function metaElement(meta: GraphSnapshot["meta"]): string {
+function metaElement(meta: GraphSnapshot["meta"], styled: GexfStyledExport | null): string {
     let body = "";
     if (meta.creator !== null) {
         body += `    <creator>${escapeXmlText(meta.creator)}</creator>\n`;
@@ -1636,11 +1692,60 @@ function metaElement(meta: GraphSnapshot["meta"]): string {
     if (meta.keywords.length > 0) {
         body += `    <keywords>${escapeXmlText(meta.keywords.join(", "))}</keywords>\n`;
     }
+    if (styled !== null) {
+        body += `    ${styled.blockElement}\n`;
+    }
     const modified = meta.modified === null ? "" : ` lastmodifieddate="${escapeXmlAttribute(meta.modified)}"`;
     if (body.length === 0 && modified.length === 0) {
         return "";
     }
     return body.length === 0 ? `  <meta${modified}/>\n` : `  <meta${modified}>\n${body}  </meta>\n`;
+}
+
+/**
+ * The `idtype` attribute of the `<graph>` tag.
+ * @param snapshot - the snapshot
+ * @returns the attribute text with a leading space, or an empty string
+ */
+function graphIdTypeAttr(snapshot: GraphSnapshot): string {
+    let { idType } = snapshot.meta;
+    if (idType === null) {
+        const { kind } = snapshot.ids;
+        if (kind === "string") {
+            idType = "string";
+        } else if (kind !== "mixed") {
+            idType = "integer";
+        }
+    }
+    return idType === "integer" || idType === "string" ? ` idtype="${idType}"` : "";
+}
+
+/**
+ * The `start`, `end` and `timestamp` attributes of the `<graph>` tag.
+ * @param snapshot - the snapshot
+ * @param plan - the plan
+ * @returns the attribute text with leading spaces, or an empty string
+ */
+function graphHeaderAttrs(snapshot: GraphSnapshot, plan: ExportPlan): string {
+    const timestamp = graphExtraText(snapshot, "timestamp");
+    const header: Record<string, string | null> = {
+        start: graphExtraText(snapshot, "start"),
+        end: graphExtraText(snapshot, "end"),
+        timestamp,
+    };
+    if (plan.version === "1.2" && timestamp !== null) {
+        // GEXF 1.2 has no timestamp: the graph's becomes a closed interval, as an element's does
+        header.start ??= timestamp;
+        header.end ??= timestamp;
+        header.timestamp = null;
+    }
+    let attrs = "";
+    for (const [key, value] of Object.entries(header)) {
+        if (value !== null) {
+            attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
+        }
+    }
+    return attrs;
 }
 
 /**
@@ -1660,18 +1765,7 @@ function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
         mode = "dynamic";
     }
     attrs += ` mode="${mode}"`;
-    let { idType } = meta;
-    if (idType === null) {
-        const { kind } = snapshot.ids;
-        if (kind === "string") {
-            idType = "string";
-        } else if (kind !== "mixed") {
-            idType = "integer";
-        }
-    }
-    if (idType === "integer" || idType === "string") {
-        attrs += ` idtype="${idType}"`;
-    }
+    attrs += graphIdTypeAttr(snapshot);
     if (plan.timeFormat !== null) {
         attrs += ` timeformat="${plan.timeFormat}"`;
     } else if (plan.temporal) {
@@ -1680,23 +1774,7 @@ function graphStart(snapshot: GraphSnapshot, plan: ExportPlan): string {
     if (plan.version === "1.3" && plan.timeRepresentation !== null) {
         attrs += ` timerepresentation="${plan.timeRepresentation}"`;
     }
-    const timestamp = graphExtraText(snapshot, "timestamp");
-    const header: Record<string, string | null> = {
-        start: graphExtraText(snapshot, "start"),
-        end: graphExtraText(snapshot, "end"),
-        timestamp,
-    };
-    if (plan.version === "1.2" && timestamp !== null) {
-        // GEXF 1.2 has no timestamp: the graph's becomes a closed interval, as an element's does
-        header.start ??= timestamp;
-        header.end ??= timestamp;
-        header.timestamp = null;
-    }
-    for (const [key, value] of Object.entries(header)) {
-        if (value !== null) {
-            attrs += ` ${key}="${escapeXmlAttribute(value)}"`;
-        }
-    }
+    attrs += graphHeaderAttrs(snapshot, plan);
     return `  <graph${attrs}>\n`;
 }
 
@@ -1730,18 +1808,24 @@ function graphExtraText(snapshot: GraphSnapshot, key: string): string | null {
     return typeof value === "string" ? value : null;
 }
 
-/** The GEXF exporter (design section 8.5); `capabilities` describes the default 1.3 output. */
+/**
+ * The GEXF exporter; `capabilities` describes the default 1.3 output.
+ * @category Built-in formats
+ */
 export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
     format: GEXF_FORMAT,
+    options: Object.freeze(["version"]),
     capabilities: CAPABILITIES_1_3,
+    styles: Object.freeze({ capabilities: GEXF_STYLE_CAPABILITIES }),
     /**
      * Pre-flight: what export() would lose.
      * @param snapshot - the snapshot
      * @param options - format-specific and common options
      * @returns the loss notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: GexfExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze(planExport(snapshot, options).notes);
+    check(snapshot: GraphSnapshot, options?: GexfWriteOptions): readonly LossNote[] {
+        const styled = gexfStyledExport(snapshot, options?.styles);
+        return Object.freeze([...planExport(styled?.snapshot ?? snapshot, options).notes, ...(styled?.notes ?? [])]);
     },
     /**
      * Write the snapshot as UTF-8 chunks.
@@ -1749,7 +1833,7 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: GexfExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: GexfWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(writeGexf(snapshot, options));
     },
     /**
@@ -1758,10 +1842,13 @@ export const gexfExporter: GraphExporter<GexfExportOptions> = Object.freeze({
      * @param options - format-specific and common options
      * @returns the document
      */
-    async exportToString(snapshot: GraphSnapshot, options?: GexfExportOptions & CommonExportOptions): Promise<string> {
+    async exportToString(snapshot: GraphSnapshot, options?: GexfWriteOptions): Promise<string> {
         return joinText(writeGexf(snapshot, options));
     },
 });
 
-/** The capabilities of a 1.2 export, for callers that pass `version: "1.2"`. */
+/**
+ * The capabilities of a 1.2 export, for callers that pass `version: "1.2"`.
+ * @category Built-in formats
+ */
 export const GEXF_1_2_CAPABILITIES: ExportCapabilities = CAPABILITIES_1_2;

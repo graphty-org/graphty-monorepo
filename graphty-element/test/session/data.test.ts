@@ -17,12 +17,16 @@ describe("reading one node or one edge", () => {
         harness.session.dispose();
     });
 
-    it('misses without coercing, so 1 and "1" stay two different nodes', () => {
+    it('finds an integer id in either spelling, and keeps 1 and "1" apart when the graph holds both', () => {
         const harness = makeSession();
         harness.add([{ id: 1 }]);
 
-        assert.isDefined(harness.session.data.node(1));
-        assert.isUndefined(harness.session.data.node("1"));
+        assert.strictEqual(harness.session.data.node(1)?.id, 1);
+        assert.strictEqual(harness.session.data.node("1")?.id, 1, "the record carries the id the graph holds");
+
+        harness.add([{ id: "1" }]);
+        assert.strictEqual(harness.session.data.node(1)?.id, 1);
+        assert.strictEqual(harness.session.data.node("1")?.id, "1");
         harness.session.dispose();
     });
 
@@ -222,6 +226,18 @@ describe("the topology fingerprint", () => {
         assert.notStrictEqual(linked, renamed.session.fingerprint());
         harness.session.dispose();
         renamed.session.dispose();
+    });
+
+    it("tells apart numeric ids that differ only above the low 32 bits", () => {
+        // Millisecond timestamps are realistic node ids; these two are 2^32 ms (about 50 days) apart.
+        const first = makeSession();
+        first.add([{ id: 1_700_000_000_000 }, { id: 2 }], [{ src: 1_700_000_000_000, dst: 2 }]);
+        const second = makeSession();
+        second.add([{ id: 1_700_000_000_000 + 2 ** 32 }, { id: 2 }], [{ src: 1_700_000_000_000 + 2 ** 32, dst: 2 }]);
+
+        assert.notStrictEqual(first.session.fingerprint(), second.session.fingerprint());
+        first.session.dispose();
+        second.session.dispose();
     });
 
     it("does not change when a node moves, because moving a node is not a different graph", () => {

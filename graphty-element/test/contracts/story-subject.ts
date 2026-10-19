@@ -5,7 +5,7 @@
  * kept by name whose body stops showing its subject is a story the roster is perfectly happy
  * with, and it is not a hypothetical: `Styles/Layered::ArrowSizeVariations` carried a comment
  * promising caps at 0.5 and 2.0 while all three of its layers wrote only a cap TYPE, so the
- * picture held one size and the name said three. Chromatic could not see it either -- the
+ * picture held one size and the name said three. The screenshot review could not see it either -- the
  * baseline it diffs against was the same hollow picture.
  *
  * THE RULE, in one sentence: a story whose name contains the name of a style channel must write
@@ -81,8 +81,13 @@ const SUBJECT_TREE = "Styles/";
  * story is about. One word, three subjects, so it picks out none of them. The subjects it used
  * to stand in for are still checked under their own words: an arrow caption story claims
  * "arrow", and `Styles/Label::TextAlign` claims "align".
+ *
+ * "font" joined it with the label field channels for the same reason. In `node.labelFont` it
+ * means the typeface; in a story name -- `FontSize`, `FontWeight` -- it is the prefix of any
+ * typography at all, so it picks out no one subject. Those stories are still checked under
+ * "size" and "weight".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {
@@ -159,10 +164,7 @@ function subjectVocabulary(): Set<string> {
  * @param fileChannels - Channel-shaped names from anywhere in its file, the loose reading.
  * @returns The words, and the paths they came from for a failure message.
  */
-function written(
-    story: StoryDeclaration,
-    fileChannels: readonly string[],
-): { words: Set<string>; paths: string[] } {
+function written(story: StoryDeclaration, fileChannels: readonly string[]): { words: Set<string>; paths: string[] } {
     // A story whose setup the parser could not evaluate is read at the level of its whole file:
     // stories/AllNodeShapes.stories.ts builds one layer per shape by mapping over the shape list
     // the schema publishes, which is how it should be written and is not something a parser can
@@ -305,9 +307,7 @@ function claimedKeys(exportName: string, keys: readonly string[]): string[] {
     const name = compact(exportName);
     const spelled = keys.filter((key) => name.includes(compact(key)));
 
-    return spelled.filter(
-        (key) => !spelled.some((other) => other !== key && compact(other).includes(compact(key))),
-    );
+    return spelled.filter((key) => !spelled.some((other) => other !== key && compact(other).includes(compact(key))));
 }
 
 /**

@@ -18,16 +18,10 @@
  */
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, test } from "vitest";
+import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { NodeEventDetail } from "../../src/events";
-
-/** How long the element needs to connect and finish its first update. */
-const ELEMENT_READY_MS = 300;
-
-/** How long a data-source assignment needs to reach the data manager. */
-const LOAD_SETTLE_MS = 400;
 
 /** Two nodes and the edge between them, as an inline JSON data source. */
 const GRAPH = JSON.stringify({
@@ -54,10 +48,15 @@ async function mountWithGraph(): Promise<Graphty> {
     container.appendChild(element);
     mounted = element;
 
-    await new Promise((resolve) => setTimeout(resolve, ELEMENT_READY_MS));
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element finished initialising");
+    });
     element.dataSource = "json";
     element.dataSourceConfig = { data: GRAPH };
-    await new Promise((resolve) => setTimeout(resolve, LOAD_SETTLE_MS));
+    await vi.waitFor(() => {
+        assert.strictEqual(element.graph.getNodeCount(), 2, "the data source reached the graph");
+    });
+    await element.waitForSettled();
 
     return element;
 }
@@ -105,7 +104,7 @@ describe("the DOM mirror of a node event", () => {
         const details: NodeEventDetail[] = [];
 
         element.addEventListener("graphty-node-drag-end", (event) => {
-            details.push((event as CustomEvent<NodeEventDetail>).detail);
+            details.push(event.detail);
         });
 
         const node = element.graph.getNode("a");
@@ -127,7 +126,7 @@ describe("the DOM mirror of a node event", () => {
         const details: NodeEventDetail[] = [];
 
         element.addEventListener("graphty-node-hover", (event) => {
-            details.push((event as CustomEvent<NodeEventDetail>).detail);
+            details.push(event.detail);
         });
 
         const node = element.graph.getNode("a");
@@ -143,7 +142,12 @@ describe("the DOM mirror of a node event", () => {
         const element = await mountWithGraph();
         let heard = 0;
 
-        for (const name of ["node-update-before", "node-update-after", "node-add-before", "graphty-node-update-after"]) {
+        for (const name of [
+            "node-update-before",
+            "node-update-after",
+            "node-add-before",
+            "graphty-node-update-after",
+        ]) {
             element.addEventListener(name, () => {
                 heard++;
             });

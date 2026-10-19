@@ -14,17 +14,18 @@ This plan implements a reusable Pop-out Panel component for the compact-mantine 
 
 ### Test Categories and Their Purpose
 
-| Category | Tool | Purpose | When to Use |
-|----------|------|---------|-------------|
-| **Unit Tests** | Vitest (Node) | Pure logic, utilities, context behavior | Position calculation, hierarchy tracking, state management |
-| **Component Tests** | Vitest + Testing Library | Render behavior, props, basic interactions | Open/close, header rendering, content display |
-| **Interaction Tests** | Storybook Play Functions | Complex user interactions, visual verification | Drag, click-outside, Escape key, z-index changes |
-| **Visual Regression** | Chromatic | Catch unintended visual changes | All stories automatically via CI |
-| **Browser Tests** | Vitest + Playwright | Edge cases requiring real browser | Portal positioning, focus management, pointer capture |
+| Category              | Tool                     | Purpose                                        | When to Use                                                |
+| --------------------- | ------------------------ | ---------------------------------------------- | ---------------------------------------------------------- |
+| **Unit Tests**        | Vitest (Node)            | Pure logic, utilities, context behavior        | Position calculation, hierarchy tracking, state management |
+| **Component Tests**   | Vitest + Testing Library | Render behavior, props, basic interactions     | Open/close, header rendering, content display              |
+| **Interaction Tests** | Storybook Play Functions | Complex user interactions, visual verification | Drag, click-outside, Escape key, z-index changes           |
+| **Visual Regression** | Chromatic                | Catch unintended visual changes                | All stories automatically via CI                           |
+| **Browser Tests**     | Vitest + Playwright      | Edge cases requiring real browser              | Portal positioning, focus management, pointer capture      |
 
 ### Interactive Behavior Testing Approach
 
 **Storybook Play Functions + Chromatic** (Primary):
+
 - ESC key handling
 - Click-outside closing
 - Tab switching
@@ -32,18 +33,21 @@ This plan implements a reusable Pop-out Panel component for the compact-mantine 
 - Z-index bring-to-front
 
 Play functions are preferred because:
+
 1. Tests run in real browser (Chromatic)
 2. Visual regression catches styling issues
 3. Tests are co-located with stories for discoverability
 4. Can be run locally during development
 
 **Browser Tests (Vitest + Playwright)** (Secondary):
+
 - Complex focus management scenarios
 - Nested popout hierarchy edge cases
 - Pointer capture during drag
 - Portal positioning across different viewport sizes
 
 Browser tests are used when:
+
 1. Test requires precise timing control
 2. Test needs to verify DOM structure in portal
 3. Test involves multiple windows/iframes
@@ -74,12 +78,12 @@ Stories are located at: `compact-mantine/src/components/popout/Popout.stories.ts
 
 We maintain **3 primary stories** that evolve across phases, plus **1 integration example** added at the end:
 
-| Story | Phase Introduced | Purpose |
-|-------|------------------|---------|
-| **Basic** | Phase 1 | Single panel with title header; evolves to include drag, actions |
-| **Tabbed** | Phase 3 | Panel with tabbed header; demonstrates tab switching |
-| **Kitchen Sink** | Phase 4 | Multiple panels, z-index, nesting; tests complex interactions |
-| **Label Settings Example** | Phase 7 | Real-world integration pattern |
+| Story                      | Phase Introduced | Purpose                                                          |
+| -------------------------- | ---------------- | ---------------------------------------------------------------- |
+| **Basic**                  | Phase 1          | Single panel with title header; evolves to include drag, actions |
+| **Tabbed**                 | Phase 3          | Panel with tabbed header; demonstrates tab switching             |
+| **Kitchen Sink**           | Phase 4          | Multiple panels, z-index, nesting; tests complex interactions    |
+| **Label Settings Example** | Phase 7          | Real-world integration pattern                                   |
 
 Each phase adds features to existing stories rather than creating new ones.
 
@@ -95,28 +99,28 @@ Each phase adds features to existing stories rather than creating new ones.
 
 **Files to Create** (in `compact-mantine/`):
 
-| File | Purpose |
-|------|---------|
-| `src/components/popout/Popout.tsx` | Compound component root |
-| `src/components/popout/PopoutContext.tsx` | React context for local and manager state |
-| `src/components/popout/PopoutManager.tsx` | Context provider for coordination |
-| `src/components/popout/PopoutTrigger.tsx` | Trigger wrapper component |
-| `src/components/popout/PopoutPanel.tsx` | Floating panel with portal |
-| `src/components/popout/PopoutHeader.tsx` | Title header (tabs in Phase 3) |
-| `src/components/popout/PopoutContent.tsx` | Content container |
-| `src/components/popout/index.ts` | Public exports for popout module |
-| `src/components/popout/Popout.stories.tsx` | Basic story |
-| `src/types/popout.ts` | TypeScript interfaces |
-| `src/constants/popout.ts` | Z-index base, gaps |
-| `tests/popout/Popout.test.tsx` | Component tests |
-| `tests/popout/position.test.ts` | Position calculation unit tests |
+| File                                       | Purpose                                   |
+| ------------------------------------------ | ----------------------------------------- |
+| `src/components/popout/Popout.tsx`         | Compound component root                   |
+| `src/components/popout/PopoutContext.tsx`  | React context for local and manager state |
+| `src/components/popout/PopoutManager.tsx`  | Context provider for coordination         |
+| `src/components/popout/PopoutTrigger.tsx`  | Trigger wrapper component                 |
+| `src/components/popout/PopoutPanel.tsx`    | Floating panel with portal                |
+| `src/components/popout/PopoutHeader.tsx`   | Title header (tabs in Phase 3)            |
+| `src/components/popout/PopoutContent.tsx`  | Content container                         |
+| `src/components/popout/index.ts`           | Public exports for popout module          |
+| `src/components/popout/Popout.stories.tsx` | Basic story                               |
+| `src/types/popout.ts`                      | TypeScript interfaces                     |
+| `src/constants/popout.ts`                  | Z-index base, gaps                        |
+| `tests/popout/Popout.test.tsx`             | Component tests                           |
+| `tests/popout/position.test.ts`            | Position calculation unit tests           |
 
 **Update** (in `compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/index.ts` | Add Popout exports |
-| `src/types/index.ts` | Re-export popout types |
+| File                     | Change                     |
+| ------------------------ | -------------------------- |
+| `src/index.ts`           | Add Popout exports         |
+| `src/types/index.ts`     | Re-export popout types     |
 | `src/constants/index.ts` | Re-export popout constants |
 
 **Story to Create** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
@@ -148,25 +152,27 @@ export const Basic: Story = {
 **Tests to Write** (`compact-mantine/tests/popout/`):
 
 - `Popout.test.tsx`: Component tests
-  ```typescript
-  describe("Popout", () => {
-      it("renders trigger element");
-      it("opens panel when trigger is clicked");
-      it("closes panel when close button is clicked");
-      it("positions panel to the left of trigger");
-      it("renders with specified width");
-  });
-  ```
+
+    ```typescript
+    describe("Popout", () => {
+        it("renders trigger element");
+        it("opens panel when trigger is clicked");
+        it("closes panel when close button is clicked");
+        it("positions panel to the left of trigger");
+        it("renders with specified width");
+    });
+    ```
 
 - `position.test.ts`: Unit tests for position calculation
-  ```typescript
-  describe("calculatePopoutPosition", () => {
-      it("positions panel to the left of trigger with 8px gap");
-      it("aligns top of panel with top of trigger");
-  });
-  ```
+    ```typescript
+    describe("calculatePopoutPosition", () => {
+        it("positions panel to the left of trigger with 8px gap");
+        it("aligns top of panel with top of trigger");
+    });
+    ```
 
 **Play Function** (in `Popout.stories.tsx`):
+
 ```typescript
 Basic.play = async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -201,22 +207,22 @@ Basic.play = async ({ canvasElement }) => {
 
 **Files to Create** (`compact-mantine/`):
 
-| File | Purpose |
-|------|---------|
+| File                                              | Purpose             |
+| ------------------------------------------------- | ------------------- |
 | `src/components/popout/hooks/useFloatingPanel.ts` | Zag.js wrapper hook |
 
 **Files to Update** (`compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/components/popout/PopoutPanel.tsx` | Integrate drag handlers |
+| File                                       | Change                                |
+| ------------------------------------------ | ------------------------------------- |
+| `src/components/popout/PopoutPanel.tsx`    | Integrate drag handlers               |
 | `src/components/popout/Popout.stories.tsx` | Add drag tests to Basic play function |
-| `tests/popout/Popout.test.tsx` | Add drag behavior tests |
+| `tests/popout/Popout.test.tsx`             | Add drag behavior tests               |
 
 **Tests to Create** (`compact-mantine/tests/popout/`):
 
-| File | Purpose |
-|------|---------|
+| File                      | Purpose                           |
+| ------------------------- | --------------------------------- |
 | `Popout.browser.test.tsx` | Browser tests for pointer capture |
 
 **Story Updates** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
@@ -226,21 +232,22 @@ Basic.play = async ({ canvasElement }) => {
 **Tests to Write**:
 
 - `tests/popout/Popout.test.tsx`: Add drag tests
-  ```typescript
-  describe("Popout drag behavior", () => {
-      it("does not start drag from text input");
-      it("does not start drag from textarea");
-      it("allows button clicks without dragging");
-  });
-  ```
+
+    ```typescript
+    describe("Popout drag behavior", () => {
+        it("does not start drag from text input");
+        it("does not start drag from textarea");
+        it("allows button clicks without dragging");
+    });
+    ```
 
 - `tests/popout/Popout.browser.test.tsx`: Browser tests
-  ```typescript
-  describe("Popout drag (browser)", () => {
-      it("maintains drag when pointer leaves panel");
-      it("ends drag on pointer up outside panel");
-  });
-  ```
+    ```typescript
+    describe("Popout drag (browser)", () => {
+        it("maintains drag when pointer leaves panel");
+        it("ends drag on pointer up outside panel");
+    });
+    ```
 
 **Dependencies**:
 
@@ -265,22 +272,22 @@ Basic.play = async ({ canvasElement }) => {
 
 **Files to Create** (`compact-mantine/`):
 
-| File | Purpose |
-|------|---------|
+| File                                   | Purpose                       |
+| -------------------------------------- | ----------------------------- |
 | `src/components/popout/PopoutTabs.tsx` | Tab list and content switcher |
 
 **Files to Update** (`compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/components/popout/PopoutHeader.tsx` | Support tabs variant |
+| File                                       | Change                                      |
+| ------------------------------------------ | ------------------------------------------- |
+| `src/components/popout/PopoutHeader.tsx`   | Support tabs variant                        |
 | `src/components/popout/Popout.stories.tsx` | Add Tabbed story, update Basic with actions |
-| `src/types/popout.ts` | Add tab-related types |
+| `src/types/popout.ts`                      | Add tab-related types                       |
 
 **Tests to Create** (`compact-mantine/tests/popout/`):
 
-| File | Purpose |
-|------|---------|
+| File                    | Purpose                |
+| ----------------------- | ---------------------- |
 | `PopoutHeader.test.tsx` | Header component tests |
 
 **Story to Create** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
@@ -292,6 +299,7 @@ Basic.play = async ({ canvasElement }) => {
 - Update **Basic** story to include header actions
 
 **Tests to Write** (`compact-mantine/tests/popout/PopoutHeader.test.tsx`):
+
 ```typescript
 describe("PopoutHeader", () => {
     it("renders title variant with title text");
@@ -319,17 +327,17 @@ describe("PopoutHeader", () => {
 
 **Files to Update** (`compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/components/popout/PopoutContext.tsx` | Add z-index and focus tracking |
-| `src/components/popout/PopoutManager.tsx` | Implement bringToFront |
-| `src/components/popout/PopoutPanel.tsx` | Apply z-index, handle click for focus |
-| `src/components/popout/Popout.stories.tsx` | Add Kitchen Sink story |
+| File                                       | Change                                |
+| ------------------------------------------ | ------------------------------------- |
+| `src/components/popout/PopoutContext.tsx`  | Add z-index and focus tracking        |
+| `src/components/popout/PopoutManager.tsx`  | Implement bringToFront                |
+| `src/components/popout/PopoutPanel.tsx`    | Apply z-index, handle click for focus |
+| `src/components/popout/Popout.stories.tsx` | Add Kitchen Sink story                |
 
 **Tests to Create** (`compact-mantine/tests/popout/`):
 
-| File | Purpose |
-|------|---------|
+| File                     | Purpose             |
+| ------------------------ | ------------------- |
 | `PopoutManager.test.tsx` | Context/state tests |
 
 **Story to Create** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
@@ -337,6 +345,7 @@ describe("PopoutHeader", () => {
 - Add **Kitchen Sink** story with multiple panels and z-index play function
 
 **Tests to Write** (`compact-mantine/tests/popout/PopoutManager.test.tsx`):
+
 ```typescript
 describe("PopoutManager z-index", () => {
     it("assigns incrementing z-index to open popouts");
@@ -363,24 +372,25 @@ describe("PopoutManager z-index", () => {
 
 **Files to Create** (`compact-mantine/`):
 
-| File | Purpose |
-|------|---------|
+| File                                             | Purpose               |
+| ------------------------------------------------ | --------------------- |
 | `src/components/popout/hooks/useClickOutside.ts` | Global click listener |
-| `src/components/popout/hooks/useEscapeKey.ts` | Keyboard listener |
+| `src/components/popout/hooks/useEscapeKey.ts`    | Keyboard listener     |
 
 **Files to Update** (`compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/components/popout/PopoutManager.tsx` | Wire up close hooks |
+| File                                       | Change                                      |
+| ------------------------------------------ | ------------------------------------------- |
+| `src/components/popout/PopoutManager.tsx`  | Wire up close hooks                         |
 | `src/components/popout/Popout.stories.tsx` | Add ESC/click-outside tests to Kitchen Sink |
-| `tests/popout/PopoutManager.test.tsx` | Add close behavior tests |
+| `tests/popout/PopoutManager.test.tsx`      | Add close behavior tests                    |
 
 **Story Updates** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
 
 - Update **Kitchen Sink** play function with Escape and click-outside tests
 
 **Tests to Write** (`compact-mantine/tests/popout/PopoutManager.test.tsx`):
+
 ```typescript
 describe("PopoutManager close behavior", () => {
     it("closes popout on Escape key");
@@ -407,15 +417,15 @@ describe("PopoutManager close behavior", () => {
 
 **Files to Update** (`compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/components/popout/Popout.tsx` | Detect nested context |
-| `src/components/popout/PopoutPanel.tsx` | Register parent relationship |
-| `src/components/popout/PopoutManager.tsx` | Hierarchy tracking, cascading close |
-| `src/components/popout/hooks/useClickOutside.ts` | Hierarchy-aware detection |
-| `src/components/popout/Popout.stories.tsx` | Add nested demo to Kitchen Sink |
-| `tests/popout/PopoutManager.test.tsx` | Add hierarchy tests |
-| `tests/popout/position.test.ts` | Add nested position tests |
+| File                                             | Change                              |
+| ------------------------------------------------ | ----------------------------------- |
+| `src/components/popout/Popout.tsx`               | Detect nested context               |
+| `src/components/popout/PopoutPanel.tsx`          | Register parent relationship        |
+| `src/components/popout/PopoutManager.tsx`        | Hierarchy tracking, cascading close |
+| `src/components/popout/hooks/useClickOutside.ts` | Hierarchy-aware detection           |
+| `src/components/popout/Popout.stories.tsx`       | Add nested demo to Kitchen Sink     |
+| `tests/popout/PopoutManager.test.tsx`            | Add hierarchy tests                 |
+| `tests/popout/position.test.ts`                  | Add nested position tests           |
 
 **Story Updates** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
 
@@ -424,22 +434,23 @@ describe("PopoutManager close behavior", () => {
 **Tests to Write**:
 
 - `tests/popout/PopoutManager.test.tsx`:
-  ```typescript
-  describe("PopoutManager hierarchy", () => {
-      it("tracks parent-child relationships");
-      it("closes descendants when parent closes");
-      it("click in child does not close parent");
-      it("Escape in child only closes child");
-  });
-  ```
+
+    ```typescript
+    describe("PopoutManager hierarchy", () => {
+        it("tracks parent-child relationships");
+        it("closes descendants when parent closes");
+        it("click in child does not close parent");
+        it("Escape in child only closes child");
+    });
+    ```
 
 - `tests/popout/position.test.ts`:
-  ```typescript
-  describe("calculatePopoutPosition nested", () => {
-      it("uses 4px gap for nested panels");
-      it("positions relative to parent panel edge");
-  });
-  ```
+    ```typescript
+    describe("calculatePopoutPosition nested", () => {
+        it("uses 4px gap for nested panels");
+        it("positions relative to parent panel edge");
+    });
+    ```
 
 **Verification**:
 
@@ -461,20 +472,20 @@ describe("PopoutManager close behavior", () => {
 
 **Files to Create** (`compact-mantine/`):
 
-| File | Purpose |
-|------|---------|
+| File                                                     | Purpose                        |
+| -------------------------------------------------------- | ------------------------------ |
 | `src/components/popout/examples/LabelSettingsPopout.tsx` | Real-world integration example |
 
 **Files to Update** (`compact-mantine/`):
 
-| File | Change |
-|------|--------|
-| `src/components/popout/PopoutPanel.tsx` | Add ARIA attributes, focus management |
-| `src/components/popout/PopoutTrigger.tsx` | Add aria-expanded, aria-controls |
-| `src/components/popout/PopoutHeader.tsx` | Add ARIA to close button, tabs |
+| File                                       | Change                                              |
+| ------------------------------------------ | --------------------------------------------------- |
+| `src/components/popout/PopoutPanel.tsx`    | Add ARIA attributes, focus management               |
+| `src/components/popout/PopoutTrigger.tsx`  | Add aria-expanded, aria-controls                    |
+| `src/components/popout/PopoutHeader.tsx`   | Add ARIA to close button, tabs                      |
 | `src/components/popout/Popout.stories.tsx` | Add LabelSettingsExample, a11y tests to all stories |
-| `tests/popout/Popout.test.tsx` | Add accessibility tests |
-| `tests/popout/Popout.browser.test.tsx` | Add focus management tests |
+| `tests/popout/Popout.test.tsx`             | Add accessibility tests                             |
+| `tests/popout/Popout.browser.test.tsx`     | Add focus management tests                          |
 
 **Story to Add** (`compact-mantine/src/components/popout/Popout.stories.tsx`):
 
@@ -487,23 +498,24 @@ describe("PopoutManager close behavior", () => {
 **Tests to Write**:
 
 - `tests/popout/Popout.test.tsx`:
-  ```typescript
-  describe("Popout accessibility", () => {
-      it("panel has role=dialog and aria-modal=false");
-      it("trigger has aria-expanded and aria-controls");
-      it("close button has aria-label");
-      it("focus moves to panel on open");
-      it("focus returns to trigger on close");
-  });
-  ```
+
+    ```typescript
+    describe("Popout accessibility", () => {
+        it("panel has role=dialog and aria-modal=false");
+        it("trigger has aria-expanded and aria-controls");
+        it("close button has aria-label");
+        it("focus moves to panel on open");
+        it("focus returns to trigger on close");
+    });
+    ```
 
 - `tests/popout/Popout.browser.test.tsx`:
-  ```typescript
-  describe("Popout focus (browser)", () => {
-      it("Tab cycles through interactive elements");
-      it("does not trap focus (non-modal)");
-  });
-  ```
+    ```typescript
+    describe("Popout focus (browser)", () => {
+        it("Tab cycles through interactive elements");
+        it("does not trap focus (non-modal)");
+    });
+    ```
 
 **Verification**:
 
@@ -560,25 +572,25 @@ compact-mantine/
 
 Stories location: `compact-mantine/src/components/popout/Popout.stories.tsx`
 
-| Phase | Basic | Tabbed | Kitchen Sink | Label Settings |
-|-------|-------|--------|--------------|----------------|
-| 1 | Create (open/close) | - | - | - |
-| 2 | Add drag tests | - | - | - |
-| 3 | Add header actions | Create (tabs) | - | - |
-| 4 | - | - | Create (multi-panel, z-index) | - |
-| 5 | - | - | Add ESC/click-outside tests | - |
-| 6 | - | - | Add nested popout demo | - |
-| 7 | Add a11y tests | Add a11y tests | Add a11y tests | Create |
+| Phase | Basic               | Tabbed         | Kitchen Sink                  | Label Settings |
+| ----- | ------------------- | -------------- | ----------------------------- | -------------- |
+| 1     | Create (open/close) | -              | -                             | -              |
+| 2     | Add drag tests      | -              | -                             | -              |
+| 3     | Add header actions  | Create (tabs)  | -                             | -              |
+| 4     | -                   | -              | Create (multi-panel, z-index) | -              |
+| 5     | -                   | -              | Add ESC/click-outside tests   | -              |
+| 6     | -                   | -              | Add nested popout demo        | -              |
+| 7     | Add a11y tests      | Add a11y tests | Add a11y tests                | Create         |
 
 ## Commands Reference
 
-| Task | Command |
-|------|---------|
-| Run tests | `pnpm --filter @graphty/compact-mantine test:run` |
-| Run tests (watch) | `pnpm --filter @graphty/compact-mantine test` |
-| Start Storybook | `pnpm --filter @graphty/compact-mantine storybook` |
-| Build package | `pnpm --filter @graphty/compact-mantine build` |
-| Lint | `pnpm --filter @graphty/compact-mantine lint` |
+| Task              | Command                                            |
+| ----------------- | -------------------------------------------------- |
+| Run tests         | `pnpm --filter @graphty/compact-mantine test:run`  |
+| Run tests (watch) | `pnpm --filter @graphty/compact-mantine test`      |
+| Start Storybook   | `pnpm --filter @graphty/compact-mantine storybook` |
+| Build package     | `pnpm --filter @graphty/compact-mantine build`     |
+| Lint              | `pnpm --filter @graphty/compact-mantine lint`      |
 
 ## Visual Styling Guidelines
 
@@ -593,12 +605,13 @@ Based on research into best practices from Radix UI, Material Design 3, Josh W. 
 ```css
 /* Radix shadow token example */
 box-shadow:
-  0 0 0 1px var(--gray-a3),           /* 1px ring for edge definition */
-  0px 3px 7px -3px var(--gray-a5),    /* ambient shadow */
-  0px 6px 12px -4px var(--gray-a4);   /* key light shadow */
+    0 0 0 1px var(--gray-a3),
+    /* 1px ring for edge definition */ 0px 3px 7px -3px var(--gray-a5),
+    /* ambient shadow */ 0px 6px 12px -4px var(--gray-a4); /* key light shadow */
 ```
 
 This 1px ring ensures edge definition even when:
+
 - The panel is on a same-colored background
 - Shadows are too subtle to see
 - Windows High Contrast Mode removes box-shadows (the ring acts as a fallback)
@@ -607,11 +620,11 @@ This 1px ring ensures edge definition even when:
 
 For the PopoutPanel component:
 
-| Property | Value | Rationale |
-|----------|-------|-----------|
-| `shadow` | `"xl"` | Stronger shadow provides depth perception |
-| `withBorder` | `true` | Adds 1px border for edge definition |
-| Border color | `var(--mantine-color-default-border)` | Theme-aware, subtle |
+| Property     | Value                                 | Rationale                                 |
+| ------------ | ------------------------------------- | ----------------------------------------- |
+| `shadow`     | `"xl"`                                | Stronger shadow provides depth perception |
+| `withBorder` | `true`                                | Adds 1px border for edge definition       |
+| Border color | `var(--mantine-color-default-border)` | Theme-aware, subtle                       |
 
 **Alternative: Custom Shadow with Ring**
 
@@ -635,6 +648,7 @@ style={{
 #### Story Variants for Verification
 
 Add story variants to test visibility on different backgrounds:
+
 - Light background (default Mantine body color)
 - Similar gray background (stress test)
 - Dark background (dark theme)
@@ -643,43 +657,43 @@ Add story variants to test visibility on different backgrounds:
 
 ## External Libraries Assessment
 
-| Task | Library | Rationale |
-|------|---------|-----------|
-| Drag behavior | `@zag-js/floating-panel` | Figma-inspired, state machine robustness, active maintenance |
-| React bindings | `@zag-js/react` | Required for floating-panel |
-| Position calculation | None (custom) | Simple getBoundingClientRect; no collision detection needed (R16) |
-| Portal rendering | React.createPortal | Built-in |
-| Z-index/hierarchy | Custom | No library handles our requirements |
+| Task                 | Library                  | Rationale                                                         |
+| -------------------- | ------------------------ | ----------------------------------------------------------------- |
+| Drag behavior        | `@zag-js/floating-panel` | Figma-inspired, state machine robustness, active maintenance      |
+| React bindings       | `@zag-js/react`          | Required for floating-panel                                       |
+| Position calculation | None (custom)            | Simple getBoundingClientRect; no collision detection needed (R16) |
+| Portal rendering     | React.createPortal       | Built-in                                                          |
+| Z-index/hierarchy    | Custom                   | No library handles our requirements                               |
 
 ## Risk Mitigation
 
-| Risk | Mitigation |
-|------|------------|
-| Zag.js learning curve | Phase 2 dedicated to integration; start simple |
+| Risk                      | Mitigation                                                  |
+| ------------------------- | ----------------------------------------------------------- |
+| Zag.js learning curve     | Phase 2 dedicated to integration; start simple              |
 | Play function limitations | Fall back to browser tests for complex pointer interactions |
-| Nested complexity | Build on solid hierarchy foundation from earlier phases |
-| Security vulnerability | Pin @zag-js/core to >=0.82.2 (CVE-2024-57079 fix) |
+| Nested complexity         | Build on solid hierarchy foundation from earlier phases     |
+| Security vulnerability    | Pin @zag-js/core to >=0.82.2 (CVE-2024-57079 fix)           |
 
 ## Requirements Traceability
 
-| Requirement | Phase | Verification Method |
-|-------------|-------|---------------------|
-| R1: Initial Alignment | 1 | Unit test + Story play function |
-| R2: Nested Stacking | 6 | Story play function |
-| R3: Variable Width | 1 | Story visual |
-| R4: Multiple Open | 4 | Story play function |
-| R5: Independent Dragging | 2 | Story play function |
-| R6: Drag Reset on Reopen | 2 | Story play function |
-| R7: No Responsive Adaptation | 1 | Implicit (no responsive code) |
-| R8: No Tab State Persistence | 3 | Story play function |
-| R9: Simple Header Variant | 1 | Story visual |
-| R10: Tabbed Header Variant | 3 | Story visual + play function |
-| R11: Flexible Trigger Elements | 1 | Story visual |
-| R12: Optional Tabs | 3 | Story visual |
-| R13: Drag Handle Area | 2 | Component test |
-| R14: Click Outside Closes | 5 | Story play function |
-| R15: Z-Index on Focus | 4 | Story play function |
-| R16: Screen Bounds | 2 | Implicit (no constraints) |
-| R17: Instant Open/Close | 1 | Story visual (Chromatic) |
-| R18: No Backdrop | 1 | Story visual (Chromatic) |
-| R19: Escape Key Behavior | 5 | Story play function |
+| Requirement                    | Phase | Verification Method             |
+| ------------------------------ | ----- | ------------------------------- |
+| R1: Initial Alignment          | 1     | Unit test + Story play function |
+| R2: Nested Stacking            | 6     | Story play function             |
+| R3: Variable Width             | 1     | Story visual                    |
+| R4: Multiple Open              | 4     | Story play function             |
+| R5: Independent Dragging       | 2     | Story play function             |
+| R6: Drag Reset on Reopen       | 2     | Story play function             |
+| R7: No Responsive Adaptation   | 1     | Implicit (no responsive code)   |
+| R8: No Tab State Persistence   | 3     | Story play function             |
+| R9: Simple Header Variant      | 1     | Story visual                    |
+| R10: Tabbed Header Variant     | 3     | Story visual + play function    |
+| R11: Flexible Trigger Elements | 1     | Story visual                    |
+| R12: Optional Tabs             | 3     | Story visual                    |
+| R13: Drag Handle Area          | 2     | Component test                  |
+| R14: Click Outside Closes      | 5     | Story play function             |
+| R15: Z-Index on Focus          | 4     | Story play function             |
+| R16: Screen Bounds             | 2     | Implicit (no constraints)       |
+| R17: Instant Open/Close        | 1     | Story visual (Chromatic)        |
+| R18: No Backdrop               | 1     | Story visual (Chromatic)        |
+| R19: Escape Key Behavior       | 5     | Story play function             |

@@ -99,7 +99,7 @@ async function labelBlock(style: LabelStyle, text = "Label"): Promise<Record<str
     // on the way to the canvas. Parsing turns that into a failure with the key's name in it.
     const parsed = NodeStyle.parse(paint?.style);
 
-    return (parsed.label ?? {}) as Record<string, unknown>;
+    return parsed.label ?? {};
 }
 
 describe("a layer says where a label sits", () => {
@@ -291,8 +291,10 @@ const EVERY_FIELD: Required<LabelStyle> = {
     enabled: true,
     font: "'JetBrains Mono', monospace",
     sizePx: 64,
+    size: 1.3,
     weight: "bold",
     color: "#111111",
+    italic: true,
     lineHeight: 1.7,
     textAlign: "right",
     background: "#222222",
@@ -342,8 +344,10 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     enabled: true,
     font: "'JetBrains Mono', monospace",
     fontSize: 64,
+    size: 1.3,
     fontWeight: "bold",
     textColor: "#111111",
+    fontStyle: "italic",
     lineHeight: 1.7,
     textAlign: "right",
     backgroundColor: "#222222",

@@ -1,0 +1,102 @@
+import { Meta } from "@storybook/blocks";
+
+<Meta title="Introduction/Languages and direction" />
+
+# Languages and direction
+
+Every string this library can put on the screen or into a screen reader can be replaced, every
+number it formats follows a locale, and every layout mirrors for right-to-left languages. None of
+it needs an i18n framework, and with no setup you get English, left to right.
+
+## Translating the strings
+
+`LabelsProvider` replaces the strings and sets the locale used for formatting:
+
+```tsx
+import { LabelsProvider } from "@graphty/compact-mantine";
+
+<LabelsProvider
+    locale="de-DE"
+    labels={{
+        mixed: "Verschieden",
+        about: (label) => `Info zu ${label}`,
+    }}
+>
+    <Inspector />
+</LabelsProvider>;
+```
+
+- **Anything you leave out keeps its English default**, so you can translate one string or all
+  of them.
+- **Providers nest**, and an inner one merges over the outer one, so a dialog can restate a
+  single string without repeating the rest.
+- **Strings that interpolate are functions** taking already-formatted pieces, so a translation
+  can put them in the order its language needs.
+- `defaultLabels` is the complete English set, and `CompactMantineLabels` is its type: start
+  from either when writing a translation.
+- `useLabels()` reads the strings from your own components.
+
+`DataTable` also takes a `labels` prop of its own, which merges over whatever the provider says.
+Reach for it when one table counts nodes and another counts files, and for `LabelsProvider` when
+you are translating.
+
+## Numbers, ordinals and sorting
+
+The locale is resolved in this order: the `locale` you pass to `LabelsProvider`, then the `lang`
+attribute on the document, then the browser's preference, then English. It drives `Intl`
+throughout: numbers through `Intl.NumberFormat`, ordinals through `Intl.PluralRules` (which is
+what makes "98th percentile" come out right outside English), and sorting through
+`Intl.Collator`. The same formatters are exported for your own use:
+
+```tsx
+import { useCollator, useNumberFormatter, useOrdinalFormatter } from "@graphty/compact-mantine";
+
+const format = useNumberFormatter({ maximumFractionDigits: 2 });
+format.format(1234.5678); // "1,234.57" in en, "1.234,57" in de
+```
+
+Display rows such as `DataRow` draw `value` verbatim, so run a number through
+`useNumberFormatter()` before you hand it over.
+
+## Right-to-left languages
+
+Wrap your application in Mantine's `DirectionProvider` and every component here follows:
+
+```tsx
+import { DirectionProvider, MantineProvider } from "@mantine/core";
+import { compactTheme } from "@graphty/compact-mantine";
+
+<DirectionProvider initialDirection="rtl">
+    <MantineProvider theme={compactTheme}>
+        <App />
+    </MantineProvider>
+</DirectionProvider>;
+```
+
+Layouts are written in logical CSS properties, so padding, gaps and the order of a row all
+reverse. Arrow keys in a segmented control, a tree and the alignment matrix follow the text
+direction. Charts and ramps are drawn from the start of the axis rather than from the left edge,
+so the picture agrees with the labels beside it. Chevrons that point "into" a closed section
+mirror.
+
+The **Direction** switch in the toolbar flips every story in this Storybook, and most component
+pages also have a `RightToLeft` story, so you can see what your own layout will do.
+
+## Showing a word beside every drawing
+
+Panel fields are captioned by a small drawing instead of a word (see
+[Glyphs](?path=/docs/foundations-glyphs--docs)). For readers who do not yet know the drawings,
+`PanelLabelsProvider` carries one preference, off by default, to every component below it: a
+field grows its label word beside its glyph, and a row holding a pair of fields becomes two
+single rows, each with its word in a label column. A pair never becomes a two-line stack.
+
+```tsx
+import { PanelLabelsProvider } from "@graphty/compact-mantine";
+
+<PanelLabelsProvider showLabels={settings.showLabelsOnControls}>
+    <NodeSizeSection />
+</PanelLabelsProvider>;
+```
+
+Read the preference anywhere below with `usePanelLabels()`. Offering it as a user setting is
+recommended; nothing in the library requires it.

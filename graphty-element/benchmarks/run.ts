@@ -34,7 +34,8 @@ import { GraphStore } from "../src/data/GraphStore";
 import { createElementSession, scopeResolverOfSession } from "../src/session/GraphSession";
 import { createScopeApi, edgeSpaceOf, ElementMask, nodeSpaceOf } from "../src/session/scope/index";
 import { combineMasks, createMaterialiser } from "../src/session/sets/algebra";
-import { addEdgeRow, digestOf, edgeMemberKey, resolveFixed, resolveScope } from "../src/session/sets/resolve";
+import { edgeMemberKey } from "../src/session/sets/prepare";
+import { addEdgeRow, digestOf, resolveFixed, resolveScope } from "../src/session/sets/resolve";
 import { createSetsApi, sessionEdgeMember } from "../src/session/sets/SetsApi";
 import type { GraphSession } from "../src/session/types";
 import { ingestEdge, ingestNode } from "../test/helpers/rawIngest";
@@ -42,7 +43,8 @@ import { ingestEdge, ingestNode } from "../test/helpers/rawIngest";
 const LARGE = process.env.GRAPHTY_BENCH_SCALE === "large";
 const NODES = LARGE ? 1_000_000 : 100_000;
 const M = Number(process.env.GRAPHTY_BENCH_M ?? 5);
-const LABEL = `${LARGE ? "1M" : "100k"}${M === 5 ? "" : `, m = ${String(M)}`}`;
+const M_LABEL = M === 5 ? "" : `, m = ${String(M)}`;
+const LABEL = `${LARGE ? "1M" : "100k"}${M_LABEL}`;
 
 /**
  * The sets rows: the revision of a fixed set of every node, and of as many listed edges.
@@ -77,7 +79,7 @@ function runSetsBenchmarks(): BenchResult[] {
 function setBasedResolve(snapshot: GraphSnapshot, ids: readonly NodeId[]): string {
     const nodes = new Set<NodeId>();
     for (const id of ids) {
-        if (snapshot.ids.indexOf(id) >= 0) {
+        if (snapshot.ids.has(id)) {
             nodes.add(id);
         }
     }

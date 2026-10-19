@@ -13,9 +13,10 @@
  * percentiles, a logarithmic scale with 312 zeros it cannot plot, a run that measured 300 nodes
  * of 50,000 -- each of those makes the picture say something narrower than "this is the data",
  * and a legend that prints the ramp without printing the narrowing is the thing that turns a
- * reasonable choice into a false claim. {@link LegendBlock.departures} carries them as finished
- * sentences, most of them straight off the prepared binding, which counted them while it was
- * settling the domain and therefore pays nothing extra to report them.
+ * reasonable choice into a false claim. {@link LegendBlock.facts} carries them as coded facts
+ * (`{ code, params }`) for the application to word, most of them straight off the prepared
+ * binding, which counted them while it was settling the domain and therefore pays nothing extra
+ * to report them.
  *
  * ONE DEPARTURE IS THIS FILE'S OWN. A layer lower in the stack can be painted over by a layer
  * above it that writes the same channel over EVERY element, and a block describing colours no
@@ -26,20 +27,21 @@
  * BOTTOM FIRST. A second reading order for the same stack is how an off-by-one gets in, and a
  * consumer that wants the winning layer first reverses a list it already draws bottom first.
  *
- * WHERE THE WORDS COME FROM, and why none of them are written here:
+ * THE WORDS ARE THE APPLICATION'S. A block names its field by path, its scale by id and each row
+ * by its value, and every departure is a code with its numbers and names as parameters. The
+ * English fields that remain (`label`, `plainName`, the scale's `label`, `departures`) are
+ * deprecated and kept only until the next major:
  *
- * - A scale's words are its catalogue entry's `plainName`, so the legend and the scale picker
- *   never disagree about what "sqrt" is called. A second dialect invented here would be a second
- *   thing to keep in step with the catalogue, and it would lose.
- * - A field's words come from whoever holds the session's attributes and run fields, through
- *   {@link LegendSources.field}. Absent, the path's last segment is humanised, which is a
- *   fallback and says so rather than pretending a plain name was found.
+ * - A scale's deprecated words are its catalogue entry's `plainName`.
+ * - A field's deprecated words come from whoever holds the session's attributes and run fields,
+ *   through {@link LegendSources.field}. Absent, the path's last segment is humanised.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
+import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
 import { groupName, RESULT_ROOT } from "../results/types";
+import type { CodedFact } from "../shared";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 import type { SelectorTarget } from "./predicate";
@@ -53,19 +55,53 @@ import type { ScaleRegistry } from "./scales";
  * One row of a legend: a value, and what the picture paints for it.
  *
  * `value` is the DATA value -- the category, or a number on the domain -- and `color`, `size` and
- * `paints` are what the encoding turns it into. `label` is that same value in the words a reader
- * sees, worked out once here so that two consumers do not format the same number two ways.
+ * `paints` are what the encoding turns it into. Word a row from its facts: `value`, `extent`,
+ * `rank`, and `role` with `count`.
  */
 export interface LegendSwatch {
-    /** The value in the words a reader sees. */
+    /**
+     * The value in English words.
+     * @deprecated Word the row yourself from its facts: `value` (and `extent` for a row covering a
+     *   range of numbers), `rank` for a run's group, `role: "other"` with `count` for the folded
+     *   bucket, and the layer's own `name` (from `styles.get(layerId)`) for a fixed value. Removed
+     *   in the next major.
+     */
     readonly label: string;
-    /** The value itself, for a consumer that wants to filter or select by it. */
+    /**
+     * The value itself, for a consumer that wants to filter or select by it -- spelled as the data
+     * spells it, so a run's group `0` is the number `0` here as it is in the run's summary, its
+     * `sizes` table and its per-node values, never the string `"0"`.
+     */
     readonly value: unknown;
+    /**
+     * The lowest and highest values this row stands for, on a row of an encoding that cuts a
+     * numeric domain into groups (`value` is `extent.min`). Absent on any other row.
+     * @since 3.16.0
+     */
+    readonly extent?: {
+        /** The lowest value painted like this row. */
+        readonly min: number;
+        /** The highest value painted like this row. */
+        readonly max: number;
+    };
+    /**
+     * The group's place by size, from 1 for the largest, on a block that colours a run's groups
+     * (`results.<run>.group`): the same `rank` the run summary's group carries, so a list of
+     * groups, a table column and the legend can name one group the same way. Absent on any other
+     * row.
+     */
+    readonly rank?: number;
+    /**
+     * The binding does not paint this value (its `hidden` list names it): elements carrying it
+     * are drawn as the layers beneath paint them. `color`, `size` and `paints` still say what the
+     * value is painted when it is shown again. Absent on a row that is painted.
+     */
+    readonly hidden?: true;
     /** The colour the encoding paints it, as `#rrggbb` or `#rrggbbaa`. */
     readonly color?: string;
     /** The size or width the encoding paints it. */
     readonly size?: number;
-    /** How many elements carry it, when whoever supplied the encoding can say. */
+    /** How many elements carry it, when whoever supplied the encoding can say. Always set on the `"other"` row. */
     readonly count?: number;
     /**
      * What the encoding paints it when that is neither a colour nor a size -- a node shape, a
@@ -76,6 +112,39 @@ export interface LegendSwatch {
      * communities and not the shapes, which is half a legend.
      */
     readonly paints?: unknown;
+    /**
+     * What the row stands for. `"other"` marks the one bucket the paint folded the smaller groups
+     * into: its `value` lists the values it holds and its `count` how many elements carry them,
+     * and it is always the last row, kept even when the rows above it are capped.
+     *
+     * OPEN UNION: roles may be added in a minor release. Absent on an ordinary row.
+     */
+    readonly role?: "other" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+}
+
+/**
+ * What a higher value means on the drawing, as a fact for a legend to put in its own words.
+ *
+ * `code` names the fact and `params` carries its parts, so an application writes the sentence
+ * ("Darker means more Influence", with the field's words from {@link LegendBlock.field}) in its
+ * own language and voice.
+ */
+export interface LegendReading {
+    /** A higher value of `field` is drawn further in `direction` on `channel`. */
+    readonly code: "legend.higher";
+    /** The parts of the fact. */
+    readonly params: {
+        /** The channel the block describes. */
+        readonly channel: Channel;
+        /**
+         * Which way a higher value moves the paint: `"darker"` or `"lighter"` for a colour (by
+         * the luminance of the colours painted at the two ends of the domain), `"larger"` or
+         * `"smaller"` for a number such as a size, a width or an opacity.
+         */
+        readonly direction: "darker" | "lighter" | "larger" | "smaller";
+        /** The column path the encoding reads. */
+        readonly field: Path;
+    };
 }
 
 /**
@@ -95,20 +164,34 @@ export interface LegendBlock {
     readonly runId?: RunId;
     /** What shape of legend a consumer draws: a ramp, a list of colours, a single chip. */
     readonly kind: "sequential" | "diverging" | "categorical" | "highlight" | "literal";
-    /** The field the encoding reads, in both plain and technical words. */
+    /** The field the encoding reads. `path` is the id to word it by. */
     readonly field?: {
-        /** The name a reader sees. */
+        /**
+         * The field's name in English.
+         * @deprecated Word the field yourself from `path` (for example by looking it up in
+         *   `session.data.attributes()` or the run's fields). Removed in the next major.
+         */
         readonly plainName: string;
         /** The name the literature and the data use. */
         readonly technicalName: string;
-        /** The column path itself. */
+        /** The column path itself. For a data column it is the `path` of its entry in `session.data.attributes()`. */
         readonly path: Path;
+        /**
+         * For a field a run published: the algorithm's catalog key and the field's `name` among
+         * that algorithm's `fields`, so the field is found in the catalog by id. Absent for a data
+         * column, and for a path no run in the session publishes.
+         * @since 3.16.0
+         */
+        readonly result?: FieldResult;
     };
-    /** The scale, by name and in words. */
+    /** The scale the values pass through. */
     readonly scale?: {
-        /** The scale's name, which is what a binding spells. */
+        /** The scale's id, which is what a binding spells (`"linear"`, `"log"`, `"sqrt"`, ...). */
         readonly kind: string;
-        /** The same scale in words, from the scale catalogue. */
+        /**
+         * The same scale in English words, from the scale catalogue.
+         * @deprecated Word the scale yourself from `kind`. Removed in the next major.
+         */
         readonly label: string;
     };
     /** The extent values were read against, and how it was narrowed. */
@@ -127,6 +210,28 @@ export interface LegendBlock {
             readonly to: string;
         };
     };
+    /**
+     * What a higher value means on the drawing. Present only for an encoding that reads a numeric
+     * domain and paints its two ends differently in one direction: absent for categories, for a
+     * diverging palette (both ends are strong), for a fixed value and for a domain of one value.
+     * @since 3.10.0
+     */
+    readonly reading?: LegendReading;
+    /**
+     * The range the binding maps values onto, in the channel's own units ("1 to 3" for a node
+     * size; node size is unitless, never pixels). Present only for a channel that carries a
+     * number, such as `node.size` or `edge.width`, and absent when the binding's `map` or `other` paints values
+     * of its own, which the range does not bound. It is the binding's range, not the smallest and
+     * largest swatch: a reversed binding still reads low to high here, and the swatches are only
+     * samples of it.
+     * @since 3.10.0
+     */
+    readonly range?: {
+        /** The low end. */
+        readonly min: number;
+        /** The high end. */
+        readonly max: number;
+    };
     /** The palette, when the channel carries a colour. */
     readonly palette?: {
         /** The palette's id. */
@@ -134,19 +239,70 @@ export interface LegendBlock {
         /** Whether the smallest value lands at the far end of it. */
         readonly reversed: boolean;
     };
-    /** Up to twelve rows. */
+    /** Up to twelve rows, plus the `"other"` row when the paint folded some groups. */
     readonly swatches: readonly LegendSwatch[];
-    /** How many rows did not fit, when some did not. */
+    /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
-        /** The number a consumer prints as "and 14 more". */
+        /** How many rows were left out of `swatches`, as a number. */
         readonly hidden: number;
     };
     /**
-     * What this encoding does that the picture alone does not admit to.
-     *
-     * Finished sentences, printed unedited. Empty when the encoding has nothing to confess.
+     * What this encoding does that the picture alone does not admit to, one fact per departure, in
+     * the order a legend reads them. Empty when the encoding has nothing to confess.
+     * @since 3.16.0
+     */
+    readonly facts: readonly LegendFact[];
+    /**
+     * The same departures as English sentences.
+     * @deprecated Word {@link LegendBlock.facts} yourself. Removed in the next major.
      */
     readonly departures: readonly string[];
+}
+
+/**
+ * What a legend fact says. Each code carries these `params`:
+ *
+ * - `legend.clamped` -- the extent was cut at percentiles: `{ from, to }`, the two percentiles
+ *   (for example `2` and `98`).
+ * - `legend.not-plottable` -- some values have no place on the scale and are not painted:
+ *   `{ count, scale }`, how many, and the scale's id (a zero under `"log"`, for instance).
+ * - `legend.none-plottable` -- no value has a place on the scale: `{ scale }`.
+ * - `legend.no-value-in-domain` -- the binding's explicit domain has no place on its scale:
+ *   `{ min, max }`, the domain as written.
+ * - `legend.nothing-measured` -- the column held no value to read: `{}`.
+ * - `legend.unreadable` -- values the scale cannot read (text under a numeric scale): `{ count }`.
+ * - `legend.lumped` -- values folded into the `"other"` row: `{ count }`, how many elements.
+ * - `legend.not-measured` -- elements in scope the run measured nothing for: `{ count }`.
+ * - `legend.painted-over` -- a layer above paints the same channel over every element this one
+ *   reaches, so none of this block is visible: `{ layerId, name }`, that layer's id and name.
+ * @since 3.16.0
+ */
+export type LegendFactCode =
+    | "legend.clamped"
+    | "legend.not-plottable"
+    | "legend.none-plottable"
+    | "legend.no-value-in-domain"
+    | "legend.nothing-measured"
+    | "legend.unreadable"
+    | "legend.lumped"
+    | "legend.not-measured"
+    | "legend.painted-over";
+
+/**
+ * One departure of a legend block, as a code and the values it is about.
+ * @since 3.16.0
+ */
+export type LegendFact = CodedFact<LegendFactCode>;
+
+/**
+ * Which run field a legend field is: the algorithm's catalog key and the field's `name`.
+ * @since 3.16.0
+ */
+export interface FieldResult {
+    /** The catalog key of the algorithm that published it, as `BUILT_IN_ALGORITHMS` spells it. */
+    readonly algorithm: AlgorithmKey;
+    /** The field's `name` in that algorithm's `fields`. */
+    readonly field: string;
 }
 
 /** The words one field goes by. */
@@ -155,6 +311,11 @@ export interface FieldWords {
     readonly plainName: string;
     /** The name the literature and the data use. */
     readonly technicalName: string;
+    /**
+     * Which run field it is, when a run published it.
+     * @since 3.16.0
+     */
+    readonly result?: FieldResult;
 }
 
 /**
@@ -204,6 +365,15 @@ export interface LegendSources {
      * @returns True only when every element `below` selects is also selected by `above`.
      */
     readonly covers?: (above: Layer, below: Layer) => boolean;
+    /**
+     * Each group's place by size in one run, from its `sizes` table, keyed by the group as a
+     * category name: the rank the run summary and the page columns carry.
+     *
+     * Absent, or undefined for a run, a swatch's rank is its place among the swatches.
+     * @param runId - The run.
+     * @returns The rank by group, or undefined when the run has no sizes table.
+     */
+    readonly groupRanks?: (runId: string) => ReadonlyMap<string, number> | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -282,9 +452,9 @@ function formatNumber(value: number): string {
  */
 function humanisePath(path: Path): FieldWords {
     const segments = path.split(".");
-    const last = segments[segments.length - 1] ?? path;
+    const last = segments.at(-1) ?? path;
     const words = last
-        .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+        .replaceAll(/([a-z\d])([A-Z])/g, "$1 $2")
         .split(/[\s_-]+/u)
         .filter((word) => word !== "");
     const plainName = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
@@ -399,7 +569,7 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
             continue;
         }
 
-        const last = runs[runs.length - 1];
+        const last = runs.at(-1);
         if (sampleKey === key && last !== undefined) {
             runs[runs.length - 1] = { from: last.from, to: value, painted: last.painted };
             continue;
@@ -413,41 +583,84 @@ function sweepRuns(prepared: PreparedBinding, domain: readonly [number, number])
 }
 
 /**
- * Whether a path reads the groups a run partitioned its elements into.
+ * The run whose groups a path reads.
  *
  * Those swatches are labelled with the names the run's summary gives the same groups, so a reader
  * sees "Group 1" in the key and in the list of groups rather than a raw id in one of them.
  * @param path - The column path.
- * @returns True for `results.<run>.group`.
+ * @returns The run id for `results.<run>.group`, otherwise undefined.
  */
-function readsGroups(path: Path | null): boolean {
+function groupsRunOf(path: Path | null): string | undefined {
     const parts = path?.split(".") ?? [];
 
-    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group";
+    return parts.length === 3 && parts[0] === RESULT_ROOT && parts[2] === "group" ? parts[1] : undefined;
 }
 
 /**
  * The swatches of an encoding that names categories.
  * @param prepared - The prepared binding.
+ * @param order - The values the binding maps, in the order it maps them: an ordinal column's
+ *   declared order, which the rows follow before the rest.
+ * @param sources - Where a run's group ranks come from.
  * @returns One swatch per category, largest group first, before the cap is applied.
  */
-function categorySwatches(prepared: PreparedBinding): readonly LegendSwatch[] {
-    const groups = readsGroups(prepared.path);
-    const swatches: LegendSwatch[] = prepared.categories.map((category, index) => ({
-        label: groups ? groupName(index + 1) : category,
-        value: category,
-        ...swatchPaint(prepared.paint(category)),
-    }));
-    const { lumped } = prepared;
-    const folded = lumped.length > 0 ? prepared.paint(lumped[0]) : undefined;
+function categorySwatches(
+    prepared: PreparedBinding,
+    order: readonly string[],
+    sources: LegendSources,
+): readonly LegendSwatch[] {
+    const run = groupsRunOf(prepared.path);
+    const groups = run !== undefined;
+    // The run's own ranks, so a group is ranked here as in its summary and its page column even
+    // when an `order` re-sorts the rows or the layer's selector covers part of the run.
+    const ranks = run === undefined ? undefined : sources.groupRanks?.(run);
+    const rankOf = (category: string, index: number): number | undefined =>
+        ranks === undefined ? index + 1 : ranks.get(category);
+    const rank = (category: string): number => {
+        const at = order.indexOf(category);
+        return at === -1 ? order.length : at;
+    };
+    // A stable sort, so the categories no order names keep their largest-first order.
+    const categories = [...prepared.categories].sort((left, right) => rank(left) - rank(right));
+    const valueOf = (category: string): unknown => prepared.categoryValues.get(category) ?? category;
+    const row = (category: string, index: number): LegendSwatch => {
+        const rank = groups ? rankOf(category, index) : undefined;
+        return {
+            label: rank === undefined ? category : groupName(rank),
+            value: valueOf(category),
+            ...(rank === undefined ? {} : { rank }),
+            ...swatchPaint(prepared.paintIgnoringHidden(category)),
+            ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
+        };
+    };
+    const swatches: LegendSwatch[] = categories.map(row);
+    const folded = prepared.lumped.length > 0 ? prepared.paintIgnoringHidden(prepared.lumped[0]) : undefined;
+
+    if (folded === undefined) {
+        return swatches;
+    }
+
+    // A hidden value the bucket folded is not painted, so it leaves the bucket's row for a row of
+    // its own marked hidden, and the bucket's row says only what is still painted grey.
+    const lumped = prepared.lumped.filter((category) => !prepared.hidden.has(category));
+    for (const category of prepared.lumped) {
+        if (prepared.hidden.has(category)) {
+            swatches.push({ ...row(category, categories.length), ...swatchPaint(folded) });
+        }
+    }
 
     // The bucket gets one row saying what it holds, so a reader is told what the grey means
     // rather than left to guess. A binding that paints nothing for the bucket gets no row.
-    if (folded !== undefined) {
+    if (lumped.length > 0) {
+        const hiddenCount = prepared.lumped
+            .filter((category) => prepared.hidden.has(category))
+            .reduce((sum, category) => sum + (prepared.categoryCounts.get(category) ?? 0), 0);
         swatches.push({
             label: `other: ${String(lumped.length)} ${lumped.length === 1 ? "group" : "groups"}`,
-            value: lumped,
+            value: lumped.map(valueOf),
             ...swatchPaint(folded),
+            count: prepared.counts.other - hiddenCount,
+            role: "other",
         });
     }
 
@@ -464,6 +677,7 @@ function groupSwatches(prepared: PreparedBinding, domain: readonly [number, numb
     return sweepRuns(prepared, domain).map((run) => ({
         label: run.from === run.to ? formatNumber(run.from) : `${formatNumber(run.from)} - ${formatNumber(run.to)}`,
         value: run.from,
+        extent: { min: run.from, max: run.to },
         ...swatchPaint(run.painted),
     }));
 }
@@ -508,15 +722,18 @@ function literalSwatches(prepared: PreparedBinding, layer: Layer): readonly Lege
  * Every swatch one encoding has to show, before the cap.
  * @param prepared - The prepared binding.
  * @param layer - The layer it belongs to.
+ * @param sources - Where a run's group ranks come from.
  * @returns The swatches, in the order a legend reads them.
  */
-function allSwatches(prepared: PreparedBinding, layer: Layer): readonly LegendSwatch[] {
+function allSwatches(prepared: PreparedBinding, layer: Layer, sources: LegendSources): readonly LegendSwatch[] {
     if (prepared.path === null) {
         return literalSwatches(prepared, layer);
     }
 
     if (prepared.categories.length > 0) {
-        return categorySwatches(prepared);
+        // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
+        // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
+        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}), sources);
     }
 
     if (prepared.domain === null) {
@@ -598,9 +815,9 @@ function domainOf(prepared: PreparedBinding, rule: Extract<Binding, { by: Path }
  * @param at - Where the block's layer sits in it.
  * @param channel - The channel the block describes.
  * @param sources - Where the cover test for a narrower selector comes from.
- * @returns The name of the layer that covers it, or null when nothing does.
+ * @returns The layer that covers it, or null when nothing does.
  */
-function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sources: LegendSources): string | null {
+function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sources: LegendSources): Layer | null {
     const mine = layers[at];
 
     for (let above = at + 1; above < layers.length; above++) {
@@ -612,7 +829,7 @@ function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sourc
         }
 
         if (layer.selector.match === "everything" || sources.covers?.(layer, mine) === true) {
-            return layer.name;
+            return layer;
         }
     }
 
@@ -625,21 +842,129 @@ function coveredBy(layers: readonly Layer[], at: number, channel: Channel, sourc
  * @param layers - The stack, bottom first.
  * @param at - Where the block's layer sits in it.
  * @param sources - Where the cover test for a narrower selector comes from.
- * @returns The sentences, in the order a legend prints them.
+ * @returns The facts, in the order a legend reads them.
  */
-function departuresOf(
+function factsOf(
     prepared: PreparedBinding,
     layers: readonly Layer[],
     at: number,
     sources: LegendSources,
-): readonly string[] {
+): readonly LegendFact[] {
     const covering = coveredBy(layers, at, prepared.channel, sources);
 
     if (covering === null) {
-        return prepared.departures;
+        return prepared.facts;
     }
 
-    return [...prepared.departures, `painted over by "${covering}"`];
+    return [...prepared.facts, { code: "legend.painted-over", params: { layerId: covering.id, name: covering.name } }];
+}
+
+/** The English sentence the deprecated {@link LegendBlock.departures} carries for each code. */
+const SENTENCES: Readonly<Record<LegendFactCode, (text: (name: string) => string) => string>> = {
+    "legend.clamped": (text) => `clamped at p${text("from")}/p${text("to")}`,
+    "legend.not-plottable": (text) => `${text("count")} not plottable on a ${text("scale")} scale`,
+    "legend.none-plottable": (text) => `no value is plottable on a ${text("scale")} scale`,
+    "legend.no-value-in-domain": (text) => `no value has a place between ${text("min")} and ${text("max")}`,
+    "legend.nothing-measured": () => "nothing measured",
+    "legend.unreadable": (text) => `${text("count")} carry no value the scale can read`,
+    "legend.lumped": (text) => `${text("count")} lumped into "other"`,
+    "legend.not-measured": (text) => `not measured (${text("count")})`,
+    "legend.painted-over": (text) => `painted over by "${text("name")}"`,
+};
+
+/**
+ * The English sentence the deprecated {@link LegendBlock.departures} carries for one fact.
+ * @param fact - The fact.
+ * @returns The sentence.
+ */
+function departureSentence(fact: LegendFact): string {
+    return SENTENCES[fact.code]((name) => String(fact.params[name]));
+}
+
+/**
+ * Whether a painted value carries the numbers of a colour.
+ * @param value - What the encoding painted.
+ * @returns True for a colour with its red, green and blue bytes.
+ */
+function isRgb(value: unknown): value is { r: number; g: number; b: number } {
+    return (
+        typeof value === "object" &&
+        value !== null &&
+        "r" in value &&
+        "g" in value &&
+        "b" in value &&
+        typeof value.r === "number" &&
+        typeof value.g === "number" &&
+        typeof value.b === "number"
+    );
+}
+
+/**
+ * The relative luminance of a colour (WCAG), which orders colours from dark to light.
+ * @param color - The colour, each channel 0 to 255.
+ * @param color.r - Red.
+ * @param color.g - Green.
+ * @param color.b - Blue.
+ * @returns The luminance, 0 (black) to 1 (white).
+ */
+function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+    const linear = (byte: number): number => {
+        const c = byte / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    };
+
+    return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+}
+
+/**
+ * Which way the paint moves from one value to another.
+ * @param low - What the low end of the domain is painted.
+ * @param high - What the high end is painted.
+ * @returns The direction, or undefined when the two are not comparable or are the same.
+ */
+function directionOf(
+    low: EncodedValue | undefined,
+    high: EncodedValue | undefined,
+): LegendReading["params"]["direction"] | undefined {
+    if (typeof low === "number" && typeof high === "number") {
+        if (high === low) {
+            return undefined;
+        }
+
+        return high > low ? "larger" : "smaller";
+    }
+
+    if (isRgb(low) && isRgb(high)) {
+        const from = luminance(low);
+        const to = luminance(high);
+        if (from === to) {
+            return undefined;
+        }
+
+        return to < from ? "darker" : "lighter";
+    }
+
+    return undefined;
+}
+
+/**
+ * What a higher value means on the drawing.
+ * @param prepared - The prepared binding.
+ * @param kind - The block's kind. Only a sequential block has one direction: a diverging palette
+ *   is strong at both ends, and a categorical one's colors are unrelated, so neither states one.
+ * @returns The reading, or undefined when the encoding has no one direction to state.
+ */
+function readingOf(prepared: PreparedBinding, kind: LegendBlock["kind"]): LegendReading | undefined {
+    const { domain, path } = prepared;
+    if (path === null || domain === null || kind !== "sequential" || !(domain[1] > domain[0])) {
+        return undefined;
+    }
+
+    const direction = directionOf(prepared.paint(domain[0]), prepared.paint(domain[1]));
+
+    return direction === undefined
+        ? undefined
+        : { code: "legend.higher", params: { channel: prepared.channel, direction, field: path } };
 }
 
 /**
@@ -660,27 +985,38 @@ function buildBlock(
 ): LegendBlock {
     const { channel } = prepared;
     const rule = authoredRule(layer, channel);
-    const swatches = allSwatches(prepared, layer);
-    const hidden = Math.max(0, swatches.length - SWATCH_CAP);
+    const all = allSwatches(prepared, layer, sources);
+    // The "other" row is what the paint folded, so it is kept whatever the cap drops.
+    const other = all.at(-1)?.role === "other" ? all.at(-1) : undefined;
+    const rows = other === undefined ? all : all.slice(0, -1);
+    const hidden = Math.max(0, rows.length - SWATCH_CAP);
+    const swatches = other === undefined ? rows.slice(0, SWATCH_CAP) : [...rows.slice(0, SWATCH_CAP), other];
     const { path, scale } = prepared;
     const domain = domainOf(prepared, rule);
+    const kind = kindOf(prepared, layer);
+    const reading = readingOf(prepared, kind);
+    const { range } = prepared;
+    const facts = factsOf(prepared, layers, at, sources);
 
     return {
         channel,
         layerId: layer.id,
         ...(layer.source.by === "run" ? { runId: layer.source.runId } : {}),
-        kind: kindOf(prepared, layer),
+        kind,
         ...(path === null ? {} : { field: { ...fieldWords(path, layer.target, sources), path } }),
         ...(scale === null
             ? {}
             : { scale: { kind: scale, label: sources.scales.describe(scale)?.plainName ?? scale } }),
         ...(domain === undefined ? {} : { domain }),
+        ...(reading === undefined ? {} : { reading }),
+        ...(range === undefined ? {} : { range: { min: Math.min(...range), max: Math.max(...range) } }),
         ...(prepared.palette === null
             ? {}
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
-        swatches: Object.freeze(swatches.slice(0, SWATCH_CAP)),
+        swatches: Object.freeze(swatches),
         ...(hidden === 0 ? {} : { overflow: { hidden } }),
-        departures: Object.freeze([...departuresOf(prepared, layers, at, sources)]),
+        facts: Object.freeze([...facts]),
+        departures: Object.freeze(facts.map(departureSentence)),
     };
 }
 
@@ -719,6 +1055,30 @@ export function buildLegend(sources: LegendSources): readonly LegendBlock[] {
             blocks.push(buildBlock(layer, prepared, layers, at, sources));
         }
     }
+
+    return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);
+}
+
+/**
+ * The blocks one layer draws, whether or not the legend lists it: a base layer is answered like
+ * any other. A hidden layer answers none, because a hidden layer paints nothing.
+ * @param sources - What the legend is read from.
+ * @param layerId - The layer.
+ * @returns The layer's blocks, one per channel it paints, or undefined when the stack holds no
+ *     layer with that id.
+ */
+export function buildLayerLegend(sources: LegendSources, layerId: LayerId): readonly LegendBlock[] | undefined {
+    const layers = sources.layers();
+    const at = layers.findIndex((layer) => layer.id === layerId);
+
+    if (at === -1) {
+        return undefined;
+    }
+
+    const layer = layers[at];
+    const blocks = layer.enabled
+        ? sources.encoding(layerId).map((prepared) => buildBlock(layer, prepared, layers, at, sources))
+        : [];
 
     return blocks.length === 0 ? NO_BLOCKS : Object.freeze(blocks);
 }

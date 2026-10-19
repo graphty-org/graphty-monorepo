@@ -18,10 +18,12 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { Draft } from "../project/draft";
 import type { ProjectState } from "../project/state";
+import type { CodedFact } from "../shared";
 import type { EncodingSpec } from "../styles/EncodingSpec";
 import type { ExplainTarget } from "../styles/explain";
-import type { LayerPosition } from "../styles/Layer";
-import type { HighlightSpec } from "../styles/StylesApi";
+import type { LayerPosition, ValidationResult } from "../styles/Layer";
+import type { HighlightSpec, MarkSpec, TemplatePosition } from "../styles/StylesApi";
+import type { HistoryCode } from "../types";
 
 /** The values of `style.patch`'s discriminant: one per styles verb that reaches it. */
 const STYLE_PATCH_ACTIONS = Object.freeze([
@@ -31,6 +33,7 @@ const STYLE_PATCH_ACTIONS = Object.freeze([
     "move",
     "removeBySource",
     "highlight",
+    "mark",
     "resolveToStatic",
 ] as const);
 
@@ -73,6 +76,13 @@ export type StylePatchCommand =
       }
     | {
           readonly op: "style.patch";
+          readonly action: "mark";
+          readonly spec: Omit<MarkSpec, "run"> & { readonly run: RunId };
+          /** Placed beneath the authored layers driving the same channel, as auto-apply places it. */
+          readonly beneathAuthored?: boolean;
+      }
+    | {
+          readonly op: "style.patch";
           readonly action: "resolveToStatic";
           readonly id: LayerId;
           readonly channel: Channel;
@@ -93,6 +103,8 @@ interface StyleTemplateCommand {
     readonly document: StyleDocument;
     /** Recorded as the template on every layer that names no source of its own. */
     readonly templateId?: string;
+    /** Where the layers go; the top of the stack when absent. */
+    readonly at?: TemplatePosition;
 }
 
 /** Every style op. */
@@ -108,6 +120,12 @@ export interface StyleService {
      * @returns What the verb resolves with.
      */
     execute(command: StyleCommand, draft: Draft): unknown;
+    /**
+     * Check one layer specification against this session, writing nothing.
+     * @param spec - The specification.
+     * @returns The check's result.
+     */
+    validate?(spec: LayerSpec): ValidationResult;
 }
 
 /** What a style op's step is keyed on: the stack, one frozen value. */
@@ -120,7 +138,44 @@ const STYLES_KEY = ["styles"] as const;
  * @returns Its name in quotes, or its id when the stack does not hold it.
  */
 function nameOf(state: ProjectState, id: LayerId): string {
-    return `"${state.styles.find((entry) => entry.layer.id === id)?.layer.name ?? id}"`;
+    return `"${layerOf(state, id)}"`;
+}
+
+/**
+ * The name of a layer in the stack, for a fact.
+ * @param state - The state.
+ * @param id - The layer.
+ * @returns Its name, or its id when the stack does not hold it.
+ */
+function layerOf(state: ProjectState, id: LayerId): string {
+    return state.styles.find((entry) => entry.layer.id === id)?.layer.name ?? id;
+}
+
+/**
+ * The fact of a `style.patch` step.
+ * @param command - The command.
+ * @param state - The state before it runs.
+ * @returns `style.add-layer` with the layer's name, and the like.
+ */
+function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<HistoryCode> {
+    switch (command.action) {
+        case "add":
+            return { code: "style.add-layer", params: { layer: command.spec.name } };
+        case "removeBySource":
+            return { code: "style.remove-layers", params: { count: command.ids.length } };
+        case "highlight":
+            return { code: "style.highlight", params: { run: command.spec.run } };
+        case "mark":
+            return { code: "style.add-layer", params: { layer: command.spec.name ?? command.spec.run } };
+        case "resolveToStatic":
+            return {
+                code: "style.fix-channel",
+                params: { channel: command.channel, layer: layerOf(state, command.id) },
+            };
+        default:
+            // update, remove and move: one layer, named.
+            return { code: `style.${command.action}-layer`, params: { layer: layerOf(state, command.id) } };
+    }
 }
 
 /**
@@ -143,6 +198,8 @@ function patchLabel(command: StylePatchCommand, state: ProjectState): string {
             return command.ids.length === 1 ? "Removed 1 layer" : `Removed ${String(command.ids.length)} layers`;
         case "highlight":
             return `Highlighted ${command.spec.run}`;
+        case "mark":
+            return `Marked ${command.spec.run}`;
         case "resolveToStatic":
             return `Fixed ${command.channel} on layer ${nameOf(state, command.id)}`;
         default:
@@ -183,6 +240,7 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
     undo: {
         kind: "undoable",
         label: patchLabel,
+        fact: patchFact,
         // A drag of a colour picker is one step: updates of the same keys of one layer merge.
         coalesce: (command) =>
             command.action === "update" ? `style:${command.id}:${Object.keys(command.patch).sort().join(",")}` : null,
@@ -193,14 +251,22 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
 const styleEncode: UndoableDefinition<StyleEncodeCommand> = {
     ...COMMON,
     op: "style.encode",
-    undo: { kind: "undoable", label: (command) => `Encoded ${command.spec.channel} from ${command.spec.run}` },
+    undo: {
+        kind: "undoable",
+        label: (command) => `Encoded ${command.spec.channel} from ${command.spec.run}`,
+        fact: (command) => ({ code: "style.encode", params: { channel: command.spec.channel, run: command.spec.run } }),
+    },
     execute: (command, ctx) => required(ctx.services.styles).execute(command, ctx.draft),
 };
 
 const styleTemplate: UndoableDefinition<StyleTemplateCommand> = {
     ...COMMON,
     op: "style.template",
-    undo: { kind: "undoable", label: () => "Applied a style document" },
+    undo: {
+        kind: "undoable",
+        label: () => "Applied a style document",
+        fact: () => ({ code: "style.template", params: {} }),
+    },
     execute: (command, ctx) => required(ctx.services.styles).execute(command, ctx.draft),
 };
 

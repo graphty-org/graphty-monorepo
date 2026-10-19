@@ -32,11 +32,14 @@ import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId, Path, Query, Scope, ScopeInput, SelectionDirection } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { eachAdjacentArc } from "../adjacency";
 import type { NoteMembers } from "../notes/select";
 import type { NoteId } from "../notes/types";
+import { fieldOfResult } from "../results/ResultsApi";
 import type { RankingEntry, ResultsApi, RunRef, RunResult } from "../results/types";
 import { ElementMask, type MaskIdSpace } from "../scope/ElementMask";
 import type { ScopeResolver } from "../scope/ScopeApi";
+import type { ResultRef } from "../shared";
 
 /** How far a neighbourhood target reaches when it does not say. */
 const DEFAULT_NEIGHBOR_DEPTH = 1;
@@ -119,17 +122,29 @@ export type SelectionTarget =
      * the rest an expression, exactly as `{ where }` reads it, which selects edges as well.
      */
     | { readonly text: string; readonly mode?: SelectionTextMode; readonly scope?: ScopeInput }
-    /** A pasted list of ids, which may name nodes, edges, or nothing at all. */
-    | { readonly ids: readonly string[] }
+    /**
+     * A list of ids, which may name nodes, edges, or nothing at all: a pasted column of text, or
+     * the ids the element handed out (a neighbor, a table record, a found element), numbers
+     * included. An id that names nothing comes back on `unmatched`, as text.
+     */
+    | { readonly ids: readonly NodeId[] }
     /** Everything a scope covers. An inline `{ define }` may name edges by session edge id. */
     | { readonly scope: ScopeInput }
     /**
      * The highest-ranked elements of a finished run. A tie group is taken whole and only when it
      * fits inside `n`, so this can select fewer than `n` elements, or none. See `TopRanking` in the results types.
+     * With no `field`, the run's primary field is ranked.
      */
-    | { readonly top: { readonly run: RunRef; readonly field: string; readonly n: number } }
-    /** Every element of a finished run above a threshold. */
-    | { readonly above: { readonly run: RunRef; readonly field: string; readonly threshold: number } }
+    | { readonly top: ResultRef & { readonly n: number } }
+    /** Every element of a finished run above a threshold. With no `field`, the run's primary field is read. */
+    | { readonly above: ResultRef & { readonly threshold: number } }
+    /**
+     * Every element of a finished run whose value lies from `min` to `max`, both inclusive, the
+     * way a `range` filter reads them. A missing bound is open. A histogram brush passes the first
+     * bar's `from` and the last bar's `to`: exact for a per-value or whole-number histogram; on a
+     * banded continuous field a value exactly on the last bar's upper edge comes too.
+     */
+    | { readonly range: ResultRef & { readonly min?: number; readonly max?: number } }
     /** The edges whose endpoints are both selected. Names no nodes. */
     | { readonly edgesBetween: true }
     /** Everything that is not selected, in both halves. */
@@ -195,7 +210,7 @@ export interface TargetContext {
     readonly selectedEdges: ElementMask<EdgeId>;
     /** Resolves a scope. Absent refuses a `scope` target. */
     readonly scope?: ScopeResolver;
-    /** Reads finished runs. Absent refuses a `top` or `above` target. */
+    /** Reads finished runs. Absent refuses a `top`, `above` or `range` target. */
     readonly results?: ResultsApi;
     /**
      * Evaluates a predicate. Absent refuses a `where` target.
@@ -264,7 +279,7 @@ function notATarget(target: unknown): GraphtyError {
         code: "E_BAD_COMMAND",
         message:
             "A selection target is { nodes, edges }, { where }, { text }, { ids }, { scope }, " +
-            "{ neighborsOf }, { top }, { above }, { note }, { edgesBetween: true } or { invert: true }.",
+            "{ neighborsOf }, { top }, { above }, { range }, { note }, { edgesBetween: true } or { invert: true }.",
         source: "run",
         details: { target },
     });
@@ -358,7 +373,7 @@ function admitted(resolver: ScopeResolver, scope: ScopeInput): Scope {
  * @param text - What was typed.
  * @returns The text to search for and how.
  */
-function searchOf(text: string): { text: string; mode: SelectionTextMode } {
+export function searchOf(text: string): { text: string; mode: SelectionTextMode } {
     const prefix = /^([A-Za-z_][\w.]*):/.exec(text);
 
     if (prefix === null) {
@@ -424,7 +439,19 @@ function isElementIds(target: SelectionTarget): target is ElementIdTarget {
  * @param edges - The edge mask to fill.
  * @returns True when the id named something.
  */
-function addPastedId(raw: string, nodes: ElementMask<NodeId>, edges: ElementMask<EdgeId>): boolean {
+function addPastedId(raw: NodeId, nodes: ElementMask<NodeId>, edges: ElementMask<EdgeId>): boolean {
+    if (typeof raw === "number") {
+        // An id the element handed out as a number: that node, else the same text as typed.
+        const index = nodes.indexOf(raw);
+        if (index !== INVALID_INDEX) {
+            nodes.add(index);
+
+            return true;
+        }
+
+        return addPastedId(String(raw), nodes, edges);
+    }
+
     const trimmed = raw.trim();
     const readings: NodeId[] = [raw];
 
@@ -481,9 +508,7 @@ function neighborDepth(depth: number | undefined): number {
  * Walk out from the seeds, adding everything reached within the depth.
  *
  * The mask is the visited set as well as the answer, so a node is expanded once however many
- * paths reach it. An undirected snapshot holds both orientations of every edge in its forward
- * adjacency, so it is walked forwards whichever direction was asked for -- walking its reverse
- * as well would visit every arc twice for the same answer.
+ * paths reach it. Each step is the same adjacency walk `session.data.neighbors` reads.
  * @param nodes - The mask to fill, which already holds the seeds.
  * @param graph - The snapshot to walk.
  * @param seeds - The seed indices, already in the mask.
@@ -497,30 +522,17 @@ function walkNeighborhood(
     depth: number,
     direction: SelectionDirection,
 ): void {
-    const forward = direction !== "in" || !graph.directed;
-    const backward = graph.directed && direction !== "out";
-    const reverse = backward ? graph.reverse() : null;
     let frontier = seeds;
 
     for (let step = 0; step < depth && frontier.length > 0; step++) {
         const next: number[] = [];
 
         for (const node of frontier) {
-            if (forward) {
-                for (let arc = graph.rowPtr[node]; arc < graph.rowPtr[node + 1]; arc++) {
-                    if (nodes.add(graph.colIdx[arc])) {
-                        next.push(graph.colIdx[arc]);
-                    }
+            eachAdjacentArc(graph, node, direction, (other) => {
+                if (nodes.add(other)) {
+                    next.push(other);
                 }
-            }
-
-            if (reverse !== null) {
-                for (let arc = reverse.rowPtr[node]; arc < reverse.rowPtr[node + 1]; arc++) {
-                    if (nodes.add(reverse.colIdx[arc])) {
-                        next.push(reverse.colIdx[arc]);
-                    }
-                }
-            }
+            });
         }
 
         frontier = next;
@@ -595,16 +607,16 @@ function elementFieldKind(result: RunResult, field: string, path: Path): "node" 
  * different elements in the top twenty.
  * @param context - What the resolution reads.
  * @param run - The run to read.
- * @param field - The field to rank on.
- * @param take - Picks the entries to select out of the run's ranking, best first.
+ * @param named - The field to rank on; the run's primary field when absent.
+ * @param take - Picks the entries to select out of the run's ranking for a field, best first.
  * @returns The two masks, and the path when this session cannot answer it.
  * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no results are attached.
  */
 function resolveRanked(
     context: TargetContext,
     run: RunRef,
-    field: string,
-    take: (result: RunResult) => readonly RankingEntry[],
+    named: string | undefined,
+    take: (result: RunResult, field: string) => readonly RankingEntry[],
 ): TargetMembers {
     const { results } = context;
 
@@ -614,17 +626,19 @@ function resolveRanked(
 
     const { nodes, edges } = emptyMasks(context);
     const result = results.get(run);
+    const field = fieldOfResult(results, { run, ...(named === undefined ? {} : { field: named }) });
 
-    if (result === undefined || !results.has(run, field)) {
+    if (result === undefined || field === undefined || !results.has(run, field)) {
         // Not a throw: a run that has not finished, and a run id read back out of a saved document
         // against a session that never started it, are both ordinary things for a consumer to
         // hold. The path travels back instead, so "0 selected" can say why it was zero.
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: Object.freeze([results.path(run, field)]) };
+        const path = field === undefined ? results.path(run) : results.path(run, field);
+        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: Object.freeze([path]) };
     }
 
     const kind = elementFieldKind(result, field, results.path(run, field));
 
-    for (const entry of take(result)) {
+    for (const entry of take(result, field)) {
         if (kind === "edge") {
             const index = edges.indexOf(String(entry.id));
 
@@ -683,6 +697,264 @@ function resolveNote(id: NoteId, only: number | undefined, context: TargetContex
     return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS, skipped };
 }
 
+/**
+ * The elements a predicate target names.
+ * @param target - The predicate and its optional scope.
+ * @param context - What the resolution reads.
+ * @returns The two masks and the paths nothing answers.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no query engine is attached.
+ */
+function resolveWhere(target: Extract<SelectionTarget, { where: unknown }>, context: TargetContext): TargetMembers {
+    if (context.match === undefined) {
+        throw unsupported("a predicate", "a query engine");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const matched = context.match(target.where);
+    addIds(nodes, matched.nodes ?? []);
+    addIds(edges, matched.edges ?? []);
+    narrowToScope(context, target.scope, nodes, edges);
+
+    return {
+        nodes,
+        edges,
+        unmatched: EMPTY_STRINGS,
+        unresolvedPaths: Object.freeze([...(matched.unresolvedPaths ?? [])]),
+    };
+}
+
+/**
+ * Sets the bit of the element a search hit names, when the graph holds it.
+ * @param hit - The search hit.
+ * @param nodes - The node mask to add a node hit to.
+ * @param edges - The edge mask to add an edge hit to.
+ */
+function addSearchHit(hit: SelectionSearchHit, nodes: ElementMask<NodeId>, edges: ElementMask<EdgeId>): void {
+    if (hit.kind === "edge") {
+        const index = edges.indexOf(String(hit.id));
+
+        if (index !== INVALID_INDEX) {
+            edges.add(index);
+        }
+    } else {
+        const index = nodes.indexOf(hit.id);
+
+        if (index !== INVALID_INDEX) {
+            nodes.add(index);
+        }
+    }
+}
+
+/**
+ * The elements a text search target names.
+ * @param target - The text, its optional mode and its optional scope.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no search index (or, for an `=` expression,
+ *   no query engine) is attached.
+ */
+function resolveText(target: Extract<SelectionTarget, { text: unknown }>, context: TargetContext): TargetMembers {
+    // A search box's `=` prefix: the rest is an expression, so a single text field can offer
+    // both without its host parsing anything.
+    if (target.mode === undefined && target.text.startsWith("=")) {
+        const where = target.text.slice(1);
+
+        return resolveTarget(target.scope === undefined ? { where } : { where, scope: target.scope }, context);
+    }
+
+    if (context.find === undefined) {
+        throw unsupported("a text search", "a search index");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const search = target.mode === undefined ? searchOf(target.text) : { text: target.text, mode: target.mode };
+
+    for (const hit of context.find(search.text, search.mode)) {
+        addSearchHit(hit, nodes, edges);
+    }
+
+    narrowToScope(context, target.scope, nodes, edges);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements a list of pasted ids names.
+ * @param ids - The pasted ids, as the caller passed them.
+ * @param context - What the resolution reads.
+ * @returns The two masks and the ids that named nothing.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when an entry is neither a string nor a finite
+ *   number.
+ */
+function resolvePastedIds(ids: readonly unknown[], context: TargetContext): TargetMembers {
+    const { nodes, edges } = emptyMasks(context);
+    const unmatched: string[] = [];
+
+    for (const raw of ids) {
+        if (typeof raw !== "string" && !(typeof raw === "number" && Number.isFinite(raw))) {
+            throw badOption("ids entry", JSON.stringify(raw), "a string or a finite number");
+        }
+
+        if (!addPastedId(raw, nodes, edges)) {
+            unmatched.push(String(raw));
+        }
+    }
+
+    return { nodes, edges, unmatched: Object.freeze(unmatched), unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements a scope names.
+ * @param scope - The scope.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_UNSUPPORTED` when no scope resolver is attached.
+ */
+function resolveScope(scope: ScopeInput, context: TargetContext): TargetMembers {
+    if (context.scope === undefined) {
+        throw unsupported("a scope", "a scope resolver");
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const resolved = context.scope.resolveNow(admitted(context.scope, scope));
+    addIds(nodes, resolved.nodes);
+    addIds(edges, resolved.edges);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements whose value in a run's field lies above a threshold.
+ * @param above - The run, the optional field and the threshold.
+ * @param above.run - The run to read.
+ * @param above.field - The field to rank on; the run's primary field when absent.
+ * @param above.threshold - The value an element must exceed.
+ * @param context - What the resolution reads.
+ * @returns The two masks, and the path when this session cannot answer it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when the threshold is not finite.
+ */
+function resolveAbove(
+    above: { run: RunRef; field?: string; threshold: number },
+    context: TargetContext,
+): TargetMembers {
+    const { run, threshold } = above;
+
+    if (!Number.isFinite(threshold)) {
+        throw badOption("threshold", threshold, "a finite number");
+    }
+
+    return resolveRanked(context, run, above.field, (result, field) =>
+        result.ranking(field).filter((entry) => entry.value > threshold),
+    );
+}
+
+/**
+ * The elements whose value in a run's field lies within a range.
+ * @param range - The run, the optional field and the optional bounds.
+ * @param range.run - The run to read.
+ * @param range.field - The field to rank on; the run's primary field when absent.
+ * @param range.min - The lowest value admitted; unbounded when absent.
+ * @param range.max - The highest value admitted; unbounded when absent.
+ * @param context - What the resolution reads.
+ * @returns The two masks, and the path when this session cannot answer it.
+ * @throws A `GraphtyError` coded `E_OPTION_RANGE` when a bound is not finite or min exceeds max.
+ */
+function resolveRange(
+    range: { run: RunRef; field?: string; min?: number; max?: number },
+    context: TargetContext,
+): TargetMembers {
+    const { run, min, max } = range;
+
+    for (const [option, bound] of [
+        ["min", min],
+        ["max", max],
+    ] as const) {
+        if (bound !== undefined && !Number.isFinite(bound)) {
+            throw badOption(option, bound, "a finite number");
+        }
+    }
+
+    const low = min ?? Number.NEGATIVE_INFINITY;
+    const high = max ?? Number.POSITIVE_INFINITY;
+
+    if (low > high) {
+        throw badOption("min", min, `at most its max (${String(max)})`);
+    }
+
+    return resolveRanked(context, run, range.field, (result, field) =>
+        result.ranking(field).filter((entry) => entry.value >= low && entry.value <= high),
+    );
+}
+
+/**
+ * The edges whose two ends are both selected.
+ * @param target - The edges-between target.
+ * @param context - What the resolution reads.
+ * @returns The two masks, with only edges set.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the flag is not `true`.
+ */
+function resolveEdgesBetween(
+    target: Extract<SelectionTarget, { edgesBetween: unknown }>,
+    context: TargetContext,
+): TargetMembers {
+    // Read through `unknown` on purpose: the type says the flag is `true`, and a caller
+    // writing plain JavaScript can still pass `false`, which means nothing and must not be
+    // taken for "yes".
+    const flag: unknown = target.edgesBetween;
+
+    if (flag !== true) {
+        throw notATarget(target);
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    const list = context.graph.edgeList();
+
+    for (let edge = 0; edge < context.graph.edgeCount; edge++) {
+        if (context.selectedNodes.has(list.src[edge]) && context.selectedNodes.has(list.dst[edge])) {
+            edges.add(edge);
+        }
+    }
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * Every element the current selection does not hold.
+ * @param target - The invert target.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ * @throws A `GraphtyError` coded `E_BAD_COMMAND` when the flag is not `true`.
+ */
+function resolveInvert(target: Extract<SelectionTarget, { invert: unknown }>, context: TargetContext): TargetMembers {
+    const flag: unknown = target.invert;
+
+    if (flag !== true) {
+        throw notATarget(target);
+    }
+
+    const { nodes, edges } = emptyMasks(context);
+    nodes.fill();
+    nodes.subtract(context.selectedNodes);
+    edges.fill();
+    edges.subtract(context.selectedEdges);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
+/**
+ * The elements a node-and-edge id target names.
+ * @param target - The node ids and edge ids.
+ * @param context - What the resolution reads.
+ * @returns The two masks.
+ */
+function resolveElementIds(target: ElementIdTarget, context: TargetContext): TargetMembers {
+    const { nodes, edges } = emptyMasks(context);
+    addIds(nodes, target.nodes ?? []);
+    addIds(edges, target.edges ?? []);
+
+    return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+}
+
 // ---------------------------------------------------------------------------------------------
 // The resolver
 // ---------------------------------------------------------------------------------------------
@@ -705,22 +977,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("where" in target) {
-        if (context.match === undefined) {
-            throw unsupported("a predicate", "a query engine");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const matched = context.match(target.where);
-        addIds(nodes, matched.nodes ?? []);
-        addIds(edges, matched.edges ?? []);
-        narrowToScope(context, target.scope, nodes, edges);
-
-        return {
-            nodes,
-            edges,
-            unmatched: EMPTY_STRINGS,
-            unresolvedPaths: Object.freeze([...(matched.unresolvedPaths ?? [])]),
-        };
+        return resolveWhere(target, context);
     }
 
     if ("note" in target) {
@@ -728,122 +985,37 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if ("text" in target) {
-        // A search box's `=` prefix: the rest is an expression, so a single text field can offer
-        // both without its host parsing anything.
-        if (target.mode === undefined && target.text.startsWith("=")) {
-            const where = target.text.slice(1);
-
-            return resolveTarget(target.scope === undefined ? { where } : { where, scope: target.scope }, context);
-        }
-
-        if (context.find === undefined) {
-            throw unsupported("a text search", "a search index");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const search = target.mode === undefined ? searchOf(target.text) : { text: target.text, mode: target.mode };
-
-        for (const hit of context.find(search.text, search.mode)) {
-            if (hit.kind === "edge") {
-                const index = edges.indexOf(String(hit.id));
-
-                if (index !== INVALID_INDEX) {
-                    edges.add(index);
-                }
-            } else {
-                const index = nodes.indexOf(hit.id);
-
-                if (index !== INVALID_INDEX) {
-                    nodes.add(index);
-                }
-            }
-        }
-
-        narrowToScope(context, target.scope, nodes, edges);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveText(target, context);
     }
 
     if ("ids" in target) {
-        const { nodes, edges } = emptyMasks(context);
-        const unmatched: string[] = [];
-
-        for (const raw of target.ids) {
-            if (!addPastedId(raw, nodes, edges)) {
-                unmatched.push(raw);
-            }
-        }
-
-        return { nodes, edges, unmatched: Object.freeze(unmatched), unresolvedPaths: EMPTY_PATHS };
+        return resolvePastedIds(target.ids, context);
     }
 
     if ("scope" in target) {
-        if (context.scope === undefined) {
-            throw unsupported("a scope", "a scope resolver");
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const resolved = context.scope.resolveNow(admitted(context.scope, target.scope));
-        addIds(nodes, resolved.nodes);
-        addIds(edges, resolved.edges);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveScope(target.scope, context);
     }
 
     if ("top" in target) {
-        const { run, field, n } = target.top;
+        const { run, n } = target.top;
 
-        return resolveRanked(context, run, field, (result) => result.top(field, n).entries);
+        return resolveRanked(context, run, target.top.field, (result, field) => result.top(field, n).entries);
     }
 
     if ("above" in target) {
-        const { run, field, threshold } = target.above;
+        return resolveAbove(target.above, context);
+    }
 
-        if (!Number.isFinite(threshold)) {
-            throw badOption("threshold", threshold, "a finite number");
-        }
-
-        return resolveRanked(context, run, field, (result) =>
-            result.ranking(field).filter((entry) => entry.value > threshold),
-        );
+    if ("range" in target) {
+        return resolveRange(target.range, context);
     }
 
     if ("edgesBetween" in target) {
-        // Read through `unknown` on purpose: the type says the flag is `true`, and a caller
-        // writing plain JavaScript can still pass `false`, which means nothing and must not be
-        // taken for "yes".
-        const flag: unknown = target.edgesBetween;
-
-        if (flag !== true) {
-            throw notATarget(target);
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        const list = context.graph.edgeList();
-
-        for (let edge = 0; edge < context.graph.edgeCount; edge++) {
-            if (context.selectedNodes.has(list.src[edge]) && context.selectedNodes.has(list.dst[edge])) {
-                edges.add(edge);
-            }
-        }
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveEdgesBetween(target, context);
     }
 
     if ("invert" in target) {
-        const flag: unknown = target.invert;
-
-        if (flag !== true) {
-            throw notATarget(target);
-        }
-
-        const { nodes, edges } = emptyMasks(context);
-        nodes.fill();
-        nodes.subtract(context.selectedNodes);
-        edges.fill();
-        edges.subtract(context.selectedEdges);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveInvert(target, context);
     }
 
     if (isNeighborhood(target)) {
@@ -851,11 +1023,7 @@ export function resolveTarget(target: SelectionTarget, context: TargetContext): 
     }
 
     if (isElementIds(target)) {
-        const { nodes, edges } = emptyMasks(context);
-        addIds(nodes, target.nodes ?? []);
-        addIds(edges, target.edges ?? []);
-
-        return { nodes, edges, unmatched: EMPTY_STRINGS, unresolvedPaths: EMPTY_PATHS };
+        return resolveElementIds(target, context);
     }
 
     throw notATarget(target);

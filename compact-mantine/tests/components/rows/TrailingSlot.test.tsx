@@ -5,8 +5,7 @@ import React, { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type ActivationEvent, compactTheme } from "../../../src";
-import { AdvancedButton, holdsSomething, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
-import { PANEL_INK } from "../../../src/constants/panel";
+import { AdvancedButton, holdsSomething, ResetButton, TrailingSlot } from "../../../src/components/rows/TrailingSlot";
 import { LabelsProvider } from "../../../src/i18n";
 import { UI_GLYPH_NAMES, UiGlyph } from "../../../src/icons";
 
@@ -115,10 +114,10 @@ describe("AdvancedButton", () => {
     });
 
     describe("its glyph", () => {
-        it("draws the gear by default", () => {
+        it("draws the settings glyph by default", () => {
             const { container } = renderSlot(<AdvancedButton label="Advanced" onClick={vi.fn()} />);
 
-            expect(container.querySelector('[data-glyph="gear"]')).toBeInTheDocument();
+            expect(container.querySelector('[data-glyph="settings"]')).toBeInTheDocument();
         });
 
         it("draws a given glyph instead of the gear", () => {
@@ -127,7 +126,7 @@ describe("AdvancedButton", () => {
             );
 
             expect(container.querySelector('[data-glyph="chevronRight"]')).toBeInTheDocument();
-            expect(container.querySelector('[data-glyph="gear"]')).toBeNull();
+            expect(container.querySelector('[data-glyph="settings"]')).toBeNull();
         });
 
         it.each(UI_GLYPH_NAMES)("can carry the %s glyph", (name) => {
@@ -140,31 +139,38 @@ describe("AdvancedButton", () => {
     });
 
     describe("changed -- the only signal that the button hides a non-default", () => {
-        it("draws in the secondary ink when everything behind it is default", () => {
+        it("leaves the ink to the ghost icon button theme when everything behind it is default", () => {
             renderSlot(<AdvancedButton label="Image export options" onClick={vi.fn()} />);
 
             const button = screen.getByTestId("advanced-button");
             expect(button).toHaveAttribute("data-changed", "false");
-            expect(button.style.getPropertyValue("--ai-color")).toBe(PANEL_INK.CHROME);
+            expect(button.style.color).toBe("");
+            expect(button).toHaveClass("cm-advanced-button");
         });
 
-        it("draws in the primary ink when something behind it has changed", () => {
+        it("marks itself changed, which the stylesheet draws in the brand ink", () => {
             renderSlot(<AdvancedButton label="Image export options" changed onClick={vi.fn()} />);
 
             const button = screen.getByTestId("advanced-button");
             expect(button).toHaveAttribute("data-changed", "true");
-            expect(button.style.getPropertyValue("--ai-color")).toBe(PANEL_INK.VALUE);
+            expect(button).toHaveClass("cm-advanced-button");
+        });
+
+        it("keeps a caller's own class beside its own", () => {
+            renderSlot(<AdvancedButton label="Options" className="mine" onClick={vi.fn()} />);
+
+            expect(screen.getByTestId("advanced-button")).toHaveClass("cm-advanced-button", "mine");
         });
 
         it("changes ink and name, and nothing else", () => {
             const { container: unchanged } = renderSlot(<AdvancedButton label="Options" onClick={vi.fn()} />);
             const { container: changed } = renderSlot(<AdvancedButton label="Options" changed onClick={vi.fn()} />);
 
-            expect(unchanged.querySelector('[data-glyph="gear"]')).toBeInTheDocument();
-            expect(changed.querySelector('[data-glyph="gear"]')).toBeInTheDocument();
+            expect(unchanged.querySelector('[data-glyph="settings"]')).toBeInTheDocument();
+            expect(changed.querySelector('[data-glyph="settings"]')).toBeInTheDocument();
         });
 
-        it("is never colour alone: the state is in the accessible name too", () => {
+        it("is never color alone: the state is in the accessible name too", () => {
             renderSlot(<AdvancedButton label="Options" changed onClick={vi.fn()} />);
 
             const button = screen.getByTestId("advanced-button");
@@ -286,12 +292,10 @@ describe("AdvancedButton", () => {
         it("leaves the dimming to the theme, so it matches every other disabled control", () => {
             renderSlot(<AdvancedButton label="Advanced" disabled onClick={vi.fn()} />);
 
-            // The ink is set as ActionIcon's own --ai-color variable rather than
-            // as an inline color, so the stylesheet rule that dims a disabled
-            // control still outranks it.
+            // No inline ink at all, so the stylesheet rule that dims a disabled
+            // control still applies.
             const button = screen.getByTestId("advanced-button");
             expect(button.style.color).toBe("");
-            expect(button.style.getPropertyValue("--ai-color")).toBe(PANEL_INK.CHROME);
         });
     });
 
@@ -380,5 +384,34 @@ describe("AdvancedButton", () => {
             expect(button.tagName).toBe("BUTTON");
             expect(button).toHaveAttribute("type", "button");
         });
+    });
+});
+
+describe("ResetButton", () => {
+    it("is named for the control it resets, and calls back on a click", async () => {
+        const onClick = vi.fn();
+        renderSlot(<ResetButton label="Size" onClick={onClick} />);
+        const button = screen.getByRole("button", { name: "Reset Size to default" });
+        await userEvent.setup().click(button);
+        expect(onClick).toHaveBeenCalledTimes(1);
+        expect(button).toHaveAttribute("title", "Reset Size to default");
+    });
+
+    it("takes its words from LabelsProvider", () => {
+        render(
+            <MantineProvider theme={compactTheme}>
+                <LabelsProvider labels={{ resetToDefault: (label) => `Retablir ${label}` }}>
+                    <ResetButton label="Taille" />
+                </LabelsProvider>
+            </MantineProvider>,
+        );
+        expect(screen.getByRole("button", { name: "Retablir Taille" })).toBeInTheDocument();
+    });
+
+    it("refuses activation while disabled", async () => {
+        const onClick = vi.fn();
+        renderSlot(<ResetButton label="Size" disabled onClick={onClick} />);
+        await userEvent.setup().click(screen.getByRole("button", { name: "Reset Size to default" }));
+        expect(onClick).not.toHaveBeenCalled();
     });
 });

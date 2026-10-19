@@ -5,9 +5,9 @@
  * @module mcp/tools/logs-get-recent
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
-import type { LogEntryWithSession, LogFilter,LogStorage } from "../../server/log-storage.js";
+import type { LogEntryWithSession, LogFilter, LogStorage } from "../../server/log-storage.js";
 import { resolveProjectMarker } from "../../server/marker-utils.js";
 
 /**

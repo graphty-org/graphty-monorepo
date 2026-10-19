@@ -1,0 +1,411 @@
+/**
+ * @file In 2D and 3D, the number of scene objects grows with styles and nodes, never with edges (issue
+ * #441).
+ *
+ * THE DEFECT THIS GUARDS. Arrow heads were once thin instances of one shared mesh, and a single
+ * commit turned each of them back into a `Mesh` with its own material. Nothing in the suite
+ * noticed for ten months, until a graph of 18,000 nodes ran the renderer out of heap (issue
+ * #419). Every test that looked at edges looked at how they were drawn, and none at how many
+ * scene objects drawing them cost.
+ *
+ * WHAT IS PINNED. The SHAPE of the scene, counted, never timed: a few hundred edges of one
+ * appearance add a handful of meshes to the scene, not a few hundred. And the buffer contract a
+ * batch lives or dies by: when a node moves, the batch its edges are drawn from uploads its matrix
+ * buffer on the next frame, and the matrix Babylon draws that edge's instance with is the moved one.
+ * A batch that writes its own array and forgets to tell Babylon draws every edge where it was.
+ *
+ * EVERY LINE STYLE, IN BOTH MODES (issue #444). A curve, an animated line, each of the eight
+ * patterns and every 2D line is held to the same bound as the default straight 3D line.
+ */
+import "@babylonjs/core/Meshes/thinInstanceMesh";
+
+import { Mesh, Vector3 } from "@babylonjs/core";
+import { afterEach, assert, beforeEach, describe, it } from "vitest";
+
+import type { StaticStyle } from "../../src/catalog/types";
+import type { Edge } from "../../src/Edge";
+import { Graph, operationQueueOf } from "../../src/Graph";
+import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { addStyleLayer, styleEveryEdge } from "../helpers/testSetup";
+
+/** How many nodes sit on the circle. */
+const NODE_COUNT = 30;
+
+/** How many edges leave each node, to the next this-many nodes round the circle. */
+const EDGES_PER_NODE = 10;
+
+/** How many edges the graph has: a few hundred, far more than the bound below allows meshes for. */
+const EDGE_COUNT = NODE_COUNT * EDGES_PER_NODE;
+
+/**
+ * Meshes the bound allows beyond one per node and one per edge appearance: the mesh a node
+ * batch is instanced from, the source mesh a line batch is cloned from, and room for the few
+ * helpers a scene carries. Two digits of slack against three digits of edges, so a renderer
+ * that went back to a mesh per edge -- or even one per ten edges -- cannot fit under it.
+ */
+const SLACK = 10;
+
+/**
+ * The most triangles one frame of a per-style case may draw (issue #1716).
+ *
+ * A patterned line places one element per period of its length, so the work a frame does grows
+ * with how long the edges are. Every frame goes through a software GPU in the browser tests, and
+ * the GPU process is shared by every test in the shard: a heavy frame is paid for by whatever
+ * test next waits on the GPU, and under CPU contention that wait ran past the test timeout -- on
+ * the dot line (1.7 million triangles a frame at a layout scale of 0.5), the diamond line and the
+ * dash line in turn. At today's scale the heaviest case, the dot line in 3D, draws about 178,000.
+ * Counting the frame's triangles fails a change that makes this file heavy again (longer edges,
+ * finer dots, more elements per period) on its first run, instead of as a timeout on a loaded
+ * machine.
+ */
+const FRAME_TRIANGLE_BUDGET = 250_000;
+
+describe("the scene grows with styles and nodes, not with edges", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+
+    /** How many meshes the scene holds before any data is loaded. */
+    let empty: number;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        empty = graph.scene.meshes.length;
+
+        const nodes = Array.from({ length: NODE_COUNT }, (_, i) => ({ id: `n${String(i)}` }));
+        const edges = nodes.flatMap((_, i) =>
+            Array.from({ length: EDGES_PER_NODE }, (__, step) => ({
+                src: `n${String(i)}`,
+                dst: `n${String((i + step + 1) % NODE_COUNT)}`,
+                // Which of two edge styles the second-style test paints this edge with.
+                half: step % 2 === 0 ? "a" : "b",
+            })),
+        );
+        await graph.addNodes(nodes);
+        await graph.addEdges(edges);
+        // A small circle, so the edges are short. A patterned line places one element per period
+        // of its length, by design, so at scale 0.5 (edges about 50 units long) the 300 edges drew
+        // 52,915 diamonds, and a dot line 1.7 million triangles. The bound counts meshes, not
+        // elements, so that bought nothing, but every frame of it went through a software GPU,
+        // and under CPU contention one frame stalled the page for 10 to 70 seconds (issue #1660).
+        // At 0.05 the patterns still draw 1,600 to 5,300 elements across the graph (5,252
+        // diamonds), so a renderer that went back to a mesh per element still blows the bound by
+        // thousands.
+        await graph.setLayout("circular", { scale: 0.05 });
+        await operationQueueOf(graph).waitForCompletion();
+    });
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    /**
+     * Let the last repaint land and run a frame through the whole update-then-render path.
+     */
+    async function frame(): Promise<void> {
+        await operationQueueOf(graph).waitForCompletion();
+        graph.update();
+        graph.scene.render();
+    }
+
+    /** @returns Every edge in the graph. */
+    function edges(): Edge[] {
+        return [...graph.getDataManager().edges.values()];
+    }
+
+    /**
+     * The bound itself.
+     *
+     * An empty scene already holds `empty` meshes (whatever the camera and environment bring).
+     * Each node is one scene object -- an instance of its style's node mesh. Each edge APPEARANCE
+     * is one more: the batch every line of that appearance is a thin instance of, and, for a style
+     * that draws arrow caps, the batch every cap of that shape is a thin instance of. Nothing in
+     * that sum is per edge, so for this graph it is about 40 against 300 edges.
+     * @param appearances - How many edge batches the style is entitled to.
+     * @returns The most meshes the scene may hold.
+     */
+    function bound(appearances: number): number {
+        return empty + NODE_COUNT + appearances + SLACK;
+    }
+
+    /**
+     * How many triangles a frame of this scene hands the GPU: every enabled, visible mesh's
+     * triangles, times its thin instances when it is a batch. Counted from the meshes rather than
+     * from the last frame's statistics, so it does not depend on what the camera culled.
+     * @returns The triangles one frame submits.
+     */
+    function trianglesSubmitted(): number {
+        let triangles = 0;
+        for (const mesh of graph.scene.meshes) {
+            if (mesh.isEnabled() && mesh.isVisible) {
+                const instances = mesh instanceof Mesh ? Math.max(mesh.thinInstanceCount, mesh.forcedInstanceCount) : 0;
+                const copies = instances > 0 ? instances : 1;
+                triangles += (copies * mesh.getTotalIndices()) / 3;
+            }
+        }
+        return triangles;
+    }
+
+    it("draws a few hundred edges of one style as one batch", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+
+        assert.equal(edges().length, EDGE_COUNT, "the graph must actually load");
+        const meshes = graph.scene.meshes.length;
+        assert.isAtMost(
+            meshes,
+            bound(1),
+            `${String(EDGE_COUNT)} edges of one style left ${String(meshes)} meshes in a scene that ` +
+                `started with ${String(empty)}: that is growing with the edges`,
+        );
+
+        // The bound counts ONE line batch, so check there is one, or it is the wrong bound. The
+        // batch OBJECT, not its name: two batches of one appearance share a name, and the bound's
+        // slack would let a few of them through.
+        assert.isTrue(
+            edges().every((edge) => edge.drawnLine !== null),
+            "every line is a slot in a batch",
+        );
+        assert.equal(new Set(edges().map((edge) => edge.mesh)).size, 1, "every line is a slot in the one batch");
+    });
+
+    it("adds exactly one line batch for a second edge style", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+        const oneStyle = graph.scene.meshes.length;
+
+        await addStyleLayer(graph, {
+            name: "half the edges",
+            target: "edge",
+            selector: { match: "expression", where: "data.half == 'b'" },
+            set: { "edge.color": "#ff00ff" },
+        });
+        await frame();
+
+        const batches = new Set(edges().map((edge) => edge.mesh));
+        assert.equal(batches.size, 2, "the second style draws its edges from a second batch");
+        assert.equal(graph.scene.meshes.length, oneStyle + 1, "and that batch is the one mesh it adds");
+    });
+
+    it("draws a few hundred arrow caps of one shape as one batch", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        await frame();
+
+        assert.equal(edges().length, EDGE_COUNT, "the graph must actually load");
+        const caps = edges().flatMap((edge) => edge.drawnCaps);
+        assert.equal(caps.length, EDGE_COUNT, "every edge draws a head, or the count proves nothing");
+
+        // One line batch and one cap batch.
+        const meshes = graph.scene.meshes.length;
+        assert.isAtMost(
+            meshes,
+            bound(2),
+            `${String(EDGE_COUNT)} edges with heads left ${String(meshes)} meshes in a scene that ` +
+                `started with ${String(empty)}: that is growing with the edges`,
+        );
+
+        // The bound counts ONE cap shape, so check there is one, or it is the wrong bound.
+        const capMeshes = new Set(edges().map((edge) => edge.arrowCap?.batchMesh));
+        assert.notInclude([...capMeshes], null, "every head is a slot in a batch");
+        assert.equal(capMeshes.size, 1, "every head is a slot in the one cap batch");
+    });
+
+    /**
+     * Move a node the way a drag does, and record which thin-instance buffers a batch mesh
+     * uploads on the frame after.
+     * @param node - Which node to move.
+     * @param mesh - The batch mesh to watch.
+     * @returns The buffer kinds the mesh uploaded.
+     */
+    function moveAndWatch(node: string, mesh: Mesh): string[] {
+        const uploads: string[] = [];
+        const upload = mesh.thinInstanceBufferUpdated.bind(mesh);
+        mesh.thinInstanceBufferUpdated = (kind: string): void => {
+            uploads.push(kind);
+            upload(kind);
+        };
+        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch).
+        const slots = mesh.getVertexBuffer("pA")?.getWrapperBuffer();
+        if (slots) {
+            const update = slots.update.bind(slots);
+            slots.update = (data): void => {
+                uploads.push("slots");
+                update(data);
+            };
+        }
+
+        const moved = graph.getDataManager().nodes.get(node);
+        assert.isDefined(moved, `node ${node} exists`);
+        const to = moved.mesh.position.add(new Vector3(0, 0, 5));
+        moved.mesh.position.copyFrom(to);
+        const engine = graph.getLayoutManager().layoutEngine;
+        assert.isDefined(engine, "a layout engine is running");
+        layoutEngineInternals.setNodePosition(engine, moved, { x: to.x, y: to.y, z: to.z });
+        graph.update();
+        graph.scene.render();
+
+        return uploads;
+    }
+
+    /**
+     * Whether a batch's instance matrices have an instance at a point.
+     *
+     * This reads the batch's own array -- Babylon keeps a reference to it, not a copy -- so it
+     * says which slot the batch WROTE, never whether the GPU got it. The upload is pinned only by
+     * the `thinInstanceBufferUpdated` spy in `moveAndWatch`.
+     * @param mesh - The batch mesh.
+     * @param at - The point.
+     * @returns True when some instance is translated there.
+     */
+    function drawsAt(mesh: Mesh, at: Vector3): boolean {
+        // A joined line's slots are its batch's own instanced buffer, read back by the batch.
+        const line = edges().find((edge) => edge.mesh === mesh) as unknown as
+            { lineBatch: { drawnCount: number; centreOf: (slot: number) => Vector3 } } | undefined;
+        if (line) {
+            const { lineBatch } = line;
+            return Array.from({ length: lineBatch.drawnCount }, (_, slot) => lineBatch.centreOf(slot)).some((centre) =>
+                centre.equalsWithEpsilon(at, 1e-4),
+            );
+        }
+
+        return mesh
+            .thinInstanceGetWorldMatrices()
+            .some((matrix) => matrix.getTranslation().equalsWithEpsilon(at, 1e-4));
+    }
+
+    it("uploads a line batch's slots, and draws the moved slot, when a node moves", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+
+        const edge = edges().find((candidate) => candidate.srcId === "n0");
+        assert.isDefined(edge);
+        const lineBatch = edge.mesh;
+        assert.instanceOf(lineBatch, Mesh, "a batched line points at its batch's mesh");
+        const before = edge.drawnCentre.clone();
+
+        const uploads = moveAndWatch("n0", lineBatch);
+
+        assert.include(uploads, "slots", "the frame after a move uploads the line's slots");
+        const after = edge.drawnCentre;
+        assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the edge's slot moved with its node");
+        assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved slot");
+        assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
+    });
+
+    it("puts a curve's drawn centre at the middle of the curve, not of its first segment", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none", "edge.curvature": true });
+        await frame();
+        await frame();
+
+        const edge = edges()[0];
+        const curve = edge.drawnCurve;
+        assert.isNotNull(curve);
+        assert.isAbove(curve.length, 3, "a curve is drawn as several segments");
+
+        // A symmetric curve's middle is as far from one end as from the other.
+        const centre = edge.drawnCentre;
+        const fromStart = Vector3.Distance(centre, curve[0]);
+        const fromEnd = Vector3.Distance(centre, curve[curve.length - 1]);
+        assert.closeTo(fromStart, fromEnd, 1e-3 * (fromStart + fromEnd), "the centre is midway along the curve");
+    });
+
+    it("uploads a cap batch's matrices, and draws the moved matrix, when a node moves", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        await frame();
+
+        // The head sits at the destination end, so move the destination.
+        const edge = edges().find((candidate) => candidate.dstId === "n0");
+        assert.isDefined(edge);
+        const cap = edge.arrowCap;
+        assert.isNotNull(cap);
+        const capBatch = cap.batchMesh;
+        assert.isNotNull(capBatch);
+        const before = cap.position.clone();
+
+        const uploads = moveAndWatch("n0", capBatch);
+
+        assert.include(uploads, "matrix", "the frame after a move uploads the cap matrices");
+        // Moving the destination turns the line, and the billboard shader points the cap along it.
+        assert.include(uploads, "arrowDirection", "and the directions the caps point along");
+        const after = cap.position;
+        assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the cap's slot moved with its node");
+        assert.isTrue(drawsAt(capBatch, after), "the cap batch wrote the moved matrix");
+        assert.isFalse(drawsAt(capBatch, before), "and no cap is still drawn where it was");
+    });
+
+    it("uploads a cap batch's sizes and colours when the cap style changes", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        await frame();
+
+        const capBatch = edges()[0].arrowCap?.batchMesh;
+        assert.isDefined(capBatch);
+        assert.isNotNull(capBatch);
+        const uploads: string[] = [];
+        const upload = capBatch.thinInstanceBufferUpdated.bind(capBatch);
+        capBatch.thinInstanceBufferUpdated = (kind: string): void => {
+            uploads.push(kind);
+            upload(kind);
+        };
+
+        await styleEveryEdge(graph, { "edge.arrowHeadColor": "#ff00ff", "edge.arrowHeadSize": 3 }, "restyle caps");
+        await frame();
+
+        assert.include(uploads, "arrowColor", "a new cap colour is uploaded");
+        assert.include(uploads, "arrowSize", "a new cap size is uploaded");
+    });
+
+    /**
+     * Every line style the element draws, as the style channels that ask for it, and how many
+     * batches it is entitled to. A dash-dot line alternates two shapes, so it draws from two.
+     */
+    const LINE_STYLES: { name: string; set: StaticStyle; batches: number }[] = [
+        { name: "a solid line", set: {}, batches: 1 },
+        { name: "a curve", set: { "edge.curvature": true }, batches: 1 },
+        { name: "an animated line", set: { "edge.animationSpeed": 1 }, batches: 1 },
+        ...["dot", "star", "box", "dash", "diamond", "sinewave", "zigzag"].map((type) => ({
+            name: `a ${type} line`,
+            set: { "edge.style": type },
+            batches: 1,
+        })),
+        { name: "a dash-dot line", set: { "edge.style": "dash-dot" }, batches: 2 },
+    ];
+
+    // Issue #444: the straight solid 3D line was the only style drawn as thin instances, so every
+    // other style -- and every line in 2D -- added a mesh per edge, and a patterned line a mesh
+    // per dash. Each case here draws a few hundred edges of one style and counts the scene.
+    for (const mode of ["3d", "2d"] as const) {
+        for (const style of LINE_STYLES) {
+            it(`draws a few hundred edges of ${style.name} in ${mode} as a fixed number of batches`, async () => {
+                if (mode === "2d") {
+                    await graph.setViewMode("2d");
+                }
+
+                await styleEveryEdge(graph, { "edge.arrowHead": "none", ...style.set });
+                await frame();
+                // A second frame, so a style that places its geometry on the first update (a curve,
+                // a pattern that sizes its run to the line's length) has been placed.
+                await frame();
+
+                assert.equal(edges().length, EDGE_COUNT, "the graph must actually load");
+                const meshes = graph.scene.meshes.length;
+                assert.isAtMost(
+                    meshes,
+                    bound(style.batches),
+                    `${String(EDGE_COUNT)} edges of ${style.name} in ${mode} left ${String(meshes)} meshes ` +
+                        `in a scene that started with ${String(empty)}: that is growing with the edges`,
+                );
+                const triangles = trianglesSubmitted();
+                assert.isAtMost(
+                    triangles,
+                    FRAME_TRIANGLE_BUDGET,
+                    `one frame of ${style.name} in ${mode} drew ${String(triangles)} triangles`,
+                );
+            });
+        }
+    }
+});

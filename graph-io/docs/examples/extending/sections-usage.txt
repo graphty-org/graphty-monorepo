@@ -1,0 +1,7 @@
+[
+  { index: 0, name: 'first', nodes: null, edges: 2 },
+  { index: 1, name: 'second', nodes: null, edges: 3 }
+]
+second: 3 edges
+first: 2 edges, 0 warnings
+second: 3 edges, 0 warnings

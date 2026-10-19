@@ -71,7 +71,7 @@ interface LogicalSets {
 function slugOf(name: string): string {
     const slug = name
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
+        .replaceAll(/[^a-z0-9]+/g, "-")
         .replace(/^-+/, "")
         .replace(/-+$/, "");
 
@@ -242,8 +242,10 @@ export class SetsStore implements RecordView {
 
         const base = `set_${slugOf(name)}`;
         let id = base;
-        for (let suffix = 2; this.issued.has(id) || this.records.has(id) || this.pending.has(id); suffix++) {
+        let suffix = 2;
+        while (this.issued.has(id) || this.records.has(id) || this.pending.has(id)) {
             id = `${base}_${suffix}`;
+            suffix++;
         }
 
         this.pending.add(id);

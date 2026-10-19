@@ -6,6 +6,7 @@
  * replacing any part of it, and nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+export type { CaveatCode, PartialCode } from "./caveatFacts";
 export { ENGINE_VERSIONS } from "./engine";
 export { createLocalRunQueue } from "./localQueue";
 export type {
@@ -28,7 +29,6 @@ export {
     canonicalIdentity,
     canonicalize,
     canonicalizeParams,
-    computeScopeDigest,
     deriveRunId,
     stableDigest,
 } from "./runId";
@@ -47,7 +47,9 @@ export type {
     Run,
     RunChange,
     RunDirection,
+    RunDistinction,
     RunOptions,
+    RunPainting,
     RunPhase,
     RunRecord,
     RunRemoval,
@@ -58,6 +60,7 @@ export type {
     RunStyle,
     StaleNote,
     StartOptions,
+    SuggestionOutcome,
     WeightMeaning,
 } from "./types";
 export {

@@ -283,6 +283,12 @@ describe("Rescale Layout", () => {
             assert.equal(rescaled.A[2], 0); // Third dimension from center
             assert.equal(rescaled.B.length, 3);
             assert.equal(rescaled.C.length, 3);
+            // C has no second coordinate; that absence must not turn the y mean into NaN
+            for (const p of [rescaled.A, rescaled.B]) {
+                for (const v of p) {
+                    assert.isTrue(Number.isFinite(v));
+                }
+            }
         });
 
         it("should handle very large scale factors", () => {

@@ -236,7 +236,12 @@ await GraphtyLogger.configure({
 Logging configuration can be persisted across page reloads:
 
 ```typescript
-import { saveLoggingConfig, loadLoggingConfig, clearLoggingConfig, getLoggingConfig } from "@graphty/graphty-element/logging";
+import {
+    saveLoggingConfig,
+    loadLoggingConfig,
+    clearLoggingConfig,
+    getLoggingConfig,
+} from "@graphty/graphty-element/logging";
 
 // Save current config to sessionStorage
 saveLoggingConfig(getLoggingConfig());

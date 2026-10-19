@@ -1,5 +1,5 @@
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
@@ -90,7 +90,7 @@ describe("optionsFromZod", () => {
 
             assert.strictEqual(weight.type, "string");
             assert.isNull(weight.default);
-            assert.isTrue(weight.advanced);
+            assert.isUndefined(weight.advanced);
         });
 
         it("emits no Zod object anywhere in the result", () => {
@@ -140,7 +140,11 @@ describe("optionsFromZod", () => {
                 const weighted = byName(optionsFromZod(schemaOf(engine)), "weighted");
 
                 assert.strictEqual(weighted.type, "boolean", `${engine.type}: weights are on or off`);
-                assert.strictEqual(weighted.default, true, `${engine.type}: a weighted graph is arranged by its weights`);
+                assert.strictEqual(
+                    weighted.default,
+                    true,
+                    `${engine.type}: a weighted graph is arranged by its weights`,
+                );
                 assert.isNotTrue(weighted.advanced, `${engine.type}: a reader should not have to go looking for it`);
             }
         });
@@ -267,7 +271,7 @@ describe("optionsFromZod", () => {
                 // Every top-level field of NodeStyle, exactly. `enabled` was here until 2.0
                 // withdrew it: the session's visibility mask decides whether a node is drawn and
                 // nothing ever read the flag.
-                ["shape", "texture", "effect", "label", "tooltip"],
+                ["shape", "texture", "effect", "border", "label", "tooltip"],
             );
             for (const option of options) {
                 if (option.type === "unknown") {

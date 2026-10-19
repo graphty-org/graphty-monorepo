@@ -14,11 +14,11 @@
 # is available (with no terminal it does nothing, and commitlint in commit-msg still
 # checks the message). Run from a terminal, a scripted `git commit` would hand control
 # to that wizard, which can replace the message it was given. So this script commits
-# with core.hooksPath pointed at a temporary directory holding a copy of
+# with core.hooksPath pointed at a temporary directory holding copies of
+# .husky/pre-commit (secret scan, then prettier on the staged files) and
 # .husky/commit-msg and NOTHING else: commitlint still validates every message, and
 # prepare-commit-msg is not there to run. The directory is removed in an EXIT trap.
-# (.husky has no pre-commit hook; if one is added, it has to be copied in here too or
-# it will be skipped.)
+# (A hook added to .husky later has to be copied in here too, or it will be skipped.)
 #
 # Every commit is GPG-signed. The script refuses to run unless commit.gpgsign is true,
 # and it never disables signing.
@@ -793,8 +793,8 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$HOOKS_DIR"
-cp .husky/commit-msg "$HOOKS_DIR/commit-msg"
-chmod +x "$HOOKS_DIR/commit-msg"
+cp .husky/pre-commit .husky/commit-msg "$HOOKS_DIR/"
+chmod +x "$HOOKS_DIR/pre-commit" "$HOOKS_DIR/commit-msg"
 
 # Let gpg-agent find the terminal, so pinentry can prompt for the signing
 # passphrase here instead of failing invisibly.

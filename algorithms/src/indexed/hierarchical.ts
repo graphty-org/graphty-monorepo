@@ -1,5 +1,9 @@
 import { type AdjacencyView, INVALID_INDEX } from "@graphty/graph-format";
 
+import { allocDense, withCode } from "../errors.js";
+import { type LabelResult, withGroups } from "./components.js";
+import { IntUnionFind } from "./structures/union-find.js";
+
 /** How the distance between two clusters is taken from their members' hop distances. @public */
 export type Linkage = "single" | "complete" | "average" | "ward";
 
@@ -7,6 +11,11 @@ export type Linkage = "single" | "complete" | "average" | "ward";
 export interface HierarchicalOptions {
     /** Cluster distance: the minimum, maximum or mean member distance, or Ward's scaled mean; default single. */
     readonly linkage?: Linkage | undefined;
+    /**
+     * Refuse a graph of more nodes than this before allocating its n x n matrices (28 n^2 bytes), with a RangeError
+     * of code `E_TOO_LARGE` and `params` `{ nodeCount, maxNodes, bytes }`. Default: no bound.
+     */
+    readonly maxNodes?: number | undefined;
 }
 
 /**
@@ -43,17 +52,24 @@ export interface HierarchicalResult {
      * @param height - The cut height
      */
     cut(height: number): Uint32Array[];
+    /**
+     * The flat partition after the first merges: with `clusters: k`, the first `nodeCount - k` merges, so exactly
+     * `k` clusters remain; with `distance: d`, the merges in order up to the first whose distance exceeds `d`.
+     * @param by - The cluster count, from `roots.length` to `nodeCount`, or the largest merge distance to apply
+     * @throws RangeError (code `E_BAD_OPTION`) for a cluster count outside that range or a NaN distance
+     */
+    cutAt(by: { readonly clusters: number } | { readonly distance: number }): LabelResult;
 }
 
 /**
  * Hop distances from every node, over out-arcs: `nodeCount * nodeCount` entries, `INVALID_INDEX`
  * where no path exists.
  * @param s - The adjacency
- * @returns The row-major hop matrix
+ * @param hops - The n x n matrix to fill, row-major
  */
-function hopMatrix(s: AdjacencyView): Uint32Array {
+function hopMatrix(s: AdjacencyView, hops: Uint32Array): void {
     const n = s.nodeCount;
-    const hops = new Uint32Array(n * n).fill(INVALID_INDEX);
+    hops.fill(INVALID_INDEX);
     const queue = new Uint32Array(n);
     for (let start = 0; start < n; start++) {
         const row = start * n;
@@ -74,7 +90,6 @@ function hopMatrix(s: AdjacencyView): Uint32Array {
             }
         }
     }
-    return hops;
 }
 
 /**
@@ -123,16 +138,25 @@ function legacyIdRanks(n: number): Uint32Array {
 export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOptions = {}): HierarchicalResult {
     const linkage = options.linkage ?? "single";
     if (!["single", "complete", "average", "ward"].includes(linkage)) {
-        throw new RangeError(`unknown linkage "${linkage}"`);
+        throw withCode(new RangeError(`unknown linkage "${linkage}"`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
-    const hops = hopMatrix(s);
     // Per ordered pair of cluster SLOTS: the min, max, sum and count of the member hop distances
     // from the first to the second. A merge reuses its first child's slot.
-    const min = new Uint32Array(n * n);
-    const max = new Uint32Array(n * n);
-    const sum = new Float64Array(n * n);
-    const count = new Float64Array(n * n);
+    const { hops, min, max, sum, count } = allocDense(
+        "hierarchicalClustering",
+        n,
+        options.maxNodes,
+        28 * n * n,
+        () => ({
+            hops: new Uint32Array(n * n),
+            min: new Uint32Array(n * n),
+            max: new Uint32Array(n * n),
+            sum: new Float64Array(n * n),
+            count: new Float64Array(n * n),
+        }),
+    );
+    hopMatrix(s, hops);
     for (let i = 0; i < n * n; i++) {
         const h = hops[i];
         if (h !== INVALID_INDEX) {
@@ -255,7 +279,7 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
     const rightArr = Uint32Array.from(right);
     const members = (cluster: number): Uint32Array => {
         if (!(cluster >= 0 && cluster < n + merges)) {
-            throw new RangeError(`cluster ${cluster} is not in [0, ${n + merges})`);
+            throw withCode(new RangeError(`cluster ${cluster} is not in [0, ${n + merges})`), "E_BAD_OPTION");
         }
         const out: number[] = [];
         const stack = [cluster];
@@ -270,11 +294,18 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
         return Uint32Array.from(out);
     };
     const roots = Uint32Array.from(active);
+    const distances = Float64Array.from(distance);
+    // a node of every merged cluster, to union the merges over nodes
+    const leaf = new Uint32Array(merges);
+    for (let k = 0; k < merges; k++) {
+        leaf[k] = leftArr[k] < n ? leftArr[k] : leaf[leftArr[k] - n];
+    }
+    const leafOf = (c: number): number => (c < n ? c : leaf[c - n]);
     return {
         nodeCount: n,
         left: leftArr,
         right: rightArr,
-        distance: Float64Array.from(distance),
+        distance: distances,
         height: height.slice(0, n + merges),
         roots,
         members,
@@ -290,6 +321,32 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
             };
             roots.forEach(visit);
             return out;
+        },
+        cutAt(by): LabelResult {
+            let take = 0;
+            if ("clusters" in by) {
+                const k = by.clusters;
+                if (!Number.isInteger(k) || k < roots.length || k > n) {
+                    throw withCode(
+                        new RangeError(`clusters must be an integer in [${roots.length}, ${n}], got ${k}`),
+                        "E_BAD_OPTION",
+                    );
+                }
+                take = n - k;
+            } else {
+                if (Number.isNaN(by.distance)) {
+                    throw withCode(new RangeError("distance must not be NaN"), "E_BAD_OPTION");
+                }
+                while (take < merges && distances[take] <= by.distance) {
+                    take++;
+                }
+            }
+            const uf = new IntUnionFind(n);
+            for (let k = 0; k < take; k++) {
+                uf.union(leafOf(leftArr[k]), leafOf(rightArr[k]));
+            }
+            const { labels, count } = uf.toLabels();
+            return withGroups(labels, count);
         },
     };
 }

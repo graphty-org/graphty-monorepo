@@ -34,7 +34,8 @@ function statedBy(header: unknown, issues: readonly ImportIssue[]): string {
  * `@graphty/graph-io`'s GML importer.
  *
  * Each record carries the keys the file wrote: a node's `id` and its attributes (a nested
- * `graphics [ ... ]` block stays one nested object), an edge's `source`, `target` and attributes.
+ * `graphics [ ... ]` block stays one nested object, as written) and its `position`, read from that
+ * block by the one path every reader shares (`toRecords`); an edge's `source`, `target` and attributes.
  * Only nodes the file declares become node records; an edge endpoint with no `node` block is left
  * to the element, as it always was.
  *
@@ -44,7 +45,7 @@ function statedBy(header: unknown, issues: readonly ImportIssue[]): string {
 export class GMLDataSource extends DataSource {
     static readonly type = "gml";
 
-    private config: GMLDataSourceConfig;
+    private readonly config: GMLDataSourceConfig;
 
     /**
      * Creates a new GMLDataSource instance.
@@ -66,10 +67,11 @@ export class GMLDataSource extends DataSource {
     async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
         const imported = await importWhole(
             gmlImporter,
-            await this.getContent(),
-            // The graphics block stays whole in the record, and `value` stays an attribute: the
-            // element reads its weight from the record, not from the importer.
-            { ids: "canonical", positions: false, weightFrom: null },
+            await this.getInput(),
+            // The graphics block stays whole in the record beside the position read from it, and
+            // `value` stays an attribute: the element reads its weight from the record, not from
+            // the importer.
+            { ids: "canonical", keepPositionSource: true, weightFrom: null },
             this.errorAggregator,
             // A repeated node id keeps its first declaration, as the element keeps a repeated record.
             { firstDeclarationWins: true },
@@ -81,7 +83,7 @@ export class GMLDataSource extends DataSource {
             report.counts.expandedMixed,
         );
 
-        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot));
+        const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this);
         yield* this.chunkData(nodes, edges);
     }
 }

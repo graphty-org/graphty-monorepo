@@ -1,5 +1,5 @@
 /**
- * The children CSR over a containment column (design sections 5.10, 7.1 and 8.2): containment
+ * The children CSR over a containment column: containment
  * (GEXF `pid` / `<parents>`, Cytoscape `parent`, DOT clusters, GraphML nested graphs) is a node
  * column with the `parent` role (u32, refersTo node) or the `parents` role (list of u32) and never
  * enters the CSR of the snapshot. Importers and exporters that need to walk containers top-down
@@ -14,12 +14,18 @@
  * every node is written exactly once.
  */
 
-import { type Column, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { type Column, type GraphSnapshot, INVALID_INDEX, type ListColumn } from "@graphty/graph-format";
 
-/** The role of the column a children CSR is built over. */
+/**
+ * The role of the column a children CSR is built over.
+ * @category Plugin helpers
+ */
 export type ContainmentRole = "parent" | "parents";
 
-/** How the CSR is built: from a role column of the snapshot (default `parent`, then `parents`) or an explicit column. */
+/**
+ * How the CSR is built: from a role column of the snapshot (default `parent`, then `parents`) or an explicit column.
+ * @category Plugin helpers
+ */
 export interface ChildrenOptions {
     /**
      * The column to read: a role name (`parent` for the u32 single-parent column, `parents` for
@@ -30,7 +36,10 @@ export interface ChildrenOptions {
     readonly column?: ContainmentRole | Column | "auto" | null | undefined;
 }
 
-/** One depth-first traversal of the containment forest. */
+/**
+ * One depth-first traversal of the containment forest.
+ * @category Plugin helpers
+ */
 export interface DepthFirstOrder {
     /** Every node index exactly once: roots in index order, each followed by its descendants, cycle members last. */
     readonly order: Uint32Array;
@@ -41,8 +50,9 @@ export interface DepthFirstOrder {
 }
 
 /**
- * The children CSR of a snapshot's containment column (design sections 5.10 and 7.1): the inverse
+ * The children CSR of a snapshot's containment column: the inverse
  * of the parent relation as a compressed sparse row structure over node indices.
+ * @category Plugin helpers
  */
 export class ChildrenCsr {
     /** The number of nodes (the row count of the CSR). */
@@ -247,10 +257,11 @@ export class ChildrenCsr {
 }
 
 /**
- * Build the children CSR of a snapshot (design section 7.1: a graph-io helper, not a core view).
+ * Build the children CSR of a snapshot.
  * @param snapshot - the snapshot
  * @param options - which column to read; the `parent` role, then `parents`, by default
  * @returns the CSR; empty (every node a root) when the snapshot has no containment column
+ * @category Plugin helpers
  */
 export function childrenCsr(snapshot: GraphSnapshot, options: ChildrenOptions = {}): ChildrenCsr {
     const column = resolveColumn(snapshot, options.column === undefined ? "auto" : options.column);
@@ -263,6 +274,7 @@ export function childrenCsr(snapshot: GraphSnapshot, options: ChildrenOptions = 
  * @param nodeCount - the node count the references index into
  * @param column - a u32 `parent`-shaped column, a list-of-u32 `parents`-shaped column, or null for none
  * @returns the CSR
+ * @category Plugin helpers
  */
 export function childrenFromColumn(nodeCount: number, column: Column | null): ChildrenCsr {
     const rowPtr = new Uint32Array(nodeCount + 1);
@@ -270,7 +282,6 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
     let dropped = 0;
     const references: number[] = [];
     if (column !== null) {
-        const rows = Math.min(column.length, nodeCount);
         const keep = (child: number, parent: number): void => {
             if (!Number.isInteger(parent) || parent === INVALID_INDEX || parent >= nodeCount || parent === child) {
                 dropped++;
@@ -280,31 +291,9 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
             rowPtr[parent + 1]++;
             parentCount[child]++;
         };
-        if (column.dtype === "u32") {
-            const { data } = column;
-            for (let i = 0; i < rows; i++) {
-                if (column.isSet(i)) {
-                    keep(i, data[i]);
-                }
-            }
-        } else if (column.dtype === "list") {
-            for (let i = 0; i < rows; i++) {
-                if (!column.isSet(i)) {
-                    continue;
-                }
-                for (const item of column.sliceOf(i)) {
-                    if (typeof item === "number") {
-                        keep(i, item);
-                    } else {
-                        dropped++;
-                    }
-                }
-            }
-        } else {
-            throw new TypeError(
-                `a containment column must be u32 or a list of u32, found ${column.dtype} column "${column.meta.name}"`,
-            );
-        }
+        // keep() counts into `dropped` while it runs, so add the non-numeric items after the call
+        const nonNumeric = readContainment(column, Math.min(column.length, nodeCount), keep);
+        dropped += nonNumeric;
     }
     for (let u = 0; u < nodeCount; u++) {
         rowPtr[u + 1] += rowPtr[u];
@@ -316,6 +305,56 @@ export function childrenFromColumn(nodeCount: number, column: Column | null): Ch
         children[fill[references[k + 1]]++] = references[k];
     }
     return new ChildrenCsr(nodeCount, rowPtr, children, parentCount, dropped, column);
+}
+
+/**
+ * Hand every (child, parent) reference of the first `rows` rows of a containment column to `keep`,
+ * in ascending child order.
+ * @param column - a u32 `parent`-shaped column or a list-of-u32 `parents`-shaped column
+ * @param rows - how many rows to read
+ * @param keep - receives each reference
+ * @returns how many list items were dropped for not being a number
+ */
+function readContainment(column: Column, rows: number, keep: (child: number, parent: number) => void): number {
+    if (column.dtype === "u32") {
+        const { data } = column;
+        for (let i = 0; i < rows; i++) {
+            if (column.isSet(i)) {
+                keep(i, data[i]);
+            }
+        }
+        return 0;
+    }
+    if (column.dtype === "list") {
+        return readParentLists(column, rows, keep);
+    }
+    throw new TypeError(
+        `a containment column must be u32 or a list of u32, found ${column.dtype} column "${column.meta.name}"`,
+    );
+}
+
+/**
+ * Hand every numeric item of a `parents`-shaped list column to `keep`.
+ * @param column - the list column
+ * @param rows - how many rows to read
+ * @param keep - receives each reference
+ * @returns how many items were not numbers
+ */
+function readParentLists(column: ListColumn, rows: number, keep: (child: number, parent: number) => void): number {
+    let dropped = 0;
+    for (let i = 0; i < rows; i++) {
+        if (!column.isSet(i)) {
+            continue;
+        }
+        for (const item of column.sliceOf(i)) {
+            if (typeof item === "number") {
+                keep(i, item);
+            } else {
+                dropped++;
+            }
+        }
+    }
+    return dropped;
 }
 
 /**

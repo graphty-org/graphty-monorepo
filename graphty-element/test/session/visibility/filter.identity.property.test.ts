@@ -99,9 +99,8 @@ const NODE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
         .map((level): RuleTree => ({ kind: "item", item: { result: "lvl", key: { field: "level", value: level } } })),
     fc
         .tuple(fc.constantFrom("data.score", "results.met.value"), fc.boolean(), fc.integer({ min: 0, max: 5 }))
-        .map(
-            ([path, top, n]): RuleTree =>
-                top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 },
+        .map(([path, top, n]): RuleTree =>
+            top ? { kind: "threshold", path, top: n } : { kind: "threshold", path, above: n - 1 },
         ),
 );
 
@@ -111,11 +110,11 @@ const SCOPE_LEAF: fc.Arbitrary<RuleTree> = fc
         fc.constantFrom<Scope>("graph", "largest-component"),
         fc.array(fc.integer({ min: 0, max: 12 }), { maxLength: 4 }).map((ids): Scope => ({ nodes: ids.map(idOf) })),
         fc.integer({ min: 0, max: 5 }).map((k): Scope => ({ where: `data.score >= \`${k}\`` })),
-        fc.tuple(fc.integer({ min: 0, max: 9 }), fc.constantFrom<"listed" | "clipped">("listed", "clipped")).map(
-            ([w, reading]): Scope => ({
+        fc
+            .tuple(fc.integer({ min: 0, max: 9 }), fc.constantFrom<"listed" | "clipped">("listed", "clipped"))
+            .map(([w, reading]): Scope => ({
                 define: { kind: "rule", where: { kind: "edges", where: `data.weight > \`${w}\`` }, reading },
-            }),
-        ),
+            })),
     )
     .map((scope): RuleTree => ({ kind: "member", of: scope }));
 
@@ -123,11 +122,10 @@ const EDGE_LEAF: fc.Arbitrary<RuleTree> = fc.oneof(
     fc.integer({ min: 0, max: 9 }).map((w): RuleTree => ({ kind: "edges", where: `data.weight > \`${w}\`` })),
     fc
         .tuple(fc.boolean(), fc.integer({ min: 0, max: 9 }))
-        .map(
-            ([top, n]): RuleTree =>
-                top
-                    ? { kind: "threshold", path: "data.weight", top: n }
-                    : { kind: "threshold", path: "data.weight", above: n },
+        .map(([top, n]): RuleTree =>
+            top
+                ? { kind: "threshold", path: "data.weight", top: n }
+                : { kind: "threshold", path: "data.weight", above: n },
         ),
 );
 
@@ -159,6 +157,14 @@ function tree(depth: number): fc.Arbitrary<RuleTree> {
 }
 
 const TREE = tree(4);
+
+/**
+ * Cases per property per run. A case builds a session and finishes three runs, about 6 ms alone,
+ * so 1,000 cases took 6-17 s a property and up to 24 s in a busy pre-push gate, against the 30 s
+ * default. The seed is new every run (fc-params.ts), so the same generators reach as many cases
+ * over a few runs as 1,000 did in one.
+ */
+const CASES = 250;
 
 /**
  * The equivalent scope of a node leaf.
@@ -282,7 +288,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
 
                 assert.deepStrictEqual(wrapped, direct);
             }),
-            fcParams(1000),
+            fcParams(CASES),
         );
     });
 
@@ -300,7 +306,7 @@ describe("the visibility filter and a rule read clipped are one evaluator", () =
                     assert.deepStrictEqual(rewritten, direct);
                 },
             ),
-            fcParams(1000),
+            fcParams(CASES),
         );
     });
 });

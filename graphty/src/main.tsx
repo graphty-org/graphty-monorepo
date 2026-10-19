@@ -8,19 +8,22 @@ import "@graphty/graphty-element";
 // `capabilities.acceleration`. Nothing in this application touches WebGPU.
 import "@graphty/graphty-element/webgpu";
 
-import { MantineProvider } from "@mantine/core";
+// Types the <graphty-element> tag for JSX, as any React 19 consumer opts in.
+import type {} from "@graphty/graphty-element/jsx"; // NOSONAR(S7787): the element's documented JSX opt-in, a types-only import
+import { MantineProvider, Tooltip } from "@mantine/core";
 import React from "react";
 import ReactDOM from "react-dom/client";
 
 import { App } from "./App.tsx";
-import { initSentry } from "./lib/sentry";
 import { theme } from "./theme";
+import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 
 // Re-export theme for tests and other modules
 export { theme } from "./theme";
 
-// Initialize Sentry before React render
-initSentry();
+// Nothing is sent until the reader says Share usage data on the start screen or in Settings >
+// Privacy; a reader who said so on an earlier visit starts sending again here, before React renders.
+startUsageDataIfShared();
 
 // Initialize Eruda for development/testing (mobile console)
 if (import.meta.env.DEV) {
@@ -37,7 +40,11 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
         <MantineProvider theme={theme} defaultColorScheme="dark">
-            <App />
+            {/* One tooltip group around the whole shell, so a tooltip opened within 300 ms of
+                another opens at once (Figma's warm hand-off); the timing is the theme's. */}
+            <Tooltip.Group>
+                <App />
+            </Tooltip.Group>
         </MantineProvider>
     </React.StrictMode>,
 );

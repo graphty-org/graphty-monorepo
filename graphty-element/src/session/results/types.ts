@@ -18,8 +18,20 @@
  * interfaces, published from the Node-safe `./session` entry point.
  */
 
-import type { EdgeId, FieldBand, FieldDescriptor, NodeId, Path, Query, ResultShape, RunId } from "../../catalog/types";
-import type { Caveats, Run } from "../runs/types";
+import type {
+    EdgeId,
+    FieldBand,
+    FieldDescriptor,
+    Measurement,
+    NodeId,
+    Path,
+    Query,
+    ResultShape,
+    RunId,
+} from "../../catalog/types";
+import { quoteEach } from "../../utils/quote-each";
+import type { Caveats, Run, RunDistinction } from "../runs/types";
+import type { CodedFact } from "../shared";
 
 // ---------------------------------------------------------------------------------------------
 // The published path
@@ -575,7 +587,7 @@ export function checkShapeContract(
                 violations.push({
                     field: name,
                     kind,
-                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${allowed.map((type) => `"${type}"`).join(" or ")}`,
+                    reason: `${kind} field "${name}" is typed "${declared.type}", not ${quoteEach(allowed, " or ")}`,
                 });
             }
         }
@@ -599,9 +611,9 @@ export function checkShapeContract(
  * @returns True when at least one graph field is the algorithm's own rather than the shape's.
  */
 function hasHeadlineScalar(contract: ResultShapeContract, fields: readonly FieldDescriptor[]): boolean {
-    const fixed: readonly string[] = [...contract.graphFields, ...contract.optionalGraphFields];
+    const fixed: ReadonlySet<string> = new Set([...contract.graphFields, ...contract.optionalGraphFields]);
 
-    return fields.some((field) => field.kind === "graph" && !fixed.includes(field.name));
+    return fields.some((field) => field.kind === "graph" && !fixed.has(field.name));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -668,6 +680,14 @@ export interface TopRanking {
     readonly leftOut: { readonly value: number; readonly count: number } | null;
     /** Why fewer elements were taken than the limit allowed, in a sentence; null when none were left out. */
     readonly reason: string | null;
+    /**
+     * The value of the highest-ranked element left out, or null when every measured element is in
+     * the top. An `{ above }` selection target or a `threshold` filter at this value selects
+     * exactly {@link TopRanking.entries}, so it is the lowest threshold whose match count fits
+     * the limit: `top(field, DEFAULT_LIMITS.renderCeiling).threshold` is where a threshold
+     * control opens with the result still drawable.
+     */
+    readonly threshold: number | null;
 }
 
 /** One bar of a histogram. */
@@ -729,13 +749,54 @@ export interface HistogramOptions {
     readonly scale?: "linear" | "log" | "auto";
 }
 
-/** How the plain-language reading is written. */
+/**
+ * How the plain-language reading is written. Only the deprecated {@link RunResult.reading} takes
+ * it, and it goes with that method in the next major.
+ */
 export interface ReadingOptions {
     /** The BCP 47 locale to write in. */
     readonly locale?: string;
     /** Whether to name things the way a reader would or the way a paper would. */
     readonly audience?: "plain" | "technical";
 }
+
+/**
+ * What a result's {@link RunResult.readingFact} says, one code per result shape. Each code carries
+ * these `params`:
+ *
+ * - `reading.metric` -- a node or edge metric: `{ field, leader, leaderLabel, highest, median,
+ *   lowest, tiedAtLowest, measured, count }`. `field` is the measured field's name (`"value"`);
+ *   `leader` is the highest-ranked element's id and `leaderLabel` its label attribute or printed
+ *   id; `highest`, `median` and `lowest` are values of the field; `tiedAtLowest` is how many
+ *   measured elements sit at `lowest`; `measured` of `count` elements in scope carry a value.
+ *   The element's own English mentions the tie only when it is a tenth or more of `measured`.
+ * - `reading.metric-empty` -- a metric that measured nothing: `{ field }`.
+ * - `reading.groups` -- a partition (community, layered grouping or category table):
+ *   `{ groups, largest, measured, modularity, band }`, how many groups, the size of the largest,
+ *   how many elements were grouped, the modularity or null when the algorithm publishes none, and
+ *   the id of the modularity's {@link FieldBand} or null.
+ * - `reading.groups-empty` -- a partition that grouped nothing: `{}`.
+ * - `reading.path` -- a route: `{ hops, cost }`, each a number or null when not published.
+ * - `reading.path-none` -- a path result with neither: `{}`.
+ * - `reading.set` -- a node or edge set: `{ count, element }`, how many were chosen and
+ *   `"node"` or `"edge"`.
+ * - `reading.pairs` -- a pair list: `{ count }`.
+ * - `reading.series` -- a temporal series: `{ steps }`, 0 for an empty series.
+ * - `reading.coverage` -- any other shape: `{ measured, count }`, how many of the elements in
+ *   scope carry a value.
+ * @since 3.18.0
+ */
+export type ReadingCode =
+    | "reading.metric"
+    | "reading.metric-empty"
+    | "reading.groups"
+    | "reading.groups-empty"
+    | "reading.path"
+    | "reading.path-none"
+    | "reading.set"
+    | "reading.pairs"
+    | "reading.series"
+    | "reading.coverage";
 
 /** How a metric's values were scaled before publication. */
 export type Normalization = "max" | "min-max" | "none";
@@ -761,8 +822,16 @@ export interface SummaryGroup {
     /** How many elements are in it. */
     readonly size: number;
     /**
-     * What to call it, such as "Group 1", for a result that partitions into groups. The legend
-     * of a colour encoding over the same groups labels its swatches with the same names.
+     * Its place by size, from 1 for the largest, ties ordered by group id, for a result that
+     * partitions into groups. The legend of a colour encoding over the same groups carries the
+     * same `rank` on each swatch, and a page column of the group field carries it per cell, so
+     * every surface names a group the same way: word it from the rank ("Group 3").
+     */
+    readonly rank?: number;
+    /**
+     * What to call it, such as "Group 1", for a result that partitions into groups.
+     * @deprecated English words; word the group from {@link SummaryGroup.rank} instead. Removed in
+     *   the next major.
      */
     readonly name?: string;
 }
@@ -868,17 +937,37 @@ export interface RunResult {
      */
     histogram(field: string, options?: HistogramOptions): Histogram;
     /**
+     * The distribution of a grouping result's group sizes: how many groups have each size.
+     *
+     * A bar counts GROUPS, not elements, so the counts add up to the number of groups. It is the
+     * same {@link Histogram} {@link RunResult.histogram} returns, so one chart draws both: one bar
+     * per size when there are few distinct sizes (`"per-value"`), bands otherwise (`"banded"`).
+     * @param options - How to cut the bins.
+     * @returns The bins, in ascending order of size.
+     * @throws A GraphtyError coded E_BAD_COMMAND when the result publishes no groups (it is not a
+     *   community or a layered grouping), or E_OPTION_RANGE when the bin count is out of range.
+     */
+    groupSizes(options?: HistogramOptions): Histogram;
+    /**
      * The bounded form of this result.
      * @returns The summary.
      */
     summary(): ResultSummary;
     /**
-     * What this result means, in one sentence of plain language.
+     * What this result means, as a code and the figures it is about: one fact per result shape.
      *
-     * Generated from the result's own statistics by templates, never by a language model, and
-     * never asserting something the run did not compute.
+     * Every figure comes from the result's own statistics; nothing is asserted that the run did
+     * not compute. See {@link ReadingCode} for every code and its parameters. An application
+     * words it, choosing which of the figures to say.
+     * @returns The fact.
+     * @since 3.18.0
+     */
+    readingFact(): CodedFact<ReadingCode>;
+    /**
+     * What this result means, in one sentence of English, worded from {@link RunResult.readingFact}.
      * @param options - The locale and how technical to be.
      * @returns The sentence.
+     * @deprecated Word {@link RunResult.readingFact} yourself. Removed in the next major.
      */
     reading(options?: ReadingOptions): string;
     /**
@@ -908,8 +997,24 @@ export type RunRef = Run | RunResult | RunId;
 export interface ResultRoot {
     /** The run id, which is the path segment under `results`. */
     readonly runId: RunId;
-    /** What to call the run in a completion list. */
+    /**
+     * What to call the run in a completion list.
+     * @deprecated Word the run from its algorithm, {@link ResultRoot.distinguishedBy} and
+     *   {@link ResultRoot.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option the run's name was suggested by, once it left its default. See
+     * {@link Run.distinguishedBy}.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells the run apart from other listed runs of its algorithm sharing its name. See
+     * {@link Run.siblingsDifferBy}.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
     /** Every field the run published. */
     readonly fields: readonly FieldDescriptor[];
 }
@@ -962,4 +1067,33 @@ export interface ResultsApi {
     has(run: RunRef, field?: string): boolean;
     /** Every run that has published a result, as an expression editor reads them. */
     readonly roots: readonly ResultRoot[];
+}
+
+/**
+ * The shapes whose primary field names groups.
+ *
+ * A community's group is an integer and a degree is an integer, and reading them the same way is
+ * how a partition ends up painted as a continuous ramp from group 0 to group 41. The shape is
+ * what tells the two apart -- and only for the field the shape declares primary, because
+ * `groupSize` on the same result really is a measurement.
+ */
+const GROUPING_SHAPES: ReadonlySet<ResultShape> = new Set(["community", "layered-grouping", "category-table"]);
+
+/**
+ * What a run's field measures: what the algorithm declared, else categorical for a grouping
+ * shape's primary field and for strings and booleans, else quantitative.
+ * @param field - The field.
+ * @param shape - The run's result shape.
+ * @returns The measurement.
+ */
+export function fieldMeasurement(field: FieldDescriptor, shape: ResultShape): Measurement {
+    if (field.measurement !== undefined) {
+        return field.measurement;
+    }
+
+    if (GROUPING_SHAPES.has(shape) && resultShapeContract(shape).primaryField === field.name) {
+        return "categorical";
+    }
+
+    return field.type === "string" || field.type === "boolean" ? "categorical" : "quantitative";
 }

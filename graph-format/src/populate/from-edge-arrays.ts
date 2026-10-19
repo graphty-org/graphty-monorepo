@@ -26,6 +26,9 @@ import {
     type TypedArrayData,
 } from "../types/index.js";
 
+/** The name of the edge column that `edgeIds` becomes. */
+const EDGE_ID_COLUMN = "id";
+
 // ============================================================ options
 
 /** The builder half and the freeze half of a `BuilderOptionsPatch & FreezeOptions` object. */
@@ -197,6 +200,23 @@ function addIds(builder: GraphBuilder, ids: readonly NodeId[] | Float64Array): v
 }
 
 /**
+ * Check that `dst`, `weights` and `edgeIds` each have one entry per `src` entry (E_COLUMN_LENGTH).
+ * @param input - the arrays
+ */
+function checkEdgeArrayLengths(input: EdgeArraysInput): void {
+    const { src, dst, weights, edgeIds } = input;
+    if (dst.length !== src.length) {
+        throw lengthError("dst", src.length, dst.length);
+    }
+    if (weights !== undefined && weights.length !== src.length) {
+        throw lengthError("weights", src.length, weights.length);
+    }
+    if (edgeIds !== undefined && edgeIds.length !== src.length) {
+        throw lengthError("edgeIds", src.length, edgeIds.length);
+    }
+}
+
+/**
  * Build a snapshot from COO typed arrays with dense node indices (design section 8.1): the builder's
  * index-space fast path (`addAnonymousNodes` + `addEdges`, no id Map unless `ids` is given) followed
  * by the freeze pipeline, so the result is exactly what a builder fed the same nodes, edges, columns
@@ -208,7 +228,9 @@ function addIds(builder: GraphBuilder, ids: readonly NodeId[] | Float64Array): v
  * @param input - the arrays; `nodeCount` is required unless `ids` is given (E_INDEX_RANGE); `src`,
  *   `dst` and `weights` must have one entry per edge (E_COLUMN_LENGTH); every index must be below the
  *   node count (E_UNKNOWN_NODE); no weight may be NaN (E_INVALID_WEIGHT); ids must be distinct legal
- *   ids (E_DUPLICATE_ID / E_INVALID_ID); columns must have the table's row count (E_COLUMN_LENGTH)
+ *   ids (E_DUPLICATE_ID / E_INVALID_ID); columns must have the table's row count (E_COLUMN_LENGTH);
+ *   `edgeIds`, when given, has one distinct id per edge (E_COLUMN_LENGTH / E_DUPLICATE_EDGE_ID) and
+ *   becomes the edge column "id" with role "id", so `snapshot.edgeIndexOf(id)` resolves it
  * @param options - builder policies and freeze options; `duplicateEdges` and `selfLoops` apply at the
  *   freeze (E_DUPLICATE_EDGE / E_SELF_LOOP under the "error" policies)
  * @returns the frozen snapshot
@@ -218,12 +240,7 @@ export function fromEdgeArrays(
     options: BuilderOptionsPatch & FreezeOptions = {},
 ): GraphSnapshot {
     const { src, dst, weights } = input;
-    if (dst.length !== src.length) {
-        throw lengthError("dst", src.length, dst.length);
-    }
-    if (weights !== undefined && weights.length !== src.length) {
-        throw lengthError("weights", src.length, weights.length);
-    }
+    checkEdgeArrayLengths(input);
     const nodeCount = resolveNodeCount(input);
     const edgeCount = src.length;
     const split = splitOptions(input.directed, options);
@@ -249,6 +266,12 @@ export function fromEdgeArrays(
         for (const name of Object.keys(input.edgeColumns)) {
             stageColumn(builder, "edge", edgeCount, name, input.edgeColumns[name]);
         }
+    }
+    if (input.edgeIds !== undefined) {
+        stageColumn(builder, "edge", edgeCount, EDGE_ID_COLUMN, {
+            data: input.edgeIds,
+            decl: { role: "id", unique: true },
+        });
     }
     if (input.meta !== undefined) {
         builder.setMeta(input.meta);

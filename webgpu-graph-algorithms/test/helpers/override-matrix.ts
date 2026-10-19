@@ -22,6 +22,7 @@
  */
 
 import { pipelineKey } from "../../src/kernel/pipeline-cache.js";
+import { composeWgsl } from "../../src/kernel/wgsl.js";
 import { type KernelEntry, type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { type PlanCaps } from "../../src/types/context.js";
 
@@ -85,10 +86,10 @@ const U32_OVERRIDE_VALUES: Readonly<Record<string, readonly number[] | undefined
  * pair x 2 MODE) + bfs-fused 5 (P8-T7: the graph pair, no declared override) + bfs-bottom-up 5 (P8-T8: the graph
  * pair of the reverse core, no declared override; the subgroup twin is not a matrix axis) + bfs-bitset-build 1 +
  * bfs-unvisited-flags 1 (P8-T8) + bfs-next-degree 1 (issue #391) + sssp-relax 5 (P8-T9: the graph pair, no declared override) + bf-relax 3 (P8-T10:
- * the defaults plus the UNDIRECTED axis, no group 0) + closeness-sweep 5 (P8-T11: the graph pair, no declared
- * override) + closeness-reduce 1 (P8-T11); P9 = bc-finalize 3 + bc-forward 3 + bc-backward 3 + bc-edge-gather 3 (1 + 2
+ * the defaults plus the UNDIRECTED axis, no group 0) + closeness-level 1 (no graph group, no declared override);
+ * P9 = bc-finalize 3 + bc-forward 3 + bc-backward 3 + bc-edge-gather 3 (1 + 2
  * SCALED; their rowPtr / colIdx are group-1 state, not the graph group) + bc-gather 1 + bc-forward-edge 5 (1 + 2 UNDIRECTED x
- * 2 SCALED) + bc-count 1 + apsp-init 5 (the graph pair, no declared override) + apsp-fw 4 (1 + 3 PHASE);
+ * 2 SCALED) + bc-count 1 + apsp-init 5 (the graph pair, no declared override) + apsp-fw 4 (1 + 3 PHASE) + closeness-rowsum 1;
  * P11 = coo-emit 5 (1 + 2 INDEXED x 2 WEIGHTED) + run-flags 1 + coo-scatter 5 (1 + 2 SORTED_INPUT x 2 WEIGHTED) +
  * orient-flags 1 + tri-intersect 4 (1 + 3 SEARCH) + group-by-key-row 7 (1 + 3 TIER x 2 WEIGHTED) + lpa-step 1 +
  * mst-best 5 (1 + 2 PASS x 2 WEIGHTED) + mst-link 1. The
@@ -102,8 +103,8 @@ export const EXPECTED_CASES_BY_PHASE: Readonly<Record<"P1" | "P2" | "P3" | "P4" 
         P3: 157,
         P4: 40,
         P7: 69,
-        P8: 46,
-        P9: 28,
+        P8: 41,
+        P9: 29,
         P11: 30,
     });
 
@@ -316,4 +317,75 @@ export function matrixCovers(
         }
     }
     return { ok: missing.length === 0, missing };
+}
+
+/**
+ * The overrides and module-scope constants a composed module reads, directly or through other module-scope `const` /
+ * `override` declarations, where the device's limits are checked at pipeline creation: the `@workgroup_size(...)`
+ * arguments and the element count of every `var<workgroup>` array (maxComputeInvocationsPerWorkgroup,
+ * maxComputeWorkgroupStorageSize). Comments are stripped first; a function-scope `const` of the same name only makes
+ * the answer larger, never smaller.
+ * @param code - a composed module (composeWgsl(...).code)
+ * @returns the names in the closure
+ */
+export function limitCheckedNames(code: string): Set<string> {
+    const stripped = code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    const definitions = new Map<string, string>();
+    for (const m of stripped.matchAll(/^\s*(?:const|override)\s+(\w+)\s*(?::[^=;\n]*)?=([^;]*);/gm)) {
+        definitions.set(m[1], m[2]);
+    }
+    const pending: string[] = [];
+    for (const m of stripped.matchAll(/@workgroup_size\(([^)]*)\)/g)) {
+        pending.push(m[1]);
+    }
+    for (const m of stripped.matchAll(/var<workgroup>\s*\w+\s*:\s*array<([^\n;]*)>\s*;/g)) {
+        pending.push(m[1]);
+    }
+    const names = new Set<string>();
+    for (let expr = pending.pop(); expr !== undefined; expr = pending.pop()) {
+        for (const [name] of expr.matchAll(/\b[A-Za-z_]\w*\b/g)) {
+            if (names.has(name)) {
+                continue;
+            }
+            names.add(name);
+            const definition = definitions.get(name);
+            if (definition !== undefined) {
+                pending.push(definition);
+            }
+        }
+    }
+    return names;
+}
+
+/**
+ * The cases test/browser/compile-matrix.test.ts compiles on a Chromium context with `caps` (issue #1741). The full
+ * OVERRIDE_MATRIX compiles under Tint on Dawn in the node project (test/kernel/wgsl-compile.test.ts: lavapipe and
+ * backend=null, both twins). What a browser can add is what differs between it and Dawn-node, and all of it is a
+ * property of the module text or of the context, never of a module override's value: the module text does not depend
+ * on the case's overrides (they are pipeline constants; only snippets change the text), the device-derived WG /
+ * SUBGROUP_MIN / SUBGROUP_MAX are the same for every case on one context, and the subgroups feature is the context's.
+ * So Chromium compiles, per kernel and per feature setting:
+ *   - one case per distinct composed module text (the first in matrix order: the defaults; segmented-reduce has one
+ *     per VALUE snippet), and
+ *   - EVERY case of a kernel whose case overrides reach a limit-checked expression (limitCheckedNames), because then
+ *     the override value decides whether the browser's limits accept the pipeline. No kernel does today; the guard in
+ *     test/kernel/wgsl-compile.test.ts pins that list.
+ * @param caps - the context's caps (the feature context or the twin)
+ * @returns the selected cases, in matrix order
+ */
+export function browserCompileCases(caps: PlanCaps): readonly OverrideCase[] {
+    const texts = new Set<string>();
+    return OVERRIDE_MATRIX.filter((c) => {
+        const { code } = composeWgsl(kernelSpec(c.id, c.overrides, c.snippets), caps);
+        const limited = limitCheckedNames(code);
+        if (Object.keys(c.overrides).some((name) => limited.has(name))) {
+            return true;
+        }
+        const text = `${c.id}\n${code}`;
+        if (texts.has(text)) {
+            return false;
+        }
+        texts.add(text);
+        return true;
+    });
 }

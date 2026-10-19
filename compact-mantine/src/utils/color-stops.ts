@@ -5,12 +5,15 @@
 import type { ColorStop } from "../types";
 
 /**
- * Generates a unique ID for color stops.
- * Uses crypto.randomUUID() for cryptographically secure unique identifiers.
+ * Generates a unique ID for color stops: 8 hex characters from crypto.getRandomValues.
+ *
+ * Not crypto.randomUUID: browsers expose that only in secure contexts, so a page served over
+ * plain http from any host but localhost threw "crypto.randomUUID is not a function" the first
+ * time it built a stop. getRandomValues is available everywhere.
  * @returns A unique 8-character ID string
  */
 function generateStopId(): string {
-    return crypto.randomUUID().slice(0, 8);
+    return Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /**

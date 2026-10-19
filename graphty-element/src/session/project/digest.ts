@@ -73,7 +73,8 @@ function canonical(value: unknown, path: WeakSet<object>): string {
         if (value instanceof Map) {
             const entries = [...value].map(([key, entry]) => `${canonical(key, path)}:${canonical(entry, path)}`);
 
-            return `Map{${entries.sort().join(",")}}`;
+            entries.sort((a, b) => (a < b ? -1 : Number(a > b)));
+            return `Map{${entries.join(",")}}`;
         }
 
         if (value instanceof Set) {
@@ -135,6 +136,7 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         )}`,
         `views=${canonical(state.views, path)}`,
         `notes=${canonical(state.notes, path)}`,
+        `attributes=${canonical(state.attributes, path)}`,
     ];
     if (options.snapshot !== undefined) {
         parts.push(`rows=${rowsDigest(options.snapshot, path, options.arrangement === true)}`);

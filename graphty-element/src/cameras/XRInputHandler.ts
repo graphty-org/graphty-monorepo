@@ -54,16 +54,16 @@ interface ControllerEntry {
  * Input is applied to a PivotController which manages scene transformation.
  */
 export class XRInputHandler {
-    private pivotController: PivotController;
-    private xr: WebXRDefaultExperience;
+    private readonly pivotController: PivotController;
+    private readonly xr: WebXRDefaultExperience;
     private enabled = false;
 
     // Controller state - track by uniqueId to handle controller switching
-    private setupControllers = new Map<string, boolean>();
-    private controllerCleanup = new Map<string, () => void>();
+    private readonly setupControllers = new Map<string, boolean>();
+    private readonly controllerCleanup = new Map<string, () => void>();
 
     // Gesture controllers - track controllers for trigger-based gestures
-    private gestureControllers = new Map<string, ControllerEntry>();
+    private readonly gestureControllers = new Map<string, ControllerEntry>();
 
     // Thumbstick values - updated every frame
     private leftStick = { x: 0, y: 0 };
@@ -99,9 +99,9 @@ export class XRInputHandler {
     // Target: full arm movement (0.6m) should move node ~15-20 units
     private readonly VELOCITY_SLOW_THRESHOLD = 0.005; // meters/second - below this = precision mode
     private readonly VELOCITY_FAST_THRESHOLD = 0.03; // meters/second - above this = speed mode
-    private readonly AMP_SLOW = 5.0; // Precision zone: usable but controlled
-    private readonly _AMP_MEDIUM = 10.0; // Natural zone: comfortable movement (kept for reference)
-    private readonly AMP_FAST = 20.0; // Speed zone: fast repositioning
+    private readonly AMP_SLOW = 5; // Precision zone: usable but controlled
+    private readonly _AMP_MEDIUM = 10; // Natural zone: comfortable movement (kept for reference)
+    private readonly AMP_FAST = 20; // Speed zone: fast repositioning
     private lastDragTime = 0; // For velocity calculation
 
     // Smoothing to reduce jitter from hand tracking noise
@@ -117,7 +117,7 @@ export class XRInputHandler {
 
     // Debug
     private frameCount = 0;
-    private scene: Scene; // Reference to scene for onBeforeRenderObservable and picking
+    private readonly scene: Scene; // Reference to scene for onBeforeRenderObservable and picking
 
     /**
      * Creates a new XRInputHandler instance.
@@ -558,7 +558,7 @@ export class XRInputHandler {
                 try {
                     const gripPos = grip.position;
                     // Verify position is valid (not disposed)
-                    if (isFinite(gripPos.x) && isFinite(gripPos.y) && isFinite(gripPos.z)) {
+                    if (Number.isFinite(gripPos.x) && Number.isFinite(gripPos.y) && Number.isFinite(gripPos.z)) {
                         const trigger = mc.motionController.getComponent("xr-standard-trigger");
                         if (trigger) {
                             // Use trigger.pressed OR value > 0.5 for pinching
@@ -609,7 +609,7 @@ export class XRInputHandler {
 
                     if (wrist && thumbTip && indexTip) {
                         // Verify positions are valid (not NaN from disposed objects)
-                        if (!isFinite(wrist.position.x) || !isFinite(thumbTip.position.x)) {
+                        if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
                             return null;
                         }
 

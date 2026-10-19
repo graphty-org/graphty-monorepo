@@ -11,10 +11,16 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-/** The structural field types and the marker for a property column. */
+/**
+ * The structural field types and the marker for a property column.
+ * @category Plugin helpers
+ */
 export type FieldKind = "ID" | "LABEL" | "START_ID" | "END_ID" | "TYPE" | "IGNORE" | "PROPERTY";
 
-/** One parsed header cell. */
+/**
+ * One parsed header cell.
+ * @category Plugin helpers
+ */
 export interface HeaderField {
     /** The cell text as written. */
     readonly text: string;
@@ -39,26 +45,57 @@ const CELL = /^([^:(){}]*)(?::([^:(){}]*))?(?:\(([^)]*)\))?(?:\{([^}]*)\})?$/;
  * Whether a record looks like a section header: some cell declares an `ID`, `START_ID` or `END_ID`
  * field. The neo4j-admin convention allows several files, each with its own header; graphty's
  * single-file convention (the CSVDataSource of graphty-element) concatenates sections, so a header
- * may appear anywhere.
+ * may appear anywhere. Mid-file, a quoted marker cell (`"ref:id"`) is data unless the whole record
+ * is quoted (a QUOTE_ALL export writes its headers that way) and every cell is a valid header cell.
+ * ponytail: a fully quoted data row whose every cell is a valid header cell and one of them a marker
+ * (`"1","ref:id"`) still reads as a header; telling them apart would need the section's column names.
  * @param cells - the record's cells
  * @param count - how many cells are valid
+ * @param quoted - which cells were quoted, or undefined to look at every cell (the first record)
  * @returns true when the record is a header
+ * @category Plugin helpers
  */
-export function isHeaderRecord(cells: readonly string[], count: number): boolean {
+export function isHeaderRecord(cells: readonly string[], count: number, quoted?: readonly boolean[]): boolean {
+    let quotedMarker = false;
     for (let i = 0; i < count; i++) {
         const cell = cells[i];
-        // every header marker holds a colon; the indexOf keeps the regex off the data rows
-        if (cell.indexOf(":") >= 0 && HEADER_MARKER.test(cell.trim())) {
-            return true;
+        // every header marker holds a colon; the includes keeps the regex off the data rows
+        if (cell.includes(":") && HEADER_MARKER.test(cell.trim())) {
+            if (quoted?.[i] !== true) {
+                return true;
+            }
+            quotedMarker = true;
         }
     }
-    return false;
+    return quotedMarker && quoted !== undefined && isQuotedHeader(cells, count, quoted);
+}
+
+/**
+ * Whether a record is fully quoted and every cell parses as a header cell.
+ * @param cells - the record's cells
+ * @param count - how many cells are valid
+ * @param quoted - which cells were quoted
+ * @returns true when the record reads as a quoted header
+ */
+function isQuotedHeader(cells: readonly string[], count: number, quoted: readonly boolean[]): boolean {
+    for (let i = 0; i < count; i++) {
+        if (!quoted[i]) {
+            return false;
+        }
+        try {
+            parseHeaderField(cells[i]);
+        } catch {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
  * Parse one header cell.
  * @param text - the cell text
  * @returns the field; E_UNSUPPORTED (reason "header") for a cell outside the grammar
+ * @category Plugin helpers
  */
 export function parseHeaderField(text: string): HeaderField {
     const trimmed = text.trim();
@@ -71,28 +108,14 @@ export function parseHeaderField(text: string): HeaderField {
     const space = m[3] === undefined ? null : m[3].trim();
     const options = parseOptions(text, m[4]);
     if (rawType === null) {
-        // `name` alone: a string property
-        if (name.length === 0) {
-            throw headerError(text, "an empty header cell");
-        }
-        if (space !== null || options.size > 0) {
-            throw headerError(text, "an id space or options need a field type");
-        }
-        return { text, name, kind: "PROPERTY", type: null, space: null, options };
+        return untypedField(text, name, space, options);
     }
     if (rawType.length === 0) {
         throw headerError(text, "an empty field type");
     }
     const upper = rawType.toUpperCase();
     if (STRUCTURAL.has(upper)) {
-        const kind = upper as Exclude<FieldKind, "PROPERTY">;
-        if (space !== null && !SPACE_KINDS.has(kind)) {
-            throw headerError(text, `an id space is only allowed on ID, START_ID and END_ID, not ${kind}`);
-        }
-        if (name.length > 0 && kind !== "ID" && kind !== "IGNORE") {
-            throw headerError(text, `a ${kind} field cannot be stored as a property`);
-        }
-        return { text, name, kind, type: null, space: space === "" ? null : space, options };
+        return structuralField(text, name, upper as Exclude<FieldKind, "PROPERTY">, space, options);
     }
     if (name.length === 0) {
         throw headerError(text, "a property column needs a name");
@@ -101,6 +124,54 @@ export function parseHeaderField(text: string): HeaderField {
         throw headerError(text, "an id space is only allowed on ID, START_ID and END_ID");
     }
     return { text, name, kind: "PROPERTY", type: rawType, space: null, options };
+}
+
+/**
+ * The field of a cell with no type: `name` alone is a string property.
+ * @param text - the whole cell, for errors
+ * @param name - the property name
+ * @param space - the id space, or null
+ * @param options - the options
+ * @returns the field
+ */
+function untypedField(
+    text: string,
+    name: string,
+    space: string | null,
+    options: ReadonlyMap<string, string>,
+): HeaderField {
+    if (name.length === 0) {
+        throw headerError(text, "an empty header cell");
+    }
+    if (space !== null || options.size > 0) {
+        throw headerError(text, "an id space or options need a field type");
+    }
+    return { text, name, kind: "PROPERTY", type: null, space: null, options };
+}
+
+/**
+ * The field of a cell with a structural type (ID, START_ID, END_ID, LABEL, TYPE, IGNORE).
+ * @param text - the whole cell, for errors
+ * @param name - the property name, or empty
+ * @param kind - the structural kind
+ * @param space - the id space, or null
+ * @param options - the options
+ * @returns the field
+ */
+function structuralField(
+    text: string,
+    name: string,
+    kind: Exclude<FieldKind, "PROPERTY">,
+    space: string | null,
+    options: ReadonlyMap<string, string>,
+): HeaderField {
+    if (space !== null && !SPACE_KINDS.has(kind)) {
+        throw headerError(text, `an id space is only allowed on ID, START_ID and END_ID, not ${kind}`);
+    }
+    if (name.length > 0 && kind !== "ID" && kind !== "IGNORE") {
+        throw headerError(text, `a ${kind} field cannot be stored as a property`);
+    }
+    return { text, name, kind, type: null, space: space === "" ? null : space, options };
 }
 
 /**
@@ -149,6 +220,7 @@ function headerError(text: string, reason: string): GraphFormatError {
  * @param type - the field type or property type
  * @param space - the id space, or null
  * @returns the cell text
+ * @category Plugin helpers
  */
 export function formatHeaderField(name: string, type: string, space: string | null): string {
     const base = `${name}:${type}`;

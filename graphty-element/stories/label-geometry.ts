@@ -256,7 +256,10 @@ function measure(
             corners: { topLeft: false, topRight: false, bottomLeft: false, bottomRight: false },
             band: { top: { from: 0, to: 0 }, middle: { from: 0, to: 0 }, bottom: { from: 0, to: 0 } },
             spread: { top: 0, middle: 0, bottom: 0 },
-            sides: { left: strip(0, Math.max(1, Math.round(width / 8))), right: strip(width - Math.max(1, Math.round(width / 8)), width) },
+            sides: {
+                left: strip(0, Math.max(1, Math.round(width / 8))),
+                right: strip(width - Math.max(1, Math.round(width / 8)), width),
+            },
             blankRows: 0,
             pixels: 0,
         };
@@ -328,7 +331,10 @@ function measure(
             middle: runs.middle.to - runs.middle.from,
             bottom: runs.bottom.to - runs.bottom.from,
         },
-        sides: { left: strip(0, Math.max(1, Math.round(width / 8))), right: strip(width - Math.max(1, Math.round(width / 8)), width) },
+        sides: {
+            left: strip(0, Math.max(1, Math.round(width / 8))),
+            right: strip(width - Math.max(1, Math.round(width / 8)), width),
+        },
         blankRows: maxY === minY ? 0 : blank / (maxY - minY + 1),
         pixels,
     };

@@ -42,7 +42,6 @@ describe("Edge Performance Tests", () => {
     afterEach(() => {
         // Log metrics for analysis
         if (metrics.length > 0) {
-             
             console.table(
                 metrics.map((m) => ({
                     Edges: m.edgeCount,
@@ -77,7 +76,11 @@ describe("Edge Performance Tests", () => {
         // Capture memory before
         const heapUsedBefore = getHeapUsed();
 
-        // Create graph
+        // Create graph, after disposing the one an earlier measurement in this test made
+        if (graph) {
+            cleanupTestGraph(graph);
+        }
+
         graph = await createTestGraph();
 
         // Generate test data

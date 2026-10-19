@@ -172,12 +172,8 @@ const graph = new Graph(container);
 await graph.init();
 
 // 2. Load test data
-graph.getDataManager().addNodes([
-    /* test nodes */
-]);
-graph.getDataManager().addEdges([
-    /* test edges */
-]);
+graph.getDataManager().addNodes([/* test nodes */]);
+graph.getDataManager().addEdges([/* test edges */]);
 
 // 3. Apply problematic configuration
 await graph.getLayoutManager().setLayout("force-directed", {

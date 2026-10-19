@@ -120,6 +120,28 @@ console.log(`${name(top.sources[0])} - ${name(top.targets[0])}`); // alice - dav
 `commonNeighborsPrediction(graph, { topK })` ranks by common neighbours instead, and `includeExisting: true`
 also scores pairs that are already joined.
 
+On an undirected graph each pair is listed twice by default, once each way round (alice - dave and dave - alice,
+with the same score), and `topK` counts both. Pass `uniquePairs: true` to list each pair once, lower node index
+first, so `topK: 3` returns three distinct pairs. With `directed: true` every ordered pair is listed once anyway.
+
+<!-- doc-check -->
+
+```typescript
+import { GraphBuilder } from "@graphty/graph-format";
+import { commonNeighborsPrediction } from "@graphty/algorithms";
+
+const builder = new GraphBuilder({ directed: false });
+builder.addEdge("alice", "bob");
+builder.addEdge("alice", "carol");
+builder.addEdge("bob", "dave");
+builder.addEdge("carol", "dave");
+const graph = builder.freeze();
+
+console.log(commonNeighborsPrediction(graph, { topK: 2 }).scores.length); // 2: alice - dave, dave - alice
+const once = commonNeighborsPrediction(graph, { topK: 2, uniquePairs: true });
+console.log(once.scores.length); // 2: alice - dave, bob - carol
+```
+
 ## Practical Example: Friend Recommendations
 
 <!-- doc-check -->

@@ -183,13 +183,7 @@ const READS: Readonly<Record<string, Read>> = {
  * @param key - The 1.x result key, such as "rankPct".
  * @returns The value, or undefined when the run published none.
  */
-function read(
-    algorithm: ResultCarrier,
-    id: NodeId,
-    type: string,
-    key: string,
-    half: "node" | "edge",
-): unknown {
+function read(algorithm: ResultCarrier, id: NodeId, type: string, key: string, half: "node" | "edge"): unknown {
     const { result } = algorithm;
     const reader = READS[`${type}.${key}`];
 
@@ -209,14 +203,13 @@ function read(
  * @param key - The 1.x result key.
  * @returns The value, or undefined when the run published none.
  */
- 
+
 export function getNodeResult(
     algorithm: ResultCarrier,
     nodeId: string | number,
     _namespace: string,
     type: string,
     key: string,
-     
 ): any {
     return read(algorithm, nodeId, type, key, "node");
 }
@@ -240,7 +233,6 @@ export function getEdgeResult(
     _namespace: string,
     type: string,
     key: string,
-     
 ): any {
     return read(algorithm, edgeId, type, key, "edge");
 }
@@ -253,12 +245,6 @@ export function getEdgeResult(
  * @param key - The 1.x result key.
  * @returns The value, or undefined when the run published none.
  */
-export function getGraphResult(
-    algorithm: ResultCarrier,
-    _namespace: string,
-    type: string,
-    key: string,
-     
-): any {
+export function getGraphResult(algorithm: ResultCarrier, _namespace: string, type: string, key: string): any {
     return read(algorithm, "", type, key, "node");
 }

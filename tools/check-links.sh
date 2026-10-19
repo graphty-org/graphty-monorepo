@@ -72,12 +72,14 @@ fi
 # CHANGELOGs are release history written by the release tooling (a commit message's "#505050"
 # became an issue link), and the gh-pages / Vite HTML templates only resolve once the build has
 # copied them into place (the --site pass checks the built copies).
-INPUTS="$(mktemp)"
+# In the checkout's own tmp/, not /tmp, which other processes on this machine clear.
+mkdir -p "$ROOT_DIR/tmp/check-links" || exit 2
+INPUTS="$(mktemp "$ROOT_DIR/tmp/check-links/inputs.XXXXXX")" || exit 2
 trap 'rm -f "$INPUTS"' EXIT
 git ls-files \
     | grep -E '\.(md|mdx|html)$|(^|/)package\.json$' \
     | grep -vE '(^|/)CHANGELOG\.md$' \
-    | grep -vE '^algorithms/(gh-pages-src/|benchmark-results/)' \
+    | grep -vE '^algorithms/benchmark-results/' \
     | grep -vE '^[^/]+/index\.html$' \
     > "$INPUTS"
 
@@ -105,9 +107,16 @@ echo "Checking relative links, anchors and repository links in $(wc -l < "$INPUT
 "$LYCHEE" "${ARGS[@]}" --files-from "$INPUTS" || FAILED=1
 
 # 2. Everything else under github.com/graphty-org (issues, workflows, the other repositories)
+#    A 5xx means GitHub could not render the page (an Actions run URL answers 502 intermittently),
+#    not that the link is dead: a dead link answers 404 or 410. So 500..=599 is accepted here.
+#    Actions run and job pages are skipped: GitHub expires run logs after 90 days, so they are
+#    evidence pointers, not links the docs depend on. An --exclude cannot do it (--include wins
+#    over every exclude), so they are remapped to a URL the include does not match.
 if [ $OFFLINE -eq 0 ]; then
     echo "Checking github.com/graphty-org links"
-    "$LYCHEE" --include '^https://github\.com/graphty-org/' --exclude '.*' \
+    "$LYCHEE" --accept '100..=103,200..=299,500..=599' \
+        --include '^https://github\.com/graphty-org/' --exclude '.*' \
+        --remap '^https://github\.com/graphty-org/[^/]+/actions/runs/.* https://actions-run.invalid/' \
         --remap "$REPO_REMAP" --files-from "$INPUTS" || FAILED=1
 fi
 

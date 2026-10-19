@@ -82,7 +82,7 @@ function orphans(loaded: LoadedConfig, files: string[]): string[] {
 }
 
 describe("vitest.config.ts projects", () => {
-    it("run every *.test.ts file under test/", async() => {
+    it("run every *.test.ts file under test/", async () => {
         const loaded = (await import("../../vitest.config.ts")) as LoadedConfig;
         const files = testFiles();
 

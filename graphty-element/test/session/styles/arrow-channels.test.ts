@@ -87,7 +87,9 @@ function harness(): Harness {
  * @param set - The channels the layer writes.
  * @returns The parsed edge style, and the key its source mesh is interned under.
  */
-async function edgePaintedWith(set: LayerSpec["set"]): Promise<{ style: ReturnType<typeof EdgeStyle.parse>; meshKey: string }> {
+async function edgePaintedWith(
+    set: LayerSpec["set"],
+): Promise<{ style: ReturnType<typeof EdgeStyle.parse>; meshKey: string }> {
     const held = harness();
 
     await held.styles.add({ name: "arrows", target: "edge", selector: { match: "everything" }, set });
@@ -321,7 +323,10 @@ describe("the colour an unstyled arrow is drawn in", () => {
             style.arrowTail?.color,
             "the two ends of one unstyled edge must be drawn the same",
         );
-        assert.isUndefined(style.arrowHead?.color, "an unpainted cap carries no colour, so the renderer's fallback fires");
+        assert.isUndefined(
+            style.arrowHead?.color,
+            "an unpainted cap carries no colour, so the renderer's fallback fires",
+        );
     });
 });
 

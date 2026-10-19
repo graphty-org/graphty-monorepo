@@ -7,7 +7,7 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { type JsonlEntry,JsonlWriter } from "../../src/server/jsonl-writer.js";
+import { type JsonlEntry, JsonlWriter } from "../../src/server/jsonl-writer.js";
 
 describe("JsonlWriter", () => {
     let writer: JsonlWriter;
@@ -82,12 +82,14 @@ describe("JsonlWriter", () => {
         // Fire off many concurrent writes
         const promises: Promise<void>[] = [];
         for (let i = 0; i < writeCount; i++) {
-            promises.push(writer.write(marker, {
-                time: new Date().toISOString(),
-                level: "INFO",
-                message: `Message ${i}`,
-                sessionId: "test-session",
-            }));
+            promises.push(
+                writer.write(marker, {
+                    time: new Date().toISOString(),
+                    level: "INFO",
+                    message: `Message ${i}`,
+                    sessionId: "test-session",
+                }),
+            );
         }
 
         await Promise.all(promises);
@@ -102,7 +104,9 @@ describe("JsonlWriter", () => {
 
         // Each line should be valid JSON
         for (const line of lines) {
-            expect(() => JSON.parse(line)).not.toThrow();
+            expect(() => {
+                JSON.parse(line);
+            }).not.toThrow();
         }
     });
 
@@ -326,6 +330,24 @@ describe("JsonlWriter", () => {
             // No writes yet, directory is empty
             const removed = writer.cleanupOldFiles(7);
             expect(removed).toBe(0);
+        });
+
+        it("removes an old directory it holds no file handle for, and skips plain files", () => {
+            // A directory left by an earlier run: this writer never opened it
+            const staleDir = path.join(testBaseDir, "stale-project");
+            fs.mkdirSync(staleDir, { recursive: true });
+            const strayFile = path.join(testBaseDir, "stray.txt");
+            fs.writeFileSync(strayFile, "not a project");
+            const tenDaysAgo = new Date();
+            tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+            fs.utimesSync(staleDir, tenDaysAgo, tenDaysAgo);
+            fs.utimesSync(strayFile, tenDaysAgo, tenDaysAgo);
+
+            const removed = writer.cleanupOldFiles(7);
+
+            expect(removed).toBe(1);
+            expect(fs.existsSync(staleDir)).toBe(false);
+            expect(fs.existsSync(strayFile)).toBe(true);
         });
 
         it("handles non-existent base directory", () => {

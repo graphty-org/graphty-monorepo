@@ -12,6 +12,7 @@ import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
+import { edgeLineFor } from "../helpers/edgeLine";
 
 type NodeShapeType =
     | "box"
@@ -51,8 +52,13 @@ describe("Simple Real Mesh Tests", () => {
     });
 
     afterEach(() => {
-        scene.dispose();
-        // Skip engine disposal to avoid DOM issues
+        // In a browser the engine goes too, or it outlives the test. The Node "mesh" lane's
+        // document stand-in has no event listeners for an engine to take off it.
+        if (typeof window !== "undefined" && typeof window.removeEventListener === "function") {
+            engine.dispose();
+        } else {
+            scene.dispose();
+        }
     });
 
     describe("NodeMesh Coverage", () => {
@@ -203,7 +209,7 @@ describe("Simple Real Mesh Tests", () => {
                 line: {},
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
             assert.isNotNull(mesh);
         });
 
@@ -219,7 +225,7 @@ describe("Simple Real Mesh Tests", () => {
                 line: { animationSpeed: 1.5 },
             };
 
-            const mesh = EdgeMesh.create(meshCache, options, style, scene);
+            const mesh = edgeLineFor(meshCache, options, style, scene);
             assert.isNotNull(mesh);
         });
 
@@ -265,7 +271,7 @@ describe("Simple Real Mesh Tests", () => {
             };
 
             const style = { enabled: true, line: {} };
-            const mesh = EdgeMesh.create(meshCache, options, style, scene) as AbstractMesh;
+            const mesh = edgeLineFor(meshCache, options, style, scene) as AbstractMesh;
 
             const srcPoint = new Vector3(0, 0, 0);
             const dstPoint = new Vector3(5, 3, 2);

@@ -26,11 +26,11 @@ export interface CameraPathAnimatorOptions {
  * Works for both 2D (zoom, pan) and 3D (position, target) cameras.
  */
 export class CameraPathAnimator {
-    private camera: Camera;
-    private scene: Scene;
-    private fps: number;
-    private duration: number;
-    private easing: EasingType;
+    private readonly camera: Camera;
+    private readonly scene: Scene;
+    private readonly fps: number;
+    private readonly duration: number;
+    private readonly easing: EasingType;
     private animations: Animation[] = [];
     private currentAnimatable: ReturnType<Scene["beginAnimation"]> | null = null;
 
@@ -386,7 +386,7 @@ export class CameraPathAnimator {
                 0,
                 totalFrames,
                 false, // Don't loop
-                1.0, // Speed
+                1, // Speed
                 () => {
                     // Animation completed via callback
                     if (!resolved) {

@@ -1,4 +1,5 @@
 import { GraphBuilder, type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
+import { plantedPartitionGraph } from "@graphty/graph-samples/generators";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -121,15 +122,58 @@ function lcg(seed: number): () => number {
 // ------------------------------------------------------------------ semi-supervised
 
 describe("indexed.labelPropagationSemiSupervised", () => {
-    it("is labelPropagation bit for bit when no node is seeded", () => {
+    it("spreads one seed per planted group over its whole group (issue #959)", () => {
+        // Free nodes used to start with a label of their own, so a lone seed was outvoted by its
+        // unlabeled neighbours and stayed in a cluster of one: sizes [1, 19, 1, 19, 20, 1, 19].
+        const sample = plantedPartitionGraph({ groups: 4, groupSize: 20, pIn: 0.5, pOut: 0.02, seed: 3 });
+        const b = new GraphBuilder({ directed: false });
+        for (let i = 0; i < sample.nodeCount; i++) {
+            b.addNode(String(i));
+        }
+        for (let e = 0; e < sample.src.length; e++) {
+            b.addEdge(String(sample.src[e]), String(sample.dst[e]));
+        }
+        const s = b.freeze({ checksum: true });
+        const community = sample.nodeColumns?.community;
+        if (!(community instanceof Uint32Array)) {
+            throw new Error("planted partition graph has no u32 community column");
+        }
+        const truth = Array.from({ length: s.nodeCount }, (_, u) => community[Number(s.ids.idOf(u))]);
+        const seeds = freeSeeds(s.nodeCount);
+        const seedNodes = [0, 1, 2, 3].map((k) => truth.indexOf(k));
+        for (const [k, u] of seedNodes.entries()) {
+            seeds[u] = k;
+        }
+        for (const randomSeed of [1, 42, 7]) {
+            const r = labelPropagationSemiSupervised(s, seeds, { randomSeed });
+            expect(r.converged).toBe(true);
+            expect(r.count).toBe(4);
+            expect(r.groups().map((g) => g.length)).toEqual([20, 20, 20, 20]);
+            for (let u = 0; u < s.nodeCount; u++) {
+                expect(r.labels[u]).toBe(r.labels[seedNodes[truth[u]]]);
+            }
+        }
+        s.validate({ checksum: true });
+    });
+
+    it("gives one community per connected component when no node is seeded", () => {
         for (const { graph } of [...undirectedFixtures(), ...directedFixtures()]) {
             const s = checksummedSnapshot(graph);
+            // Union-find over s.edgeList(), independent of the CSR rows the port walks.
+            const parent = Array.from({ length: s.nodeCount }, (_, i) => i);
+            const find = (x: number): number => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+            const el = s.edgeList();
+            for (let e = 0; e < s.edgeCount; e++) {
+                parent[find(el.src[e])] = find(el.dst[e]);
+            }
             for (const randomSeed of [1, 42, 7]) {
-                const plain = labelPropagation(s, { randomSeed });
-                const semi = labelPropagationSemiSupervised(s, freeSeeds(s.nodeCount), { randomSeed });
-                expect([...semi.labels]).toEqual([...plain.labels]);
-                expect(semi.iterations).toBe(plain.iterations);
-                expect(semi.converged).toBe(plain.converged);
+                const r = labelPropagationSemiSupervised(s, freeSeeds(s.nodeCount), { randomSeed, weighted: false });
+                expect(r.converged).toBe(true);
+                for (let u = 0; u < s.nodeCount; u++) {
+                    for (let v = 0; v < s.nodeCount; v++) {
+                        expect(r.labels[u] === r.labels[v]).toBe(find(u) === find(v));
+                    }
+                }
             }
             s.validate({ checksum: true });
         }
@@ -259,12 +303,15 @@ describe("indexed.labelPropagationSemiSupervised", () => {
         ring.validate({ checksum: true });
     });
 
-    it("leaves every node where it started at maxIterations 0, and says the queue did not empty", () => {
+    it("leaves every free node unlabeled at maxIterations 0, grouped as unreached, and says the queue did not empty", () => {
         const s = cliquePair(3, true);
         const seeds = freeSeeds(s.nodeCount);
         seeds[0] = 9;
         const r = labelPropagationSemiSupervised(s, seeds, { maxIterations: 0 });
-        expect(r.count).toBe(s.nodeCount);
+        // The seed (a0, an end of the bridge) alone, and the free nodes of each clique, which only the
+        // seed joined, as two unreached groups.
+        expect([...r.labels]).toEqual([0, 1, 1, 2, 2, 2]);
+        expect(r.count).toBe(3);
         expect(r.iterations).toBe(0);
         expect(r.converged).toBe(false);
         s.validate({ checksum: true });

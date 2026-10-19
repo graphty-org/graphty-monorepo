@@ -13,7 +13,14 @@ import { fileURLToPath } from "node:url";
 import { type GpuContext } from "../../src/context.js";
 import { type KernelId, KERNELS, kernelSpec } from "../../src/kernels.js";
 import { gridReport } from "../helpers/grid.js";
-import { assertCheckPasses, type CheckReport, mergeReports, SABOTAGE, sabotagedBody, withSabotage } from "../helpers/sabotage.js";
+import {
+    assertCheckPasses,
+    type CheckReport,
+    mergeReports,
+    SABOTAGE,
+    sabotagedBody,
+    withSabotage,
+} from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const ID: KernelId = "grid-cell-key";

@@ -39,8 +39,10 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
+    "E_UNKNOWN_ELEMENT",
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
+    "E_UNSAVED_CHANGES",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -57,6 +59,16 @@ const CODES_FROM_THE_DESIGN = [
     "E_CAP_EXCEEDED",
     "E_SCOPE_EMPTY",
     "E_NOT_CONVERGED",
+    "E_NOT_PLANAR",
+    "E_NOT_CONNECTED",
+    "E_NOT_BIPARTITE",
+    "E_EMPTY_GRAPH",
+    "E_NEEDS_UNDIRECTED",
+    "E_NEEDS_DIRECTED",
+    "E_BAD_WEIGHT",
+    "E_ATTRIBUTE_TYPE",
+    "E_BAD_PATH",
+    "E_PATH_COUNT_OVERFLOW",
     "E_NO_ACCELERATOR",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
@@ -64,6 +76,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
     "E_NO_WEBGL",
+    "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
     "E_DISPOSED",
@@ -102,12 +115,14 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
+        case "E_UNKNOWN_ELEMENT":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
         case "E_DUPLICATE_EDGE":
         case "E_DUPLICATE_PLUGIN":
         case "E_PROTECTED":
+        case "E_UNSAVED_CHANGES":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
@@ -133,8 +148,19 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
         case "E_NO_WEBGL":
+        case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
+        case "E_NOT_PLANAR":
+        case "E_NOT_CONNECTED":
+        case "E_NOT_BIPARTITE":
+        case "E_EMPTY_GRAPH":
+        case "E_NEEDS_UNDIRECTED":
+        case "E_NEEDS_DIRECTED":
+        case "E_BAD_WEIGHT":
+        case "E_ATTRIBUTE_TYPE":
+        case "E_BAD_PATH":
+        case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
         case "E_EXTENSION_FAILED":
@@ -394,6 +420,62 @@ describe("GraphtyError.wrap", () => {
 
         assert.strictEqual(wrapped.code, "E_PARSE_FAILED");
         assert.deepStrictEqual(wrapped.details, { format: "gexf", sourceCode: "E_SIBLING_ONLY" });
+    });
+
+    it("adopts a sibling's E_TOO_LARGE with its params as details, under the caller's own", () => {
+        const sibling = Object.assign(new RangeError("teraHAC: 9 nodes exceeds maxNodes 8"), {
+            code: "E_TOO_LARGE",
+            params: { nodeCount: 9, maxNodes: 8, bytes: 648 },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run", details: { runId: "r1" } });
+
+        assert.strictEqual(wrapped.code, "E_TOO_LARGE");
+        assert.deepStrictEqual(wrapped.details, { nodeCount: 9, maxNodes: 8, bytes: 648, runId: "r1" });
+    });
+
+    it("reads a sibling's other spelling of an element code in place of E_INTERNAL, keeping the original", () => {
+        const sibling = Object.assign(new Error("numClusters must be a positive integer"), {
+            code: "E_BAD_OPTION",
+            params: { option: "numClusters", value: 0 },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run" });
+
+        assert.strictEqual(wrapped.code, "E_OPTION_RANGE");
+        assert.deepStrictEqual(wrapped.details, { option: "numClusters", value: 0, sourceCode: "E_BAD_OPTION" });
+
+        const node = GraphtyError.wrap(Object.assign(new Error("no node 9"), { code: "E_BAD_NODE" }), {
+            code: "E_INTERNAL",
+            source: "run",
+        });
+        assert.strictEqual(node.code, "E_UNKNOWN_ELEMENT");
+        assert.strictEqual(node.details.kind, "node");
+    });
+
+    it("keeps the caller's own code over a sibling's other spelling", () => {
+        const sibling = Object.assign(new Error("no column"), { code: "E_UNKNOWN_COLUMN" });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_PARSE_FAILED", source: "data" });
+
+        assert.strictEqual(wrapped.code, "E_PARSE_FAILED");
+        assert.strictEqual(wrapped.details.sourceCode, "E_UNKNOWN_COLUMN");
+    });
+
+    it("does not read an inherited property name as a sibling spelling", () => {
+        const sibling = Object.assign(new Error("odd"), { code: "constructor" });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run" });
+
+        assert.strictEqual(wrapped.code, "E_INTERNAL");
+        assert.strictEqual(wrapped.details.sourceCode, "constructor");
+    });
+
+    it("reads a sibling's details as its facts when it carries no params", () => {
+        const sibling = Object.assign(new Error("unknown node id nope"), {
+            code: "E_UNKNOWN_NODE",
+            details: { id: "nope" },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "layout" });
+
+        assert.strictEqual(wrapped.code, "E_UNKNOWN_ELEMENT");
+        assert.deepStrictEqual(wrapped.details, { kind: "node", id: "nope", sourceCode: "E_UNKNOWN_NODE" });
     });
 
     it("uses the caller's message when one is given", () => {

@@ -7,43 +7,43 @@ implements_capabilities: []
 used_in_workflows: []
 dependencies: []
 props:
-  value:
-    type: string
-    required: true
-    description: Current input value
-  onChange:
-    type: function
-    type_definition: "(value: string) => void"
-    required: true
-    description: Value change handler
-  label:
-    type: string
-    required: false
-    description: Input label displayed above field
-  placeholder:
-    type: string
-    required: false
-    description: Placeholder text when empty
-  disabled:
-    type: boolean
-    required: false
-    description: Whether input is disabled
-  error:
-    type: string
-    required: false
-    description: Error message to display
-  prefix:
-    type: ReactNode
-    required: false
-    description: Content to render before input
-  suffix:
-    type: ReactNode
-    required: false
-    description: Content to render after input
-  type:
-    type: string
-    required: false
-    description: "Input type: 'text' | 'number' | 'password'"
+    value:
+        type: string
+        required: true
+        description: Current input value
+    onChange:
+        type: function
+        type_definition: "(value: string) => void"
+        required: true
+        description: Value change handler
+    label:
+        type: string
+        required: false
+        description: Input label displayed above field
+    placeholder:
+        type: string
+        required: false
+        description: Placeholder text when empty
+    disabled:
+        type: boolean
+        required: false
+        description: Whether input is disabled
+    error:
+        type: string
+        required: false
+        description: Error message to display
+    prefix:
+        type: ReactNode
+        required: false
+        description: Content to render before input
+    suffix:
+        type: ReactNode
+        required: false
+        description: Content to render after input
+    type:
+        type: string
+        required: false
+        description: "Input type: 'text' | 'number' | 'password'"
 sources: []
 version: 1.0.0
 created_at: 2026-01-16T03:58:11.763Z

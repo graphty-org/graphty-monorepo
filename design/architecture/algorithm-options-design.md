@@ -85,9 +85,7 @@ export class PageRankAlgorithm extends Algorithm<PageRankOptions> {
     static zodOptionsSchema: OptionsSchema = pageRankOptionsSchema;
 
     // LEGACY: Old-style options schema (deprecated, for backward compatibility)
-    static optionsSchema: OptionsSchema = {
-        /* ... */
-    };
+    static optionsSchema: OptionsSchema = {/* ... */};
 
     constructor(g: Graph, options?: Partial<PageRankOptions>) {
         super(g, options);

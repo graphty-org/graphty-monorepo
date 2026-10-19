@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-status
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogStorage, ServerStatus } from "../../server/log-storage.js";
 
@@ -17,7 +17,7 @@ export const logsStatusInputSchema = z.object({});
 /**
  * Input type for the logs_status handler.
  */
-export type LogsStatusInput = z.infer<typeof logsStatusInputSchema>;
+export type LogsStatusInput = Record<string, never>;
 
 /**
  * Output type for the logs_status handler.

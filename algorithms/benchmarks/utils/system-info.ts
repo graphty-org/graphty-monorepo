@@ -1,7 +1,7 @@
-import { execSync } from "child_process";
-import { readFileSync } from "fs";
-import os from "os";
-import { join } from "path";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import os from "node:os";
+import { join } from "node:path";
 
 export interface SystemInfo {
     platform: string;
@@ -60,8 +60,8 @@ export function getSystemInfo(): SystemInfo {
                 const maxFreq = execSync("cat /sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq", {
                     encoding: "utf8",
                 });
-                const freqKHz = parseInt(maxFreq.trim());
-                if (!isNaN(freqKHz)) {
+                const freqKHz = Number.parseInt(maxFreq.trim());
+                if (!Number.isNaN(freqKHz)) {
                     cpuSpeed = Math.round(freqKHz / 1000); // Convert KHz to MHz
                 }
             } catch {

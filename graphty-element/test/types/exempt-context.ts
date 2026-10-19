@@ -29,7 +29,11 @@ export const exemptCannotWrite: ExemptDefinition<Select> = {
 
 export const undoableCanWrite: UndoableDefinition<Select> = {
     op: "select",
-    undo: { kind: "undoable", label: (c) => `Selected ${c.id}` },
+    undo: {
+        kind: "undoable",
+        fact: () => ({ code: "transaction", params: { label: null } }),
+        label: (c) => `Selected ${c.id}`,
+    },
     moves: false,
     keys: () => ["styles"],
     lane: { kind: "immediate" },

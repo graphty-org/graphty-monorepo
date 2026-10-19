@@ -28,10 +28,10 @@ import "../../src/layout/index";
 
 import { NullEngine, type Scene as BabylonScene, Scene } from "@babylonjs/core";
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import type { AuthoredLayoutDescriptor } from "../../src/catalog/types";
-import type { AdHocData, NodeStyleConfig } from "../../src/config";
+import type { NodeStyleConfig } from "../../src/config";
 import { WRITABLE_LANE } from "../../src/data/lane";
 import type { Edge } from "../../src/Edge";
 import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
@@ -173,6 +173,27 @@ describe("a pin outlives the engine that was told about it", () => {
         // Held where the reader put it, on the plane a 2D engine draws: a Z carried into 2D is
         // hidden by the camera but not by the node's edges, which then run past it.
         assert.deepStrictEqual(harness.coordsOf(pinned), { ...held, z: 0 });
+    });
+
+    it("puts an unpinned node on the plane in 2D under a layout that echoes stored positions", async () => {
+        // `fixed` writes every placed row back unchanged, Z included, whatever dimension it is
+        // built for, so the switch itself has to flatten what the engine published -- the rule a
+        // pinned node already gets, for every node. Issue #1341.
+        harness = createHarness();
+        const lifted = harness.add("a");
+        harness.add("b");
+
+        const fixed = { id: "fixed", engine: "fixed", options: {}, dimension: "3d" } as const;
+        await layoutManagerInternals.apply(harness.layoutManager, fixed, { restoring: false });
+        const engine = harness.layoutManager.layoutEngine;
+        assert.isDefined(engine);
+        layoutEngineInternals.setNodePosition(engine, lifted, { x: 1, y: 2, z: 5 });
+        assert.deepStrictEqual(harness.coordsOf(lifted), { x: 1, y: 2, z: 5 }, "placed off the plane in 3D");
+
+        await layoutManagerInternals.apply(harness.layoutManager, { ...fixed, dimension: "2d" }, { restoring: false });
+
+        assert.isFalse(lifted.isPinned());
+        assert.deepStrictEqual(harness.coordsOf(lifted), { x: 1, y: 2, z: 0 }, "X and Y kept, Z on the plane");
     });
 
     it("keeps the pin when the layout slice names a new layout", async () => {
@@ -319,9 +340,15 @@ describe("a pin outlives the engine that was told about it", () => {
         harness.add("a");
         await layoutManagerInternals.setLayout(harness.layoutManager, "circular", {});
 
-        const orphan = new Node(harness.context, "orphan", NODE_PAINT, { id: "orphan" } as unknown as AdHocData, {
-            pinOnDrag: true,
-        });
+        const orphan = new Node(
+            harness.context,
+            "orphan",
+            NODE_PAINT,
+            { id: "orphan" },
+            {
+                pinOnDrag: true,
+            },
+        );
 
         orphan.pin();
         assert.isFalse(orphan.isPinned(), "a node with no row in the graph cannot be pinned");
@@ -499,6 +526,58 @@ describe("a static layout after the graph grows", () => {
             held,
             "no held node moved",
         );
+    });
+});
+
+describe("carrying a re-run into the held frame", () => {
+    let harness: Harness | undefined;
+
+    afterEach(() => {
+        vi.restoreAllMocks();
+        harness?.dispose();
+        harness = undefined;
+    });
+
+    it("never calls an engine-approximated Math function, and places the new node where it did before", async () => {
+        // Math.hypot is not required to be correctly rounded, and it decides whether the re-run mirrors and how far
+        // the newcomers turn. The coordinates were recorded with Math.hypot, before the change.
+        const placements: { x: number; y: number; z: number }[] = [];
+        for (const [layout, ids] of [
+            ["test-mirroring-star", ["hub", "l0", "l1", "l2", "l3", "l4"]],
+            ["circular", ["n0", "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8"]],
+        ] as const) {
+            harness?.dispose();
+            harness = createHarness();
+            for (const id of ids) {
+                harness.add(id);
+            }
+            await layoutManagerInternals.setLayout(
+                harness.layoutManager,
+                layout,
+                layout === "circular" ? { dim: 2 } : {},
+            );
+            const arrival = harness.add(layout === "circular" ? "n9" : "l5");
+            // The test's own mirroring star draws with Math.cos and Math.sin; the element's alignment needs none.
+            const stubbed =
+                layout === "circular"
+                    ? (["hypot", "cos", "sin", "atan2", "log", "exp", "pow"] as const)
+                    : (["hypot"] as const);
+            for (const name of stubbed) {
+                vi.spyOn(Math, name).mockImplementation(() => {
+                    throw new Error(`Math.${name} called`);
+                });
+            }
+            try {
+                await harness.layoutManager.updatePositions([arrival]);
+            } finally {
+                vi.restoreAllMocks();
+            }
+            placements.push(harness.coordsOf(arrival));
+        }
+        assert.deepStrictEqual(placements, [
+            { x: 809.0169677734375, y: 587.78521728515625, z: 0 },
+            { x: 84.04866027832031, y: -30.591209411621094, z: 0 },
+        ]);
     });
 });
 

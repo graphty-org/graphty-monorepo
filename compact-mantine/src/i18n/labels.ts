@@ -11,9 +11,9 @@
 //   - a doc comment naming the component and the element it appears on, because
 //     that is the context a translator needs and cannot get from the key.
 //
-// Developer diagnostics are deliberately absent. The seven components that
+// Developer diagnostics are deliberately absent. The six components that
 // report a mistake -- ControlSection, ActionRow, CompoundRow, FieldRow,
-// IconGroupRow, ProseBlock and ToggleRowGroup -- all go through useDevWarning
+// ProseBlock and ToggleRowGroup -- all go through useDevWarning
 // in src/utils/dev-warning.ts, which is gated on NODE_ENV. Those messages are
 // never seen by an end user, and staying in one language is what makes them
 // findable in the source from a pasted console line.
@@ -86,8 +86,10 @@ export interface CompactMantineLabels {
      */
     details: string;
     /**
-     * Accessible name and tooltip of the warning glyph beside a line that
-     * states how a reading departs from being exact and complete.
+     * The severity word a screen reader says before a ProseBlock departure
+     * line (the warning line stating how a reading departs from being exact
+     * and complete). The line is a note named by this word followed by its own
+     * text, such as "Warning Approximate (sample of 8)."
      */
     departure: string;
 
@@ -139,7 +141,7 @@ export interface CompactMantineLabels {
      */
     about: (label: string) => string;
 
-    // StyleNumberInput, StyleSelect and CompactColorInput
+    // ResetButton and CompactColorInput
 
     /**
      * Accessible name of the button that returns a control to its default value.
@@ -150,13 +152,41 @@ export interface CompactMantineLabels {
 
     // CompactColorInput
 
-    /** Accessible name of the swatch button that opens the colour picker. */
+    /**
+     * Accessible name of the swatch button that opens the color picker, when
+     * the control has no label. With a label, `pickColor` names it instead.
+     */
     colorSwatch: string;
-    /** Accessible name of the text box holding the colour's hex value. */
+    /**
+     * Accessible name of the text box holding the color's hex value, when the
+     * control has no label. With a label, `colorValue` names it instead.
+     */
     colorHexValue: string;
-    /** Accessible name of the number box holding the colour's opacity percentage. */
+    /**
+     * Accessible name of the swatch button that opens the color picker, saying
+     * what pressing it does: "Pick Fill color".
+     * @param label - The control's own label, as drawn above it
+     * @returns The button's accessible name
+     */
+    pickColor: (label: string) => string;
+    /**
+     * Accessible name of the text box holding the color's hex value, naming
+     * the property it sets: "Fill color". The box's own value, the hex, is
+     * announced after it.
+     * @param label - The control's own label, as drawn above it
+     * @returns The text box's accessible name
+     */
+    colorValue: (label: string) => string;
+    /**
+     * Accessible name of the number box holding the color's opacity
+     * percentage, when the control has a label: "Fill opacity".
+     * @param label - The control's own label, as drawn above it
+     * @returns The number box's accessible name
+     */
+    colorOpacity: (label: string) => string;
+    /** Accessible name of the number box holding the color's opacity percentage. */
     opacity: string;
-    /** Title of the colour picker pop-out when the caller supplied no label. */
+    /** Title of the color picker pop-out when the caller supplied no label. */
     colorPanelTitle: string;
     /**
      * Stands in for a missing control name inside a reset button's accessible
@@ -183,6 +213,19 @@ export interface CompactMantineLabels {
      * @returns The button's accessible name
      */
     removeColorStop: (position: string) => string;
+    /**
+     * Accessible name of the swatch button that selects one stop so the
+     * picker edits its color.
+     * @param position - The stop's position in the list, counting from one, already formatted for the active locale
+     * @returns The button's accessible name
+     */
+    editColorStop: (position: string) => string;
+    /**
+     * Accessible name of the text box holding one stop's hex color.
+     * @param position - The stop's position in the list, counting from one, already formatted for the active locale
+     * @returns The text box's accessible name
+     */
+    colorStopColor: (position: string) => string;
     /** Heading above the gradient editor's direction slider. */
     direction: string;
     /** Accessible name of the gradient editor's direction slider. */
@@ -235,6 +278,14 @@ export interface CompactMantineLabels {
      */
     rowsSelected: (count: string) => string;
     /**
+     * Accessible name of the caret that opens a data table column's menu. Optional, so a full
+     * set of labels written before it existed still type-checks; left out, the English default
+     * is used.
+     * @param header - The column's header text
+     * @returns The name, such as "Options for Degree"
+     */
+    columnMenu?: (header: string) => string;
+    /**
      * How a cell holding true is written, when its column supplies no drawing
      * of its own.
      */
@@ -251,6 +302,25 @@ export interface CompactMantineLabels {
     closePanel: string;
     /** Accessible name of a tabbed pop-out panel when its first tab has no label. */
     settings: string;
+
+    // Editor shell
+
+    /** Default accessible name of a `Toolbar` when the caller gives none. */
+    toolbar: string;
+    /** Default accessible name of a `NavRail`, the vertical navigation toolbar. */
+    navigation: string;
+    /** Accessible name and tooltip of the round `HelpButton`. */
+    help: string;
+    /** Accessible name of the `ShortcutSheet` and of its tab list. */
+    keyboardShortcuts: string;
+    /** Accessible name of the close button in the `ShortcutSheet`'s tab strip. */
+    close: string;
+    /** Accessible name of the `QuickActions` dialog. */
+    quickActions: string;
+    /** Placeholder and accessible name of the `QuickActions` search field. */
+    searchActions: string;
+    /** Shown in `QuickActions` when nothing matches the search. */
+    noResults: string;
 
     // PasswordInput (the theme's extension of Mantine's)
 
@@ -280,6 +350,16 @@ export interface CompactMantineLabels {
 }
 
 /**
+ * A color control's label as a name for its color: "Fill" becomes "Fill
+ * color", and a label that already says color ("Text color") stands as it is.
+ * @param label - The control's label
+ * @returns The label with "color" after it unless it already has it
+ */
+function withColorNoun(label: string): string {
+    return /\bcolou?r\b/i.test(label) ? label : `${label} color`;
+}
+
+/**
  * The English strings this library ships with.
  *
  * `useLabels` returns these when there is no `LabelsProvider` above, so a
@@ -287,7 +367,7 @@ export interface CompactMantineLabels {
  * build a full set of your own, or pass only the entries you want to change to
  * `LabelsProvider`.
  */
-export const defaultLabels: CompactMantineLabels = {
+export const defaultLabels: Required<CompactMantineLabels> = {
     mixed: "Mixed",
     fieldBound: "Bound to a data attribute",
     fieldPending: "Set but not yet applied",
@@ -297,7 +377,7 @@ export const defaultLabels: CompactMantineLabels = {
     scaleLog: "Logarithmic scale",
 
     details: "Details",
-    departure: "Departure",
+    departure: "Warning",
 
     percentile: (ordinal: string): string => `${ordinal} percentile`,
 
@@ -310,8 +390,11 @@ export const defaultLabels: CompactMantineLabels = {
 
     resetToDefault: (label: string): string => `Reset ${label} to default`,
 
-    colorSwatch: "Color swatch",
+    colorSwatch: "Pick color",
     colorHexValue: "Color hex value",
+    pickColor: (label: string): string => `Pick ${withColorNoun(label)}`,
+    colorValue: (label: string): string => withColorNoun(label),
+    colorOpacity: (label: string): string => `${label} opacity`,
     opacity: "Opacity",
     colorPanelTitle: "Color",
     colorGenericName: "color",
@@ -320,6 +403,8 @@ export const defaultLabels: CompactMantineLabels = {
     addColorStop: "Add color stop",
     colorStopPosition: (position: string): string => `Stop ${position} position`,
     removeColorStop: (position: string): string => `Remove color stop ${position}`,
+    editColorStop: (position: string): string => `Edit stop ${position} color`,
+    colorStopColor: (position: string): string => `Stop ${position} color`,
     direction: "Direction",
     gradientDirection: "Gradient direction",
 
@@ -334,11 +419,21 @@ export const defaultLabels: CompactMantineLabels = {
     noMatchingRows: "No rows match the search",
     rowsShown: (shown: string, total: string): string => `${shown} of ${total} rows`,
     rowsSelected: (count: string): string => `${count} selected`,
+    columnMenu: (header: string): string => `Options for ${header}`,
     yes: "Yes",
     no: "No",
 
     closePanel: "Close panel",
     settings: "Settings",
+
+    toolbar: "Tools",
+    navigation: "Navigation",
+    help: "Help",
+    keyboardShortcuts: "Keyboard shortcuts",
+    close: "Close",
+    quickActions: "Quick actions",
+    searchActions: "Search actions",
+    noResults: "No results",
 
     passwordReveal: "Show the password",
 

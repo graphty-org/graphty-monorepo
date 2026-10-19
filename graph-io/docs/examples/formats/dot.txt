@@ -1,0 +1,8 @@
+9 nodes (the two clusters are nodes too), 7 edges
+ana is inside cluster_design
+digraph handoffs {
+    graph [label="Who hands work to whom"];
+    subgraph cluster_design {
+        graph [label=Design, style=filled, color=lightgrey];
+        ana;
+        ben;

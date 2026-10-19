@@ -6,12 +6,13 @@
  * @module server/proxy
  */
 
-import type * as http from "http";
-import httpProxy from "http-proxy";
-import * as https from "https";
-import { defaultTreeAdapter, type DefaultTreeAdapterMap,html as parse5Html, parse, serialize } from "parse5";
+import type * as http from "node:http";
+import * as https from "node:https";
 
-const HEADERS_TO_REMOVE = [
+import httpProxy from "http-proxy";
+import { defaultTreeAdapter, type DefaultTreeAdapterMap, html as parse5Html, parse, serialize } from "parse5";
+
+const HEADERS_TO_REMOVE = new Set([
     "content-security-policy",
     "content-security-policy-report-only",
     "x-frame-options",
@@ -29,7 +30,7 @@ const HEADERS_TO_REMOVE = [
     "x-vercel-id",
     "x-powered-by",
     "via",
-];
+]);
 
 /**
  * Extract the origin (protocol + host) from a full URL.
@@ -50,7 +51,6 @@ function extractPath(targetUrl: string): string {
     const parsed = new URL(targetUrl);
     return parsed.pathname + parsed.search;
 }
-
 
 /**
  * Rewrite a Location header to route back through the proxy.
@@ -109,7 +109,7 @@ function findElement(node: Document | Element, tagName: string): Element | null 
 function stripIntegrityAttributes(node: Document | Element): void {
     if (defaultTreeAdapter.isElementNode(node)) {
         if (node.tagName === "script" || node.tagName === "link") {
-            node.attrs = node.attrs.filter(a => a.name !== "integrity");
+            node.attrs = node.attrs.filter((a) => a.name !== "integrity");
         }
     }
     const children = node.childNodes ?? [];
@@ -122,7 +122,8 @@ function stripIntegrityAttributes(node: Document | Element): void {
 
 const XHTML_NS = parse5Html.NS.HTML;
 
-const CHROME_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const CHROME_UA =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 /**
  * Inject the remote-logger script and base tag into HTML using parse5.
@@ -155,6 +156,38 @@ export function injectScript(html: string, scriptUrl: string, baseHref: string):
     stripIntegrityAttributes(doc);
 
     return serialize(doc);
+}
+
+/**
+ * Copy an upstream response's headers for the proxied response: drop the ones the
+ * proxy must not pass on, and rewrite redirects and cookies to stay on the proxy.
+ * @param upstream - The upstream response's headers
+ * @param proxyBasePath - The proxy's base path
+ * @returns The headers to send
+ */
+function proxiedHeaders(upstream: http.IncomingHttpHeaders, proxyBasePath: string): Record<string, string | string[]> {
+    const headers: Record<string, string | string[]> = {};
+    for (const [key, value] of Object.entries(upstream)) {
+        if (value === undefined) {
+            continue;
+        }
+        if (HEADERS_TO_REMOVE.has(key.toLowerCase())) {
+            continue;
+        }
+
+        if (key.toLowerCase() === "location" && typeof value === "string") {
+            headers[key] = rewriteLocationHeader(value, proxyBasePath);
+            continue;
+        }
+
+        if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
+            headers[key] = value.map(rewriteSetCookie);
+            continue;
+        }
+
+        headers[key] = value;
+    }
+    return headers;
 }
 
 /**
@@ -210,7 +243,8 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
     // TLS version, so sites that only support TLS 1.2 still work.
     const httpsAgent = new https.Agent({
         rejectUnauthorized: false,
-        sigalgs: "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
+        sigalgs:
+            "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:rsa_pss_rsae_sha512:rsa_pkcs1_sha512",
     });
 
     const proxy = httpProxy.createProxyServer({
@@ -230,28 +264,7 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
         proxyRes.on("end", () => {
             const body = Buffer.concat(chunks);
 
-            // Copy headers with modifications
-            const headers: Record<string, string | string[]> = {};
-            for (const [key, value] of Object.entries(proxyRes.headers)) {
-                if (value === undefined) {
-                    continue;
-                }
-                if (HEADERS_TO_REMOVE.includes(key.toLowerCase())) {
-                    continue;
-                }
-
-                if (key.toLowerCase() === "location" && typeof value === "string") {
-                    headers[key] = rewriteLocationHeader(value, proxyBasePath);
-                    continue;
-                }
-
-                if (key.toLowerCase() === "set-cookie" && Array.isArray(value)) {
-                    headers[key] = value.map(rewriteSetCookie);
-                    continue;
-                }
-
-                headers[key] = value;
-            }
+            const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
 
             const contentType = proxyRes.headers["content-type"];
             const statusCode = proxyRes.statusCode ?? 200;
@@ -280,13 +293,9 @@ export function createProxy(proxyBasePath: string, quiet: boolean): ProxyInstanc
     });
 
     proxy.on("error", (err, _req, res) => {
-        const isTlsError = err.message.includes("SSL") ||
-            err.message.includes("TLS") ||
-            err.message.includes("EPROTO");
+        const isTlsError = err.message.includes("SSL") || err.message.includes("TLS") || err.message.includes("EPROTO");
 
-        const message = isTlsError
-            ? `TLS connection failed: ${err.message}`
-            : err.message;
+        const message = isTlsError ? `TLS connection failed: ${err.message}` : err.message;
 
         if (!quiet) {
             console.error(`[proxy] Error: ${message}`);

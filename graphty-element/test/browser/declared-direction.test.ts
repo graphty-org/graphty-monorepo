@@ -57,11 +57,9 @@ describe("the direction the element reports for a loaded file", () => {
     });
 
     it("leaves an explicit data.directed standing over the file's own header", async () => {
-        // The store locks its direction when `data.directed` is a boolean, and it reads that
-        // setting once, when it is built. So the setting is written and the store rebuilt here
-        // before the file arrives; `clear()` is what rebuilds it.
+        // The store locks its direction when `data.directed` is a boolean, so the file's own
+        // header cannot change it.
         await graph.getSession().config.set({ data: { directed: true } });
-        graph.getDataManager().clear();
 
         await graph.addDataFromSource("gml", { data: karateGml });
         await operationQueueOf(graph).waitForCompletion();
@@ -69,5 +67,21 @@ describe("the direction the element reports for a loaded file", () => {
         const stats = graph.getSession().data.statistics();
         assert.strictEqual(stats.edgeCount, 78, "the import succeeded rather than throwing E_DIRECTED");
         assert.strictEqual(stats.directedness, "directed", "the consumer settled it, not the file");
+    });
+
+    it("re-reads a loaded graph in the direction data.directed is set to, and undo puts it back (#837)", async () => {
+        await graph.addDataFromSource("gml", { data: karateGml });
+        await operationQueueOf(graph).waitForCompletion();
+        const session = graph.getSession();
+
+        await session.config.set({ data: { directed: true } });
+        let stats = session.data.statistics();
+        assert.strictEqual(stats.directedness, "directed");
+        assert.strictEqual(stats.edgeCount, 78, "every edge is kept");
+
+        await session.undo();
+        stats = session.data.statistics();
+        assert.strictEqual(stats.directedness, "undirected", "the file's own reading is back");
+        assert.strictEqual(stats.edgeCount, 78);
     });
 });

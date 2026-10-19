@@ -2,13 +2,9 @@
  * Tests for the logs_receive MCP tool.
  */
 
-import { beforeEach,describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-    logsReceiveHandler,
-    logsReceiveInputSchema,
-    logsReceiveTool,
-} from "../../../src/mcp/tools/logs-receive.js";
+import { logsReceiveHandler, logsReceiveInputSchema, logsReceiveTool } from "../../../src/mcp/tools/logs-receive.js";
 import { LogStorage } from "../../../src/server/log-storage.js";
 
 describe("logs_receive tool", () => {
@@ -21,9 +17,7 @@ describe("logs_receive tool", () => {
     it("stores logs with session ID", async () => {
         const result = await logsReceiveHandler(storage, {
             sessionId: "test-session-123",
-            logs: [
-                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test message" },
-            ],
+            logs: [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test message" }],
         });
 
         expect(result.success).toBe(true);
@@ -38,9 +32,7 @@ describe("logs_receive tool", () => {
     it("accepts optional projectMarker", async () => {
         const result = await logsReceiveHandler(storage, {
             sessionId: "test-session-456",
-            logs: [
-                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" },
-            ],
+            logs: [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" }],
             projectMarker: "my-project",
         });
 
@@ -55,9 +47,7 @@ describe("logs_receive tool", () => {
     it("derives marker from sessionId prefix if not provided", async () => {
         const result = await logsReceiveHandler(storage, {
             sessionId: "graphty-element-1704067200000-abc123",
-            logs: [
-                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" },
-            ],
+            logs: [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" }],
         });
 
         expect(result.success).toBe(true);
@@ -71,9 +61,7 @@ describe("logs_receive tool", () => {
         // Test that schema validates correctly
         const validInput = logsReceiveInputSchema.safeParse({
             sessionId: "test",
-            logs: [
-                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" },
-            ],
+            logs: [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" }],
         });
         expect(validInput.success).toBe(true);
 
@@ -105,9 +93,7 @@ describe("logs_receive tool", () => {
     it("handles optional worktreePath", async () => {
         const result = await logsReceiveHandler(storage, {
             sessionId: "test-session",
-            logs: [
-                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" },
-            ],
+            logs: [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" }],
             worktreePath: "/home/user/.worktrees/remote-logging",
         });
 
@@ -121,9 +107,7 @@ describe("logs_receive tool", () => {
     it("handles optional pageUrl", async () => {
         const result = await logsReceiveHandler(storage, {
             sessionId: "test-session",
-            logs: [
-                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" },
-            ],
+            logs: [{ time: "2024-01-15T10:00:00Z", level: "INFO", message: "Test" }],
             pageUrl: "http://localhost:3000/page",
         });
 

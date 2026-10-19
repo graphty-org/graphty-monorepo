@@ -27,7 +27,7 @@ const rule = (where: RuleTree | string, reading: "induced" | "listed" | "clipped
  * @returns The reader.
  */
 function compiledPaths(): (where: string) => readonly Path[] {
-    const columns: ElementColumns = { value: () => undefined, has: () => false, idOf: null };
+    const columns: ElementColumns = { value: () => undefined, has: () => false, idOf: null, indexOf: null };
 
     return (where) => compileExpressionPredicate(where, columns).paths;
 }

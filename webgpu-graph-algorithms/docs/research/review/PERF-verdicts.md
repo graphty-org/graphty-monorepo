@@ -11,14 +11,14 @@ to the extracted libEGL tree per the memory note).
 Probes re-run or added by the verifier (all under
 /home/apowers/Projects/webgpu-graph-algorithms/tmp/webgpu-plan/review/probes/):
 
-| Probe | Verifier result |
-| --- | --- |
-| grid-occupancy.mjs (re-run, CPU) | reproduces: 1M nodes, one node at 10x the core radius -> 95.5% of nodes in cells above nearMax (maxOcc 1,521); 100x -> 129 cells, maxOcc 33,597; 1000x -> 2 cells, maxOcc 999,999 |
-| near-field-order.mjs (re-run, NVIDIA) | reproduces: 1M index order 8.43 / 32.58 / 125.26 ms (uniform / clustered / clustered + 0.2% outliers at 2-4x) vs sorted 1.80 / 2.01 / 2.94 ms; sorted + vec4 0.92 / 1.78 / 1.79 ms |
-| far-field-order.mjs (re-run, NVIDIA) | reproduces: 1M index 2.83 / 2.26 ms vs sorted 1.01 / 1.00 ms |
-| exact-tile.mjs (re-run, NVIDIA) | reproduces: FA2 body 4k 0.26 ms (0.64e11 pairs/s), 8k 0.53 (1.27e11), 16k 1.13 (2.38e11), 20k 1.81 (2.25e11), 32k 3.48 (3.08e11), 65k 8.66 (4.96e11), 100k 17.67 ms (5.67e11); probe body 20k 1.06 ms (the plan's 1.11) |
-| verify-wgsl-mixing.mjs (new, llvmpipe) | Tint: `lowbias32(i * 0x9E3779B9u ^ j)` -> "mixing '*' and '^' requires parenthesis"; `lowbias32(cell ^ iteration * 0x9E3779B9u ^ seed)` -> same error; both parenthesised forms compile |
-| clamp-expansion.mjs (new, CPU) | exact FA2 with the 7.2 laws, 1,000 nodes, avg degree 10, seeded in [-1, 1): bbox extent WITHOUT the clamp 2.0 -> 554 by iteration 25 (equilibrium ~575); WITH the plan's `2 * cellSize` clamp (cellSize = extent / 512): 2.0 -> 2.4 (it 25) -> 4.4 (it 100) -> 9.6 (it 200) -> 20.9 (it 299), i.e. growth capped at (1 + 4/G) = 0.78% per iteration |
+| Probe                                  | Verifier result                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| grid-occupancy.mjs (re-run, CPU)       | reproduces: 1M nodes, one node at 10x the core radius -> 95.5% of nodes in cells above nearMax (maxOcc 1,521); 100x -> 129 cells, maxOcc 33,597; 1000x -> 2 cells, maxOcc 999,999                                                                                                                                                                   |
+| near-field-order.mjs (re-run, NVIDIA)  | reproduces: 1M index order 8.43 / 32.58 / 125.26 ms (uniform / clustered / clustered + 0.2% outliers at 2-4x) vs sorted 1.80 / 2.01 / 2.94 ms; sorted + vec4 0.92 / 1.78 / 1.79 ms                                                                                                                                                                  |
+| far-field-order.mjs (re-run, NVIDIA)   | reproduces: 1M index 2.83 / 2.26 ms vs sorted 1.01 / 1.00 ms                                                                                                                                                                                                                                                                                        |
+| exact-tile.mjs (re-run, NVIDIA)        | reproduces: FA2 body 4k 0.26 ms (0.64e11 pairs/s), 8k 0.53 (1.27e11), 16k 1.13 (2.38e11), 20k 1.81 (2.25e11), 32k 3.48 (3.08e11), 65k 8.66 (4.96e11), 100k 17.67 ms (5.67e11); probe body 20k 1.06 ms (the plan's 1.11)                                                                                                                             |
+| verify-wgsl-mixing.mjs (new, llvmpipe) | Tint: `lowbias32(i * 0x9E3779B9u ^ j)` -> "mixing '_' and '^' requires parenthesis"; `lowbias32(cell ^ iteration _ 0x9E3779B9u ^ seed)` -> same error; both parenthesised forms compile                                                                                                                                                             |
+| clamp-expansion.mjs (new, CPU)         | exact FA2 with the 7.2 laws, 1,000 nodes, avg degree 10, seeded in [-1, 1): bbox extent WITHOUT the clamp 2.0 -> 554 by iteration 25 (equilibrium ~575); WITH the plan's `2 * cellSize` clamp (cellSize = extent / 512): 2.0 -> 2.4 (it 25) -> 4.4 (it 100) -> 9.6 (it 200) -> 20.9 (it 299), i.e. growth capped at (1 + 4/G) = 0.78% per iteration |
 
 ## Verdicts
 
@@ -60,11 +60,12 @@ R / sqrt(2)); the sum of `|p - c|^2` fits in the unused `.w` lane of the
 existing `sum p` vec4 partial (no change to the 64 B partial stride); nodes
 outside the extent have their CELL KEY clamped to the boundary cell and are
 excluded from that cell's Horvitz-Thompson `count`; add the "giant component
-+ 1% isolated nodes + 100 small components after 200 exact iterations"
-fixture to 11.4 with RMS <= 5% and p99 <= 25%, add the case to R-3, add
-`stats.outsideGrid`. Must be designed together with MISSED-1 below (the
-clamp), because the two interact: a robust extent shrinks `cellSize` and
-therefore the clamp.
+
+- 1% isolated nodes + 100 small components after 200 exact iterations"
+  fixture to 11.4 with RMS <= 5% and p99 <= 25%, add the case to R-3, add
+  `stats.outsideGrid`. Must be designed together with MISSED-1 below (the
+  clamp), because the two interact: a robust extent shrinks `cellSize` and
+  therefore the clamp.
 
 ### PERF-2 -- CONFIRMED (major), fix revised
 
@@ -332,7 +333,7 @@ measurement to T-5 would be sensible housekeeping but is not a defect: the
 Plan line 1340 (`lowbias32(i * 0x9E3779B9u ^ j)`) and 1571
 (`lowbias32(cell ^ iteration * 0x9E3779B9u ^ seed)`), with 7.2 promising the
 constants are "ported to WGSL verbatim". Verified with
-verify-wgsl-mixing.mjs on Dawn (Tint): both forms fail with "mixing '*' and
+verify-wgsl-mixing.mjs on Dawn (Tint): both forms fail with "mixing '\*' and
 '^' requires parenthesis"; the parenthesised forms compile.
 
 Fix: `lowbias32((i * 0x9E3779B9u) ^ j)` and `lowbias32(cell ^ (iteration *
@@ -387,8 +388,7 @@ needs to expand.
 
 Evidence: probes/clamp-expansion.mjs (exact FA2 with the 7.2 laws, 1,000
 nodes, avg degree 10, seed in [-1, 1)): bbox extent without the clamp 2.0 ->
-554 by iteration 25 (equilibrium ~575); with the plan's clamp 2.0 -> 2.4 (it
-25) -> 4.4 (it 100) -> 9.6 (it 200) -> 20.9 (it 299), exactly 1.0078^t.
+554 by iteration 25 (equilibrium ~575); with the plan's clamp 2.0 -> 2.4 (it 25) -> 4.4 (it 100) -> 9.6 (it 200) -> 20.9 (it 299), exactly 1.0078^t.
 repos/cosmos/src/modules/ForceManyBody/force-nearfield.frag lines 145-156
 (clamp on the near-field velocity only, with the comment quoted above);
 repos/cosmos/src/modules/ForceManyBody/index.ts line 781 (`cellSize =

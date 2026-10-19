@@ -49,7 +49,8 @@ export function runFreezeBenchmarks(): BenchResult[] {
     const results: BenchResult[] = [];
     for (const [nodeCount, edgeCount] of SIZES) {
         const edges = randomEdges(nodeCount, edgeCount);
-        const label = `${nodeCount / 1000}k/${edgeCount >= 1_000_000 ? `${edgeCount / 1_000_000}M` : `${edgeCount / 1000}k`}`;
+        const edgeLabel = edgeCount >= 1_000_000 ? `${edgeCount / 1_000_000}M` : `${edgeCount / 1000}k`;
+        const label = `${nodeCount / 1000}k/${edgeLabel}`;
         for (const directed of [true, false]) {
             const dir = directed ? "directed" : "undirected";
             results.push(
@@ -69,8 +70,6 @@ export function runFreezeBenchmarks(): BenchResult[] {
                     },
                     { items: edgeCount, unit: "edges" },
                 ),
-            );
-            results.push(
                 bench(
                     "freeze",
                     `builder push ${label} ${dir} (addAnonymousNodes + addEdges)`,
@@ -80,8 +79,6 @@ export function runFreezeBenchmarks(): BenchResult[] {
                     },
                     { items: edgeCount, unit: "edges" },
                 ),
-            );
-            results.push(
                 bench(
                     "freeze",
                     `freeze ${label} ${dir} (builder already loaded)`,
@@ -103,8 +100,6 @@ export function runFreezeBenchmarks(): BenchResult[] {
                 },
                 { items: edgeCount, unit: "edges" },
             ),
-        );
-        results.push(
             bench(
                 "freeze",
                 `freeze ${label} directed weightDtype: "f64"`,
@@ -114,8 +109,6 @@ export function runFreezeBenchmarks(): BenchResult[] {
                 },
                 { items: edgeCount, unit: "edges" },
             ),
-        );
-        results.push(
             bench(
                 "freeze",
                 `re-freeze ${label} directed after removing 10% of the edges (compaction)`,

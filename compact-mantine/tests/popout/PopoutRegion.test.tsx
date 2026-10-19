@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { Popout, PopoutManager, PopoutRegion } from "../../src/components/popout";
+import { Popout, PopoutManager, PopoutRegion, usePopoutRegion } from "../../src/components/popout";
 import { compactTheme } from "../../src/theme";
 
 /**
@@ -41,7 +41,7 @@ function renderPopout(ui: React.ReactElement) {
 }
 
 describe("PopoutRegion", () => {
-    it("keeps one pop-out open in each of two regions", async () => {
+    it("keeps ONE pop-out open across regions: opening one in another region replaces it (Figma)", async () => {
         const user = userEvent.setup();
 
         renderPopout(
@@ -65,9 +65,9 @@ describe("PopoutRegion", () => {
             expect(screen.getByTestId("inspector-one-content")).toBeInTheDocument();
         });
 
-        // The point of the region: the first survives, because the two describe
-        // two different objects and are not competing for one answer.
-        expect(screen.getByTestId("panel-one-content")).toBeInTheDocument();
+        // Figma keeps one light popover open at a time: the region no longer
+        // separates them, so the first one closed.
+        expect(screen.queryByTestId("panel-one-content")).not.toBeInTheDocument();
     });
 
     it("closes the first when a second opens in the SAME region", async () => {
@@ -93,12 +93,11 @@ describe("PopoutRegion", () => {
         expect(screen.queryByTestId("first-content")).not.toBeInTheDocument();
     });
 
-    it("keeps the whole-page rule where no region is declared", async () => {
+    it("keeps the same whole-page rule where no region is declared", async () => {
         const user = userEvent.setup();
 
         // No PopoutRegion anywhere: every root-level pop-out shares one group,
-        // which is what this layer did before regions existed. An application
-        // that never mentions regions must not change behaviour.
+        // exactly as with regions.
         renderPopout(
             <>
                 <NamedPopout name="alpha" />
@@ -119,12 +118,11 @@ describe("PopoutRegion", () => {
         expect(screen.queryByTestId("alpha-content")).not.toBeInTheDocument();
     });
 
-    it("does not let a region separate two pop-outs that share a parent", async () => {
+    it("closes a sibling child when a second child of the same parent opens", async () => {
         const user = userEvent.setup();
 
-        // Below the root the parent has already done the separating. Two
-        // children of one parent are siblings whatever region they inherited,
-        // so opening the second still closes the first.
+        // Two children of one parent are siblings, so opening the second closes
+        // the first while the parent stays.
         renderPopout(
             <PopoutRegion id="panel">
                 <Popout>
@@ -157,5 +155,20 @@ describe("PopoutRegion", () => {
         });
 
         expect(screen.queryByTestId("child-a-content")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Open child-b" })).toBeInTheDocument();
+    });
+
+    it("still tells a pop-out which region it was opened in", () => {
+        let seen: string | null = "unset";
+        function Probe(): null {
+            seen = usePopoutRegion();
+            return null;
+        }
+        renderPopout(
+            <PopoutRegion id="inspector">
+                <Probe />
+            </PopoutRegion>,
+        );
+        expect(seen).toBe("inspector");
     });
 });

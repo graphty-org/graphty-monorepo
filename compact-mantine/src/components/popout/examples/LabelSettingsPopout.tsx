@@ -1,8 +1,9 @@
 import { Box, Button, Checkbox, Select, Slider, Stack, Text } from "@mantine/core";
 import { type JSX, type RefObject, useState } from "react";
 
+import { PanelLabelsProvider } from "../../../context/PanelLabelsContext";
 import { UiGlyph } from "../../../icons";
-import { StyleNumberInput } from "../../StyleNumberInput";
+import { PanelField } from "../../rows/PanelField";
 import { ToggleWithContent } from "../../ToggleWithContent";
 import { Popout } from "../Popout";
 import { PopoutButton } from "../PopoutButton";
@@ -41,7 +42,7 @@ interface LabelSettingsPopoutProps {
  * </div>
  * ```
  */
-export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.Element {
+export function LabelSettingsPopout({ anchorX }: Readonly<LabelSettingsPopoutProps>): JSX.Element {
     // State for label settings
     const [showLabels, setShowLabels] = useState(true);
     const [fontSize, setFontSize] = useState(12);
@@ -54,10 +55,7 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
     return (
         <Popout>
             <Popout.Trigger>
-                <PopoutButton
-                    icon={<UiGlyph name="gear" size={12} />}
-                    aria-label="Open label settings"
-                />
+                <PopoutButton icon={<UiGlyph name="gear" size={12} />} aria-label="Open label settings" />
             </Popout.Trigger>
             <Popout.Panel
                 width={300}
@@ -79,32 +77,44 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                             checked={showLabels}
                                             onChange={setShowLabels}
                                         >
-                                            <StyleNumberInput
-                                                label="Font size"
-                                                defaultValue={12}
-                                                value={fontSize}
-                                                onChange={(val) => { setFontSize(val ?? 12); }}
-                                                min={8}
-                                                max={24}
-                                                step={1}
-                                                suffix="px"
-                                            />
+                                            <PanelLabelsProvider showLabels>
+                                                <PanelField
+                                                    kind="number"
+                                                    width="fill"
+                                                    label="Font size"
+                                                    defaultValue={12}
+                                                    value={fontSize}
+                                                    onChange={(val) => {
+                                                        setFontSize(Number(val));
+                                                    }}
+                                                    min={8}
+                                                    max={24}
+                                                    step={1}
+                                                    unit="px"
+                                                />
+                                            </PanelLabelsProvider>
                                             <Select
                                                 label="Font family"
                                                 value={fontFamily}
-                                                onChange={(val) => { setFontFamily(val ?? "Inter"); }}
+                                                onChange={(val) => {
+                                                    setFontFamily(val ?? "Inter");
+                                                }}
                                                 data={["Inter", "Arial", "Roboto", "Helvetica", "System UI"]}
                                             />
                                             <Box>
                                                 <Checkbox
                                                     label="Bold"
                                                     checked={bold}
-                                                    onChange={(e) => { setBold(e.currentTarget.checked); }}
+                                                    onChange={(e) => {
+                                                        setBold(e.currentTarget.checked);
+                                                    }}
                                                 />
                                                 <Checkbox
                                                     label="Italic"
                                                     checked={italic}
-                                                    onChange={(e) => { setItalic(e.currentTarget.checked); }}
+                                                    onChange={(e) => {
+                                                        setItalic(e.currentTarget.checked);
+                                                    }}
                                                     mt={4}
                                                 />
                                             </Box>
@@ -115,8 +125,7 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                             mt="sm"
                                             pt="sm"
                                             style={{
-                                                borderTop:
-                                                    "1px solid var(--mantine-color-default-border)",
+                                                borderTop: "1px solid var(--mantine-color-default-border)",
                                             }}
                                         >
                                             <Popout>
@@ -144,25 +153,21 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                                             <Text size="xs" c="dimmed">
                                                                 Fine-tune label rendering performance.
                                                             </Text>
-                                                            <Checkbox
-                                                                label="Use GPU acceleration"
-                                                                defaultChecked
-                                                            />
-                                                            <Checkbox
-                                                                label="Cache label textures"
-                                                                defaultChecked
-                                                            />
-                                                            <Checkbox
-                                                                label="Batch render updates"
-                                                            />
-                                                            <StyleNumberInput
-                                                                label="Render budget (ms)"
-                                                                defaultValue={16}
-                                                                min={1}
-                                                                max={100}
-                                                                step={1}
-                                                                suffix="ms"
-                                                            />
+                                                            <Checkbox label="Use GPU acceleration" defaultChecked />
+                                                            <Checkbox label="Cache label textures" defaultChecked />
+                                                            <Checkbox label="Batch render updates" />
+                                                            <PanelLabelsProvider showLabels>
+                                                                <PanelField
+                                                                    kind="number"
+                                                                    width="fill"
+                                                                    label="Render budget (ms)"
+                                                                    defaultValue={16}
+                                                                    min={1}
+                                                                    max={100}
+                                                                    step={1}
+                                                                    unit="ms"
+                                                                />
+                                                            </PanelLabelsProvider>
                                                         </Stack>
                                                     </Popout.Content>
                                                 </Popout.Panel>
@@ -194,23 +199,23 @@ export function LabelSettingsPopout({ anchorX }: LabelSettingsPopoutProps): JSX.
                                                 ]}
                                             />
                                         </Box>
-                                        <StyleNumberInput
-                                            label="Max labels"
-                                            defaultValue={100}
-                                            value={maxLabels}
-                                            onChange={(val) => { setMaxLabels(val ?? 100); }}
-                                            min={0}
-                                            max={1000}
-                                            step={10}
-                                        />
-                                        <Checkbox
-                                            label="Hide overlapping labels"
-                                            defaultChecked
-                                        />
-                                        <Checkbox
-                                            label="Prioritize selected nodes"
-                                            defaultChecked
-                                        />
+                                        <PanelLabelsProvider showLabels>
+                                            <PanelField
+                                                kind="number"
+                                                width="fill"
+                                                label="Max labels"
+                                                defaultValue={100}
+                                                value={maxLabels}
+                                                onChange={(val) => {
+                                                    setMaxLabels(Number(val));
+                                                }}
+                                                min={0}
+                                                max={1000}
+                                                step={10}
+                                            />
+                                        </PanelLabelsProvider>
+                                        <Checkbox label="Hide overlapping labels" defaultChecked />
+                                        <Checkbox label="Prioritize selected nodes" defaultChecked />
                                         <Text size="sm" c="dimmed" mt="xs">
                                             Advanced settings affect rendering performance.
                                         </Text>

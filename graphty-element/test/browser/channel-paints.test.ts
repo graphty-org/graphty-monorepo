@@ -46,7 +46,7 @@
 
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
-import type { LabelStyle, LayerSpec, StaticStyle } from "../../src/catalog/types";
+import type { LabelStyle, LayerSpec } from "../../src/catalog/types";
 import { UNPAINTED_CHANNELS } from "../../src/catalog/unreachable";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { GraphSession } from "../../src/session";
@@ -65,16 +65,6 @@ const WIDTH = 480;
 const HEIGHT = 360;
 
 /**
- * How many frames to render before taking a reading, once the element says the picture is final.
- *
- * Eight rather than the sixty `label-paint.test.ts` waits for. That file reads glyphs, which
- * arrive only after a canvas has been drawn, uploaded as a texture and had its material's shader
- * compiled; this file asks the much weaker question of whether anything at all moved, and a
- * repaint reaches the scene on the frame after it is applied.
- */
-const FRAMES = 8;
-
-/**
  * How many pixels must fall in a different bucket before the picture counts as changed.
  *
  * Deliberately tiny. Two renderings of an unchanged scene agree exactly, so any margin at all is
@@ -86,9 +76,6 @@ const PIXEL_CHANGE = 32;
 
 /** How many buckets the histogram has: four bits per channel, three channels. */
 const BUCKETS = 16 * 16 * 16;
-
-/** How long to leave between those frames. */
-const FRAME_MS = 10;
 
 /**
  * A label style far enough from the default to change the plane a label is drawn on.
@@ -117,7 +104,8 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
-            return "CHANNEL PROBE WORDS";
+            // A route is text in a grammar of its own: one bend halfway along, half a length off.
+            return descriptor.channel === "edge.bends" ? "0.5,0.5" : "CHANNEL PROBE WORDS";
         case "boolean":
             return true;
         case "enum": {
@@ -231,7 +219,8 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    set: { "node.label": "WORDS" },
+                    // A border to recolour and restyle: its colour and style draw nothing alone.
+                    set: { "node.label": "WORDS", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",
@@ -256,7 +245,7 @@ describe("every channel the table says is renderable", () => {
                     },
                 });
                 await operationQueueOf(graph).waitForCompletion();
-            }, 60000);
+            });
 
             afterAll(() => {
                 graph.dispose();
@@ -270,17 +259,11 @@ describe("every channel the table says is renderable", () => {
             async function read(): Promise<Reading> {
                 // The element's own "this is on screen" signal, NOT the queue: a style edit
                 // resolves once its pass has run, and the meshes take its paint on the render
-                // loop's next update. The frames pumped below draw the scene without updating
-                // it, so on a loaded machine whose render loop had not come round yet they drew
-                // the picture from before the edit.
+                // loop's next update.
                 await graph.waitForStableFrame();
 
-                for (let frame = 0; frame < FRAMES; frame++) {
-                    graph.scene.render();
-                    await new Promise<void>((done) => {
-                        setTimeout(done, FRAME_MS);
-                    });
-                }
+                // One more frame, so the buffer read below is a frame of that picture.
+                graph.scene.render();
 
                 const { scene, engine } = graph;
                 const meshes = [...scene.meshes]
@@ -321,7 +304,7 @@ describe("every channel the table says is renderable", () => {
                         name: `probe ${descriptor.channel}`,
                         target,
                         selector: { match: "everything" },
-                        set: { [descriptor.channel]: probe } as StaticStyle,
+                        set: { [descriptor.channel]: probe },
                     };
                     const added = await session.styles.add(layer);
                     const after = await read();

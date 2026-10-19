@@ -7,7 +7,10 @@
 
 import { GraphFormatError } from "@graphty/graph-format";
 
-/** The list syntaxes an importer or exporter names. */
+/**
+ * The list syntaxes an importer or exporter names.
+ * @category Plugin helpers
+ */
 export type ListSyntax = "gexf" | "brackets" | "pipe" | "comma" | "semicolon";
 
 /**
@@ -24,6 +27,7 @@ export type ListSyntax = "gexf" | "brackets" | "pipe" | "comma" | "semicolon";
  * @param text - the value text
  * @param syntax - the syntax
  * @returns the item texts
+ * @category Plugin helpers
  */
 export function splitListText(text: string, syntax: ListSyntax): string[] {
     const trimmed = text.trim();
@@ -63,6 +67,7 @@ export function splitListText(text: string, syntax: ListSyntax): string[] {
  * @param items - the item texts
  * @param syntax - the syntax; "gexf" writes the 1.3 bracket form
  * @returns the list text
+ * @category Plugin helpers
  */
 export function joinListText(items: readonly string[], syntax: ListSyntax): string {
     switch (syntax) {
@@ -139,21 +144,9 @@ function splitBracketed(text: string): string[] {
         }
         let item = "";
         if (i < n && (inner[i] === '"' || inner[i] === "'")) {
-            const quote = inner[i];
-            i++;
-            while (i < n) {
-                if (inner[i] === quote) {
-                    if (inner[i + 1] === quote) {
-                        item += quote;
-                        i += 2;
-                        continue;
-                    }
-                    i++;
-                    break;
-                }
-                item += inner[i];
-                i++;
-            }
+            const quoted = readQuoted(inner, i);
+            item = quoted.text;
+            i = quoted.end;
         }
         // unquoted text, or text after a closing quote that is not a separator, runs to the next comma
         let end = inner.indexOf(",", i);
@@ -175,6 +168,32 @@ function splitBracketed(text: string): string[] {
 }
 
 /**
+ * Read a quoted item of a bracketed list: a doubled quote inside it is one quote, and a missing
+ * closing quote ends it at the end of the text.
+ * @param inner - the inside of the brackets
+ * @param open - the index of the opening quote
+ * @returns the unquoted text and the index just past the closing quote
+ */
+function readQuoted(inner: string, open: number): { text: string; end: number } {
+    const quote = inner[open];
+    const n = inner.length;
+    let text = "";
+    let i = open + 1;
+    while (i < n) {
+        if (inner[i] !== quote) {
+            text += inner[i];
+            i++;
+        } else if (inner[i + 1] === quote) {
+            text += quote;
+            i += 2;
+        } else {
+            return { text, end: i + 1 };
+        }
+    }
+    return { text, end: i };
+}
+
+/**
  * Whether a char code is ASCII whitespace.
  * @param c - the char code
  * @returns true for space, tab, CR, LF
@@ -190,7 +209,7 @@ function isSpace(c: number): boolean {
  */
 function quoteBracketItem(item: string): string {
     if (item.length === 0 || /[,[\]"']/.test(item) || item !== item.trim()) {
-        return `"${item.replace(/"/g, '""')}"`;
+        return `"${item.replaceAll('"', '""')}"`;
     }
     return item;
 }

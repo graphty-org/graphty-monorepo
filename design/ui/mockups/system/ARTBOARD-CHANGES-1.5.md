@@ -1,4 +1,3 @@
-
 ## ImportOptions
 
 State after the edit: `Import options -- delimited file, nothing loaded`. Dialog
@@ -28,7 +27,7 @@ is 720 wide, centered, over the dimmed Empty shell with the Welcome block.
    draw the role menu OPEN below that chip -- a 160 px popover using the VOCAB
    section 9 "Dropdown menu" frame, rows `Source`, `Target`, `Weight`, `Time`,
    `Edge type` (checked, `background: #28364e; color: #4a7ee8`), `Edge
-   attribute`, a 1 px `#374047` divider, then `Rename...` and `Skip`. Rename and
+attribute`, a 1 px `#374047` divider, then `Rename...` and `Skip`. Rename and
    Skip move out of the header into this menu. The chip itself is the control, so
    its chevron stays. The popover's parent cell needs `position: relative;` and
    the popover `z-index: 25;` so it clears the grid.
@@ -63,8 +62,8 @@ is 720 wide, centered, over the dimmed Empty shell with the Welcome block.
    (6.7)" verbatim (14 px box, 12 px svg, `#a3a8b1`). Draw ONE of them open --
    `Identifier system` -- with the 250 px popover from the same snippet, text:
    `Which kind of ids the nodes use: account or device ids for transaction data;
-   gene symbol, Entrez, Ensembl, STRING or UniProt for biology. Map identifiers
-   reads it later.` plus a `Learn more` link. Its parent column needs
+gene symbol, Entrez, Ensembl, STRING or UniProt for biology. Map identifiers
+reads it later.` plus a `Learn more` link. Its parent column needs
    `position: relative;`. The labels here are ragged-width, so no vertical line
    forms and IC-7's drop-two-circles guard does not fire.
 8. **Column grid header, `amount` detail slot (line ~534).** Current:
@@ -93,7 +92,7 @@ is 720 wide, centered, over the dimmed Empty shell with the Welcome block.
     "Strings this revision standardizes", Import guessed line.
 12. **Grid footer (line ~651).** Current: "Showing 5 of 617 rows. Click a column
     header to change its role, type or name." New: `First 5 of 617 rows. Click a
-    header to change a column.` -- verbatim from VOCAB section 10 "Import grid
+header to change a column.` -- verbatim from VOCAB section 10 "Import grid
     footer". (Rename and Skip are now in the chip menu, so the old sentence is
     wrong as well as long.)
 13. **Welcome underlay, sample cards (lines ~319-380).** Current: every card's
@@ -109,13 +108,13 @@ is 720 wide, centered, over the dimmed Empty shell with the Welcome block.
     bridges.", "Try coloring by conference.", "Try coloring by logFC and finding
     the groups.", "Try finding connected parts, or search for a node." New
     (NAV-1): render that closing sentence as a link, `color: #5b8ff9; cursor:
-    pointer;`, still inside the same span. The rest of the blurb stays
+pointer;`, still inside the same span. The rest of the blurb stays
     `#7a828e`. Karate Club's blurb has no closing imperative; leave it plain.
 15. **Welcome underlay, recent rows (lines ~390, 397).** Current: "JSON, 20 nodes,
     29 edges, Yesterday" and "CSV, 148 nodes, 147 edges, Aug 28". New (MIN-11):
     delete the leading format word on both -- the filename above already carries
     the extension. They read `20 nodes, 29 edges, Yesterday` and `148 nodes,
-    147 edges, Aug 28`.
+147 edges, Aug 28`.
 16. **Column grid header, `src` and `dst` detail slots (lines ~509, 528).**
     Current: `100% filled`. New (MIN-2): delete both -- a complete column says
     nothing by saying so. The `memo` slot's `29% filled` stays.
@@ -140,7 +139,7 @@ is 720 wide, centered, over the dimmed Empty shell with the Welcome block.
 21. **Every icon-only control on the artboard (rail items, top bar Export
     caret, the two panel toggles, the dialog X, the drop-zone icon).** Current:
     no `title` attributes. New (IK-3): add `title="<verb>, <object where the icon
-    does not sit on its object> (<binding>)"` to each. Shape from VOCAB section 10
+does not sit on its object> (<binding>)"` to each. Shape from VOCAB section 10
     "Icon-only button, with its tooltip (6.8)". The dialog X reads
     `title="Close (Esc)"`.
 22. **Guard, whole dialog (IK-8).** Do NOT convert any dialog control to an
@@ -158,17 +157,17 @@ is 720 wide, centered, over the dimmed Empty shell with the Welcome block.
     (DEF-5): rewrite the first two lines as the STATE block shared by the four
     import artboards --
     `STATE: Import options, one dialog in four states. This file: delimited file,
-    nothing loaded.`
+nothing loaded.`
     `OPENS: a delimited text file was dropped on the Welcome drop zone. Reopens
-    from any Change link on a Loaded data line, the "Mapped as before" toast, the
-    Data tier 3 list, the Insights card "Load the full graph", step 3 "Compare
-    with current graph", Import as "Add attributes from a table", and the command
-    palette (new in 1.5).`
+from any Change link on a Loaded data line, the "Mapped as before" toast, the
+Data tier 3 list, the Insights card "Load the full graph", step 3 "Compare
+with current graph", Import as "Add attributes from a table", and the command
+palette (new in 1.5).`
     Also record, as comment text only: the canvas title for this stem becomes
     `Import options -- delimited file, nothing loaded` (do not edit canvas.json;
     it is shared), and NAV-4's completion toast is
     `Loaded 200 nodes and 612 edges in 1 s. Mapped amount to weight, ts to time.
-    Details`, whose Details link opens Data with Loaded data expanded and the
+Details`, whose Details link opens Data with Loaded data expanded and the
     mapping line highlighted for two seconds.
 
 ## ImportRecognised
@@ -198,7 +197,7 @@ Dialog is 1120 wide (12 columns) over the dimmed Empty shell.
    `Parsing`, and after the bipartite checkbox's label. **IC-7's guard fires
    here:** the policy labels sit in a fixed 160 px column, so a circle on every
    row would draw a vertical line -- drop the circle from `Repeated edges between
-   the same two nodes` and `Edges that mention unknown nodes`, whose select
+the same two nodes` and `Edges that mention unknown nodes`, whose select
    values ("Combine into one, count the repeats and sum the weight", "Create the
    node") already state the policy in full. `Identifier system` keeps the circle
    and the open popover it already draws.
@@ -206,7 +205,7 @@ Dialog is 1120 wide (12 columns) over the dimmed Empty shell.
    the right glyph but `display: flex` and no `flex: 0 0 auto`. New (IC-2):
    normalize to the canonical geometry -- replace the wrapper div with the VOCAB
    section 10 "Info circle (6.7)" resting form verbatim (`display: inline-flex;
-   ... flex: 0 0 auto;`), and set it to the open colour `#d5d7da` since its
+... flex: 0 0 auto;`), and set it to the open colour `#d5d7da` since its
    popover is drawn open. Leave the 250 px popover markup as it is; it already
    matches the snippet.
 6. **Column grid, every Role and Type chip (lines ~491-551).** Current: chips
@@ -215,7 +214,7 @@ Dialog is 1120 wide (12 columns) over the dimmed Empty shell.
    the control -- keep the chevrons and add `title="Change this column's role"` /
    `title="Change this column's type"`; Rename and Skip move to a header overflow.
    Replace the caption with `First 5 of 1,104 rows. Click a header to change a
-   column.` (VOCAB section 10 "Import grid footer"). No role menu is drawn open
+column.` (VOCAB section 10 "Import grid footer"). No role menu is drawn open
    on this artboard -- nothing was guessed here, and ImportOptions is where the
    open menu is drawn.
 7. **Dialog title row (lines ~448-450).** Current: `Import options` then dimmed
@@ -229,8 +228,8 @@ Dialog is 1120 wide (12 columns) over the dimmed Empty shell.
    edges, undirected, weighted by combined_score, no repeated pairs, no
    self-loops." and "12 columns, 1,104 data rows, header row detected. Nothing
    was guessed." New (DEF-3 + MIN-2): line 1 becomes `318 nodes, 1,104 edges,
-   undirected, weighted by combined_score`; line 2 becomes `12 columns, header
-   row detected.` Deleted: the two zero clauses (the Policies block states them
+undirected, weighted by combined_score`; line 2 becomes `12 columns, header
+row detected.` Deleted: the two zero clauses (the Policies block states them
    once, item 9), the duplicate row count, and the standalone "Nothing was
    guessed." **Collision resolved:** VOCAB still lists `Nothing was guessed.` as
    a standard string, but MIN-2 names that exact line as one not drawn; MIN-2
@@ -249,7 +248,7 @@ Dialog is 1120 wide (12 columns) over the dimmed Empty shell.
 12. **Welcome underlay, sample cards (lines ~326-388).** Current: every meta line
     carries a size. New (DEF-3): delete the size from Karate Club, Cat social
     network, Fraud ring, Airline routes and Ovarian cancer DE genes. `Road
-    network, Oahu` keeps `62,000 nodes, 81,000 edges, 9.8 MB` -- it carries the
+network, Oahu` keeps `62,000 nodes, 81,000 edges, 9.8 MB` -- it carries the
     `Large` badge and the Performance-mode line, so the size is the decision.
 13. **Welcome underlay, sample blurbs (lines ~329-388).** Current: each ends in a
     flat imperative ("Try finding the groups.", "Try layers by attribute, or two
@@ -278,14 +277,14 @@ Dialog is 1120 wide (12 columns) over the dimmed Empty shell.
 20. **Leading comment block (lines 15-27).** New (DEF-5): open with the shared
     two-line STATE block --
     `STATE: Import options, one dialog in four states. This file: delimited file,
-    nothing loaded (a recognised export, so roles were pre-assigned).`
+nothing loaded (a recognised export, so roles were pre-assigned).`
     `OPENS: a delimited text file was dropped. Reopens from any Change link on a
-    Loaded data line, the "Mapped as before" toast, the Data tier 3 list, the
-    Insights card "Load the full graph", step 3 "Compare with current graph",
-    Import as "Add attributes from a table", and the command palette (new in
-    1.5).`
+Loaded data line, the "Mapped as before" toast, the Data tier 3 list, the
+Insights card "Load the full graph", step 3 "Compare with current graph",
+Import as "Add attributes from a table", and the command palette (new in
+1.5).`
     Record in comment only: canvas title becomes `Import options -- recognised
-    export, nothing loaded` (do not edit canvas.json).
+export, nothing loaded` (do not edit canvas.json).
 
 ## ImportLargeFile
 
@@ -302,8 +301,8 @@ loaded`. Dialog is 720 wide over the dimmed Empty shell.
    is stated by the warning line below and nowhere else.
 2. **Load control, the four unshipped options (lines ~601-628).** Current: four
    contiguous radio options -- `Neighborhood of an id`, `Nodes matching a
-   filter`, `Only a time window`, `Everything for analysis and draw nothing until
-   filtered` -- each with its own `Coming` tag. New (MIN-4): delete the four
+filter`, `Only a time window`, `Everything for analysis and draw nothing until
+filtered` -- each with its own `Coming` tag. New (MIN-4): delete the four
    per-row tags; insert a 1 px `#374047` divider above the run with a single
    `Coming` tag (VOCAB section 9 "Coming tag") sitting on it as the group note;
    dim and disable the four rows (label and sub-line `color: #5f6873`, radio
@@ -315,12 +314,12 @@ loaded`. Dialog is 720 wide over the dimmed Empty shell.
    is selected below so the graph opens smoothly; the whole file is still loaded.
    Import everything anyway". New (DEF-3 canonical string): replace with
    `Too big to draw everything at once: about 2.4 GB of memory. Busiest nodes is
-   selected below, so the graph opens smoothly and the whole file still loads.`
+selected below, so the graph opens smoothly and the whole file still loads.`
    followed by the existing `Import everything anyway` link. Keep the amber
    triangle, keep the row above the fold, and keep it first in the body after the
    summary -- it is the only "this is not routine" signal left. New (DEF-6): add
    `title="Render ceiling: about 200,000 nodes, measured on this machine.
-   Settings > Performance"` to the warning row.
+Settings > Performance"` to the warning row.
 4. **Dialog title row (lines ~415-417).** Current: `Import options` then dimmed
    `netflow-2026-q2.csv` with no size. New (DEF-5 + DEF-3): dimmed half becomes
    `netflow-2026-q2.csv, 3.2 GB -- above the large-graph threshold`. Verbatim
@@ -343,7 +342,7 @@ loaded`. Dialog is 720 wide over the dimmed Empty shell.
    moment, ISO date-time. Weight: bytes as strength (higher is closer), not
    normalized." New (DEF-4, the Time role now has a unit family):
    `Time: ts -- a single moment, measured in date and time, ISO 8601. Weight:
-   bytes as strength (higher is closer), not normalized.` The word "instant" is
+bytes as strength (higher is closer), not normalized.` The word "instant" is
    not used for Kind anywhere.
 9. **Load option `Everything` (line ~570).** Current: "All 1,000,000 nodes; edges
    beyond 500,000 hidden until zoomed in; may be slow or run out of memory." New
@@ -353,8 +352,8 @@ loaded`. Dialog is 720 wide over the dimmed Empty shell.
     "Memory: about 2.4 GB to load everything, about 120 MB more to draw this
     subset. Performance mode will be on." New (DEF-3, the 2.4 GB figure now lives
     in the warning line): `About 120 MB more to draw this subset. Performance
-    mode will be on.` The first sub-line, `Draws 50,000 nodes and 410,000 edges.
-    Analysis runs on the drawn sample unless a card's Scope is Whole graph.`,
+mode will be on.` The first sub-line, `Draws 50,000 nodes and 410,000 edges.
+Analysis runs on the drawn sample unless a card's Scope is Whole graph.`,
     stays verbatim -- it is the subset arithmetic, and DEF-3 puts it here.
 11. **Load header trailing link (line ~562).** Current: "Default set in Settings,
     Performance". New (DEF-6): `Default set in Settings > Performance`, and give
@@ -372,7 +371,7 @@ loaded`. Dialog is 720 wide over the dimmed Empty shell.
 14. **Welcome underlay, sample cards (lines ~297-360).** New (DEF-3): delete the
     size from Karate Club, Cat social network, Fraud ring, Airline routes and
     Ovarian cancer DE genes. `Amazon items` keeps `65,000 nodes, 260,000 edges,
-    12 MB` -- it carries the `Large` badge and the Performance-mode line.
+12 MB` -- it carries the `Large` badge and the Performance-mode line.
 15. **Welcome underlay, recent rows (lines ~370, 374).** New (MIN-11): drop the
     leading `JSON, ` and `CSV, ` -- the filenames carry the extension.
 16. **Status bar (lines ~401-404).** Current: grey dot plus `AI: not configured`.
@@ -393,15 +392,15 @@ loaded`. Dialog is 720 wide over the dimmed Empty shell.
 21. **Leading comment block (lines 15-27).** New (DEF-5 + NAV-12): open with the
     shared two-line STATE block --
     `STATE: Import options, one dialog in four states. This file: above the
-    large-graph threshold, nothing loaded.`
+large-graph threshold, nothing loaded.`
     `OPENS: a file above the large-graph threshold, which wins over the
-    immediate-load rule. Reopens from any Change link on a Loaded data line, the
-    "Mapped as before" toast, the Data tier 3 list, the Insights card "Load the
-    full graph", step 3 "Compare with current graph", Import as "Add attributes
-    from a table", and the command palette (new in 1.5).`
+immediate-load rule. Reopens from any Change link on a Loaded data line, the
+"Mapped as before" toast, the Data tier 3 list, the Insights card "Load the
+full graph", step 3 "Compare with current graph", Import as "Add attributes
+from a table", and the command palette (new in 1.5).`
     Add one line: `Importing from here lands on ExplorerSubset.dc.html (new in
-    1.5): 50,000 of 1,000,000 nodes and 410,000 of 10,000,000 edges on the quick
-    grid in Performance mode.` Record in comment only: canvas title becomes
+1.5): 50,000 of 1,000,000 nodes and 410,000 of 10,000,000 edges on the quick
+grid in Performance mode.` Record in comment only: canvas title becomes
     `Import options -- above the render ceiling, nothing loaded` (do not edit
     canvas.json).
 
@@ -415,13 +414,10 @@ Dialog opens at step 3 over the loaded fraud-ring shell.
    Directed (from file). Sample dataset.", "Mapped source, target, amount to
    weight, ts to time. Change", "Identifier system: account id. Change",
    "Weight: amount, as strength. Time: ts. Label: id. Change", "Attributes: 8
-   imported, 0 joined." New (MIN-1 one fact one region, plus MIN-2):
-   - Delete `200 nodes, 612 edges.` from the first line; it becomes
-     `Directed (from file). Sample dataset.` (the status bar owns the counts).
-   - Collapse the three mapping lines into ONE line with ONE `Change`:
-     `Mapped source, target, amount to weight (strength), ts to time, id to
-     label. Identifier system: account id.` then the `Change` link.
-   - `Attributes: 8 imported, 0 joined.` becomes `Attributes: 8 imported.`
+   imported, 0 joined." New (MIN-1 one fact one region, plus MIN-2): - Delete `200 nodes, 612 edges.` from the first line; it becomes
+   `Directed (from file). Sample dataset.` (the status bar owns the counts). - Collapse the three mapping lines into ONE line with ONE `Change`:
+   `Mapped source, target, amount to weight (strength), ts to time, id to
+label. Identifier system: account id.` then the `Change` link. - `Attributes: 8 imported, 0 joined.` becomes `Attributes: 8 imported.`
    The `Change` link keeps its text (C2: it is a documented reopen path for this
    dialog, so it never becomes a hover-only pencil).
 2. **Data panel, Loaded data first row (lines ~208-209).** Current: a two-part
@@ -441,16 +437,14 @@ Dialog opens at step 3 over the loaded fraud-ring shell.
 5. **Inspector, Most connected section (lines ~399-419).** Current: a header
    `Most connected` / `Degree`, five rows each ending in "37 links", "33 links",
    "29 links", "27 links", "24 links", and a footer with two links, `See all 200
-   ranked` and `Export top N (CSV)`. New:
-   - MIN-9: move the repeated unit word to a column header -- add a 10 px
-     `#7a828e` right-aligned `links` header line under the section header, and
-     the rows read `37`, `33`, `29`, `27`, `24`.
-   - IK-6: delete `Export top N (CSV)` from the footer and draw the section
-     header in its hovered form with a right-aligned download icon
-     (`title="Export"`) whose menu holds the two full labels `Export top 20
-     (CSV)` and `Export ranked list (CSV)`. Use VOCAB section 10 "Icon group in a
-     section header, revealed on hover (6.8)". `See all 200 ranked` stays a text
-     link.
+ranked` and `Export top N (CSV)`. New: - MIN-9: move the repeated unit word to a column header -- add a 10 px
+   `#7a828e` right-aligned `links` header line under the section header, and
+   the rows read `37`, `33`, `29`, `27`, `24`. - IK-6: delete `Export top N (CSV)` from the footer and draw the section
+   header in its hovered form with a right-aligned download icon
+   (`title="Export"`) whose menu holds the two full labels `Export top 20
+(CSV)` and `Export ranked list (CSV)`. Use VOCAB section 10 "Icon group in a
+   section header, revealed on hover (6.8)". `See all 200 ranked` stays a text
+   link.
 6. **Dialog, "When an id already exists" helper (line ~601).** Current: one long
    sentence, "Update its attributes, Keep both (suffixed id) or Skip. Update
    writes os, risk_score and last_seen onto the 46 matched devices and overwrites
@@ -458,13 +452,13 @@ Dialog opens at step 3 over the loaded fraud-ring shell.
    this file." New (IC-1 split at the teaches/reports boundary, then MIN-11):
    delete sentence 1 (it restates the select's own option list, visible on the
    same row) and sentence 3 (it restates the `Source attribute = source =
-   devices-batch2.csv` control beside it); keep sentence 2 verbatim, which
+devices-batch2.csv` control beside it); keep sentence 2 verbatim, which
    reports this file: `Update writes os, risk_score and last_seen onto the 46
-   matched devices and overwrites opened where it exists.` Nothing here moves
+matched devices and overwrites opened where it exists.` Nothing here moves
    behind a circle -- rule 5, never both.
 7. **Dialog, control labels (lines ~525, ~584, ~707).** New (IC-7): add a resting
    info circle immediately after the label text of `Import as`, `When an id
-   already exists` and `Parsing`. VOCAB section 10 "Info circle (6.7)", resting
+already exists` and `Parsing`. VOCAB section 10 "Info circle (6.7)", resting
    form, copied verbatim.
 8. **Dialog, the cyan glyph on the match-preview line (line ~1242).** Current: a
    14 px `#33bfd7` circled "i" leading the "Matches 46 existing nodes..." row.
@@ -482,10 +476,10 @@ Dialog opens at step 3 over the loaded fraud-ring shell.
     edges, directed, weighted by amount, timed by ts." New (DEF-3, each fact
     once): line 1 drops the size, now in the title row --
     `77 rows, 5 columns. Detected CSV, comma separated, first row is a header
-    (98% confidence).` Line 2 drops the filename, which the `Replace current
-    graph` option below already names --
+(98% confidence).` Line 2 drops the filename, which the `Replace current
+graph` option below already names --
     `Current graph: 200 nodes, 612 edges, directed, weighted by amount, timed by
-    ts.`
+ts.`
 11. **Dialog footer (line ~716).** Current: "Adds 31 nodes and updates 46.
     Recorded as a Cleaning step, undoable from History." New (DEF-3, the match
     preview line already states the arithmetic with its Show matched / Show new
@@ -496,10 +490,10 @@ Dialog opens at step 3 over the loaded fraud-ring shell.
     `#5b8ff9`, two spaces between. The Role and Type chips gain
     `title="Change this column's role"` / `title="Change this column's type"`.
 13. **Inspector, Counts / case notes (lines ~388-389).** Current: `Case notes:
-    none` above `Add a case note`. New (MIN-9): delete `Case notes: none`; the
+none` above `Add a case note`. New (MIN-9): delete `Case notes: none`; the
     affordance `Add a case note` alone is the zero state.
 14. **Inspector, degree histogram caption (line ~419).** Current: `1  links per
-    node, linear  37`. New (MIN-2): delete the default scale word --
+node, linear  37`. New (MIN-2): delete the default scale word --
     `1  links per node  37`. (Only a non-default scale prints its name; the
     legend's `1 to 37, sqrt scale` keeps sqrt.)
 15. **Legend and minimap (lines ~306, ~312).** Current: a `Minimap` caption above
@@ -535,14 +529,14 @@ Dialog opens at step 3 over the loaded fraud-ring shell.
 21. **Leading comment block (lines 15-27).** New (DEF-5): open with the shared
     two-line STATE block --
     `STATE: Import options, one dialog in four states. This file: second file,
-    data already loaded -- the dialog opens at item 3.`
+data already loaded -- the dialog opens at item 3.`
     `OPENS: a second file was dropped while data is loaded. Reopens from any
-    Change link on a Loaded data line, the "Mapped as before" toast, the Data
-    tier 3 list, the Insights card "Load the full graph", step 3 "Compare with
-    current graph", Import as "Add attributes from a table", and the command
-    palette (new in 1.5).`
+Change link on a Loaded data line, the "Mapped as before" toast, the Data
+tier 3 list, the Insights card "Load the full graph", step 3 "Compare with
+current graph", Import as "Add attributes from a table", and the command
+palette (new in 1.5).`
     Record in comment only: canvas title becomes `Import options -- second file,
-    data already loaded` (do not edit canvas.json).
+data already loaded` (do not edit canvas.json).
 
 ## TableJoin
 
@@ -558,38 +552,32 @@ shell. This is NOT the Import options dialog, so 6.8 applies here normally.
    (MIN-9 + MIN-2): keep this section OPEN -- it is the one artboard in the data
    group that shows the open Counts form -- but make it a tier 2 section (chevron
    down, sitting under the reading) and rewrite the rows:
-   - Merge `Direction` and `Weighted` into one row, label `Type`, value
-     `Undirected (from file), weighted (combined_score)`.
-   - `Connected parts (components)  1 (largest holds 100%)` becomes
-     `Connected parts (components)  1` -- the largest-part share lives in the
-     reading.
-   - Delete the `Isolated nodes  0` row.
-   - `How tightly linked (density)  0.022` stays in plain form; add
-     `title="2.2e-2"` to the value.
+    - Merge `Direction` and `Weighted` into one row, label `Type`, value
+      `Undirected (from file), weighted (combined_score)`.
+    - `Connected parts (components)  1 (largest holds 100%)` becomes
+      `Connected parts (components)  1` -- the largest-part share lives in the
+      reading.
+    - Delete the `Isolated nodes  0` row.
+    - `How tightly linked (density)  0.022` stays in plain form; add
+      `title="2.2e-2"` to the value.
 3. **Inspector, Most connected section (lines ~422-441).** Current: header `Most
-   connected` / `Degree`, five rows ending in "41 links" ... "29 links", a footer
-   with `See all 318 ranked` and `Export top 50 (CSV)`. New:
-   - MIN-9: add a 10 px `#7a828e` right-aligned `links` column header under the
-     section header; rows read `41`, `36`, `33`, `31`, `29`.
-   - IK-6: delete `Export top 50 (CSV)` from the footer; draw the section header
-     in its hovered form with a right-aligned download icon (`title="Export"`)
-     whose menu holds `Export top 20 (CSV)` and `Export ranked list (CSV)`.
-     VOCAB section 10 "Icon group in a section header, revealed on hover (6.8)".
-     `See all 318 ranked` stays a text link.
+connected` / `Degree`, five rows ending in "41 links" ... "29 links", a footer
+   with `See all 318 ranked` and `Export top 50 (CSV)`. New: - MIN-9: add a 10 px `#7a828e` right-aligned `links` column header under the
+   section header; rows read `41`, `36`, `33`, `31`, `29`. - IK-6: delete `Export top 50 (CSV)` from the footer; draw the section header
+   in its hovered form with a right-aligned download icon (`title="Export"`)
+   whose menu holds `Export top 20 (CSV)` and `Export ranked list (CSV)`.
+   VOCAB section 10 "Icon group in a section header, revealed on hover (6.8)".
+   `See all 318 ranked` stays a text link.
 4. **Data panel, Loaded data mapping lines (lines ~188-195).** Current: seven
    lines each ending in its own `Change` -- "318 nodes, 1,104 edges", "TSV,
    STRING export recognized. Change", "Undirected, from file. Change", "ids: gene
    symbol. Change", "Weight: combined_score, strength. Change", "Label:
    preferredName. Change", "Attributes: 4 imported, 0 joined. Change",
-   "Policies: defaults, nothing found. Change". New (MIN-1 mapping row, MIN-2):
-   - Delete `318 nodes, 1,104 edges` -- the status bar owns the counts.
-   - Collapse the three mapping lines into ONE line with ONE `Change`:
-     `Mapped combined_score to weight (strength), preferredName to label.
-     Identifier system: gene symbol.` then `Change`.
-   - `Attributes: 4 imported, 0 joined. Change` becomes
-     `Attributes: 4 imported. Change`.
-   - `Policies: defaults, nothing found. Change` becomes
-     `Policies: defaults. Change`.
+   "Policies: defaults, nothing found. Change". New (MIN-1 mapping row, MIN-2): - Delete `318 nodes, 1,104 edges` -- the status bar owns the counts. - Collapse the three mapping lines into ONE line with ONE `Change`:
+   `Mapped combined_score to weight (strength), preferredName to label.
+Identifier system: gene symbol.` then `Change`. - `Attributes: 4 imported, 0 joined. Change` becomes
+   `Attributes: 4 imported. Change`. - `Policies: defaults, nothing found. Change` becomes
+   `Policies: defaults. Change`.
    The format line and the direction line keep their own `Change`. Every `Change`
    keeps its text (C2).
 5. **Dialog, Match on control (lines ~600-607).** Current: a bare select reading
@@ -606,7 +594,7 @@ shell. This is NOT the Import options dialog, so 6.8 applies here normally.
    section 4 "Checkbox row (CompactCheckbox)" snippet.
 7. **Dialog, control labels (lines ~561, 570, 578, 586, 594, 601).** New (IC-7):
    add a resting info circle after the label text of `Apply to`, `Key column in
-   file`, `Match on (attribute in the graph)` (after the complete pair, never
+file`, `Match on (attribute in the graph)` (after the complete pair, never
    between the two halves), `When an attribute already exists` and
    `Case-sensitive match`. **IC-7's guard fires on one row:** drop the circle
    from `Prefix column names with`, whose placeholder `no prefix` already states
@@ -626,7 +614,7 @@ shell. This is NOT the Import options dialog, so 6.8 applies here normally.
 10. **Dialog, grid caption (line ~610).** Current: "Click a header to change its
     role or type. Detected from the first 100 rows; lists split on |." New
     (NAV-3, the chip is the control): `Click a chip to change a column's role or
-    type. Detected from the first 100 rows; lists split on |.` Add
+type. Detected from the first 100 rows; lists split on |.` Add
     `title="Change this column's role"` / `title="Change this column's type"` to
     the chips.
 11. **Dialog footer (line ~753).** Current: "Adds 4 attributes to 312 of 318
@@ -636,13 +624,13 @@ shell. This is NOT the Import options dialog, so 6.8 applies here normally.
 12. **Dialog, file row (line ~572).** Current: `expression.tsv` then "340 rows,
     5 columns, tab-separated, header row, 18 KB". New (DEF-3, a size is shown
     only when it is the decision): `340 rows, 5 columns, tab-separated, header
-    row`.
+row`.
 13. **Legend (lines ~358-367).** Current: a `Legend` caption, a Size block with
     the caption `1 to 41, sqrt scale`, and a `Color: not encoded` block. New
     (MIN-7 + MIN-2): delete the `Legend` caption and delete the whole `Color: not
-    encoded` block -- blocks for unencoded channels are not drawn, and `Color: not
-    encoded` is a retired string. Keep the Size block and its `1 to 41, sqrt
-    scale` caption (no tick values are drawn beside it, so the range caption
+encoded` block -- blocks for unencoded channels are not drawn, and `Color: not
+encoded` is a retired string. Keep the Size block and its `1 to 41, sqrt
+scale` caption (no tick values are drawn beside it, so the range caption
     stays).
 14. **Minimap (line ~352).** Current: a `Minimap` caption above the thumbnail.
     New (MIN-7): delete it -- this is the thumbnail form, not the above-10,000-node
@@ -657,11 +645,11 @@ shell. This is NOT the Import options dialog, so 6.8 applies here normally.
 16. **Inspector, case notes (lines ~492-493).** Current: `Case notes: none` above
     `Add a case note`. New (MIN-9): delete `Case notes: none`.
 17. **Insights strip, third card (lines ~313-317).** Current: title `Search for
-    something you know` with the technical half `Search`. New (G3's one permitted
+something you know` with the technical half `Search`. New (G3's one permitted
     strip edit): delete the `Search` technical name -- it is not a canonical pair.
     Everything else on the strip is untouched by every density rule.
 18. **Data panel, Validation report header (line ~240).** Current: `2 info, no
-    warnings`. New (MIN-2): `2 info` -- the zero half goes.
+warnings`. New (MIN-2): `2 info` -- the zero half goes.
 19. **Data panel, Cleaning steps header (line ~268).** Current: a trailing count
     `1`. New (MIN-2): delete it -- a section header count of 0 or 1 is not drawn.
     `Sample datasets 5` and `Recent 3` keep their counts (collapsed sections,
@@ -700,35 +688,32 @@ steps.
 3. **Inspector, Most connected section (lines ~1197-1240).** Current: five rows
    ending in "44 links" ... "24 links", and a footer with `See all 200 ranked`
    and `Export top N (CSV)`. New:
-   - MIN-9: add a 10 px `#7a828e` right-aligned `links` column header under the
-     section header; rows read `44`, `40`, `37`, `31`, `24`.
-   - IK-6: delete `Export top N (CSV)`; draw the section header in its hovered
-     form with a right-aligned download icon (`title="Export"`) whose menu holds
-     `Export top 20 (CSV)` and `Export ranked list (CSV)`. VOCAB section 10 "Icon
-     group in a section header, revealed on hover (6.8)". `See all 200 ranked`
-     stays a text link.
+    - MIN-9: add a 10 px `#7a828e` right-aligned `links` column header under the
+      section header; rows read `44`, `40`, `37`, `31`, `24`.
+    - IK-6: delete `Export top N (CSV)`; draw the section header in its hovered
+      form with a right-aligned download icon (`title="Export"`) whose menu holds
+      `Export top 20 (CSV)` and `Export ranked list (CSV)`. VOCAB section 10 "Icon
+      group in a section header, revealed on hover (6.8)". `See all 200 ranked`
+      stays a text link.
 4. **Data panel, Loaded data section (lines ~198-221).** Current: the header
    carries `200 nodes, 612 edges`; the body opens with a row of
    `fraud-ring-synthetic.json` + `84 KB`, then `JSON node-link, directed (from
-   file)`, then two mapping lines with two `Change` links. New (MIN-1):
-   - Delete `200 nodes, 612 edges` from the section header -- the status bar owns
-     the counts.
-   - Delete the filename span -- the top bar owns the file name -- and merge the
-     two remaining lines into one: `JSON node-link, 84 KB, directed (from file)`.
-     The `84 KB` stays: DEF-3 names the loaded-file size as a number that is the
-     decision.
-   - Collapse `Mapped amount to weight, ts to time, id to label.` and
-     `Identifier system: account id. Change` into ONE line with ONE `Change`:
-     `Mapped amount to weight, ts to time, id to label. Identifier system:
-     account id.` then `Change`.
+file)`, then two mapping lines with two `Change` links. New (MIN-1): - Delete `200 nodes, 612 edges` from the section header -- the status bar owns
+   the counts. - Delete the filename span -- the top bar owns the file name -- and merge the
+   two remaining lines into one: `JSON node-link, 84 KB, directed (from file)`.
+   The `84 KB` stays: DEF-3 names the loaded-file size as a number that is the
+   decision. - Collapse `Mapped amount to weight, ts to time, id to label.` and
+   `Identifier system: account id. Change` into ONE line with ONE `Change`:
+   `Mapped amount to weight, ts to time, id to label. Identifier system:
+  account id.` then `Change`.
    The two policy lines (`Repeated edges: combined, 5 pairs. Change` and
    `Self-loops: kept, 2. Change`) keep their own `Change` links and their text.
 5. **Data panel, Loaded data mapping line (same row as item 4).** New (NAV-4):
    draw that mapping line in its two-second highlight state -- `background:
-   #28364e; border-radius: 4px; padding: 1px 4px;` with a 2 px `#4a7ee8` left
+#28364e; border-radius: 4px; padding: 1px 4px;` with a 2 px `#4a7ee8` left
    bar -- and reveal that row's hover affordances for the duration. Record the
    toast in a comment: `Loaded 200 nodes and 612 edges in 1 s. Mapped amount to
-   weight, ts to time.  Details`, whose `Details` link is what opened Data with
+weight, ts to time.  Details`, whose `Details` link is what opened Data with
    Loaded data expanded and this line highlighted.
 6. **Data panel, tier 1 secondary row and the Cleaning steps tail (lines ~160-162
    and ~376-378).** Current: `Run a recipe...` with a `Coming` tag sits at the
@@ -747,7 +732,7 @@ steps.
    is what opens the diff column in the drawer.
 8. **Data panel, Cleaning steps rows (lines ~352-364).** Current: the two row
    titles, `2. Auto-fix: treat ids as text` and `1. Merged 3 nodes into
-   acct-4471`, are plain text. New (NAV-7): render each row TITLE as a link
+acct-4471`, are plain text. New (NAV-7): render each row TITLE as a link
    (`color: #5b8ff9; cursor: pointer;`), visually distinct from the row body --
    clicking it opens the step's home panel, scrolls to what it produced and
    highlights it for two seconds, and never re-runs anything. The row body keeps
@@ -770,11 +755,11 @@ steps.
     untouched by every density rule.
 12. **Data panel, Validation report and Cleaning steps headers (lines ~261-262,
     ~345-346).** Current: `Validation report` with a trailing `4`, `Cleaning
-    steps` with a trailing `2`. New (MIN-3, a header count only when the section
+steps` with a trailing `2`. New (MIN-3, a header count only when the section
     is collapsed or truncated): delete both counts -- both sections are open and
     every row is visible. `Columns 12`, `Info 3` and `Schema 4 node types, 3 edge
-    types` keep their counts (collapsed). `Node attributes 8` / `Edge attributes
-    4` are replaced by the merged `Attributes 12` of item 2.
+types` keep their counts (collapsed). `Node attributes 8` / `Edge attributes
+4` are replaced by the merged `Attributes 12` of item 2.
 13. **Legend (lines ~468-518).** Current: a `Legend` caption, a Size block whose
     caption reads `1 to 44, sqrt scale` beside drawn tick values `1`, `6`, `44`,
     a Color block with four type rows and counts, and the footer
@@ -796,7 +781,7 @@ steps.
     the reading plus the caveats line plus the Counts rows plus the legend's
     channel lines. VOCAB section 10 "Icon-only button, with its tooltip (6.8)".
 17. **Inspector, degree histogram caption (line ~595).** Current: `1  links per
-    node, sqrt scale  44`. New: unchanged -- sqrt is not the default scale, so it
+node, sqrt scale  44`. New: unchanged -- sqrt is not the default scale, so it
     prints its name (MIN-2 removes only default scale words).
 18. **Status bar (lines ~646-667).** New (MIN-8 + NAV-12): delete the `3D` chip;
     merge the layout slot into one chip reading `Force directed - settled` with
@@ -813,7 +798,7 @@ steps.
     this artboard, so IC-8's info circles on the Data table column headers have
     nowhere to land. Add one comment line under the Columns section comment: the
     column header menu opens with `Color by this`, `Size by this`, `Filter by
-    this` above the column operations (NAV-12 item 3), and each column header
+this` above the column operations (NAV-12 item 3), and each column header
     carries an info circle (IC-8); DataTableDrawer draws both.
 21. **Every icon-only control (rail, top bar Export caret, share, the two panel
     toggles, nav cluster, the joined-table row icon, the new copy and download
@@ -834,12 +819,12 @@ bottom with the time slider docked above it.
 1. **Time slider bar, the settings row (lines ~180-198).** Current: the bar
    carries the transport, the `Viewing:` readout, then a second row of
    `Window 30 days`, `Step 7 days`, `Cumulative | Sliding`, `Compare with another
-   window` and a `T` key chip. New (MIN-15, one home for the slider's settings):
+window` and a `T` key chip. New (MIN-15, one home for the slider's settings):
    delete that whole row from the bar. The bar keeps the transport, the `Viewing:
-   2026-02-18 to 2026-03-19` readout, the `opened` attribute name with its
+2026-02-18 to 2026-03-19` readout, the `opened` attribute name with its
    `Coming` tag, the density sparkline, the track and the handles, and gains a
    gear icon at the right that opens the Explore section (`title="Time slider
-   settings"`). **Collision resolved:** DEF-4 would render `Window` and `Step`
+settings"`). **Collision resolved:** DEF-4 would render `Window` and `Step`
    with a unit select in the Date-and-time case, but MIN-15 removes the row from
    the bar altogether, so nothing unit-bearing is left there except the readout;
    DEF-4 governs only the readout, the step tooltip and the status bar slot on
@@ -855,34 +840,30 @@ bottom with the time slider docked above it.
    transparent rows whose trailing column carries a key chip on some rows
    (`F`, `Shift+E`, `E`, `I`, `Delete`, `Shift+T`) and nothing on others, under a
    header `Actions` with a trailing `20`. New (DEF-1, one treatment for a subtle
-   action):
-   - Rebuild every row from VOCAB section 10 "Subtle action row" -- transparent
-     at rest, no border, 24 px tall, full panel width, 4 px radius, a 14 px
-     leading icon in `#7a828e`, an 11 px label at weight 500, hover fill
-     `#374047`. Draw one row in the hover state so the fill is visible.
-   - Delete every key chip from the trailing column and move each binding into
-     the row's `title`, in parentheses at the end:
-     `title="Zoom to selection (F)"`, `title="Select neighbors (Shift+E)"`,
-     `title="Expand neighbors of all (E)"`, `title="Invert (I)"`,
-     `title="Remove selected (Delete)"`, `title="Show in table (Shift+T)"`.
-   - Leading glyphs, taken verbatim from the register: Zoom to selection = the
-     corner brackets with a centre dot in the VOCAB "Subtle action row" snippet;
-     Filter to selection = the funnel
-     `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>`; Save as set...
-     = the bookmark in the same snippet's trailing-data variant; Select neighbors
-     = the share glyph (VOCAB section 5); Expand neighbors of all = the plus
-     glyph (VOCAB section 5); Pin as A = the consolidated upright pushpin
-     `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5"
-     x2="8" y2="13.5"></line>`; Remove selected = the trash glyph from VOCAB
-     section 10's row form; Show in table = the table glyph already drawn in the
-     drawer header; More = the three-dot glyph from VOCAB section 10.
-     **Collision resolved:** DEF-1 makes the leading icon mandatory but IK-2
-     forbids drawing a glyph that is not in the register; `Invert`,
-     `Merge selected nodes...` and `Simulate removing (3)` have no register
-     glyph, so those three rows take an empty 14 px leading slot (so the labels
-     stay on one left edge) and the missing glyphs are recorded in the leading
-     comment as register work.
-   - `Show in table` keeps its selected `#28364e` / `#4a7ee8` treatment.
+   action): - Rebuild every row from VOCAB section 10 "Subtle action row" -- transparent
+   at rest, no border, 24 px tall, full panel width, 4 px radius, a 14 px
+   leading icon in `#7a828e`, an 11 px label at weight 500, hover fill
+   `#374047`. Draw one row in the hover state so the fill is visible. - Delete every key chip from the trailing column and move each binding into
+   the row's `title`, in parentheses at the end:
+   `title="Zoom to selection (F)"`, `title="Select neighbors (Shift+E)"`,
+   `title="Expand neighbors of all (E)"`, `title="Invert (I)"`,
+   `title="Remove selected (Delete)"`, `title="Show in table (Shift+T)"`. - Leading glyphs, taken verbatim from the register: Zoom to selection = the
+   corner brackets with a centre dot in the VOCAB "Subtle action row" snippet;
+   Filter to selection = the funnel
+   `<path d="M2.5 3.5h11l-4.25 5v4.25l-2.5 1.25V8.5z"></path>`; Save as set...
+   = the bookmark in the same snippet's trailing-data variant; Select neighbors
+   = the share glyph (VOCAB section 5); Expand neighbors of all = the plus
+   glyph (VOCAB section 5); Pin as A = the consolidated upright pushpin
+   `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5"
+x2="8" y2="13.5"></line>`; Remove selected = the trash glyph from VOCAB
+   section 10's row form; Show in table = the table glyph already drawn in the
+   drawer header; More = the three-dot glyph from VOCAB section 10.
+   **Collision resolved:** DEF-1 makes the leading icon mandatory but IK-2
+   forbids drawing a glyph that is not in the register; `Invert`,
+   `Merge selected nodes...` and `Simulate removing (3)` have no register
+   glyph, so those three rows take an empty 14 px leading slot (so the labels
+   stay on one left edge) and the missing glyphs are recorded in the leading
+   comment as register work. - `Show in table` keeps its selected `#28364e` / `#4a7ee8` treatment.
 4. **Inspector, Actions block, the Coming rows (lines ~832-848).** Current: six
    scattered `Coming` tags. New (MIN-4): `Merge selected nodes...`,
    `Simulate removing (3)` and `Remove selected` are three contiguous unshipped
@@ -909,8 +890,8 @@ bottom with the time slider docked above it.
    header labels; the popover carries the canonical pair and one sentence --
    `Most connected (degree). How many links a node has.`,
    `Bridges (betweenness). Nodes that sit on the shortest routes between other
-   nodes.`, `Influence (PageRank). Nodes with well-linked neighbors: a node
-   scores high when the nodes pointing at it score high.` Draw ONE of them open
+nodes.`, `Influence (PageRank). Nodes with well-linked neighbors: a node
+scores high when the nodes pointing at it score high.` Draw ONE of them open
    (`betweenness`, since the table is sorted by it) with the 250 px popover.
    **Resolution:** IC-8 says "the Data table column headers"; the four file
    columns (`id`, `type`, `opened`, `risk score`), the three `rank` columns and
@@ -922,9 +903,9 @@ bottom with the time slider docked above it.
    it to the close control's tooltip: `title="Hide the data table (Shift+T)"`.
 8. **Inspector, count row (lines ~672-679).** Current: `3 nodes, 0 edges` with a
    `Coming` tag, and below it a second line `Selected 3 of 132 visible (200
-   total)`. New (MIN-2 + MIN-1): the header reads `3 nodes` -- a zero half of a
+total)`. New (MIN-2 + MIN-1): the header reads `3 nodes` -- a zero half of a
    selection count is not drawn -- and the `Selected 3 of 132 visible (200
-   total)` line is deleted entirely, because the status bar and this header
+total)` line is deleted entirely, because the status bar and this header
    already own the selection size. The `Coming` tag stays (isolated row). The
    reading below (`3 nodes selected. They connect to 71 other nodes...`) is
    unchanged; G5 keeps every reading's count, subject and comparison.
@@ -943,7 +924,7 @@ bottom with the time slider docked above it.
 12. **Drawer footer (lines ~650-651).** Current: `Showing selected rows only.`
     followed by the link `Show all 132 in window`. New (MIN-11, a helper sentence
     that restates a control on the same screen): delete `Showing selected rows
-    only.` -- the toolbar's `Show  Selected` select says it -- and keep the link
+only.` -- the toolbar's `Show  Selected` select says it -- and keep the link
     `Show all 132 in window`. The toolbar's own `Showing 3 of 200 nodes` stays;
     it is the drawer's row count and no other region reports it.
 13. **Status bar (lines ~862-891).** New (MIN-8 + NAV-12): delete the `3D` chip;
@@ -968,9 +949,9 @@ bottom with the time slider docked above it.
     toggled with Shift+T on a selection, so the hint bar is not added; record the
     string in the leading comment instead --
     `6 rows with issues in opened. Double-click a cell to fix it, Esc cancels. Or
-    use Auto-fix in the validation report.` (VOCAB section 10 "Data table drawer
+use Auto-fix in the validation report.` (VOCAB section 10 "Data table drawer
     hint bar"). The existing footnote `1 outlined cell: acct-4471 has a
-    self-loop...` stays; it reports this table.
+self-loop...` stays; it reports this table.
 17. **Column header menus, recorded as a comment.** New (NAV-12 item 3): add one
     comment line above the table header row -- every column header menu opens
     with `Color by this`, `Size by this` (numeric only) and `Filter by this`
@@ -1038,9 +1019,9 @@ State: Empty, nothing loaded. Canvas Welcome block plus the Data panel.
    the "Opens in Performance mode, about 20 s" line, where the size is the
    decision. (DEF-3)
 8. Canvas Welcome block, Recent files rows: delete the leading format word.
-   "JSON  --  20 nodes, 29 edges  --  Yesterday" becomes "20 nodes, 29 edges
-   --  Yesterday"; "CSV  --  148 nodes, 147 edges  --  Aug 28" becomes "148
-   nodes, 147 edges  --  Aug 28". The filename above carries the extension.
+   "JSON -- 20 nodes, 29 edges -- Yesterday" becomes "20 nodes, 29 edges
+   -- Yesterday"; "CSV -- 148 nodes, 147 edges -- Aug 28" becomes "148
+   nodes, 147 edges -- Aug 28". The filename above carries the extension.
    Apply the same deletion to the Data panel Recent rows: "JSON, 20 nodes, 29
    edges" becomes "20 nodes, 29 edges" and "CSV, 148 nodes, 147 edges" becomes
    "148 nodes, 147 edges". (MIN-11)
@@ -1076,7 +1057,7 @@ State: Loaded, first load, Explore panel open, nothing selected.
    move between cards, Enter activates, Delete dismisses." (NAV-8)
 3. Insights strip X: do NOT draw the dismissal toast. Record it as a comment
    on the strip-level X instead: "NAV-8: the X raises the toast 'Suggestions
-   hidden on every dataset.  Undo' for eight seconds; recovery afterwards is
+   hidden on every dataset. Undo' for eight seconds; recovery afterwards is
    Help > Show suggestions and the palette." Collision resolved: NAV-8 lists
    the toast for Main, but XR-D's ruling for this same artboard is that Main
    is the reference shell and a drawn toast reads as a permanent element. The
@@ -1084,28 +1065,28 @@ State: Loaded, first load, Explore panel open, nothing selected.
    is a comment. (NAV-8 versus XR-D, resolved toward the comment)
 4. Inspector, Graph summary: restructure per MIN-9.
    a. Move "Counts" below the reading and render it as a tier 2 collapsible
-      section, chevron pointing right, collapsed. Use the VOCAB section 4
-      "Section header row with chevron" snippet.
+   section, chevron pointing right, collapsed. Use the VOCAB section 4
+   "Section header row with chevron" snippet.
    b. Inside Counts, replace the three rows "Direction | Undirected",
-      "Weighted | Yes (value)" with one Type row: label "Type", value
-      "Undirected, weighted (value)". Delete the "Yes" form entirely.
+   "Weighted | Yes (value)" with one Type row: label "Type", value
+   "Undirected, weighted (value)". Delete the "Yes" form entirely.
    c. Delete the row "Isolated nodes | 0" and the clause "(largest holds
-      100%)" from "Connected parts (components) | 1". The largest-part share
-      stays in the reading only.
+   100%)" from "Connected parts (components) | 1". The largest-part share
+   stays in the reading only.
    d. Density renders as "0.153" with the scientific form in the row's title
-      attribute.
+   attribute.
    e. Merge "Node attributes 8" and "Edge attributes 3" into one collapsed
-      section headed "Attributes"; when open it carries Nodes and Edges tabs
-      reading "Nodes 8" and "Edges 3". Draw it collapsed, header text
-      "Attributes" with no count.
+   section headed "Attributes"; when open it carries Nodes and Edges tabs
+   reading "Nodes 8" and "Edges 3". Draw it collapsed, header text
+   "Attributes" with no count.
    f. Most connected: delete the repeated word "links" from all five value
-      cells and put it on the column header, so the header row reads "Most
-      connected (degree)" on the left and "links" right-aligned, and the cells
-      read 4, 4, 4, 3, 3.
+   cells and put it on the column header, so the header row reads "Most
+   connected (degree)" on the left and "links" right-aligned, and the cells
+   read 4, 4, 4, 3, 3.
    g. Replace the two-part "Case notes: none" plus "Add a case note" with one
-      link, "Add a case note".
+   link, "Add a case note".
    h. Replace "Full statistics are in Analyze" plus "More" with one link,
-      "More in Analyze".
+   "More in Analyze".
    (MIN-9)
 5. Explore panel, tier 2: the contiguous run "Neighborhood expansion",
    "Bookmarks", "Find a pattern" is three unshipped rows. Delete their three
@@ -1148,7 +1129,7 @@ State: Loaded, first load, Explore panel open, nothing selected.
     The caret's `title` reads "History" and carries no binding. (NAV-7)
 12. Inspector: add a header row above the reading, 20px tall, holding nothing
     on the left and one icon-only copy control right-aligned, `title="Copy
-    reading"`, drawn with the VOCAB section 10 "Icon-only button" default
+reading"`, drawn with the VOCAB section 10 "Icon-only button" default
     markup. Add a comment: "NAV-5: on the graph summary this copies the
     reading, the caveats line, the Counts rows and the legend channel lines."
     (NAV-5, IK-5 single-copy form)
@@ -1185,8 +1166,7 @@ State: Loaded, first load, Explore panel open, nothing selected.
 
 State: Result. Analyze panel on the Run tab, Groups result in the inspector.
 
-1. Inspector, run record: collapse it. The line "Louvain, resolution 1.0, seed
-   42. Weight: value (strength). Direction: ignored. Scope: visible, 20 of 20
+1. Inspector, run record: collapse it. The line "Louvain, resolution 1.0, seed 42. Weight: value (strength). Direction: ignored. Scope: visible, 20 of 20
    nodes. 2026-09-04 14:12, 12 ms, algorithms 1.4.0" plus the three links
    "Copy as JSON / Copy as command / Copy methods text" becomes one line with a
    12px chevron at its left: "Louvain, resolution 1.0, seed 42. All 20 nodes."
@@ -1263,9 +1243,9 @@ State: Result. Analyze panel on the Run tab, Groups result in the inspector.
     control right-aligned, `title="Copy reading"`. (NAV-5)
 15. Inspector title row: replace the pin glyph body. It is currently drawn as
     a panel-split rectangle, `<rect x="2" y="2.5" width="12" height="11"
-    rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line>`. Swap the
+rx="1.5"></rect><line x1="10" y1="2.5" x2="10" y2="13.5"></line>`. Swap the
     whole svg body for the canonical upright pushpin: `<path d="M6 2.5h4l-.5
-    3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`
+3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`
     -- the same body this file already uses for "Pin as A". (IK-2)
 16. Leading file comment: add "DEF-7: every attribute list ends with a group of
     node metrics that have not been run -- a 12px play glyph, the plain name,
@@ -1283,14 +1263,14 @@ inspector, fraud-ring dataset.
    (the run record sentence plus "Copy as JSON / Copy as command / Copy methods
    text") becomes one line with a leading 12px chevron carrying method,
    non-default parameters and scope, then a "Details" chevron:
-   - Bridges: "Betweenness, normalized, endpoints excluded. All 200 nodes."
-   - Find a path: "Shortest path, Dijkstra. ph-1140 to merch-88. All 200
-     nodes."
-   - Groups: "Louvain, resolution 1.0, seed 42. All 200 nodes."
-   Draw the Bridges card with Details EXPANDED (weight attribute, direction,
-   timestamp, duration, engine version and the three copy items inside it);
-   draw Find a path and Groups with Details collapsed. Each card's caveats line
-   stays visible above it. (IC-5)
+    - Bridges: "Betweenness, normalized, endpoints excluded. All 200 nodes."
+    - Find a path: "Shortest path, Dijkstra. ph-1140 to merch-88. All 200
+      nodes."
+    - Groups: "Louvain, resolution 1.0, seed 42. All 200 nodes."
+      Draw the Bridges card with Details EXPANDED (weight attribute, direction,
+      timestamp, duration, engine version and the three copy items inside it);
+      draw Find a path and Groups with Details collapsed. Each card's caveats line
+      stays visible above it. (IC-5)
 2. All three result cards: add one icon-only copy control to each card's title
    row, right-aligned, `title="Copy"`, opening a menu of the full labels.
    Bridges menu: "Copy as TSV", "Export ranked list (CSV)". Find a path menu:
@@ -1372,9 +1352,9 @@ inspector, fraud-ring dataset.
     row title is a link that opens the step's home panel and highlights what it
     produced for two seconds; it never re-runs anything." (NAV-7)
 14. Inspector title row: replace the pin glyph body `<rect x="2" y="2.5"
-    width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10"
-    y2="13.5"></line>` with the canonical upright pushpin `<path d="M6 2.5h4l-.5
-    3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`.
+width="12" height="11" rx="1.5"></rect><line x1="10" y1="2.5" x2="10"
+y2="13.5"></line>` with the canonical upright pushpin `<path d="M6 2.5h4l-.5
+3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`.
     (IK-2)
 15. Canvas: acct-4471 is selected, and the graph is below the large-graph
     threshold, so draw every one of its 37 incident edges in the selection
@@ -1410,7 +1390,7 @@ State: Loaded, Humans style layer selected.
    `#374047` divider, then the not-run rows -- "Bridges betweenness" with a 12px
    play glyph and the trailing hint "not run", drawn hovered at `#374047`, and
    "Hubs and authorities HITS" disabled at `#5f6873` with `title="Hubs and
-   authorities needs a directed graph"`. Not-run metrics sort last inside
+authorities needs a directed graph"`. Not-run metrics sort last inside
    Metrics and never above a file attribute; cubic and unbounded metrics are
    not listed at all. (DEF-7)
 2. Panel, tier 3: delete the whole "Style template" row with its "Import..."
@@ -1444,7 +1424,7 @@ State: Loaded, Humans style layer selected.
    the plain half never truncates. Delete the three stacked technical lines.
    Keep the "Coming" tag and the "Hierarchical and Radial" note as drawn.
    (MIN-14, C7)
-9. Panel and inspector: render every other stacked pair on one line -- 
+9. Panel and inspector: render every other stacked pair on one line --
    "Arrangement (Layout)", "Edge length (springLength)", "Pull to center
    (gravity)", "Keep this arrangement (Fixed)", "Age (ageYears)", "Name (id)".
    (MIN-14)
@@ -1466,7 +1446,7 @@ State: Loaded, Humans style layer selected.
     right, `title="History"`, no binding. (NAV-7)
 14. Run row: replace the "Pin selected" and "Unpin all" glyph bodies with the
     canonical upright pushpin `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path>
-    <line x1="8" y1="8.5" x2="8" y2="13.5"></line>`, so one verb has one
+<line x1="8" y1="8.5" x2="8" y2="13.5"></line>`, so one verb has one
     drawing. (IK-2)
 
 ## ExplorePanel
@@ -1528,7 +1508,7 @@ State: Loaded, Explore panel open, filter active, three nodes selected.
     control right-aligned, `title="Copy reading"`. (NAV-5)
 14. Inspector title row: replace the pin glyph body with the canonical upright
     pushpin `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8"
-    y1="8.5" x2="8" y2="13.5"></line>`. (IK-2)
+y1="8.5" x2="8" y2="13.5"></line>`. (IK-2)
 15. Inspector action block: keep every label as text, including "Copy ids".
     IK-5 would collapse a lone copy action into an icon, but IK-4 and IK-8
     exempt the pinned inspector action block from icon-only controls by
@@ -1568,7 +1548,7 @@ State: Loaded, Analyze panel open, Cards view, Run tab, nothing run.
    iterative" becomes "Find unusual things"; "Predict / 1 card / heavy" becomes
    "Predict". The collapsed "Advanced / 3 cards / instant to cubic" becomes
    "Advanced" with a dimmed trailing "3" and `title="3 questions in this
-   group"`. No group header carries a key chip. (DEF-2, C4)
+group"`. No group header carries a key chip. (DEF-2, C4)
 4. Every card: no card on this 20-node graph exceeds 2 s, so no card carries an
    estimate anywhere -- not on the title, not on the scope line, not beside Run.
    Every action row is the VOCAB "Per-card cost estimate beside Run" under-2-s
@@ -1587,7 +1567,7 @@ State: Loaded, Analyze panel open, Cards view, Run tab, nothing run.
    its revealed state, using the VOCAB section 10 "Icon group in a section
    header, revealed on hover" snippet verbatim (it is written for this exact
    header): recompute icon `title="Recompute"`, download icon `title="Export
-   CSV"`, overflow dots `title="More"` whose menu holds "Copy". The footer
+CSV"`, overflow dots `title="More"` whose menu holds "Copy". The footer
    keeps only "Computed rows: 14:12". (IK-6)
 7. All statistics section header: delete the sentence "Instant rows follow the
    data." from the footer and put it behind an info circle placed immediately
@@ -1638,7 +1618,7 @@ State: Loaded, Analyze panel open, Cards view, Run tab, nothing run.
 18. More row: the "How it changed over time / Coming / Temporal analysis /
     Needs a Time role" row keeps "Needs a Time role" as the disabled control's
     own `title` rather than as body text: `title="How it changed over time.
-    Needs a Time role"`. (IC-4)
+Needs a Time role"`. (IC-4)
 19. Leading file comment: add "NAV-11 item 1: a batch of two or more node-metric
     results emits one Rankings summary card in the Results tab -- the union of
     the top N across methods, one rank column per method, an agreement column,
@@ -1681,9 +1661,9 @@ connected.
    or result it produced and highlights it for two seconds; it never re-runs
    anything." The trailing panel names (Analyze, Analyze, Style) stay as they
    are. (NAV-7)
-5. Panel, Console section header: delete the ` key chip. A binding never
-   appears in a section header. It moves into the console input's `title` as
-   "Console (Shift+`)". (DEF-1)
+5. Panel, Console section header: delete the `key chip. A binding never
+appears in a section header. It moves into the console input's`title` as
+"Console (Shift+`)". (DEF-1)
 6. Panel, chat input: add `title="Ask the assistant (`)"` to the input. Add a
    comment: "NAV-9: backtick focuses the assistant input when a provider is
    configured and the console otherwise; Shift+backtick always focuses the
@@ -1713,9 +1693,9 @@ connected.
 13. Inspector: add a 20px header row above the reading with one icon-only copy
     control right-aligned, `title="Copy reading"`. (NAV-5)
 14. Inspector title row: replace the pin glyph body `<path d="M9.5 2.5l4 4-2
-    1-2.5 3.5-1-1L4.5 13.5 2.5 11.5l3.5-3.5-1-1 3.5-2.5z"></path>` with the
+1-2.5 3.5-1-1L4.5 13.5 2.5 11.5l3.5-3.5-1-1 3.5-2.5z"></path>` with the
     canonical upright pushpin `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path>
-    <line x1="8" y1="8.5" x2="8" y2="13.5"></line>`. (IK-2)
+<line x1="8" y1="8.5" x2="8" y2="13.5"></line>`. (IK-2)
 15. Inspector, encoding state: leave "Encoded as node size" with "Change
     encoding" exactly as drawn. This artboard is the reference for NAV-2's
     applied form; record that in a comment so a later pass does not revert it
@@ -1750,7 +1730,7 @@ State: Loaded, Present panel open, nothing selected, nothing pinned.
    report..." restates what opening it shows. (MIN-11)
 5. Panel, Export data: delete the clause "no notes yet" beside "Include notes"
    and draw the switch off with `title="Include notes. This graph has none
-   yet"`. Delete "None yet" from "Analysis results as CSV" and "Notes as CSV"
+yet"`. Delete "None yet" from "Analysis results as CSV" and "Notes as CSV"
    and draw both rows disabled at `#5f6873` with the reason in each row's own
    `title` ("Analysis results as CSV. Run something first", "Notes as CSV. Add
    a note first"). (MIN-2, IC-4)
@@ -1821,11 +1801,11 @@ State: Settings overlay open on AI providers, Explorer under the scrim.
    has to leave the browser. Resolved toward inline; record the reason in a
    comment. (IC-6 versus 6.7 carve-out 3)
 3. The callout box's leading glyph is a circled i at `<circle cx="8" cy="8"
-   r="6.5"></circle><line x1="8" y1="7.5" x2="8" y2="11.5"></line><line x1="8"
-   y1="4.75" x2="8" y2="5.25"></line>`. Replace the svg body with the canonical
+r="6.5"></circle><line x1="8" y1="7.5" x2="8" y2="11.5"></line><line x1="8"
+y1="4.75" x2="8" y2="5.25"></line>`. Replace the svg body with the canonical
    info-circle path so one verb has one drawing: `<circle cx="8" cy="8"
-   r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8"
-   y1="4.5" x2="8" y2="4.75"></line>`. (IC-2)
+r="6.5"></circle><line x1="8" y1="7" x2="8" y2="11.5"></line><line x1="8"
+y1="4.5" x2="8" y2="4.75"></line>`. (IC-2)
 4. "Assistant and notes" section: delete the two-sentence note under the
    switches. The first sentence, "Notes the assistant adds are signed Assistant
    and carry a distinct marker.", moves behind an info circle placed
@@ -1892,15 +1872,15 @@ State: Loaded, palette open with "bridge" typed, no panel open.
 1. Palette results: add an "Attributes" group below "Commands" and above
    "Nodes", using the same group-heading style as Commands. Draw two rows,
    capped at five with "and 2 more" as the last row:
-   - "Bridges betweenness" with the technical half muted, second cell "number,
-     0 to 0.41", and a trailing action strip of four cells -- "Color by",
-     "Size by", "Filter by", "Show in table" -- with "Size by" drawn as the
-     chosen cell (`background: #28364e; color: #4a7ee8`).
-   - "bridgeFlag flag" with second cell "true or false" and the same strip with
-     "Filter by" chosen.
-   Add a comment: "NAV-6: Commands always rank above Attributes; the group caps
-   at five rows with 'and N more' and appears only after three typed
-   characters; Left and Right choose the action and Enter runs it." (NAV-6)
+    - "Bridges betweenness" with the technical half muted, second cell "number,
+      0 to 0.41", and a trailing action strip of four cells -- "Color by",
+      "Size by", "Filter by", "Show in table" -- with "Size by" drawn as the
+      chosen cell (`background: #28364e; color: #4a7ee8`).
+    - "bridgeFlag flag" with second cell "true or false" and the same strip with
+      "Filter by" chosen.
+      Add a comment: "NAV-6: Commands always rank above Attributes; the group caps
+      at five rows with 'and N more' and appears only after three typed
+      characters; Left and Right choose the action and Enter runs it." (NAV-6)
 2. Palette results, Commands group: add one Actions row above "Bridges" reading
    "Run all node rankings" with the muted second name "All centralities" and no
    estimate. Add a "Find a path" hint row at the bottom of the Commands group
@@ -1968,21 +1948,21 @@ State: Loaded, no panel open, four-card Insights strip, fraud-ring dataset.
 1. Inspector, Graph summary: restructure per MIN-9.
    a. Move Counts below the reading as a tier 2 collapsible section, collapsed.
    b. Replace the three rows "Direction | Directed (from file)", "Weighted |
-      Yes (amount, as strength)", "Timed | Yes (ts)" with one Type row: "Type |
-      Directed (from file), weighted (amount), timed (ts)".
+   Yes (amount, as strength)", "Timed | Yes (ts)" with one Type row: "Type |
+   Directed (from file), weighted (amount), timed (ts)".
    c. Delete "Isolated nodes | 0" and the clause "(largest holds 100%)".
    d. Density keeps "0.031" with the scientific form in the row's `title`.
    e. Merge "Node attributes 6" and "Edge attributes 4" into one collapsed
-      "Attributes" section with Nodes and Edges tabs.
+   "Attributes" section with Nodes and Edges tabs.
    f. Most connected: delete "links" from the five value cells and put it on
-      the column header.
+   the column header.
    g. Replace "Case notes: none" plus "Add a case note" with one "Add a case
-      note" link.
+   note" link.
    Keep "Self-loops 2" and "Parallel edges 5 (combined at import)": both are
    non-zero. (MIN-9, MIN-2)
 2. Insights strip trailing line: "2 more in Help" becomes a link at `#5b8ff9`.
    Add a comment: "NAV-8: it opens the Help menu with More suggestions
-   expanded. The strip's X raises 'Suggestions hidden on every dataset.  Undo'
+   expanded. The strip's X raises 'Suggestions hidden on every dataset. Undo'
    for eight seconds and is reversible later from Help > Show suggestions and
    the palette. F6 reaches the strip; Left and Right move between cards, Enter
    activates, Delete dismisses." (NAV-8)
@@ -2279,9 +2259,9 @@ dataset, Performance mode on.
 13. Top bar: Undo becomes a split button -- add a 12px chevron caret at its
     right, `title="History"`, no binding. (NAV-7)
 14. Inspector title row: replace the pin glyph body `<path d="M9.5 2l4.5
-    4.5-1.5 1.5-.75-.75L9 10v3l-1 1-2.5-2.5L2 15l3.5-3.5L3 9l1-1h3l2.75-2.75L9
-    4.5z"></path>` with the canonical upright pushpin `<path d="M6 2.5h4l-.5
-    3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`.
+4.5-1.5 1.5-.75-.75L9 10v3l-1 1-2.5-2.5L2 15l3.5-3.5L3 9l1-1h3l2.75-2.75L9
+4.5z"></path>` with the canonical upright pushpin `<path d="M6 2.5h4l-.5
+3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`.
     Apply the same swap to the "Key attributes, pinned" marker, which draws the
     same drifted body. (IK-2)
 15. Insights strip chips: render both names on each chip on one line -- "Find
@@ -2298,6 +2278,7 @@ dataset, Performance mode on.
     draws -- DC01's incident edges in the selection colour and its immediate
     neighbours outlined, capped by the 500-node hover-highlight cap. Nothing is
     dimmed by the selection itself." (NAV-10)
+
 ## ViewsMenu
 
 File: `ViewsMenu.dc.html` (1440x900). Cat social network, 20 nodes, nothing
@@ -2492,7 +2473,7 @@ context menu open, inspector showing the node.
 7. **Inspector, reading row -- gains the copy affordance.** Current: the node
    reading "Linked to 37 others, more than 99% of nodes. Rank 1 of 200 by
    Bridges." is a bare span. New: wrap it in `display: flex; gap: 4px;
-   align-items: flex-start` with the sentence at `flex: 1 1 0` and a 24x24
+align-items: flex-start` with the sentence at `flex: 1 1 0` and a 24x24
    icon button after it carrying the copy glyph and `title="Copy reading"`.
    Snippet: VOCAB section 10 "Icon-only button, with its tooltip", default
    state. Decisions NAV-5, IK-5.
@@ -2502,7 +2483,7 @@ context menu open, inspector showing the node.
    `<path d="M9.5 2.5l4 4-2 1-1.5 3.5L6 7 4.5 8.5l-2 -2L4 4l3-.5z">`. New:
    replace the whole svg body with the register's upright pushpin:
    `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z"></path><line x1="8" y1="8.5"
-   x2="8" y2="13.5"></line>`. Keep the 24x24 box, the colour and the title.
+x2="8" y2="13.5"></line>`. Keep the 24x24 box, the colour and the title.
    Snippet: VOCAB section 10, "New glyphs this revision adds to section 5"
    paragraph (pushpin consolidation). Decision IK-2.
 
@@ -2549,7 +2530,7 @@ the ? dialog centred, Explore panel open behind it.
    Keyboard shortcuts. Decisions MIN-4, C13.
 
 2. **Keyboard shortcuts dialog, Panels group -- the Insights strip enters the
-   keyboard table.** Current: "Cycle regions, reverse  F6  Shift+F6" and no
+   keyboard table.** Current: "Cycle regions, reverse F6 Shift+F6" and no
    strip rows. New: the Cycle regions row label reads "Cycle regions (rail,
    panel, canvas, suggestions, inspector, status bar), reverse" with its chips
    unchanged, and three rows are added directly under it, in this order: "Move
@@ -2559,8 +2540,8 @@ the ? dialog centred, Explore panel open behind it.
    section 9 "Key chip". Decision NAV-8.
 
 3. **Keyboard shortcuts dialog, Panels group -- the backtick row.** Current:
-   "Focus the console (AI panel)  Coming  `". New: one shipped row, "Focus the
-   assistant (the console when no provider is set)" with chip `` ` `` and no
+   "Focus the console (AI panel) Coming `". New: one shipped row, "Focus the
+assistant (the console when no provider is set)" with chip `` ` `` and no
    Coming tag. The console's own binding, Shift+backtick, is unshipped and so
    does not appear in this dialog at all; record in an HTML comment that it is
    listed in Settings > Keyboard shortcuts with its Coming tag. Decisions
@@ -2568,7 +2549,7 @@ the ? dialog centred, Explore panel open behind it.
 
 4. **Explore panel (behind the dialog), selection rows -- one row goes, one
    changes shape.** Current: a bordered 24px box "Zoom to selection" with a
-   right-aligned mono chip "F", then a row "Select all visible  Coming" with a
+   right-aligned mono chip "F", then a row "Select all visible Coming" with a
    right-aligned chip "Cmd+A", then the Select split button with a Coming tag.
    New: (a) delete the "Zoom to selection" row completely -- the inspector is
    the home for selection-scoped actions and the duplicate goes; (b) redraw
@@ -2625,7 +2606,7 @@ the ? dialog centred, Explore panel open behind it.
    configured". New: delete the "3D" pill and its divider; one 16px pill
    reading "Force directed (ngraph) - settled" plus an 8px chevron caret, no
    "Layout:" label, no state dot, `title="Layout. Force directed (ngraph),
-   settled"`, with the caret menu recorded in an HTML comment (four Style quick
+settled"`, with the caret menu recorded in an HTML comment (four Style quick
    picks with estimates and disabled reasons, active engine checked, Re-run,
    Stop, "Layout settings..."); delete the AI slot. Snippet: VOCAB section 9
    "Status bar chips". Decisions MIN-8, NAV-12 item 1.
@@ -2658,20 +2639,20 @@ shortcuts active over the cat dataset.
    `minmax(0, 1fr) 120px 24px`; the third cell is empty at rest and holds a
    24x24 pencil icon button (`title="Rebind"`) on row hover or focus; the key
    chip in the second cell is the click target (keep its exact geometry and
-   add `cursor: pointer`). Draw exactly one row -- "Zoom to selection  F" -- in
+   add `cursor: pointer`). Draw exactly one row -- "Zoom to selection F" -- in
    the hover state (`background: #374047` on the row, pencil visible) so the
    affordance exists on the artboard. Record in an HTML comment that a
    customised row also reveals a 24x24 refresh icon with `title="Reset to
-   default"` before the pencil. The recording row ("Toggle inspector", "Press a
+default"` before the pencil. The recording row ("Toggle inspector", "Press a
    key... Esc to cancel", "Cancel") keeps its text Cancel button: Cancel is on
    the never-iconify list. Snippets: VOCAB section 9 "Rebind row" for the grid,
    VOCAB section 10 "Icon-only button" for the pencil (pencil path
    `M11.2 2.3l2.5 2.5-8 8-3.2.7.7-3.2z` plus `<line x1="9.6" y1="3.9"
-   x2="12.1" y2="6.4">`). Decisions IK-7, IK-8, C2.
+x2="12.1" y2="6.4">`). Decisions IK-7, IK-8, C2.
 
 2. **The "VR controllers" group -- becomes the twelve-row XR group with two
    binding columns.** Current: a four-row read-only group headed "VR
-   controllers  Read-only; set by the headset" whose rows are "Turn and tilt
+   controllers Read-only; set by the headset" whose rows are "Turn and tilt
    the view | Left stick | Fixed", "Pan (left, right); zoom (up, down) | Right
    stick | Fixed", "Select the pointed node; hold to drag | Trigger | Fixed",
    "Zoom and rotate with both hands | Pinch, both hands | Fixed". New: a group
@@ -2680,24 +2661,24 @@ shortcuts active over the cat dataset.
    reading "Controller" and "Hands" over the two binding columns, and twelve
    rows in a grid `minmax(0, 1fr) 120px 120px` with no third action cell:
 
-   | Action | Controller | Hands |
-   |---|---|---|
-   | Grab and move the graph | Grip (hold) | Pinch and drag |
-   | Scale the graph | Both grips, move apart | Both hands, move apart |
-   | Snap turn 30 degrees | Right stick left, right | Turn your head |
-   | Fit and recenter | A | Wrist panel: Fit |
-   | Point and select | Trigger | Pinch |
-   | Add to the selection | Hold Y, then trigger | Wrist panel: Add |
-   | Clear the selection | B | Wrist panel: Clear |
-   | Open the wrist panel | Look at your left forearm | Look at your left forearm |
-   | Expand one hop | A on a selected node | Wrist panel: Expand |
-   | Push to talk | Hold B or Y | Wrist panel: microphone (hold) |
-   | Flag this | X | Wrist panel: Flag this |
-   | Leave the session | Menu (hold) | Wrist panel: Exit |
+    | Action                  | Controller                | Hands                          |
+    | ----------------------- | ------------------------- | ------------------------------ |
+    | Grab and move the graph | Grip (hold)               | Pinch and drag                 |
+    | Scale the graph         | Both grips, move apart    | Both hands, move apart         |
+    | Snap turn 30 degrees    | Right stick left, right   | Turn your head                 |
+    | Fit and recenter        | A                         | Wrist panel: Fit               |
+    | Point and select        | Trigger                   | Pinch                          |
+    | Add to the selection    | Hold Y, then trigger      | Wrist panel: Add               |
+    | Clear the selection     | B                         | Wrist panel: Clear             |
+    | Open the wrist panel    | Look at your left forearm | Look at your left forearm      |
+    | Expand one hop          | A on a selected node      | Wrist panel: Expand            |
+    | Push to talk            | Hold B or Y               | Wrist panel: microphone (hold) |
+    | Flag this               | X                         | Wrist panel: Flag this         |
+    | Leave the session       | Menu (hold)               | Wrist panel: Exit              |
 
-   Use the key-chip markup for both binding cells. Snippets: VOCAB section 9
-   "Rebind row" grid with the Rebind cell removed and a second chip column
-   added; VOCAB section 9 "Key chip". Decision XR-C.
+    Use the key-chip markup for both binding cells. Snippets: VOCAB section 9
+    "Rebind row" grid with the Rebind cell removed and a second chip column
+    added; VOCAB section 9 "Key chip". Decision XR-C.
 
 3. **The Selection group -- five contiguous unshipped rows are dimmed under one
    group note.** Current: "Select all visible", "Invert selection", "Expand
@@ -2719,13 +2700,13 @@ shortcuts active over the cat dataset.
    MIN-4.
 
 4. **Panels group -- the backtick row splits in two.** Current: one row "Focus
-   the console (AI panel)  Coming  `  Rebind". New: two rows -- "Focus the
-   assistant (the console when no provider is set)" with chip `` ` `` and no
-   Coming tag, and "Focus the console" with chip `Shift+`` ` `` and the Coming
+   the console (AI panel) Coming `  Rebind". New: two rows -- "Focus the
+assistant (the console when no provider is set)" with chip `` ` `` and no
+Coming tag, and "Focus the console" with chip `Shift+`` ` `` and the Coming
    tag. Both take the new hover-pencil treatment from item 1. Decision NAV-9.
 
 5. **Panels group -- the Insights strip enters the table.** Current: "Cycle
-   regions; reverse  F6  Shift+F6". New: that row's label reads "Cycle regions
+   regions; reverse F6 Shift+F6". New: that row's label reads "Cycle regions
    (rail, panel, canvas, suggestions, inspector, status bar); reverse" with its
    chips unchanged, and three rows follow it: "Move between suggestion cards"
    with chips `Left` and `Right`; "Try the focused suggestion" with chip
@@ -2756,7 +2737,7 @@ shortcuts active over the cat dataset.
    Anthropic ready". New: delete the "3D" pill and its divider; one 16px pill
    reading "Force directed (ngraph) - settled" plus an 8px chevron caret, no
    "Layout:" label, no state dot, `title="Layout. Force directed (ngraph),
-   settled"`, with the caret menu recorded in an HTML comment. Keep the AI slot
+settled"`, with the caret menu recorded in an HTML comment. Keep the AI slot
    exactly as drawn: a provider is configured on this artboard, which is
    precisely when the slot renders. Decisions MIN-8, NAV-12 item 1.
 
@@ -2768,7 +2749,7 @@ shortcuts active over the cat dataset.
    Isolated nodes 0; a "Most connected Degree" list whose values read "4
    links"..."3 links", with "See all 20 ranked" and "Export top 20 (CSV)";
    "Attributes 8 node, 3 edge"; "Schema 1 node type, 1 edge type"; "Case notes:
-   none  Add a case note". New: Counts becomes a collapsed section header with
+   none Add a case note". New: Counts becomes a collapsed section header with
    its row list in an HTML comment (Nodes 20; Edges 29; Type Undirected,
    weighted (value); Average links per node (mean degree) 2.9; How tightly
    linked (density) 0.153; Connected parts (components) 1 -- Direction and
@@ -2781,13 +2762,13 @@ shortcuts active over the cat dataset.
    edge" stays exactly as it is (this is the merged form the other artboards
    are moving to); the Case notes pair becomes the single affordance "Add a
    case note"; the reading gains a 24x24 copy icon button with `title="Copy the
-   graph summary"` at the right of its row. Snippets: VOCAB section 4 "Section
+graph summary"` at the right of its row. Snippets: VOCAB section 4 "Section
    header row with chevron", VOCAB section 10 "Icon group in a section header"
    and "Icon-only button". Decisions MIN-9, MIN-2, IK-6, NAV-5, IK-5.
 
 9. **Explore panel behind the scrim -- one row goes, one changes shape.**
    Current: a bordered box "Zoom to selection" with the chip "F"; a row "Select
-   all visible  Coming" with the chip "Cmd+A"; the Select split button with a
+   all visible Coming" with the chip "Cmd+A"; the Select split button with a
    Coming tag; "Notes 0" with the empty state. New: delete the "Zoom to
    selection" row; redraw "Select all visible" as a subtle action row
    (transparent, 24px, leading 14px icon in `#7a828e`, 11px weight-500 label,
@@ -2800,9 +2781,9 @@ shortcuts active over the cat dataset.
     form, 20 nodes); keep "1 to 4, sqrt scale". Decisions MIN-7, MIN-2.
 
 11. **Navigation group label edit.** Current: the alternative arrow-binding row
-    is drawn as "Arrow keys  alternative binding" with the choices "Pan and
+    is drawn as "Arrow keys alternative binding" with the choices "Pan and
     orbit; Shift+Arrows pan in 3D" and "Walk the selection to the nearest
-    neighbor  Coming". New: unchanged apart from item 1's grid change -- this
+    neighbor Coming". New: unchanged apart from item 1's grid change -- this
     row is a radio pair, its Coming tag is isolated, and it keeps it. Guard
     only; do not dim it. Decision MIN-4.
 
@@ -2851,9 +2832,9 @@ activity panel, inspector Notes section open with two notes.
    is colour dot, "You", "2 h ago", spacer, Done. New: insert a chip reading
    "Dictated" immediately after "2 h ago", using the Coming-tag pill geometry
    with its text changed: `<div style="display: inline-flex; align-items:
-   center; height: 16px; padding: 0 6px; border-radius: 8px; background:
-   #374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1;
-   box-sizing: border-box;">Dictated</div>`. Add an HTML comment recording that
+center; height: 16px; padding: 0 6px; border-radius: 8px; background:
+#374047; color: #7a828e; font-size: 10px; font-weight: 500; line-height: 1;
+box-sizing: border-box;">Dictated</div>`. Add an HTML comment recording that
    the note was dictated in a VR session, that the mark also appears in the
    Explore notes list and the notes hover card and in the export, and that
    "Flag this" writes a note whose body reads "Flagged in VR 14:32" in the
@@ -2868,7 +2849,7 @@ activity panel, inspector Notes section open with two notes.
    count restates -- VOCAB's standardized "Notes 2" is the truncated or
    collapsed form, which this is not); delete the "N" key chip and put the
    binding in the header's tooltip instead: `title="Notes. Add a note to the
-   selection (N)"`. Decisions DEF-1, MIN-10, MIN-3.
+selection (N)"`. Decisions DEF-1, MIN-10, MIN-3.
 
 6. **Legend -- caption, palette footer, note row suffix and note count.**
    Current: the "Legend" caption; four type rows with counts; the line
@@ -2890,7 +2871,7 @@ activity panel, inspector Notes section open with two notes.
    numbered badge "3". New: delete the "3D" pill and its divider; one 16px pill
    reading "Force directed (ngraph) - settled" plus an 8px chevron caret, no
    "Layout:" label, no state dot, `title="Layout. Force directed (ngraph),
-   settled"`, caret menu recorded in a comment; the issues chip reads "3 data
+settled"`, caret menu recorded in a comment; the issues chip reads "3 data
    issues" with `title="3 issue types, 7 issues"`; keep the "5 notes" chip (the
    Explore panel is closed on this artboard, which is when the notes chip
    renders); keep the AI slot as drawn (a provider is configured); keep "1
@@ -2906,9 +2887,9 @@ activity panel, inspector Notes section open with two notes.
 
 9. **Inspector title row, the pin control -- glyph swap.** Current:
    `title="Pin as A"` draws `<path d="M9.5 2.5l4 4-2 1-1.5 4-2.5-2.5-4.5
-   4.5 4.5-4.5-2.5-2.5 4-1.5z">`. New: replace the whole svg body with the
+4.5 4.5-4.5-2.5-2.5 4-1.5z">`. New: replace the whole svg body with the
    register's upright pushpin: `<path d="M6 2.5h4l-.5 3.5 2 2.5H4.5l2-2.5z">
-   </path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`; keep the box, colour
+</path><line x1="8" y1="8.5" x2="8" y2="13.5"></line>`; keep the box, colour
    and title. Decision IK-2.
 
 10. **Inspector, Neighbors prose line -- drop its leading count.** Current:
@@ -2964,7 +2945,7 @@ with the Notes section expanded, nothing selected.
 
 3. **Explore panel, tier 1 -- one row goes and one changes shape.** Current:
    a bordered box "Zoom to selection" with the mono chip "F" (disabled), beside
-   the Select split button; below it a row "Select all visible  Coming" with a
+   the Select split button; below it a row "Select all visible Coming" with a
    right-aligned chip "Cmd+A". New: (a) delete the "Zoom to selection" box
    entirely and let the Select split button take the full row width -- the
    inspector is the home for selection-scoped actions; (b) redraw "Select all
@@ -2993,7 +2974,7 @@ with the Notes section expanded, nothing selected.
    MIN-9, MIN-3.
 
 6. **Explore panel, tier 2 headers -- three catalogue counts and one zero
-   clause go.** Current: "Filter builder  Coming" with the trailing value "None
+   clause go.** Current: "Filter builder Coming" with the trailing value "None
    active"; "Bookmarks" with the trailing value "2 views"; "Find a pattern
    Coming" with the trailing value "2 saved". New: delete "None active", delete
    "2 views" and delete "2 saved" -- absence is legible and catalogue counts go
@@ -3005,7 +2986,7 @@ with the Notes section expanded, nothing selected.
    search" on a second line, forcing that header row to 40px. New: each header
    is a single 16px line reading plain name, then the muted technical name at
    11px `#7a828e` with a 6px gap, then the Coming tag: "Step through time
-   Temporal navigation  Coming" and "Find a pattern  Subgraph search  Coming".
+   Temporal navigation Coming" and "Find a pattern Subgraph search Coming".
    The invocation detail "by opened" is not part of the pair: keep it as the
    row's trailing dimmed value at the right of the "Step through time" row,
    reading "by opened". The "Find a pattern" row returns to 32px. Decisions
@@ -3016,7 +2997,7 @@ with the Notes section expanded, nothing selected.
    chip "14 notes"; "AI: not configured". New: delete the "3D" pill and its
    divider; one 16px pill reading "Force directed (ngraph) - settled" plus an
    8px chevron caret, no "Layout:" label, no state dot, `title="Layout. Force
-   directed (ngraph), settled"`, caret menu recorded in a comment; delete the
+directed (ngraph), settled"`, caret menu recorded in a comment; delete the
    "14 notes" chip -- the notes chip is hidden while Explore is open with the
    Notes section expanded, which is exactly this artboard's state, and the
    panel's own "Notes 14" header owns the number; delete the AI slot. Snippet:
@@ -3070,7 +3051,7 @@ File: `ExplorerLoading.dc.html` (1440x900). security-events-120k.csv mid-load,
    the link "More statistics". New: delete the whole block. In its place, under
    the Run | Results tabs, draw one sticky scope line, 11px, on the panel
    background: "Scope: 48,000 nodes loaded so far. <span style="color:
-   #f7b731;">Partial data (40% loaded)</span>  Change", with "Change" as the
+   #f7b731;">Partial data (40% loaded)</span> Change", with "Change" as the
    blue link. It is a character-for-character copy of the inspector's Counts
    section 900px to the right, and the panel states scope once. Decisions
    MIN-12, MIN-5, MIN-1.
@@ -3078,12 +3059,12 @@ File: `ExplorerLoading.dc.html` (1440x900). security-events-120k.csv mid-load,
 2. **Analyze panel, the four cards -- the per-card partial-data caveat goes.**
    Current: the Groups, Connected parts and Most connected cards each carry the
    line `<span style="color: #f7b731;">Partial data (40% loaded)</span>, 48,000
-   nodes`. New: delete that line from all three cards; the sticky scope line
+nodes`. New: delete that line from all three cards; the sticky scope line
    from item 1 carries it once for the panel. Decisions MIN-5, MIN-1.
 
 3. **Analyze panel, the three question-group headers -- counts and cost words
-   go.** Current: "Find groups  4 cards  heavy"; "Find important nodes  4 cards
-   iterative"; "Find weak points  4 cards  sampled". New: each open header
+   go.** Current: "Find groups 4 cards heavy"; "Find important nodes 4 cards
+   iterative"; "Find weak points 4 cards sampled". New: each open header
    shows the group name alone: "Find groups", "Find important nodes", "Find
    weak points". No cost-class word appears anywhere in the interface, and an
    open group's card count restates what the group already shows; a count
@@ -3093,7 +3074,7 @@ File: `ExplorerLoading.dc.html` (1440x900). security-events-120k.csv mid-load,
    tooltip.** Current: the card body carries the line "Available when loading
    finishes" beside the "Run" button. New: delete that line; draw Run disabled
    (`background: transparent; border: 1px solid #48525c; color: #5f6873;
-   cursor: default`) with `title="Run. Available when loading finishes"`. The
+cursor: default`) with `title="Run. Available when loading finishes"`. The
    reason a control is unavailable is its own tooltip and is never body text on
    a card. Decisions IC-4, MIN-12.
 
@@ -3127,7 +3108,7 @@ File: `ExplorerLoading.dc.html` (1440x900). security-events-120k.csv mid-load,
    draws the remembered-open state; add an HTML comment saying so. Decisions
    MIN-9, MIN-2.
 
-8. **Inspector, Schema and attributes.** Current: "Schema  so far" with the row
+8. **Inspector, Schema and attributes.** Current: "Schema so far" with the row
    "Node types 4" above four type rows (process 27,900; host 9,400; user 6,200;
    ip 4,500); then "Node attributes 12" and "Edge attributes Loading..." as two
    collapsed sections. New: delete the "Node types 4" row -- all four types are
@@ -3151,7 +3132,7 @@ File: `ExplorerLoading.dc.html` (1440x900). security-events-120k.csv mid-load,
     not configured". New: delete the "3D" pill and its divider; the Performance
     chip reads "Performance mode: labels 20" with the full rule list in
     `title="Performance mode: 20 labels, uniform node size, 1 px edges, hover
-    and tooltips off, quick grid layout. Settings > Performance"`; delete the
+and tooltips off, quick grid layout. Settings > Performance"`; delete the
     AI slot. The layout slot keeps the Building sentence exactly and takes no
     caret: there is no layout engine to pick during a load; record that in an
     HTML comment. Snippet: VOCAB section 9 "Status bar chips" (Performance
@@ -3180,7 +3161,7 @@ Performance mode, Analyze panel open with a pinned Bridges result.
    of 120,418 nodes. Approximate: 100 sample sources (about 40 s)"; Bridge
    edges "On 120,418 of 120,418 nodes, about 3 h"; What breaks if removed "On
    120,418 of 120,418 nodes". New: draw one sticky scope line under the Run |
-   Results tabs, 11px: "Scope: all 120,418 nodes.  Change" with "Change" as the
+   Results tabs, 11px: "Scope: all 120,418 nodes. Change" with "Change" as the
    blue link. Delete the scope clause from all three cards; the Bridges card
    keeps only what differs from the panel scope, as its own 11px dimmed line
    reading "Approximate: 100 sample sources"; the other two cards lose the line
@@ -3188,7 +3169,7 @@ Performance mode, Analyze panel open with a pinned Bridges result.
    loaded and total are equal. Decisions MIN-5, MIN-12, MIN-1.
 
 2. **Analyze panel -- cost words go and each estimate lands in one place.**
-   Current: the group header reads "Find weak points  4 cards"; the card titles
+   Current: the group header reads "Find weak points 4 cards"; the card titles
    carry the pills "sampled", "heavy" and "instant"; the Bridges scope line
    carries "(about 40 s)" while its button reads "Run (about 40 s)"; the Bridge
    edges scope line carries "about 3 h" while its button reads "Run anyway".
@@ -3207,8 +3188,7 @@ Performance mode, Analyze panel open with a pinned Bridges result.
    Direction: followed. Scope: visible, 120,418 of 120,418 nodes. 2026-09-04
    14:12, 41 s, algorithms 1.4.0") followed by three stacked blue links "Copy
    as JSON", "Copy as command", "Copy methods text". New: (a) the run record
-   becomes one 11px dimmed line reading "Betweenness, 100 sample sources, seed
-   4171. Scope: all nodes." with a 12px chevron before it acting as a Details
+   becomes one 11px dimmed line reading "Betweenness, 100 sample sources, seed 4171. Scope: all nodes." with a 12px chevron before it acting as a Details
    disclosure; draw this card with Details expanded, so under that line a
    3-row block shows "Weight: count (strength)", "Direction: followed",
    "2026-09-04 14:12, 41 s, algorithms 1.4.0"; (b) delete the three copy links
@@ -3248,8 +3228,8 @@ Performance mode, Analyze panel open with a pinned Bridges result.
    delete the "Done" chip -- state chips are only for Running, Queued, Failed
    and Stale; delete the "Select nodes first" line and draw "Simulate removal
    (0)" disabled (`background: transparent; border: 1px solid #48525c; color:
-   #5f6873; cursor: default`) with `title="Simulate removal. Select nodes
-   first"`. Keep the "Choose nodes..." control. Decisions MIN-6, IC-4, MIN-12.
+#5f6873; cursor: default`) with `title="Simulate removal. Select nodes
+first"`. Keep the "Choose nodes..." control. Decisions MIN-6, IC-4, MIN-12.
 
 7. **Inspector, Counts section -- collapsed, N-of-N collapsed, three rows
    changed.** Current: an open block headed "Counts" with the trailing caption
@@ -3271,8 +3251,8 @@ Performance mode, Analyze panel open with a pinned Bridges result.
 
 8. **Inspector, "Most connected (Degree)" and the attribute sections.**
    Current: five rows reading "14,206 links" ... "4,870 links", then "See all
-   120,418 ranked" and "Export top 5 (CSV)"; "Schema  4 node types, 6 edge
-   types"; "Node attributes  9, from a sample" and "Edge attributes  5, from a
+   120,418 ranked" and "Export top 5 (CSV)"; "Schema 4 node types, 6 edge
+   types"; "Node attributes 9, from a sample" and "Edge attributes 5, from a
    sample" as two collapsed sections. New: the five values read "14,206",
    "9,318", "7,904", "6,112", "4,870" with one 11px dimmed right-aligned
    "links" on a column header line; delete the "Export top 5 (CSV)" link from
@@ -3296,8 +3276,8 @@ Performance mode, Analyze panel open with a pinned Bridges result.
    reasons, active engine checked, Re-run, Stop, "Layout settings..."); the
    Performance chip reads "Performance mode: labels 20" with the rules and the
    measured provenance in `title="Performance mode: 20 labels, hover and
-   tooltips off, edges capped at 500k, uniform node size. On above about 18,000
-   nodes, measured on this machine. Settings > Performance"`; delete the AI
+tooltips off, edges capped at 500k, uniform node size. On above about 18,000
+nodes, measured on this machine. Settings > Performance"`; delete the AI
    slot. Snippet: VOCAB section 9 "Status bar chips". Decisions MIN-8, NAV-12
    item 1, DEF-6.
 
@@ -3354,13 +3334,13 @@ Performance active over the 120,000-node security graph.
 
 1. **Settings > Performance, "Thresholds and loading" -- three typed rows
    become one detected block.** Current: three rows -- "Large-graph threshold
-   largeThreshold  Applies on next load  10,000 nodes / 50,000 edges" with the
+   largeThreshold Applies on next load 10,000 nodes / 50,000 edges" with the
    sentence "Whichever is crossed first. Above it: Performance mode, size-aware
    algorithm defaults, label cap, hover and tooltips off."; "Render ceiling,
-   desktop  ceiling.desktop  Applies on next load  200,000 nodes / 1,000,000
+   desktop ceiling.desktop Applies on next load 200,000 nodes / 1,000,000
    edges" with "Above it Import options defaults to a subset load and warns;
    Import everything anyway stays. Compare mode halves it."; "Render ceiling,
-   iPad  ceiling.ipad  Applies on next load  50,000 nodes / 250,000 edges" with
+   iPad ceiling.ipad Applies on next load 50,000 nodes / 250,000 edges" with
    "Lower than desktop. Import everything anyway stays available." New: delete
    all three rows and draw, at the top of the group, the detected block copied
    verbatim from VOCAB section 10 "Detected threshold readout with
@@ -3372,7 +3352,7 @@ Performance active over the 120,000-node security graph.
    subset and warns; Import everything anyway always stays." The consequence
    sentence is never trimmed. Record in an HTML comment: Change discloses four
    numeric fields pre-filled with the detected values and stamps the block "Set
-   by you.  Use detected values"; the iPad produces its own numbers from the
+   by you. Use detected values"; the iPad produces its own numbers from the
    same probe, so there is no separate iPad row; detection failure applies the
    built-in defaults silently with the headline "Could not measure this
    machine. Using safe defaults: about 200,000 nodes." and the actions "Try
@@ -3400,30 +3380,30 @@ Performance active over the 120,000-node security graph.
    immediately after the row label (after the complete label, before any
    status pill) on each of these rows and delete the sentence from the column,
    recording each popover text in an HTML comment beside its row:
-   - Subset load default -- "Pre-selected Load control choice above the render ceiling."
-   - Progressive loading -- "Streaming loader. Progress counts nodes; Cancel stops in 1 s."
-   - Exact-computation cap -- "Above it cubic cards and layouts warn and confirm (Run anyway)."
-   - Effects cap -- "Glow and Outline available below it."
-   - Labels on canvas -- "Label cap: top nodes by degree, plus selected and search hits."
-   - Edges drawn -- "Beyond it edges hide until the view narrows."
-   - Ask before runs estimated over -- "Confirm prompt; the estimate comes from a short probe run."
-   - Hover and tooltips -- "On below the threshold, off above."
-   - Force layout above threshold -- "Layout start. Never started automatically above the threshold."
-   - Sample sources for Bridges and Closest to everyone -- "Sampled centrality above the threshold; top ranks are reliable."
-   - Warn on exact runs estimated over -- "Card warns; Run reads Run anyway and confirms once."
-   - Selection cap -- "Inspector switches to summary form; Select actions confirm."
-   - Expansion cap -- "Neighborhood expansion; Expand anyway stays available."
-   - Layout size ratings -- "Drive the All layouts warnings; benchmarked before release."
-   - Layout stepping -- "Live layouts: pre-steps, step multiplier, settle threshold."
-   Two sentences split rather than move: on "Edges drawn" the clause "This
-   graph: 1.1M." stays inline under the control, and on "Hover and tooltips"
-   the clause "Off for this graph. Click selection always works." stays inline.
-   What else stays inline, untouched: the readout "This graph: 120,000 nodes,
-   1,100,000 edges. Performance mode is on because the graph is above the
-   large-graph threshold.", the "Rules in force:" list, and the whole
-   Turn-off-anyway warning with its memory and frame-rate estimate. Snippet:
-   VOCAB section 10 "Info circle" plus its "Row with a label, its pair and the
-   circle" form. Decisions IC-6, MIN-11, IC-1.
+    - Subset load default -- "Pre-selected Load control choice above the render ceiling."
+    - Progressive loading -- "Streaming loader. Progress counts nodes; Cancel stops in 1 s."
+    - Exact-computation cap -- "Above it cubic cards and layouts warn and confirm (Run anyway)."
+    - Effects cap -- "Glow and Outline available below it."
+    - Labels on canvas -- "Label cap: top nodes by degree, plus selected and search hits."
+    - Edges drawn -- "Beyond it edges hide until the view narrows."
+    - Ask before runs estimated over -- "Confirm prompt; the estimate comes from a short probe run."
+    - Hover and tooltips -- "On below the threshold, off above."
+    - Force layout above threshold -- "Layout start. Never started automatically above the threshold."
+    - Sample sources for Bridges and Closest to everyone -- "Sampled centrality above the threshold; top ranks are reliable."
+    - Warn on exact runs estimated over -- "Card warns; Run reads Run anyway and confirms once."
+    - Selection cap -- "Inspector switches to summary form; Select actions confirm."
+    - Expansion cap -- "Neighborhood expansion; Expand anyway stays available."
+    - Layout size ratings -- "Drive the All layouts warnings; benchmarked before release."
+    - Layout stepping -- "Live layouts: pre-steps, step multiplier, settle threshold."
+      Two sentences split rather than move: on "Edges drawn" the clause "This
+      graph: 1.1M." stays inline under the control, and on "Hover and tooltips"
+      the clause "Off for this graph. Click selection always works." stays inline.
+      What else stays inline, untouched: the readout "This graph: 120,000 nodes,
+      1,100,000 edges. Performance mode is on because the graph is above the
+      large-graph threshold.", the "Rules in force:" list, and the whole
+      Turn-off-anyway warning with its memory and frame-rate estimate. Snippet:
+      VOCAB section 10 "Info circle" plus its "Row with a label, its pair and the
+      circle" form. Decisions IC-6, MIN-11, IC-1.
 
 4. **Settings > Performance -- a new XR sub-header with four rows.** Current:
    the section has three sub-headers, "Thresholds and loading", "Performance
@@ -3431,19 +3411,19 @@ Performance active over the 120,000-node security graph.
    after "Analysis, layouts and selection", with four rows drawn in the same
    label-plus-control shape as its neighbours, each carrying an info circle on
    its label:
-   - "XR entry ceiling" -- value "10,000" unit "visible nodes" and "50,000"
-     unit "visible edges"; circle: "The most a headset draws smoothly. Above
-     it graphty offers the visible subset instead."
-   - "XR frame floor" -- value "72" unit "Hz"; circle: "Below this graphty
-     reduces detail and says so on the wrist panel."
-   - "XR run estimate cap" -- value "1" unit "s"; circle: "A run estimated
-     above this is refused in a headset -- run it at the desk. Rises to 5 s
-     when algorithms run off the main thread."
-   - "XR comfort" -- a segmented control "Snap turn 30 degrees | Continuous
-     with vignette", first segment active; circle: "Snap turn is the default
-     because continuous turning in a headset causes motion sickness."
-   Snippets: VOCAB section 4 "Number input" and "Tab row (segmented)", VOCAB
-   section 10 "Info circle". Decision XR-C.
+    - "XR entry ceiling" -- value "10,000" unit "visible nodes" and "50,000"
+      unit "visible edges"; circle: "The most a headset draws smoothly. Above
+      it graphty offers the visible subset instead."
+    - "XR frame floor" -- value "72" unit "Hz"; circle: "Below this graphty
+      reduces detail and says so on the wrist panel."
+    - "XR run estimate cap" -- value "1" unit "s"; circle: "A run estimated
+      above this is refused in a headset -- run it at the desk. Rises to 5 s
+      when algorithms run off the main thread."
+    - "XR comfort" -- a segmented control "Snap turn 30 degrees | Continuous
+      with vignette", first segment active; circle: "Snap turn is the default
+      because continuous turning in a headset causes motion sickness."
+      Snippets: VOCAB section 4 "Number input" and "Tab row (segmented)", VOCAB
+      section 10 "Info circle". Decision XR-C.
 
 5. **Settings > Performance, the "Performance mode" row -- its effect list
    goes; the XR clause lands in its circle.** Current: the row carries the
@@ -3473,7 +3453,7 @@ Performance active over the 120,000-node security graph.
    circle". Decisions IC-6, DEF-6.
 
 7. **Inspector behind the scrim -- Counts, Most connected, Case notes and the
-   reading.** Current: the reading, then "Case notes: none  Add a case note",
+   reading.** Current: the reading, then "Case notes: none Add a case note",
    then an open "Counts" block with Nodes 120,000; Edges 1,100,000; Direction
    Directed (column); Weighted No; Average links per node (mean degree) 18.3;
    How tightly linked (density) 1 in 13,000 (7.6e-5); Connected parts
@@ -3506,9 +3486,9 @@ Performance active over the 120,000-node security graph.
    `title="Layout. Positions from file"` and the caret menu recorded in a
    comment; the Performance chip reads "Performance mode: labels 50" (this
    screen's own label cap) with the rules in `title="Performance mode: 50
-   labels, uniform node size, 1 px edges hidden until zoomed, hover and
-   tooltips off, animation off, force layout not started, note markers
-   clustered. Settings > Performance"`; keep the AI slot exactly as drawn, a
+labels, uniform node size, 1 px edges hidden until zoomed, hover and
+tooltips off, animation off, force layout not started, note markers
+clustered. Settings > Performance"`; keep the AI slot exactly as drawn, a
    provider is configured. Snippet: VOCAB section 9 "Status bar chips".
    Decisions MIN-8, NAV-12 item 1.
 
@@ -3522,7 +3502,7 @@ Performance active over the 120,000-node security graph.
 10. **Explore panel behind the scrim -- the search helper splits, one zero
     count goes.** Current: the search field, then the helper line "Type a name,
     an id or attribute:value. Hover and tooltips are off above the large-graph
-    threshold; click a node to inspect it."; then "Filters  Coming"; then
+    threshold; click a node to inspect it."; then "Filters Coming"; then
     "Notes 0". New: split the helper line -- delete its first sentence from the
     column and put it behind a resting info circle placed in the search row
     after the field's trailing hint ("Prefix with id:, type:, exact: or regex:,
@@ -3530,7 +3510,7 @@ Performance active over the 120,000-node security graph.
     a comment), and keep the second sentence inline, reading "Hover and
     tooltips are off above the large-graph threshold; click a node to inspect
     it.", because it reports this graph's state; the Notes header reads
-    "Notes"; the "Filters  Coming" header is isolated and keeps its tag.
+    "Notes"; the "Filters Coming" header is isolated and keeps its tag.
     Snippet: VOCAB section 10 "Info circle". Decisions IC-8, C1, MIN-2, MIN-4.
 
 11. **Row-label ellipsis and pill order -- label pass.** On every row that
@@ -3554,7 +3534,7 @@ largest structural change first.
    Region: ACTIVITY PANEL > PANEL CONTENT, above result card A. The two cards
    are one run family (the two halves of a Compare), so the shared fields
    render once. Insert a family header strip directly under the `Run |
-   Results` sub-tabs: an 11px `#7a828e` line reading
+Results` sub-tabs: an 11px `#7a828e` line reading
    `Communities (Louvain). Weight: amount (strength). Direction: ignored. Seed 42. algorithms 1.4.0`.
    Then in card A replace the run record line
    `Louvain, resolution 0.5, seed 42. Weight: amount (strength). Direction: ignored. Scope: visible, 200 of 200 nodes. 2026-09-04 14:12, 14 ms, algorithms 1.4.0`
@@ -3598,7 +3578,7 @@ largest structural change first.
 4. **Merge two neighbour rows in Computed metrics (MIN-10).** Region:
    INSPECTOR CONTENT > Computed metrics. Delete the two separate rows
    `Neighbors in group  24 | 18 | -6` and `Share of neighbors  65% | 49% |
-   -16 pts` and draw one row: label `Neighbors in group`, A cell `24 (65%)`,
+-16 pts` and draw one row: label `Neighbors in group`, A cell `24 (65%)`,
    B cell `18 (49%)`, Delta cell `-6`. Keep the existing grid
    (`minmax(0, 1fr) 32px 32px 40px`); widen the A and B columns to 40px each
    so the parenthesised share fits and drop the label column to what remains.
@@ -3622,7 +3602,7 @@ largest structural change first.
 6. **Zero rows in the diff legend are not drawn (MIN-2).** Region: canvas diff
    legend, top centre. Delete the `Only in A  0` and `Only in B  0` entries
    with their swatches. The strip keeps `Difference | Same group 178 | Moved
-   22`. Reduce the strip width to fit; keep the 12px gaps.
+22`. Reduce the strip width to fit; keep the 12px gaps.
 
 7. **Status bar hygiene (MIN-8, MIN-1).** Region: STATUS BAR. (a) Delete the
    `3D` mode chip (the canvas 2D/3D control is always visible; the mode chip
@@ -3656,8 +3636,8 @@ largest structural change first.
     in card B insert the VOCAB "Info circle" resting snippet (12px circled i
     in a 14px box, `#a3a8b1`). Record the popover text in an HTML comment on
     each: `Modularity runs from 0 to about 1: below 0.3 the groups overlap
-    heavily, 0.3 to 0.7 is a clear split, above 0.7 they are nearly
-    disconnected.` The band word never returns to the sentence itself.
+heavily, 0.3 to 0.7 is a clear split, above 0.7 they are nearly
+disconnected.` The band word never returns to the sentence itself.
 
 11. **Caveats lines lose the run parameters and the whole-graph scope
     (MIN-1, MIN-5).** Region: both cards. Replace
@@ -3853,7 +3833,7 @@ card A in the inspector). Ordered largest structural change first.
     BAR, the `VIEWING SLOT` comment. It currently shows only the date form
     (`Viewing: 2026-01-05 to 2026-02-04`). Extend the comment: the string is
     derived from the Time role's unit family -- `Viewing: 2026-01-05 to
-    2026-02-04` for Date and time, `Viewing: steps 1,200 to 1,250` for Number,
+2026-02-04` for Date and time, `Viewing: steps 1,200 to 1,250` for Number,
     `Viewing: v1.2 to v1.4` for Ordered category -- and the slider bar readout
     uses the same string.
 
@@ -3873,12 +3853,12 @@ section expanded, Bridges result in the inspector, a hovered row previewing
    `VR session 14:21 - 14:39` (verbatim), a trailing `3 steps` at 11px
    `#7a828e` and the time `14:39`. Child rows, indented 16px, each with its
    owning panel `Explore` and its time, and a second line at 10px `#5f6873`:
-   - `Expanded 12 nodes around acct-4471` / second line `by voice, in VR` / `14:26`
-   - `Note on acct-4471` / second line `by voice, in VR` / `14:32`
-   - `Flagged merch-88` / second line `in VR` / `14:34`
-   The third child's second line omits "by voice" on purpose: Flag this is the
-   speech-free fallback. Add an HTML comment recording that exiting XR is not
-   itself a step and is not undoable.
+    - `Expanded 12 nodes around acct-4471` / second line `by voice, in VR` / `14:26`
+    - `Note on acct-4471` / second line `by voice, in VR` / `14:32`
+    - `Flagged merch-88` / second line `in VR` / `14:34`
+      The third child's second line omits "by voice" on purpose: Flag this is the
+      speech-free fallback. Add an HTML comment recording that exiting XR is not
+      itself a step and is not undoable.
 
 2. **The clock and every entry count move with it (XR-D, MIN-1).** Region:
    popover list and the Analyze History section. (a) Change entry 1
@@ -3905,7 +3885,7 @@ section expanded, Bridges result in the inspector, a hovered row previewing
    long-press still work). (b) Region: every popover row title and both run
    row titles in the panel History section: make the title visually distinct
    as a link -- `text-decoration: underline; text-decoration-color: #48525c;
-   text-underline-offset: 2px;` -- and give each a `title` naming where it
+text-underline-offset: 2px;` -- and give each a `title` naming where it
    goes (`Open in Analyze`, `Open in Explore`, `Open in Style`,
    `Open in Data`). Row bodies keep click-to-preview and
    double-click-to-restore. (c) The popover footer becomes
@@ -3960,7 +3940,7 @@ section expanded, Bridges result in the inspector, a hovered row previewing
    `preview of 14:12`. (b) Delete the whole `Color: not encoded` row -- an
    unencoded channel draws no block, and that exact string is retired.
    (c) Keep `At the current point: Color: Groups (communities, Louvain), 7
-   groups` but delete its trailing `, Okabe-Ito` (the palette name moves to
+groups` but delete its trailing `, Okabe-Ito` (the palette name moves to
    the legend's overflow menu). (d) Delete the `Minimap` caption above the
    minimap.
 
@@ -3986,7 +3966,7 @@ section expanded, Bridges result in the inspector, a hovered row previewing
     History, the Groups run row second line, after `Modularity 0.62.` Insert
     the VOCAB info circle with the popover text recorded in a comment:
     `Modularity runs from 0 to about 1: below 0.3 the groups overlap heavily,
-    0.3 to 0.7 is a clear split, above 0.7 they are nearly disconnected.`
+0.3 to 0.7 is a clear split, above 0.7 they are nearly disconnected.`
 
 12. **Scope clauses that repeat the whole graph (MIN-5).** Region: both run
     rows in the History section. Change
@@ -4129,8 +4109,8 @@ Ordered largest structural change first.
     INSPECTOR CONTENT > Runs table. Put a single VOCAB info circle immediately
     after the `Modularity` column header rather than one per value; record the
     popover in a comment: `Modularity runs from 0 to about 1: below 0.3 the
-    groups overlap heavily, 0.3 to 0.7 is a clear split, above 0.7 they are
-    nearly disconnected.` The three cells keep their bare numbers.
+groups overlap heavily, 0.3 to 0.7 is a clear split, above 0.7 they are
+nearly disconnected.` The three cells keep their bare numbers.
 
 13. **Legend hygiene (MIN-7).** Region: canvas LEGEND. (a) Delete the `Legend`
     caption. (b) Delete the footer `Okabe-Ito, resolution 1.0, 7 groups` (the
@@ -4218,7 +4198,7 @@ largest structural change first.
    the VOCAB info circle as the last element of the search row, outside the
    input. Record its popover verbatim in a comment:
    `Prefix with id:, type:, exact: or regex:, or start with = for an
-   expression.` plus a `Learn more` link. The same sentence also shows on
+expression.` plus a `Learn more` link. The same sentence also shows on
    field focus; it is never retired by usage.
 
 5. **Selection statistics: the header owns the export, the column owns the
@@ -4231,7 +4211,7 @@ largest structural change first.
    `Arrows: above or below the graph value.` and put the VOCAB info circle
    immediately after the `Graph` column header instead, carrying (in a
    comment) `Arrows show whether the selection is above or below the
-   whole-graph value.`
+whole-graph value.`
 
 6. **The selection size has one owner, and the reading takes its 1.5 wording
    (MIN-1, MIN-2, G5, NAV-5).** Region: INSPECTOR CONTENT, top. (a) Delete the
@@ -4361,15 +4341,15 @@ go_terms.tsv joined). Ordered largest structural change first.
    categories were dropped; the palette name moves to the legend overflow
    menu -- note it in a comment). (c) Delete the `Legend` caption and the
    `Minimap` caption. (d) The `Size: most connected (degree) / 1 to 41, sqrt
-   scale` block is unchanged.
+scale` block is unchanged.
 
 7. **The Category table title takes its info circle (IC-8).** Region:
    INSPECTOR CONTENT, the pair line `Which categories stand out  Category
-   table`. Insert the VOCAB info circle immediately after the complete pair
+table`. Insert the VOCAB info circle immediately after the complete pair
    (never between the two names). Record its popover in a comment:
    `Any table of category, score and member ids joined onto Groups or a
-   selection; in biology these are enrichment results -- GO, KEGG or Reactome
-   terms with FDR.` plus a `Learn more` link.
+selection; in biology these are enrichment results -- GO, KEGG or Reactome
+terms with FDR.` plus a `Learn more` link.
 
 8. **Canonical pairs render on one line (MIN-14).** Region: RESULT CARD 1.
    Delete the separate line holding `Markov clustering (MCL)` and fold it into
@@ -4385,7 +4365,7 @@ go_terms.tsv joined). Ordered largest structural change first.
    Keep the reported half inline as `171 hidden` and move the rest behind a
    VOCAB info circle on the switch label, recording in a comment:
    `Two categories are redundant when their member sets overlap by half or
-   more (Jaccard >= 0.5); only the stronger one is listed.`
+more (Jaccard >= 0.5); only the stronger one is listed.`
 
 10. **The score column explains itself once (MIN-11, IC-8).** Region:
     INSPECTOR CONTENT, under the table. Delete the footer line
@@ -4450,7 +4430,7 @@ Ordered largest structural change first.
    pair, so the technical half truncates and the plain half never does.
    `More` keeps its caret and has no pair. Re-weight the flexes to
    `1.5 / 1.2 / 0.9 / 0.6`. The `Coming` row below (`Coming  Hierarchical and
-   Radial`) is unchanged: it is already one tag for a group.
+Radial`) is unchanged: it is already one tag for a group.
 
 3. **Style layer rows carry the row-hover triple (IK-7, IK-4).** Region:
    PANEL CONTENT tier 1, the three layer rows (`DE list`, `Expression`
@@ -4579,11 +4559,12 @@ change first.
    item in the section's overflow menu.
 
 5. **The Key attributes sub-header goes (MIN-10).** Region: INSPECTOR CONTENT
-   > Attributes. Delete the `Key attributes` sub-header row (chevron and
-   label) inside a section already titled Attributes and replace it with a 1px
-   `#374047` hairline rule above the pinned rows. The four pinned rows
-   (`preferredName`, `id`, `log2FoldChange`, `padj`) keep their positions and
-   their `label`, `id`, `color`, `size` annotations.
+
+    > Attributes. Delete the `Key attributes` sub-header row (chevron and
+    > label) inside a section already titled Attributes and replace it with a 1px
+    > `#374047` hairline rule above the pinned rows. The four pinned rows
+    > (`preferredName`, `id`, `log2FoldChange`, `padj`) keep their positions and
+    > their `label`, `id`, `color`, `size` annotations.
 
 6. **Computed metrics: one line per pair, one circle for the percentile
    (MIN-14, MIN-3, IC-8).** Region: INSPECTOR CONTENT > Computed metrics.
@@ -4597,7 +4578,7 @@ change first.
    rows are visible and nothing is truncated. (c) Add the VOCAB info circle
    immediately after the `Computed metrics` header label, carrying (in a
    comment) `Percentile compares this node with every other node: 98th
-   percentile means it scores above 98 per cent of them.` One circle for the
+percentile means it scores above 98 per cent of them.` One circle for the
    section, not one per row.
 
 7. **No binding in a section header (DEF-1).** Region: INSPECTOR CONTENT >
@@ -4634,7 +4615,7 @@ change first.
     never named, the palette name moves to the legend's overflow menu and the
     clamp belongs to Style. (c) Keep `not measured (6 nodes)` -- a non-zero
     missing count is reported. (d) Keep `Size: significance (padj) / 0.05 to
-    1e-12, -log10`: a non-default scale prints its name. (e) The `Selected`
+1e-12, -log10`: a non-default scale prints its name. (e) The `Selected`
     state row keeps its label and carries no count. (f) Delete the `Minimap`
     caption.
 
@@ -4656,7 +4637,7 @@ change first.
     redraw them.
 
 14. **The id row stays (MIN-10 boundary).** Do not drop the `id | STRING |
-    9606.ENSP00000269305` row: MIN-10 drops it only when the displayed label
+9606.ENSP00000269305` row: MIN-10 drops it only when the displayed label
     equals the id, and here the label is `TP53` while the id is a STRING
     identifier. Record the reason in a one-line comment so a later pass does
     not delete it.

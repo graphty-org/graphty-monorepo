@@ -3,15 +3,21 @@
 // Post-process generated TypeDoc markdown to escape angle brackets
 // that would otherwise break VitePress Vue template parsing.
 
-import { readdir, readFile, writeFile, access } from "fs/promises";
-import { join, extname } from "path";
+import { readdir, readFile, writeFile, access } from "node:fs/promises";
+import { join, extname } from "node:path";
 
 // The directories to process: the ones named on the command line (a package's own docs build
 // passes its docs/api/generated), else every package's API docs in the unified site
 const API_DIRS =
     process.argv.length > 2
         ? process.argv.slice(2)
-        : ["./docs/graphty-element/api/generated", "./docs/algorithms/api/generated", "./docs/layout/api/generated"];
+        : [
+              "./docs/graphty-element/api/generated",
+              "./docs/algorithms/api/generated",
+              "./docs/layout/api/generated",
+              "./docs/cytoscape-extensions/api/generated",
+              "./docs/graph-io/api/generated",
+          ];
 
 async function processFile(filePath) {
     const content = await readFile(filePath, "utf-8");
@@ -45,7 +51,7 @@ async function processFile(filePath) {
                 // but be careful not to affect markdown links [text](url)
                 return part
                     .replace(/([A-Z][a-zA-Z0-9]*)<([A-Za-z][A-Za-z0-9[\]., ]*?)>/g, "$1\\<$2\\>")
-                    .replace(/<([A-Z][a-zA-Z0-9]*)>/g, "\\<$1\\>");
+                    .replaceAll(/<([A-Z][a-zA-Z0-9]*)>/g, String.raw`\<$1\>`);
             }
             return part;
         });

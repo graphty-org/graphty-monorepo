@@ -29,8 +29,8 @@
  * already been run here. So a session's catalogue is the shared tables with its own `metrics()`
  * closed over its own graph.
  *
- * The rest of the graph-dependent half -- resolved option bounds, expression validation -- is not
- * wired to the session's query engine yet.
+ * `optionsFor()` is graph-dependent too: it resolves one descriptor's data-dependent bounds and
+ * node choices against a scope of this graph.
  */
 
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
@@ -48,6 +48,7 @@ import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { describeMetrics, type MetricsSource } from "./metrics";
+import { optionsFor, type OptionsForSource } from "./optionsFor";
 import type { SessionCatalogApi } from "./types";
 
 /**
@@ -134,11 +135,13 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
 });
 
 /**
- * One session's catalogue: the shared tables, plus the metric listing for its own graph.
- * @param source - Where the metric listing reads the cost model and the run history.
+ * One session's catalogue: the shared tables, plus the metric listing and the option resolver for
+ * its own graph.
+ * @param source - Where the metric listing reads the cost model and the run history, and where
+ *   `optionsFor` resolves a scope.
  * @returns The catalogue.
  */
-export function createSessionCatalog(source: MetricsSource): SessionCatalogApi {
+export function createSessionCatalog(source: MetricsSource & Pick<OptionsForSource, "resolve">): SessionCatalogApi {
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
         /**
@@ -147,5 +150,24 @@ export function createSessionCatalog(source: MetricsSource): SessionCatalogApi {
          * @returns one entry per algorithm, in catalogue order
          */
         metrics: () => describeMetrics(source),
+        /**
+         * One algorithm's or layout's options, with data-dependent bounds and node choices
+         * resolved over a scope of this graph.
+         * @param key - An algorithm key or a layout id.
+         * @param scope - The scope to measure; the session's default scope when absent.
+         * @returns The resolved options.
+         */
+        optionsFor: (key, scope) =>
+            Promise.resolve().then(() =>
+                optionsFor(
+                    {
+                        algorithms: SESSION_CATALOG_TABLES.algorithms,
+                        layouts: SESSION_CATALOG_TABLES.layouts,
+                        resolve: source.resolve,
+                    },
+                    key,
+                    scope,
+                ),
+            ),
     });
 }

@@ -18,6 +18,7 @@ const CAVEATS: Caveats = {
     direction: "undirected",
     precision: "f64",
     method: "degree",
+    facts: [],
     notes: [],
 };
 
@@ -443,12 +444,69 @@ describe("a community result", () => {
             { group: 1, size: 2 },
         ]);
         assert.deepStrictEqual(result.summary().groups, [
-            { group: 0, size: 3, name: "Group 1" },
-            { group: 1, size: 2, name: "Group 2" },
+            { group: 0, size: 3, rank: 1, name: "Group 1" },
+            { group: 1, size: 2, rank: 2, name: "Group 2" },
         ]);
         assert.strictEqual(result.summary().count, 5);
         assert.strictEqual(result.summary().measured, 5);
         assert.strictEqual(result.summary().min, null);
+    });
+
+    it("bins its groups by size, counting groups rather than elements (#932)", () => {
+        /**
+         * A community result whose groups have the given sizes.
+         * @param sizes - one size per group
+         * @returns the result
+         */
+        const partition = (sizes: readonly number[]): RunResult =>
+            createRunResult({
+                runId: "louvain",
+                shape: "community",
+                fields: [
+                    field({ name: "group", plainName: "Group", technicalName: "group", kind: "node", type: "integer" }),
+                ],
+                measured: { nodes: sizes.reduce((sum, size) => sum + size, 0), edges: 0 },
+                nodes: sizes.flatMap((size, group) =>
+                    Array.from({ length: size }, (_unused, index) => ({ id: `g${group}-${index}`, values: { group } })),
+                ),
+                caveats: CAVEATS,
+                durationMs: 1,
+            });
+        const total = (bins: readonly { readonly count: number }[]): number =>
+            bins.reduce((sum, bin) => sum + bin.count, 0);
+
+        const few = partition([3, 3, 2, 1, 1, 1]).groupSizes();
+        assert.strictEqual(few.binning, "per-value");
+        assert.deepStrictEqual(
+            few.bins.map((bin) => [bin.from, bin.count]),
+            [
+                [1, 3],
+                [2, 1],
+                [3, 2],
+            ],
+        );
+
+        const many = partition(Array.from({ length: 400 }, (_unused, index) => index + 1)).groupSizes();
+        assert.strictEqual(many.binning, "banded", "400 distinct sizes are banded");
+        assert.strictEqual(total(many.bins), 400, "every group is counted once");
+
+        const metric = createRunResult({
+            runId: "degree",
+            shape: "node-metric",
+            fields: [
+                field({ name: "value", plainName: "Value", technicalName: "value", kind: "node", type: "number" }),
+            ],
+            measured: { nodes: 1, edges: 0 },
+            nodes: [{ id: "a", values: { value: 1 } }],
+            caveats: CAVEATS,
+            durationMs: 1,
+        });
+        try {
+            metric.groupSizes();
+            assert.fail("a measurement has no groups to count");
+        } catch (error) {
+            assert.strictEqual(isGraphtyError(error) ? error.code : null, "E_BAD_COMMAND");
+        }
     });
 
     it("bounds the groups a summary carries", () => {
@@ -726,6 +784,13 @@ describe("the top of a ranking, cut only between tie groups", () => {
         );
         assert.deepStrictEqual(top.leftOut, { value: 3, count: 12 });
         assert.match(top.reason ?? "", /12 tie at 3/);
+        assert.strictEqual(top.threshold, 3, "above 3 selects exactly the three taken");
+    });
+
+    it("names the threshold that selects exactly the top, or null when everything is in it", () => {
+        assert.strictEqual(metricResult(CAT_DEGREES).top("value", 15).threshold, 2);
+        assert.strictEqual(metricResult(CAT_DEGREES).top("value", 20).threshold, null);
+        assert.strictEqual(metricResult([3, 3, 3, 3, 3, 3]).top("value", 2).threshold, 3);
     });
 
     it("takes nothing from a regular graph whose one tie group is larger than n, and says why", () => {

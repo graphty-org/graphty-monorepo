@@ -6,14 +6,16 @@ import type { EdgeId, NodeId } from "../catalog/types";
 import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
-import type { Node, NodeRenderState } from "../Node";
+import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
-import type { DataManager } from "./DataManager";
+import { type DataManager, disposeReleased } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import type { LayoutManager } from "./LayoutManager";
 import type { StatsManager } from "./StatsManager";
+import type { NodePaint } from "./StylePainter";
 
 /** The corners of a box in world space. */
 interface FramingBox {
@@ -51,12 +53,12 @@ export function nodeFramingBox(nodes: Iterable<Node>): FramingBox | undefined {
         node.mesh.computeWorldMatrix(true);
 
         const pos = node.mesh.getAbsolutePosition();
-        const half = node.size / 2;
 
         min ??= pos.clone().setAll(Infinity);
         max ??= pos.clone().setAll(-Infinity);
 
         for (const axis of ["x", "y", "z"] as const) {
+            const half = node.framingHalf(axis);
             min[axis] = Math.min(min[axis], pos[axis] - half);
             max[axis] = Math.max(max[axis], pos[axis] + half);
         }
@@ -211,6 +213,8 @@ interface UpdateManagerConfig {
  */
 export class UpdateManager implements Manager {
     private needsZoomToFit = false;
+    /** Whether this pass moved the camera towards the selection; see `followSelection`. */
+    private followingSelection = false;
     private hasZoomedToFit = false;
 
     /**
@@ -224,9 +228,11 @@ export class UpdateManager implements Manager {
      * arrived after the layout stopped silently do nothing.
      */
     private forceZoomToFit = false;
-    private config: Required<UpdateManagerConfig>;
+    /** Whether the outstanding request came from a consumer's `zoomToFit()`, not the element. */
+    private explicitZoomToFit = false;
+    private readonly config: Required<UpdateManagerConfig>;
     private layoutStepCount = 0;
-    private minLayoutStepsBeforeZoom = 10;
+    private readonly minLayoutStepsBeforeZoom = 10;
     private lastZoomStep = 0;
     private wasSettled = false;
 
@@ -240,6 +246,18 @@ export class UpdateManager implements Manager {
     private appliedEdgeVisibility = NO_MASK_VERSION;
     private appliedShowContext = false;
     private appliedAnything = false;
+
+    /** The node and edge sets (`DataManager.nodeVersion`, `edgeVersion`) the masks were applied to. */
+    private appliedNodeSet = NO_MASK_VERSION;
+    private appliedEdgeSet = NO_MASK_VERSION;
+
+    /**
+     * The nodes and edges the last pass drew as selected. A pass where only the selection moved
+     * un-selects these and selects the mask's members, so its cost is the size of the two
+     * selections rather than of the graph (issue #2899).
+     */
+    private drawnSelectedNodes = new Set<Node>();
+    private drawnSelectedEdges = new Set<Edge>();
 
     /**
      * Whether the state the most recent update pass left behind is a finished picture: the layout
@@ -283,12 +301,12 @@ export class UpdateManager implements Manager {
      * @param config - Optional configuration
      */
     constructor(
-        private eventManager: EventManager,
-        private statsManager: StatsManager,
-        private layoutManager: LayoutManager,
-        private dataManager: DataManager,
+        private readonly eventManager: EventManager,
+        private readonly statsManager: StatsManager,
+        private readonly layoutManager: LayoutManager,
+        private readonly dataManager: DataManager,
         private camera: CameraManager,
-        private graphContext: GraphContext,
+        private readonly graphContext: GraphContext,
         config: UpdateManagerConfig = {},
     ) {
         this.config = {
@@ -352,9 +370,11 @@ export class UpdateManager implements Manager {
     /**
      * Forget which mask versions the meshes are in line with, so the next pass writes all of them.
      *
-     * Call this when the render objects have changed under the masks -- a dataset load, a clear, a
-     * 2D/3D switch -- because the versions would otherwise say "nothing moved" about elements that
-     * are not the elements those versions were measured against.
+     * The pass calls this itself whenever a node or edge render object was added or removed --
+     * a load, a clear, an undo -- because a new object starts drawn and unselected whatever the
+     * masks say, and a mask's version does not move when it merely grows by rows outside the set
+     * (issue #2953). A 2D/3D switch needs nothing: it rebuilds the meshes of the same objects,
+     * and each one puts its own render state back on its new mesh.
      */
     invalidateViewMasks(): void {
         this.appliedNodeSelection = NO_MASK_VERSION;
@@ -362,6 +382,20 @@ export class UpdateManager implements Manager {
         this.appliedNodeVisibility = NO_MASK_VERSION;
         this.appliedEdgeVisibility = NO_MASK_VERSION;
         this.appliedAnything = false;
+        this.drawnSelectedNodes.clear();
+        this.drawnSelectedEdges.clear();
+    }
+
+    /**
+     * Invalidate the masks when the set of render objects has changed since they were applied.
+     */
+    private followElementSets(): void {
+        const { nodeVersion, edgeVersion } = this.dataManager;
+        if (nodeVersion !== this.appliedNodeSet || edgeVersion !== this.appliedEdgeSet) {
+            this.invalidateViewMasks();
+            this.appliedNodeSet = nodeVersion;
+            this.appliedEdgeSet = edgeVersion;
+        }
     }
 
     /**
@@ -372,7 +406,9 @@ export class UpdateManager implements Manager {
      * actually changed -- `Node.setRenderState` and `Edge.setRenderVisible` return false and touch
      * no mesh when handed what they already hold. So scrubbing a time window that moves 200 nodes
      * costs 200 mesh operations and not 50,000, and re-running a filter that lands on the same
-     * answer costs none.
+     * answer costs none. When ONLY the selection moved, the pass does not walk at all: it touches
+     * the elements it last drew selected and the selection's members, so a click costs the size of
+     * the selection and not of the graph.
      *
      * Mesh instancing is what bounds the rest: a node is one `InstancedMesh` of a source shared by
      * every node of its style, so hiding one is a flag on that instance rather than a geometry
@@ -396,6 +432,7 @@ export class UpdateManager implements Manager {
         // highlighted. Returning early here instead would freeze the last answer on screen after
         // an unbind, which is the one state nobody asked for.
         const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
 
         const nodeSelection = masks.selection?.nodes() ?? null;
         const edgeSelection = masks.selection?.edges() ?? null;
@@ -408,46 +445,41 @@ export class UpdateManager implements Manager {
         const nodeVisibilityVersion = nodeVisibility?.version ?? NO_MASK_VERSION;
         const edgeVisibilityVersion = edgeVisibility?.version ?? NO_MASK_VERSION;
 
-        const nodesMoved =
-            !this.appliedAnything ||
-            nodeSelectionVersion !== this.appliedNodeSelection ||
-            nodeVisibilityVersion !== this.appliedNodeVisibility ||
-            showContext !== this.appliedShowContext;
-        const edgesMoved =
-            !this.appliedAnything ||
-            edgeSelectionVersion !== this.appliedEdgeSelection ||
-            edgeVisibilityVersion !== this.appliedEdgeVisibility;
+        const { nodesMoved, edgesMoved } = this.viewMasksMoved(
+            nodeSelectionVersion,
+            edgeSelectionVersion,
+            nodeVisibilityVersion,
+            edgeVisibilityVersion,
+            showContext,
+        );
 
         if (!nodesMoved && !edgesMoved) {
             return;
         }
 
-        if (nodesMoved) {
-            const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        // A mask has just hidden or revealed something, so the cached list of what is drawn is
+        // out of date. See `settleActiveMeshFreeze`.
+        this.sceneChanged = true;
 
-            for (const node of this.dataManager.nodes.values()) {
-                const { index } = node;
-                const placed = index !== INVALID_INDEX;
-                const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
+        // With what is drawn unchanged, only the selection moved: touch the elements that leave
+        // it and the ones in it, not the whole graph. A visibility or context change rewrites its
+        // mask wholesale, so that one still walks everything.
+        const nodeSelectionOnly =
+            this.appliedAnything &&
+            nodeVisibilityVersion === this.appliedNodeVisibility &&
+            showContext === this.appliedShowContext;
+        const edgeSelectionOnly = this.appliedAnything && edgeVisibilityVersion === this.appliedEdgeVisibility;
 
-                node.setRenderState(visible ? "visible" : hiddenState);
-                node.setSelected(nodeSelection !== null && placed && nodeSelection.has(index));
-            }
+        if (nodesMoved && nodeSelectionOnly) {
+            this.applyNodeSelection(nodeSelection);
+        } else if (nodesMoved) {
+            this.applyNodeMasks(nodeVisibility, nodeSelection, showContext);
         }
 
-        if (edgesMoved) {
-            for (const edge of this.dataManager.edges.values()) {
-                const { index } = edge;
-                // `!placed` now means only "this edge is mid-teardown", which is a state lasting
-                // less than one statement. It used to mean "this edge outlived the node it was
-                // attached to", and forcing those visible is what made a removed node's edges
-                // permanently on screen with no filter able to reach them -- removing a node now
-                // removes them instead.
-                const placed = index !== INVALID_INDEX;
-
-                edge.setRenderVisible(edgeVisibility === null || !placed || edgeVisibility.has(index));
-                edge.setSelected(edgeSelection !== null && placed && edgeSelection.has(index));
-            }
+        if (edgesMoved && edgeSelectionOnly) {
+            this.applyEdgeSelection(edgeSelection);
+        } else if (edgesMoved) {
+            this.applyEdgeMasks(edgeVisibility, edgeSelection);
         }
 
         this.appliedNodeSelection = nodeSelectionVersion;
@@ -456,6 +488,188 @@ export class UpdateManager implements Manager {
         this.appliedEdgeVisibility = edgeVisibilityVersion;
         this.appliedShowContext = showContext;
         this.appliedAnything = true;
+    }
+
+    /**
+     * Show, hide, select and deselect every node to match the masks.
+     * @param nodeVisibility - The visible nodes, or null when nothing hides.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     * @param showContext - Whether hidden nodes are drawn faintly.
+     */
+    private applyNodeMasks(
+        nodeVisibility: ElementMask<NodeId> | null,
+        nodeSelection: ElementMask<NodeId> | null,
+        showContext: boolean,
+    ): void {
+        const hiddenState: NodeRenderState = showContext ? "context" : "hidden";
+        this.drawnSelectedNodes.clear();
+
+        for (const node of this.dataManager.nodes.values()) {
+            const { index } = node;
+            const placed = index !== INVALID_INDEX;
+            const visible = nodeVisibility === null || !placed || nodeVisibility.has(index);
+            const selected = nodeSelection !== null && placed && nodeSelection.has(index);
+
+            node.setRenderState(visible ? "visible" : hiddenState);
+            node.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedNodes.add(node);
+            }
+        }
+    }
+
+    /**
+     * Bring only the selected state of the nodes into line with the selection mask: the nodes
+     * drawn selected last time and the mask's members, the same states a full walk would write.
+     * @param nodeSelection - The selected nodes, or null when nothing is selected.
+     */
+    private applyNodeSelection(nodeSelection: ElementMask<NodeId> | null): void {
+        const next = new Set<Node>();
+
+        // `ids()` reads the bytes with an indexed loop, the same reach as the write that moved
+        // the mask; the per-element work below is one lookup per member.
+        for (const id of nodeSelection?.ids() ?? []) {
+            const node = this.dataManager.nodes.get(id);
+            if (node && node.index !== INVALID_INDEX && nodeSelection?.has(node.index) === true) {
+                next.add(node);
+            }
+        }
+
+        for (const node of this.drawnSelectedNodes) {
+            if (!next.has(node)) {
+                node.setSelected(false);
+            }
+        }
+
+        for (const node of next) {
+            node.setSelected(true);
+        }
+
+        this.drawnSelectedNodes = next;
+    }
+
+    /**
+     * Bring only the selected state of the edges into line with the selection mask; see
+     * {@link UpdateManager.applyNodeSelection}.
+     * @param edgeSelection - The selected edges, or null when nothing is selected.
+     */
+    private applyEdgeSelection(edgeSelection: ElementMask<EdgeId> | null): void {
+        const next = new Set<Edge>();
+
+        edgeSelection?.forEachMember((index) => {
+            const edge = this.dataManager.edgesByIndex[index];
+            if (edge) {
+                next.add(edge);
+            }
+        });
+
+        for (const edge of this.drawnSelectedEdges) {
+            if (!next.has(edge)) {
+                edge.setSelected(false);
+            }
+        }
+
+        for (const edge of next) {
+            edge.setSelected(true);
+        }
+
+        this.drawnSelectedEdges = next;
+    }
+
+    /**
+     * Show, hide, select and deselect every edge to match the masks, and force the next edge walk
+     * when any edge was revealed.
+     * @param edgeVisibility - The visible edges, or null when nothing hides.
+     * @param edgeSelection - The selected edges, or null when nothing is selected.
+     */
+    private applyEdgeMasks(
+        edgeVisibility: ElementMask<EdgeId> | null,
+        edgeSelection: ElementMask<EdgeId> | null,
+    ): void {
+        let revealed = false;
+        this.drawnSelectedEdges.clear();
+
+        for (const edge of this.dataManager.edges.values()) {
+            const { index } = edge;
+            // `!placed` now means only "this edge is mid-teardown", which is a state lasting
+            // less than one statement. It used to mean "this edge outlived the node it was
+            // attached to", and forcing those visible is what made a removed node's edges
+            // permanently on screen with no filter able to reach them -- removing a node now
+            // removes them instead.
+            const placed = index !== INVALID_INDEX;
+
+            const visible = edgeVisibility === null || !placed || edgeVisibility.has(index);
+
+            if (edge.setRenderVisible(visible) && visible) {
+                revealed = true;
+            }
+
+            const selected = edgeSelection !== null && placed && edgeSelection.has(index);
+            edge.setSelected(selected);
+            if (selected) {
+                this.drawnSelectedEdges.add(edge);
+            }
+        }
+
+        // A REVEALED EDGE IS PLACED BY ITS NEXT UPDATE, not by being shown: hiding collapsed
+        // its line slot and its caps, and showing only invalidates its endpoint cache. Nothing
+        // moved, so without this the walk is skipped and the edge stays collapsed -- a filter
+        // undone drew its edges as gone.
+        if (revealed) {
+            this.forceEdgeWalk();
+        }
+    }
+
+    /**
+     * Which halves of the scene the masks have moved since they were last applied.
+     * @param nodeSelection - The node selection mask's version now.
+     * @param edgeSelection - The edge selection mask's version now.
+     * @param nodeVisibility - The node visibility mask's version now.
+     * @param edgeVisibility - The edge visibility mask's version now.
+     * @param showContext - Whether hidden nodes are drawn faintly now.
+     * @returns Whether the nodes and whether the edges need the masks applied again.
+     */
+    private viewMasksMoved(
+        nodeSelection: number,
+        edgeSelection: number,
+        nodeVisibility: number,
+        edgeVisibility: number,
+        showContext: boolean,
+    ): { nodesMoved: boolean; edgesMoved: boolean } {
+        return {
+            nodesMoved:
+                !this.appliedAnything ||
+                nodeSelection !== this.appliedNodeSelection ||
+                nodeVisibility !== this.appliedNodeVisibility ||
+                showContext !== this.appliedShowContext,
+            edgesMoved:
+                !this.appliedAnything ||
+                edgeSelection !== this.appliedEdgeSelection ||
+                edgeVisibility !== this.appliedEdgeVisibility,
+        };
+    }
+
+    /**
+     * Whether a filter, a time window or a selection has changed since the last pass drew it.
+     *
+     * The masks reach the meshes on the NEXT pass, so between `visibility.set` resolving and that
+     * pass the frame on screen still shows the old answer. Without this the picture read as final
+     * the whole time, and `waitForStableFrame()` returned with the filtered-out nodes still drawn.
+     * Reading a mask resyncs it, the same read the next pass makes.
+     * @returns True when the masks hold an answer the meshes do not show yet.
+     */
+    private viewMasksPending(): boolean {
+        const masks = this.viewMasks ?? EMPTY_MASKS;
+        this.followElementSets();
+        const { nodesMoved, edgesMoved } = this.viewMasksMoved(
+            masks.selection?.nodes().version ?? NO_MASK_VERSION,
+            masks.selection?.edges().version ?? NO_MASK_VERSION,
+            masks.visibility?.nodes().version ?? NO_MASK_VERSION,
+            masks.visibility?.edges().version ?? NO_MASK_VERSION,
+            masks.showContext?.() ?? false,
+        );
+
+        return nodesMoved || edgesMoved;
     }
 
     /**
@@ -486,6 +700,11 @@ export class UpdateManager implements Manager {
             return;
         }
 
+        // A repaint can change a node's SIZE, which moves where its edges have to stop without
+        // moving the node at all, and it can change an edge's own appearance. Either way the
+        // next frame has to visit every edge, whatever the node positions say.
+        this.forceEdgeWalk();
+
         const nodes = painter.takeNodes();
         const edges = painter.takeEdges();
 
@@ -495,18 +714,17 @@ export class UpdateManager implements Manager {
             // below it is still bounded by the dirty set. A dense index array beside
             // `edgesByIndex` would remove even the walk.
             const wanted = new Set(nodes);
+            const painted: [Node, NodePaint][] = [];
 
             for (const node of this.dataManager.nodes.values()) {
-                if (!wanted.has(node.index)) {
-                    continue;
-                }
-
-                const paint = painter.nodePaint(node.index);
+                const paint = wanted.has(node.index) ? painter.nodePaint(node.index) : null;
 
                 if (paint !== null) {
-                    node.applySessionPaint(paint);
+                    painted.push([node, paint]);
                 }
             }
+
+            this.paintNodes(painted);
         }
 
         for (const index of edges) {
@@ -529,6 +747,41 @@ export class UpdateManager implements Manager {
     }
 
     /**
+     * Hand each node its paint, at a cost in proportion to the nodes rather than to the scene.
+     *
+     * A node whose paint changes its source mesh disposes its mesh, its label and its drag
+     * handler, and Babylon takes each of those out of scene-wide lists one search at a time; a
+     * node whose size or shape changes also used to walk every edge to find its own. Restyling
+     * every node's shape cost the size of the graph per node (issue #2749). So the meshes about to
+     * go are all disposed first, inside the bulk teardown the data manager removes nodes with, the
+     * new ones are built after it, and the edges of the resized nodes are found in one walk.
+     * @param painted - Each node and the paint it is to be drawn with.
+     */
+    private paintNodes(painted: readonly [Node, NodePaint][]): void {
+        const rebuilt = painted.filter(([node, paint]) => nodeRebuildsFor(node, paint)).map(([node]) => node);
+        disposeReleased(rebuilt, [], () => {
+            for (const node of rebuilt) {
+                releaseNodeMesh(node);
+            }
+        });
+        const resized = collectResizedNodes(() => {
+            for (const [node, paint] of painted) {
+                node.applySessionPaint(paint);
+            }
+        });
+
+        if (resized.size === 0) {
+            return;
+        }
+
+        for (const edge of this.dataManager.edges.values()) {
+            if (resized.has(edge.srcNode) || resized.has(edge.dstNode)) {
+                edge.invalidatePositionCache();
+            }
+        }
+    }
+
+    /**
      * Frame the whole graph on the next frame that has something to measure.
      *
      * The request is HONOURED rather than merely permitted. Everything below this line paces the
@@ -536,10 +789,13 @@ export class UpdateManager implements Manager {
      * every frame once the layout has stopped -- so routing an explicit request through it made
      * `Graph.zoomToFit()` silent from the first settlement onwards, and made the element's own
      * "re-frame now that the layout has truly settled" call dead on arrival.
+     * @param explicit - True when a consumer asked, so {@link UpdateManager.stopAutoZoomToFit}
+     *   leaves the request standing.
      */
-    enableZoomToFit(): void {
+    enableZoomToFit(explicit = false): void {
         this.needsZoomToFit = true;
         this.forceZoomToFit = true;
+        this.explicitZoomToFit ||= explicit;
         // Whatever an earlier pass found to frame, this request has not been answered yet.
         this.framingHasNothingToFrame = false;
         // Only reset the layout step count if we haven't zoomed yet
@@ -559,6 +815,18 @@ export class UpdateManager implements Manager {
         // An outstanding request goes with it, so switching auto-framing back on later does not
         // spend a re-frame somebody asked for before it was switched off.
         this.forceZoomToFit = false;
+        this.explicitZoomToFit = false;
+    }
+
+    /**
+     * Stop the element's own framing -- the follow of a moving layout and any request the element
+     * made itself -- but keep a consumer's outstanding `zoomToFit()`, which is answered once.
+     */
+    stopAutoZoomToFit(): void {
+        this.needsZoomToFit = false;
+        if (!this.explicitZoomToFit) {
+            this.forceZoomToFit = false;
+        }
     }
 
     /**
@@ -677,6 +945,14 @@ export class UpdateManager implements Manager {
             return "the camera has not finished framing the graph";
         }
 
+        if (this.viewMasksPending()) {
+            return "a filter or a selection has not been drawn yet";
+        }
+
+        if (this.followingSelection) {
+            return "the camera is still moving to the selection";
+        }
+
         if (!this.everyDrawnMeshIsReady()) {
             return "a mesh is still waiting for its shader";
         }
@@ -722,6 +998,11 @@ export class UpdateManager implements Manager {
         // An outstanding framing request only means the camera is about to move if there is
         // something for it to frame; see `framingHasNothingToFrame`.
         if (this.willZoomToFit() && !this.framingHasNothingToFrame) {
+            return false;
+        }
+
+        // A filter or a selection the meshes have not been handed yet; see `viewMasksPending`.
+        if (this.viewMasksPending() || this.followingSelection) {
             return false;
         }
 
@@ -818,7 +1099,7 @@ export class UpdateManager implements Manager {
         }
 
         this.drawnFrameIsFinished = true;
-        this.eventManager.emitGraphEvent("graph-frame-stable", { frames: this.frameCount });
+        this.eventManager.emit("graph-frame-stable", { frames: this.frameCount });
     }
 
     /**
@@ -845,12 +1126,44 @@ export class UpdateManager implements Manager {
 
         this.runUpdatePass(frameMs);
 
+        // AFTER the pass and BEFORE the frame is drawn, so a change this pass made is drawn on
+        // this frame rather than on the next one.
+        this.settleActiveMeshFreeze();
+
         this.stateIsFinished = this.pictureIsFinished();
 
         if (!this.stateIsFinished) {
             // Something is moving again, so whatever was drawn before is no longer the last word.
             this.drawnFrameIsFinished = false;
         }
+    }
+
+    /**
+     * With `camera.pivotOnSelection` on, hands the camera the plain average of the selected
+     * nodes' positions to pivot on, every frame, so it follows them while they move.
+     *
+     * Not while the element is still framing the graph, which places the camera itself until it
+     * is done, and not while a selected node is being dragged: a camera following the node under
+     * the pointer would carry the drag along with it.
+     */
+    private followSelection(): void {
+        this.followingSelection = false;
+        if (!this.graphContext.getStyles().config.behavior.camera.pivotOnSelection || this.willZoomToFit()) {
+            return;
+        }
+
+        const nodes = this.graphContext.getSelectionManager?.()?.getSelectedNodes() ?? [];
+        if (nodes.length === 0 || nodes.some((node) => node.dragging)) {
+            return;
+        }
+
+        const center = nodes[0].mesh.position.clone();
+        for (const node of nodes.slice(1)) {
+            center.addInPlace(node.mesh.position);
+        }
+
+        // A camera still gliding to the selection is a picture that is not final yet.
+        this.followingSelection = this.camera.followPoint(center.scaleInPlace(1 / nodes.length));
     }
 
     /**
@@ -866,8 +1179,17 @@ export class UpdateManager implements Manager {
 
         // And before the bounding box is measured for a second reason: a style pass can change a
         // node's SIZE, and zooming to fit a graph whose sizes have just changed must frame what
-        // is about to be drawn rather than what was drawn last frame.
-        this.syncStyles();
+        // is about to be drawn rather than what was drawn last frame. A repaint that takes a label
+        // off, or rebuilds, every element releases all those labels in one pass (issue #2762).
+        disposeLabelsTogether(() => {
+            this.syncStyles();
+        });
+        // Nothing painted is left to apply: a frame drawn now shows every element's style.
+        if (this.graphContext.getStylePainter?.()?.hasPending !== true) {
+            this.dataManager.notePaintDrawn();
+        }
+
+        this.followSelection();
 
         // Always update camera
         this.camera.update();
@@ -944,7 +1266,7 @@ export class UpdateManager implements Manager {
      *
      * Bounded twice, so a frame that is slow BECAUSE of stepping cannot feed itself: never more
      * than {@link MAX_CATCH_UP_ROUNDS} rounds, and no extra round once stepping has used half of
-     * `frameMs`. A simulation layout keeps its one batch a frame (see below).
+     * `frameMs`. An accelerated simulation layout keeps its one batch a frame (see below).
      * @param frameMs - How long the previous frame took; 0 takes one round.
      */
     private updateLayout(frameMs: number): void {
@@ -953,39 +1275,41 @@ export class UpdateManager implements Manager {
 
         const { stepMultiplier, minDelta } = this.graphContext.getStyles().config.behavior.layout;
 
-        if (this.layoutManager.layoutEngine instanceof SimulationLayoutEngine) {
-            // ONE batch per frame. The simulation computes `iterationsPerStep` iterations inside
-            // it, so this is the same amount of work the loop below does on the CPU -- and on an
-            // accelerator it is the one shape that lets the device coalesce rather than queue.
-            const before = minDelta > 0 ? this.enginePositions() : null;
-            this.layoutManager.stepBatch();
-            this.layoutStepCount++;
+        // A simulation computes a whole round's `iterationsPerStep` iterations in ONE batch, so a
+        // round is one call. On an accelerator it keeps ONE batch per frame, the one shape that
+        // lets the device coalesce rather than queue; on the CPU a batch is synchronous and catches
+        // up like any other engine, or a 100-iteration ForceAtlas2 drawn at six frames a second
+        // took 17 s to settle.
+        const { layoutEngine } = this.layoutManager;
+        const simulation = layoutEngine instanceof SimulationLayoutEngine;
+        const accelerated = simulation && layoutEngine.isAccelerated;
+        const rounds = accelerated
+            ? 1
+            : Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
+        const started = rounds > 1 ? performance.now() : 0;
 
-            if (before !== null && this.largestMove(before) < minDelta) {
-                this.layoutManager.running = false;
+        for (let round = 0; round < rounds; round++) {
+            // A settled engine has nothing left to catch up on.
+            const engine = this.layoutManager.layoutEngine;
+            if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
+                break;
             }
-        } else {
-            const rounds = Math.min(MAX_CATCH_UP_ROUNDS, Math.max(1, Math.floor(frameMs / NOMINAL_FRAME_MS)));
-            const started = rounds > 1 ? performance.now() : 0;
 
-            for (let round = 0; round < rounds; round++) {
-                // A settled engine has nothing left to catch up on.
-                const engine = this.layoutManager.layoutEngine;
-                if (round > 0 && (!engine || engine.isSettled || performance.now() - started > frameMs / 2)) {
-                    break;
-                }
+            const before = minDelta > 0 ? this.enginePositions() : null;
 
-                const before = minDelta > 0 ? this.enginePositions() : null;
-
+            if (simulation) {
+                this.layoutManager.stepBatch();
+                this.layoutStepCount++;
+            } else {
                 for (let i = 0; i < stepMultiplier; i++) {
                     this.layoutManager.step();
                     this.layoutStepCount++;
                 }
+            }
 
-                if (before !== null && this.largestMove(before) < minDelta) {
-                    this.layoutManager.running = false;
-                    break;
-                }
+            if (before !== null && this.largestMove(before) < minDelta) {
+                this.layoutManager.running = false;
+                break;
             }
         }
 
@@ -1067,6 +1391,10 @@ export class UpdateManager implements Manager {
     private updateNodes(): void {
         this.statsManager.nodeUpdate.beginMonitoring();
 
+        // Groups following their members are placed on the box their members now make, before
+        // anything is drawn.
+        this.layoutManager.placeGroups();
+
         for (const node of this.layoutManager.nodes) {
             // The mesh position is updated by node.update()
             node.update();
@@ -1087,18 +1415,289 @@ export class UpdateManager implements Manager {
     /**
      * Update all edges.
      */
+    /** Set when something other than a node position means every edge has to be visited. */
+    private edgeWalkForced = true;
+
+    /** How many edges the last walk saw, so an added or removed one forces the next. */
+    private lastWalkedEdgeCount = -1;
+
+    /** Where each node's mesh sat at the last edge walk, as x, y, z per node index. */
+    private lastNodePositions = new Float64Array(0);
+
+    /** Set by anything in this frame that changed what is drawn. See `settleActiveMeshFreeze`. */
+    private sceneChanged = true;
+
+    /** Whether a freeze of the list of what is visible was asked for and not withdrawn since. */
+    private activeMeshesFrozen = false;
+
+    /** Counts freeze requests and changes, so a freeze Babylon runs late knows it was withdrawn. */
+    private freezeRequest = 0;
+
+    /** The camera's view and projection stamps at the last frame, or null before the first. */
+    private lastCameraState: readonly number[] | null = null;
+
+    /** How many meshes the scene held last frame, so one appearing or going unfreezes it. */
+    private lastMeshCount = -1;
+
     private updateEdges(): void {
         this.statsManager.edgeUpdate.beginMonitoring();
 
-        // Update rays for all edges (static method on Edge class)
-        Edge.updateRays(this.graphContext);
-
-        // Update individual edges
-        for (const edge of this.layoutManager.edges) {
-            edge.update();
+        if (this.edgesNeedWalking()) {
+            // Each edge aims its own ray, inside the branch that fires it, so an edge that has not
+            // moved costs nothing here. A pass over the whole graph used to aim all of them first.
+            for (const edge of this.layoutManager.edges) {
+                edge.update();
+            }
         }
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /**
+     * Whether this frame has to visit every edge at all.
+     *
+     * WHY THIS EXISTS. An edge that has not moved decides so in a few field reads, but the graph
+     * is walked whether or not anything moved, and at the declared ceiling that walk is a million
+     * edges: measured at 207 ms a frame on a graph standing perfectly still, against 41 ms for
+     * everything Babylon does to draw it. The walk is the cost, not the decision inside it, so the
+     * only fix is not to walk.
+     *
+     * WHY IT ASKS THE NODES RATHER THAN BEING TOLD. A flag set wherever something moves cannot be
+     * trusted: a node's position is written by the layout, by a drag (which Babylon's own drag
+     * behaviour writes straight onto the mesh, through no method of ours), by the two-dimensional
+     * mode switch, and by a restore. Missing one of those would leave edges hanging in mid-air
+     * with nothing in a test to catch which writer was forgotten. Reading the positions cannot
+     * miss a writer, and it is a walk of the NODES -- a hundred thousand where the edges are a
+     * million, and ten edges per node is the shape of every graph this is about.
+     * @returns True when at least one endpoint may have moved, or the graph itself has changed.
+     */
+    private edgesNeedWalking(): boolean {
+        if (this.edgeWalkForced) {
+            this.edgeWalkForced = false;
+            this.lastWalkedEdgeCount = -1;
+            this.sceneChanged = true;
+
+            return true;
+        }
+
+        // An edge added or removed since the last walk has never been placed, or has left a
+        // neighbour's slot behind. Read off the array's own length -- COUNTING BY ITERATING would
+        // be the million-edge walk this method exists to avoid. A layout engine that hands back
+        // something that is not an array cannot be counted cheaply, so it always walks.
+        const { edges } = this.layoutManager;
+        const edgeCount = Array.isArray(edges) ? edges.length : -1;
+
+        if (edgeCount < 0 || edgeCount !== this.lastWalkedEdgeCount) {
+            this.lastWalkedEdgeCount = edgeCount;
+            this.sceneChanged = true;
+
+            return true;
+        }
+
+        if (this.anyNodeMoved()) {
+            this.sceneChanged = true;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether any node's mesh sits somewhere other than where it sat at the last edge walk.
+     *
+     * The positions are kept in one typed array rather than a vector per node, so the scan is a
+     * linear read of three floats against three floats and allocates nothing. A node whose index
+     * is past the end of the array has never been seen, which counts as moved and grows the array.
+     * @returns True when at least one node has moved.
+     */
+    private anyNodeMoved(): boolean {
+        let moved = false;
+        let highest = -1;
+
+        for (const node of this.layoutManager.nodes) {
+            const { index } = node;
+
+            if (index === INVALID_INDEX) {
+                moved = true;
+                continue;
+            }
+
+            if (index > highest) {
+                highest = index;
+            }
+
+            const at = index * 3;
+
+            if (at + 2 >= this.lastNodePositions.length) {
+                moved = true;
+                continue;
+            }
+
+            const { position } = node.mesh;
+
+            if (
+                this.lastNodePositions[at] !== position.x ||
+                this.lastNodePositions[at + 1] !== position.y ||
+                this.lastNodePositions[at + 2] !== position.z
+            ) {
+                moved = true;
+            }
+        }
+
+        if (!moved) {
+            return false;
+        }
+
+        if ((highest + 1) * 3 > this.lastNodePositions.length) {
+            const grown = new Float64Array(Math.max((highest + 1) * 3, this.lastNodePositions.length * 2, 96));
+            grown.set(this.lastNodePositions);
+            this.lastNodePositions = grown;
+        }
+
+        for (const node of this.layoutManager.nodes) {
+            const { index } = node;
+
+            if (index === INVALID_INDEX) {
+                continue;
+            }
+
+            const at = index * 3;
+            const { position } = node.mesh;
+
+            this.lastNodePositions[at] = position.x;
+            this.lastNodePositions[at + 1] = position.y;
+            this.lastNodePositions[at + 2] = position.z;
+        }
+
+        return true;
+    }
+
+    /**
+     * Make the next frame visit every edge, whatever the nodes say.
+     *
+     * Called when something other than a position has changed what an edge should draw: a style
+     * pass has repainted, or the dataset has been replaced. A repaint can change a node's SIZE,
+     * which moves where its edges have to stop without moving the node at all.
+     */
+    forceEdgeWalk(): void {
+        this.edgeWalkForced = true;
+        this.sceneChanged = true;
+    }
+
+    /**
+     * Freeze or unfreeze Babylon's list of what is drawn, according to whether this frame changed
+     * anything.
+     *
+     * WHAT FREEZING BUYS. Unfrozen, Babylon walks every mesh in the scene each frame to decide
+     * what is visible, and then copies and uploads a world matrix for every instance whether or
+     * not it moved -- at a hundred thousand nodes that is a walk of a hundred thousand meshes and
+     * 6.4 MB of matrices, measured at 44.7 ms and about 12 ms a frame on a graph that is standing
+     * perfectly still. Frozen, both are skipped.
+     *
+     * WHAT IT COSTS IF IT IS WRONG. A frozen scene draws the list it cached: a node that moves
+     * appears stuck, one that is hidden stays on screen, one that is added never appears, and one
+     * that the camera turns towards is missing because it was culled when the list was taken. So
+     * everything that can change any of those has to say so, and this method trusts nothing it was
+     * not told -- except movement, which it reads off the nodes themselves in `anyNodeMoved`, and
+     * the camera, which it reads here. The frame is drawn AFTER this runs, so an unfreeze decided
+     * here takes effect on the same frame that needed it.
+     */
+    private settleActiveMeshFreeze(): void {
+        const scene = this.graphContext.getScene();
+
+        // A MESH THAT APPEARED IS A CHANGE NOBODY TELLS US ABOUT. A tooltip, a label, a highlight
+        // and an effect are all built on demand, by code that has no idea this manager exists, and
+        // a frozen scene draws the list it cached -- so the new mesh is simply absent, or is drawn
+        // in the wrong order because the cached render groups were sorted without it. That is not
+        // hypothetical: it took `test/browser/label-drawn-over-edges.test.ts` red, with an edge
+        // drawn over the tooltip it is meant to sit behind. Counting the scene's meshes is one
+        // integer a frame and cannot miss one being made or disposed.
+        const meshCount = scene.meshes.length;
+        const structureChanged = meshCount !== this.lastMeshCount;
+
+        this.lastMeshCount = meshCount;
+
+        const changed = this.sceneChanged || structureChanged || this.cameraMoved();
+
+        this.sceneChanged = false;
+
+        if (changed) {
+            // Withdraws a freeze Babylon has not run yet; see below.
+            this.freezeRequest++;
+
+            if (this.activeMeshesFrozen) {
+                scene.unfreezeActiveMeshes();
+                this.activeMeshesFrozen = false;
+            }
+
+            return;
+        }
+
+        if (!this.activeMeshesFrozen) {
+            // A NEW RENDER ID FIRST. Freezing walks the scene and registers every instance in the
+            // list of visible instances kept under the CURRENT render id. Between frames that id is
+            // still the last frame's, whose list already holds every instance, so without this each
+            // instance is listed twice and every frozen frame draws it twice -- invisible on an
+            // opaque node, a doubled blend on a translucent one. Babylon bumps the id the same way
+            // before it evaluates the scene outside a render (`Scene._checkIsReady`).
+            scene.incrementRenderId();
+            this.activeMeshesFrozen = true;
+
+            // A FREEZE CAN LAND LATER THAN IT WAS ASKED FOR. Babylon freezes inside
+            // `executeWhenReady`, which waits for its next 100 ms poll whenever the scene is not
+            // ready -- a shader still compiling, or another caller's poll already pending -- and
+            // `unfreezeActiveMeshes` does not cancel a freeze that is still waiting. So a change
+            // made in between unfroze nothing, the poll then froze the list as it stood, and this
+            // manager, believing the scene unfrozen, never unfroze it: the next mesh the scene
+            // built was missing from the list and was not drawn. A layer taken off an edge lost
+            // the edge's rebuilt line that way (test/browser/a-late-freeze-does-not-hide-a-rebuilt-mesh.test.ts).
+            // A freeze that lands after a change withdrew it is undone at once.
+            //
+            // AND ITS WALK IS RETIRED WITH IT. The freeze asked for after the change waits on the
+            // same poll and walks the scene right after the withdrawn one, under the same render
+            // id -- into the list the withdrawn walk just filled -- so the frozen frames after it
+            // drew instances twice (test/browser/frozen-frame-draws-each-instance-once.test.ts).
+            // A new render id gives the next walk a list of its own.
+            const request = ++this.freezeRequest;
+            scene.freezeActiveMeshes(false, () => {
+                if (request !== this.freezeRequest) {
+                    scene.unfreezeActiveMeshes();
+                    scene.incrementRenderId();
+                }
+            });
+        }
+    }
+
+    /**
+     * Whether the camera is looking at something other than what it looked at last frame.
+     *
+     * Read rather than signalled, because a camera is moved by a reader's mouse, by an animation,
+     * by zoom-to-fit and by the XR rig, and a frozen scene keeps whatever was inside the frustum
+     * when it froze. Six numbers cover the orbit camera the element uses and the free cameras.
+     * @returns True when the view has changed.
+     */
+    private cameraMoved(): boolean {
+        const camera = this.graphContext.getScene().activeCamera;
+
+        if (!camera) {
+            return true;
+        }
+
+        // ASKED OF THE MATRICES, NOT OF THE CAMERA'S FIELDS. Which fields describe a camera
+        // depends on which camera it is -- an arc-rotate camera has an angle, a radius and a
+        // target, a universal camera has a position and a rotation -- and the element uses more
+        // than one. Reading the wrong fields does not fail loudly: it reports a still camera
+        // while the reader is orbiting, and a frozen scene then draws the list it cached. Babylon
+        // stamps every matrix with an `updateFlag` that increments whenever it is rebuilt, so two
+        // integers answer for every camera there is, and for a zoom as well as a turn.
+        const view = camera.getViewMatrix().updateFlag;
+        const projection = camera.getProjectionMatrix().updateFlag;
+        const before = this.lastCameraState;
+
+        this.lastCameraState = [view, projection];
+
+        return before?.[0] !== view || before[1] !== projection;
     }
 
     /**
@@ -1110,7 +1709,7 @@ export class UpdateManager implements Manager {
      * @returns True when this frame will re-frame the camera, given a box to frame.
      */
     private willZoomToFit(): boolean {
-        if (!this.needsZoomToFit) {
+        if (!this.needsZoomToFit && !this.forceZoomToFit) {
             return false;
         }
 
@@ -1197,6 +1796,7 @@ export class UpdateManager implements Manager {
 
         this.hasZoomedToFit = true;
         this.forceZoomToFit = false;
+        this.explicitZoomToFit = false;
         this.framingHasNothingToFrame = false;
         this.lastZoomStep = this.layoutStepCount;
 
@@ -1206,7 +1806,7 @@ export class UpdateManager implements Manager {
         }
 
         // Emit zoom complete event
-        this.eventManager.emitGraphEvent("zoom-to-fit-complete", {
+        this.eventManager.emit("zoom-to-fit-complete", {
             boundingBoxMin,
             boundingBoxMax,
         });

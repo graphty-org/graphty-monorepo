@@ -40,9 +40,11 @@ const flies = async (canvasElement: HTMLElement, story: string, mode: "2d" | "3d
     // does not move at all -- so reading only the position would report the 2D presets as inert
     // when they are working.
     const where = (): string => {
-        const camera = scene.graph.scene.activeCamera as
-            | { position: { x: number; y: number; z: number }; orthoLeft?: number | null; orthoTop?: number | null }
-            | null;
+        const camera = scene.graph.scene.activeCamera as {
+            position: { x: number; y: number; z: number };
+            orthoLeft?: number | null;
+            orthoTop?: number | null;
+        } | null;
 
         return [camera?.position.x, camera?.position.y, camera?.position.z, camera?.orthoLeft, camera?.orthoTop]
             .map((value) => (typeof value === "number" ? value.toFixed(3) : "-"))

@@ -14,7 +14,7 @@ import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helper
  * @param opts - which fixture to load
  * @returns the mock graph
  */
- 
+
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     return createMockGraph(opts);
 }
@@ -81,10 +81,16 @@ describe("EigenvectorCentralityAlgorithm", () => {
                 for (let col = 0; col < 30; col++) {
                     nodes.push({ id: `${String(row)},${String(col)}` });
                     if (col < 29) {
-                        edges.push({ srcId: `${String(row)},${String(col)}`, dstId: `${String(row)},${String(col + 1)}` });
+                        edges.push({
+                            srcId: `${String(row)},${String(col)}`,
+                            dstId: `${String(row)},${String(col + 1)}`,
+                        });
                     }
                     if (row < 29) {
-                        edges.push({ srcId: `${String(row)},${String(col)}`, dstId: `${String(row + 1)},${String(col)}` });
+                        edges.push({
+                            srcId: `${String(row)},${String(col)}`,
+                            dstId: `${String(row + 1)},${String(col)}`,
+                        });
                     }
                 }
             }
@@ -108,7 +114,11 @@ describe("EigenvectorCentralityAlgorithm", () => {
             assert.strictEqual(thrown.code, "E_NOT_CONVERGED");
             assert.strictEqual(thrown.source, "run");
             assert.deepStrictEqual(thrown.target, { kind: "run", id: "eigen_grid" });
-            assert.deepInclude(thrown.details, { algorithm: "graphty:eigenvector", maxIterations: 20, tolerance: 1e-6 });
+            assert.deepInclude(thrown.details, {
+                algorithm: "graphty:eigenvector",
+                maxIterations: 20,
+                tolerance: 1e-6,
+            });
             assert.include(thrown.message, "did not converge in 20 iterations");
             assert.include(thrown.message, "maxIterations");
             assert.isUndefined(algo.result, "an unconverged run publishes nothing");

@@ -2,8 +2,8 @@
 // Post-process generated TypeDoc markdown to escape angle brackets
 // that would otherwise break VitePress Vue template parsing.
 
-import { readdir, readFile, writeFile } from "fs/promises";
-import { join, extname } from "path";
+import { readdir, readFile, writeFile } from "node:fs/promises";
+import { join, extname } from "node:path";
 
 const DOCS_API_DIR = "./docs/api/generated";
 
@@ -39,7 +39,7 @@ async function processFile(filePath) {
                 // but be careful not to affect markdown links [text](url)
                 return part
                     .replace(/([A-Z][a-zA-Z0-9]*)<([A-Za-z][A-Za-z0-9[\]., ]*?)>/g, "$1\\<$2\\>")
-                    .replace(/<([A-Z][a-zA-Z0-9]*)>/g, "\\<$1\\>");
+                    .replaceAll(/<([A-Z][a-zA-Z0-9]*)>/g, String.raw`\<$1\>`);
             }
             return part;
         });

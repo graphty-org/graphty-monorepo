@@ -388,8 +388,14 @@ describe("frame loop in Chromium (spec 11.4 last bullet: also on SwiftShader and
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser();
         expectAdapterMatchesFlagSet(ctx);
-        const { snapshot, k } = await calibrateFlight(ctx, browserScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", browserScale());
         const n = snapshot.nodeCount;
+        // No calibrated batch length and no measured tick rate: what this case pins is a COUNT and an ORDER --
+        // exactly the batches in flight land, nothing is submitted while the caller is paused, and the run
+        // resumes where it stopped. runFrameLoop fills the flight at the pause tick instead of waiting for a
+        // tick that happens to start saturated, so none of that depends on a batch outlasting a tick gap.
+        const k = 4;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
         const options = {
             seed: 7,
             maxIter: 1_000_000,
@@ -418,18 +424,19 @@ describe("frame loop in Chromium (spec 11.4 last bullet: also on SwiftShader and
                 }
             },
         });
-        expect(report.errors).toEqual([]);
+        expect(report.errors.map(String)).toEqual([]);
         expect(report.submissionsDuringPause).toBe(0);
         expect(report.settledAtTick).toBeNull();
-        const pauseStart = inFlightByTick.findIndex((v, i) => i >= pauseAt && v === 2);
+        expect(report.maxObservedInFlight).toBe(2);
+        const [pauseStart, pauseEnd] = [report.pauseStartTick ?? -1, report.pauseEndTick ?? -1];
         expect(pauseStart).toBeGreaterThanOrEqual(pauseAt);
-        expect(pauseStart + PAUSE).toBeLessThan(600);
+        expect(pauseEnd).toBeGreaterThanOrEqual(pauseStart + PAUSE); // the window's floor; longer if the box stalled
         const atPause = report.iterationsDoneByTick[pauseStart];
-        const afterPause = report.iterationsDoneByTick[pauseStart + PAUSE];
+        const afterPause = report.iterationsDoneByTick[pauseEnd];
         expect(afterPause - atPause).toBe(2 * k);
-        expect(inFlightByTick[pauseStart + PAUSE]).toBe(0);
+        expect(inFlightByTick[pauseEnd]).toBe(0);
         expectMonotone(report.iterationsDoneByTick);
-        expect(report.iterationsDoneByTick[599]).toBeGreaterThan(afterPause);
+        expect(report.iterationsDoneByTick.at(-1)).toBeGreaterThan(afterPause);
         await sim.flush();
         expect(sim.iterationsDone).toBe(report.submissions * k);
         const maxIteration = Math.max(...sampled.keys());

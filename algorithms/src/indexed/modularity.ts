@@ -1,5 +1,7 @@
 import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
+
 /** Options of the index-based modularity. @public */
 export interface ModularityOptions {
     /** Resolution gamma: above 1 favours smaller communities; default 1. */
@@ -36,10 +38,16 @@ export function modularity(s: AdjacencyView, labels: U32, options: ModularityOpt
     const resolution = options.resolution ?? 1;
     const weights = options.weights ?? s.weights;
     if (labels.length !== s.nodeCount) {
-        throw new RangeError(`labels has ${labels.length} entries; the snapshot has ${s.nodeCount} nodes`);
+        throw withCode(
+            new RangeError(`labels has ${labels.length} entries; the snapshot has ${s.nodeCount} nodes`),
+            "E_BAD_OPTION",
+        );
     }
     if (weights !== null && weights.length !== s.arcCount) {
-        throw new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`);
+        throw withCode(
+            new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),
+            "E_BAD_OPTION",
+        );
     }
     const tot = new Map<number, number>();
     const inside = new Map<number, number>();

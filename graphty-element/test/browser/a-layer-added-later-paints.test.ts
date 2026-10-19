@@ -49,12 +49,6 @@ const WIDTH = 480;
 /** How tall it is. */
 const HEIGHT = 360;
 
-/** How many frames to render before reading one. */
-const FRAMES = 8;
-
-/** How long to leave between them. */
-const FRAME_MS = 10;
-
 /** How many buckets the histogram has: four bits per channel, three channels. */
 const BUCKETS = 16 * 16 * 16;
 
@@ -105,7 +99,7 @@ describe("a layer written to a graph that is already drawn", () => {
             },
         });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -117,14 +111,11 @@ describe("a layer written to a graph that is already drawn", () => {
      * @returns How many pixels fall in each coarse colour bucket.
      */
     async function frame(): Promise<Uint32Array> {
-        await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // The element's own word that the picture is final -- the queue drained, the layout
+        // converged, the paint applied and every shader compiled -- then one more frame so
+        // the buffer read below is a frame of that picture.
+        await graph.waitForStableFrame();
+        graph.scene.render();
 
         const { engine } = graph;
         const pixels = (await engine.readPixels(
@@ -192,7 +183,7 @@ describe("a layer written to a graph that is already drawn", () => {
         ["a node's glow", "node", { "node.glow": "#ff00ff" }],
     ] as const) {
         it(`changes the frame: ${what}`, async () => {
-            const { onWriting, afterRemoving } = await paintsOnALiveGraph(target, set as StaticStyle);
+            const { onWriting, afterRemoving } = await paintsOnALiveGraph(target, set);
 
             assert.isAbove(
                 onWriting,
@@ -210,6 +201,28 @@ describe("a layer written to a graph that is already drawn", () => {
             );
         });
     }
+
+    it("does not change the frame: a glow's strength with no glow under it", async () => {
+        // A strength only scales a glow colour some layer set. On its own it used to switch glow
+        // on with the renderer's white fallback, on every node the layer painted (#2068).
+        const before = await frame();
+        const strengthOnly = await session.styles.add({
+            name: "strength only",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.glowStrength": 8 },
+        });
+        const after = await frame();
+
+        await session.styles.remove(strengthOnly.id);
+        await operationQueueOf(graph).waitForCompletion();
+
+        assert.isAtMost(
+            moved(before, after),
+            PIXEL_CHANGE,
+            `A glow strength with no glow colour moved ${String(moved(before, after))} pixels: it drew a glow.`,
+        );
+    });
 
     it("changes the frame: a glow's strength, over a graph that is already glowing", async () => {
         // THE GLOW IS ALREADY ON SCREEN BEFORE THE STRENGTH IS WRITTEN, and that is the whole of

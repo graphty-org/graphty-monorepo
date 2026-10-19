@@ -6,7 +6,17 @@
 
 import { GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
+import { manageAccelerator } from "../managed.js";
 import type { GpuContextOptions, ProbeResult } from "../types/context.js";
+import type { AcquireAcceleratorOptions, ManagedAccelerator } from "../types/managed.js";
+
+export type {
+    AcceleratorDeclined,
+    AcceleratorReady,
+    AcquireAcceleratorOptions,
+    AcquireResult,
+    ManagedAccelerator,
+} from "../types/managed.js";
 
 /** Options of the browser helpers (spec 3.4); a type alias, not an empty `extends` interface, which strictTypeChecked's no-empty-object-type (allowInterfaces "never") reports. */
 export type BrowserGpuOptions = Omit<GpuContextOptions, "gpu" | "device" | "runtime">;
@@ -54,4 +64,31 @@ export function requestGpuContext(options?: BrowserGpuOptions): Promise<GpuConte
         );
     }
     return GpuContext.create({ powerPreference: "high-performance", ...options, gpu, runtime: "browser" });
+}
+
+/**
+ * The managed accelerator on navigator.gpu: probe, context, device self-check and accelerator on the first
+ * `current()`, a new device after a loss, disposal by `dispose()`. A software adapter is declined unless
+ * `acceptSoftware` is set. The same function as the `./acquire` subpath resolves to in a browser.
+ * @param options - see AcquireAcceleratorOptions; `adapter` is ignored here
+ * @returns the handle; nothing is probed until `current()` is called
+ */
+export function acquireAccelerator(options?: AcquireAcceleratorOptions): ManagedAccelerator {
+    return manageAccelerator(
+        {
+            probe: (o, rejectSoftware) => probeBrowserWebGpu({ powerPreference: o.powerPreference, rejectSoftware }),
+            open: (o, probe, rejectSoftware) =>
+                requestGpuContext({
+                    adapter: probe.adapter ?? undefined,
+                    powerPreference: o.powerPreference,
+                    rejectSoftware,
+                    warnUnreleasedSnapshots: o.warnUnreleasedSnapshots,
+                }),
+            noWebGpuFix: () =>
+                (globalThis as { isSecureContext?: boolean }).isSecureContext === false
+                    ? "serve the page over https or from localhost: WebGPU needs a secure context"
+                    : null,
+        },
+        options,
+    );
 }

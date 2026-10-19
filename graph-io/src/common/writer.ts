@@ -6,14 +6,19 @@
  * `ReadableStream<Uint8Array>` for a caller that wants a stream.
  */
 
+import { GraphFormatError } from "@graphty/graph-format";
+
 /**
  * Text parts an exporter produces.
- * Consumed by the per-format importers and exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export type TextParts = Iterable<string> | AsyncIterable<string>;
 
-/** The target size of one encoded chunk; parts are coalesced up to it and never split. */
+/**
+ * The target size of one encoded chunk; parts are coalesced up to it and never split.
+ * @category Plugin helpers
+ */
 export const DEFAULT_CHUNK_BYTES = 64 * 1024;
 
 /**
@@ -24,6 +29,7 @@ export const DEFAULT_CHUNK_BYTES = 64 * 1024;
  * @param chunkBytes - the target chunk size in bytes
  * @yields UTF-8 chunks
  * @returns nothing
+ * @category Writing a format
  */
 export async function* encodeChunks(
     parts: TextParts,
@@ -54,6 +60,7 @@ export async function* encodeChunks(
  * Join text parts into one string.
  * @param parts - the text parts
  * @returns the whole document
+ * @category Writing a format
  */
 export async function joinText(parts: TextParts): Promise<string> {
     const collected: string[] = [];
@@ -67,6 +74,7 @@ export async function joinText(parts: TextParts): Promise<string> {
  * Decode UTF-8 chunks back into one string (for tests and for callers holding an export() result).
  * @param chunks - the chunks
  * @returns the decoded text
+ * @category Plugin helpers
  */
 export async function decodeChunks(chunks: AsyncIterable<Uint8Array>): Promise<string> {
     const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -82,6 +90,7 @@ export async function decodeChunks(chunks: AsyncIterable<Uint8Array>): Promise<s
  * Collect UTF-8 chunks into one Uint8Array.
  * @param chunks - the chunks
  * @returns the concatenated bytes
+ * @category Plugin helpers
  */
 export async function collectBytes(chunks: AsyncIterable<Uint8Array>): Promise<Uint8Array> {
     const parts: Uint8Array[] = [];
@@ -101,9 +110,10 @@ export async function collectBytes(chunks: AsyncIterable<Uint8Array>): Promise<U
 
 /**
  * Wrap an async iterable of chunks as a ReadableStream, pulling one chunk per read and cancelling
- * the iterable when the stream is cancelled.
+ * the iterable when the stream is canceled.
  * @param chunks - the chunks
  * @returns a byte stream
+ * @category Saving
  */
 export function toReadableStream(chunks: AsyncIterable<Uint8Array>): ReadableStream<Uint8Array> {
     const iterator = chunks[Symbol.asyncIterator]();
@@ -120,4 +130,28 @@ export function toReadableStream(chunks: AsyncIterable<Uint8Array>): ReadableStr
             await iterator.return?.(undefined);
         },
     });
+}
+
+/**
+ * The indentation of one nesting level from an `indent` option: a number of spaces (0 to 16), or
+ * the text itself (spaces or tabs). The JSON and DOT exporters take the same option this way.
+ * @param value - the option value
+ * @param fallback - the indentation when the option is not given
+ * @returns the text of one level; "" for none
+ */
+export function indentUnit(value: unknown, fallback: string): string {
+    if (value === undefined) {
+        return fallback;
+    }
+    if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 16) {
+        return " ".repeat(value);
+    }
+    if (typeof value === "string" && /^[ \t]{0,16}$/.test(value)) {
+        return value;
+    }
+    throw new GraphFormatError(
+        "E_UNSUPPORTED",
+        `option indent: ${typeof value === "string" || typeof value === "number" ? JSON.stringify(value) : typeof value} is not a number of spaces (0 to 16) or a string of spaces or tabs`,
+        { option: "indent", found: typeof value === "string" || typeof value === "number" ? value : typeof value },
+    );
 }

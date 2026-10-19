@@ -12,7 +12,7 @@ import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helper
  * @param opts - which fixture to load
  * @returns the mock graph
  */
- 
+
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     return createMockGraph(opts);
 }

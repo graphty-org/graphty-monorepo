@@ -20,13 +20,14 @@
  */
 
 import type { CameraState } from "../../camera/types";
-import type { RunId, SetId } from "../../catalog/types";
+import type { MeasurementDeclaration, RunId, SetId } from "../../catalog/types";
 import { retentionOf } from "../results/RunResult";
 import { recordBytes } from "../sets/prepare";
 import type { ElementSet } from "../sets/types";
 import type { CompiledLayer } from "../styles/Layer";
 import { mergeRowPatches, type RowPatch, rowPatchBytes } from "./arrangement";
 import type { TouchedIds } from "./graphOps";
+import type { Counted } from "./History";
 import type { LayoutChoice, NoteEntry, ProjectState, RunEntry, VisibilityState } from "./state";
 import { strictStateEnabled, strictViolation } from "./strict";
 
@@ -34,7 +35,7 @@ import { strictStateEnabled, strictViolation } from "./strict";
 export const ABSENT: unique symbol = Symbol("absent");
 
 /** The slices a draft writes by value. */
-type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes";
+type ValueSlice = "config" | "layout" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
 
 /** One key a patch wrote: what it held before, and what the patch left in it. */
 interface PatchEntry {
@@ -182,18 +183,25 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
     }
 
     for (const entry of patch.entries) {
-        if (entry.slice !== "sets") {
-            continue;
+        if (entry.slice === "sets") {
+            touchedBySet(entry, into);
         }
+    }
+}
 
-        for (const record of [entry.prior, entry.next]) {
-            // ponytail: only a fixed set names its node members; a rule or a path set would need
-            // resolving here against a snapshot, and none of the history paths does that yet.
-            const definition = record === ABSENT || record === undefined ? null : (record as ElementSet).definition;
-            if (definition?.kind === "fixed") {
-                for (const id of definition.nodes ?? []) {
-                    into.node(id);
-                }
+/**
+ * Report the node members of a fixed set a patch entry wrote or removed, prior then next.
+ * @param entry - A `sets` entry of the patch.
+ * @param into - Where to report them.
+ */
+function touchedBySet(entry: PatchEntry, into: TouchedIds): void {
+    for (const record of [entry.prior, entry.next]) {
+        // ponytail: only a fixed set names its node members; a rule or a path set would need
+        // resolving here against a snapshot, and none of the history paths does that yet.
+        const definition = record === ABSENT || record === undefined ? null : (record as ElementSet).definition;
+        if (definition?.kind === "fixed") {
+            for (const id of definition.nodes ?? []) {
+                into.node(id);
             }
         }
     }
@@ -206,55 +214,79 @@ export function touchedBy(patch: Patch, into: TouchedIds): void {
  * @param patch - The patch.
  * @param token - The resident snapshot's graph token.
  * @param seen - Results and indexes already counted against an older step.
+ * @param tokens - Where to add the graph token of every snapshot id index a result counted here
+ *     reads through: only for those does whether the index costs anything depend on `token`.
  * @returns Bytes.
  */
-export function patchCharge(patch: Patch, token: number, seen: WeakSet<object>): number {
+export function patchCharge(patch: Patch, token: number, seen: Counted, tokens?: Set<number>): number {
     let bytes = 0;
     for (const entry of patch.entries) {
-        if (entry.slice === "sets") {
-            // A kept set's record, held by reference and shared by every step that has it: a
-            // member edit keeps both whole records, 8 bytes a node member and the edge columns.
-            for (const value of [entry.prior, entry.next]) {
-                if (value !== ABSENT && value !== undefined && !seen.has(value as object)) {
-                    seen.add(value as object);
-                    bytes += recordBytes(value as ElementSet);
-                }
-            }
-
-            continue;
-        }
-
-        if (entry.slice === "notes") {
-            // A note's record, held by reference and shared by every step that has it.
-            for (const value of [entry.prior, entry.next]) {
-                if (value !== ABSENT && value !== undefined && !seen.has(value as object)) {
-                    seen.add(value as object);
-                    bytes += noteBytes((value as NoteEntry).note);
-                }
-            }
-
-            continue;
-        }
-
-        if (entry.slice !== "runs") {
-            continue;
-        }
-
         for (const value of [entry.prior, entry.next]) {
-            const result = value === ABSENT ? undefined : (value as RunEntry).result;
-            if (result === undefined || seen.has(result)) {
+            if (value === ABSENT || value === undefined) {
                 continue;
             }
 
-            seen.add(result);
-            const retained = retentionOf(result);
-            bytes += retained.bytes;
-            for (const index of retained.indexes) {
-                if (index.token !== token && !seen.has(index.index)) {
-                    seen.add(index.index);
-                    bytes += index.bytes;
-                }
+            if (entry.slice === "sets") {
+                // A kept set's record, held by reference and shared by every step that has it: a
+                // member edit keeps both whole records, 8 bytes a node member and the edge columns.
+                bytes += once(value as object, seen, () => recordBytes(value as ElementSet));
+            } else if (entry.slice === "notes") {
+                // A note's record, held by reference and shared by every step that has it.
+                bytes += once(value as object, seen, () => noteBytes((value as NoteEntry).note));
+            } else if (entry.slice === "runs") {
+                bytes += resultCharge((value as RunEntry).result, token, seen, tokens);
             }
+        }
+    }
+
+    return bytes;
+}
+
+/**
+ * What something held by reference costs the first time a charge pass meets it.
+ * @param value - The thing.
+ * @param seen - What the pass has counted.
+ * @param bytes - What it costs.
+ * @returns Its cost, or 0 when it was counted already.
+ */
+function once(value: object, seen: Counted, bytes: () => number): number {
+    if (seen.has(value)) {
+        return 0;
+    }
+
+    seen.add(value);
+    return bytes();
+}
+
+/**
+ * What a run result retains, the first time a charge pass meets it: its columns and caches, and
+ * each id index it reads through that is not the resident snapshot's.
+ * @param result - The result, if the run has one.
+ * @param token - The resident snapshot's graph token.
+ * @param seen - What the pass has counted.
+ * @param tokens - Where to add the graph token of every snapshot id index the result reads through.
+ * @returns Bytes.
+ */
+function resultCharge(
+    result: RunEntry["result"] | undefined,
+    token: number,
+    seen: Counted,
+    tokens?: Set<number>,
+): number {
+    if (result === undefined || seen.has(result)) {
+        return 0;
+    }
+
+    seen.add(result);
+    const retained = retentionOf(result);
+    let { bytes } = retained;
+    for (const index of retained.indexes) {
+        if (index.token !== null) {
+            tokens?.add(index.token);
+        }
+
+        if (index.token !== token) {
+            bytes += once(index.index, seen, () => index.bytes);
         }
     }
 
@@ -294,6 +326,7 @@ export interface Draft {
     readonly sets: KeyedWriter<SetId, ElementSet>;
     readonly views: KeyedWriter<string, CameraState>;
     readonly notes: KeyedWriter<string, NoteEntry>;
+    readonly attributes: KeyedWriter<string, MeasurementDeclaration>;
     readonly visibility: {
         set<K extends keyof VisibilityState>(key: K, value: VisibilityState[K]): void;
     };
@@ -340,12 +373,39 @@ interface OpenEntry {
     next: unknown;
 }
 
+/** What a key's entry held just before a change, for the checkpoints taken before it. */
+interface JournalRecord {
+    readonly id: string;
+    /** Whether the draft held the key. */
+    readonly had: boolean;
+    /** Its `next` then, when it did. */
+    readonly next: unknown;
+}
+
 /** The mutable side of one open draft. */
 interface OpenDraft {
     readonly entries: Map<string, OpenEntry>;
     readonly log: OpLogEntry[];
     rows: RowPatch | null;
     closed: boolean;
+    /**
+     * What each key held before its first change after each checkpoint, oldest first; null until
+     * the first checkpoint is taken. A checkpoint is a position in it, so taking one costs nothing
+     * however many keys the draft holds, and a transaction of ten thousand members is not
+     * quadratic in its own writes. A revert needs only the first record of each key after its
+     * position, so a key gets one record per checkpoint at most, not one per write.
+     *
+     * Memory: the journal lives as long as the draft, because a checkpoint has no release and an
+     * earlier checkpoint's revert may still need any record. It holds one value per key per
+     * checkpoint the key was written after. A transaction whose every member rewrites a slice
+     * kept as one value (`styles`, a `visibility` field) keeps every member's prior of it until
+     * the transaction closes; snapshot checkpoints held each only while that member ran.
+     */
+    journal: JournalRecord[] | null;
+    /** The journal's length when the latest checkpoint was taken. */
+    mark: number;
+    /** Where in the journal each key was last recorded. */
+    recorded: Map<string, number>;
 }
 
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
@@ -368,6 +428,7 @@ export function createProjectStore(
         sets: state.sets as Map<string, unknown>,
         views: state.views as Map<string, unknown>,
         notes: state.notes as Map<string, unknown>,
+        attributes: state.attributes as Map<string, unknown>,
     };
     /** Which open draft holds each key, by `slice/key`. */
     const owners = new Map<string, OpenDraft>();
@@ -408,12 +469,35 @@ export function createProjectStore(
         }
     };
 
+    /**
+     * Record what a key's entry holds before it changes, when a checkpoint may need it back.
+     * @param draft - The draft whose entry changes.
+     * @param id - The key, as `slice/key`.
+     */
+    const journal = (draft: OpenDraft, id: string): void => {
+        if (draft.journal === null) {
+            return;
+        }
+
+        // Recorded since the latest checkpoint: that record is already the first after every
+        // checkpoint, since every one of them was taken at or before the latest.
+        const last = draft.recorded.get(id);
+        if (last !== undefined && last >= draft.mark) {
+            return;
+        }
+
+        const entry = draft.entries.get(id);
+        draft.recorded.set(id, draft.journal.length);
+        draft.journal.push({ id, had: entry !== undefined, next: entry?.next });
+    };
+
     const write = (draft: OpenDraft, slice: ValueSlice, key: string, value: unknown): void => {
         if (draft.closed) {
             throw new Error(`A closed draft cannot write ${slice}/${key}.`);
         }
 
         const id = `${slice}/${key}`;
+        journal(draft, id);
         let entry = draft.entries.get(id);
         if (entry === undefined) {
             const holder = owners.get(id);
@@ -423,6 +507,7 @@ export function createProjectStore(
             } else {
                 // Hand-over: the earlier open draft gives up the key and its prior.
                 prior = holder.entries.get(id)?.prior;
+                journal(holder, id);
                 holder.entries.delete(id);
             }
 
@@ -465,7 +550,15 @@ export function createProjectStore(
     const store: ProjectStore = {
         state,
         open(): Draft {
-            const draft: OpenDraft = { entries: new Map(), log: [], rows: null, closed: false };
+            const draft: OpenDraft = {
+                entries: new Map(),
+                log: [],
+                rows: null,
+                closed: false,
+                journal: null,
+                mark: 0,
+                recorded: new Map(),
+            };
             openDrafts.add(draft);
             const seal = (): Patch => {
                 close(draft);
@@ -495,6 +588,7 @@ export function createProjectStore(
                 sets: keyed(draft, "sets"),
                 views: keyed(draft, "views"),
                 notes: keyed(draft, "notes"),
+                attributes: keyed(draft, "attributes"),
                 visibility: {
                     set: (key, value) => {
                         write(draft, "visibility", key, value);
@@ -521,7 +615,10 @@ export function createProjectStore(
                     return patch;
                 },
                 checkpoint() {
-                    const saved = new Map([...draft.entries].map(([id, entry]) => [id, entry.next]));
+                    draft.journal ??= [];
+                    const records = draft.journal;
+                    const mark = records.length;
+                    draft.mark = mark;
                     const logged = draft.log.length;
 
                     return () => {
@@ -531,14 +628,30 @@ export function createProjectStore(
                             changed.add(entry.slice);
                         }
 
-                        for (const [id, entry] of draft.entries) {
-                            if (!saved.has(id)) {
+                        // Each key changed since the mark, as it was at the mark: its first record.
+                        const saved = new Map<string, JournalRecord>();
+                        for (let at = mark; at < records.length; at++) {
+                            if (!saved.has(records[at].id)) {
+                                saved.set(records[at].id, records[at]);
+                            }
+                        }
+
+                        for (const [id, record] of saved) {
+                            const entry = draft.entries.get(id);
+                            if (entry === undefined) {
+                                // Handed to another draft since, or already reverted: not ours.
+                                continue;
+                            }
+
+                            if (!record.had) {
+                                journal(draft, id);
                                 put(entry.slice, entry.key, entry.prior);
                                 draft.entries.delete(id);
                                 owners.delete(id);
                                 changed.add(entry.slice);
-                            } else if (saved.get(id) !== entry.next) {
-                                entry.next = saved.get(id);
+                            } else if (record.next !== entry.next) {
+                                journal(draft, id);
+                                entry.next = record.next;
                                 put(entry.slice, entry.key, entry.next);
                                 changed.add(entry.slice);
                             }

@@ -33,6 +33,7 @@
 import { SCALE_DESCRIPTORS } from "../../catalog/scales";
 import type { PaletteDescriptor, ScaleDescriptor } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { clamp } from "../../utils/clamp";
 
 // ---------------------------------------------------------------------------------------------
 // What a scale is handed
@@ -133,17 +134,6 @@ function asCategory(value: unknown): string | null {
     }
 
     return null;
-}
-
-/**
- * Hold a number inside an interval.
- * @param value - The number.
- * @param low - The lower bound.
- * @param high - The upper bound.
- * @returns The number, moved to the nearest bound when it was outside.
- */
-function clamp(value: number, low: number, high: number): number {
-    return Math.max(low, Math.min(high, value));
 }
 
 /**
@@ -459,7 +449,7 @@ export function quantileThresholds(values: Iterable<number>, groups: number): nu
         const below = Math.floor(at);
         const above = Math.min(below + 1, sorted.length - 1);
         const cut = sorted[below] + (sorted[above] - sorted[below]) * (at - below);
-        const separates = cut > sorted[0] && (cuts.length === 0 || cuts[cuts.length - 1] !== cut);
+        const separates = cut > sorted[0] && (cuts.length === 0 || cuts.at(-1) !== cut);
         if (separates) {
             cuts.push(cut);
         }

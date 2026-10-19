@@ -1,0 +1,30 @@
+digraph G {
+node [style=filled]
+n0 [fillcolor="0.5 0.5 0.5", color="0.5 0.5 0.5", fontcolor="0.5 0.5 0.5"]
+n1 [fillcolor="0.5,0.5,0.5", color="0.5,0.5,0.5", fontcolor="0.5,0.5,0.5"]
+n2 [fillcolor="#f00", color="#f00", fontcolor="#f00"]
+n3 [fillcolor="#ff000080", color="#ff000080", fontcolor="#ff000080"]
+n4 [fillcolor="red:blue", color="red:blue", fontcolor="red:blue"]
+n5 [fillcolor="red;0.3:blue", color="red;0.3:blue", fontcolor="red;0.3:blue"]
+n6 [fillcolor="/accent3/2", color="/accent3/2", fontcolor="/accent3/2"]
+n7 [fillcolor="transparent", color="transparent", fontcolor="transparent"]
+n8 [fillcolor="none", color="none", fontcolor="none"]
+n9 [fillcolor="Crimson", color="Crimson", fontcolor="Crimson"]
+n10 [fillcolor="CRIMSON", color="CRIMSON", fontcolor="CRIMSON"]
+n11 [fillcolor="grey50", color="grey50", fontcolor="grey50"]
+n12 [fillcolor="gray101", color="gray101", fontcolor="gray101"]
+n13 [fillcolor="invis", color="invis", fontcolor="invis"]
+n14 [fillcolor="/x11/red", color="/x11/red", fontcolor="/x11/red"]
+n15 [fillcolor="//green", color="//green", fontcolor="//green"]
+n16 [fillcolor="#ff0000ff00", color="#ff0000ff00", fontcolor="#ff0000ff00"]
+n17 [fillcolor="0.3 2 1", color="0.3 2 1", fontcolor="0.3 2 1"]
+n18 [fillcolor="1.0 1.0 1.0 0.5", color="1.0 1.0 1.0 0.5", fontcolor="1.0 1.0 1.0 0.5"]
+n19 [fillcolor="Black ", color="Black ", fontcolor="Black "]
+n20 [fillcolor="", color="", fontcolor=""]
+n21 [fillcolor="#FFFFFF", color="#FFFFFF", fontcolor="#FFFFFF"]
+n22 [fillcolor="lightgoldenrodyellow", color="lightgoldenrodyellow", fontcolor="lightgoldenrodyellow"]
+subgraph cluster_x { node [fillcolor=yellow]; c1; c2 [fillcolor=""]; }
+node [shape=box, style="filled,dashed,bold,rounded", penwidth=0]; s1; s2 [style=invis]; s3 [style="setlinewidth(4)"]; s4 [style=""];
+edge [dir=both, arrowhead=odiamondinv, arrowtail=lteeoldiamond]; s1 -> s3; s3 -> s4 [style=invis]; s4 -> s1 [arrowhead=none, color="red:green:blue"];
+t1 [label="\G \E \H \T \N \L"]; t2 [label=<<b>html &amp; entities</b><br/>x>]; t3 [label="a\lb\rc"];
+}

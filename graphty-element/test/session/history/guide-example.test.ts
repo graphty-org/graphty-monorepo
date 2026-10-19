@@ -22,8 +22,12 @@ describe("the undo guide's example", () => {
         await session.data.updateNodes([{ id: "a", values: { team: "red" } }]);
 
         assert.deepEqual(
-            session.history.steps.map((step) => step.label),
-            ["Added 3 nodes", "Added 2 edges", "Edited 1 node"],
+            session.history.steps.map((step) => step.fact),
+            [
+                { code: "data.add-nodes", params: { count: 3 } },
+                { code: "data.add-edges", params: { count: 2 } },
+                { code: "data.edit", params: { target: "node", count: 1 } },
+            ],
         );
         assert.isTrue(session.canUndo);
         assert.strictEqual(session.history.nextUndo?.kind, "undo");

@@ -1,6 +1,7 @@
-import { type AdjacencyView, INVALID_INDEX, type U32 } from "@graphty/graph-format";
+import { type AdjacencyView, INVALID_INDEX, type NodeRef, type U32 } from "@graphty/graph-format";
 
-import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget } from "./bfs.js";
+import { withCode } from "../errors.js";
+import { type ArcOrderOption, checkArcOrder, checkStart, checkTarget, treePaths } from "./bfs.js";
 import { IntUnionFind } from "./structures/union-find.js";
 
 /** Result of the index-based DFS. @public */
@@ -13,16 +14,32 @@ export interface DfsResult {
     readonly depth: U32;
     /** How many nodes were visited. */
     readonly visitedCount: number;
+    /**
+     * The ARC each node was discovered through (`colIdx[predArc[v]] === v`), INVALID_INDEX for the start node and
+     * for unvisited nodes. `arcToEdge[predArc[v]]` is the tree edge, the exact one among parallel edges.
+     */
+    readonly predArc: U32;
+    /**
+     * Node indices along the DFS tree from the start to `target` inclusive; empty when `target` was not visited.
+     * @param target - The node to walk back from: its index, or `{ id }`
+     */
+    pathTo(target: NodeRef): U32;
+    /**
+     * LOGICAL EDGE indices of the tree edges along that path, one fewer than `pathTo`; empty when `target` was not
+     * visited.
+     * @param target - The node to walk back from: its index, or `{ id }`
+     */
+    pathEdges(target: NodeRef): U32;
 }
 
 /** Options of the index-based DFS. @public */
 export interface DfsOptions extends ArcOrderOption {
     /**
-     * Stop the whole walk as soon as this node index is visited. Pre-order only: a post-order walk
+     * Stop the whole walk as soon as this node (an index, or `{ id }`) is visited. Pre-order only: a post-order walk
      * always runs to the end, since a node's post-order place is known only once its subtree is done.
      * @throws RangeError when it is not a node index
      */
-    readonly target?: number | undefined;
+    readonly target?: NodeRef | undefined;
     /** "pre" (default) lists a node when it is first reached, "post" when its subtree is finished. */
     readonly order?: "pre" | "post" | undefined;
 }
@@ -35,6 +52,7 @@ const DONE = 2;
 interface Walk {
     readonly state: Uint8Array;
     readonly parent: U32;
+    readonly predArc: U32;
     readonly depth: U32;
     readonly cursor: U32;
     readonly stack: U32;
@@ -50,6 +68,7 @@ function newWalk(nodeCount: number): Walk {
     return {
         state: new Uint8Array(nodeCount),
         parent: new Uint32Array(nodeCount).fill(INVALID_INDEX),
+        predArc: new Uint32Array(nodeCount).fill(INVALID_INDEX),
         depth: new Uint32Array(nodeCount).fill(INVALID_INDEX),
         cursor: new Uint32Array(nodeCount),
         stack: new Uint32Array(nodeCount),
@@ -62,6 +81,36 @@ function newWalk(nodeCount: number): Walk {
 }
 
 /**
+ * Follow `u`'s next untried arc: open its head when it is new (recording the tree arc and the
+ * pre-order), and note a back arc when the head is still open.
+ * @param g - The adjacency being walked
+ * @param u - The node whose cursor has an untried arc
+ * @param w - The shared walk state
+ * @param arcOrder - The order to try each row's arcs in; null for row order
+ * @returns The newly opened node, or INVALID_INDEX when the arc led to a node already seen
+ */
+function followNextArc(g: AdjacencyView, u: number, w: Walk, arcOrder: U32 | null): number {
+    const { rowPtr, colIdx } = g;
+    const { state, parent, predArc, depth, cursor, pre } = w;
+    const i = cursor[u]++;
+    const a = arcOrder === null ? i : arcOrder[i];
+    const v = colIdx[a];
+    if (state[v] === NEW) {
+        state[v] = OPEN;
+        parent[v] = u;
+        predArc[v] = a;
+        depth[v] = depth[u] + 1;
+        cursor[v] = rowPtr[v];
+        pre[w.preCount++] = v;
+        return v;
+    }
+    if (state[v] === OPEN) {
+        w.backArc = true;
+    }
+    return INVALID_INDEX;
+}
+
+/**
  * Iterative DFS from `root` with an explicit arc cursor per node, so the walk tries neighbours in
  * row order (or `arcOrder`) exactly as a recursive DFS would and never overflows the call stack.
  * @param g - The adjacency to walk
@@ -71,8 +120,8 @@ function newWalk(nodeCount: number): Walk {
  * @param arcOrder - The order to try each row's arcs in; null for row order
  */
 function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOrder: U32 | null): void {
-    const { rowPtr, colIdx } = g;
-    const { state, parent, depth, cursor, stack, pre, post } = w;
+    const { rowPtr } = g;
+    const { state, depth, cursor, stack, pre, post } = w;
     let top = 0;
     state[root] = OPEN;
     depth[root] = 0;
@@ -85,20 +134,12 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
     while (top > 0) {
         const u = stack[top - 1];
         if (cursor[u] < rowPtr[u + 1]) {
-            const a = cursor[u]++;
-            const v = colIdx[arcOrder === null ? a : arcOrder[a]];
-            if (state[v] === NEW) {
-                state[v] = OPEN;
-                parent[v] = u;
-                depth[v] = depth[u] + 1;
-                cursor[v] = rowPtr[v];
-                pre[w.preCount++] = v;
+            const v = followNextArc(g, u, w, arcOrder);
+            if (v !== INVALID_INDEX) {
                 stack[top++] = v;
                 if (v === target) {
                     return;
                 }
-            } else if (state[v] === OPEN) {
-                w.backArc = true;
             }
         } else {
             state[u] = DONE;
@@ -113,20 +154,27 @@ function walkFrom(g: AdjacencyView, root: number, w: Walk, target: number, arcOr
  * `options.arcOrder` gives another. Takes any
  * `AdjacencyView`, so `s.reverse()` walks in-neighbours.
  * @param g - The adjacency to traverse
- * @param start - The node index to start from
+ * @param startNode - The node to start from: its index, or `{ id }`
  * @param options - Traversal options
  * @returns The visit order, the DFS tree as a parent array, the tree depths and the visited count
  * @public
  */
-export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOptions = {}): DfsResult {
-    checkStart(g, start);
+export function depthFirstSearch(g: AdjacencyView, startNode: NodeRef, options: DfsOptions = {}): DfsResult {
+    const start = checkStart(g, startNode);
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const target = checkTarget(g, options.target);
     const w = newWalk(g.nodeCount);
     const postOrder = options.order === "post";
     walkFrom(g, start, w, postOrder ? INVALID_INDEX : target, arcOrder);
     const order = postOrder ? w.post.subarray(0, w.postCount) : w.pre.subarray(0, w.preCount);
-    return { order, parent: w.parent, depth: w.depth, visitedCount: w.preCount };
+    return {
+        order,
+        parent: w.parent,
+        depth: w.depth,
+        visitedCount: w.preCount,
+        predArc: w.predArc,
+        ...treePaths(g, start, w.predArc),
+    };
 }
 
 /**
@@ -138,16 +186,33 @@ export function depthFirstSearch(g: AdjacencyView, start: number, options: DfsOp
  * @public
  */
 export function hasCycle(g: AdjacencyView): boolean {
-    const { nodeCount, rowPtr, colIdx } = g;
-    if (g.directed) {
-        const w = newWalk(nodeCount);
-        for (let r = 0; r < nodeCount && !w.backArc; r++) {
-            if (w.state[r] === NEW) {
-                walkFrom(g, r, w, INVALID_INDEX, null);
-            }
+    return g.directed ? hasDirectedCycle(g) : hasUndirectedCycle(g);
+}
+
+/**
+ * Whether a directed graph has a cycle: a DFS back arc from any root.
+ * @param g - A directed adjacency
+ * @returns True when a cycle exists
+ */
+function hasDirectedCycle(g: AdjacencyView): boolean {
+    const { nodeCount } = g;
+    const w = newWalk(nodeCount);
+    for (let r = 0; r < nodeCount && !w.backArc; r++) {
+        if (w.state[r] === NEW) {
+            walkFrom(g, r, w, INVALID_INDEX, null);
         }
-        return w.backArc;
     }
+    return w.backArc;
+}
+
+/**
+ * Whether an undirected graph has a cycle: a self-loop, or an edge closing a loop in a union-find
+ * forest. A parallel pair is not a cycle.
+ * @param g - An undirected adjacency
+ * @returns True when a cycle exists
+ */
+function hasUndirectedCycle(g: AdjacencyView): boolean {
+    const { nodeCount, rowPtr, colIdx } = g;
     const uf = new IntUnionFind(nodeCount);
     for (let u = 0; u < nodeCount; u++) {
         const end = rowPtr[u + 1];
@@ -176,7 +241,7 @@ export function hasCycle(g: AdjacencyView): boolean {
  */
 export function topologicalSort(g: AdjacencyView, options: ArcOrderOption = {}): U32 | null {
     if (!g.directed) {
-        throw new Error("Topological sort requires a directed graph");
+        throw withCode(new Error("Topological sort requires a directed graph"), "E_NEEDS_DIRECTED");
     }
     const arcOrder = checkArcOrder(g, options.arcOrder);
     const w = newWalk(g.nodeCount);

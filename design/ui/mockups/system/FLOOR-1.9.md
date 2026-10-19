@@ -32,12 +32,12 @@ sent the parameter back to the title, which is where 1.5 had found it.
 
 Measured widths at 11px, in the bands the Details chevron leaves:
 
-| string | width |
-|---|---|
-| `Louvain, seed 42, max passes 20, all 200 nodes` | 264.3 |
-| `Louvain, seed 42, 20 passes, all 200 nodes` | 236.8 |
-| `Louvain, seed 42, max passes 20, 200 nodes` | 248.0 |
-| **`Louvain, seed 42, 20 pass cap, 200 nodes`** | **231.3** |
+| string                                           | width     |
+| ------------------------------------------------ | --------- |
+| `Louvain, seed 42, max passes 20, all 200 nodes` | 264.3     |
+| `Louvain, seed 42, 20 passes, all 200 nodes`     | 236.8     |
+| `Louvain, seed 42, max passes 20, 200 nodes`     | 248.0     |
+| **`Louvain, seed 42, 20 pass cap, 200 nodes`**   | **231.3** |
 
 Drawn, one string on both copies of the record: `Louvain, seed 42, 20 pass cap,
 200 nodes`. The inspector's 235 px band holds it on one line. The panel card's
@@ -148,7 +148,7 @@ What the sweep cleared:
   method, a setting or a statistic. An explanation is not a reading and is
   allowed to be a hover; floor 1's sentences are all on screen.
 - **Unshipped controls.** Every control carrying a Coming tag or `Not built
-  yet` draws its name in words except the boxes fixed in 2.2 and 2.3 and the
+yet` draws its name in words except the boxes fixed in 2.2 and 2.3 and the
   cluster members recorded in 4.
 
 ## 4. Residuals, recorded rather than half-fixed

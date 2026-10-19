@@ -8,9 +8,14 @@ import {
     maskTest,
     type NodeId,
     type NodeMask,
+    type NodeRef,
     type NumericVector,
+    resolveNode,
     type U32,
 } from "@graphty/graph-format";
+
+import { withCode } from "../errors.js";
+import { type LabelResult, withGroups } from "./components.js";
 
 /** Options of {@link maxFlow} and {@link minSTCut}. @public */
 export interface MaxFlowOptions {
@@ -30,8 +35,33 @@ export interface MaxFlowOptions {
     readonly weights?: NumericVector | undefined;
 }
 
-/** Result of {@link maxFlow}. @public */
-export interface MaxFlowResult {
+/**
+ * The two sides of a cut as a partition in first-seen order: node 0's side is label 0.
+ * @param mask - One side, as a node mask
+ * @param n - The node count
+ * @returns The partition, with `count` 2 (1 when every node is on one side, 0 for no node)
+ */
+export function sidesPartition(mask: NodeMask, n: number): LabelResult {
+    const labels = new Uint32Array(n);
+    const first = n > 0 && maskTest(mask, 0);
+    let mixed = false;
+    for (let i = 0; i < n; i++) {
+        if (maskTest(mask, i) !== first) {
+            labels[i] = 1;
+            mixed = true;
+        }
+    }
+    if (n === 0) {
+        return withGroups(labels, 0);
+    }
+    return withGroups(labels, mixed ? 2 : 1);
+}
+
+/**
+ * Result of {@link maxFlow}. As a `LabelResult` it is the minimum cut's two sides, the source's side first.
+ * @public
+ */
+export interface MaxFlowResult extends LabelResult {
     /** The value of the maximum flow. */
     readonly maxFlow: number;
     /**
@@ -49,8 +79,12 @@ export interface MaxFlowResult {
     readonly cutEdges: U32;
 }
 
-/** Result of the index-based minimum cuts ({@link minSTCut}, `stoerWagner`, `kargerMinCut`). @public */
-export interface MinCutResult {
+/**
+ * Result of the index-based minimum cuts ({@link minSTCut}, `stoerWagner`, `kargerMinCut`). As a `LabelResult` it
+ * is the cut's two sides, node 0's side first.
+ * @public
+ */
+export interface MinCutResult extends LabelResult {
     /** The total weight of the cut. */
     readonly cutValue: number;
     /** One side of the cut; every other node is on the other side. */
@@ -210,61 +244,87 @@ function buildResidual(s: GraphSnapshot, capacity: Float64Array): Residual {
  * one edge can show more flow than its capacity; this port reports the net flow of the pair on
  * the edges in its direction instead, each within its capacity.
  * @param s - The snapshot
- * @param source - The source node index
- * @param sink - The sink node index
+ * @param sourceNode - The source node: its index, or `{ id }`
+ * @param sinkNode - The sink node: its index, or `{ id }`
  * @param options - The path search and the capacity override
  * @returns The flow value, the per-edge flows, the source side and the cut edges
  * @throws RangeError when `source` or `sink` is not a node index, or they are the same node
  * @public
  */
-export function maxFlow(s: GraphSnapshot, source: number, sink: number, options: MaxFlowOptions = {}): MaxFlowResult {
+export function maxFlow(
+    s: GraphSnapshot,
+    sourceNode: NodeRef,
+    sinkNode: NodeRef,
+    options: MaxFlowOptions = {},
+): MaxFlowResult {
+    const source = resolveNode(s, sourceNode);
+    const sink = resolveNode(s, sinkNode);
     const n = s.nodeCount;
     if (!(Number.isInteger(source) && source >= 0 && source < n && Number.isInteger(sink) && sink >= 0 && sink < n)) {
-        throw new RangeError(`source ${String(source)} and sink ${String(sink)} must be node indices below ${n}`);
+        throw withCode(
+            new RangeError(`source ${String(source)} and sink ${String(sink)} must be node indices below ${n}`),
+            "E_BAD_NODE",
+        );
     }
     if (source === sink) {
-        throw new RangeError(`source and sink are the same node (${source})`);
+        throw withCode(new RangeError(`source and sink are the same node (${source})`), "E_BAD_OPTION");
     }
     const capacity = edgeCapacities(s, options.weights);
     const r = buildResidual(s, capacity);
-    const { colIdx, twin } = r;
     // Flow pushed per real group, accumulated as the legacy flow Map accumulates it: a push along
     // a pair with a real arc adds to that pair, a push along a reverse-only pair subtracts from
     // the opposite one.
-    const pushed = new Float64Array(colIdx.length);
+    const pushed = new Float64Array(r.colIdx.length);
     const predGroup = new Uint32Array(n);
     const findPath = options.algorithm === "ford-fulkerson" ? depthFirstPath : breadthFirstPath;
     let total = 0;
     while (findPath(r, source, sink, predGroup)) {
-        let bottleneck = Infinity;
-        for (let v = sink; v !== source; v = colIdx[twin[predGroup[v]]]) {
-            bottleneck = Math.min(bottleneck, r.capacity[predGroup[v]]);
-        }
-        for (let v = sink; v !== source; ) {
-            const g = predGroup[v];
-            const t = twin[g];
-            r.capacity[g] -= bottleneck;
-            r.capacity[t] += bottleneck;
-            if (r.inOrder[t] === 0) {
-                r.inOrder[t] = 1;
-                r.order[r.rowPtr[v] + r.placed[v]++] = t;
-            }
-            if (r.real[g] === 1) {
-                pushed[g] += bottleneck;
-            } else {
-                pushed[t] -= bottleneck;
-            }
-            v = colIdx[t];
-        }
-        total += bottleneck;
+        total += augmentPath(r, source, sink, predGroup, pushed);
     }
     const sourceSide = reachable(r, source);
     return {
+        ...sidesPartition(sourceSide, s.nodeCount),
         maxFlow: total,
         flow: edgeFlows(s, r, capacity, pushed),
         sourceSide,
         cutEdges: crossingEdges(s, sourceSide, s.directed, capacity, true),
     };
+}
+
+/**
+ * Push the bottleneck of the path `findPath` left in `predGroup` along it: lower each arc's
+ * residual capacity, raise its twin's (placing the twin in its row's search order the first time
+ * it gains capacity), and add the push to the real group of each pair.
+ * @param r - The residual graph
+ * @param source - The source node
+ * @param sink - The sink node
+ * @param predGroup - The path, as the group each node was reached through
+ * @param pushed - Flow pushed per real group, updated in place
+ * @returns The bottleneck pushed
+ */
+function augmentPath(r: Residual, source: number, sink: number, predGroup: Uint32Array, pushed: Float64Array): number {
+    const { colIdx, twin } = r;
+    let bottleneck = Infinity;
+    for (let v = sink; v !== source; v = colIdx[twin[predGroup[v]]]) {
+        bottleneck = Math.min(bottleneck, r.capacity[predGroup[v]]);
+    }
+    for (let v = sink; v !== source;) {
+        const g = predGroup[v];
+        const t = twin[g];
+        r.capacity[g] -= bottleneck;
+        r.capacity[t] += bottleneck;
+        if (r.inOrder[t] === 0) {
+            r.inOrder[t] = 1;
+            r.order[r.rowPtr[v] + r.placed[v]++] = t;
+        }
+        if (r.real[g] === 1) {
+            pushed[g] += bottleneck;
+        } else {
+            pushed[t] -= bottleneck;
+        }
+        v = colIdx[t];
+    }
+    return bottleneck;
 }
 
 /**
@@ -325,16 +385,28 @@ function edgeFlows(s: GraphSnapshot, r: Residual, capacity: Float64Array, pushed
  * `"ford-fulkerson"`, as the legacy `minSTCut` uses: on weights that are not binary fractions
  * another search adds the bottlenecks in another order and the value can differ in its last bits.
  * @param s - The snapshot
- * @param source - The source node index
- * @param sink - The sink node index
+ * @param sourceNode - The source node: its index, or `{ id }`
+ * @param sinkNode - The sink node: its index, or `{ id }`
  * @param options - The path search and the capacity override
  * @returns The cut value, the source side and the cut edges
  * @throws RangeError as {@link maxFlow} does
  * @public
  */
-export function minSTCut(s: GraphSnapshot, source: number, sink: number, options: MaxFlowOptions = {}): MinCutResult {
+export function minSTCut(
+    s: GraphSnapshot,
+    sourceNode: NodeRef,
+    sinkNode: NodeRef,
+    options: MaxFlowOptions = {},
+): MinCutResult {
+    const source = resolveNode(s, sourceNode);
+    const sink = resolveNode(s, sinkNode);
     const r = maxFlow(s, source, sink, { ...options, algorithm: options.algorithm ?? "ford-fulkerson" });
-    return { cutValue: r.maxFlow, side: r.sourceSide, cutEdges: r.cutEdges };
+    return {
+        ...sidesPartition(r.sourceSide, s.nodeCount),
+        cutValue: r.maxFlow,
+        side: r.sourceSide,
+        cutEdges: r.cutEdges,
+    };
 }
 
 /**
@@ -477,7 +549,10 @@ export function bipartiteFlowNetwork(
     const b = new GraphBuilder({ directed: true, duplicateEdges: "first" });
     const add = (id: NodeId): number => {
         if (id === SOURCE_ID || id === SINK_ID) {
-            throw new RangeError(`node id "${id}" is reserved for the flow network's source or sink`);
+            throw withCode(
+                new RangeError(`node id "${id}" is reserved for the flow network's source or sink`),
+                "E_BAD_OPTION",
+            );
         }
         return b.addNode(id);
     };

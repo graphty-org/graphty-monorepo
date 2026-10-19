@@ -387,7 +387,7 @@ export class DerivedInputs {
                         `A scoped run needs about ${String(estimate)} bytes for its input, and the derived-input cache holds at most ` +
                         `${String(this.bound)}.`,
                     source: "run",
-                    details: { reason: "derived-input", estimate, bound: this.bound },
+                    details: { reason: "derived-input", estimate, bound: this.bound, limit: this.bound },
                 });
             }
 

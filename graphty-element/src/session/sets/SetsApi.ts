@@ -41,6 +41,7 @@ import type {
 import { canonicalEdgeEnds, edgeCounterOf, stableEdgeMember } from "../../data/edgeIdentity";
 import { readEndpoint } from "../../data/endpoints";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { quoteEach } from "../../utils/quote-each";
 import type { MintedSetCreateCommand, SetCommand, SetService } from "../commands/sets";
 import type { Dispatcher } from "../project/Dispatcher";
 import type { SessionAttributes } from "../types";
@@ -61,6 +62,7 @@ import type { Offering } from "./offers";
 import { pathKind } from "./path";
 import {
     defaultName,
+    edgeMemberKey,
     holdsEdgeMember,
     isPrebuilt,
     listedEdgesOf,
@@ -71,7 +73,6 @@ import {
     prepareRemove,
     prepareRename,
 } from "./prepare";
-import { edgeMemberKey } from "./resolve";
 import { statusOf, type StatusRun, type StatusSources } from "./status";
 import { SetsStore } from "./store";
 import type { ElementSet, Memberships, SetMemberDelta, SetOffer, SetsApi, SetStatus, SetUser } from "./types";
@@ -391,7 +392,7 @@ export function createSetsApi(
         const cycle = setCycle(id, definition, references);
         if (cycle !== null) {
             throw refuseChain(
-                `This definition reaches the set it is written to through ${cycle.map((step) => `"${step}"`).join(", ")}, so it would contain ` +
+                `This definition reaches the set it is written to through ${quoteEach(cycle, ", ")}, so it would contain ` +
                     "itself. Create a set from the current members instead.",
                 id,
                 "cycle",
@@ -483,7 +484,7 @@ export function createSetsApi(
         if (reading !== undefined && !(EDGE_READINGS as readonly unknown[]).includes(reading)) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
-                message: `A reading is one of ${EDGE_READINGS.map((value) => `"${value}"`).join(", ")}, not ${JSON.stringify(reading)}.`,
+                message: `A reading is one of ${quoteEach(EDGE_READINGS, ", ")}, not ${JSON.stringify(reading)}.`,
                 source: "data",
                 details: { reading },
             });
@@ -501,6 +502,22 @@ export function createSetsApi(
      */
     const commit = (concrete: Concrete, name: string | undefined): SetId =>
         createAs(concrete.definition, name, concrete.createdFrom, concrete.refs, concrete.seeds);
+
+    /**
+     * Where a materialising door's commit goes: into the transaction or command the call was made
+     * inside. The routing that puts a dispatch there lasts for the synchronous part of the call
+     * only, and the commit comes after an await, so it is captured when the call starts.
+     * @returns A runner for the commit.
+     */
+    const commitWhereCalled = (): (<T>(fn: () => T) => T) => {
+        const { dispatcher } = store;
+        if (!dispatcher.routing) {
+            return (fn) => fn();
+        }
+
+        const via = dispatcher.capturedDispatch();
+        return (fn) => dispatcher.routed(via, fn);
+    };
 
     /**
      * The offering, or the refusal of a session built without one.
@@ -677,6 +694,7 @@ export function createSetsApi(
             options: { readonly name?: string; readonly reading?: EdgeReading; readonly follow?: boolean } = {},
         ): Promise<SetId> {
             const reading = readingOption(options.reading);
+            const where = commitWhereCalled();
             if (isOffer(source)) {
                 const offer = requireCurrent(source);
                 if (options.follow === true) {
@@ -686,12 +704,12 @@ export function createSetsApi(
                 const concrete = await materialiser().from(offer, reading);
                 requireCurrent(offer);
 
-                return commit(concrete, options.name);
+                return where(() => commit(concrete, options.name));
             }
 
             const concrete = await materialiser().from(readScope(source), reading);
 
-            return commit(concrete, options.name);
+            return where(() => commit(concrete, options.name));
         },
 
         async combine(
@@ -702,7 +720,7 @@ export function createSetsApi(
             if (!SET_COMBINES.includes(op)) {
                 throw new GraphtyError({
                     code: "E_BAD_COMMAND",
-                    message: `A combination is one of ${SET_COMBINES.map((value) => `"${value}"`).join(", ")}, not ${JSON.stringify(op)}.`,
+                    message: `A combination is one of ${quoteEach(SET_COMBINES, ", ")}, not ${JSON.stringify(op)}.`,
                     source: "data",
                     details: { op },
                 });
@@ -718,18 +736,20 @@ export function createSetsApi(
             }
 
             const reading = readingOption(options.reading);
+            const where = commitWhereCalled();
             const concrete = await materialiser().combine(op, of.map(readScope), reading);
 
-            return commit(concrete, options.name);
+            return where(() => commit(concrete, options.name));
         },
 
         async createPath(source: SetOffer | "selection", options: { readonly name?: string } = {}): Promise<SetId> {
+            const where = commitWhereCalled();
             if (isOffer(source)) {
                 const offer = requireCurrent(source);
                 const concrete = await materialiser().path(offer);
                 requireCurrent(offer);
 
-                return commit(concrete, options.name);
+                return where(() => commit(concrete, options.name));
             }
 
             if (source !== "selection") {
@@ -743,7 +763,7 @@ export function createSetsApi(
 
             const concrete = await materialiser().path(source);
 
-            return commit(concrete, options.name);
+            return where(() => commit(concrete, options.name));
         },
 
         rename(id: SetId, name: string): void {

@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!DOCTYPE graph PUBLIC "-//John Punin//DTD graph description//EN" "http://www.cs.rpi.edu/~puninj/XGMML/xgmml.dtd">
+<graph id="2" label="Attributes" directed="0">
+  <att name="description" value="typed attributes of the draft" type="string"/>
+  <node id="1" label="A">
+    <att name="size" value="12" type="integer"/>
+    <att name="score" value="0.5" type="real"/>
+    <att name="tags" type="list"><att value="x" type="string"/><att value="y" type="string"/></att>
+  </node>
+  <node id="2" label="B"><att name="size" value="7" type="integer"/></node>
+  <edge source="1" target="2" label="A-B"><att name="kind" value="link"/></edge>
+</graph>

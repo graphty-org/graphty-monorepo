@@ -69,18 +69,17 @@ export interface ModelResources {
     readonly caps: PlanCaps;
     readonly pipelines: PipelineCache;
     readonly core: CoreBinding;
-    /** `tiers.perm`, or null when no row has degree >= 32 (P4 PD-7: the rowPtr dummy is bound and USE_PERM is false). */
-    readonly perm: Binding | null;
     /**
      * The degree tiers of the snapshot's degreeOrder view (the perm binding and the CPU-side segment offsets
      * [0, hiEnd, midEnd, lowEnd, n]), or null when no row has degree >= 32 -- then every K2 dispatch is the
-     * thread-per-row TIER 0 over node indices, as before P4.
+     * thread-per-row TIER 0 over node indices, as before P4, and the rowPtr dummy is bound with USE_PERM false
+     * (P4 PD-7). `tiers?.perm ?? null` is the one source of the permutation binding.
      */
     readonly tiers: DegreeTiers | null;
     /**
      * The RESOLVED weights binding (model.inputs(): source "arcs" -> core.weights (null on an unweighted snapshot),
      * "column" -> the registered ArrayBinding's binding, "none" -> null); group 0 is built as
-     * graphBindings(core, perm, weights) (3.10).
+     * graphBindings(core, tiers?.perm ?? null, weights) (3.10).
      */
     readonly weights: Binding | null;
     readonly n: number;
@@ -169,7 +168,14 @@ const SHARED_STATE_FIELDS: readonly (readonly [string, number])[] = [
 ];
 
 /** The names of the shared buffers a BufferSpec may not reuse. */
-const SHARED_BUFFER_NAMES: readonly string[] = ["positions", "scenePositions", "fixed", "partials", "state", "trace"];
+const SHARED_BUFFER_NAMES: ReadonlySet<string> = new Set([
+    "positions",
+    "scenePositions",
+    "fixed",
+    "partials",
+    "state",
+    "trace",
+]);
 
 /** The buffers inspect() returns as Uint32Array: the mask, the trace records and the grid tier's index / count arrays (P4). */
 const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
@@ -183,7 +189,6 @@ const U32_BUFFER_NAMES: ReadonlySet<string> = new Set([
     "cellStart",
     "hubList",
     "hubCounters",
-    "hubArgs",
 ]);
 
 /** The per-batch epilogue stage: iterations 0..k-2 stop after the stage that precedes it (PLAN DECISION 2). */
@@ -631,7 +636,7 @@ export class ForceSimulation<
     private stateValue: "created" | "loaded" | "disposed" = "created";
     private generationValue = 0;
     private tierValue: "exact" | "grid";
-    private dimValue: 2 | 3;
+    private readonly dimValue: 2 | 3;
     private snapshot: GraphSnapshot | null = null;
     private serial: number | null = null;
     private owner: F32 | null = null;
@@ -1006,7 +1011,7 @@ export class ForceSimulation<
             this.fixedWords = makeMask(n);
             this.fixedDirty = false;
         }
-        if (inputs !== null && inputs.fixed !== undefined && inputs.fixed !== null) {
+        if (inputs?.fixed !== undefined && inputs.fixed !== null) {
             this.fixedWords.set(inputs.fixed.subarray(0, Math.ceil(n / 32)));
             this.fixedDirty = true;
         }
@@ -1311,7 +1316,7 @@ export class ForceSimulation<
         if (this.stateValue === "loaded" && resources !== null && core !== null && before !== after) {
             const overrides = {
                 ...this.model.overrides(next),
-                ...graphOverrides(core, resources.perm, resources.weights),
+                ...graphOverrides(core, resources.tiers?.perm ?? null, resources.weights),
             };
             this.startBind(resources, overrides);
         }
@@ -1764,7 +1769,7 @@ export class ForceSimulation<
         bindings.set("trace", { buffer: state, offset: STATE_HEADER_BYTES, size: traceRegionBytes, window: null });
         const model = new Map<string, { readonly buffer: GPUBuffer; readonly spec: BufferSpec }>();
         for (const spec of this.model.buffers(n, this.dimValue)) {
-            if (SHARED_BUFFER_NAMES.includes(spec.name) || bindings.has(spec.name)) {
+            if (SHARED_BUFFER_NAMES.has(spec.name) || bindings.has(spec.name)) {
                 throw invalidArgument(
                     "BufferSpec.name",
                     spec.name,
@@ -2000,7 +2005,6 @@ export class ForceSimulation<
             caps: this.ctx.caps,
             pipelines: this.ctx.pipelines,
             core,
-            perm: tiers?.perm ?? null,
             tiers,
             weights,
             n: this.n,

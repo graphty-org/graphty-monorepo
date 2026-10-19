@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
+
 /**
  * The Chromium flag sets: the two of spec 12.2 (GRAPHTY_BROWSER_GPU "nvidia" | "swiftshader", default swiftshader)
  * and the host lane's "metal" and "warp". Kept in one exported constant so the Vitest 4 provider change is a
@@ -60,6 +63,12 @@ const browserGpu: keyof typeof BROWSER_FLAGS =
 const browserName: "chromium" | "webkit" = process.env.GRAPHTY_BROWSER === "webkit" ? "webkit" : "chromium";
 const gpuRequire = process.env.GRAPHTY_GPU_REQUIRE ?? "";
 const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
+/**
+ * The per-test budget of the node project. A recording run (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
+ * committed noise fixtures) runs the writer cases, which measure the UNSCALED fixtures and take up to tens of minutes
+ * on one adapter; every other run skips them and keeps the 30 s budget.
+ */
+const nodeTestTimeout = noiseFloorWrite === "1" ? 1_800_000 : 30_000;
 
 /**
  * The environment of the Chromium child (spec 12.2 GRAPHTY_EGL_LIB_DIR): on the dev box headless Chromium finds
@@ -88,7 +97,7 @@ function browserLaunchEnv(): Record<string, string> | undefined {
  * @returns the names in command-line order
  */
 function selectedProjects(): string[] {
-    const {argv} = process;
+    const { argv } = process;
     const names: string[] = [];
     for (let i = 0; i < argv.length; i++) {
         const a = argv[i];
@@ -101,13 +110,42 @@ function selectedProjects(): string[] {
     return names;
 }
 
-// Thresholds apply when the selected project set is EXACTLY `node` and no merge run is in progress (spec 11.8).
+// Thresholds apply when the selected project set is `node`, alone or with `node-gpu-alone` (the main suite, which the
+// lanes select as that pair), and no merge run is in progress (spec 11.8).
 const projects = selectedProjects();
 /** Whether this run collects coverage, which roughly doubles a worker's processor and memory cost. */
 const coverageRun = process.argv.includes("--coverage") || process.env.COVERAGE_DIR !== undefined;
+// Handed to the test processes (forks inherit this environment), so a test can shrink a CPU reference that coverage
+// slows several-fold: test/algorithms/all-pairs.test.ts sizes its randomBig fixtures by it.
+if (coverageRun) {
+    process.env.GRAPHTY_COVERAGE_RUN = "1";
+}
 /** A coverage run on a runner, where the report is an upload rather than something a person opens. */
 const coverageOnRunner = coverageRun && process.env.CI === "true";
-const thresholdsActive = projects.length === 1 && projects[0] === "node" && process.env.COVERAGE_DIR === undefined;
+const thresholdsActive =
+    projects.includes("node") &&
+    projects.every((name) => name === "node" || name === "node-gpu-alone") &&
+    process.env.COVERAGE_DIR === undefined;
+
+/**
+ * The test files that keep the GPU busy for many seconds in one go: exact-tier work at hardware sizes, where a
+ * single submission runs for seconds on a slow device. They are the `node-gpu-alone` project below, which runs
+ * AFTER the `node` project has finished (its groupOrder) and one file at a time, so no other test file shares the
+ * device with them. Run beside another fork, they starve it: on the macOS Metal host lane (issue #1884, release
+ * #1872), fr-layout-oracle's karate case, 0.6 s on its own, waited 30 s behind grid-exact's "(4, 5)" cases for the
+ * shared GPU queue and timed out. On a software adapter the device IS the runner's processors, so a file that keeps
+ * it busy for minutes slows every fork beside it: on the Windows WARP host lane (issue #2160, releases 38210551896
+ * and 38246411740) exact-large (two 70,000-node K3 passes per model) and se-settle (a 2000-node spring layout run to
+ * settled, twice) ran 5 to 7 minutes each, and the files beside them ran 2.5 to 5 times slower than in the pass
+ * where they did not: fr-properties' "pin A" case took 7 to 10.5 s there and 25.8 to 28.5 s of its 30 s beside them,
+ * and advance's grid case went over. The `node` project excludes these files, so the lanes select both projects:
+ * `--project=node --project=node-gpu-alone`.
+ */
+const GPU_ALONE_TESTS: readonly string[] = [
+    "test/layouts/grid-exact.test.ts",
+    "test/layouts/exact-large.test.ts",
+    "test/layouts/se-settle.test.ts",
+];
 
 /**
  * The test files that put a device into an error state on purpose: an uncaptured validation error, an error scope
@@ -119,6 +157,7 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  *   device/acquire.test.ts       an `it.fails` case leaves an uncaptured validation error for the setup's hook
  *   device/context.test.ts       three broken bind groups (sink-ctx, slot-ctx, hook) and a device.destroy() mid-life
  *   device/error-scope.test.ts   broken bind groups inside validation scopes; an out-of-memory scope left on a device
+ *   device/managed.test.ts       device.destroy() on a managed accelerator's device, to see a new one acquired
  *   device/lost.test.ts          broken bind groups on raw devices, then device.destroy() under a pending read and
  *                                mid-batch
  *   kernel/batch.test.ts         a wrong-usage buffer reaches the pending-error slot
@@ -129,6 +168,7 @@ const thresholdsActive = projects.length === 1 && projects[0] === "node" && proc
  */
 const DEVICE_ERROR_TESTS: readonly string[] = [
     "test/device/acquire.test.ts",
+    "test/device/managed.test.ts",
     "test/device/context.test.ts",
     "test/device/error-scope.test.ts",
     "test/device/lost.test.ts",
@@ -242,17 +282,28 @@ async function recordNoiseRow(_context: unknown, row: Record<string, unknown>): 
  * a worker blocking its own event loop in synchronous oracle work, which the tests now yield out of (G5-F2's
  * resolution), and the shard's aborts were one test file's native memory and crash (G4-F13, G4-F18).
  */
-const nodeForks = coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1);
+// Never more than this run's share of the cores while machine-wide test slots are on (tools/test-slots.mjs).
+const nodeForks = Math.min(
+    coverageRun && availableParallelism() <= 8 ? 2 : Math.max(1, availableParallelism() - 1),
+    workerShare() ?? Infinity,
+);
 
 export default defineConfig({
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
         // Root, not per project (see nodeForks above). It applies to every project, and the node ones are the
         // only ones it binds: the browser project runs its files one at a time through its own fileParallelism.
         maxWorkers: nodeForks,
         // Root, not per project, likewise: one file at a time for the device-error and limits runs (see serialRun).
         fileParallelism: serialRun ? false : undefined,
         // verbose prints a line per test: useful locally, needless noise in CI
-        reporters: process.env.CI ? ["default"] : ["verbose"],
+        reporters: [
+            ...(process.env.CI ? ["default"] : ["verbose"]),
+            ...ciReporters(
+                process.env.GRAPHTY_GPU_NO_SUBGROUPS ? { classnameTemplate: "no-subgroups/{filepath}" } : {},
+            ),
+        ],
         coverage: {
             provider: "v8",
             // On a runner only lcov.info is uploaded and json-summary carries the thresholds, so the html and
@@ -276,14 +327,32 @@ export default defineConfig({
                     globals: true,
                     environment: "node",
                     pool: "forks",
-                    testTimeout: 30_000,
+                    testTimeout: nodeTestTimeout,
                     hookTimeout: 60_000,
                     include: [
                         "test/*.test.ts",
                         "test/{device,node,memory,kernel,primitives,algorithms,layouts,oracle,sabotage,types}/**/*.test.ts",
                     ],
                     // The device-error files run as their own project below, never here: nothing runs twice.
-                    exclude: ["test/limits/**", "test/browser/**", ...DEVICE_ERROR_TESTS],
+                    exclude: ["test/limits/**", "test/browser/**", ...DEVICE_ERROR_TESTS, ...GPU_ALONE_TESTS],
+                    setupFiles: ["test/setup/gpu.ts"],
+                    globalSetup: ["test/setup/global.ts"],
+                },
+            },
+            {
+                test: {
+                    // The files that hold the GPU for seconds per submission (GPU_ALONE_TESTS above): after every
+                    // `node` file has finished (a higher groupOrder runs later), then one file at a time. Vitest 4
+                    // honours fileParallelism per project, so this does not serialise the `node` project.
+                    name: "node-gpu-alone",
+                    globals: true,
+                    environment: "node",
+                    pool: "forks",
+                    testTimeout: nodeTestTimeout,
+                    hookTimeout: 60_000,
+                    include: [...GPU_ALONE_TESTS],
+                    fileParallelism: false,
+                    sequence: { groupOrder: 1 },
                     setupFiles: ["test/setup/gpu.ts"],
                     globalSetup: ["test/setup/global.ts"],
                 },

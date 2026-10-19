@@ -59,14 +59,6 @@ export function generateSmallWorld(
 
     // Rewire edges with probability p
     const rewiredEdges: Array<[number, number]> = [];
-    const edgeSet = new Set<string>();
-
-    // Build initial edge set
-    edges.forEach(([from, to]) => {
-        const key = from < to ? `${from}-${to}` : `${to}-${from}`;
-        edgeSet.add(key);
-    });
-
     // Process each edge for potential rewiring
     for (const [from, to] of edges) {
         if (Math.random() < p) {
@@ -95,12 +87,6 @@ export function generateSmallWorld(
 
                 // Add to rewired edges list
                 rewiredEdges.push([from, newTarget]);
-
-                // Update edge set
-                const oldKey = from < to ? `${from}-${to}` : `${to}-${from}`;
-                const newKey = from < newTarget ? `${from}-${newTarget}` : `${newTarget}-${from}`;
-                edgeSet.delete(oldKey);
-                edgeSet.add(newKey);
             } else {
                 // Keep original edge if we couldn't find a valid rewiring
                 rewiredEdges.push([from, to]);
@@ -146,7 +132,9 @@ export function generateSmallWorldBenchmark(vertices: number): BenchmarkGraphImp
 
     // Ensure k is even and reasonable
     k = Math.max(2, Math.min(k, Math.floor(vertices / 10)));
-    if (k % 2 !== 0) {k--;}
+    if (k % 2 !== 0) {
+        k--;
+    }
 
     // Use rewiring probability of 0.1 (good small-world properties)
     const p = 0.1;

@@ -648,3 +648,49 @@ describe("who wins when a file and a consumer disagree", () => {
         locked.session.dispose();
     });
 });
+
+describe("a direction setting changed on a live store (#969)", () => {
+    /**
+     * A store whose `data.directed` the test can change, as `config.set` changes it.
+     * @returns the store and the setter
+     */
+    function liveStore(): { store: GraphStore; set: (value: boolean | "auto") => void } {
+        let setting: boolean | "auto" = "auto";
+        const store = new GraphStore({
+            directed: () => setting,
+            positionScale: () => 1,
+            onReplaced: () => undefined,
+            onNodeRemap: () => undefined,
+            onEdgeRemap: () => undefined,
+        });
+        return {
+            store,
+            set: (value) => {
+                setting = value;
+            },
+        };
+    }
+
+    it("reports the configuration as settling it with nothing read in between", () => {
+        const { store, set } = liveStore();
+        set(false);
+        assert.deepStrictEqual(store.directionSettledBy, { by: "configuration", statedBy: null });
+        set("auto");
+        assert.deepStrictEqual(store.directionSettledBy, { by: "unsettled", statedBy: null });
+        store.dispose();
+    });
+
+    it("locks an empty graph against a file declared after the setting, and unlocks it on auto", () => {
+        const { store, set } = liveStore();
+        set(false);
+        assert.strictEqual(declare(store, true, "digraph"), "config-wins");
+        assert.isFalse(store.builder.directed);
+        assert.isTrue(store.builder.directedLocked);
+
+        set("auto");
+        assert.isFalse(store.builder.directedLocked);
+        assert.strictEqual(declare(store, false, "graph"), "applied");
+        assert.deepStrictEqual(store.directionSettledBy, { by: "file", statedBy: "graph" });
+        store.dispose();
+    });
+});

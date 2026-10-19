@@ -422,6 +422,10 @@ describe("check() notes", () => {
         const nested = await exported(s, { dialect: "graphology" });
         expect(nested.nodes).toEqual([{ key: "a", attributes: { id: "shadow" } }]);
         expect(nested.edges).toEqual([{ source: "a", target: "a", attributes: { weight: 2, target: "t" } }]);
+        // a vis.js edge keyed target would read the document back as node-link JSON
+        const vis = await exported(s, { dialect: "vis" });
+        expect(vis.edges).toEqual([{ from: "a", to: "a", weight: 2 }]);
+        expect(jsonExporter.check(s, { dialect: "vis" }).map((n) => n.column)).toContain("target");
     });
 
     it("reports a second column that maps to a key another column already uses", async () => {
@@ -471,7 +475,7 @@ describe("check() notes", () => {
         const b = new GraphBuilder({ directed: true });
         b.declareNodeColumn({
             name: "position",
-            dtype: "f32",
+            dtype: "f64",
             components: 3,
             role: "position",
             extra: { sourceDims: 2 },
@@ -486,9 +490,12 @@ describe("check() notes", () => {
         expect(note(cyto, JSON_LOSS.POSITION_Z_DROPPED)?.count).toBe(1);
         const doc = (await exported(s, { dialect: "cytoscape" })).elements as { nodes: Record<string, unknown>[] };
         expect(doc.nodes).toEqual([
-            { data: { id: "a" }, position: { x: 0.1, y: 2 } },
-            { data: { id: "c" }, position: { x: 1, y: 1 } },
+            // stored y-up, written as Cytoscape's downward screen y
+            { data: { id: "a" }, position: { x: 0.1, y: -2 } },
+            { data: { id: "c" }, position: { x: 1, y: -1 } },
         ]);
+        const back = await imported(JSON.stringify({ elements: doc }));
+        expect(Array.from(back.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([0.1, 2, 0]);
         const plain = jsonExporter.check(s);
         expect(codes(plain)).toEqual([JSON_LOSS.POSITIONS_DROPPED]);
         expect((await exported(s)).nodes).toEqual([
@@ -699,7 +706,9 @@ describe("dialect shapes", () => {
         const s = await imported(readCorpusText("json", "sigma-format.json"));
         for (const dialect of JSON_DIALECTS) {
             const text = await jsonExporter.exportToString(s, { dialect: dialect, indent: 1 });
-            expect(() => JSON.parse(text), dialect).not.toThrow();
+            expect(() => {
+                JSON.parse(text);
+            }, dialect).not.toThrow();
         }
     });
 });

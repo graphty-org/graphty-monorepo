@@ -5,7 +5,7 @@
     "type": "module",
     "description": "Graphty monorepo - modular graph visualization ecosystem",
     "scripts": {
-        "build": "pnpm exec nx run-many --target=build",
+        "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx run-many --target=build",
         "test": "pnpm exec nx run-many --target=test",
         "coverage": "pnpm -r run coverage && ./tools/merge-coverage.sh",
         "coverage:merge": "./tools/merge-coverage.sh",
@@ -15,16 +15,19 @@
         "lint:knip:prod": "./tools/run-knip.sh --production --strict --include dependencies,unlisted,unresolved",
         "check:published-deps": "node tools/check-published-deps.mjs",
         "check:bundle-size": "node tools/check-bundle-size.mjs",
-        "lint:eslint-root": "node tools/check-eslint-root-config.mjs",
-        "check:legacy-use": "node tools/check-legacy-use.mjs --self-test && node tools/check-legacy-use.mjs",
+        "check:api-report": "node tools/api-report.test.mjs && node tools/api-report.mjs graphty-element --check",
+        "lint:eslint-root": "node tools/check-eslint-root-config.mjs && node tools/eslint-rules/no-test-timing.test.mjs && node tools/eslint-rules/story-wait-options.test.mjs",
+        "check:legacy-use": "node tools/workspace-files.mjs --self-test && node tools/check-legacy-use.mjs --self-test && node tools/check-legacy-use.mjs",
         "check:declared-tools": "node tools/check-declared-build-tools.mjs --self-test && node tools/check-declared-build-tools.mjs",
         "check:data-source-migration": "node tools/check-data-source-migration.mjs --self-test && node tools/check-data-source-migration.mjs",
         "check:migration-counts": "node tools/count-migration-state.mjs --self-test",
+        "check:release-hold": "node tools/release-hold.test.mjs && node tools/release-hold.mjs check",
+        "test:sonar-gate": "node tools/sonar/sonar-gate.test.mjs && node tools/sonar/sonar-baseline.test.mjs && node tools/push-base.test.mjs",
+        "test:ci-workflows": "node tools/ci-workflows.test.mjs && node tools/shard-verdict.test.mjs && node tools/restricted-cpu-stress.test.mjs && node tools/claude-area-rules.test.mjs && node tools/claude-no-foreground-wait.test.mjs && node tools/test-slots.test.mjs && node tools/release-status.test.mjs && node tools/publish-hold.test.mjs && node tools/queued-push-guard.test.mjs && node tools/lfs-pre-push.test.mjs && node tools/live.test.mjs && node tools/vitest-time-budget.test.mjs && node tools/release-scheduler/test/index.test.mjs && node tools/push-queue.test.mjs && node tools/lint-base-drift.test.mjs && node tools/land.test.mjs",
         "typecheck": "pnpm exec nx run-many --target=typecheck",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
-        "format:check:changed": "./tools/check-format-changed.sh",
-        "prepush": "NX_DAEMON=false pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
+        "prepush": "NX_DAEMON=false NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx affected -t build lint test --base=origin/master --head=HEAD --parallel=3",
         "prepush:fast": "./tools/prepush.sh",
         "prepare": "husky",
         "dev:algorithms": "pnpm --filter @graphty/algorithms run dev",
@@ -34,10 +37,12 @@
         "dev:webgpu-graph-algorithms": "cd webgpu-graph-algorithms && pnpm exec vite demo --host --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "storybook:graphty-element": "pnpm --filter @graphty/graphty-element run storybook",
         "storybook:graphty": "pnpm --filter @graphty/graphty run storybook",
-        "docs:api": "npm run docs:api:graphty-element && npm run docs:api:algorithms && npm run docs:api:layout && node tools/sanitize-api-docs.js",
+        "docs:api": "npm run docs:api:graphty-element && npm run docs:api:algorithms && npm run docs:api:layout && npm run docs:api:cytoscape-extensions && npm run docs:api:graph-io && node tools/sanitize-api-docs.js",
         "docs:api:graphty-element": "cd graphty-element && node scripts/build-api-docs.mjs --out ../docs/graphty-element/api/generated --docsRoot ../docs",
         "docs:api:algorithms": "cd algorithms && typedoc --out ../docs/algorithms/api/generated --docsRoot ../docs",
         "docs:api:layout": "cd layout && typedoc --out ../docs/layout/api/generated --docsRoot ../docs",
+        "docs:api:cytoscape-extensions": "cd cytoscape-extensions && typedoc --out ../docs/cytoscape-extensions/api/generated --docsRoot ../docs",
+        "docs:api:graph-io": "cd graph-io && pnpm exec tsx scripts/docs-reference.ts --check && typedoc --out ../docs/graph-io/api/generated --docsRoot ../docs",
         "docs:content": "node tools/copy-docs-content.js",
         "docs:dev": "vitepress dev docs --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
         "docs:watch": "npm run docs:content && npm run docs:api && vitepress dev docs --port ${PORT:?start it through servherd, which sets PORT} --strictPort",
@@ -50,7 +55,8 @@
         "coverage:preview:graph-format": "npx serve graph-format/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:graph-io": "npx serve graph-io/coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "coverage:preview:webgpu-graph-algorithms": "npx serve webgpu-graph-algorithms/coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p ${PORT:?start it through servherd, which sets PORT}"
+        "coverage:preview:graph-samples": "npx serve graph-samples/coverage -p ${PORT:?start it through servherd, which sets PORT}",
+        "coverage:preview:cytoscape-extensions": "npx serve cytoscape-extensions/coverage -p ${PORT:?start it through servherd, which sets PORT}"
     },
     "engines": {
         "node": ">=22.0.0"
@@ -62,11 +68,12 @@
         }
     },
     "devDependencies": {
-        "@graphty/visual-review": "workspace:*",
-        "@chromatic-com/storybook": "^4.0.0",
         "@commitlint/cli": "^19.8.1",
         "@commitlint/config-conventional": "^19.8.1",
         "@eslint/js": "^9.29.0",
+        "@graphty/githerd": "workspace:*",
+        "@graphty/visual-review": "workspace:*",
+        "@microsoft/api-extractor": "7.55.2",
         "@nx/eslint": "22.7.12",
         "@nx/react": "22.7.12",
         "@nx/storybook": "22.7.12",
@@ -76,11 +83,11 @@
         "@secretlint/secretlint-rule-preset-recommend": "^13.0.6",
         "@semantic-release/changelog": "^6.0.3",
         "@semantic-release/git": "^10.0.1",
+        "@sonar/scan": "5.0.1",
         "@types/node": "^20.19.9",
         "@vitest/browser": "catalog:",
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
-        "chromatic": "^18.9.5",
         "commitizen": "^4.3.1",
         "cz-conventional-changelog": "^3.3.0",
         "eruda": "^3.4.3",
@@ -107,9 +114,17 @@
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.9.3",
-        "typescript-eslint": "^8.34.1",
+        "typescript-eslint": "^8.71.1",
         "vite": "^7.0.0",
         "vitepress": "^1.6.3",
         "vitest": "catalog:"
+    },
+    "pnpm": {
+        "auditConfig": {
+            "ignoreGhsas": [
+                "GHSA-vfj7-8cjw-p6xm",
+                "GHSA-86w9-cpqp-85rv"
+            ]
+        }
     }
 }

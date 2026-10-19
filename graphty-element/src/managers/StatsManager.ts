@@ -7,6 +7,7 @@ import {
     type WebGPUEngine,
 } from "@babylonjs/core";
 
+import type { StatsUpdateEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -118,6 +119,56 @@ export interface OperationBlockingStats {
     avgBlockingRatioWhenPresent: number;
 }
 
+/** One operation's running totals while a blocking report is built. */
+interface OperationTally {
+    totalCpuTime: number;
+    appearanceCount: number;
+    highBlockingFrames: number;
+    blockingRatiosWhenPresent: number[];
+}
+
+/**
+ * Add one frame's operations to the running totals of a blocking report.
+ * @param frame - The frame.
+ * @param operationStats - The totals, by operation label, created on first sight.
+ */
+function tallyFrame(frame: FrameProfile, operationStats: Map<string, OperationTally>): void {
+    const highBlockingThreshold = 1; // Blocking > 1x CPU time
+    const isHighBlocking = frame.blockingRatio > highBlockingThreshold;
+
+    const opsInFrame = new Set<string>();
+    for (const op of frame.operations) {
+        opsInFrame.add(op.label);
+
+        if (!operationStats.has(op.label)) {
+            operationStats.set(op.label, {
+                totalCpuTime: 0,
+                appearanceCount: 0,
+                highBlockingFrames: 0,
+                blockingRatiosWhenPresent: [],
+            });
+        }
+
+        const stats = operationStats.get(op.label);
+        if (stats) {
+            stats.totalCpuTime += op.duration;
+        }
+    }
+
+    // Track appearances and blocking for each unique operation in frame
+    for (const opLabel of opsInFrame) {
+        const stats = operationStats.get(opLabel);
+        if (stats) {
+            stats.appearanceCount++;
+            if (isHighBlocking) {
+                stats.highBlockingFrames++;
+            }
+
+            stats.blockingRatiosWhenPresent.push(frame.blockingRatio);
+        }
+    }
+}
+
 /**
  * Performance snapshot including CPU, GPU, and scene metrics
  */
@@ -179,9 +230,9 @@ export class StatsManager implements Manager {
 
     // Profiling fields
     private enabled = false;
-    private measurements = new Map<string, MeasurementStats>();
+    private readonly measurements = new Map<string, MeasurementStats>();
     private activeStack: { label: string; startTime: number }[] = [];
-    private counters = new Map<string, CounterStats>();
+    private readonly counters = new Map<string, CounterStats>();
 
     // Layout session tracking
     private layoutSessionStartTime: number | null = null;
@@ -198,7 +249,7 @@ export class StatsManager implements Manager {
      * Creates a new stats manager for performance tracking
      * @param eventManager - Event manager for emitting stats events
      */
-    constructor(private eventManager: EventManager) {}
+    constructor(private readonly eventManager: EventManager) {}
 
     /**
      * Initialize the stats manager
@@ -303,10 +354,10 @@ export class StatsManager implements Manager {
 
         // Emit stats update event periodically (every 60 updates)
         if (this.totalUpdates % 60 === 0) {
-            this.eventManager.emitGraphEvent("stats-update", {
+            this.eventManager.emit("stats-update", {
                 totalUpdates: this.totalUpdates,
                 stats: this.getStats(),
-            });
+            } satisfies Omit<StatsUpdateEvent, "type">);
         }
     }
 
@@ -370,7 +421,7 @@ export class StatsManager implements Manager {
 
         function statsSection(name: string): void {
             statsStr += `\n${name}\n`;
-             
+
             for (let i = 0; i < name.length; i++) {
                 statsStr += "-";
             }
@@ -560,7 +611,7 @@ export class StatsManager implements Manager {
         }
 
         // Flag high-blocking frames (blocking > 2x CPU time AND > 20ms frame time)
-        if (blockingRatio > 2.0 && interFrameTime > 20) {
+        if (blockingRatio > 2 && interFrameTime > 20) {
             this.reportHighBlockingFrame(profile);
         }
     }
@@ -592,52 +643,9 @@ export class StatsManager implements Manager {
             return [];
         }
 
-        const operationStats = new Map<
-            string,
-            {
-                totalCpuTime: number;
-                appearanceCount: number;
-                highBlockingFrames: number;
-                blockingRatiosWhenPresent: number[];
-            }
-        >();
-
-        const highBlockingThreshold = 1.0; // Blocking > 1x CPU time
-
+        const operationStats = new Map<string, OperationTally>();
         for (const frame of this.frameProfiles) {
-            const isHighBlocking = frame.blockingRatio > highBlockingThreshold;
-
-            const opsInFrame = new Set<string>();
-            for (const op of frame.operations) {
-                opsInFrame.add(op.label);
-
-                if (!operationStats.has(op.label)) {
-                    operationStats.set(op.label, {
-                        totalCpuTime: 0,
-                        appearanceCount: 0,
-                        highBlockingFrames: 0,
-                        blockingRatiosWhenPresent: [],
-                    });
-                }
-
-                const stats = operationStats.get(op.label);
-                if (stats) {
-                    stats.totalCpuTime += op.duration;
-                }
-            }
-
-            // Track appearances and blocking for each unique operation in frame
-            for (const opLabel of opsInFrame) {
-                const stats = operationStats.get(opLabel);
-                if (stats) {
-                    stats.appearanceCount++;
-                    if (isHighBlocking) {
-                        stats.highBlockingFrames++;
-                    }
-
-                    stats.blockingRatiosWhenPresent.push(frame.blockingRatio);
-                }
-            }
+            tallyFrame(frame, operationStats);
         }
 
         return Array.from(operationStats.entries())
@@ -1004,14 +1012,12 @@ export class StatsManager implements Manager {
                 console.log(`  ${m.label}: ${m.count} calls, ${m.total.toFixed(2)}ms total, ${m.avg.toFixed(2)}ms avg`);
             });
 
-
             console.groupEnd();
         }
 
         // Event Counters
         const countersSnapshot = this.getCountersSnapshot();
         if (countersSnapshot.length > 0) {
-
             console.group("Event Counters");
 
             console.table(
@@ -1027,11 +1033,9 @@ export class StatsManager implements Manager {
 
         // GPU metrics (VERBOSE - all properties)
         if (snapshot.gpu) {
-
             console.log("GPU Metrics (BabylonJS EngineInstrumentation):");
 
             console.group("GPU Metrics (BabylonJS EngineInstrumentation)");
-
 
             console.log("  GPU Frame Time (ms):");
 
@@ -1051,7 +1055,6 @@ export class StatsManager implements Manager {
 
             console.groupEnd();
 
-
             console.log("  Shader Compilation (ms):");
 
             console.group("Shader Compilation (ms)");
@@ -1070,13 +1073,11 @@ export class StatsManager implements Manager {
 
             console.groupEnd();
 
-
             console.groupEnd();
         }
 
         // Scene metrics (VERBOSE - all properties for all 7 counters)
         if (snapshot.scene) {
-
             console.log("Scene Metrics (BabylonJS SceneInstrumentation):");
 
             console.group("Scene Metrics (BabylonJS SceneInstrumentation)");
@@ -1123,7 +1124,6 @@ export class StatsManager implements Manager {
 
             console.groupEnd();
 
-
             console.groupEnd();
         }
 
@@ -1134,7 +1134,6 @@ export class StatsManager implements Manager {
             console.log("Layout Session Performance:");
 
             console.group("Layout Session Performance");
-
 
             console.log(`Total Time: ${ls.totalElapsed.toFixed(2)}ms (${ls.frameCount} frames)`);
 
@@ -1157,7 +1156,6 @@ export class StatsManager implements Manager {
             console.log(`├─ GPU: ${ls.perFrame.gpu.toFixed(2)}ms/frame`);
 
             console.log(`└─ Blocking: ${ls.perFrame.blocking.toFixed(2)}ms/frame`);
-
 
             console.groupEnd();
         }

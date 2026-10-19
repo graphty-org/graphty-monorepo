@@ -119,7 +119,7 @@ describe("every registry entry compiles with its defaults (contract 5.5; spec 5.
                     expect(kernel.workgroupSize).toBe(ctx.workgroupSize);
                     expect(kernel.layouts.length).toBe(maxGroup(entry) + 1);
                     expect(ctx.pipelines.size).toBe(before + 1);
-                }, 60_000);
+                });
             }
 
             it("warm() over every default spec compiles nothing new once the entries are cached, and keys() lists one key per entry", async (t) => {
@@ -137,7 +137,7 @@ describe("every registry entry compiles with its defaults (contract 5.5; spec 5.
                         id,
                     ).toBe(true);
                 }
-            }, 60_000);
+            });
         });
     }
 });

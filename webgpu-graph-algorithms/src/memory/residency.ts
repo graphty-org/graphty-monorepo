@@ -28,7 +28,7 @@ import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type PlanCaps } from "../types/context.js";
 import { type ArcWindow, type Binding } from "../types/memory.js";
-import { planUpload } from "./upload-plan.js";
+import { planUpload, type UploadPlan } from "./upload-plan.js";
 
 /** The core arrays a kernel binds by default (spec 4.1); the cold segments are named explicitly by the caller. */
 const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights"]);
@@ -36,8 +36,11 @@ const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx"
 /** The five core arrays in arena (hot-to-cold) order. */
 const CORE_ORDER: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights", "arcToEdge", "edgeToArc"]);
 
+/** The name of one arc-indexed core array. */
+type ArcIndexedName = "colIdx" | "weights" | "arcToEdge";
+
 /** The arc-indexed core arrays: the ones a windowed plan splits into window buffers (upload-plan.ts ARC_INDEXED). */
-const ARC_INDEXED: readonly ("colIdx" | "weights" | "arcToEdge")[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
+const ARC_INDEXED: readonly ArcIndexedName[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
 
 /** Every resident buffer is bound by kernels, filled by writeBuffer and readable back (tests, readbacks of state). */
 const RESIDENT_USAGE = BufferUsage.STORAGE | BufferUsage.COPY_DST | BufferUsage.COPY_SRC;
@@ -70,14 +73,7 @@ export interface CoreBinding {
  */
 export interface ViewBinding {
     readonly view:
-        | "reverse"
-        | "coo"
-        | "edgeList"
-        | "outDegree"
-        | "inDegree"
-        | "degreeOrder"
-        | "reverseDegreeOrder"
-        | "mate";
+        "reverse" | "coo" | "edgeList" | "outDegree" | "inDegree" | "degreeOrder" | "reverseDegreeOrder" | "mate";
     readonly bindings: Readonly<Record<string, Binding>>;
     readonly scalars: Readonly<Record<string, readonly number[]>>;
 }
@@ -349,21 +345,15 @@ export class GraphResidency {
                 );
                 record.arena = { buffer: resident.buffer, segments: plan.segments };
             }
-            if (plan.kind === "windowed") {
-                record.windows = plan.windows;
-            }
         }
-        for (const name of names) {
-            if (!record.bindings.has(name)) {
-                const planned = plan.kind === "windowed" ? plan.arrays.find((a) => a.name === name) : undefined;
-                record.bindings.set(
-                    name,
-                    planned !== undefined && planned.buffers.length > 0 && record.windows !== null && isArcIndexed(name)
-                        ? this.bindWindowed(record, s, name, planned.buffers, record.windows[0])
-                        : this.bindCore(record, s, name),
-                );
-            }
+        if (plan.kind === "windowed" && record.windows === null) {
+            // also the upgrade of a record planned by a narrower first call (rowPtr alone fits; the arc arrays this
+            // call adds do not): the windows depend only on rowPtr and the limits, and every arc array bound from
+            // here on goes through bindWindowed, so none is ever bound whole above the binding limit
+            record.plan = "windowed";
+            record.windows = plan.windows;
         }
+        this.bindMissing(record, s, plan, names);
         const rowPtr = record.bindings.get("rowPtr");
         if (rowPtr === undefined) {
             throw invalid("rowPtr", null, "a bound rowPtr (internal invariant)");
@@ -845,6 +835,33 @@ export class GraphResidency {
     }
 
     /**
+     * Binds every named core array the record has not bound yet, in order: an arc-indexed array of a windowed plan
+     * that has planned buffers through bindWindowed (window 0 as its default binding), everything else whole.
+     * @param record - the snapshot's record
+     * @param s - the snapshot
+     * @param plan - this call's upload plan
+     * @param names - the arrays to bind
+     */
+    private bindMissing(
+        record: ResidencyRecord,
+        s: GraphSnapshot,
+        plan: UploadPlan,
+        names: readonly CoreArrayName[],
+    ): void {
+        for (const name of names) {
+            if (!record.bindings.has(name)) {
+                const planned = plan.kind === "windowed" ? plan.arrays.find((a) => a.name === name) : undefined;
+                record.bindings.set(
+                    name,
+                    planned !== undefined && planned.buffers.length > 0 && record.windows !== null && isArcIndexed(name)
+                        ? this.bindWindowed(record, s, name, planned.buffers, record.windows[0])
+                        : this.bindCore(record, s, name),
+                );
+            }
+        }
+    }
+
+    /**
      * Binds one core array: a segment of the arena buffer when the buffer holds it, else its own buffer keyed on
      * the array object (the cold-segment-on-demand path of spec 4.2, and the whole perArray path).
      * @param record - the snapshot's record
@@ -1002,7 +1019,7 @@ export class GraphResidency {
      */
     private ensureRecord(s: GraphSnapshot): ResidencyRecord {
         let record = this.records.get(s);
-        if (record !== undefined && record.released) {
+        if (record?.released) {
             record = undefined;
         }
         if (record === undefined) {

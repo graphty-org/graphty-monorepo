@@ -58,11 +58,11 @@ surface exists.
 **Rationale.** The line is drawn by a conjunction, and every single-property
 version of it has a counter-example inside Figma itself:
 
-| Refuted test | Counter-example |
-|---|---|
-| Frequency alone | Layer opacity is rarely touched and stays resident; font size is touched constantly and is also resident |
-| Room alone | "Show behind transparent areas" is one checkbox and lives inside the effect popover, while the 224px Fill row stays out |
-| Per-item-ness alone | Export configurations are per-item and their scale and suffix stay resident |
+| Refuted test        | Counter-example                                                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Frequency alone     | Layer opacity is rarely touched and stays resident; font size is touched constantly and is also resident                |
+| Room alone          | "Show behind transparent areas" is one checkbox and lives inside the effect popover, while the 224px Fill row stays out |
+| Per-item-ness alone | Export configurations are per-item and their scale and suffix stay resident                                             |
 
 What survives every case is the conjunction. Everything Figma puts behind a
 gear passes both clauses: constraints default to Top and Left, decoration to
@@ -333,15 +333,15 @@ CanvasToolbar.
 Eleven of the nineteen drawn surfaces belong to families 6.11 never names, and
 unnamed families were placed by taste.
 
-| Family | Lane | Gap axis | Shared edge line |
-|---|---|---|---|
-| Top bar | opens down, top = 40 (the top bar's own bottom edge) | vertical, 8 | opener anchor box left edge |
-| Activity rail | opens right, left = 56 | horizontal, 8 | button bottom to menu bottom |
-| Activity panel | opens right, left = 336 | horizontal, 8 | row top to pop-out top |
-| Inspector | opens left, right = 1152 | horizontal, 8 | row top to pop-out top |
-| Canvas overlay | opens away from its overlay | 12 | the overlay's near end aligned to the opener |
-| Dock (data table drawer, report editor) | opens up inside the dock | vertical, 8 | column or row edge; caret required |
-| Dialog | opens beside its opener inside the dialog rect | 8 | row top to pop-out top |
+| Family                                  | Lane                                                 | Gap axis      | Shared edge line                             |
+| --------------------------------------- | ---------------------------------------------------- | ------------- | -------------------------------------------- |
+| Top bar                                 | opens down, top = 40 (the top bar's own bottom edge) | vertical, 8   | opener anchor box left edge                  |
+| Activity rail                           | opens right, left = 56                               | horizontal, 8 | button bottom to menu bottom                 |
+| Activity panel                          | opens right, left = 336                              | horizontal, 8 | row top to pop-out top                       |
+| Inspector                               | opens left, right = 1152                             | horizontal, 8 | row top to pop-out top                       |
+| Canvas overlay                          | opens away from its overlay                          | 12            | the overlay's near end aligned to the opener |
+| Dock (data table drawer, report editor) | opens up inside the dock                             | vertical, 8   | column or row edge; caret required           |
+| Dialog                                  | opens beside its opener inside the dialog rect       | 8             | row top to pop-out top                       |
 
 Two exceptions take no lane: a context menu takes the pointer, and a preview
 takes the centred home 6.11 already gives it.
@@ -417,20 +417,20 @@ SHELL-SKELETON.html (the pop-out shell gains one element and one strip).
 All measured on the rendered boards at 1440x900 inside a 1600x1000 viewport.
 These are drafting corrections, not spec changes, except where noted.
 
-| Board | Drawn | Opener | Fault | Correction |
-|---|---|---|---|---|
-| TimeSlider | pop-out [868,343 280x202] | bar gear [1124,813 24x24] | 268px above its own gear, stacked on the legend [892,553 256x241], so the right-edge alignment at 1148 is invisible | Keep the 12px gap to the bar; slide along the bar. Bottom 794, right edge 884 (8px clear of the legend's 892 left edge): **[604,592 280x202]**. It may cover the toolbar and the minimap, which are dismissible chrome; only the legend is floor item 5. With the legend hidden it returns to right edge 1148 on the gear |
-| TimeSlider | two openers titled "Time slider settings" -- panel gear [263,403] and bar gear [1124,813] | -- | the pop-out is anchored to neither | A pop-out reachable from more than one opener is anchored to the opener that was used, and its lane follows that opener's region. The palette route, which has no on-screen opener, opens it in its home panel's lane and lights that row. 6.5's remembered pinned position is stored per opener, not per pop-out type |
-| ValidationPopout | [336,90 360x470] | row [64,452 255x32] | lane correct, 362px above its row; a 470px pop-out cannot sit top-to-top at y 452 in a 40-to-616 region | Flip the edge line: bottom to bottom. Region 40 to 616 (usable bottom is the open drawer's top), height cap 288, so **[336,196 360x288]** with its own scroll region. Bottom 484 on the row's bottom 484 |
-| MultiSelection | [792,412 360x238] | row [1177,183 255x32] | lane correct, 229px below the opener, with nothing forcing it -- anchored at 183 it would end at 421 and the legend does not start until 682 | **[792,183 360x238]**. No spec change; the same design gets this right three times elsewhere |
-| HistoryPopover | [554,44 360x446] | History caret [579,8 16x24], Undo half [554,8 24x24] | left-aligned to the half rather than the split button, gap 12 not 8 | Anchor box is the whole split button, so left 554 is correct; only the gap changes: **[554,40 360x446]**, top on the top bar's own bottom edge. Escape returns focus to the caret |
-| ViewsMenu | [581,483 248x341] | Views button [687,832 36x28] | centre-anchored; right edge 829 overhangs the opener by 106 and the toolbar's right end by 102 | Right-align to the opener and sit 8px above it: **[475,483 248x341]**, right edge 723 on the button's 723, bottom 824 |
-| StyleDiverging | confirm [872,446 280x109] | Size > Bridges row [1177,470 255x32] | 24px high, sitting under the section header rather than on the row that raised it | **[872,470 280x109]**. And see D2 / XC: a cost gate is not a floating card at all |
-| IpadInspector | confirm [652,559 236x81] | ambiguous between the "All 12,412" chip at y 417 and "Select neighbors" at y 694 | no relationship to any opener; right edge 12px clear of the inspector where 8 is the panel-boundary constant | Name the opener explicitly, then **[656,417 236x81]** from the "All 12,412" scope chip, right edge 892, 8px clear of the inspector's 900 |
-| StyleLibrary | "Save as style" [480,321 480x258] with a full-screen scrim, and the section overflow menu drawn open beneath it | Styles header bookmark button [295,478 24x24] | a centred modal for something that commits no data, which fails 6.11's own first question; and two transients of different classes open at once | **[336,474 280x258]**, panel lane, top on the section header row's top. The scrim goes, the overflow menu closes. Add to 6.11's worked examples: "Save as style / pop-out, 280, from the Styles header bookmark button / It names one member of a list and commits nothing the canvas must wait on" |
-| DataTableDrawer | info bubble [732,721 250x58] | column info circle [848,701 14x14] | centre-anchored with a 6px gap, and it covers the betweenness value in all three visible rows | **[848,721 250x58]** with an 8px caret at x 855; and the flip above the header row is mandatory when the bubble would cover that column's own cells. Same treatment for ImportRecognised's in-dialog bubble |
-| Main | rail Help menu [52,751 200x117] | Help button, bottom 872 | 4px off the rail lane and 4px off the button's bottom | left 56, bottom-aligned to the button's 872 |
-| GroupProfilePopout | bottom 705 against a legend top of 709 | -- | a 4px gap where the overlay inset is 12 | bottom 697 |
+| Board              | Drawn                                                                                                           | Opener                                                                           | Fault                                                                                                                                           | Correction                                                                                                                                                                                                                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TimeSlider         | pop-out [868,343 280x202]                                                                                       | bar gear [1124,813 24x24]                                                        | 268px above its own gear, stacked on the legend [892,553 256x241], so the right-edge alignment at 1148 is invisible                             | Keep the 12px gap to the bar; slide along the bar. Bottom 794, right edge 884 (8px clear of the legend's 892 left edge): **[604,592 280x202]**. It may cover the toolbar and the minimap, which are dismissible chrome; only the legend is floor item 5. With the legend hidden it returns to right edge 1148 on the gear |
+| TimeSlider         | two openers titled "Time slider settings" -- panel gear [263,403] and bar gear [1124,813]                       | --                                                                               | the pop-out is anchored to neither                                                                                                              | A pop-out reachable from more than one opener is anchored to the opener that was used, and its lane follows that opener's region. The palette route, which has no on-screen opener, opens it in its home panel's lane and lights that row. 6.5's remembered pinned position is stored per opener, not per pop-out type    |
+| ValidationPopout   | [336,90 360x470]                                                                                                | row [64,452 255x32]                                                              | lane correct, 362px above its row; a 470px pop-out cannot sit top-to-top at y 452 in a 40-to-616 region                                         | Flip the edge line: bottom to bottom. Region 40 to 616 (usable bottom is the open drawer's top), height cap 288, so **[336,196 360x288]** with its own scroll region. Bottom 484 on the row's bottom 484                                                                                                                  |
+| MultiSelection     | [792,412 360x238]                                                                                               | row [1177,183 255x32]                                                            | lane correct, 229px below the opener, with nothing forcing it -- anchored at 183 it would end at 421 and the legend does not start until 682    | **[792,183 360x238]**. No spec change; the same design gets this right three times elsewhere                                                                                                                                                                                                                              |
+| HistoryPopover     | [554,44 360x446]                                                                                                | History caret [579,8 16x24], Undo half [554,8 24x24]                             | left-aligned to the half rather than the split button, gap 12 not 8                                                                             | Anchor box is the whole split button, so left 554 is correct; only the gap changes: **[554,40 360x446]**, top on the top bar's own bottom edge. Escape returns focus to the caret                                                                                                                                         |
+| ViewsMenu          | [581,483 248x341]                                                                                               | Views button [687,832 36x28]                                                     | centre-anchored; right edge 829 overhangs the opener by 106 and the toolbar's right end by 102                                                  | Right-align to the opener and sit 8px above it: **[475,483 248x341]**, right edge 723 on the button's 723, bottom 824                                                                                                                                                                                                     |
+| StyleDiverging     | confirm [872,446 280x109]                                                                                       | Size > Bridges row [1177,470 255x32]                                             | 24px high, sitting under the section header rather than on the row that raised it                                                               | **[872,470 280x109]**. And see D2 / XC: a cost gate is not a floating card at all                                                                                                                                                                                                                                         |
+| IpadInspector      | confirm [652,559 236x81]                                                                                        | ambiguous between the "All 12,412" chip at y 417 and "Select neighbors" at y 694 | no relationship to any opener; right edge 12px clear of the inspector where 8 is the panel-boundary constant                                    | Name the opener explicitly, then **[656,417 236x81]** from the "All 12,412" scope chip, right edge 892, 8px clear of the inspector's 900                                                                                                                                                                                  |
+| StyleLibrary       | "Save as style" [480,321 480x258] with a full-screen scrim, and the section overflow menu drawn open beneath it | Styles header bookmark button [295,478 24x24]                                    | a centred modal for something that commits no data, which fails 6.11's own first question; and two transients of different classes open at once | **[336,474 280x258]**, panel lane, top on the section header row's top. The scrim goes, the overflow menu closes. Add to 6.11's worked examples: "Save as style / pop-out, 280, from the Styles header bookmark button / It names one member of a list and commits nothing the canvas must wait on"                       |
+| DataTableDrawer    | info bubble [732,721 250x58]                                                                                    | column info circle [848,701 14x14]                                               | centre-anchored with a 6px gap, and it covers the betweenness value in all three visible rows                                                   | **[848,721 250x58]** with an 8px caret at x 855; and the flip above the header row is mandatory when the bubble would cover that column's own cells. Same treatment for ImportRecognised's in-dialog bubble                                                                                                               |
+| Main               | rail Help menu [52,751 200x117]                                                                                 | Help button, bottom 872                                                          | 4px off the rail lane and 4px off the button's bottom                                                                                           | left 56, bottom-aligned to the button's 872                                                                                                                                                                                                                                                                               |
+| GroupProfilePopout | bottom 705 against a legend top of 709                                                                          | --                                                                               | a 4px gap where the overlay inset is 12                                                                                                         | bottom 697                                                                                                                                                                                                                                                                                                                |
 
 **One spec addition this audit forces.** 6.11 does not list a confirm as a
 governed surface, so the two cost and cap confirms were drawn as free cards:
@@ -452,13 +452,13 @@ governed surface, so the two cost and cap confirms were drawn as free cards:
 Cite these by pixel in 6.11's Anchor paragraph, so the rule has geometry
 attached and a later pass has something to measure against.
 
-| Board | Pop-out | Opener | Match |
-|---|---|---|---|
-| Main | Schema [672,473 480x295] | inspector row [1177,473 255x32] | top 473 on 473, right edge 1152 |
-| GroupProfilePopout | group profile [792,226 360x479] | row [1177,226 255x24] | 226 on 226 |
-| CategoryTable | Categories [792,300 360x260] | row [1177,300 255x32] | 300 on 300 |
-| FilterBuilderExpert | filter rule [336,277 360x217] | rule row [64,277 255x32] | 277 on 277, panel lane 336 |
-| AnalyzePicker | method preview [604,376 280x163] | -- | correctly centred on the canvas band's centre and correctly unanchored; a preview takes no lane |
+| Board               | Pop-out                          | Opener                          | Match                                                                                           |
+| ------------------- | -------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Main                | Schema [672,473 480x295]         | inspector row [1177,473 255x32] | top 473 on 473, right edge 1152                                                                 |
+| GroupProfilePopout  | group profile [792,226 360x479]  | row [1177,226 255x24]           | 226 on 226                                                                                      |
+| CategoryTable       | Categories [792,300 360x260]     | row [1177,300 255x32]           | 300 on 300                                                                                      |
+| FilterBuilderExpert | filter rule [336,277 360x217]    | rule row [64,277 255x32]        | 277 on 277, panel lane 336                                                                      |
+| AnalyzePicker       | method preview [604,376 280x163] | --                              | correctly centred on the canvas band's centre and correctly unanchored; a preview takes no lane |
 
 ---
 
@@ -545,22 +545,22 @@ actually contains them."
 
 > 5. The legend line for every encoded channel, in two obligations.
 >
->    **Export, absolute.** Every exported image, at every scope, carries a
->    legend composed from the encoding model: every encoded channel with its
->    channel word, attribute, domain endpoints, median or midpoint and the
->    scale in words; the twelve largest categories with their counts and the
->    coverage footer; every departure line, including the clamp line and "not
->    measured (N nodes)"; and one row per state drawn in the exported frame,
->    because a static figure has no filter strip, no status bar and no result
->    card to name them. No compaction, no user setting and no visibility
->    toggle reduces it.
+>     **Export, absolute.** Every exported image, at every scope, carries a
+>     legend composed from the encoding model: every encoded channel with its
+>     channel word, attribute, domain endpoints, median or midpoint and the
+>     scale in words; the twelve largest categories with their counts and the
+>     coverage footer; every departure line, including the clamp line and "not
+>     measured (N nodes)"; and one row per state drawn in the exported frame,
+>     because a static figure has no filter strip, no status bar and no result
+>     card to name them. No compaction, no user setting and no visibility
+>     toggle reduces it.
 >
->    **Screen.** The canvas legend carries one block per encoded channel:
->    channel, attribute, domain endpoints with the median or midpoint, the
->    scale in words, and every departure line. RT-4 may reduce a scale to a
->    trailing glyph in a panel; it may not in the legend. Category counts,
->    category rows past the canvas cap and the state rows are not floor items,
->    and their homes are named in C3.
+>     **Screen.** The canvas legend carries one block per encoded channel:
+>     channel, attribute, domain endpoints with the median or midpoint, the
+>     scale in words, and every departure line. RT-4 may reduce a scale to a
+>     trailing glyph in a panel; it may not in the legend. Category counts,
+>     category rows past the canvas cap and the state rows are not floor items,
+>     and their homes are named in C3.
 
 **Affected artboards:** all 42 boards that draw a legend, plus PresentPanel
 and one new ExportLegend board (G).
@@ -1424,21 +1424,21 @@ PresentPanel, StylePanel, plus a new KeepAdvancedOpen (G).
 
 # F. Rejected
 
-| Rejected | Why |
-|---|---|
-| Legend as its own panel or as a seventh activity | A panel is not exported and a legend is; 6.10's preamble binds the legend to the canvas; the panel that would hold it (the Style layer inspector) exists and only fills when a layer is selected in Style; and a seventh rail slot does not exist under floor item 6 |
-| Legend as a resident chip opening a pop-over | A chip cannot carry a swatch-to-name map, so for every categorical channel it puts the legend's whole content behind a door; 6.11's one-pop-out-per-region blocks it outright in Compare; and it makes the legend dismissible, which breaks the clearance rule that exists because it is not |
-| Legend kept whole on canvas, export left alone | Leaves W20, W22, W25 and the genomics persona unserved, and forces a choice between canvas size and export completeness that has no good side. This is the fallback if and only if the export is ever reimplemented as a DOM composite of the shell rect |
-| Legend swatch rows as filter controls | Two designloom requirements are genuinely unmet, but this adds keyboard and reachability obligations, competes with a plausible click-to-select reading of the same row, and requires the legend and the filter strip never to disagree. Deferred to a later revision, on its own, not folded into a disclosure pass |
-| Per-channel conditional legend compaction ("compact whenever another resident surface prints it") | Condition-dependent rendering is what produced 0%-to-86% duplication variance across the boards in the first place. C3's cuts are unconditional and therefore checkable, and they replace three conditional rules with one grammar |
-| 160px on-screen legend cap | StyleDiverging measures 240 with every line on the floor. 160 would force a floor item off the canvas. 240 is the measured height of an all-floor legend |
-| Recipes as a door; the Styles library as a door | Both fail A4's discriminator on all three counts. A closed section and a door cost the same row; the door adds a click for nothing. Both stay collapsed RT-8 sections whose trailing slot carries the count or the active style's name |
-| Moving the time slider gear to the bar's left end | A control move to work around an anchor rule. B1 fixes the anchor instead, and the gear stays where users have learned it |
-| The generalised pin | Narrowed to four comparative surfaces (E2). Figma has no pin at all; ours is a deliberate gap-fill and must be narrow or it becomes a second inspector |
-| + Analysis catalogue as an anchored pop-over | Not one member and not a report; and every rung of the width ladder collides with the preview's fixed centred home, measured (preview 604-884; a 360 pop-out at 336 runs to 696) |
-| Import policies as a panel pop-over | 6.11 verbatim: a control whose home is a dialog may not acquire a second home. The fix is Rule 7a, which deletes them at their defaults |
-| The Load control, the cost gate, the match reports, Cleaning steps, the Columns list, the attribute profile, the notes list, the search results, the neighbour list, Saved items behind any door | Floor items 4 and 7, and the scan argument 6.11 has already used twice |
-| Four classes of counter-rule to the door test | Three of the four are derivable at clause (a) and are recorded in A2 rather than written as vetoes; only "silent damage" survives as 6.10a |
+| Rejected                                                                                                                                                                                         | Why                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Legend as its own panel or as a seventh activity                                                                                                                                                 | A panel is not exported and a legend is; 6.10's preamble binds the legend to the canvas; the panel that would hold it (the Style layer inspector) exists and only fills when a layer is selected in Style; and a seventh rail slot does not exist under floor item 6                                                 |
+| Legend as a resident chip opening a pop-over                                                                                                                                                     | A chip cannot carry a swatch-to-name map, so for every categorical channel it puts the legend's whole content behind a door; 6.11's one-pop-out-per-region blocks it outright in Compare; and it makes the legend dismissible, which breaks the clearance rule that exists because it is not                         |
+| Legend kept whole on canvas, export left alone                                                                                                                                                   | Leaves W20, W22, W25 and the genomics persona unserved, and forces a choice between canvas size and export completeness that has no good side. This is the fallback if and only if the export is ever reimplemented as a DOM composite of the shell rect                                                             |
+| Legend swatch rows as filter controls                                                                                                                                                            | Two designloom requirements are genuinely unmet, but this adds keyboard and reachability obligations, competes with a plausible click-to-select reading of the same row, and requires the legend and the filter strip never to disagree. Deferred to a later revision, on its own, not folded into a disclosure pass |
+| Per-channel conditional legend compaction ("compact whenever another resident surface prints it")                                                                                                | Condition-dependent rendering is what produced 0%-to-86% duplication variance across the boards in the first place. C3's cuts are unconditional and therefore checkable, and they replace three conditional rules with one grammar                                                                                   |
+| 160px on-screen legend cap                                                                                                                                                                       | StyleDiverging measures 240 with every line on the floor. 160 would force a floor item off the canvas. 240 is the measured height of an all-floor legend                                                                                                                                                             |
+| Recipes as a door; the Styles library as a door                                                                                                                                                  | Both fail A4's discriminator on all three counts. A closed section and a door cost the same row; the door adds a click for nothing. Both stay collapsed RT-8 sections whose trailing slot carries the count or the active style's name                                                                               |
+| Moving the time slider gear to the bar's left end                                                                                                                                                | A control move to work around an anchor rule. B1 fixes the anchor instead, and the gear stays where users have learned it                                                                                                                                                                                            |
+| The generalised pin                                                                                                                                                                              | Narrowed to four comparative surfaces (E2). Figma has no pin at all; ours is a deliberate gap-fill and must be narrow or it becomes a second inspector                                                                                                                                                               |
+| + Analysis catalogue as an anchored pop-over                                                                                                                                                     | Not one member and not a report; and every rung of the width ladder collides with the preview's fixed centred home, measured (preview 604-884; a 360 pop-out at 336 runs to 696)                                                                                                                                     |
+| Import policies as a panel pop-over                                                                                                                                                              | 6.11 verbatim: a control whose home is a dialog may not acquire a second home. The fix is Rule 7a, which deletes them at their defaults                                                                                                                                                                              |
+| The Load control, the cost gate, the match reports, Cleaning steps, the Columns list, the attribute profile, the notes list, the search results, the neighbour list, Saved items behind any door | Floor items 4 and 7, and the scan argument 6.11 has already used twice                                                                                                                                                                                                                                               |
+| Four classes of counter-rule to the door test                                                                                                                                                    | Three of the four are derivable at clause (a) and are recorded in A2 rather than written as vetoes; only "silent damage" survives as 6.10a                                                                                                                                                                           |
 
 ---
 
@@ -1501,18 +1501,18 @@ every board with a legend (C).
 
 **Resident rows, measured before, projected after.**
 
-| Surface | Before | After |
-|---|---|---|
-| Present panel | 28 | 10 |
-| Style panel | 24 | 14 |
-| Analyze Run tab | 18 | 14 |
-| Explore panel (Main / ExplorePanel / MultiSelection / TimeSlider) | 14 / 23 / 17 / 14 | 10 / 20 / 13 / 11 |
-| Data panel, Loaded | 19 | 17 |
-| AI panel, supporting blocks | 6 blocks, about 445px | 2 door rows, about 64px |
-| Inspector: nothing selected / one node / multi | 12 / 26 / 20 | 12 / 24 / 16 |
-| Inspector action block (MultiSelection / iPad) | 8 / 7 | 4 / 4 |
-| Import options, resident rows outside the preview grid | 15 / 12 / 13 / 10 | 7 / 9 / 10 / 9 |
-| Settings > Performance | about 33 | about 25 |
+| Surface                                                           | Before                | After                   |
+| ----------------------------------------------------------------- | --------------------- | ----------------------- |
+| Present panel                                                     | 28                    | 10                      |
+| Style panel                                                       | 24                    | 14                      |
+| Analyze Run tab                                                   | 18                    | 14                      |
+| Explore panel (Main / ExplorePanel / MultiSelection / TimeSlider) | 14 / 23 / 17 / 14     | 10 / 20 / 13 / 11       |
+| Data panel, Loaded                                                | 19                    | 17                      |
+| AI panel, supporting blocks                                       | 6 blocks, about 445px | 2 door rows, about 64px |
+| Inspector: nothing selected / one node / multi                    | 12 / 26 / 20          | 12 / 24 / 16            |
+| Inspector action block (MultiSelection / iPad)                    | 8 / 7                 | 4 / 4                   |
+| Import options, resident rows outside the preview grid            | 15 / 12 / 13 / 10     | 7 / 9 / 10 / 9          |
+| Settings > Performance                                            | about 33              | about 25                |
 
 Across the six activity panels at rest: **about 116 resident rows to about 80,
 a 31% reduction. Present alone accounts for 18 of the 36 rows removed.** New

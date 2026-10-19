@@ -135,10 +135,10 @@ together.
 `renderFn`, which turns it into style layers and element properties. It is not an element property.
 Eleven story files pass `setup` and never route through `renderFn`:
 
-* the eight algorithm files, through `stories/algorithms/helpers.ts` (`algorithmMetaBase` has no
+- the eight algorithm files, through `stories/algorithms/helpers.ts` (`algorithmMetaBase` has no
   `render`): Centrality 7 stories, Community 4, Combined 4, Flow 3, ShortestPath 3, Component 2,
   SpanningTree 2, Traversal 2
-* `stories/Data.stories.ts` (21 stories), `stories/Graphty.stories.ts` (1),
+- `stories/Data.stories.ts` (21 stories), `stories/Graphty.stories.ts` (1),
   `stories/CameraControls.stories.ts` (2, which has its own render function)
 
 For those stories Storybook's default web-components renderer assigns every arg as a property, so
@@ -335,7 +335,7 @@ sharpest example is `test/managers/style-painter.test.ts:280-295`:
 
 ```ts
 it("switches a label on when a layer paints its words", async () => {
-    await held.styles.add(spec);            // set: { "node.label": "hello" }
+    await held.styles.add(spec); // set: { "node.label": "hello" }
     await held.paintAll();
     const paint = held.painter.nodePaint(0);
     assert.strictEqual(paint?.style.label?.text, "hello");
@@ -386,23 +386,23 @@ the merge.
 
 **What Chromatic would have missed even then.** Four things, and they matter.
 
-* A story that has always been wrong has a wrong baseline. Chromatic compares a story to its own past
+- A story that has always been wrong has a wrong baseline. Chromatic compares a story to its own past
   and never to its siblings. The signature of this fault was "thirteen stories byte-identical to each
   other" (probe sha `f3ea2b98d777b7a7`), and no per-story baseline diff can express that. A new story
   that never worked is accepted as its own first baseline.
-* This change set is *supposed* to move most pictures. `design/element-api/edge-model-and-layout-state.md:1425-1460`
+- This change set is _supposed_ to move most pictures. `design/element-api/edge-model-and-layout-state.md:1425-1460`
   is a deliberate list of what should move, and it includes "Edge labels change, and most of them
   disappear" and "Edges appear where there were none". A reviewer facing 130 diffs with that document
   in hand would plausibly accept blank label stories as the intended change. A re-baseline of this
   size is a review of 130 judgements, and the judgement needed here was "these two are blank for a
   different reason than the one in the document".
-* 27 of the changed stories now run with zero layout pre-steps, because their `setup.preSteps` is
+- 27 of the changed stories now run with zero layout pre-steps, because their `setup.preSteps` is
   inert. An unstepped physics layout is a different picture every run, which is the failure mode
   `CHROMATIC_PRE_STEPS` exists to prevent -- so those diffs would have arrived as noise mixed with the
   signal.
-* Chromatic says nothing about a promise that never settles, a run that neither commits nor rejects,
-  or an algorithm that never ran. Two of the three element defects are only *visible* as pixels; they
-  are only *diagnosable* from the element's own state.
+- Chromatic says nothing about a promise that never settles, a run that neither commits nor rejects,
+  or an algorithm that never ran. Two of the three element defects are only _visible_ as pixels; they
+  are only _diagnosable_ from the element's own state.
 
 Chromatic is necessary and it is not sufficient. The token and the push are the first fix; a test that
 asserts the element's own state per story is the one that turns "a picture changed" into "this layer
@@ -410,26 +410,26 @@ never landed".
 
 ## Fault by fault: story or element
 
-| Fault | Stories affected | Verdict | Change that caused it |
-|---|---|---|---|
-| A style edit issued before the data is set is discarded, and its `Run` never settles | every story with inline `nodeData`/`edgeData`: all 14 LayeredStyles, EdgeStyles width/opacity/arrow-head/all-arrows/all-lines, ArrowText, AllNodeShapes, BezierEdges, bipartite-matching, connected-components | **element** | `8036cc2d` (style writes became queued runs in the `algorithm-run` category, which `data-add` obsoletes) |
-| A `dataSource` load never triggers the first repaint, so nothing the stack says is ever painted | every story that loads over the network: all 11 LabelStyles, NodeStyles colour/shape/size/opacity/wireframe/label, GraphStyles layers, BidirectionalArrows, and all 27 algorithm stories | **element** | `c3561815` (pull-based per-element styling replaced by one pushed repaint, wired only to the queued `data-add`) |
-| A label, tooltip or marker is never rebuilt after the first paint | none as the stories stand; every consumer that toggles a label at runtime | **element** | `c3561815` (the `content` role and the mesh-key early return arrived together) |
-| `setup` is a dead property on stories whose meta has no `render: renderFn`; no algorithm runs, no story layer, no pre-steps | 27 algorithm stories, 21 Data stories, Graphty, and the `nodeEncode` of max-flow | **story** | `ff12a515` (the `styleTemplate` arg, which was a real element property, was replaced by a convention only `renderFn` understands) |
-| 2D ForceAtlas2 lays out in 3D | `layout-2d--force-atlas-2` | **story** | pre-existing; the story never passed `layoutConfig: { dim: 2 }` |
-| An unlabelled edge draws no label | ArrowText, and any edge-label story with no explicit text | **neither -- intended** | `ecf4461e`, recorded in the edge-model design |
+| Fault                                                                                                                       | Stories affected                                                                                                                                                                                               | Verdict                 | Change that caused it                                                                                                             |
+| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| A style edit issued before the data is set is discarded, and its `Run` never settles                                        | every story with inline `nodeData`/`edgeData`: all 14 LayeredStyles, EdgeStyles width/opacity/arrow-head/all-arrows/all-lines, ArrowText, AllNodeShapes, BezierEdges, bipartite-matching, connected-components | **element**             | `8036cc2d` (style writes became queued runs in the `algorithm-run` category, which `data-add` obsoletes)                          |
+| A `dataSource` load never triggers the first repaint, so nothing the stack says is ever painted                             | every story that loads over the network: all 11 LabelStyles, NodeStyles colour/shape/size/opacity/wireframe/label, GraphStyles layers, BidirectionalArrows, and all 27 algorithm stories                       | **element**             | `c3561815` (pull-based per-element styling replaced by one pushed repaint, wired only to the queued `data-add`)                   |
+| A label, tooltip or marker is never rebuilt after the first paint                                                           | none as the stories stand; every consumer that toggles a label at runtime                                                                                                                                      | **element**             | `c3561815` (the `content` role and the mesh-key early return arrived together)                                                    |
+| `setup` is a dead property on stories whose meta has no `render: renderFn`; no algorithm runs, no story layer, no pre-steps | 27 algorithm stories, 21 Data stories, Graphty, and the `nodeEncode` of max-flow                                                                                                                               | **story**               | `ff12a515` (the `styleTemplate` arg, which was a real element property, was replaced by a convention only `renderFn` understands) |
+| 2D ForceAtlas2 lays out in 3D                                                                                               | `layout-2d--force-atlas-2`                                                                                                                                                                                     | **story**               | pre-existing; the story never passed `layoutConfig: { dim: 2 }`                                                                   |
+| An unlabelled edge draws no label                                                                                           | ArrowText, and any edge-label story with no explicit text                                                                                                                                                      | **neither -- intended** | `ecf4461e`, recorded in the edge-model design                                                                                     |
 
 Where the probes disagreed, the code settles it:
 
-* Probe 2 suspected that the stack was "compiled and bound while the graph was empty and never
+- Probe 2 suspected that the stack was "compiled and bound while the graph was empty and never
   rebound". It is simpler than that: prepared bindings are built by the repaint, and no repaint ever
   ran, so `explain()` truthfully reports no contributions. One defect, not two.
-* Probe 1 recorded the ArrowText layers as "suspected" victims of queue obsolescence. Confirmed:
+- Probe 1 recorded the ArrowText layers as "suspected" victims of queue obsolescence. Confirmed:
   `StylesApi` enqueues under `algorithm-run`, `data-add` obsoletes that category, and the cancelled
   operation was still pending so nothing rejected it.
-* Probe 3 attributed the algorithm stories' `runs = 0` to the element. It is the story: measured live,
+- Probe 3 attributed the algorithm stories' `runs = 0` to the element. It is the story: measured live,
   `element.algorithmsOnLoad` is never set at all, because those stories never pass through `renderFn`.
-* The one thing still unmeasured is the label rebuild after a first paint, defect three. The code says
+- The one thing still unmeasured is the label rebuild after a first paint, defect three. The code says
   it is dropped; a test will say so in one line.
 
 ## The three questions
@@ -448,12 +448,12 @@ change, and the person reviewing 131 updated expectations is in the same positio
 approving 131 Chromatic diffs. What is worth testing is a small number of invariants that hold for
 every story and every consumer, at the seam where this class of fault lives:
 
-* Whatever a story asks the element for is in the element's layer stack afterwards.
-* Every element in a loaded graph has been painted by the stack at least once, whatever load path
+- Whatever a story asks the element for is in the element's layer stack afterwards.
+- Every element in a loaded graph has been painted by the stack at least once, whatever load path
   brought it in.
-* A style write either commits or rejects, within a bounded time, in every order of operations --
+- A style write either commits or rejects, within a bounded time, in every order of operations --
   never neither.
-* A channel the style system resolves is a channel the renderer draws. Labels are the case where the
+- A channel the style system resolves is a channel the renderer draws. Labels are the case where the
   model and the scene disagreed, so labels get the pixel check.
 
 Four invariants, three of which can be asserted once and applied to every story by a single hook.
@@ -468,7 +468,7 @@ given its token back rather than reimplemented in vitest.
    every layer the story's `setup` declared appears in `session.styles.list()`. This one hook fails on
    all 47 probe findings: on the 30+ network-loaded stories through the empty paint, on the
    inline-data stories through the missing layers, and on the 27 algorithm stories through both.
-2. An element test that adds a layer *without awaiting it* and then assigns the data in the same tick,
+2. An element test that adds a layer _without awaiting it_ and then assigns the data in the same tick,
    waits for the queue, and asserts the layer is in the stack and painted -- plus, separately, that
    the `Run` returned by every write verb settles (resolves or rejects) within a bounded time in all
    three orders. Fails today on the stranded run.
@@ -491,13 +491,13 @@ Each lane owns whole files. No file appears in two lanes.
 
 Owns:
 
-* `graphty-element/test/helpers/paint-assertions.ts` *(new)* -- the shared assertions every lane
+- `graphty-element/test/helpers/paint-assertions.ts` _(new)_ -- the shared assertions every lane
   needs: `assertEveryElementPainted(session)` (no empty `styleOf`, no bootstrap mesh key left in the
   scene); `assertStackContains(session, expectedLayerNames)`; `assertRunSettles(run, ms)`;
   `darkPixelsNear(graph, nodeId, radius)` for label readback (near-black count, the inverse of the
   hue-seeking sampler in `style-paint-pixels.test.ts`); `canvasHash(graph)` for byte comparison
   between stories.
-* `graphty-element/.storybook/vitest.setup.ts` -- register a project-level `afterEach` (supported:
+- `graphty-element/.storybook/vitest.setup.ts` -- register a project-level `afterEach` (supported:
   `prepareStory`'s `applyAfterEach` merges project, meta and story hooks) that, for every story with a
   `graphty-element`: waits for `graph-settled` with a timeout that **fails**; asserts
   `session.paint.problems()` is empty; asserts every element has been painted; and asserts that each
@@ -505,11 +505,11 @@ Owns:
   than in `preview.ts` so a reader browsing Storybook is not shown assertion errors. It must tolerate
   stories with no element and stories that deliberately draw nothing -- use an opt-out via story
   parameters, not a silent skip.
-* `graphty-element/test/browser/story-contract.test.ts` *(new)* -- the static pairing test: import
+- `graphty-element/test/browser/story-contract.test.ts` _(new)_ -- the static pairing test: import
   every `stories/**/*.stories.ts` module and `renderFn`, and assert that a file whose stories declare
   `setup` has `meta.render === renderFn`. Also assert the inverse for the custom-render files, so
   `CameraControls`, `Screenshot` and `Selection` either honour `setup` or do not declare it.
-* `graphty-element/test/browser/first-paint-after-load.test.ts` *(new)* -- the load-path matrix, which
+- `graphty-element/test/browser/first-paint-after-load.test.ts` _(new)_ -- the load-path matrix, which
   is the regression test for the fault class rather than for one defect: {inline `nodeData` /
   `addNodes` / `addDataFromSource`} x {no layer / layer before the load, awaited / layer before the
   load, not awaited / layer after the load} -- every cell must end with the stack painted and every
@@ -525,17 +525,17 @@ the mesh key moved.
 
 Owns:
 
-* `graphty-element/src/Node.ts` -- the early return in `paintFrom` (around line 389) must not skip the
+- `graphty-element/src/Node.ts` -- the early return in `paintFrom` (around line 389) must not skip the
   label, tooltip and marker work. The cheapest correct shape is to split the method: the geometry
   rebuild stays behind the key comparison, and the content channels are applied on every paint, guarded
   by their own comparison against what is currently drawn so an unchanged label is still free.
-* `graphty-element/src/Edge.ts` -- the same split in its `paintFrom` (around line 501), which today
+- `graphty-element/src/Edge.ts` -- the same split in its `paintFrom` (around line 501), which today
   returns without applying anything at all.
-* `graphty-element/test/browser/label-paint.test.ts` *(new)* -- a layer that sets only `node.label` on
+- `graphty-element/test/browser/label-paint.test.ts` _(new)_ -- a layer that sets only `node.label` on
   an already-painted graph produces a label with the right text and dark pixels on the canvas; the same
   for `edge.label`; changing only `node.labelStyle` changes the drawn glyphs; removing the layer removes
   the label. Use Lane A's `darkPixelsNear`.
-* `graphty-element/stories/LabelStyles.stories.ts` -- only if a story needs to change. It should not:
+- `graphty-element/stories/LabelStyles.stories.ts` -- only if a story needs to change. It should not:
   these stories are correct and are blocked by Lane C's two element defects.
 
 Do not change `test/browser/Edge.label.test.ts` or `Edge.arrowText.test.ts` -- they are leaf tests and
@@ -547,29 +547,29 @@ Two element defects, one file each, plus the story-side repair that is in the sa
 
 Owns:
 
-* `graphty-element/src/managers/OperationQueueManager.ts` -- a cancelled operation must tell its
+- `graphty-element/src/managers/OperationQueueManager.ts` -- a cancelled operation must tell its
   caller. Today `applyObsolescenceRules` aborts and deletes a pending operation and nothing rejects
   it; the operation carries `resolve`/`reject` handles (`queueOperationAsync` sets them) and the
   obsolescence path must call `reject` with the abort, so a `ManagedRun` settles. Separately decide
   whether a style write should be obsoleted by a data load at all -- see the next file.
-* `graphty-element/src/constants/obsolescence-rules.ts` -- `data-add` obsoletes `algorithm-run`, and
+- `graphty-element/src/constants/obsolescence-rules.ts` -- `data-add` obsoletes `algorithm-run`, and
   three unrelated features share that category: algorithm runs, style writes and visibility changes
   (stated at `src/Graph.ts:360-367`). A style edit is a standing instruction, not a stale computation
   over the old data, so it should not be cancelled by a load. Either give style writes their own
   category or narrow the rule. This is the real fix; rejecting the run is the safety net.
-* `graphty-element/src/Graph.ts` and `graphty-element/src/managers/DataManager.ts` -- the first repaint
+- `graphty-element/src/Graph.ts` and `graphty-element/src/managers/DataManager.ts` -- the first repaint
   must happen on the data-source path. The element already solved this problem once for the on-load
   algorithms by hanging them off the `data-added` event instead of the queue category
   (`src/Graph.ts:510-512`); the repaint can hang off the same event, or `DataManager.addDataFromSource`
   can route its chunks through the queue. Prefer whichever keeps one repaint per load rather than one
   per chunk.
-* `graphty-element/test/browser/style-layer-ordering.test.ts` *(new)* -- fire-and-forget ordering: add
+- `graphty-element/test/browser/style-layer-ordering.test.ts` _(new)_ -- fire-and-forget ordering: add
   a layer without awaiting, set the data, and assert the layer landed and painted; assert every write
   verb's run settles in every order; assert a layer added before a `dataSource` load paints the rows
   that arrive later.
-* `graphty-element/stories/algorithms/helpers.ts` -- add `render: renderFn` to `algorithmMetaBase`, so
+- `graphty-element/stories/algorithms/helpers.ts` -- add `render: renderFn` to `algorithmMetaBase`, so
   `setup.algorithms`, `setup.preSteps` and the reader layers take effect again. 27 stories.
-* `graphty-element/stories/Data.stories.ts`, `graphty-element/stories/Graphty.stories.ts`,
+- `graphty-element/stories/Data.stories.ts`, `graphty-element/stories/Graphty.stories.ts`,
   `graphty-element/stories/Layout2D.stories.ts` -- add `render: renderFn` to the first two, and
   `layoutConfig: { dim: 2 }` to the 2D ForceAtlas2 story.
 

@@ -30,7 +30,10 @@ function nodeCalled(id: string): Node {
  * @param ids - The node ids the session reports as selected.
  * @returns Something carrying the two members these getters read.
  */
-function sessionSelecting(ids: readonly NodeIdType[]): { nodes: readonly NodeIdType[]; has: (id: NodeIdType) => boolean } {
+function sessionSelecting(ids: readonly NodeIdType[]): {
+    nodes: readonly NodeIdType[];
+    has: (id: NodeIdType) => boolean;
+} {
     return { nodes: ids, has: (id: NodeIdType) => ids.includes(id) };
 }
 

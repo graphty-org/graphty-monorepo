@@ -40,7 +40,7 @@ contract, importer and exporter shape, the report).
 | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New subpaths                                             | `@graphty/graph-io/xgmml`, `/cx`, `/cx2`, `/cys`, `/obo`, one per format. OBO Graphs JSON is read by `/json` (dialect `"obographs"`)                                                                                                                                                                                                                                                                                        |
 | New format names (registry, sniffing, `GraphFormatName`) | `"xgmml"`, `"cx"`, `"cx2"`, `"cys"`, `"obo"`                                                                                                                                                                                                                                                                                                                                                                                |
-| Exporters                                                | XGMML and CX2 only. CX1, `.cys` and OBO are read-only (sections 1.2, 1.4, 1.5 say why)                                                                                                                                                                                                                                                                                                                                      |
+| Exporters                                                | XGMML, CX2, CX1 (section 1.2), `.cys`, OBO and OBO Graphs JSON                                                                                                                                                                                                                                                                                                                                                              |
 | Visual information                                       | Style import is issue #706. Per-element visual values become plain columns, as the existing importers' GEXF viz values and GML graphics do: XGMML `graphics` as a `json` column, CX and CX2 bypasses as one column per visual property. Style rules (defaults, mappings, dependencies, visual property aspects) are not applied; each importer reports them with the loss code `W_STYLES_NOT_IMPORTED` (section 2)          |
 | Several graphs in one file                               | `importAll()` returns one snapshot per network (`.cys`, CX1 collections, the XGMML session dialect, OBO Graphs `graphs[]`); `import()` reads one, chosen by `graphIndex` / `graphName`; a new optional importer method `listGraphs()` lists them cheaply so a picker can be shown first                                                                                                                                     |
 | Zip                                                      | A dependency-free central-directory reader in `src/common/zip.ts`; deflate is inflated by wrapping each entry in a gzip member and using `DecompressionStream("gzip")`, which every supported runtime has (Node 18+), and which checks the CRC itself                                                                                                                                                                       |
@@ -285,12 +285,23 @@ as String), plus the shared `xmlIllegalTextNotes`, `W_TEMPORAL_DROPPED`,
 
 ### 1.2 CX version 1 (`@graphty/graph-io/cx`)
 
-Exports: `cxImporter`, `CxImportOptions`, `CX_ISSUE`. Format name `"cx"`, extension `.cx`, MIME
-type `application/json` (NDEx serves it so; there is no registered CX type).
+Exports: `cxImporter`, `cxExporter`, `CxImportOptions`, `CxExportOptions`, `CX_ISSUE`, `CX_LOSS`,
+`CX_CAPABILITIES`. Format name `"cx"`, extension `.cx`, MIME type `application/json` (NDEx serves it
+so; there is no registered CX type).
 
-**Exporter: no.** CX1 is superseded by CX2 for every writer that matters: NDEx serves and accepts
-CX2, Cytoscape 3.10+ writes it, and NDEx converts between them. A CX1 writer would duplicate the
-CX2 exporter for a legacy reader. Add one when someone needs to feed a CX1-only tool.
+**Exporter: yes** (reversing the first decision here, at the owner's request to finish the
+exporters). It writes the NDEx form: one network, at most one view, no `cySubNetworks`, aspects in
+the order Cytoscape and NDEx write them, values as JSON strings with `d` and a `cyTableColumn` entry
+per column. Node ids follow the CX2 exporter's rule (shared in `common/cx-export.ts`, with
+`sanitizeIds: "mangle"` keeping the original in `graphty:originalId`, which the CX importer now
+restores under `restoreMangledIds`); `parent` / `parents` become `cyGroups` with computed internal
+and external edge lists; the `cx.bypass` columns become per-element `cyVisualProperties`; the
+provenance a CX import made (`cx:citations`, `cx:supports`, the link columns, `functionTerm`,
+`reifiedEdge`) is written back; and the style rules and unknown aspects a CX import kept are
+written back for its own subnetwork only (view references rewritten to 0), never the collection's
+`cySubNetworks`, `cyNetworkRelations`, `cyViews` or `CX Element ID`. NaN and the infinities are
+spelled in double attributes; a non-finite position or a NaN weight is not written
+(`W_NONFINITE_AS_NULL`). The loss notes are `CX_LOSS`.
 
 **Mapping** (`research-cx.md` section 6 is the full table; the decisions):
 
@@ -522,24 +533,47 @@ the shared `W_HIERARCHY_DROPPED`, `W_TEMPORAL_DROPPED` and the role notes.
 
 ### 1.4 Cytoscape sessions (`@graphty/graph-io/cys`)
 
-Exports: `cysImporter`, `CysImportOptions`, `CYS_ISSUE`. Format name `"cys"`, extension `.cys`,
-MIME type `application/zip` (Cytoscape declares none). Read-only; section 3 has the design.
+Exports: `cysImporter`, `CysImportOptions`, `CYS_ISSUE`, `cysExporter`, `CysExportOptions`,
+`CYS_LOSS`, `CYS_CAPABILITIES`. Format name `"cys"`, extension `.cys`, MIME type `application/zip`
+(Cytoscape declares none). Section 3 has the importer's design.
 
-**Exporter: no.** A session is Cytoscape's private save file: writing one means synthesizing
-SUIDs, root networks, table namespaces, view files and a zip writer, to produce a file whose only
-reader is Cytoscape, which opens the CX2 and XGMML graph-io already writes. The cost is large and
-the gain is none.
+**Exporter: yes** (amended 2026-10-03; the owner asked for every format to be written, which
+reverses the earlier "read-only" decision). It writes the smallest session Cytoscape Desktop 3.x's
+reader accepts, checked against `Cy3SessionReaderImpl`, `CSVCyReader` and the XGMML handlers: a
+`CytoscapeSession/3.0.0.version` marker, one network file (a root network holding one registered
+subnetwork, nodes and edges by SUID with `cy:directed`, no atts, which a 3.x session ignores), the
+LOCAL_ATTRS CyCSV tables of the nodes, edges and network (the label as `name`) and of the root
+network (its name), and a view file only when the snapshot has positions. Stored entries with
+their sizes in the local header (Java's `ZipInputStream` refuses a stored entry with a data
+descriptor), written by `writeZip()` in `common/zip.ts`. Node ids that are positive integers keep
+them as SUIDs; others are `E_INVALID_ID`, or under `sanitizeIds: "mangle"` get new SUIDs with the
+original in `graphty:originalId`, which the importer restores (`restoreMangledIds`). For the round
+trip the importer takes a 3.x table's `name` as the label (in a label column named `name`) and the
+`weight` edge column as the weight. `exportToString()` rejects with `E_UNSUPPORTED`
+(`reason: "binary"`). Groups, styles, `cytables.xml`, the network list and deflate are not written.
+**CYS_LOSS**: `W_CYS_UNSET_AS_EMPTY_STRING`, `W_CYS_LIST_ITEMS`, `W_CYS_TEXT_AS_EQUATION`,
+`W_CYS_JSON_AS_STRING`, `W_CYS_POSITION`, plus the shared codes; a column renamed for Cytoscape
+(`SUID`, a built-in column of another class, a case-insensitive clash) is the shared
+`W_COLUMN_NAME_CHANGED`.
 
 ### 1.5 OBO (`@graphty/graph-io/obo`)
 
-Exports: `oboImporter`, `OboImportOptions`, `OBO_ISSUE`. Format name `"obo"`, extension `.obo`,
+Exports: `oboImporter`, `OboImportOptions`, `OBO_ISSUE`, `oboExporter`, `OboExportOptions`
+(`relation`, `ontology`), `OBO_LOSS`, `OBO_CAPABILITIES`. Format name `"obo"`, extension `.obo`,
 MIME types `text/obo`, `application/obo` (neither is registered; both are seen). Section 4 has the
 mapping.
 
-**Exporter: no.** OBO's value is the published ontology itself, which users download from the
-GO; writing an edited ontology back is an editor's job (Protege, ROBOT), and an OBO writer would
-have to drop every column, position and edge attribute that has no OBO tag. Graphs read from OBO
-export losslessly enough through GraphML or graph-format's own container.
+**Exporter: yes** (amended 2026-10-03; the first version of this design had none). The owner asked
+for every format to be writable. The exporter writes OBO 1.4 through the same column vocabulary
+(`src/common/ontology.ts`), so a file read from OBO writes back as the same snapshot; any other
+graph writes its extra node columns as typed `property_value` lines (with an auto-declared
+metadata `[Typedef]`) and its edge columns as qualifiers, each reported by `check()`. The
+capabilities table claims no dtypes, lists, json or graph attributes, because no column of the
+snapshot's own reads back as a column. Frames come in node order with Typedefs last (what the GO
+and ROBOT write), not the guide's alphabetical order, so a re-import keeps the node order. `\W`
+is never written. Under `sanitizeIds: "mangle"` an id holding whitespace, `!`, `{` or `}` is
+rewritten with `_`, its original kept as `property_value: graphty:originalId "<JSON text>"
+xsd:string`, which the importer restores under `restoreMangledIds`.
 
 **Sniffing.** After skipping a BOM, blank lines and `!` comment lines: 0.9 when the first
 significant line is `format-version:` or a `[Term]`, `[Typedef]` or `[Instance]` header (a file
@@ -559,8 +593,16 @@ in its nodes or edges, an edge with `sub` (or the outdated `subj`) and `obj`, or
 node with `lbl`, a `meta` object, or a `type` of `CLASS` / `INDIVIDUAL` / `PROPERTY`; looking only at
 the first node and first edge misses graphs with no edges (`obsoletion_example`) and graphs whose
 first node has no `lbl` (`nucleus.json`). With `source` / `target` edges or a nodes object (and
-none of those keys) it stays `"jgf"`. The head scan for truncated heads looks for the same keys. `"obographs"` is an import-only dialect
-(added to `JSON_IMPORT_DIALECTS`, not to the exporter's `JSON_DIALECTS`).
+none of those keys) it stays `"jgf"`. The head scan for truncated heads looks for the same keys.
+`"obographs"` is a member of the exported `JsonDialect` union and is written as well as read
+(amended 2026-10-03, reversing the import-only decision of one-way door 2 at the owner's request
+to make every format writable): `src/formats/json/obographs-export.ts`, with codes
+`W_OBOGRAPHS_EDGE_COLUMN_AS_META`, `W_OBOGRAPHS_ID_CHANGED` and `W_OBOGRAPHS_DATATYPE_DROPPED` in
+`JSON_LOSS`, the option `ontologyIri`, and the concepts it shares with the OBO exporter under the
+shared codes `W_COLUMN_AS_PROPERTY_VALUE`, `W_RELATION_ASSUMED`, `W_TYPEDEF_NODES` and
+`W_GRAPH_COLUMN_AS_METADATA`. An id is written as the IRI the importer compacts back to it (a
+CURIE as its OBO PURL, a shorthand as its property's IRI, an unprefixed id under the ontology
+IRI), else as it stands.
 
 Codes, added to `JSON_ISSUE`: `W_JSON_OBOGRAPHS_SUBJ` (the legacy `subj` key, read as `sub`); the
 shared `W_DANGLING_REFERENCE` for an edge endpoint missing from `nodes` (a placeholder node is

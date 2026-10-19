@@ -1,0 +1,664 @@
+#!/usr/bin/env node
+// Keeps the SonarQube project `<key>` (SONAR_PROJECT_KEY) a current analysis of origin/master, and
+// sets the server up for the pre-push gate. See design/sonarqube/design.md, sections 1 and 2.
+//
+// Usage:
+//   node tools/sonar-baseline.mjs --setup   once, by the owner, with an ADMIN token, on the owner's
+//                                           network. Idempotent: creates <key> and <key>-local, restores
+//                                           the "Graphty way" profile (tools/sonar/graphty-way.xml) and
+//                                           assigns it, creates the "Graphty" quality gate and assigns
+//                                           it, sets <key>'s new-code period to 30 days, and pins the
+//                                           server id the gate checks before it sends a token.
+//   node tools/sonar-baseline.mjs --once    one baseline pass (below), then exit
+//   node tools/sonar-baseline.mjs --watch   a pass every 30 minutes, forever. Run under servherd:
+//       servherd_start({ name: "sonar-baseline", cwd: "<repo>", command: "node tools/sonar-baseline.mjs --watch" })
+//     with no token in env or command; this script reads it from the environment or .env.
+//
+// A pass: fetch origin; pick the newest release-train run (release.yml, scheduled or dispatched,
+// listed with one `gh run list` call) that finished and still has coverage-* artifacts: master
+// pushes run no tests, so the train's full CI run of its candidate commit is the only coverage of a
+// master commit (design/ci/ci-cd-plan.md section 8). If <key> has not analyzed that commit or a
+// later one, move the detached worktree .worktrees/sonar-baseline to it, install and build, merge
+// that run's coverage, restore the profile if the file changed, and run a full scan under the lock
+// the gate uses (waiting up to LOCK_WAIT_S for a push to release it, else retrying at the next
+// poll). The first pass of each ISO week comments the numbers on the pinned "SonarQube burn-down"
+// issue. When the worktree cannot be moved, installed or built, the first failed pass of a streak
+// opens one issue ("SonarQube baseline: the build of master fails") and the next success closes it.
+//
+// The token goes only to the scanner child and to tools/sonar/api.mjs; every other child (git,
+// pnpm, gh, the build) runs with both tokens removed from its environment.
+import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import {
+    acquireLock,
+    client,
+    envWithoutToken,
+    loadConfig,
+    serverStatus,
+    startScanner,
+    stopScanner,
+} from "./sonar/api.mjs";
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const PROFILE_FILE = join(ROOT, "tools/sonar/graphty-way.xml");
+const POLL_MS = 30 * 60 * 1000;
+// How long a pass waits for the scan lock; pre-push gates hold it a few minutes each, up to 3 at once.
+const LOCK_WAIT_S = 15 * 60;
+// How many release.yml runs a pass lists; most are publish runs of master pushes, a few are trains.
+const LOOKBACK = 100;
+// The events that start a release train; a push starts the publish job, which tests nothing.
+const TRAIN_EVENTS = new Set(["schedule", "workflow_dispatch"]);
+const SCAN_TIMEOUT_MS = 1800 * 1000;
+const GATE_NAME = "Graphty";
+// The "Graphty" gate's conditions. Each stage of the burn-down adds its ratchet here (design
+// section 3, "Stages") and records it in design/sonarqube/server-settings.md. Stage 1 added the
+// security review rating: worse than A (rating 1) fails.
+const GATE_CONDITIONS = [
+    { metric: "new_violations", op: "GT", error: "0" },
+    { metric: "new_security_hotspots_reviewed", op: "LT", error: "100" },
+    { metric: "security_review_rating", op: "GT", error: "1" },
+];
+
+const log = (msg) => console.log(`${new Date().toISOString()} ${msg}`);
+const git = (args, cwd = ROOT) => execFileSync("git", args, { cwd, encoding: "utf8", env: envWithoutToken() }).trim();
+const commonDir = () => git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+const sonarDir = () => {
+    const d = join(commonDir(), "sonar");
+    mkdirSync(d, { recursive: true });
+    return d;
+};
+
+const POST = { method: "POST" };
+const hashFile = (f) => createHash("sha256").update(readFileSync(f)).digest("hex");
+const firstLine = (e) => e.message.split("\n")[0];
+
+// The profile file as { name, parent, languages: { ts: ["typescript:S2699", ...] } }.
+function readProfileFile(text) {
+    const head = text.match(/<graphty-way name="([^"]+)" parent="([^"]+)">/);
+    if (!head) throw new Error('graphty-way.xml: no <graphty-way name="..." parent="..."> element');
+    const languages = {};
+    const body = text.replaceAll(/<!--[\s\S]*?-->/g, "");
+    for (const m of body.matchAll(/<language key="([^"]+)">([\s\S]*?)<\/language>/g)) {
+        languages[m[1]] = [...m[2].matchAll(/<deactivate rule="([^"]+)"/g)].map((r) => r[1]);
+    }
+    return { name: head[1], parent: head[2], languages };
+}
+
+// Rule keys active in a profile.
+async function activeRules(api, profileKey) {
+    const rules = await api.all("api/rules/search", { qprofile: profileKey, activation: "true", f: "repo" }, "rules");
+    return new Set(rules.map((r) => r.key));
+}
+
+// The profile `name` for `language`, created if missing, with `parentName` as its parent.
+async function ensureProfile(api, language, name, parentName) {
+    const found = (await api.call("api/qualityprofiles/search", { language })).profiles ?? [];
+    const parent = found.find((p) => p.name === parentName);
+    if (!parent) throw new Error(`no "${parentName}" profile for ${language}`);
+    let profile = found.find((p) => p.name === name);
+    if (!profile) {
+        profile = (await api.call("api/qualityprofiles/create", { language, name }, POST)).profile;
+        log(`created profile "${name}" (${language})`);
+    }
+    if (profile.parentKey !== parent.key) {
+        await api.call(
+            "api/qualityprofiles/change_parent",
+            { language, qualityProfile: name, parentQualityProfile: parentName },
+            POST,
+        );
+    }
+    return { profile, parent };
+}
+
+// Deactivate exactly `deactivate` among the rules the profile inherits; reactivate the rest.
+async function syncRules(api, profile, parent, deactivate) {
+    const want = new Set(deactivate);
+    const parentRules = await activeRules(api, parent.key);
+    const own = await activeRules(api, profile.key);
+    for (const rule of want) {
+        if (!own.has(rule)) continue;
+        await api.call("api/qualityprofiles/deactivate_rule", { key: profile.key, rule }, POST);
+        log(`deactivated ${rule} in "${profile.name}"`);
+    }
+    for (const rule of parentRules) {
+        if (want.has(rule) || own.has(rule)) continue;
+        await api.call("api/qualityprofiles/activate_rule", { key: profile.key, rule, reset: "true" }, POST);
+        log(`reactivated ${rule} in "${profile.name}"`);
+    }
+}
+
+// Make the server's "Graphty way" profiles match `file` and assign them to `projects`.
+async function restoreProfile(api, projects, file = PROFILE_FILE) {
+    const spec = readProfileFile(readFileSync(file, "utf8"));
+    for (const [language, deactivate] of Object.entries(spec.languages)) {
+        const { profile, parent } = await ensureProfile(api, language, spec.name, spec.parent);
+        await syncRules(api, { ...profile, name: `${spec.name} (${language})` }, parent, deactivate);
+        for (const project of projects) {
+            await api.call("api/qualityprofiles/add_project", { language, qualityProfile: spec.name, project }, POST);
+        }
+    }
+    writeFileSync(join(sonarDir(), "profile-hash"), hashFile(file));
+}
+
+// The "Graphty" quality gate with exactly GATE_CONDITIONS, assigned to `projects`.
+async function syncGate(api, projects) {
+    const gates = (await api.call("api/qualitygates/list")).qualitygates ?? [];
+    if (!gates.some((g) => g.name === GATE_NAME)) {
+        await api.call("api/qualitygates/create", { name: GATE_NAME }, POST);
+        log(`created quality gate "${GATE_NAME}"`);
+    }
+    const have = (await api.call("api/qualitygates/show", { name: GATE_NAME })).conditions ?? [];
+    for (const c of GATE_CONDITIONS) {
+        const old = have.find((x) => x.metric === c.metric);
+        if (!old) await api.call("api/qualitygates/create_condition", { gateName: GATE_NAME, ...c }, POST);
+        else if (old.op !== c.op || old.error !== c.error) {
+            await api.call("api/qualitygates/update_condition", { id: old.id, ...c }, POST);
+        }
+    }
+    for (const c of have.filter((x) => !GATE_CONDITIONS.some((w) => w.metric === x.metric))) {
+        await api.call("api/qualitygates/delete_condition", { id: c.id }, POST);
+    }
+    for (const projectKey of projects) {
+        await api.call("api/qualitygates/select", { gateName: GATE_NAME, projectKey }, POST);
+    }
+}
+
+async function setup(cfg) {
+    const status = await serverStatus(cfg.host);
+    if (!status) throw new Error("the server at SONAR_HOST_URL does not answer");
+    const api = client(cfg.host, cfg.adminToken);
+    const me = await api.call("api/users/current");
+    if (!me.permissions?.global?.includes("admin")) {
+        throw new Error("--setup creates projects and profiles: run it with an administrator's token");
+    }
+    const key = cfg.projectKey;
+    const projects = [key, `${key}-local`];
+    for (const project of projects) {
+        const found = await api.call("api/projects/search", { projects: project });
+        if (found.components?.length) continue;
+        const name = project === key ? "Graphty" : "Graphty (pre-push scratch)";
+        await api.call("api/projects/create", { project, name, mainBranch: "main" }, POST);
+        log(`created project ${project}`);
+    }
+    await restoreProfile(api, projects);
+    await syncGate(api, projects);
+    await api.call("api/new_code_periods/set", { project: key, type: "NUMBER_OF_DAYS", value: "30" }, POST);
+    writeFileSync(join(sonarDir(), "server-id"), `${status.id}\n`);
+    log(`setup done; pinned server id ${status.id}`);
+}
+
+const sh = (cmd, args, cwd, env = {}) =>
+    spawnSync(cmd, args, { cwd, stdio: "inherit", env: { ...envWithoutToken(), ...env } }).status === 0;
+
+/**
+ * How the baseline runs an install or build step: no token, and no core files (each
+ * out-of-memory abort of the graphty build left a 4.2 GB core in the worktree, #2113).
+ * @param cmd - The program.
+ * @param args - Its arguments.
+ * @returns `{ cmd, args }` for spawnSync.
+ */
+export function buildChild(cmd, args) {
+    return { cmd: "sh", args: ["-c", 'ulimit -c 0 && exec "$@"', "sh", cmd, ...args] };
+}
+const build = (cmd, args, cwd) => {
+    const c = buildChild(cmd, args);
+    return sh(c.cmd, c.args, cwd);
+};
+
+/**
+ * Raise one alert per streak of failed worktree preparations, and clear it on the next success.
+ * The open alert's issue number is kept in `stampFile`.
+ * @param failure - Why preparing failed, or "" when it succeeded.
+ * @param stampFile - Where the open alert's issue number is kept.
+ * @param issues - `{ open(failure) -> number | null, close(number) -> boolean }`.
+ */
+export function prepareAlert(failure, stampFile, issues) {
+    const open = existsSync(stampFile) ? readFileSync(stampFile, "utf8").trim() : "";
+    if (failure && !open) {
+        const n = issues.open(failure);
+        if (n) writeFileSync(stampFile, `${n}\n`);
+    } else if (!failure && open && issues.close(open)) {
+        rmSync(stampFile, { force: true });
+    }
+}
+
+const ALERT_TITLE = "SonarQube baseline: the build of master fails";
+const ALERT_LABELS = "bug,priority:medium,effort:medium";
+
+// The alert as a GitHub issue; null or false (logged) when gh failed, so the next poll tries again.
+const alertIssues = {
+    open(failure) {
+        const body = [
+            "`tools/sonar-baseline.mjs --watch` (servherd `sonar-baseline`) could not prepare the baseline worktree:",
+            "",
+            `    ${failure}`,
+            "",
+            "Project `graphty-monorepo` stops following master until it succeeds. The step's output is in",
+            "`servherd_logs sonar-baseline`. The runner retries every poll and closes this issue at the first",
+            "success; it opens no other issue until then.",
+        ].join("\n");
+        try {
+            const args = ["issue", "create", "--title", ALERT_TITLE, "--label", ALERT_LABELS, "--body", body];
+            const url = execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }).trim();
+            log(`ALERT: ${failure}; opened ${url}`);
+            return url.split("/").pop();
+        } catch (e) {
+            log(`gh issue create failed: ${firstLine(e)}`);
+            return null;
+        }
+    },
+    close(number) {
+        const comment = "The baseline worktree built again; the runner is scanning master.";
+        const ok = sh("gh", ["issue", "close", number, "--comment", comment], ROOT);
+        if (ok) log(`build recovered; closed #${number}`);
+        return ok;
+    },
+};
+const ghJson = (args) => JSON.parse(execFileSync("gh", args, { cwd: ROOT, encoding: "utf8", env: envWithoutToken() }));
+
+/**
+ * The commit to scan: the head commit of the newest release-train run that finished, was not
+ * cancelled or skipped, and has coverage (a train that found nothing to release tests nothing).
+ * @param runs - release.yml runs, newest first, as `{ databaseId, status, conclusion, headSha, event }`.
+ * @param hasCoverage - `(run)` true when the run has unexpired coverage-* artifacts; asked newest
+ *   first, only for finished train runs, and no further once one has them or `maxAsk` were asked.
+ * @param maxAsk - The most runs to ask about (each is an API call; coverage is kept one day).
+ * @returns `{ sha, run }`, or null when no train run asked about has coverage.
+ */
+export function pickCommit(runs, hasCoverage, maxAsk = 5) {
+    let asked = 0;
+    for (const run of runs) {
+        if (!TRAIN_EVENTS.has(run.event) || run.status !== "completed") continue;
+        if (["cancelled", "skipped"].includes(run.conclusion)) continue;
+        if (asked++ >= maxAsk) break;
+        if (hasCoverage(run)) return { sha: run.headSha, run };
+    }
+    return null;
+}
+
+/**
+ * Whether `sha` needs a scan: not when it is `last` (the revision <key> last analyzed) or an
+ * ancestor of it, since the server already holds that code or newer.
+ * @param sha - The candidate commit.
+ * @param last - The last analyzed revision, or undefined.
+ * @param isAncestor - `(a, b)` true when a is an ancestor of b.
+ * @returns True when the commit should be scanned.
+ */
+export function needsScan(sha, last, isAncestor) {
+    return !last || (sha !== last && !isAncestor(sha, last));
+}
+
+const isAncestor = (a, b) => sh("git", ["merge-base", "--is-ancestor", a, b], ROOT);
+
+// release.yml runs on master, newest first: one API call. Null (logged) when gh failed.
+function trainRuns() {
+    try {
+        const filter = ["--workflow", "release.yml", "--branch", "master", "--limit", String(LOOKBACK)];
+        return ghJson(["run", "list", ...filter, "--json", "databaseId,status,conclusion,headSha,event"]);
+    } catch (e) {
+        log(`gh run list failed: ${firstLine(e)}`);
+        return null;
+    }
+}
+
+// Whether a run still has coverage-* artifacts (they are kept one day): one API call per run asked.
+function hasCoverage(run) {
+    try {
+        const path = `repos/{owner}/{repo}/actions/runs/${run.databaseId}/artifacts?per_page=100`;
+        const { artifacts = [] } = ghJson(["api", path]);
+        return artifacts.some((a) => a.name.startsWith("coverage-") && !a.expired);
+    } catch (e) {
+        log(`gh api artifacts of run ${run.databaseId} failed: ${firstLine(e)}`);
+        return false;
+    }
+}
+
+/**
+ * Take the scan lock the gate uses, waiting up to `waitSeconds` for a push to release it.
+ * @param file - The lock file.
+ * @param waitSeconds - How long to wait.
+ * @param say - Where the reason goes when the lock was not obtained.
+ * @returns `release`, or null (with the reason logged) when the wait ran out.
+ */
+export async function scanLock(file, waitSeconds, say = log) {
+    const release = await acquireLock(file, waitSeconds);
+    if (!release) say(`the scan lock was held by a push for ${waitSeconds} s; retrying at the next poll`);
+    return release;
+}
+
+// Download a run's coverage-* artifacts and merge them into <worktree>/coverage/lcov.info.
+function mergeCoverage(run, worktree) {
+    const dir = join(worktree, ".coverage-artifacts");
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(join(worktree, "coverage/lcov.info"), { force: true });
+    if (!sh("gh", ["run", "download", String(run.databaseId), "-p", "coverage-*", "-D", dir], ROOT)) return false;
+    // A shard group's artifact holds one coverage-<shard> directory per member: lift them up beside
+    // the others, as coverage.yml does, or merge-coverage.sh finds those packages missing.
+    for (const group of readdirSync(dir).filter((d) => d.startsWith("coverage-group-"))) {
+        for (const shard of readdirSync(join(dir, group))) renameSync(join(dir, group, shard), join(dir, shard));
+    }
+    return sh("./tools/merge-coverage.sh", ["--ci", "--artifacts", dir], worktree);
+}
+
+function isoWeek(d = new Date()) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    const year = t.getUTCFullYear();
+    return `${year}-W${Math.ceil(((t - Date.UTC(year, 0, 1)) / 86400000 + 1) / 7)}`;
+}
+
+const gitOut = (args) => {
+    try {
+        return git(args);
+    } catch {
+        return "";
+    }
+};
+
+// What landed on master since `since` that the weekly review counts: NOSONARs, path entries, bypasses.
+function suppressionsSince(since) {
+    const log7 = ["log", `--since=${since}`, "-p", "--format=", "origin/master"];
+    const nosonar = gitOut(log7)
+        .split("\n")
+        .filter((l) => l.startsWith("+") && l.includes("NOSONAR")).length;
+    const multicriteria = gitOut([...log7, "--", "sonar-project.properties"])
+        .split("\n")
+        .filter((l) => l.startsWith("+sonar.issue.ignore.multicriteria.") && l.includes(".ruleKey=")).length;
+    const grep = ["log", `--since=${since}`, "--grep", "^Sonar-Bypass:", "--format=%h %s", "origin/master"];
+    const bypasses = gitOut(grep).split("\n").filter(Boolean);
+    return { nosonar, multicriteria, bypasses };
+}
+
+// The pre-push gate's runs and skips since `since`, from its run log.
+function gateRuns(since) {
+    let text = "";
+    try {
+        text = readFileSync(join(sonarDir(), "gate.log"), "utf8");
+    } catch {
+        // no gate runs logged yet
+    }
+    const recent = text.split("\n").filter((line) => Date.parse(line.split(" ")[0]) >= since.getTime());
+    return { total: recent.length, skipped: recent.filter((l) => l.includes(" skipped:")).length };
+}
+
+/**
+ * The open issues per package this week against last week's.
+ * @param prev - Last week's `{ week, total, packages: { name: count } }`, or null on the first week.
+ * @param now - This week's, the same shape.
+ * @returns `{ lines, rose }`: Markdown list lines (total first, then each package, largest first,
+ *   with its change), and whether the total rose.
+ */
+export function weekOverWeek(prev, now) {
+    const sign = (d) => (d > 0 ? `+${d}` : String(d));
+    const change = (was, is) => (was === undefined ? "new" : sign(is - was));
+    if (!prev) {
+        return {
+            lines: ["- Open issues by package (no earlier week recorded):", ...packageLines(now, () => "")],
+            rose: false,
+        };
+    }
+    const lines = [
+        `- Change since ${prev.week}: ${sign(now.total - prev.total)} (${prev.total} to ${now.total})`,
+        ...packageLines(now, (name, count) => ` (${change(prev.packages[name], count)})`),
+    ];
+    for (const name of Object.keys(prev.packages)
+        .filter((n) => !(n in now.packages))
+        .sort()) {
+        lines.push(`  - ${name}: 0 (${sign(-prev.packages[name])})`);
+    }
+    return { lines, rose: now.total > prev.total };
+}
+
+const packageLines = (now, suffix) =>
+    Object.entries(now.packages)
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .map(([name, count]) => `  - ${name}: ${count}${suffix(name, count)}`);
+
+// Open issues per top-level directory (each package; files at the root together), in one call.
+async function openByPackage(api, key) {
+    const tree = await api.call("api/measures/component_tree", {
+        component: key,
+        metricKeys: "violations",
+        strategy: "children",
+        ps: 500,
+    });
+    const packages = {};
+    for (const c of tree.components ?? []) {
+        const count = Number(c.measures?.find((m) => m.metric === "violations")?.value ?? 0);
+        const name = c.qualifier === "DIR" ? c.path : "(files at the root)";
+        if (count) packages[name] = (packages[name] ?? 0) + count;
+    }
+    const total = Number(tree.baseComponent?.measures?.find((m) => m.metric === "violations")?.value ?? 0);
+    return { week: isoWeek(), total, packages };
+}
+
+const RISE_TITLE = (week) => `SonarQube: open issues rose in ${week}`;
+const RISE_LABELS = "infrastructure,sonarqube,priority:high,effort:medium";
+
+// One issue for a week whose open count rose, naming the packages that rose.
+function fileRise(week, counts, lines) {
+    const body = [
+        `The weekly SonarQube numbers for project \`graphty-monorepo\` rose in ${week}. The burn-down`,
+        "only works while the open count falls: find what added the issues below and fix them, or record",
+        'a decision for them in design/sonarqube/design.md ("Rule decisions").',
+        "",
+        ...lines,
+        "",
+        `Open issues now: ${counts.total}. Part of #1183. Filed by \`tools/sonar-baseline.mjs\`.`,
+    ].join("\n");
+    const args = ["issue", "create", "--title", RISE_TITLE(week), "--label", RISE_LABELS, "--body", body];
+    if (sh("gh", args, ROOT)) log(`open issues rose in ${week}; filed an issue`);
+}
+
+// The weekly numbers, as a Markdown comment for the "SonarQube burn-down" issue. `trend` is
+// weekOverWeek's lines.
+async function weeklyReport(api, key, trend) {
+    const since = new Date(Date.now() - 7 * 86400000);
+    const sinceDay = since.toISOString().slice(0, 10);
+    const open = { components: key, issueStatuses: "OPEN,CONFIRMED" };
+    const facet = await api.call("api/issues/search", {
+        ...open,
+        ps: 1,
+        facets: "impactSoftwareQualities,impactSeverities",
+    });
+    const facets = Object.fromEntries((facet.facets ?? []).map((f) => [f.property, f.values]));
+    const fmt = (vals) => (vals ?? []).map((v) => `${v.val} ${v.count}`).join(", ") || "none";
+    const hotspots = await api.call("api/hotspots/search", { project: key, status: "TO_REVIEW", ps: 1 });
+    const metricKeys =
+        "security_rating,reliability_rating,sqale_rating,security_review_rating,duplicated_lines_density,coverage";
+    const measures = await api.call("api/measures/component", { component: key, metricKeys });
+    const m = Object.fromEntries((measures.component?.measures ?? []).map((x) => [x.metric, x.value]));
+    const rating = (v) => (v ? "ABCDE"[Math.round(Number(v)) - 1] : "?");
+    const fresh = await api.call("api/issues/search", { ...open, createdAfter: sinceDay, ps: 50 });
+    const s = suppressionsSince(sinceDay);
+    const runs = gateRuns(since);
+    const where = (i) => `${i.component.slice(key.length + 1)}:${i.line ?? ""}`;
+    const qualities = fmt(facets.impactSoftwareQualities);
+    const severities = fmt(facets.impactSeverities);
+    const ratings = [
+        `security ${rating(m.security_rating)}`,
+        `reliability ${rating(m.reliability_rating)}`,
+        `maintainability ${rating(m.sqale_rating)}`,
+        `security review ${rating(m.security_review_rating)}`,
+    ].join(", ");
+    return [
+        `## Week ${isoWeek()}: the owner's local SonarQube server, project \`${key}\``,
+        "",
+        `- Open issues: ${facet.paging?.total ?? 0} (by quality: ${qualities}; by severity: ${severities})`,
+        ...trend,
+        `- Security hotspots to review: ${hotspots.paging?.total ?? 0}`,
+        `- Ratings: ${ratings}`,
+        `- Duplication ${m.duplicated_lines_density ?? "?"}%, coverage ${m.coverage ?? "not imported"}%`,
+        `- Pre-push gate on this machine: ${runs.total} runs, ${runs.skipped} skipped`,
+        `- New on master this week: ${fresh.paging?.total ?? 0} issues`,
+        ...(fresh.issues ?? []).map((i) => `  - \`${where(i)}\` ${i.rule} ${i.message}`),
+        `- New \`NOSONAR\` comments: ${s.nosonar}; new multicriteria entries: ${s.multicriteria}`,
+        `- \`Sonar-Bypass\` trailers: ${s.bypasses.length}`,
+        ...s.bypasses.map((l) => `  - ${l}`),
+    ].join("\n");
+}
+
+// The first pass of each ISO week comments the numbers on the open "SonarQube burn-down" issue.
+async function postWeekly(api, key) {
+    const stamp = join(sonarDir(), "weekly");
+    const week = isoWeek();
+    if (existsSync(stamp) && readFileSync(stamp, "utf8").trim() === week) return;
+    let issue;
+    try {
+        const search = ["--state", "open", "--search", "SonarQube burn-down in:title", "--json", "number,title"];
+        issue = ghJson(["issue", "list", ...search]).find((i) => i.title === "SonarQube burn-down");
+    } catch (e) {
+        log(`gh issue list failed: ${firstLine(e)}`);
+        return;
+    }
+    if (!issue) {
+        log('no open "SonarQube burn-down" issue; weekly comment skipped');
+        return;
+    }
+    // Last week's per-package counts, kept beside the stamp; a rise files its own issue.
+    const countsFile = join(sonarDir(), "weekly-counts.json");
+    let prev = null;
+    try {
+        prev = JSON.parse(readFileSync(countsFile, "utf8"));
+    } catch {
+        // the first week recorded
+    }
+    const counts = await openByPackage(api, key);
+    const { lines, rose } = weekOverWeek(prev, counts);
+    if (sh("gh", ["issue", "comment", String(issue.number), "--body", await weeklyReport(api, key, lines)], ROOT)) {
+        writeFileSync(stamp, `${week}\n`);
+        writeFileSync(countsFile, `${JSON.stringify(counts)}\n`);
+        log(`weekly numbers posted on #${issue.number}`);
+        if (rose) fileRise(week, counts, lines);
+    }
+}
+
+// Move the baseline worktree to `sha`, install and build. Why it failed, or "" when it succeeded.
+function prepareWorktree(worktree, sha) {
+    const moved = existsSync(worktree)
+        ? sh("git", ["checkout", "--quiet", "--detach", "--force", sha], worktree)
+        : sh("git", ["worktree", "add", "--detach", worktree, sha], ROOT);
+    const at = sha.slice(0, 9);
+    if (!moved) return `could not move the baseline worktree to ${at}`;
+    if (!build("pnpm", ["install", "--frozen-lockfile"], worktree)) return `pnpm install failed at ${at}`;
+    if (!build("pnpm", ["exec", "nx", "run-many", "-t", "build", "--parallel=3"], worktree)) {
+        return `build failed at ${at}`;
+    }
+    build("npm", ["run", "build:bundle"], join(worktree, "webgpu-graph-algorithms"));
+    return "";
+}
+
+// Restore the profile when the worktree's file differs from the one last restored.
+async function restoreIfChanged(api, key, worktree) {
+    const stamp = join(sonarDir(), "profile-hash");
+    const file = join(worktree, "tools/sonar/graphty-way.xml");
+    if (!existsSync(file)) return;
+    if (existsSync(stamp) && readFileSync(stamp, "utf8") === hashFile(file)) return;
+    try {
+        await restoreProfile(api, [key, `${key}-local`], file);
+        log("profile restored");
+    } catch (e) {
+        log(`profile restore failed (a non-admin token cannot change profiles; run --setup): ${e.message}`);
+    }
+}
+
+// The full scan of the worktree into <key>, under the lock the gate uses, bounded by SCAN_TIMEOUT_MS.
+async function fullScan(cfg, worktree, sha) {
+    const release = await scanLock(join(sonarDir(), "sonar-local.lock"), LOCK_WAIT_S);
+    if (!release) return;
+    try {
+        const version = JSON.parse(readFileSync(join(worktree, "package.json"), "utf8")).version;
+        const args = [
+            `-Dsonar.projectKey=${cfg.projectKey}`,
+            `-Dsonar.host.url=${cfg.host}`,
+            `-Dsonar.projectVersion=${version}`,
+            `-Dsonar.scm.revision=${sha}`,
+            `-Dsonar.working.directory=${join(sonarDir(), "baseline")}`,
+        ];
+        const env = cfg.java ? { ...process.env, SONAR_SCANNER_JAVA_EXE_PATH: cfg.java } : process.env;
+        const scanner = startScanner(worktree, args, {
+            token: cfg.token,
+            env,
+            onOutput: (s) => process.stdout.write(s),
+        });
+        const timer = setTimeout(() => stopScanner(scanner.child), SCAN_TIMEOUT_MS);
+        const { code } = await scanner.done;
+        clearTimeout(timer);
+        log(code === 0 ? `scanned ${sha.slice(0, 9)} into ${cfg.projectKey}` : `scan failed (exit ${code})`);
+    } finally {
+        release();
+    }
+}
+
+// One poll: scan the newest release-train candidate with coverage, if <key> has not analyzed it yet.
+async function pass(cfg) {
+    if (!(await serverStatus(cfg.host))) return log("server unreachable; next poll");
+    const api = client(cfg.host, cfg.token);
+    const key = cfg.projectKey;
+    if (!sh("git", ["fetch", "--quiet", "origin", "master"], ROOT)) return log("git fetch failed; next poll");
+    const runs = trainRuns();
+    if (!runs) return log("could not list release.yml runs; next poll");
+    const picked = pickCommit(runs, hasCoverage);
+    if (!picked) return log(`no finished release-train run with coverage among the last ${LOOKBACK}; next poll`);
+    const { sha, run } = picked;
+    const last = (await api.call("api/project_analyses/search", { project: key, ps: 1 })).analyses?.[0];
+    if (!needsScan(sha, last?.revision, isAncestor)) {
+        log(`${sha.slice(0, 9)} (newest release-train candidate with coverage) is already analyzed; next poll`);
+    } else {
+        log(`scanning ${sha.slice(0, 9)}, the candidate of release-train run ${run.databaseId}`);
+        const worktree = join(dirname(commonDir()), ".worktrees", "sonar-baseline");
+        const failure = prepareWorktree(worktree, sha);
+        prepareAlert(failure, join(sonarDir(), "prepare-alert"), alertIssues);
+        if (failure) return log(`${failure}; next poll`);
+        if (!mergeCoverage(run, worktree)) {
+            rmSync(join(worktree, "coverage/lcov.info"), { force: true });
+            log(`scanning ${sha.slice(0, 9)} WITHOUT coverage (run ${run.databaseId} has none to download)`);
+        }
+        await restoreIfChanged(api, key, worktree);
+        await fullScan(cfg, worktree, sha);
+    }
+    await postWeekly(api, key);
+}
+
+// --watch: a pass now, then every POLL_MS. A failed pass is logged and retried at the next poll.
+function watch() {
+    const tick = async () => {
+        try {
+            await pass(loadConfig(ROOT));
+        } catch (e) {
+            log(`pass failed: ${e.message}`);
+        }
+        setTimeout(tick, POLL_MS);
+    };
+    return tick();
+}
+
+const MODES = { "--setup": setup, "--once": pass, "--watch": watch };
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    const mode = MODES[process.argv[2]];
+    const cfg = loadConfig(ROOT);
+    const missing = ["host", "projectKey", process.argv[2] === "--setup" ? "adminToken" : "token"].filter(
+        (k) => !cfg[k],
+    );
+    if (!mode) {
+        console.error("usage: node tools/sonar-baseline.mjs --setup | --once | --watch");
+        process.exitCode = 2;
+    } else if (missing.length) {
+        console.error(
+            `missing ${missing.join(", ")}: set SONAR_HOST_URL, SONAR_PROJECT_KEY and SONAR_SCAN_TOKEN (SONAR_TOKEN, an admin token, for --setup) in .env`,
+        );
+        process.exitCode = 1;
+    } else {
+        try {
+            await mode(cfg);
+        } catch (e) {
+            console.error(e.message);
+            process.exitCode = 1;
+        }
+    }
+}

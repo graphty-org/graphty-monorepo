@@ -19,7 +19,7 @@ graphty is a React application that wraps `<graphty-element>` with a full-featur
 ```
 graphty/
 ├── src/
-│   ├── App.tsx               # Main application component (routes ?demo; otherwise the shell)
+│   ├── App.tsx               # Main application component (?demo gallery, ?legacy old shell, else the workspace)
 │   ├── main.tsx              # Entry point
 │   ├── theme.ts              # Mantine theme configuration
 │   ├── components/
@@ -29,9 +29,6 @@ graphty/
 │   │   ├── layout/           # LeftSidebar (style layer list, used by the shell)
 │   │   ├── layout-options/   # Layout configuration UI
 │   │   ├── sidebar/          # Style layer control panels
-│   │   │   ├── controls/     # Reusable control components
-│   │   │   ├── node-controls/ # Node styling controls
-│   │   │   ├── edge-controls/ # Edge styling controls
 │   │   │   └── panels/       # Sidebar panel components
 │   │   └── demo/             # Demo components (?demo gallery)
 │   ├── hooks/                # React hooks
@@ -42,6 +39,12 @@ graphty/
 │   └── stories/              # Storybook stories
 └── index.html
 ```
+
+`src/workspace/` is the tier 1 shell and the app's default surface (design/ui/tier1-real-app/plan.md):
+`Workspace.tsx`, `frame/`, `state/`, `commands/registry.ts`,
+`keys/`, and one directory per later package. Each package registers its commands in its own
+`commands.ts`, which `registrations.ts` collects. The superseded app shell in `src/components/shell/`
+stays reachable at `?legacy` (`?next` also opens the workspace, for old links) until issue #3056 deletes it.
 
 ## Essential Commands
 
@@ -87,13 +90,9 @@ When testing from mobile devices:
 
 ### Sidebar Controls
 
-Controls in `src/components/sidebar/controls/` are reusable across different panels
-and are shared with the app shell's Style panel:
-
-- `StyleColorInput` - Color picker with label
-- `StyleNumberInput` - Number input with constraints
-- `StyleSelect` - Dropdown selection
-- `ControlSection` - Collapsible section wrapper
+The panels build their controls from `@graphty/compact-mantine` (`CompactColorInput`,
+`FieldRow`, `PanelField`, `ResetButton`, `ControlSection` and the rest). Do not copy
+one into the app: a control the app needs that compact-mantine lacks, or gets wrong, is fixed there.
 
 ### graphty-element Integration
 
@@ -133,7 +132,9 @@ The element records each change and owns the history; the app never keeps its ow
   HOST=0.0.0.0, and the command
   `env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook`
 - Stories are in `src/stories/`
-- Visual regression via Chromatic
+- Visual regression via visual-review (see "Visual review" in the root CLAUDE.md)
+- The eruda debug console is off in Storybook; append `&eruda` to a story URL to switch it on
+  (it never loads in a visual capture or an automated browser)
 
 ## graphty-element Feedback
 

@@ -22,10 +22,31 @@
 
 export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles } from "./autoApply";
 export { createAutoApplyPolicy } from "./autoApply";
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
-export type { EncodingRun, EncodingSource, EncodingSpec } from "./EncodingSpec";
-export type { ChannelExplanation, ExplainTarget, StyleContribution, StyleExplanation, UnboundLayer } from "./explain";
+export type { StyleAdjustmentCode } from "./encoding";
+export type {
+    ColumnEncodingSpec,
+    EncodingOptions,
+    EncodingProposal,
+    EncodingRefusalCode,
+    EncodingRun,
+    EncodingSource,
+    EncodingSpec,
+} from "./EncodingSpec";
+export type {
+    ChannelAgreement,
+    ChannelExplanation,
+    ChannelRefusalCode,
+    ChannelShare,
+    ExplainTarget,
+    StyleAgreement,
+    StyleContribution,
+    StyleCounts,
+    StyleExplanation,
+    UnboundLayer,
+    UnboundLayerCode,
+} from "./explain";
 export type {
     CompiledLayer,
     Layer,
@@ -40,7 +61,15 @@ export type {
     RepaintRequest,
     ValidationResult,
 } from "./Layer";
-export type { FieldWords, LegendBlock, LegendSwatch } from "./legend";
+export type {
+    FieldResult,
+    FieldWords,
+    LegendBlock,
+    LegendFact,
+    LegendFactCode,
+    LegendReading,
+    LegendSwatch,
+} from "./legend";
 export { quotePath } from "./predicate";
 export type { ElementPaint } from "./repaint";
 export type { Selector } from "./selector";
@@ -48,11 +77,13 @@ export type {
     DefaultPalettes,
     ElementLayerSpec,
     HighlightSpec,
+    MarkSpec,
     SessionStylesApi,
     StyleChange,
     StylesApi,
     StylesSources,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
 } from "./StylesApi";
 export { createStylesApi } from "./StylesApi";

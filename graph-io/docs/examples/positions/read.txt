@@ -1,0 +1,4 @@
+3 of 3 nodes placed, in file units
+1: 10, -20, 0
+2: 30, -40, 0
+3: 50, 0, 0

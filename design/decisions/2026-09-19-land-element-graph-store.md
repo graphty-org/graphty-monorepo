@@ -13,13 +13,13 @@ supersedes them.
 The branch `feat/element-graph-store` merges onto master now, ahead of the version 2 element API
 work. Five of its six commits go in unchanged:
 
-| Commit | What it adds |
-| --- | --- |
+| Commit     | What it adds                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------- |
 | `beb1cad6` | `@graphty/graph-format` declared in both `dependencies` and `peerDependencies`; four new fields on `DataConfig` |
-| `056f11a9` | `@graphty/graph-format` externalised from the `es` and `umd` bundles |
-| `bb748a7e` | `ElementPositions`, an element-owned stride-3 `Float32Array` of coordinates |
-| `cc591cc0` | `GraphStore`, one `GraphBuilder` for the life of the graph, with `getSnapshot()` on an invalidation key |
-| `a0862758` | `Node.index`, `Edge.index` and element-owned `Node.pinned` |
+| `056f11a9` | `@graphty/graph-format` externalised from the `es` and `umd` bundles                                            |
+| `bb748a7e` | `ElementPositions`, an element-owned stride-3 `Float32Array` of coordinates                                     |
+| `cc591cc0` | `GraphStore`, one `GraphBuilder` for the life of the graph, with `getSnapshot()` on an invalidation key         |
+| `a0862758` | `Node.index`, `Edge.index` and element-owned `Node.pinned`                                                      |
 
 The sixth, `80c0704e`, adds the typed `snapshot-replaced` event. It merges only with the forwarder
 fix below. Without that fix it stays off the merge: nothing emits it and no 2.0 surface needs it.

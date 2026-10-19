@@ -3,7 +3,7 @@
  */
 
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import {
     defineOptions,
@@ -133,10 +133,7 @@ describe("OptionsSchema", () => {
             assert.isTrue(result.success, "Expected parsing to succeed");
             assert.property(result, "data", "Expected result to have data property");
             // Type assertion needed because TypeScript doesn't narrow based on assert
-            const successResult = result as {
-                success: true;
-                data: ReturnType<typeof parseOptions<typeof sampleSchema>>;
-            };
+            const successResult = result;
             assert.strictEqual(successResult.data.dampingFactor, 0.9);
         });
 

@@ -8,7 +8,8 @@
  * in one file rather than being pasted into each.
  *
  * Every node has at least one edge, so nothing floats off alone and a force layout has something
- * to settle. No pair is repeated, so the graph is not a multigraph and nothing merges.
+ * to settle. No pair is repeated in either direction -- `a -> b` and `b -> a` count as one pair --
+ * so the graph holds `edgeCount` distinct links whether a reader treats it as directed or not.
  */
 
 /** One edge, in the shape the element's `edgeData` property takes. */
@@ -55,6 +56,7 @@ export function storyGraph(nodeCount = 150, edgeCount = 250): StoryGraph {
 
     const edges: StoryEdge[] = [];
     const seen = new Set<string>();
+    const pairKey = (a: number, b: number): string => (a < b ? `${a}-${b}` : `${b}-${a}`);
 
     for (let i = 0; i < nodeCount; i++) {
         let dst = Math.floor(random() * nodeCount);
@@ -62,7 +64,7 @@ export function storyGraph(nodeCount = 150, edgeCount = 250): StoryGraph {
             dst = Math.floor(random() * nodeCount);
         }
 
-        const key = `${i}-${dst}`;
+        const key = pairKey(i, dst);
         if (!seen.has(key)) {
             seen.add(key);
             edges.push({ src: `node-${i}`, dst: `node-${dst}` });
@@ -72,7 +74,7 @@ export function storyGraph(nodeCount = 150, edgeCount = 250): StoryGraph {
     while (edges.length < edgeCount) {
         const src = Math.floor(random() * nodeCount);
         const dst = Math.floor(random() * nodeCount);
-        const key = `${src}-${dst}`;
+        const key = pairKey(src, dst);
 
         if (src !== dst && !seen.has(key)) {
             seen.add(key);

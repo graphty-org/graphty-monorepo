@@ -17,11 +17,14 @@
         "exactOptionalPropertyTypes": true,
         "noUncheckedIndexedAccess": true,
         "types": [],
+        // The JSX type tests are React 19 consumers.
+        "jsx": "react-jsx",
         "paths": {
             "@graphty/graphty-element": ["./dist/index.d.ts"],
             "@graphty/graphty-element/*": ["./dist/*.d.ts"]
         }
     },
-    "include": ["test/types/consumer/**/*.ts"],
+    // The styles-from-files guide's first example, compiled as a reader would compile it.
+    "include": ["test/types/consumer/**/*.ts", "test/types/consumer/**/*.tsx", "docs/examples/file-styles/**/*.ts"],
     "exclude": ["node_modules", "coverage", "tmp"]
 }

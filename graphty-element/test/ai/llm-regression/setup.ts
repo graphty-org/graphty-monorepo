@@ -2,7 +2,7 @@
  * @file Setup for the "llm-regression" vitest project.
  */
 
-import { afterEach } from "vitest";
+import { afterAll, afterEach, beforeAll } from "vitest";
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
@@ -11,4 +11,13 @@ import { afterEach } from "vitest";
 // Its full sweep after each test: no typed array state kept was written in place.
 afterEach(() => {
     (globalThis as { __GRAPHTY_STRICT_SWEEP__?: () => void }).__GRAPHTY_STRICT_SWEEP__?.();
+});
+
+// What a run cost: the harness counts every request it sends to the model.
+const counter = globalThis as { __LLM_REGRESSION_API_CALLS__?: number };
+beforeAll(() => {
+    counter.__LLM_REGRESSION_API_CALLS__ = 0;
+});
+afterAll(() => {
+    console.log(`[llm-regression] API calls: ${counter.__LLM_REGRESSION_API_CALLS__ ?? 0}`);
 });

@@ -12,6 +12,7 @@
 
 import { assert, beforeEach, describe, it } from "vitest";
 
+import { nodeScopeOf } from "../../../src/ai/commands/selectors";
 import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/ai/commands/StyleCommands";
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
@@ -34,7 +35,10 @@ describe("StyleCommands", () => {
      * @returns The layer, or undefined when nothing by that name was added.
      */
     function layerNamed(name: string): Layer | undefined {
-        return graph.getSession().styles.list().find((layer) => layer.name === name);
+        return graph
+            .getSession()
+            .styles.list()
+            .find((layer) => layer.name === name);
     }
 
     describe("findAndStyleNodes", () => {
@@ -72,6 +76,27 @@ describe("StyleCommands", () => {
             assert.deepStrictEqual(layer.selector, { match: "expression", where: "data.type == 'server'" });
             assert.strictEqual(layer.target, "node");
             assert.deepStrictEqual(layer.set, { "node.color": "#0000ff", "node.size": 2 });
+        });
+
+        it("styles the nodes at an end of a matching edge with connectedBy", async () => {
+            const result = await findAndStyleNodes.execute(
+                graph,
+                {
+                    selector: "data.type == 'server'",
+                    connectedBy: "data.weight > `0.5`",
+                    style: { color: "#ff9900" },
+                    layerName: "heavy",
+                },
+                context,
+            );
+
+            assert.strictEqual(result.success, true, result.message);
+            const layer = layerNamed("heavy");
+            assert.isDefined(layer);
+            assert.deepStrictEqual(layer.selector, {
+                match: "member",
+                of: nodeScopeOf("data.type == 'server'", "data.weight > `0.5`"),
+            });
         });
 
         it("applies size styling", async () => {

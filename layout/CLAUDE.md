@@ -38,7 +38,7 @@ npm run coverage         # Run with coverage
 npm run coverage:preview # Serve coverage report (start it through servherd with PORT={{port}})
 
 # Linting
-npm run lint             # TypeScript type checking
+npm run lint             # ESLint, tsc, and the nodenext consumer check (needs build:all first)
 
 # Documentation
 npm run docs:dev         # Start docs dev server
@@ -157,8 +157,8 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   own option (the exported `ForceAtlas2SimulationOptions`, `ForceAtlas2Options & { compat? }`), absent from the exported `ForceAtlas2Options` and
   therefore not reachable through `createSimulation`'s typed options: `new ForceAtlas2Simulation({ compat: "networkx" })`. Mass is `nodeMass`, else the role-`mass` column,
   else `outDegree + 1`; `weight: true` uses the snapshot's arc weights, a string names an edge column. `nodeSize`,
-  `dissuadeHubs`, `seed` and `maxInFlight` are accepted and unused: the CALLER seeds the array with
-  `seedPositions` before `load()`. `iterationsDone` and `reheat()` are public beyond the interface. The one-shot `forceAtlas2` layout runs this
+  `dissuadeHubs` and `maxInFlight` are accepted and unused; `load()` seeds the NaN rows of the array with
+  `seedPositions` from the `seed` option, as the GPU simulation does. `iterationsDone` and `reheat()` are public beyond the interface. The one-shot `forceAtlas2` layout runs this
   class (`settleThreshold: 0`, every one of `maxIter` iterations) and then rescales.
 - `FruchtermanReingoldSimulation` (`fruchterman-reingold.ts`): the loop body of layout 1.x's
   `fruchtermanReingoldLayout` made index-based over the CSR arcs, formulas unchanged
@@ -168,6 +168,11 @@ node stays where the user put it and `scale` / `center` are the only mapping bet
   role-`fixed` column. The iteration counter IS the temperature index, so `reheat()` restarts at
   `floor(0.7 * iterations)` (a drag or an unpin gets a small temperature and the remaining 30% of the budget).
   `iterationsDone`, `settledCount`, `meanDisplacement`, `rmsRadius`, `temperature` and `reheat()` are public.
+  `cooling: "adaptive"` replaces the schedule with the GPU simulation's Yifan Hu step control (constants in
+  `constants.ts`, pinned to the same literals in webgpu-graph-algorithms' `fr-adaptive.test.ts`): the free force
+  energy `sum |F|^2` of each iteration is compared at the start of the next one (x 1 / 0.9 after five strict falls,
+  x 0.9 otherwise), `iterations` is only a cap (default 10,000), and `reheat()` restarts the controller at 0.1 and
+  the budget at 0.
 
 Both settle by the design 7.17 rule: `settled` is `iterationsDone >= maxIter` (FR: `iterations`) OR
 `settledCount >= settleWindow`, where `settledCount` counts consecutive iterations whose mean FREE-node displacement
@@ -214,6 +219,8 @@ branch that chooses the CPU); a thrown accelerator error propagates -- there is 
 - `fruchterman-reingold.test.ts`: one `step()` equals one iteration of layout 1.x's `fruchtermanReingoldLayout` loop
   on the same start, recorded as a golden fixture (also with a self-loop, a parallel edge and an isolate); `k` / `scale` / `center`; 2D and 3D; the NaN-row
   seeding; the `fixed` forms; settlement by the window and by the budget; reloads.
+- `fruchterman-reingold-adaptive.test.ts`: `cooling: "adaptive"` against an independent transcription of the rule on
+  a two-node pair, settling before the cap, the difference from `"linear"`, the cap, `reheat()`, validation.
 
 Use `assert`, not `expect`, as everywhere else in the package.
 
@@ -231,6 +238,12 @@ Use `assert`, not `expect`, as everywhere else in the package.
   `toLayoutSnapshot` turns any object providing `nodes()` and `edges()` into a snapshot
 - **3D support**: All layouts support 3D when `dim: 3` is specified
 - **Deterministic**: Layouts produce consistent results with the same seed
+- **Engine-independent**: never call `Math.log`, `Math.exp`, `Math.sin`, `Math.cos`, `Math.acos` or another
+  "implementation-approximated" Math function in a layout; use `detLog`, `detExp`, `detSin`, `detCos`, `detAcos`,
+  `detHypot` and `detPow` from `@graphty/graph-format` (fdlibm ports, bit-identical in every engine). Engines change those functions' last bit
+  between versions, and a force layout amplifies it into a different drawing (issue #2430). `Math.sqrt` and the four
+  basic operations are exact by the spec. `test/det-math.test.ts` runs every layout with those Math functions
+  throwing and pins seeded positions
 
 ## Adding a New Layout
 
@@ -239,15 +252,25 @@ Use `assert`, not `expect`, as everywhere else in the package.
 3. Pin its signature in `test/types/exports.test-d.ts`
 4. Add tests in `test/layouts/`
 5. Add a story in `stories/`
-6. Add a checked example to `README.md` (see below)
+6. Add a checked example to `README.md` and to its family's guide page in `docs/guide/` (see below)
 
-## README Samples
+## Documentation and Its Samples
 
-`test/docs/readme-samples.test.ts` type-checks and runs every ```typescript block of `README.md`, and fails when a
-block is not marked `<!-- doc-check -->` just before it. Keep each block self-contained, with its own imports.
+`docs/` is the layout section of graphty.app (`https://graphty.app/docs/layout/`): `index.md`, the guide pages in
+`docs/guide/` and the API overview `docs/api/index.md`. `tools/copy-docs-content.js` copies it into the root `docs/`
+site, whose sidebar is in `docs/.vitepress/config.ts`; a new guide page needs an entry there.
+
+`test/docs/doc-samples.test.ts` type-checks and runs every ```typescript block of `README.md` and of every
+`docs/guide/*.md`, and fails when a block is not marked `<!-- doc-check -->` just before it. A `console.log(...)`
+with a trailing `// comment` must print what the comment starts with. Keep each block self-contained, with its own
+imports.
 
 ## Distribution
 
 - **Main entry**: `dist/layout.js` (bundled ES module)
 - **Types**: `dist/layout.d.ts`
+- Every relative import in `src/` carries `.js` (`./types/index.js`, not `./types`). `tsconfig.json` checks under
+  `moduleResolution: nodenext`, which enforces it, and `npm run typecheck:consumer` compiles
+  `test/consumer/nodenext.ts` against the built `dist/` the way a Node ESM consumer does. Without the extensions
+  the published typings fail to resolve under nodenext (issue #958)
 - Always run `npm run build:all` before publishing

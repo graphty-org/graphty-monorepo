@@ -6,9 +6,9 @@ import { EventManager } from "../../src/managers/EventManager";
 import type { GraphContext } from "../../src/managers/GraphContext";
 
 describe("EventManager snapshot-replaced", () => {
-    it("is subscribable, which layout-changed is not", () => {
+    it("is subscribable, which an undeclared name is not", () => {
         const em = new EventManager();
-        assert.throws(() => em.addListener("layout-changed" as never, () => undefined), /Unknown event type/);
+        assert.throws(() => em.addListener("no-such-event" as never, () => undefined), /Unknown event type/);
         assert.doesNotThrow(() => em.addListener("snapshot-replaced", () => undefined));
     });
 

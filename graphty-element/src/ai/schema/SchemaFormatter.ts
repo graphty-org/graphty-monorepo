@@ -3,6 +3,7 @@
  * @module ai/schema/SchemaFormatter
  */
 
+import { quoteEach } from "../../utils/quote-each";
 import type { PropertySummary, SchemaSummary } from "./types";
 
 /**
@@ -51,7 +52,8 @@ export function formatSchemaForPrompt(schema: SchemaSummary): string {
 function formatHeader(schema: SchemaSummary): string {
     return `## Data Schema
 - Nodes: ${schema.nodeCount}
-- Edges: ${schema.edgeCount}`;
+- Edges: ${schema.edgeCount}
+- In a selector, read a property below as data.<name>, for example data.type`;
 }
 
 /**
@@ -155,7 +157,7 @@ function formatEnumValues(values: string[]): string {
     const displayed = values.slice(0, MAX_ENUM_VALUES_DISPLAYED);
     const remaining = values.length - MAX_ENUM_VALUES_DISPLAYED;
 
-    return `${displayed.map((v) => `"${v}"`).join(", ")}, ... +${remaining} more`;
+    return `${quoteEach(displayed, ", ")}, ... +${remaining} more`;
 }
 
 /**

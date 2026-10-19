@@ -230,7 +230,7 @@ export function resolveOptions<S extends OptionsSchema>(
         resolved[key] = value;
     }
 
-    return resolved as OptionsFromSchema<S>;
+    return resolved;
 }
 
 /**

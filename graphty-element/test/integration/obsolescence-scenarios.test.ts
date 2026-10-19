@@ -63,8 +63,8 @@ describe("Obsolescence Scenarios", () => {
                 { description: `Layout for batch ${i}` },
             );
 
-            // Small delay between batches
-            await new Promise((resolve) => setTimeout(resolve, 5));
+            // Let this batch start before the next one arrives
+            await new Promise((resolve) => setTimeout(resolve, 0));
         }
 
         await queueManager.waitForCompletion();
@@ -102,7 +102,7 @@ describe("Obsolescence Scenarios", () => {
         );
 
         // Wait for layout-set to complete
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await queueManager.waitForCompletion();
 
         const layoutOpId = queueManager.queueOperation(
             "layout-update",
@@ -132,9 +132,6 @@ describe("Obsolescence Scenarios", () => {
 
         // Wait for layout to ACTUALLY reach 90%+ progress (deterministic, not timing-based)
         await progressReached;
-
-        // Small additional delay to ensure progress is registered in the queue manager
-        await new Promise((resolve) => setTimeout(resolve, 5));
 
         // Queue a data operation that would normally obsolete the layout
         queueManager.queueOperation(
@@ -215,8 +212,8 @@ describe("Obsolescence Scenarios", () => {
             { description: "Render results" },
         );
 
-        // After a short delay, add new data that obsoletes everything
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        // Once the first operation is running, add new data that obsoletes everything
+        await eventManager.waitFor("operation-start");
 
         queueManager.queueOperation(
             "data-remove",
@@ -337,7 +334,7 @@ describe("Obsolescence Scenarios", () => {
                 },
             );
 
-            await new Promise((resolve) => setTimeout(resolve, 5));
+            await new Promise((resolve) => setTimeout(resolve, 0));
         }
 
         await queueManager.waitForCompletion();
@@ -403,8 +400,8 @@ describe("Obsolescence Scenarios", () => {
         // Queue first batch
         batch1.forEach((op) => op());
 
-        // Simulate second batch that obsoletes the first
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        // Once the first batch is running, queue a second batch that obsoletes it
+        await eventManager.waitFor("operation-start");
 
         const batch2 = [
             () =>

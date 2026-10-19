@@ -250,6 +250,7 @@ describe("spmvPull thread-per-row (GPU)", () => {
         ctx.release(s);
     });
 
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 10 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("row-count ladder 0, 1, 255, 256, 257, 4097, 65537 and one row count above the grid-stride cap (scaled)", async (t) => {
         const ctx = await context(t);
         const strided = Math.max(2, Math.round((2 ** 20 + 1) * gpuScale()));
@@ -361,7 +362,7 @@ describe("spmvPull thread-per-row (GPU)", () => {
         }
     });
 
-    it("prepareSpmvPull accepts tiers (the tier results are tiers.test.ts's); a windowed core -> E_UNSUPPORTED; a malformed rowPtr -> E_INVALID_ARGUMENT at record", async (t) => {
+    it("prepareSpmvPull accepts tiers (the tier results are tiers.test.ts's); a windowed core -> E_UNSUPPORTED; a malformed rowPtr or an unweighted core -> E_INVALID_ARGUMENT at record", async (t) => {
         const ctx = await context(t);
         const s = weightedRandom(50, 100, 2);
         const rev = reverseCore(ctx, s);
@@ -393,6 +394,23 @@ describe("spmvPull thread-per-row (GPU)", () => {
         );
         expect(rows.details.argument).toBe("core.rowPtr");
         expect(rows.details.value).toBe(6);
+        // prepared on the weighted core, recorded with an unweighted one: HAS_WEIGHTS would read colIdx as f32
+        expect(rev.weights).not.toBeNull();
+        const unweighted: CoreBinding = { ...rev, weights: null };
+        const pattern = expectThrow(
+            () =>
+                planner.record(
+                    pass,
+                    unweighted,
+                    { xNorm: binding, rankOut: binding, personalization: null, partials: binding },
+                    { alpha: 1, beta: 0, uniformP: 0 },
+                ),
+            "E_INVALID_ARGUMENT",
+        );
+        expect(pattern.details.argument).toBe("rev");
+        expect(pattern.details.value).toBe(false);
+        expect(pattern.details.expected).toBe(true);
+        expect(planner.lastDispatches).toBe(0);
         pass.end();
         scope.dispose();
         ctx.release(s);

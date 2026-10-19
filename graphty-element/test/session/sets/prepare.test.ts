@@ -275,7 +275,96 @@ describe("member edits", () => {
             refusal(() => small.sets.addMembers(at, { edges: [edge("a", "b", "3")] })).code,
             "E_TOO_LARGE",
         );
-    }, 60_000);
+    });
+});
+
+describe("member edits, golden table", () => {
+    const ordinal = { source: "d", target: "c", ordinal: 1, among: 3 };
+    const start = {
+        nodes: ["b", "d", "f"],
+        edges: [edge("a", "b", "x"), edge("b", "d", "y"), edge("d", "f", "z"), edge("f", "a", "w")],
+    };
+    const cases: {
+        name: string;
+        add?: { nodes?: string[]; edges?: EdgeMember[] };
+        remove?: { nodes?: string[]; edges?: EdgeMember[] };
+        nodes: string[];
+        edges: EdgeMember[];
+    }[] = [
+        { name: "nothing", nodes: start.nodes, edges: start.edges },
+        { name: "present members only", add: { nodes: ["b"], edges: [edge("a", "b", "x")] }, ...start },
+        { name: "absent removals only", remove: { nodes: ["q"], edges: [edge("q", "r", "1")] }, ...start },
+        {
+            name: "nodes before, between and after",
+            add: { nodes: ["g", "a", "c", "e"] },
+            nodes: ["a", "b", "c", "d", "e", "f", "g"],
+            edges: start.edges,
+        },
+        {
+            name: "a node and its incident edges, plus a named edge",
+            remove: { nodes: ["d"], edges: [edge("f", "a", "w")] },
+            nodes: ["b", "f"],
+            edges: [edge("a", "b", "x")],
+        },
+        {
+            name: "an edge-only endpoint drops its edges",
+            remove: { nodes: ["a"] },
+            nodes: start.nodes,
+            edges: [edge("b", "d", "y"), edge("d", "f", "z")],
+        },
+        {
+            name: "remove then re-add the same members",
+            add: { nodes: ["d"], edges: [edge("b", "d", "y")] },
+            remove: { nodes: ["d"] },
+            nodes: start.nodes,
+            edges: [edge("a", "b", "x"), edge("b", "d", "y"), edge("f", "a", "w")],
+        },
+        {
+            name: "edges at the front, middle and end",
+            add: { edges: [edge("z", "z", "9"), ordinal, edge("a", "a", "0"), edge("b", "d", "y2")] },
+            nodes: start.nodes,
+            edges: [
+                edge("a", "a", "0"),
+                edge("a", "b", "x"),
+                edge("b", "d", "y"),
+                edge("b", "d", "y2"),
+                ordinal,
+                edge("d", "f", "z"),
+                edge("f", "a", "w"),
+                edge("z", "z", "9"),
+            ],
+        },
+        { name: "everything", remove: { nodes: ["a", "b", "d", "f"] }, nodes: [], edges: [] },
+    ];
+
+    for (const memoised of [true, false]) {
+        for (const c of cases) {
+            it(`${c.name}${memoised ? " (revision memoised)" : ""}`, () => {
+                const { sets } = harness();
+                const id = sets.create({ kind: "fixed", ...start, reading: "listed" }, { name: "G" });
+                if (memoised) {
+                    assert.isString(sets.get(id)?.revision);
+                }
+
+                const before = sets.get(id);
+                if (c.remove !== undefined) {
+                    sets.removeMembers(id, c.remove);
+                }
+
+                if (c.add !== undefined) {
+                    sets.addMembers(id, c.add);
+                }
+
+                const record = sets.get(id);
+                const definition = fixedOf(sets, id);
+                assert.deepStrictEqual(definition.nodes, c.nodes);
+                assert.deepStrictEqual(definition.edges ?? [], c.edges);
+                assert.strictEqual(record?.revision, revisionOf(definition));
+                const unchanged = c.nodes === start.nodes && c.edges === start.edges;
+                assert.strictEqual(record === before, unchanged);
+            });
+        }
+    }
 });
 
 describe("the revision moves by the delta", () => {
@@ -312,7 +401,7 @@ describe("the revision moves by the delta", () => {
             },
             { name: "A" },
         );
-        void sets.get(id)?.revision;
+        const _revision = sets.get(id)?.revision;
         sets.removeMembers(id, { nodes: ["a"] });
         sets.addMembers(id, { edges: [edge("c", "d", "z"), { source: "d", target: "c", ordinal: 1, among: 3 }] });
         sets.removeMembers(id, {
@@ -353,7 +442,7 @@ describe("unknown top-level fields", () => {
         const definition = { kind: "plugin:ring", centre: "a", radius: 2 };
         plant(store, loadRecord({ id: "set_ring", name: "Ring", order: 1, definition, createdFrom: { kind: "user" } }));
         sets.rename("set_ring", "Ring 2");
-        assert.deepStrictEqual(sets.get("set_ring")?.definition as unknown, definition);
+        assert.deepStrictEqual<unknown>(sets.get("set_ring")?.definition, definition);
         assert.match(sets.get("set_ring")?.revision ?? "", /^r1:/);
         sets.remove("set_ring");
         assert.isUndefined(sets.get("set_ring"));

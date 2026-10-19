@@ -21,7 +21,7 @@ import { describe, expect, it } from "vitest";
 
 import { importGraph, registry } from "../../src/registry.js";
 import { ImportError } from "../../src/types.js";
-import { CORPUS_FORMATS, type CorpusFormat, readCorpusBytes, readCorpusText } from "../helpers/corpus.js";
+import { CORPUS_FORMATS, type CorpusFormat, readCorpusBytes, readCorpusInput } from "../helpers/corpus.js";
 
 /** One file per format, big enough to arrive in several 256-byte chunks. */
 const FILES: Readonly<Record<CorpusFormat, string>> = {
@@ -36,6 +36,8 @@ const FILES: Readonly<Record<CorpusFormat, string>> = {
     neo4j: "karate-neo4j.csv",
     obo: "taxrank.obo",
     pajek: "football.net",
+    xgmml: "karate.xgmml",
+    cys: "karate-3x.cys",
 };
 
 interface TrackedStream {
@@ -308,7 +310,7 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
                 // chunks, and a string is one chunk, so an abort raised from the sink (or any
                 // callback) during the parse is ignored and import() resolves with a full report;
                 // DOT, GEXF and JSON check the signal every few hundred elements and reject.
-                const text = readCorpusText(format, FILES[format]);
+                const text = readCorpusInput(format, FILES[format]);
                 const ac = new AbortController();
                 const reason = new Error("abort from the sink");
                 const inner = new GraphBuilder({ directed: true, weightDtype: "f64" });
@@ -342,7 +344,7 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
                 // The claim under test is "every importer checks the signal every 64 elements": the
                 // abort lands inside the edge loop (after any check placed between the sections),
                 // so a single check between the node and edge sections would not catch it.
-                const text = readCorpusText(format, FILES[format]);
+                const text = readCorpusInput(format, FILES[format]);
                 const ac = new AbortController();
                 const reason = new Error("abort from addEdge");
                 const inner = new GraphBuilder({ directed: true, weightDtype: "f64" });
@@ -375,7 +377,7 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
             it(`${format}: an abort raised from the sink's last addEdge still rejects (checked before finish())`, async () => {
                 // The periodic check is every 64 elements, so an abort during the last few elements
                 // is only seen by the check every importer runs before report.finish().
-                const text = readCorpusText(format, FILES[format]);
+                const text = readCorpusInput(format, FILES[format]);
                 const plain = new GraphBuilder({ directed: true, weightDtype: "f64" });
                 const total = (await registry.importer(format).import(text, plain, {})).counts.edges;
                 expect(total).toBeGreaterThan(0);

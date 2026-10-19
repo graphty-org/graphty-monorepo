@@ -1,4 +1,3 @@
-import type { AdHocData } from "../../../src/config/common";
 import { Graph } from "../../../src/Graph";
 
 export async function createTestGraphWithData(): Promise<Graph> {
@@ -17,18 +16,19 @@ export async function createTestGraphWithData(): Promise<Graph> {
 
     // Add some test data
     const dataManager = graph.getDataManager();
-    dataManager.addNode({ id: "1", label: "Node 1" } as unknown as AdHocData);
-    dataManager.addNode({ id: "2", label: "Node 2" } as unknown as AdHocData);
-    dataManager.addNode({ id: "3", label: "Node 3" } as unknown as AdHocData);
-    dataManager.addEdge({ src: "1", dst: "2" } as unknown as AdHocData);
-    dataManager.addEdge({ src: "2", dst: "3" } as unknown as AdHocData);
+    dataManager.addNode({ id: "1", label: "Node 1" });
+    dataManager.addNode({ id: "2", label: "Node 2" });
+    dataManager.addNode({ id: "3", label: "Node 3" });
+    dataManager.addEdge({ src: "1", dst: "2" });
+    dataManager.addEdge({ src: "2", dst: "3" });
 
     // Set fixed layout so layout is immediately settled
     // This prevents waitForLayoutSettle from timing out
     await graph.setLayout("fixed");
 
-    // Wait for initial render
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for the finished picture: the data and layout applied AND the camera done framing them,
+    // so a test that compares two camera readings is not reading a camera still in motion
+    await graph.waitForStableFrame();
 
     return graph;
 }

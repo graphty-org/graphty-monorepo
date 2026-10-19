@@ -1,0 +1,50 @@
+{
+  "version": 2,
+  "pr": 1283,
+  "subject": {
+    "builtMerge": "b027cb70c3aa79d8d078f2cba5ffa7edbf3d0076",
+    "head": "7c7d62842b6d6bec19f640f7c4493b14a36480dd",
+    "runId": null,
+    "runAttempt": null,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "Intel(R) Core(TM) i9-14900KF",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "b027cb70c3aa79d8d078f2cba5ffa7edbf3d0076"
+    },
+    "scale": 2,
+    "local": [
+      {
+        "project": "graphty-element",
+        "merge": "b027cb70c3aa79d8d078f2cba5ffa7edbf3d0076",
+        "host": "dev.ato.ms",
+        "tool": "b027cb70c3aa79d8d078f2cba5ffa7edbf3d0076"
+      }
+    ]
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/algorithms-community--louvain-more-communities-than-colours.png",
+      "from": "b78a22153812cbf6b40f239f312375d0742a94ed8b10acf5b2b564a921ca740b",
+      "to": "b270cdeb38edc303bab450b7c3d9cbf17bb472be592cb5041d47282fa66bd44a",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty-element/algorithms-component--scc.png",
+      "from": "bddb2c80b0cd1fdac634cadf4d23ba9d12d219b4b65dee9a25091e657ee03362",
+      "to": "1dc3c288e850f7b052e0d733a6987e22095cd99820281e31155711b6548e9f21",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-06T18:33:48.230Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiRUZGZy1JMTRFejJGai1kdWpMNHZfNldIS3ZfSU9GR3FsTmx6d3NNaXZpQSIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIE7dShQC7BxCXQ39O5FKxSfewHxpYobwmCK4viPGfIdPAiB8PKnJyBA_TEk6M4ovG5fVm10VrJ4zQX_nEAMKfc1haA"
+  }
+}

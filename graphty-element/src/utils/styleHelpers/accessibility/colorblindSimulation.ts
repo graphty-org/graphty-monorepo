@@ -5,33 +5,20 @@
  * Based on research by Viénot, Brettel, and Mollon (1999)
  */
 
+import { hexToRgb, rgbToHex } from "../color/interpolation";
+
 /**
- * Convert hex color to RGB components
+ * Convert hex color to RGB components, throwing on anything that is not a six-digit hex colour.
  * @param hex - Hex color string (e.g., "#FF0000" or "FF0000")
  * @returns Tuple of RGB values [r, g, b] where each component is 0-255
  */
-function hexToRgb(hex: string): [number, number, number] {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    if (!result) {
+function hexToRgbTuple(hex: string): [number, number, number] {
+    const rgb = hexToRgb(hex);
+    if (!rgb) {
         throw new Error(`Invalid hex color: ${hex}`);
     }
 
-    return [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)];
-}
-
-/**
- * Convert RGB to hex color
- * @param r - Red component (0-255)
- * @param g - Green component (0-255)
- * @param b - Blue component (0-255)
- * @returns Hex color string (e.g., "#FF0000")
- */
-function rgbToHex(r: number, g: number, b: number): string {
-    const toHex = (n: number): string => {
-        const hex = Math.round(Math.max(0, Math.min(255, n))).toString(16);
-        return hex.length === 1 ? `0${hex}` : hex;
-    };
-    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    return [rgb.r, rgb.g, rgb.b];
 }
 
 /**
@@ -60,7 +47,7 @@ function toSrgb(value: number): number {
  * @returns Simulated color as hex string showing how it appears to someone with protanopia
  */
 export function simulateProtanopia(hex: string): string {
-    const [r, g, b] = hexToRgb(hex);
+    const [r, g, b] = hexToRgbTuple(hex);
 
     // Convert to linear RGB
     const lr = toLinear(r);
@@ -68,9 +55,9 @@ export function simulateProtanopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply protanopia simulation matrix
-    const nr = 0.567 * lr + 0.433 * lg + 0.0 * lb;
-    const ng = 0.558 * lr + 0.442 * lg + 0.0 * lb;
-    const nb = 0.0 * lr + 0.242 * lg + 0.758 * lb;
+    const nr = 0.567 * lr + 0.433 * lg + 0 * lb;
+    const ng = 0.558 * lr + 0.442 * lg + 0 * lb;
+    const nb = 0 * lr + 0.242 * lg + 0.758 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -83,7 +70,7 @@ export function simulateProtanopia(hex: string): string {
  * @returns Simulated color as hex string showing how it appears to someone with deuteranopia
  */
 export function simulateDeuteranopia(hex: string): string {
-    const [r, g, b] = hexToRgb(hex);
+    const [r, g, b] = hexToRgbTuple(hex);
 
     // Convert to linear RGB
     const lr = toLinear(r);
@@ -91,9 +78,9 @@ export function simulateDeuteranopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply deuteranopia simulation matrix
-    const nr = 0.625 * lr + 0.375 * lg + 0.0 * lb;
-    const ng = 0.7 * lr + 0.3 * lg + 0.0 * lb;
-    const nb = 0.0 * lr + 0.3 * lg + 0.7 * lb;
+    const nr = 0.625 * lr + 0.375 * lg + 0 * lb;
+    const ng = 0.7 * lr + 0.3 * lg + 0 * lb;
+    const nb = 0 * lr + 0.3 * lg + 0.7 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -106,7 +93,7 @@ export function simulateDeuteranopia(hex: string): string {
  * @returns Simulated color as hex string showing how it appears to someone with tritanopia
  */
 export function simulateTritanopia(hex: string): string {
-    const [r, g, b] = hexToRgb(hex);
+    const [r, g, b] = hexToRgbTuple(hex);
 
     // Convert to linear RGB
     const lr = toLinear(r);
@@ -114,9 +101,9 @@ export function simulateTritanopia(hex: string): string {
     const lb = toLinear(b);
 
     // Apply tritanopia simulation matrix
-    const nr = 0.95 * lr + 0.05 * lg + 0.0 * lb;
-    const ng = 0.0 * lr + 0.433 * lg + 0.567 * lb;
-    const nb = 0.0 * lr + 0.475 * lg + 0.525 * lb;
+    const nr = 0.95 * lr + 0.05 * lg + 0 * lb;
+    const ng = 0 * lr + 0.433 * lg + 0.567 * lb;
+    const nb = 0 * lr + 0.475 * lg + 0.525 * lb;
 
     // Convert back to sRGB
     return rgbToHex(toSrgb(nr), toSrgb(ng), toSrgb(nb));
@@ -128,7 +115,7 @@ export function simulateTritanopia(hex: string): string {
  * @returns Grayscale version of the color as hex string
  */
 export function toGrayscale(hex: string): string {
-    const [r, g, b] = hexToRgb(hex);
+    const [r, g, b] = hexToRgbTuple(hex);
 
     // Use standard luminance formula
     const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -148,8 +135,8 @@ export function toGrayscale(hex: string): string {
  * @returns Perceptual difference value (0-100+ scale)
  */
 export function colorDifference(hex1: string, hex2: string): number {
-    const [r1, g1, b1] = hexToRgb(hex1);
-    const [r2, g2, b2] = hexToRgb(hex2);
+    const [r1, g1, b1] = hexToRgbTuple(hex1);
+    const [r2, g2, b2] = hexToRgbTuple(hex2);
 
     // Simple Euclidean distance in RGB space
     // (More accurate would be LAB color space, but this is sufficient for testing)

@@ -48,6 +48,7 @@ The compact-mantine package is well-architected with good separation of concerns
 - **Description**: The SegmentedControl indicator uses a hardcoded dark mode color (`var(--mantine-color-dark-6)`) that won't work correctly in light mode. Other styles may have similar issues.
 
 **Example**: `src/theme/styles/controls.ts:72-73`
+
 ```typescript
 // Problem: Hardcoded for dark mode only
 export const compactSegmentedControlIndicatorStyles = {
@@ -56,6 +57,7 @@ export const compactSegmentedControlIndicatorStyles = {
 ```
 
 **Fix**:
+
 ```typescript
 // Use light-dark() for automatic color scheme adaptation
 export const compactSegmentedControlIndicatorStyles = {
@@ -64,6 +66,7 @@ export const compactSegmentedControlIndicatorStyles = {
 ```
 
 **Affected files to audit**:
+
 - `src/theme/styles/controls.ts` - SegmentedControl indicator
 - `src/components/popout/PopoutPanel.tsx:195` - Border color uses `light-dark()` correctly
 - `src/components/ControlGroup.tsx:25` - `color="gray.7"` hardcoded
@@ -75,6 +78,7 @@ export const compactSegmentedControlIndicatorStyles = {
 - **Description**: The hook hardcodes "dark" as the fallback when the color scheme is "auto". This means if the system preference can't be determined, it always falls back to dark mode, which may not be the desired behavior for all applications.
 
 **Example**: `src/hooks/useActualColorScheme.ts:8-10`
+
 ```typescript
 export function useActualColorScheme(): "light" | "dark" {
     return useComputedColorScheme("dark"); // Hardcoded "dark" fallback
@@ -82,6 +86,7 @@ export function useActualColorScheme(): "light" | "dark" {
 ```
 
 **Fix**: Consider making the fallback configurable or document the behavior:
+
 ```typescript
 /**
  * Hook to get the actual resolved color scheme.
@@ -101,21 +106,23 @@ export function useActualColorScheme(fallback: "light" | "dark" = "dark"): "ligh
 - **Description**: Each handler function calls both `handleStopsChange()` (from useUncontrolled) AND `onChange()` directly. The useUncontrolled hook already calls the onChange callback internally, resulting in potential double-invocation.
 
 **Example**: `src/components/GradientEditor.tsx:47-52`
+
 ```typescript
 const handleStopColorChange = (index: number, color: string): void => {
     const newStops = [..._stops];
     newStops[index] = { ...newStops[index], color };
-    handleStopsChange(newStops);  // This already calls onChange via useUncontrolled
-    onChange?.(newStops, _direction);  // Duplicate call!
+    handleStopsChange(newStops); // This already calls onChange via useUncontrolled
+    onChange?.(newStops, _direction); // Duplicate call!
 };
 ```
 
 **Fix**: Remove the duplicate `onChange` calls since `useUncontrolled` already handles them:
+
 ```typescript
 const handleStopColorChange = (index: number, color: string): void => {
     const newStops = [..._stops];
     newStops[index] = { ...newStops[index], color };
-    handleStopsChange(newStops);  // useUncontrolled calls onChange internally
+    handleStopsChange(newStops); // useUncontrolled calls onChange internally
 };
 ```
 
@@ -131,11 +138,13 @@ const handleStopColorChange = (index: number, color: string): void => {
 - **Description**: The header row uses a `<Group>` with `onClick` and `cursor: pointer` but is not a proper button. Screen readers won't announce it as interactive.
 
 **Example**: `src/components/ControlSection.tsx:34`
+
 ```typescript
 <Group justify="space-between" py={8} px={8} style={{ cursor: "pointer" }} onClick={toggle}>
 ```
 
 **Fix**: Wrap the header content with a proper button element or use `role="button"` with keyboard handling:
+
 ```typescript
 <Group
     justify="space-between"
@@ -155,6 +164,7 @@ const handleStopColorChange = (index: number, color: string): void => {
 - **Description**: Uses conditional rendering (`{opened && ...}`) instead of Mantine's `<Collapse>` component. This loses animation and is inconsistent with ControlSection which uses Collapse.
 
 **Example**: `src/components/ControlSubGroup.tsx:39-43`
+
 ```typescript
 {/* Conditionally rendered content area with indent */}
 {opened && (
@@ -165,6 +175,7 @@ const handleStopColorChange = (index: number, color: string): void => {
 ```
 
 **Fix**: Use Collapse for consistency and animation:
+
 ```typescript
 <Collapse in={opened}>
     <Box pl="md">
@@ -179,6 +190,7 @@ const handleStopColorChange = (index: number, color: string): void => {
 - **Description**: The `register` function has deeply nested loops and complex sibling/descendant closing logic that's difficult to follow and maintain. This could also have O(n²) performance with many popouts.
 
 **Recommendation**: Consider refactoring into smaller helper functions:
+
 - `findSiblings(parentId)`
 - `findDescendants(popoutId)`
 - `closePopoutsInOrder(ids[])`
@@ -189,6 +201,7 @@ const handleStopColorChange = (index: number, color: string): void => {
 - **Description**: Uses both `useUncontrolled` and a separate `useState` + `useEffect` for local state. This pattern is correct for preventing focus loss during typing, but the effect dependency on `_value` could cause unnecessary re-syncs.
 
 **Example**: `src/components/StyleNumberInput.tsx:53-59`
+
 ```typescript
 const [localValue, setLocalValue] = useState<string | number>(displayValue);
 
@@ -205,6 +218,7 @@ useEffect(() => {
 - **Description**: The effect that calculates initial position has `anchorContext` used inside but not in dependency array. This could cause stale closure issues if the anchor context changes.
 
 **Example**: `src/components/popout/PopoutPanel.tsx:126-131`
+
 ```typescript
 useEffect(() => {
     if (isOpen) {
@@ -219,6 +233,7 @@ useEffect(() => {
 ```
 
 **Fix**: Add `anchorContext` to the dependency array:
+
 ```typescript
 }, [isOpen, width, height, gap, triggerRef, anchorRef, placement, alignment, resetDragOffset, isTabs, defaultTabId, parentId, anchorContext]);
 ```
@@ -250,6 +265,7 @@ useEffect(() => {
 - **Description**: The `mergeExtensions`, `mergeExtensions3`, `mergeExtensions4`, and `mergeExtensions7` functions are cleverly designed to prevent duplicate component keys at compile time. However, `theme/index.ts` uses spread operators instead.
 
 **Example**: `src/utils/merge-extensions.ts`
+
 ```typescript
 // Clever type safety for preventing duplicate keys
 type NoOverlap<T, U> = keyof T & keyof U extends never ? U : never;
@@ -260,6 +276,7 @@ export function mergeExtensions<A extends object, B extends object>(
 ```
 
 But in `theme/index.ts`:
+
 ```typescript
 // Uses spread operator instead of mergeExtensions
 components: {
@@ -278,11 +295,13 @@ components: {
 - **Description**: The example uses `var(--mantine-color-gray-light)` which may not render correctly in all color schemes.
 
 **Example**: `src/components/popout/examples/LabelSettingsPopout.tsx:241`
+
 ```typescript
 backgroundColor: "var(--mantine-color-gray-light)",
 ```
 
 **Fix**: Use a more explicit light-dark approach or Mantine's built-in surface colors:
+
 ```typescript
 backgroundColor: "var(--mantine-color-default)",
 // or
@@ -337,33 +356,33 @@ backgroundColor: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-da
 ### Excellent Patterns to Replicate
 
 1. **Compound Component Pattern** (Popout)
-   - Clean API: `<Popout><Popout.Trigger>...</Popout.Trigger><Popout.Panel>...</Popout.Panel></Popout>`
-   - Proper context usage for state sharing
-   - Well-structured type definitions
+    - Clean API: `<Popout><Popout.Trigger>...</Popout.Trigger><Popout.Panel>...</Popout.Panel></Popout>`
+    - Proper context usage for state sharing
+    - Well-structured type definitions
 
 2. **Theme Architecture**
-   - Clear separation: tokens → styles → component extensions → theme
-   - Consistent use of CSS variables for runtime customization
-   - Good documentation of variable meanings
+    - Clear separation: tokens → styles → component extensions → theme
+    - Consistent use of CSS variables for runtime customization
+    - Good documentation of variable meanings
 
 3. **useUncontrolled Pattern**
-   - Consistent controlled/uncontrolled support across all input components
-   - Clean API for distinguishing "default" vs "explicit" values
+    - Consistent controlled/uncontrolled support across all input components
+    - Clean API for distinguishing "default" vs "explicit" values
 
 4. **Type Safety**
-   - All components have proper TypeScript interfaces
-   - Good use of discriminated unions (PopoutHeaderConfig)
-   - Exhaustive switch case handling with `never` type
+    - All components have proper TypeScript interfaces
+    - Good use of discriminated unions (PopoutHeaderConfig)
+    - Exhaustive switch case handling with `never` type
 
 5. **Accessibility**
-   - ARIA attributes on popout triggers and panels
-   - Proper focus management in PopoutPanel
-   - Keyboard support for escape key closing
+    - ARIA attributes on popout triggers and panels
+    - Proper focus management in PopoutPanel
+    - Keyboard support for escape key closing
 
 6. **Code Organization**
-   - Clear file structure: components, hooks, types, constants, utils
-   - Barrel exports for clean imports
-   - Consistent naming conventions
+    - Clear file structure: components, hooks, types, constants, utils
+    - Barrel exports for clean imports
+    - Consistent naming conventions
 
 ---
 
@@ -392,19 +411,19 @@ backgroundColor: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-da
 
 ## Component Light/Dark Mode Support Summary
 
-| Component | Light Mode | Dark Mode | Notes |
-|-----------|------------|-----------|-------|
-| Theme Colors | ✅ | ✅ | Uses Mantine color palette |
-| Input Components | ⚠️ | ✅ | Uses `var(--mantine-color-default)` - should work |
-| Button Components | ⚠️ | ✅ | Relies on Mantine defaults |
-| Control Components | ❌ | ✅ | SegmentedControl indicator hardcoded for dark |
-| Display Components | ⚠️ | ✅ | Most rely on Mantine defaults |
-| Feedback Components | ⚠️ | ✅ | Progress label hardcoded fontSize |
-| Navigation Components | ⚠️ | ✅ | Mostly rely on Mantine defaults |
-| Overlay Components | ⚠️ | ✅ | Use Mantine defaults |
-| Popout Components | ✅ | ✅ | Uses `light-dark()` CSS function |
-| ControlGroup/Section | ❌ | ✅ | `color="gray.7"` hardcoded |
-| Custom Components | ⚠️ | ✅ | StyleSelect/NumberInput use dimmed vars |
+| Component             | Light Mode | Dark Mode | Notes                                             |
+| --------------------- | ---------- | --------- | ------------------------------------------------- |
+| Theme Colors          | ✅         | ✅        | Uses Mantine color palette                        |
+| Input Components      | ⚠️         | ✅        | Uses `var(--mantine-color-default)` - should work |
+| Button Components     | ⚠️         | ✅        | Relies on Mantine defaults                        |
+| Control Components    | ❌         | ✅        | SegmentedControl indicator hardcoded for dark     |
+| Display Components    | ⚠️         | ✅        | Most rely on Mantine defaults                     |
+| Feedback Components   | ⚠️         | ✅        | Progress label hardcoded fontSize                 |
+| Navigation Components | ⚠️         | ✅        | Mostly rely on Mantine defaults                   |
+| Overlay Components    | ⚠️         | ✅        | Use Mantine defaults                              |
+| Popout Components     | ✅         | ✅        | Uses `light-dark()` CSS function                  |
+| ControlGroup/Section  | ❌         | ✅        | `color="gray.7"` hardcoded                        |
+| Custom Components     | ⚠️         | ✅        | StyleSelect/NumberInput use dimmed vars           |
 
 **Legend**: ✅ = Fully supported, ⚠️ = Likely works but untested, ❌ = Known issues
 
@@ -414,19 +433,19 @@ backgroundColor: "light-dark(var(--mantine-color-gray-1), var(--mantine-color-da
 
 ### Production Code (src/) - 57 Files Reviewed
 
-| Category | Files | Status |
-|----------|-------|--------|
-| Main Entry | `index.ts` | ✅ Clean |
-| Theme Entry | `theme/index.ts`, `theme/colors.ts`, `theme/tokens.ts` | ✅ Clean |
-| Theme Components | `theme/components/*.ts` (8 files incl. index) | ✅ Clean |
-| Theme Styles | `theme/styles/*.ts` (7 files) | ⚠️ Light mode issues |
-| Components | `components/*.tsx` (10 files incl. index) | ⚠️ Minor issues |
-| Popout System | `components/popout/*.tsx` (12 files incl. hooks/utils) | ⚠️ Minor issues |
-| Popout Examples | `components/popout/examples/*.tsx` (1 file) | ⚠️ Hardcoded color |
-| Hooks | `hooks/*.ts` (2 files incl. index) | ⚠️ Hardcoded fallback |
-| Utils | `utils/*.ts` (4 files incl. index) | ⚠️ Unused utilities |
-| Constants | `constants/*.ts` (4 files incl. index) | ⚠️ Unused exports |
-| Types | `types/*.ts` (2 files) | ✅ Clean |
+| Category         | Files                                                  | Status                |
+| ---------------- | ------------------------------------------------------ | --------------------- |
+| Main Entry       | `index.ts`                                             | ✅ Clean              |
+| Theme Entry      | `theme/index.ts`, `theme/colors.ts`, `theme/tokens.ts` | ✅ Clean              |
+| Theme Components | `theme/components/*.ts` (8 files incl. index)          | ✅ Clean              |
+| Theme Styles     | `theme/styles/*.ts` (7 files)                          | ⚠️ Light mode issues  |
+| Components       | `components/*.tsx` (10 files incl. index)              | ⚠️ Minor issues       |
+| Popout System    | `components/popout/*.tsx` (12 files incl. hooks/utils) | ⚠️ Minor issues       |
+| Popout Examples  | `components/popout/examples/*.tsx` (1 file)            | ⚠️ Hardcoded color    |
+| Hooks            | `hooks/*.ts` (2 files incl. index)                     | ⚠️ Hardcoded fallback |
+| Utils            | `utils/*.ts` (4 files incl. index)                     | ⚠️ Unused utilities   |
+| Constants        | `constants/*.ts` (4 files incl. index)                 | ⚠️ Unused exports     |
+| Types            | `types/*.ts` (2 files)                                 | ✅ Clean              |
 
 ### Test Code (tests/) - Different Standards Apply
 
@@ -434,14 +453,14 @@ Test files were not reviewed in detail as they follow relaxed standards (mocks, 
 
 ### Configuration
 
-| File | Status |
-|------|--------|
-| `package.json` | ✅ |
-| `tsconfig.json` | ✅ |
-| `vite.config.ts` | ✅ |
-| `.storybook/*` | ✅ |
+| File             | Status |
+| ---------------- | ------ |
+| `package.json`   | ✅     |
+| `tsconfig.json`  | ✅     |
+| `vite.config.ts` | ✅     |
+| `.storybook/*`   | ✅     |
 
 ---
 
-*Report generated: January 8, 2026*
-*Reviewer: Claude Code*
+_Report generated: January 8, 2026_
+_Reviewer: Claude Code_

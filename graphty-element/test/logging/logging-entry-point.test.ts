@@ -343,12 +343,16 @@ describe("the lists that decide what a subpath actually ships", () => {
     // plus the logger, with no types or docs of its own, so it is knip's alone.
     const knip = entryFiles(literalsIn("knip.config.ts", "graphty-element")).filter((file) => file !== "bundle.ts");
 
+    // jsx.ts is the types-only ./jsx entry: it has a .d.ts and docs and no JavaScript, so it is in
+    // every list but the build's.
+    const typed = [...build, "jsx.ts"].sort();
+
     it("names the same entry files in the build, the type emit, the docs and the dead-code analysis", () => {
-        assert.deepEqual(types, build, "tsconfig.build.json's include disagrees with vite.config.ts's entries");
-        assert.deepEqual(docs, build, "typedoc.json's entryPoints disagrees with vite.config.ts's entries");
+        assert.deepEqual(types, typed, "tsconfig.build.json's include disagrees with vite.config.ts's entries");
+        assert.deepEqual(docs, typed, "typedoc.json's entryPoints disagrees with vite.config.ts's entries");
         assert.deepEqual(
             knip,
-            build,
+            typed,
             "knip.config.ts's graphty-element entry list disagrees with vite.config.ts's entries",
         );
     });

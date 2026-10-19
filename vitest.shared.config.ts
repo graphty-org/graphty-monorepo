@@ -3,6 +3,9 @@
 
 import { defineConfig, type UserConfig } from "vitest/config";
 
+import { workerShare } from "./tools/test-slots.mjs";
+import { ciReporters } from "./vitest.ci-junit.mjs";
+
 // Every Playwright browser the test projects launch inherits this process's environment. Chromium
 // 143 (Playwright's chromium_headless_shell-1200) calls setenv("FC_FONTATIONS", "1") from a font
 // worker thread after its other threads are running. When the environment array has to grow for
@@ -37,8 +40,10 @@ export function createVitestConfig(options: VitestConfigOptions): UserConfig {
                     statements: 80,
                 },
             },
-            reporters: ["default"],
+            reporters: ["default", ...ciReporters()],
             testTimeout: 30000,
+            // At most this run's share of the cores (tools/test-slots.mjs; undefined on GitHub Actions).
+            maxWorkers: workerShare(),
         },
     });
 }

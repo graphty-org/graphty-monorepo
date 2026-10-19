@@ -11,8 +11,25 @@
 
 import { approve, prepareRegistration, registerPasskey } from "/passkey.js";
 import pixelmatch from "/pixelmatch.mjs";
+import { cropOf, dimmed, grow, regions } from "./spot.js";
 
-const token = new URLSearchParams(location.hash.slice(1)).get("token") ?? "";
+// The session token, from the address, or kept in this browser from an earlier visit: the
+// notifier's link carries no token (it goes through a push service), and still opens here. A
+// home-screen web app keeps its own storage, apart from the browser's, so with none here the page
+// asks for it (askToken), and again when the server refuses it.
+const TOKEN_KEY = "visual-review:token";
+let token = (() => {
+    const given = new URLSearchParams(location.hash.slice(1)).get("token");
+    try {
+        if (given) {
+            localStorage.setItem(TOKEN_KEY, given);
+            return given;
+        }
+        return localStorage.getItem(TOKEN_KEY) ?? "";
+    } catch {
+        return given ?? "";
+    }
+})();
 const app = document.getElementById("app");
 const bar = document.getElementById("bar");
 const statusRow = document.getElementById("status-row");
@@ -23,6 +40,10 @@ const statusMore = document.getElementById("status-more");
 const pickTarget = document.getElementById("pick-target");
 const pickProject = document.getElementById("pick-project");
 const finishSlot = document.getElementById("finish-slot");
+const crumbs = document.getElementById("crumbs");
+const toGridCrumb = document.getElementById("to-grid");
+const toItemCrumb = document.getElementById("to-item");
+const titleCrumb = document.getElementById("target-title");
 
 const REVIEWABLE = ["changed", "moved", "new", "unseeded", "removed", "unstable", "failed"];
 const ACCEPTABLE = ["changed", "moved", "new", "unseeded", "removed"];
@@ -48,16 +69,15 @@ const FLASH_MS = 333; // one image each third of a second: about 1.5 full cycles
 // size; 1 is real size: one CSS pixel per CSS pixel the story was drawn at, scrolling when larger.
 const ZOOMS = ["fit", 1, 2, 4, 8];
 const CRISP_FROM = 4; // from this zoom on, pixels are drawn as hard squares
-const GROW = 10; // image pixels the spotlight and the changed boxes grow each changed pixel by
-const SPOT_ALPHA = 190; // the spotlight's dimming, out of 255, as Chromatic's focus mask
-// A decision this soon after its item's images appeared is the second tap of a double tap, not a
-// decision on an image the reader saw.
+// A press this soon after its item's images were drawn is the tail of a press meant for the item
+// before, not a decision on an image the reader saw. Measured from the press's own time
+// (event.timeStamp), so a page that runs the press late does not lengthen it.
 const GUARD_MS = 250;
 const SLOW_MS = 300; // a wait longer than this says what it waits for
 // The grid's decision filters, and how a decision reads on a tile.
 const DECISIONS = { accept: "Accepted", reject: "Rejected", exclude: "Excluded" };
 const DONE = { accept: "accepted", reject: "rejected", exclude: "excluded" };
-// The reviewer's own display choices (the changed-area outline, blinking the overlay, Spotlight
+// The reviewer's own display choices (the changed-area outline, the baseline pane, blinking the overlay, Spotlight
 // flash, whether single-letter keys work, the failed-captures list), kept in this browser.
 const OPTIONS_KEY = "visual-review:options";
 const saved = loadOptions();
@@ -66,6 +86,7 @@ const reduceMotion = () => globalThis.matchMedia?.("(prefers-reduced-motion: red
 const state = {
     list: null, // GET /api/prs?cached=1: the targets, when they were read, and any refresh running
     target: null, // summary of the pull request (or master) being reviewed
+    together: null, // the inbox's coupled group opened with Review together: decisions apply to all of it
     project: null,
     data: null, // GET /api/pr/:id/:project
     filter: "undecided", // the grid opens on what still needs a decision
@@ -82,13 +103,17 @@ const state = {
     zoom: "fit",
     box: 0, // which changed area Next change is on
     showBox: saved.showBox ?? true, // outline the changed area (B)
+    baselinePane: saved.baselinePane ?? true, // show the baseline beside the new image (P)
+    focus: saved.focus ?? false, // open each item centered on where to look (O)
     blink: saved.blink ?? false, // blink the changed pixels Highlight lays over the images (L)
     spotFlash: saved.spotFlash ?? false, // Spotlight flashes baseline and new (F in Spotlight)
     shortcuts: saved.shortcuts ?? true, // single-letter keys on
+    grouped: saved.grouped ?? true, // the grid shows similar changes as one cluster each
+    gridSpot: saved.gridSpot ?? false, // every grid tile shows its change spotlighted
+    gridZoom: saved.gridZoom ?? false, // every grid tile is cropped toward its change
     // Flash, Blink and Spotlight flash run; a page load or a deep link opens them stopped.
     motion: true,
     held: null, // the view to return to when Space is released
-    pending: null, // "reject" or "exclude" waiting for its reason in the note box
     screen: "targets",
     job: null, // the newest Finish, from GET /api/finish-status
     plan: null, // what the running Finish was started to do, for its step list
@@ -98,7 +123,7 @@ const VIEWS = ["side", "flash", "highlight", "spotlight"];
 const FILTERS = ["undecided", "all", ...REVIEWABLE, ...Object.keys(DECISIONS)];
 let routes = 0; // how many routes are running: the page follows the address (a link, Back, Forward)
 let nav = 0; // bumped by each screen change that waits on the server: a superseded one stops there
-// Text typed in the note box, kept with the item it was typed on until its decision is saved.
+// A reason typed in the reason box, kept with the item it was typed on until its decision is saved.
 const drafts = new Map();
 // The last messages, in full, for the key overlay.
 const messages = [];
@@ -110,18 +135,213 @@ const thumbs = new Map();
 const THUMBS_KEPT = 400;
 const diffs = new Map();
 const DIFFS_KEPT = 4;
+// Each item's focus point, as the box [x, y, width, height] in image pixels to center on: a few
+// numbers each, kept for the items of a long session.
+const focusBoxes = new Map();
+const FOCUS_KEPT = 2000;
 let stageRender = 0; // the newest renderStage: an older one finishing late writes nothing
 let lastStageAt = 0; // when the last renderStage began
 let lastStageFile = null; // and for which item
 let lastShown = null; // the last item whose images were shown (never reset by a move)
 const SKIM_MS = 120;
 let stageShown = null; // the file whose images are on the stage: Accept waits for it
-let appearedAt = 0; // when the item on screen appeared, or its images did
+let appearedAt = 0; // when the item on screen was drawn, or its images were: Infinity until then
+let pressedOn = null; // the item the last first click of a decision button was on
 let saving = null; // the decision on its way to the server
 let flashTimer = null;
 let factor = 1; // CSS pixels per image pixel of the pictures on the stage
 let shownBoxes = []; // the changed areas of the item on the stage
 let stageKey = null; // "file|zoom" of what is on the stage, to keep its scroll across view changes
+let optionsOpen = false; // the story's Options menu stays open across redraws of the same item
+
+// How often each control and key is pressed, in this browser only (nothing is sent anywhere):
+// the Keys overlay lists the most used, so the bars can be laid out from real use.
+const USAGE_KEY = "visual-review:usage";
+function usage() {
+    try {
+        return JSON.parse(localStorage.getItem(USAGE_KEY) ?? "{}") ?? {};
+    } catch {
+        return {};
+    }
+}
+function count(name) {
+    logUsage("press", { c: name });
+    try {
+        const all = usage();
+        all[name] = (all[name] ?? 0) + 1;
+        localStorage.setItem(USAGE_KEY, JSON.stringify(all));
+    } catch {
+        // Not counted; nothing else depends on it.
+    }
+}
+const controlName = (b) =>
+    b.dataset.count ??
+    (b.id ||
+        [...b.childNodes]
+            .filter((n) => n.nodeType === 3)
+            .map((n) => n.textContent)
+            .join("")
+            .trim() ||
+        "button");
+document.addEventListener(
+    "click",
+    (e) => {
+        const b = e.target.closest?.("button, summary");
+        if (b && b.isConnected) {
+            count(controlName(b));
+        }
+    },
+    true,
+);
+
+// Usage events, only when the server's owner turned them on (`usage` in visual-review.config.json):
+// a timeline of how a review goes, sent to this page's own server and nowhere else, which appends
+// it to a file on its disk. Off, nothing is kept or sent. No image, no reason text, no token.
+const usageLog = {
+    on: null, // null until the server answers; then true or false
+    queue: [],
+    sending: false,
+    session: crypto.randomUUID(), // the page runs over HTTPS or on localhost, where crypto has it
+    last: 0, // when the last event was taken
+    settings: null, // the view settings as last logged
+    seen: new Set(), // the controls seen on screen in this session
+    itemAt: 0, // when the item on screen was shown
+    itemFile: null,
+    itemIndex: -1,
+    pointer: null,
+};
+const IDLE_MS = 60000;
+function logUsage(type, data = {}) {
+    if (usageLog.on === false) {
+        return;
+    }
+    const at = Date.now();
+    if (usageLog.last && at - usageLog.last > IDLE_MS) {
+        usageLog.queue.push({ type: "idle", at, s: usageLog.session, ms: at - usageLog.last });
+    }
+    usageLog.last = at;
+    usageLog.queue.push({ type, at, s: usageLog.session, ...data });
+    // Waiting on the server's answer (a token not pasted yet) keeps only the newest.
+    usageLog.queue.splice(0, usageLog.queue.length - 500);
+    if (usageLog.on) {
+        queueMicrotask(sendUsage);
+    }
+}
+async function sendUsage() {
+    if (usageLog.sending || usageLog.queue.length === 0) {
+        return;
+    }
+    usageLog.sending = true;
+    const events = usageLog.queue.splice(0, 100);
+    try {
+        // Not through api(): a refused token here must not ask for it again. The answer is read, so
+        // the request ends (a page test waits for the page's writes to end).
+        const res = await fetch("/api/usage", {
+            method: "POST",
+            headers: { "x-review-token": token, "content-type": "application/json" },
+            body: JSON.stringify({ events }),
+        });
+        await res.text();
+    } catch {
+        // Lost; usage is never worth a message.
+    } finally {
+        usageLog.sending = false;
+    }
+    if (usageLog.queue.length > 0) {
+        sendUsage();
+    }
+}
+// Asks the server once per token whether to log; until it answers, events wait in the queue.
+async function startUsage() {
+    try {
+        const res = await fetch("/api/usage-setting", { headers: { "x-review-token": token } });
+        if (res.status === 401) {
+            return; // asked again once a token is pasted
+        }
+        usageLog.on = res.ok && (await res.json()).on === true;
+    } catch {
+        usageLog.on = false;
+    }
+    if (usageLog.on) {
+        sendUsage();
+    } else {
+        usageLog.queue.length = 0;
+    }
+}
+// The view settings that changed since the last call, each as one event; and (logControls) the
+// controls on screen not seen before in this session, so the report can name those never pressed.
+function logSettings() {
+    if (usageLog.on === false) {
+        return;
+    }
+    const now = {
+        screen: state.screen,
+        view: state.view,
+        zoom: state.zoom,
+        showBox: state.showBox,
+        baselinePane: state.baselinePane,
+        focus: state.focus,
+        blink: state.blink,
+        spotFlash: state.spotFlash,
+        motion: state.motion,
+        filter: state.filter,
+        grouped: state.grouped,
+        gridSpot: state.gridSpot,
+        gridZoom: state.gridZoom,
+        shortcuts: state.shortcuts,
+    };
+    for (const [key, value] of Object.entries(now)) {
+        if (usageLog.settings && usageLog.settings[key] !== value) {
+            logUsage("set", { key, from: usageLog.settings[key], to: value });
+        }
+    }
+    usageLog.settings = now;
+    logControls();
+}
+function logControls() {
+    if (usageLog.on === false) {
+        return;
+    }
+    // Once the screen being drawn is in the document.
+    queueMicrotask(() => {
+        const fresh = new Set(
+            [...document.querySelectorAll("button, summary")]
+                .filter((b) => b.getClientRects().length > 0)
+                .map(controlName)
+                .filter((c) => !usageLog.seen.has(c)),
+        );
+        if (fresh.size > 0) {
+            fresh.forEach((c) => usageLog.seen.add(c));
+            logUsage("controls", { c: [...fresh] });
+        }
+    });
+}
+document.addEventListener(
+    "pointerdown",
+    (e) => {
+        if (e.pointerType !== usageLog.pointer) {
+            usageLog.pointer = e.pointerType;
+            logUsage("pointer", { p: e.pointerType });
+        }
+    },
+    true,
+);
+document.addEventListener("visibilitychange", () => logUsage(document.visibilityState));
+logUsage("load", {
+    w: innerWidth,
+    h: innerHeight,
+    dpr: devicePixelRatio,
+    coarse: globalThis.matchMedia?.("(pointer: coarse)").matches === true,
+    touch: navigator.maxTouchPoints ?? 0,
+});
+// A tap outside an open menu closes it, as a menu does.
+document.addEventListener("pointerdown", (e) => {
+    for (const m of document.querySelectorAll("details.menu[open]")) {
+        if (!m.contains(e.target)) {
+            m.removeAttribute("open");
+        }
+    }
+});
 // At fit, the stage refits when the window (or an iPad's orientation) changes its size.
 const refit = new ResizeObserver(() => {
     const stage = document.getElementById("stage");
@@ -165,6 +385,9 @@ function setBar(node = null) {
 // The same message again is not rewritten, so a screen reader does not read it again.
 function say(text, isError = false) {
     const shown = text === "" && running() ? finishing() : text;
+    if (isError && shown) {
+        logUsage("error", { m: shown.slice(0, 160) });
+    }
     elapsedLine.textContent = "";
     if (!isError && shown !== "" && statusLine.textContent === shown && alertLine.textContent === "") {
         return;
@@ -403,7 +626,7 @@ function sayBackground(text, extra = "") {
 // `unavailable` makes `yes` say why instead (inside the dialog, which a screen reader hears), and
 // `why` names the element of `message` explaining it; `focusYes` focuses `yes` (a retry).
 function ask(message, yes, { onYes = () => {}, label = null, unavailable = null, why = null, focusYes = false } = {}) {
-    // Focus on the box, not a button: the Enter that asked (in the note box) must not answer it.
+    // Focus on the box, not a button: the Enter that asked (in the reason box) must not answer it.
     const text = el("div", { class: "ask-text", id: "ask-text" }, message);
     const dialog = el("dialog", {
         class: "ask",
@@ -454,12 +677,154 @@ function ask(message, yes, { onYes = () => {}, label = null, unavailable = null,
     );
 }
 
+// The reason a Reject or Exclude needs, asked in a box with the cursor already in its field, so a
+// hardware keyboard types straight into it. Resolves the reason, or null for Cancel or Escape. What
+// is typed stays with the item (drafts) until its decision is saved, cancelled or not.
+function askReason(item, decision, label = null) {
+    // A group's reason covers each of its stories.
+    const which = label ? "each" : "this";
+    const key = draftKey(item);
+    const verb = decision === "reject" ? "Reject" : "Exclude";
+    const field = el("input", {
+        id: "reason",
+        type: "text",
+        maxlength: "2000",
+        autocomplete: "off",
+        autofocus: true,
+        "aria-labelledby": "reason-label",
+        value: drafts.get(key) ?? "",
+        oninput: (e) => drafts.set(key, e.target.value),
+    });
+    const alert = el("p", { class: "error", role: "alert" });
+    const dialog = el("dialog", { class: "reason", "aria-labelledby": "reason-label" });
+    const send = () => {
+        if (field.value.trim() === "") {
+            alert.textContent = `${verb} needs a reason.`;
+            field.focus();
+            return;
+        }
+        dialog.close("yes");
+    };
+    field.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.repeat) {
+            e.preventDefault();
+            send();
+        }
+    });
+    dialog.append(
+        el(
+            "label",
+            { id: "reason-label", for: "reason" },
+            label ?? `Reason to ${decision} #${numberOf(item)}`,
+            decision === "exclude" ? `: Exclude stops capturing every mode of ${which} story.` : "",
+        ),
+        field,
+        alert,
+        el(
+            "p",
+            { class: "actions" },
+            el("button", { type: "button", onclick: () => dialog.close("no") }, "Cancel"),
+            el("button", { type: "button", class: "primary", id: "reason-yes", onclick: send }, verb),
+        ),
+    );
+    document.body.append(dialog);
+    dialog.showModal();
+    field.focus();
+    return new Promise((resolve) =>
+        dialog.addEventListener("close", () => {
+            dialog.remove();
+            resolve(dialog.returnValue === "yes" ? field.value.trim() : null);
+        }),
+    );
+}
+
+// A request the server refused for its token: the page asks for the token, and the caller waits
+// for good (a promise that never settles), so nothing it would draw covers the question.
+const refused = () => new Promise(() => {});
+const REFUSED = "The review server did not accept that token: paste it again.";
+
+// The token form: asks for the session token, or the whole URL serve printed, and keeps it the way
+// an address with #token= does. `error` says why it asks again. The token is never shown.
+function askToken(error = "") {
+    token = "";
+    try {
+        localStorage.removeItem(TOKEN_KEY);
+    } catch {
+        // Nothing kept to remove.
+    }
+    // A refused token leaves the address, so a reload does not bring it back; the screen stays.
+    const p = new URLSearchParams(location.hash.slice(1));
+    if (p.has("token")) {
+        p.delete("token");
+        history.replaceState(null, "", p.size > 0 ? `#${p}` : location.pathname + location.search);
+    }
+    nav++;
+    blocking?.end();
+    stopFlash();
+    state.screen = "token";
+    crumbs.hidden = true;
+    finishSlot.replaceChildren();
+    setBar();
+    say("");
+    let form = document.getElementById("token-form");
+    if (!form) {
+        const field = el("input", {
+            type: "password",
+            id: "token-field",
+            autocomplete: "off",
+            autocapitalize: "off",
+            spellcheck: "false",
+            "aria-describedby": "token-error",
+        });
+        form = el(
+            "form",
+            { id: "token-form", class: "token-form", onsubmit: (e) => useToken(e, field) },
+            el("label", { for: "token-field" }, "Paste the session token (or the full URL serve printed)"),
+            field,
+            el("p", { id: "token-error", class: "error", role: "alert" }),
+            el("button", { type: "submit", class: "primary" }, "Open"),
+        );
+        render(form);
+        field.focus();
+    }
+    form.querySelector("#token-error").textContent = error;
+}
+
+function useToken(e, field) {
+    e.preventDefault();
+    const v = field.value.trim();
+    // A URL's fragment (#token=...&target=...), or the token alone.
+    const part = v.includes("#") ? v.slice(v.indexOf("#") + 1) : v;
+    const given = (part.includes("token=") ? new URLSearchParams(part).get("token") : v) ?? "";
+    if (given === "") {
+        document.getElementById("token-error").textContent = "Paste the token or the URL first.";
+        return;
+    }
+    field.value = "";
+    token = given;
+    try {
+        localStorage.setItem(TOKEN_KEY, given);
+    } catch {
+        // Kept for this visit only.
+    }
+    checkFinish();
+    route();
+}
+
 async function api(path, body) {
+    const sent = token;
     const res = await fetch(path, {
         method: body ? "POST" : "GET",
         headers: { "x-review-token": token, ...(body ? { "content-type": "application/json" } : {}) },
         body: body ? JSON.stringify(body) : undefined,
     });
+    if (res.status === 401) {
+        // Only the token in use is refused: an answer to an older one changes nothing.
+        if (sent === token) {
+            askToken(sent ? REFUSED : "");
+        }
+        return refused();
+    }
     const json = await res.json().catch(() => ({}));
     if (!res.ok) {
         const err = new Error(json.error ?? `${res.status} ${res.statusText}`);
@@ -495,7 +860,8 @@ function cached(map, key, limit, make, drop = () => {}) {
 
 // Loads an image through the API (it needs the token header) and returns an object URL. Keyed by
 // the image's hash too, so a newer CI run's image is never answered with an older one. `route`
-// is "img" for the image itself, "thumb" for the grid's small copy.
+// is "img" for the image itself, "thumb" for the grid's small copy, "spot" for its spotlit or
+// zoomed copy (`kind` then "spot", "zoom" or "both", and `hash` both images' hashes).
 function image(kind, file, hash, route = "img") {
     return cached(
         route === "img" ? images : thumbs,
@@ -503,7 +869,14 @@ function image(kind, file, hash, route = "img") {
         route === "img" ? IMAGES_KEPT : THUMBS_KEPT,
         () => {
             const path = [route, state.target.id, state.project, kind, file].map(encodeURIComponent).join("/");
-            return fetch(`/api/${path}`, { headers: { "x-review-token": token } }).then(async (res) => {
+            const sent = token;
+            return fetch(`/api/${path}`, { headers: { "x-review-token": sent } }).then(async (res) => {
+                if (res.status === 401) {
+                    if (sent === token) {
+                        askToken(sent ? REFUSED : "");
+                    }
+                    return refused();
+                }
                 if (!res.ok) {
                     throw new Error(`${file}: ${(await res.json().catch(() => ({}))).error ?? res.status}`);
                 }
@@ -529,6 +902,11 @@ const itemName = (item) => (item.mode ? `${item.id} (${item.mode})` : item.id);
 const movedFrom = (item) => (item.from ? `moved from ${item.from}` : "");
 const short = (sha) => (sha ? sha.slice(0, 10) : "none");
 const decisionOf = (item) => state.data?.decisions[item.file] ?? null;
+// A decision the owner took, not an accept the server took because the image was approved before.
+const firmDecision = (item) => (decisionOf(item)?.approvedBefore ? null : decisionOf(item));
+const day = (iso) => (iso ? String(iso).slice(0, 10) : "");
+const prName = (pr) => (pr === null ? "seed" : "#" + pr);
+const approvedText = (a) => `Approved before (${prName(a.pr)}, ${day(a.reviewedAt)})`;
 // The image a decision is about, as the server checks it: a decision on an image another run
 // replaced since this page loaded is refused.
 const imageHash = (item) => item.capture ?? item.baseline ?? null;
@@ -537,7 +915,12 @@ const isLocal = () => state.target?.local === true;
 const scale = () => state.data?.results.scale ?? 1;
 // The default branch's name, as the server reports it.
 const branchName = (t = state.target) => t?.defaultBranch ?? state.list?.defaultBranch ?? "master";
-const labelOf = (t) => (t.local ? "Local preview" : t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`);
+const labelOf = (t) => {
+    if (t.local) {
+        return "Local preview";
+    }
+    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`;
+};
 const undecidedOf = (t) => t.projects.reduce((n, p) => n + p.undecided, 0);
 const finishedOf = (t) => t.projects.reduce((n, p) => n + (p.finished ?? 0), 0);
 const draftKey = (item) => `${state.target.id}/${state.project}/${item.file}`;
@@ -651,9 +1034,14 @@ function saveOptions(extra = {}) {
             JSON.stringify({
                 ...loadOptions(),
                 showBox: state.showBox,
+                baselinePane: state.baselinePane,
+                focus: state.focus,
                 blink: state.blink,
                 spotFlash: state.spotFlash,
                 shortcuts: state.shortcuts,
+                grouped: state.grouped,
+                gridSpot: state.gridSpot,
+                gridZoom: state.gridZoom,
                 ...extra,
             }),
         );
@@ -664,6 +1052,9 @@ function saveOptions(extra = {}) {
 
 function toggleOption(key) {
     state[key] = !state[key];
+    if (key === "focus") {
+        stageKey = null; // reframe the item on screen, not keep its scroll
+    }
     state.motion = true;
     saveOptions();
     showStory();
@@ -671,6 +1062,13 @@ function toggleOption(key) {
 
 // Takes a project's data from the server as the one on screen.
 function adopt(data, project) {
+    if (state.target?.id !== data.target.id) {
+        logUsage("target", { id: data.target.id, local: data.target.local === true });
+    }
+    if (state.target?.id !== data.target.id || state.project !== project) {
+        const p = data.target.projects.find((x) => x.project === project);
+        logUsage("project", { id: data.target.id, project, items: data.items.length, stale: p?.newer?.length ?? 0 });
+    }
     state.data = data;
     state.target = data.target;
     state.project = project;
@@ -695,14 +1093,32 @@ function counted(item, before, after, unpublished) {
 
 // ---------------------------------------------------------------- header
 
-// The target and project pickers (on the grid and story screens) and Finish.
+// The breadcrumb (on the grid and story screens: Visual review / target / project / Grid, or on the
+// grid the item last opened) and Finish.
 function drawHeader() {
+    logSettings();
     const onTargets = state.screen === "targets" || state.target === null;
-    pickTarget.parentElement.hidden = onTargets;
-    pickProject.parentElement.hidden = onTargets;
+    crumbs.hidden = onTargets;
     finishSlot.replaceChildren();
     if (onTargets) {
         return;
+    }
+    toGridCrumb.hidden = state.screen !== "story";
+    // The pull request's title (untrusted text), which opens its description and comments.
+    titleCrumb.hidden = state.target.pr === null || isLocal();
+    titleCrumb.textContent = state.target.title ?? "";
+    titleCrumb.title = `${state.target.title ?? ""}: the description and comments`;
+    const last = state.screen === "grid" && state.data?.items.find((i) => i.file === state.lastFile);
+    toItemCrumb.hidden = !last;
+    if (last) {
+        toItemCrumb.textContent = `#${numberOf(last)} ${itemName(last)}`;
+        toItemCrumb.title = `Back to #${numberOf(last)} ${itemName(last)}`;
+    }
+    for (const [button, step] of [
+        [document.getElementById("prev-project"), -1],
+        [document.getElementById("next-project"), 1],
+    ]) {
+        button.setAttribute("aria-disabled", String(!projectAt(step)));
     }
     const targets = state.list?.targets ?? [state.target];
     const listed = targets.some((t) => t.id === state.target.id) ? targets : [state.target, ...targets];
@@ -778,6 +1194,11 @@ statusMore.addEventListener("click", () => {
 });
 pickTarget.addEventListener("change", () => openTarget(pickTarget.value, false));
 pickProject.addEventListener("change", () => openProject(state.target.id, pickProject.value));
+toGridCrumb.addEventListener("click", () => toGrid());
+toItemCrumb.addEventListener("click", () => backToItem());
+titleCrumb.addEventListener("click", () => showContext());
+document.getElementById("prev-project").addEventListener("click", () => stepProject(-1));
+document.getElementById("next-project").addEventListener("click", () => stepProject(1));
 
 // ---------------------------------------------------------------- screen: targets
 
@@ -832,14 +1253,15 @@ async function followTargets(seq, ask) {
             box?.end();
             return;
         }
-        const before = JSON.stringify(state.list?.targets ?? null);
+        const before = JSON.stringify([state.list?.targets ?? null, state.list?.inbox ?? null]);
         state.list = list;
+        showCount(list.inbox);
         const stale = list.targets && list.updatedAt !== null && list.now - list.updatedAt > 60000;
         if (ask === "cached" && stale && !list.refreshing) {
             ask = "refresh";
             continue;
         }
-        if (JSON.stringify(list.targets ?? null) === before) {
+        if (JSON.stringify([list.targets ?? null, list.inbox ?? null]) === before) {
             drawListLine();
         } else {
             drawTargets();
@@ -864,8 +1286,13 @@ async function followTargets(seq, ask) {
             backgroundLine(list, net);
         }
         ask = "cached";
-        const busy = list.refreshing || !list.targets || list.targets.some((t) => t.downloading);
-        await sleep(busy ? 700 : 5000);
+        // With no list yet the reader is blocked on it: look again soon, so it shows when the
+        // first load ends, not up to 700 ms later (#1530).
+        let wait = 250;
+        if (list.targets) {
+            wait = settled(list) ? 5000 : 700;
+        }
+        await sleep(wait);
         if (seq !== nav) {
             box?.end();
             return;
@@ -891,12 +1318,16 @@ function backgroundLine(list, net) {
     }
 }
 
-// The line above the cards: how old the list is, and Refresh.
+// The list is whole: no refresh running and every capture downloaded.
+const settled = (list) => Boolean(list?.targets) && !list.refreshing && !list.targets.some((t) => t.downloading);
+
+// The line above the cards: how old the list is, and Refresh. `data-settled` once the list shown
+// is whole, so a script (or a test) waits on that rather than on a guess at how long it takes.
 function listLine() {
     const list = state.list;
     return el(
         "p",
-        { class: "listline", id: "listline" },
+        { class: "listline", id: "listline", "data-settled": settled(list) },
         list?.updatedAt ? `Updated ${secondsSince(list.updatedAt, list.now)} s ago` : "",
         el("button", { type: "button", onclick: () => showTargets("", true) }, "Refresh"),
     );
@@ -920,20 +1351,195 @@ function drawTargets() {
     const focused = document.activeElement?.id;
     render(
         finishOutcome(),
+        listLine(),
+        inboxView(state.list.inbox),
         finishable ? signerBlock(finishable) : null,
         finishable ? passkeyLine(finishable.passkey) : null,
-        listLine(),
         targets.length === 0
             ? el("p", {}, "No open pull requests. To seed baselines, start the server with --master-run <run id>.")
-            : null,
+            : state.list.inbox && el("h2", { class: "all-heading" }, "All pull requests"),
         ...targets.map(targetCard),
     );
+    logControls();
     if (running()) {
         drawFinishPanel();
     }
     // A redraw (the list refreshing under the Finish result) keeps focus where it was.
     if (focused && document.getElementById(focused) && focused !== "app") {
         document.getElementById(focused).focus({ preventScroll: true });
+    }
+}
+
+// ---------------------------------------------------------------- the inbox
+
+const ago = (from, now) => {
+    const m = Math.round(Math.max(0, now - from) / 60000);
+    if (m < 1) {
+        return "just now";
+    }
+    return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+};
+
+// What is waiting for the owner, on top of the targets screen: the pull requests with images to
+// decide (fewest first; a row opens its first undecided image), those whose capture failed, and
+// how many are still capturing or have nothing to decide. Coupled pull requests (they change the
+// same baselines) come first, each group oldest first, with Review together.
+function inboxView(inbox) {
+    if (!inbox) {
+        return null;
+    }
+    const now = state.list.now;
+    const readyRow = (r) =>
+        el(
+            "li",
+            {},
+            el(
+                "button",
+                {
+                    type: "button",
+                    class: "inbox-row",
+                    "data-inbox": r.id,
+                    onclick: () => {
+                        state.together = null;
+                        openTarget(r.id, true);
+                    },
+                },
+                el("strong", {}, `#${r.pr} `),
+                el("span", { class: "inbox-title" }, r.title),
+                el(
+                    "span",
+                    { class: "meta" },
+                    r.undecided > 0
+                        ? plural(r.undecided, "image")
+                        : `ready to Finish (${plural(r.unpublished, "decision")})`,
+                    `, ${r.source}`,
+                    r.complete ? "" : `, ${r.loaded} of ${plural(r.total, "project")} ready`,
+                    `, ${ago(r.since, now)}`,
+                ),
+            ),
+        );
+    const badRow = (r) =>
+        el(
+            "li",
+            { class: "inbox-bad", "data-inbox": r.id },
+            el("strong", {}, `#${r.pr} `),
+            el("span", { class: "inbox-title" }, r.title),
+            el("span", { class: "meta" }, `${r.project}: ${r.reason}`),
+            r.logUrl ? link(r.logUrl, "Job log") : null,
+            r.retry ? el("button", { type: "button", onclick: () => showTargets("", true) }, "Retry") : null,
+        );
+    const groups = inbox.groups ?? [];
+    const grouped = new Set(groups.flatMap((g) => g.ids));
+    const ready = inbox.ready.filter((r) => !grouped.has(r.id)).map(readyRow);
+    const notReady = inbox.notReady.filter((r) => !grouped.has(r.id)).map(badRow);
+    const groupRows = groups.map((g) => {
+        const rows = g.ids.map((id, n) => {
+            const r = inbox.ready.find((x) => x.id === id);
+            const bad = inbox.notReady.find((x) => x.id === id);
+            if (r) {
+                return readyRow(r);
+            }
+            if (bad) {
+                return badRow(bad);
+            }
+            // Only a member the server counted as done has nothing to decide; never guess it.
+            const said = { done: "nothing to decide", capturing: "still capturing", draft: "draft" }[g.states?.[n]];
+            return el("li", { class: "meta" }, `#${g.prs[n]}: ${said ?? "status unknown: reload the page"}`);
+        });
+        const first = g.ids.find((id) => inbox.ready.some((r) => r.id === id && r.undecided > 0));
+        return el(
+            "li",
+            { class: "inbox-group", "data-group": g.ids.join(" ") },
+            el(
+                "p",
+                { class: "group-head" },
+                el("strong", {}, `Coupled: ${prList(g.prs)} (oldest first)`),
+                el(
+                    "span",
+                    { class: "meta" },
+                    `${plural(g.shared.length, "shared baseline")}; ${plural(g.distinct, "image")} to look at, ` +
+                        `${g.images} across the group`,
+                ),
+                g.fold
+                    ? el(
+                          "span",
+                          { class: "meta inbox-fold" },
+                          `Suggestion for the agents: fold ${prList(g.fold.from)} into #${g.fold.into}`,
+                      )
+                    : null,
+                first
+                    ? el(
+                          "button",
+                          {
+                              type: "button",
+                              onclick: () => {
+                                  state.together = g;
+                                  openTarget(first, true);
+                              },
+                          },
+                          "Review together",
+                      )
+                    : null,
+            ),
+            el("ul", { class: "inbox-list" }, rows),
+        );
+    });
+    const readyCount = inbox.ready.length;
+    const rest = [
+        inbox.capturing > 0 ? `${inbox.capturing} capturing` : null,
+        inbox.done > 0 ? `${inbox.done} with nothing to decide` : null,
+        inbox.drafts > 0 ? `${inbox.drafts} still a draft` : null,
+    ].filter(Boolean);
+    return el(
+        "section",
+        { class: "inbox", "aria-label": "Waiting for you" },
+        el("h2", {}, readyCount > 0 ? `Ready for you (${readyCount})` : "Nothing waiting for you"),
+        groupRows.length > 0 ? el("ul", { class: "inbox-list" }, groupRows) : null,
+        ready.length > 0 ? el("ul", { class: "inbox-list" }, ready) : null,
+        notReady.length > 0 ? [el("h3", {}, "Not ready"), el("ul", { class: "inbox-list" }, notReady)] : null,
+        rest.length > 0 ? el("p", { class: "meta" }, rest.join(", ")) : null,
+    );
+}
+
+// A write's route: its group form while the target is in the group opened with Review together,
+// so the decision is also taken on the coupled pull requests showing the same image.
+const groupRoute = (route) => (state.together?.ids.includes(state.target?.id) ? `${route}-group` : route);
+// Pull request numbers as "#1, #2".
+const prList = (prs) => prs.map((pr) => "#" + pr).join(", ");
+
+// What a group write also did: the pull requests it decided too, and those it could not.
+const alsoOn = (answer) =>
+    (answer.also?.length > 0 ? ` (also on ${prList(answer.also)})` : "") +
+    (answer.failed ?? []).map((f) => `; not on #${f.pr}: ${f.error}`).join("");
+
+// The number of pull requests ready for review, in the title, the tab's icon and, on a home-screen
+// web app that allows it, the app icon's badge.
+let countShown = null;
+function showCount(inbox) {
+    const n = inbox ? inbox.ready.filter((r) => r.undecided > 0).length : null;
+    if (n === countShown) {
+        return;
+    }
+    countShown = n;
+    document.title = n ? `(${n}) Visual review` : "Visual review";
+    const shownN = n > 9 ? "9+" : String(n);
+    const label = n
+        ? `<circle cx="22" cy="10" r="10" fill="#b3261e"/><text x="22" y="15" font-size="14" font-family="sans-serif" font-weight="bold" fill="#fff" text-anchor="middle">${shownN}</text>`
+        : "";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#1c64d8"/><path d="M8 17l5 5 11-12" stroke="#fff" stroke-width="4" fill="none"/>${label}</svg>`;
+    const icon = document.querySelector('link[rel="icon"]');
+    if (icon) {
+        const old = icon.href;
+        // A blob: address, which the page's content security policy allows for images.
+        icon.href = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+        if (old.startsWith("blob:")) {
+            URL.revokeObjectURL(old);
+        }
+    }
+    if (n) {
+        navigator.setAppBadge?.(n).catch(() => {});
+    } else {
+        navigator.clearAppBadge?.().catch(() => {});
     }
 }
 
@@ -988,22 +1594,20 @@ function passkeyName(platform) {
         return `security key, ${day}`;
     }
     const ua = navigator.userAgent;
-    const device =
-        /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
-            ? "iPad"
-            : /iPhone/.test(ua)
-              ? "iPhone"
-              : /Android/.test(ua)
-                ? "Android"
-                : /Mac OS X|Macintosh/.test(ua)
-                  ? "Mac"
-                  : /Windows/.test(ua)
-                    ? "Windows"
-                    : /Linux|CrOS/.test(ua)
-                      ? "Linux"
-                      : "device";
+    const iPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const device = iPad ? "iPad" : (PASSKEY_DEVICES.find(([pattern]) => pattern.test(ua))?.[1] ?? "device");
     return `${device} passkey, ${day}`;
 }
+
+// The kind of device a user agent names, checked in this order after the iPad (which can call
+// itself a Mac).
+const PASSKEY_DEVICES = [
+    [/iPhone/, "iPhone"],
+    [/Android/, "Android"],
+    [/Mac OS X|Macintosh/, "Mac"],
+    [/Windows/, "Windows"],
+    [/Linux|CrOS/, "Linux"],
+];
 
 // The browser's refusal of a passkey, said with its likely cause: a page opened from another
 // address than the one the passkey was made on.
@@ -1067,15 +1671,7 @@ async function registerOwnPasskey(e) {
             true,
         );
     } catch (err) {
-        say(
-            err?.name === "NotAllowedError"
-                ? "Passkey not created: nothing was changed."
-                : err?.name === "SecurityError"
-                  ? `Passkey not created (${err.message}): a passkey needs this page opened by its host name ` +
-                    "over https, not by an IP address."
-                  : `Passkey not created: ${err.message}`,
-            true,
-        );
+        say(passkeyError(err), true);
         button.focus?.();
     }
 }
@@ -1115,8 +1711,77 @@ function signerBlock(t) {
 
 const link = (href, text) => el("a", { href, target: "_blank", rel: "noreferrer" }, text);
 
+// Why registering a passkey failed, for the status line.
+function passkeyError(err) {
+    if (err?.name === "NotAllowedError") {
+        return "Passkey not created: nothing was changed.";
+    }
+    if (err?.name === "SecurityError") {
+        return (
+            `Passkey not created (${err.message}): a passkey needs this page opened by its host name ` +
+            "over https, not by an IP address."
+        );
+    }
+    return `Passkey not created: ${err.message}`;
+}
+
+// A target card's heading, before its title.
+function targetHeading(t) {
+    if (t.local) {
+        return "Local preview ";
+    }
+    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+}
+
+// A target card's title: a link to the pull request when there is one.
+function targetTitle(t) {
+    if (t.url) {
+        return link(t.url, t.title);
+    }
+    return t.pr === null ? null : t.title;
+}
+
+// "Captured <commit> on <branch>, ", or nothing when the run names no commit.
+function capturedLine(t) {
+    if (!(t.commit || t.headSha)) {
+        return "";
+    }
+    const sha = t.pr === null ? t.commit : t.headSha;
+    const on = t.branch ? ` on ${t.branch}` : "";
+    return `Captured ${short(sha)}${on}, `;
+}
+
+// The line under a target card's heading: what was captured and by which CI run.
+function targetMeta(t, problem) {
+    if (t.local) {
+        return el("p", { class: "meta" }, t.title);
+    }
+    if (!t.runId) {
+        return el("p", { class: "meta" }, problem ?? "No CI run");
+    }
+    return el(
+        "p",
+        { class: "meta" },
+        capturedLine(t),
+        t.runUrl ? link(t.runUrl, `CI run ${t.runId}`) : `CI run ${t.runId}`,
+        ` (attempt ${t.runAttempt})`,
+    );
+}
+
+// The last line of a target card: the Finish control, or what is running.
+function finishLine(t, busy) {
+    if (t.local) {
+        return null;
+    }
+    if (!busy) {
+        return el("p", { class: "finish-line" }, ...finishControl(t));
+    }
+    const what = isUpdate(state.job) ? `Update from ${branchName(t)}` : "Finish";
+    return el("p", { class: "finish-running" }, `${what} is running: ${state.job.step}...`);
+}
+
 function targetCard(t) {
-    const heading = t.local ? "Local preview " : t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+    const heading = targetHeading(t);
     const busy = running() && state.job.target === t.id;
     const shown = t.projects.filter((p) => p.reviewable > 0 || p.problem || p.downloading);
     const unchanged = t.projects.filter((p) => !shown.includes(p));
@@ -1124,20 +1789,8 @@ function targetCard(t) {
     return el(
         "section",
         { class: "card", "data-target": t.id },
-        el("h2", {}, heading, t.url ? link(t.url, t.title) : t.pr === null ? null : t.title),
-        t.local
-            ? el("p", { class: "meta" }, t.title)
-            : t.runId
-              ? el(
-                    "p",
-                    { class: "meta" },
-                    t.commit || t.headSha
-                        ? `Captured ${short(t.pr === null ? t.commit : t.headSha)}${t.branch ? ` on ${t.branch}` : ""}, `
-                        : "",
-                    t.runUrl ? link(t.runUrl, `CI run ${t.runId}`) : `CI run ${t.runId}`,
-                    ` (attempt ${t.runAttempt})`,
-                )
-              : el("p", { class: "meta" }, problem ?? "No CI run"),
+        el("h2", {}, heading, targetTitle(t)),
+        targetMeta(t, problem),
         ...(t.warnings ?? []).map((w) =>
             el(
                 "p",
@@ -1163,7 +1816,7 @@ function targetCard(t) {
         el(
             "p",
             { class: "badges" },
-            t.mergeMasterFirst ? el("span", { class: "badge warn" }, "merge master first") : null,
+            t.mergeMasterFirst ? el("span", { class: "badge" }, `behind ${branchName(t)}`) : null,
             t.mergeMasterFirst === true && t.pr !== null && !t.local && !busy
                 ? el(
                       "button",
@@ -1201,15 +1854,7 @@ function targetCard(t) {
                   `${plural(unchanged.length, "project")} unchanged: ${unchanged.map((p) => p.project).join(", ")}`,
               )
             : null,
-        t.local
-            ? null
-            : busy
-              ? el(
-                    "p",
-                    { class: "finish-running" },
-                    `${isUpdate(state.job) ? `Update from ${branchName(t)}` : "Finish"} is running: ${state.job.step}...`,
-                )
-              : el("p", { class: "finish-line" }, ...finishControl(t)),
+        finishLine(t, busy),
     );
 }
 
@@ -1224,6 +1869,11 @@ function downloadText(t) {
     const s = d.startedAt && state.list?.now ? `, ${secondsSince(d.startedAt, state.list.now)} s` : "";
     return `Downloading: ${d.done} of ${plural(d.total, "artifact")}${bytes}${s}`;
 }
+
+// What a local preview is, for its badge and Finish's sheet.
+const PREVIEW_NOTE =
+    "Captured on this computer from the pull request's head, before CI. Decide and Finish on it as on CI's " +
+    "capture: CI checks it, and anything CI draws differently comes back to you.";
 
 function projectRow(t, p) {
     const results = Object.entries(p.counts)
@@ -1241,6 +1891,7 @@ function projectRow(t, p) {
             p.acceptable || t.local || p.downloading || p.problem
                 ? null
                 : el("span", { class: "badge" }, "Reject only here: accept on a pull request"),
+            p.preview ? [" ", el("span", { class: "badge", title: PREVIEW_NOTE }, "local preview, CI pending")] : null,
         ),
         el(
             "td",
@@ -1248,7 +1899,8 @@ function projectRow(t, p) {
             p.problem
                 ? el(
                       "span",
-                      { class: "badge warn" },
+                      // The server's NOT_AFFECTED (lib/results.mjs): a project the run left out on purpose.
+                      { class: p.problem === "not affected" ? "badge" : "badge warn" },
                       p.problem.replace(/[;:] reload (the page )?(to retry|in a moment|when it finishes)$/, ""),
                   )
                 : null,
@@ -1258,21 +1910,25 @@ function projectRow(t, p) {
             results,
         ),
         el("td", {}, t.local || p.downloading ? "-" : `${p.decided} of ${p.reviewable}`),
-        el(
-            "td",
-            {},
-            p.downloading
-                ? el(
-                      "button",
-                      { type: "button", onclick: () => openProject(t.id, p.project) },
-                      spinner(),
-                      "Downloading...",
-                  )
-                : p.reviewable > 0
-                  ? el("button", { type: "button", onclick: () => openProject(t.id, p.project) }, "Review")
-                  : null,
-        ),
+        el("td", {}, projectAction(t, p)),
     );
+}
+
+// A project row's button: Downloading... while its captures download, Review once there is
+// something to review.
+function projectAction(t, p) {
+    if (p.downloading) {
+        return el(
+            "button",
+            { type: "button", onclick: () => openProject(t.id, p.project) },
+            spinner(),
+            "Downloading...",
+        );
+    }
+    if (p.reviewable > 0) {
+        return el("button", { type: "button", onclick: () => openProject(t.id, p.project) }, "Review");
+    }
+    return null;
 }
 
 // The next target after `id` in the list's order that still has undecided items.
@@ -1282,14 +1938,84 @@ function nextTarget(id) {
     return [...list.slice(at + 1), ...list.slice(0, Math.max(at, 0))].find((t) => t.id !== id && undecidedOf(t) > 0);
 }
 
+// The project `step` places on (1 the next, -1 the previous, wrapping) among this target's projects
+// with undecided items, skipping the others; null when no other has any.
+function projectAt(step) {
+    const list = state.target?.projects ?? [];
+    const at = list.findIndex((p) => p.project === state.project);
+    for (let n = 1; n < list.length; n++) {
+        const p = list[(((at + step * n) % list.length) + list.length) % list.length];
+        if (p.undecided > 0 && !p.downloading) {
+            return p;
+        }
+    }
+    return null;
+}
+
+// A project whose capture did not load: still downloading, or missing for a reason other than the
+// run leaving it out (the server's NOT_AFFECTED, lib/results.mjs) or having no job for it.
+const unloaded = (p) =>
+    p.downloading ||
+    (p.problem !== null && Object.keys(p.counts).length === 0 && !["not affected", "no capture"].includes(p.problem));
+
+// What is left of target `t` to review, and where: "graphty-element done; compact-mantine has 6
+// undecided stories". Null once every project is decided and loaded: only then is Finish suggested.
+function leftToReview(t, project) {
+    const left = t.projects.filter((p) => p.undecided > 0 || unloaded(p));
+    if (left.length === 0) {
+        return null;
+    }
+    const lines = left.map((p) => {
+        if (p.downloading) {
+            return `${p.project} is still downloading`;
+        }
+        if (p.undecided === 0) {
+            return `${p.project} did not load (${p.problem})`;
+        }
+        return `${p.project} has ${plural(p.undecided, "undecided story", "undecided stories")}`;
+    });
+    const here = t.projects.find((p) => p.project === project);
+    return [...(here && !left.includes(here) ? [`${project} done`] : []), ...lines].join("; ");
+}
+
+// [ and ] (and the header's < and >): the previous or next project with undecided items, on the
+// same screen: its grid from the grid, its first undecided item from a story.
+function stepProject(step) {
+    const p = projectAt(step);
+    if (!p) {
+        say(`No other project of ${labelOf(state.target)} has undecided items.`);
+        return;
+    }
+    openProject(state.target.id, p.project, state.screen === "story");
+}
+
+// The grid's last crumb: back into the item last opened, in its pass, at its place.
+function backToItem() {
+    const at = state.sequence.indexOf(state.lastFile);
+    if (at < 0) {
+        openItem(state.lastFile);
+        return;
+    }
+    state.index = at;
+    say("");
+    enterStory();
+}
+
+// The project a target opens on: its first with something undecided, else its first with anything
+// to review, else its first still downloading; undefined when it has none.
+function firstProject(t) {
+    return (
+        t?.projects.find((x) => x.undecided > 0 && !x.downloading) ??
+        t?.projects.find((x) => x.reviewable > 0) ??
+        t?.projects.find((x) => x.downloading)
+    );
+}
+
 // A target from the pickers or an offer: its first project with something undecided (its grid,
 // or with `story`, its first undecided item).
 async function openTarget(id, story) {
     const t = state.list?.targets?.find((x) => x.id === id);
-    const p =
-        t?.projects.find((x) => x.undecided > 0 && !x.downloading) ??
-        t?.projects.find((x) => x.reviewable > 0) ??
-        t?.projects.find((x) => x.downloading);
+    const p = firstProject(t);
     if (!p) {
         showTargets(t ? `${labelOf(t)} has nothing to review yet.` : "");
         return;
@@ -1298,6 +2024,32 @@ async function openTarget(id, story) {
 }
 
 // ---------------------------------------------------------------- screen: project grid
+
+// The wait box's count of a download: its artifacts, and its bytes once their size is known.
+function downloadDetail(d) {
+    if (!d) {
+        return "";
+    }
+    const bytes = d.bytes ? `, ${megabytes(d.bytesDone)} of ${megabytes(d.bytes)}` : "";
+    return `${d.done} of ${plural(d.total, "artifact")}${bytes}`;
+}
+
+// What the wait box says while a project's captures are still downloading.
+function downloadingView(project, data) {
+    const t = data.target;
+    const d = t.download;
+    const size = t.projects.find((x) => x.project === project)?.bytes;
+    return {
+        title: `Downloading ${project} captures for ${labelOf(t)}`,
+        text:
+            `CI run ${t.runId}'s captures are not on this computer yet. ${project}` +
+            `${size ? ` (${megabytes(size)})` : ""} downloads first; the rest go on in the background.`,
+        detail: downloadDetail(d),
+        done: d?.done ?? null,
+        total: d?.total ?? null,
+        net: networkLine(data.network, data.now),
+    };
+}
 
 // A project's items, in the wait box for as long as that takes. A project whose captures are still
 // downloading is asked for again until they land: the server downloads it ahead of the others, and
@@ -1333,21 +2085,7 @@ async function loadProject(targetId, project, seq) {
             box.end();
             return { data };
         }
-        const t = data.target;
-        const d = t.download;
-        const size = t.projects.find((x) => x.project === project)?.bytes;
-        box.update({
-            title: `Downloading ${project} captures for ${labelOf(t)}`,
-            text:
-                `CI run ${t.runId}'s captures are not on this computer yet. ${project}` +
-                `${size ? ` (${megabytes(size)})` : ""} downloads first; the rest go on in the background.`,
-            detail: d
-                ? `${d.done} of ${plural(d.total, "artifact")}${d.bytes ? `, ${megabytes(d.bytesDone)} of ${megabytes(d.bytes)}` : ""}`
-                : "",
-            done: d?.done ?? null,
-            total: d?.total ?? null,
-            net: networkLine(data.network, data.now),
-        });
+        box.update(downloadingView(project, data));
         await sleep(700);
         if (seq !== nav) {
             box.end();
@@ -1424,14 +2162,27 @@ function pumpThumbs() {
         thumbsLoading++;
         const { kind, file, hash } = img.dataset;
         const wait = img.previousElementSibling;
-        image(kind, file, hash, "thumb")
+        const item = (state.gridSpot || state.gridZoom) && state.data.items.find((i) => i.file === file);
+        const spot = item?.baseline && item.capture && item.baseline !== item.capture;
+        const show = (url, lit) => {
+            img.src = url;
+            img.hidden = false;
+            img.classList.toggle("spot", lit && state.gridSpot);
+            img.classList.toggle("zoomed", lit && state.gridZoom);
+            wait?.remove();
+            delete img.closest(".tile").dataset.failed;
+        };
+        const plain = image(kind, file, hash, "thumb");
+        // A spotlit tile shows the plain thumbnail until the server's spotlit one comes.
+        const shown = spot
+            ? plain.then((url) => {
+                  show(url, false);
+                  return spotTile(item);
+              })
+            : plain;
+        shown
             .then(
-                (url) => {
-                    img.src = url;
-                    img.hidden = false;
-                    wait?.remove();
-                    delete img.closest(".tile").dataset.failed;
-                },
+                (url) => show(url, Boolean(spot)),
                 () => {
                     if (wait) {
                         wait.textContent = "Failed -- tap to retry";
@@ -1444,6 +2195,35 @@ function pumpThumbs() {
                 pumpThumbs();
             });
     }
+}
+
+// The grid's Spotlight all and Zoom to changes, two switches either of which can be on: a tile's
+// new image with the story screen's Spotlight (spotlight(), over the same diff), and/or cropped
+// toward the changed areas so a small change is large enough to see (cropOf()). The server makes
+// these tiles, in advance; when it cannot, the page makes it from both full images, as a fallback.
+function spotTile(item) {
+    let kind = state.gridSpot ? "spot" : "zoom";
+    if (state.gridSpot && state.gridZoom) {
+        kind = "both";
+    }
+    const pair = `${item.baseline}-${item.capture}`;
+    return image(kind, item.file, pair, "spot").catch(() => spotThumb(item, state.gridSpot, state.gridZoom));
+}
+
+let spotUrls = [];
+async function spotThumb(item, lit, zoom) {
+    const diff = await diffOf(item);
+    let source = lit ? spotlight(diff) : null;
+    if (!source) {
+        source = new OffscreenCanvas(diff.w, diff.h);
+        source.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(diff.b), diff.w, diff.h), 0, 0);
+    }
+    const [cx, cy, cw, ch] = zoom ? cropOf(diff.boxes, diff.w, diff.h) : [0, 0, diff.w, diff.h];
+    const out = new OffscreenCanvas(400, Math.round((400 * diff.h) / diff.w));
+    out.getContext("2d").drawImage(source, cx, cy, cw, ch, 0, 0, out.width, out.height);
+    const url = URL.createObjectURL(await out.convertToBlob());
+    spotUrls.push(url);
+    return url;
 }
 
 // Opens the item `file` of the grid, and freezes what the grid shows as the pass Next and
@@ -1483,7 +2263,8 @@ function enterStory() {
 
 function tile(item) {
     const number = numberOf(item);
-    const kind = item.capture ? "capture" : item.baseline ? "baseline" : null;
+    // A failed item has no image to show: the tile names its status.
+    const kind = item.status === "failed" ? null : (item.capture && "capture") || (item.baseline && "baseline") || null;
     const img = kind
         ? el("img", {
               "data-kind": kind,
@@ -1519,6 +2300,7 @@ function tile(item) {
         el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
         item.from ? el("span", { class: "moved-from" }, movedFrom(item)) : null,
         item.reReview ? el("span", { class: "badge warn" }, "re-review") : null,
+        item.noise ? el("span", { class: "badge warn" }, "known noise") : null,
     );
     if (img) {
         // The tile, not its image: an image not shown yet has no box to come near the screen.
@@ -1541,22 +2323,37 @@ function decisionLine(item) {
     if (!d) {
         return null;
     }
-    const text = `${DECISIONS[d.decision]}${d.bulk ? " (not opened)" : ""}${d.reason ? `: ${d.reason}` : ""}`;
+    const text = d.approvedBefore ? approvedText(d.approvedBefore) : decisionText(d);
+    // An accept taken as approved before has nothing to undo: Reject or Exclude replaces it.
+    const fixed = d.approvedBefore && !d.posted;
+    let after = null;
+    if (d.posted) {
+        after = el("span", { class: "meta" }, postedText(d));
+    } else if (!fixed) {
+        after = undoButton(item, d);
+    }
     return el(
         "div",
         { class: `decision ${d.decision}`, "data-file": item.file },
         el("span", { class: "what" }, text),
-        d.posted
-            ? el("span", { class: "meta" }, postedText(d))
-            : el(
-                  "button",
-                  {
-                      type: "button",
-                      "aria-label": `Undo the ${d.decision} of ${itemName(item)}`,
-                      onclick: () => undo([item.file], `#${numberOf(item)}`, true),
-                  },
-                  "Undo",
-              ),
+        after,
+    );
+}
+
+const decisionText = (d) => {
+    const reason = d.reason ? ": " + d.reason : "";
+    return `${DECISIONS[d.decision]}${d.bulk ? " (not opened)" : ""}${reason}`;
+};
+
+function undoButton(item, d) {
+    return el(
+        "button",
+        {
+            type: "button",
+            "aria-label": `Undo the ${d.decision} of ${itemName(item)}`,
+            onclick: () => undo([item.file], `#${numberOf(item)}`, true),
+        },
+        "Undo",
     );
 }
 
@@ -1584,34 +2381,400 @@ function errorRow(item) {
     );
 }
 
-// The items of `component` Accept would take without opening them.
+// The items of `component` (or the project) Accept would take without opening them: the undecided
+// ones the grid's filter and Find story show, never one hidden from the reviewer.
 const undecided = (component) =>
-    state.data.items.filter(
+    visibleItems().filter(
         (i) => ACCEPTABLE.includes(i.status) && !decisionOf(i) && (!component || componentOf(i.id) === component),
     );
+
+// Whether the grid shows less than everything undecided: a status or decision filter, or Find story.
+const narrowed = () => !["undecided", "all"].includes(state.filter) || findText(state.text) !== "";
+
+// The grid bar's Accept, named for what the grid shows: "Accept 131 removed", "Accept 12 matching".
+function acceptShownButton() {
+    const n = undecided(null).length;
+    const shown = findText(state.text) !== "" ? "matching" : (STATUS_FILTERS[state.filter]?.toLowerCase() ?? "shown");
+    return el(
+        "button",
+        {
+            type: "button",
+            class: "accept",
+            id: "accept-all",
+            "aria-keyshortcuts": "Shift+A",
+            "aria-disabled": String(n === 0),
+            onclick: () => acceptAll(null),
+        },
+        narrowed() ? `Accept ${n} ${shown}` : `Accept all undecided (${n})`,
+    );
+}
 
 // The files whose decisions a bulk Undo in `component` (or the whole project) clears: every
 // decision not yet posted by Finish.
 const undoableIn = (component) =>
     state.data.items
-        .filter((i) => decisionOf(i) && !decisionOf(i).posted && (!component || componentOf(i.id) === component))
+        .filter((i) => firmDecision(i) && !firmDecision(i).posted && (!component || componentOf(i.id) === component))
         .map((i) => i.file);
+
+// The project whose grid is on screen, so a redraw of the same grid keeps its place.
+let gridShown = null;
 
 function showGrid() {
     stopFlash();
     nearScreen.disconnect();
     thumbQueue.length = 0;
+    const here = `${state.target.id}/${state.project}`;
+    // A redraw of the grid already on screen (an Undo, a filter) keeps its scroll. The focus leaves
+    // the grid first: a focused button the redraw removes takes the scroll to the top.
+    const keep = state.screen === "grid" && gridShown === here ? app.scrollTop : null;
+    if (keep !== null && app.contains(document.activeElement)) {
+        app.focus({ preventScroll: true });
+    }
+    gridShown = here;
     state.screen = "grid";
     state.ended = false;
-    state.pending = null;
     app.classList.remove("story-screen");
     drawHeader();
+    setBar(gridBar());
+    for (const url of spotUrls) {
+        URL.revokeObjectURL(url);
+    }
+    spotUrls = [];
+    // Approved before and known noise have groups of their own; similar changes are clusters.
+    const approvedItems = ordered(reviewable().filter((i) => decisionOf(i)?.approvedBefore));
+    const visible = visibleItems().filter((i) => !decisionOf(i)?.approvedBefore);
+    const noiseItems = visible.filter((i) => i.noise);
+    const { shown: clustered, rest } = clustersOf(visible.filter((i) => !i.noise));
+    const items = rest;
+    const errors = [];
+    const groups = new Map(); // component -> story id -> [tile]
+    for (const item of items) {
+        if (item.status === "failed") {
+            errors.push(errorRow(item));
+            continue;
+        }
+        const c = componentOf(item.id);
+        if (!groups.has(c)) {
+            groups.set(c, new Map());
+        }
+        const stories = groups.get(c);
+        if (!stories.has(item.id)) {
+            stories.set(item.id, []);
+        }
+        stories.get(item.id).push(tile(item));
+    }
+    const sections = [...groups].map(([component, stories]) =>
+        el(
+            "section",
+            { class: "component", "data-component": component },
+            groupHead(component),
+            el(
+                "div",
+                { class: "stories" },
+                [...stories].map(([id, tiles]) =>
+                    el(
+                        "div",
+                        { class: "story", "data-story": id },
+                        el("div", { class: "story-name" }, id.slice(component.length + 2) || id),
+                        el("div", { class: "modes" }, tiles),
+                    ),
+                ),
+            ),
+        ),
+    );
+    let empty = "No stories match this filter.";
+    const left = isLocal() ? null : leftToReview(state.target, state.project);
+    const next = left ? projectAt(1) : null;
+    if (state.filter === "undecided") {
+        empty = isLocal() ? "Nothing here." : `Everything is decided. Finish ${labelOf(state.target)} when ready.`;
+        if (left) {
+            empty = [
+                `${left}.`,
+                next
+                    ? el(
+                          "button",
+                          { type: "button", onclick: () => openProject(state.target.id, next.project) },
+                          `Next project: ${next.project} (${next.undecided} undecided)`,
+                      )
+                    : null,
+            ];
+        }
+    }
+    render(
+        isLocal()
+            ? el(
+                  "p",
+                  { class: "badge warn" },
+                  "Local preview: look only. Nothing can be decided here; only a CI capture of a pushed commit can.",
+              )
+            : null,
+        staleBanner(),
+        errors.length > 0
+            ? el(
+                  "details",
+                  {
+                      class: "errors",
+                      open: loadOptions().showFailed === true,
+                      ontoggle: (e) => saveOptions({ showFailed: e.target.open }),
+                  },
+                  el("summary", {}, `${plural(errors.length, "failed capture")}: only Exclude applies`),
+                  el(
+                      "p",
+                      { class: "meta" },
+                      "An error is never accepted. Fix the story, re-run the visual job for a one-off timeout, " +
+                          "or exclude the story with a reason.",
+                  ),
+                  el("ol", { class: "error-list" }, errors),
+              )
+            : null,
+        approvedItems.length > 0
+            ? el(
+                  "details",
+                  { class: "group approved-before" },
+                  el(
+                      "summary",
+                      {},
+                      `Approved before (${approvedItems.length}): the same image you accepted for the same story on another pull request`,
+                  ),
+                  el("div", { class: "modes" }, approvedItems.map(tile)),
+              )
+            : null,
+        noiseItems.length > 0 ? noiseGroup(noiseItems) : null,
+        ...(items.length + clustered.length + noiseItems.length === 0
+            ? [el("p", { class: "empty" }, ...[empty].flat())]
+            : [
+                  ...sections,
+                  clustered.length > 0 && items.length > 0
+                      ? el("h3", { class: "clusters-head" }, `Similar changes, ${plural(clustered.length, "group")}`)
+                      : null,
+                  ...clustered.map(clusterSection),
+              ]),
+    );
+    applyFind();
+    remember();
+    if (keep !== null) {
+        app.scrollTop = keep;
+        return;
+    }
+    // Back from a story: show where it is in the grid.
+    app.querySelector(".current")?.scrollIntoView({ block: "center" });
+}
+
+// The clusters of the grouped review as the grid shows them now: those with two or more items the
+// filter shows, and every other item (the outliers, shown first, one by one).
+function clustersOf(items) {
+    if (!state.grouped) {
+        return { shown: [], rest: items };
+    }
+    const byFile = new Map(items.map((i) => [i.file, i]));
+    const shown = [];
+    const taken = new Set();
+    for (const c of state.data.clusters ?? []) {
+        const members = ordered(c.files.filter((f) => byFile.has(f)).map((f) => byFile.get(f)));
+        if (members.length >= 2) {
+            const rep = byFile.get(c.representative) ?? members[0];
+            shown.push({ ...c, members, rep });
+            members.forEach((m) => taken.add(m.file));
+        }
+    }
+    return { shown, rest: items.filter((i) => !taken.has(i.file)) };
+}
+
+const KINDS = { pixels: "changes", speck: "specks (under 50 pixels)", size: "size changes" };
+const clusterName = (c) => {
+    const [kind, region, extent] = c.signature.split(" ");
+    const area = extent === "any" ? "" : extent + " area, ";
+    const where = region === "whole" ? "" : ` in a ${area}${region.replace("-", " ")}`;
+    const px = c.pixels[0] === c.pixels[1] ? `${c.pixels[0]}` : `${c.pixels[0]} to ${c.pixels[1]}`;
+    return `${c.members.length} similar ${KINDS[kind] ?? kind}${where}, ${px} pixels each`;
+};
+
+// One cluster: its representative (the member with the most changed pixels), its count, one
+// decision for every undecided member, and every member under Show all.
+function clusterSection(c) {
+    const open = c.members.filter((i) => !decisionOf(i));
+    const can = state.data.acceptable && !isLocal() && open.length > 0;
+    const button = (decision, label) =>
+        el(
+            "button",
+            {
+                type: "button",
+                class: decision,
+                "aria-disabled": String(decision === "reject" ? isLocal() || open.length === 0 : !can),
+                onclick: () => decideMany(open, decision, `this group of ${open.length}`),
+            },
+            label,
+        );
+    return el(
+        "section",
+        { class: "cluster", "data-signature": c.signature },
+        el(
+            "h3",
+            {},
+            clusterName(c),
+            button("accept", `Accept ${open.length}`),
+            button("reject", `Reject ${open.length}...`),
+            button("exclude", `Exclude ${open.length}...`),
+        ),
+        el(
+            "div",
+            { class: "modes" },
+            tile(c.rep),
+            el("p", { class: "meta" }, `and ${plural(c.members.length - 1, "more")} like it`),
+        ),
+        el(
+            "details",
+            {},
+            el("summary", {}, `Show all ${c.members.length}`),
+            el("div", { class: "modes" }, c.members.map(tile)),
+        ),
+    );
+}
+
+// Known capture noise: labeled, never accepted for the owner, and decided at once from here.
+function noiseGroup(items) {
+    const prs = [...new Set(items.flatMap((i) => i.noise.prs))].sort((a, b) => a - b);
+    const open = items.filter((i) => !decisionOf(i));
+    return el(
+        "details",
+        { class: "group noise", open: true },
+        el(
+            "summary",
+            {},
+            `Known capture noise (seen on ${prList(prs)}): ${plural(items.length, "story", "stories")} that change on pull requests touching nothing they render`,
+        ),
+        el(
+            "p",
+            {},
+            state.data.acceptable && !isLocal() && open.length > 0
+                ? el(
+                      "button",
+                      { type: "button", class: "accept", onclick: () => decideMany(open, "accept", "the known noise") },
+                      `Accept ${open.length}`,
+                  )
+                : null,
+        ),
+        el("div", { class: "modes" }, items.map(tile)),
+    );
+}
+
+// One decision on many items (a cluster, the known noise), asked first, stored per item.
+async function decideMany(items, decision, what) {
+    if (items.length === 0 || isLocal() || (decision !== "reject" && !state.data.acceptable)) {
+        say(isLocal() ? "Local preview: look only. Nothing is decided on it." : "Nothing undecided here to decide.");
+        return;
+    }
+    let reason = null;
+    if (decision === "accept") {
+        if (
+            !(await ask(
+                `Accept ${plural(items.length, "item")} of ${what} without opening them?`,
+                `Accept ${items.length}`,
+            ))
+        ) {
+            return;
+        }
+    } else {
+        reason = await askReason(
+            items[0],
+            decision,
+            `Reason to ${decision} ${plural(items.length, "item")} of ${what}`,
+        );
+        if (reason === null) {
+            say(`Cancelled: ${what} is still undecided.`);
+            return;
+        }
+    }
+    let answer;
+    try {
+        answer = await api(groupRoute("/api/accept-all"), {
+            id: state.target.id,
+            project: state.project,
+            runId: state.data.target.runId,
+            runAttempt: state.data.target.runAttempt,
+            files: items.map((i) => i.file),
+            decision,
+            reason,
+        });
+    } catch (err) {
+        say(err.message, true);
+        return;
+    }
+    logUsage("decide", {
+        project: state.project,
+        d: decision,
+        n: answer.files.length,
+        bulk: "cluster",
+        reasonLength: reason?.length ?? 0,
+    });
+    for (const file of answer.files) {
+        state.data.decisions[file] = { decision, reason, ...(decision === "accept" && { bulk: true }) };
+    }
+    const p = state.target.projects.find((x) => x.project === state.project);
+    if (p) {
+        p.decided += answer.files.length;
+        p.undecided -= answer.files.length;
+    }
+    state.target.unpublished = answer.unpublished;
+    showGrid();
+    say(`${DECISIONS[decision]} ${plural(answer.accepted, "item")} of ${what}${alsoOn(answer)}.`);
+}
+
+// The pull request's title, description and comments, in a box over the page. All of it is
+// written by whoever opened or commented on the pull request: shown as text, never as HTML.
+async function showContext() {
+    const t = state.target;
+    if (!t || t.pr === null || t.local) {
+        say("Only a pull request has a description and comments.");
+        return;
+    }
+    let c;
+    try {
+        sayBusy(`Reading #${t.pr}'s description and comments...`);
+        c = await api(`/api/pr-context/${encodeURIComponent(t.id)}`);
+        say("");
+    } catch (err) {
+        say(err.message, true);
+        return;
+    }
+    const when = (at) => (at ? new Date(at).toLocaleString() : "");
+    const who = (login, byOwner) => [
+        el("strong", {}, login ?? "unknown"),
+        byOwner ? null : el("span", { class: "badge warn" }, "not the repository owner"),
+    ];
+    const dialog = el(
+        "dialog",
+        { class: "context", "aria-labelledby": "context-title", tabindex: "-1" },
+        el("h2", { id: "context-title" }, `#${t.pr} `, c.title),
+        el("p", { class: "meta" }, "Opened by ", who(c.author, c.author === c.owner), ` ${when(c.createdAt)}`),
+        el("pre", { class: "context-text" }, c.body || "(no description)"),
+        el("h3", {}, `Comments (${c.comments.length})`),
+        el(
+            "ol",
+            { class: "comments" },
+            c.comments.map((m) =>
+                el(
+                    "li",
+                    {},
+                    el("p", { class: "meta" }, who(m.author, m.byOwner), ` ${when(m.at)}`),
+                    el("pre", { class: "context-text" }, m.body),
+                ),
+            ),
+        ),
+        el("p", { class: "actions" }, el("button", { type: "button", onclick: () => dialog.close() }, "Close")),
+    );
+    dialog.addEventListener("close", () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+    dialog.focus();
+}
+
+// The grid's bar: the counts, the filters, Find story and Accept all undecided.
+function gridBar() {
     const all = reviewable();
-    const items = visibleItems();
     const decided = all.filter(decisionOf).length;
     const open = all.length - decided;
     const acceptable = state.data.acceptable && !isLocal();
-    const takeable = undecided(null).length;
     const counts = {};
     for (const i of all) {
         counts[i.status] = (counts[i.status] ?? 0) + 1;
@@ -1665,6 +2828,7 @@ function showGrid() {
             findTimer = setTimeout(() => {
                 state.text = e.target.value;
                 applyFind();
+                refreshAccepts();
                 remember();
             }, 200);
         },
@@ -1677,172 +2841,125 @@ function showGrid() {
         },
     });
     const undoAll = undoableIn(null);
-    setBar(
+    // data-project names the project whose grid this is, so a test can tell it from the grid before.
+    return el(
+        "div",
+        { class: "gridbar", "data-project": state.project },
         el(
             "div",
-            { class: "gridbar" },
+            { class: "row" },
+            el("strong", { id: "progress" }, `${decided} of ${all.length} decided`),
             el(
-                "div",
-                { class: "row" },
-                el("strong", { id: "progress" }, `${decided} of ${all.length} decided`),
-                el(
-                    "button",
-                    {
-                        type: "button",
-                        class: "primary",
-                        id: "review-undecided",
-                        "aria-disabled": String(open === 0),
-                        onclick: () => startPass("undecided"),
-                    },
-                    `Review ${open} undecided`,
-                ),
-                el(
-                    "span",
-                    { role: "group", "aria-label": "Show" },
-                    filterButton("undecided", `Needs a decision (${open})`),
-                    filterButton("all", `All (${all.length})`),
-                    more,
-                ),
+                "button",
+                {
+                    type: "button",
+                    class: "primary",
+                    id: "review-undecided",
+                    "aria-disabled": String(open === 0),
+                    onclick: () => startPass("undecided"),
+                },
+                `Review ${open} undecided`,
             ),
             el(
-                "div",
-                { class: "row" },
-                el("label", { for: "find" }, "Find story", find),
-                acceptable
-                    ? el(
-                          "button",
-                          {
-                              type: "button",
-                              class: "accept",
-                              id: "accept-all",
-                              "aria-keyshortcuts": "Shift+A",
-                              "aria-disabled": String(takeable === 0),
-                              onclick: () => acceptAll(null),
-                          },
-                          `Accept all undecided (${takeable})`,
-                      )
-                    : null,
+                "span",
+                { role: "group", "aria-label": "Show" },
+                filterButton("undecided", `Needs a decision (${open})`),
+                filterButton("all", `All (${all.length})`),
+                more,
+            ),
+        ),
+        el(
+            "div",
+            { class: "row" },
+            el("label", { for: "find" }, "Find story", find),
+            acceptable ? acceptShownButton() : null,
+            el(
+                "button",
+                {
+                    type: "button",
+                    id: "group-similar",
+                    "aria-pressed": String(state.grouped),
+                    onclick: () => {
+                        state.grouped = !state.grouped;
+                        saveOptions();
+                        showGrid();
+                    },
+                },
+                "Group similar",
+            ),
+            el(
+                "button",
+                {
+                    type: "button",
+                    id: "spot-all",
+                    "aria-pressed": String(state.gridSpot),
+                    onclick: () => {
+                        state.gridSpot = !state.gridSpot;
+                        saveOptions();
+                        showGrid();
+                    },
+                },
+                "Spotlight all",
+            ),
+            el(
+                "button",
+                {
+                    type: "button",
+                    id: "zoom-all",
+                    "aria-pressed": String(state.gridZoom),
+                    onclick: () => {
+                        state.gridZoom = !state.gridZoom;
+                        saveOptions();
+                        showGrid();
+                    },
+                },
+                "Zoom to changes",
+            ),
+            state.target.pr !== null && !isLocal()
+                ? el("button", { type: "button", id: "about-pr", onclick: showContext }, `About #${state.target.pr}`)
+                : null,
+            el(
+                "details",
+                { class: "menu" },
+                el("summary", {}, "More"),
                 el(
-                    "details",
-                    { class: "menu" },
-                    el("summary", {}, "More"),
-                    el(
-                        "div",
-                        {},
-                        isLocal()
-                            ? null
-                            : el(
-                                  "button",
-                                  {
-                                      type: "button",
-                                      class: "undo-all",
-                                      "aria-disabled": String(undoAll.length === 0),
-                                      onclick: () => bulkUndo(null),
-                                  },
-                                  "Undo all decisions...",
-                              ),
-                        el("button", { type: "button", onclick: copyLink }, "Copy link to this grid"),
-                    ),
+                    "div",
+                    {},
+                    isLocal()
+                        ? null
+                        : el(
+                              "button",
+                              {
+                                  type: "button",
+                                  class: "undo-all",
+                                  "aria-disabled": String(undoAll.length === 0),
+                                  onclick: () => bulkUndo(null),
+                              },
+                              "Undo all decisions...",
+                          ),
+                    el("button", { type: "button", onclick: copyLink }, "Copy link to this grid"),
                 ),
             ),
         ),
     );
-    const errors = [];
-    const groups = new Map(); // component -> story id -> [tile]
-    for (const item of items) {
-        if (item.status === "failed") {
-            errors.push(errorRow(item));
-            continue;
-        }
-        const c = componentOf(item.id);
-        if (!groups.has(c)) {
-            groups.set(c, new Map());
-        }
-        const stories = groups.get(c);
-        if (!stories.has(item.id)) {
-            stories.set(item.id, []);
-        }
-        stories.get(item.id).push(tile(item));
-    }
-    const sections = [...groups].map(([component, stories]) => {
-        const n = undecided(component).length;
-        const k = undoableIn(component).length;
-        return el(
-            "section",
-            { class: "component", "data-component": component },
-            el(
-                "h3",
-                {},
-                component,
-                acceptable && n > 0
-                    ? el(
-                          "button",
-                          { type: "button", class: "accept", onclick: () => acceptAll(component) },
-                          `Accept ${n}`,
-                      )
-                    : null,
-                !isLocal() && k > 0
-                    ? el(
-                          "button",
-                          { type: "button", class: "undo-all", onclick: () => bulkUndo(component) },
-                          `Undo ${k}`,
-                      )
-                    : null,
-            ),
-            el(
-                "div",
-                { class: "stories" },
-                [...stories].map(([id, tiles]) =>
-                    el(
-                        "div",
-                        { class: "story", "data-story": id },
-                        el("div", { class: "story-name" }, id.slice(component.length + 2) || id),
-                        el("div", { class: "modes" }, tiles),
-                    ),
-                ),
-            ),
-        );
-    });
-    const empty =
-        state.filter === "undecided"
-            ? isLocal()
-                ? "Nothing here."
-                : `Everything is decided. Finish ${labelOf(state.target)} when ready.`
-            : "No stories match this filter.";
-    render(
-        isLocal()
-            ? el(
-                  "p",
-                  { class: "badge warn" },
-                  "Local preview: look only. Nothing can be decided here; only a CI capture of a pushed commit can.",
-              )
+}
+
+// A component's heading, with its Accept N and Undo N.
+function groupHead(component) {
+    const acceptable = state.data.acceptable && !isLocal();
+    const n = undecided(component).length;
+    const k = undoableIn(component).length;
+    return el(
+        "h3",
+        {},
+        component,
+        acceptable && n > 0
+            ? el("button", { type: "button", class: "accept", onclick: () => acceptAll(component) }, `Accept ${n}`)
             : null,
-        staleBanner(),
-        errors.length > 0
-            ? el(
-                  "details",
-                  {
-                      class: "errors",
-                      open: loadOptions().showFailed === true,
-                      ontoggle: (e) => saveOptions({ showFailed: e.target.open }),
-                  },
-                  el("summary", {}, `${plural(errors.length, "failed capture")}: only Exclude applies`),
-                  el(
-                      "p",
-                      { class: "meta" },
-                      "An error is never accepted. Fix the story, re-run the visual job for a one-off timeout, " +
-                          "or exclude the story with a reason.",
-                  ),
-                  el("ol", { class: "error-list" }, errors),
-              )
+        !isLocal() && k > 0
+            ? el("button", { type: "button", class: "undo-all", onclick: () => bulkUndo(component) }, `Undo ${k}`)
             : null,
-        ...(items.length === 0 ? [el("p", { class: "empty" }, empty)] : sections),
     );
-    applyFind();
-    remember();
-    // Back from a story: show where it is in the grid.
-    const here = app.querySelector(".current");
-    here?.scrollIntoView({ block: "center" });
 }
 
 // Find story narrows the grid by hiding tiles (not rebuilding them), so typing stays quick.
@@ -1859,6 +2976,14 @@ function applyFind() {
     }
 }
 
+// Find story changes what Accept takes: its buttons are drawn again (never the field being typed in).
+function refreshAccepts() {
+    document.getElementById("accept-all")?.replaceWith(acceptShownButton());
+    for (const c of app.querySelectorAll(".component")) {
+        c.querySelector("h3").replaceWith(groupHead(c.dataset.component));
+    }
+}
+
 // A number opens the item with that number; anything else opens the first item whose id
 // contains it.
 function goTo(value) {
@@ -1866,6 +2991,7 @@ function goTo(value) {
     if (v === "") {
         return;
     }
+    logUsage("jump", { number: /^\d+$/.test(v) });
     const all = ordered(reviewable());
     if (/^\d+$/.test(v)) {
         const n = Number(v);
@@ -1915,11 +3041,13 @@ const onlyExclude = (item) => item.status === "unstable" || item.status === "fai
 function available(item, d) {
     const open = !isLocal() && !state.ended;
     const acceptable = state.data.acceptable;
+    // Approved before: Reject or Exclude replaces it; there is nothing to undo.
+    const firm = d && !(d.approvedBefore && !d.posted);
     return {
         accept: open && acceptable && !onlyExclude(item) && !d,
-        reject: open && !onlyExclude(item) && !d,
-        exclude: open && acceptable && !d,
-        undo: open && Boolean(d) && !d.posted,
+        reject: open && !onlyExclude(item) && !firm,
+        exclude: open && acceptable && !firm,
+        undo: open && Boolean(d) && !d.posted && !d.approvedBefore,
     };
 }
 
@@ -1932,11 +3060,17 @@ function explanation(item, d) {
     if (state.ended) {
         return "End of this pass: choose what is next.";
     }
-    if (state.pending === "exclude") {
-        return "Exclude stops capturing every mode of this story.";
-    }
     if (d?.posted) {
         return postedText(d);
+    }
+    if (d?.approvedBefore) {
+        return (
+            `${approvedText(d.approvedBefore)}: you accepted this exact image for this story there, so it is ` +
+            "accepted again, and the CI gate checks that approval. Reject or Exclude replaces it."
+        );
+    }
+    if (item.noise) {
+        return `Known capture noise: this story changed on ${prList(item.noise.prs)} too, which touch none of its package's files. Decide it as any change.`;
     }
     if (item.status === "unstable") {
         return UNSTABLE;
@@ -1959,6 +3093,11 @@ function explanation(item, d) {
     if (item.status === "new") {
         return "New story: no baseline yet.";
     }
+    return changeText(item);
+}
+
+// What changed in a story's image: its rename, the pixels that differ and where, and the threshold.
+function changeText(item) {
     const parts = [];
     if (item.from) {
         parts.push(`Moved from ${item.from}: Accept moves its baseline to this id. `);
@@ -1981,7 +3120,7 @@ function barFocus() {
     return a && a.tagName === "BUTTON" && bar.contains(a) && a.id ? a.id : null;
 }
 
-function showStory({ focusNote = false } = {}) {
+function showStory() {
     stopFlash();
     const items = passItems();
     if (items.length === 0) {
@@ -1989,14 +3128,34 @@ function showStory({ focusNote = false } = {}) {
         return;
     }
     const focusId = barFocus();
+    const wasStory = state.screen === "story";
     state.screen = "story";
     state.index = Math.max(0, Math.min(state.index, items.length - 1));
     const item = items[state.index];
+    if (!wasStory || item.file !== usageLog.itemFile) {
+        logUsage("item", {
+            project: state.project,
+            file: item.file,
+            status: item.status,
+            i: state.index,
+            n: items.length,
+            pass: state.pass,
+            back: wasStory && state.index < usageLog.itemIndex,
+        });
+        usageLog.itemAt = performance.now();
+        usageLog.itemFile = item.file;
+        usageLog.itemIndex = state.index;
+    }
     if (item.file !== state.lastFile) {
-        // An Exclude (or reject) left waiting for a reason on another item is abandoned.
-        state.pending = null;
         stageShown = null;
-        appearedAt = performance.now();
+        appearedAt = Infinity;
+        afterPaint(() => {
+            // Its images, when they came first, set their own time.
+            if (state.lastFile === item.file && stageShown === null) {
+                appearedAt = performance.now();
+            }
+        });
+        optionsOpen = false;
     }
     state.lastFile = item.file;
     const d = decisionOf(item);
@@ -2032,8 +3191,7 @@ function showStory({ focusNote = false } = {}) {
         el(
             "div",
             { class: "story-view" },
-            itemLine(item, d),
-            viewBar(item, view, note),
+            el("div", { class: "story-head" }, itemLine(item, d), viewBar(item, view, note)),
             state.ended
                 ? endCard()
                 : el("div", { id: "stage", class: `stage ${view} zoom-${state.zoom}`, "data-file": item.file }),
@@ -2042,11 +3200,8 @@ function showStory({ focusNote = false } = {}) {
     if (!state.ended) {
         renderStage(item, view, keep);
     }
-    // Focus goes back where it was: on the same bar button if one had it, never into the note box
-    // unless a reject or exclude is waiting for its reason.
-    if (focusNote) {
-        document.getElementById("note").focus();
-    } else if (focusId && document.getElementById(focusId)) {
+    // Focus goes back where it was: on the same bar button if one had it.
+    if (focusId && document.getElementById(focusId)) {
         document.getElementById(focusId).focus({ preventScroll: true });
     } else if (!state.ended) {
         app.focus({ preventScroll: true });
@@ -2054,8 +3209,18 @@ function showStory({ focusNote = false } = {}) {
     remember();
 }
 
-// The decision bar: Grid, Previous, the count, Next, then Accept, Reject, Exclude, Undo and the
-// note box, each always present in the same place.
+// The decision bar, in order of reach: Previous, the count and Next at the left end; Undo and
+// Exclude, the least used, in the middle; Reject, then Accept, the widest, at the right end, with
+// a gap between them. Each always present in the same place. Reject and Exclude ask their reason
+// in a box of their own (askReason), so the screen holds no text field.
+// What explains an unavailable decision button: the end screen's heading, or the explanation.
+function describedBy(ok) {
+    if (ok) {
+        return null;
+    }
+    return state.ended ? "end-heading" : "explain";
+}
+
 function decisionBar(item, items, d) {
     const can = available(item, d);
     const left = items.filter((i) => !decisionOf(i)).length;
@@ -2067,7 +3232,7 @@ function decisionBar(item, items, d) {
                 type: "button",
                 id,
                 "aria-disabled": String(!ok),
-                "aria-describedby": ok ? null : state.ended ? "end-heading" : "explain",
+                "aria-describedby": describedBy(ok),
                 "aria-keyshortcuts": key,
                 ...extra,
             },
@@ -2075,21 +3240,14 @@ function decisionBar(item, items, d) {
             name,
             kbd(key),
         );
-    const draft = drafts.get(draftKey(item)) ?? "";
     return el(
         "div",
         { class: "decisionbar", role: "toolbar", "aria-label": "Decide" },
         el(
             "button",
-            { type: "button", id: "to-grid", "aria-keyshortcuts": "Escape", onclick: () => toGrid() },
-            "Grid",
-            kbd("Esc"),
-        ),
-        el(
-            "button",
-            { type: "button", id: "prev", "aria-keyshortcuts": "K", onclick: () => move(-1) },
+            { type: "button", id: "prev", "aria-keyshortcuts": "J", onclick: () => move(-1) },
             "Prev",
-            kbd("K"),
+            kbd("J"),
         ),
         el(
             "span",
@@ -2098,10 +3256,20 @@ function decisionBar(item, items, d) {
         ),
         el(
             "button",
-            { type: "button", id: "next", "aria-keyshortcuts": "J", onclick: () => move(1) },
+            { type: "button", id: "next", "aria-keyshortcuts": "K", onclick: () => move(1) },
             "Next",
-            kbd("J"),
+            kbd("K"),
         ),
+        button("undo", "Undo", "U", can.undo, { onclick: (e) => decide(null, e) }),
+        button("exclude", "Exclude", "E", can.exclude, {
+            "aria-pressed": String(d?.decision === "exclude"),
+            onclick: (e) => decide("exclude", e),
+        }),
+        button("reject", "Reject", "R", can.reject, {
+            class: "reject",
+            "aria-pressed": String(d?.decision === "reject"),
+            onclick: (e) => decide("reject", e),
+        }),
         button(
             "accept",
             "Accept",
@@ -2110,54 +3278,24 @@ function decisionBar(item, items, d) {
             {
                 class: `accept ${waitingImages ? "loading" : ""}`,
                 "aria-pressed": String(d?.decision === "accept"),
-                onclick: () => decide("accept"),
+                onclick: (e) => decide("accept", e),
             },
             waitingImages ? spinner() : null,
-        ),
-        button("reject", "Reject", "R", can.reject, {
-            class: `reject ${state.pending === "reject" ? "waiting" : ""}`,
-            "aria-pressed": String(d?.decision === "reject"),
-            onclick: () => decide("reject"),
-        }),
-        button("exclude", "Exclude", "E", can.exclude, {
-            class: state.pending === "exclude" ? "waiting" : null,
-            "aria-pressed": String(d?.decision === "exclude"),
-            onclick: () => decide("exclude"),
-        }),
-        button("undo", "Undo", "U", can.undo, { onclick: () => decide(null) }),
-        el(
-            "span",
-            { class: "notebox" },
-            el("label", { for: "note" }, "Note"),
-            el("input", {
-                id: "note",
-                type: "text",
-                maxlength: "2000",
-                autocomplete: "off",
-                readonly: Boolean(d) || isLocal() || state.ended,
-                placeholder: d
-                    ? ""
-                    : state.pending
-                      ? `Reason to ${state.pending}, then Enter`
-                      : "Needed to Reject or Exclude",
-                value: d ? (d.reason ?? "") : draft,
-                oninput: (e) => drafts.set(draftKey(item), e.target.value),
-                onkeydown: (e) => {
-                    if (e.key === "Enter" && !e.repeat) {
-                        e.preventDefault();
-                        if (state.pending) {
-                            decide(state.pending);
-                        } else {
-                            e.target.blur();
-                        }
-                    }
-                },
-            }),
         ),
     );
 }
 
-// Item number, name and badges; then one explanation. Not a live region: the status row speaks.
+// Item number, name and badges, then one explanation, on one row cut short; a tap shows it all.
+// Not a live region: the status row speaks.
+// The badge naming an item's decision, with its reason; none while undecided.
+function decisionBadge(d) {
+    if (!d) {
+        return null;
+    }
+    const reason = d.reason ? `: ${d.reason}` : "";
+    return el("span", { class: `badge ${d.decision}` }, `${DECISIONS[d.decision]}${reason}`);
+}
+
 function itemLine(item, d) {
     const sizeChanged =
         item.size &&
@@ -2165,21 +3303,27 @@ function itemLine(item, d) {
         (item.size[0] !== item.baselineSize[0] || item.size[1] !== item.baselineSize[1]);
     return el(
         "div",
-        { class: "itemline", onclick: (e) => e.currentTarget.classList.toggle("open") },
+        {
+            class: "itemline",
+            // A click on the name, or one that ends a text selection, is someone copying text:
+            // opening the row would rewrap it and move the buttons under the pointer.
+            onclick: (e) => {
+                if (e.target.closest(".name") || !getSelection().isCollapsed) {
+                    return;
+                }
+                e.currentTarget.classList.toggle("open");
+            },
+        },
         el(
             "h2",
             {},
             el("span", { class: "number" }, `#${numberOf(item)}`),
-            ` ${itemName(item)} `,
+            " ",
+            el("span", { class: "name" }, itemName(item)),
+            " ",
             el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
             item.from ? el("span", { class: "badge moved" }, movedFrom(item)) : null,
-            d
-                ? el(
-                      "span",
-                      { class: `badge ${d.decision}` },
-                      `${DECISIONS[d.decision]}${d.reason ? `: ${d.reason}` : ""}`,
-                  )
-                : null,
+            decisionBadge(d),
             sizeChanged
                 ? el(
                       "span",
@@ -2188,6 +3332,9 @@ function itemLine(item, d) {
                   )
                 : null,
             item.flaky ? el("span", { class: "badge" }, "flaky") : null,
+            item.noise
+                ? el("span", { class: "badge warn" }, `known capture noise (seen on ${prList(item.noise.prs)})`)
+                : null,
             item.reReview
                 ? el(
                       "span",
@@ -2200,16 +3347,21 @@ function itemLine(item, d) {
     );
 }
 
+// The view bar: the four views and the five zoom steps, used on most items, stay on the bar; the
+// options set once and left (Outline, the view's own Blink or Spotlight flash, Baseline, Focus),
+// Next change and the details sit in one Options menu at its end, each with its key.
 function viewBar(item, view, note) {
     const two = Boolean(item.baseline && item.capture);
-    const viewButton = (v, label, key) =>
+    const viewButton = (v, label, key, name = null) =>
         el(
             "button",
             {
                 type: "button",
+                "aria-label": name,
                 "aria-pressed": String(view === v),
                 "aria-disabled": String(Boolean(note) && v !== "side"),
                 "aria-keyshortcuts": key,
+                "data-count": `view-${v}`,
                 onclick: () => {
                     if (note && v !== "side") {
                         say(note);
@@ -2242,6 +3394,7 @@ function viewBar(item, view, note) {
             {
                 type: "button",
                 "aria-pressed": String(state.zoom === z),
+                "data-count": `zoom-${z}`,
                 onclick: () => {
                     state.zoom = z;
                     showStory();
@@ -2260,46 +3413,52 @@ function viewBar(item, view, note) {
         el(
             "span",
             { role: "group", "aria-label": "View" },
-            viewButton("side", "Side by side", null),
+            viewButton("side", "Side", null, "Side by side"),
             viewButton("flash", "Flash", "F"),
             viewButton("highlight", "Highlight", "H"),
             viewButton("spotlight", "Spotlight", "S"),
         ),
-        // One slot of fixed width for the view's own option, so no view moves or wraps the bar.
-        el(
-            "span",
-            { class: "view-option" },
-            view === "highlight" ? option("blink", "Blink", "L") : null,
-            view === "spotlight" ? option("spotFlash", "Spotlight flash", "F") : null,
-        ),
-        el("span", { class: "row-break", "aria-hidden": "true" }),
-        option("showBox", "Outline", "B"),
-        el(
-            "button",
-            {
-                type: "button",
-                id: "next-box",
-                "aria-disabled": String(!two),
-                "aria-keyshortcuts": "N",
-                onclick: nextBox,
-            },
-            "Next change",
-            kbd("N"),
-        ),
-        el("span", { id: "box-count", class: "meta" }),
         el("span", { role: "group", "aria-label": "Zoom" }, ZOOMS.map(zoomButton)),
         kbd("Z"),
         el(
             "details",
-            { class: "details-pop" },
-            el("summary", {}, "Details"),
+            {
+                class: "menu",
+                id: "options",
+                open: optionsOpen,
+                ontoggle: (e) => (optionsOpen = e.currentTarget.open),
+            },
+            el("summary", { "data-count": "options" }, "Options"),
             el(
                 "div",
                 {},
-                details.map((t) => el("p", {}, t)),
-                item.console.length > 0 && item.status !== "failed"
-                    ? el("pre", { class: "console" }, item.console.join("\n"))
-                    : null,
+                option("showBox", "Outline", "B"),
+                view === "highlight" ? option("blink", "Blink", "L") : null,
+                view === "spotlight" ? option("spotFlash", "Spotlight flash", "F") : null,
+                option("baselinePane", "Baseline", "P"),
+                option("focus", "Focus", "O"),
+                el(
+                    "button",
+                    {
+                        type: "button",
+                        id: "next-box",
+                        "aria-disabled": String(!two),
+                        "aria-keyshortcuts": "N",
+                        onclick: nextBox,
+                    },
+                    "Next change",
+                    el("span", { id: "box-count", class: "meta" }),
+                    kbd("N"),
+                ),
+                el("button", { type: "button", id: "copy-story-link", onclick: copyLink }, "Copy link"),
+                el(
+                    "div",
+                    { class: "details" },
+                    details.map((t) => el("p", {}, t)),
+                    item.console.length > 0 && item.status !== "failed"
+                        ? el("pre", { class: "console" }, item.console.join("\n"))
+                        : null,
+                ),
             ),
         ),
     );
@@ -2354,146 +3513,249 @@ const paneError = (message) =>
         el("button", { type: "button", onclick: () => showStory() }, "Retry"),
     );
 
-// Two panes, always: the baseline on the left and the new image (or the view's picture) on the
-// right, both drawn at once with what they are waiting for, so nothing moves when the images
-// arrive. A missing image leaves its pane empty, the same size, so the other one never moves.
+// Two panes: the baseline on the left and the new image (or the view's picture) on the right,
+// both drawn at once with what they are waiting for, so nothing moves when the images arrive. A
+// missing image leaves its pane empty, the same size, so the other one never moves. With the
+// Baseline pane off (P) only one pane is drawn, as wide as the two: the right one, or the
+// baseline when there is no capture (a removed story).
+// Which single pane to draw when the baseline is hidden: the capture (or a failed item's error),
+// else the baseline of a removed story. Null draws both.
+function onlyPane(item) {
+    if (state.baselinePane) {
+        return null;
+    }
+    return item.capture || item.status === "failed" ? "right" : "left";
+}
+
 async function renderStage(item, view, keep) {
     const seq = ++stageRender;
     const stage = document.getElementById("stage");
-    const baseName = item.from ? `Baseline of ${item.from}` : "Baseline";
-    const imgOf = async (kind) => {
-        const img = await loaded(
-            await image(kind, item.file, item[kind]),
-            `${kind === "capture" ? "new image" : "baseline"} of ${item.file}`,
-        );
-        img.alt = `${kind === "capture" ? "new image" : "baseline"} of ${itemName(item)}`;
-        return img;
-    };
-    const emptyRight = () =>
-        item.status === "failed"
-            ? pane(
-                  "No capture: it failed",
-                  item.console.length > 0
-                      ? el("pre", { class: "console" }, `${item.reason ?? ""}\n\n${item.console.join("\n")}`)
-                      : el("p", { class: "failed" }, item.reason ?? "capture failed"),
-                  true,
-              )
-            : pane("No capture", null, true);
-    const left = item.baseline ? pane(baseName, paneWait("baseline")) : pane("No baseline", null, true);
-    const right = item.capture ? pane("New", paneWait("new image")) : emptyRight();
+    const only = onlyPane(item);
+    const panes = (l, r) => ({ right: [r], left: [l] })[only] ?? [l, r];
+    const labels = stageLabels(item, view);
+    const { left, right } = waitingPanes(item, labels);
     if (!keep) {
-        stage.replaceChildren(left, right);
+        stage.replaceChildren(...panes(left, right));
     }
-    // Skimming (J held): the item before was left before its images even showed, so this one waits
-    // SKIM_MS before fetching; passed in that time, it fetches nothing, and the item stopped on is
-    // not queued behind every item skipped.
-    const now = performance.now();
-    const skimming = now - lastStageAt < SKIM_MS && lastShown !== lastStageFile;
-    lastStageAt = now;
-    lastStageFile = item.file;
-    if (skimming) {
-        await sleep(SKIM_MS);
-        if (seq !== stageRender) {
-            return;
-        }
+    if (await skimmed(item, seq)) {
+        return;
     }
-    let diff = null;
+    const s = { item, view, keep, seq, stage, only, panes, labels, left, right };
+    let drawn;
     try {
-        if (view === "side") {
-            // Each image as soon as it arrives; the changed areas fill in afterwards.
-            const fill = async (kind, figure) => {
-                const frame = figure.querySelector(".frame");
-                try {
-                    const img = await imgOf(kind);
-                    if (seq === stageRender) {
-                        frame.replaceChildren(el("div", { class: "sheet" }, img));
-                        fit(stage);
-                    }
-                } catch (err) {
-                    if (seq === stageRender) {
-                        frame.replaceChildren(paneError(err.message));
-                    }
-                    throw err;
-                }
-            };
-            await Promise.all([item.baseline && fill("baseline", left), item.capture && fill("capture", right)]);
-            if (seq !== stageRender) {
-                return;
-            }
-            if (keep) {
-                stage.replaceChildren(left, right);
-            }
-        } else {
-            diff = await diffOf(item);
-            const marked = view === "highlight";
-            const leftPics = [await imgOf("baseline"), ...(marked ? [overlay(diff)] : [])];
-            let rightLabel;
-            let rightPics;
-            const flashing = view === "flash" || (view === "spotlight" && state.spotFlash);
-            if (flashing) {
-                // The two images one after the other in the same place: themselves, or both spotlighted.
-                const flash = view === "flash";
-                rightPics = flash
-                    ? [await imgOf("baseline"), await imgOf("capture")]
-                    : [spotlight(diff, diff.a), spotlight(diff, diff.b)];
-                rightLabel = `${flash ? "Flash" : "Spotlight"}: baseline${state.motion ? "" : " (stopped: press F)"}`;
-            } else if (marked) {
-                rightPics = [await imgOf("capture"), overlay(diff)];
-                rightLabel = "New, changed pixels in red";
-            } else {
-                rightPics = [spotlight(diff)];
-                rightLabel = "Spotlight: the new image, dimmed except around each change";
-            }
-            if (seq !== stageRender) {
-                return;
-            }
-            const l = pane(
-                marked ? `${baseName}, changed pixels in red` : baseName,
-                el("div", { class: "sheet" }, leftPics),
-            );
-            const r = pane(rightLabel, el("div", { class: "sheet" }, rightPics));
-            stage.replaceChildren(l, r);
-            if (flashing) {
-                const [base, next] = rightPics;
-                next.style.visibility = "hidden";
-                r.classList.add("flashing");
-                if (state.motion) {
-                    const name = view === "flash" ? "Flash" : "Spotlight";
-                    const tag = r.querySelector(".label");
-                    let showingNew = false;
-                    flashTimer = setInterval(() => {
-                        showingNew = !showingNew;
-                        base.style.visibility = showingNew ? "hidden" : "visible";
-                        next.style.visibility = showingNew ? "visible" : "hidden";
-                        tag.textContent = showingNew ? `${name}: new` : `${name}: baseline`;
-                    }, FLASH_MS);
-                }
-            }
-            if (marked && state.blink && state.motion) {
-                // Both panes' overlays on and off together, at Flash's pace.
-                const marks = [...stage.querySelectorAll(".diffmark")];
-                let on = true;
-                flashTimer = setInterval(() => {
-                    on = !on;
-                    for (const m of marks) {
-                        m.style.visibility = on ? "visible" : "hidden";
-                    }
-                }, FLASH_MS);
-            }
-        }
+        drawn = view === "side" ? await drawSide(s) : await drawCompared(s);
     } catch (err) {
-        if (seq === stageRender) {
-            if (view !== "side") {
-                stage.replaceChildren(pane(baseName, paneError(err.message)), pane("New", paneError(err.message)));
-            } else if (keep) {
-                stage.replaceChildren(left, right);
-            }
-        }
+        stageFailed(s, err);
+        return;
+    }
+    if (!drawn) {
         return;
     }
     shown(stage, item);
     const frames = [...stage.querySelectorAll(".frame")];
-    // Zoomed, scrolling one pane scrolls the other to the same place.
+    scrollTogether(frames);
+    fit(stage);
+    refit.disconnect();
+    refit.observe(stage);
+    stageKey = `${item.file}|${state.zoom}`;
+    if (keep) {
+        for (const f of frames) {
+            [f.scrollLeft, f.scrollTop] = keep;
+        }
+    }
+    await showChangedAreas(s, drawn.diff);
+}
+
+// Each pane's label for this view, on its wait as on its pictures: a view whose pictures are
+// still being made never shows another view's label first.
+function stageLabels(item, view) {
+    const baseName = item.from ? `Baseline of ${item.from}` : "Baseline";
+    const marked = view === "highlight";
+    const flashing = view === "flash" || (view === "spotlight" && state.spotFlash);
+    const leftLabel = marked ? `${baseName}, changed pixels in red` : baseName;
+    let rightLabel = "New";
+    if (flashing) {
+        rightLabel = `${view === "flash" ? "Flash" : "Spotlight"}: baseline${state.motion ? "" : " (stopped: press F)"}`;
+    } else if (marked) {
+        rightLabel = "New, changed pixels in red";
+    } else if (view === "spotlight") {
+        rightLabel = "Spotlight: the new image, dimmed except around each change";
+    }
+    return { marked, flashing, leftLabel, rightLabel };
+}
+
+// The two panes as they wait for their pictures. A failed capture's artifact holds no copy of its
+// baseline, so none is fetched.
+function waitingPanes(item, { leftLabel, rightLabel }) {
+    let left = pane("No baseline", null, true);
+    if (item.status === "failed") {
+        left = pane("Baseline not shown: the capture failed", null, true);
+    } else if (item.baseline) {
+        left = pane(leftLabel, paneWait("baseline"));
+    }
+    const right = item.capture ? pane(rightLabel, paneWait("new image")) : noCapturePane(item);
+    return { left, right };
+}
+
+// The right pane of an item with no capture: a failed one shows why.
+function noCapturePane(item) {
+    if (item.status !== "failed") {
+        return pane("No capture", null, true);
+    }
+    return pane(
+        "No capture: it failed",
+        item.console.length > 0
+            ? el("pre", { class: "console" }, `${item.reason ?? ""}\n\n${item.console.join("\n")}`)
+            : el("p", { class: "failed" }, item.reason ?? "capture failed"),
+        true,
+    );
+}
+
+// Skimming (K held): the item before was left before its images even showed, so this one waits
+// SKIM_MS before fetching; passed in that time, it fetches nothing, and the item stopped on is
+// not queued behind every item skipped. True when the stage moved on meanwhile.
+async function skimmed(item, seq) {
+    const now = performance.now();
+    const skimming = now - lastStageAt < SKIM_MS && lastShown !== lastStageFile;
+    lastStageAt = now;
+    lastStageFile = item.file;
+    if (!skimming) {
+        return false;
+    }
+    await sleep(SKIM_MS);
+    return seq !== stageRender;
+}
+
+// One of the item's two images, loaded, with its alt text.
+async function stageImage(item, kind) {
+    const what = kind === "capture" ? "new image" : "baseline";
+    const img = await loaded(await image(kind, item.file, item[kind]), `${what} of ${item.file}`);
+    img.alt = `${what} of ${itemName(item)}`;
+    return img;
+}
+
+// Side by side: each image as soon as it arrives; the changed areas fill in afterwards. Null when
+// the stage moved on meanwhile.
+async function drawSide(s) {
+    const { item, keep, seq, stage, only, panes, left, right } = s;
+    const failed = item.status === "failed";
+    await Promise.all([
+        item.baseline && !failed && only !== "right" && fillPane(s, "baseline", left),
+        item.capture && fillPane(s, "capture", right),
+    ]);
+    if (seq !== stageRender) {
+        return null;
+    }
+    if (keep) {
+        stage.replaceChildren(...panes(left, right));
+    }
+    return { diff: null };
+}
+
+// Puts one image in its pane, or the error that kept it out.
+async function fillPane({ item, keep, seq, stage }, kind, figure) {
+    const frame = figure.querySelector(".frame");
+    try {
+        const img = await stageImage(item, kind);
+        // With Focus on, an image is put in its pane only once its focus point is known,
+        // so it appears framed, never at the top left and then jumping. shown() works it
+        // out for the next item ahead, so after a decision this rarely waits.
+        const at = state.focus && !keep ? await focusBox(item).catch(() => null) : null;
+        if (seq === stageRender) {
+            frame.replaceChildren(el("div", { class: "sheet" }, img));
+            fit(stage);
+            if (at) {
+                center(stage, at);
+            }
+        }
+    } catch (err) {
+        if (seq === stageRender) {
+            frame.replaceChildren(paneError(err.message));
+        }
+        throw err;
+    }
+}
+
+// The views that compare the two images (highlight, flash, spotlight): both panes drawn at once
+// from the item's diff. Null when the stage moved on meanwhile.
+async function drawCompared({ item, view, seq, stage, panes, labels }) {
+    const { marked, flashing, leftLabel, rightLabel } = labels;
+    const diff = await diffOf(item);
+    const leftPics = [await stageImage(item, "baseline"), ...(marked ? [overlay(diff)] : [])];
+    let rightPics;
+    if (flashing) {
+        // The two images one after the other in the same place: themselves, or both spotlighted.
+        rightPics =
+            view === "flash"
+                ? [await stageImage(item, "baseline"), await stageImage(item, "capture")]
+                : [spotlight(diff, diff.a), spotlight(diff, diff.b)];
+    } else if (marked) {
+        rightPics = [await stageImage(item, "capture"), overlay(diff)];
+    } else {
+        rightPics = [spotlight(diff)];
+    }
+    if (seq !== stageRender) {
+        return null;
+    }
+    const l = pane(leftLabel, el("div", { class: "sheet" }, leftPics));
+    const r = pane(rightLabel, el("div", { class: "sheet" }, rightPics));
+    stage.replaceChildren(...panes(l, r));
+    if (flashing) {
+        startFlash(r, rightPics, view);
+    }
+    if (marked && state.blink && state.motion) {
+        startBlink(stage);
+    }
+    return { diff };
+}
+
+// Flash and flashing Spotlight: the two pictures take turns in the right pane.
+function startFlash(r, [base, next], view) {
+    next.style.visibility = "hidden";
+    r.classList.add("flashing");
+    if (!state.motion) {
+        return;
+    }
+    const name = view === "flash" ? "Flash" : "Spotlight";
+    const tag = r.querySelector(".label");
+    let showingNew = false;
+    flashTimer = setInterval(() => {
+        showingNew = !showingNew;
+        base.style.visibility = showingNew ? "hidden" : "visible";
+        next.style.visibility = showingNew ? "visible" : "hidden";
+        tag.textContent = showingNew ? `${name}: new` : `${name}: baseline`;
+    }, FLASH_MS);
+}
+
+// Both panes' overlays on and off together, at Flash's pace.
+function startBlink(stage) {
+    const marks = [...stage.querySelectorAll(".diffmark")];
+    let on = true;
+    flashTimer = setInterval(() => {
+        on = !on;
+        for (const m of marks) {
+            m.style.visibility = on ? "visible" : "hidden";
+        }
+    }, FLASH_MS);
+}
+
+// An image or the diff failed to load: the compared views show the error in both panes; side by
+// side already shows it in its pane, and a kept stage gets its panes back.
+function stageFailed({ view, keep, seq, stage, panes, labels, left, right }, err) {
+    if (seq !== stageRender) {
+        return;
+    }
+    if (view !== "side") {
+        stage.replaceChildren(
+            ...panes(pane(labels.leftLabel, paneError(err.message)), pane(labels.rightLabel, paneError(err.message))),
+        );
+    } else if (keep) {
+        stage.replaceChildren(...panes(left, right));
+    }
+}
+
+// Zoomed, scrolling one pane scrolls the other to the same place.
+function scrollTogether(frames) {
     for (const f of frames) {
         f.addEventListener("scroll", () => {
             for (const o of frames) {
@@ -2504,39 +3766,46 @@ async function renderStage(item, view, keep) {
             }
         });
     }
-    fit(stage);
-    refit.disconnect();
-    refit.observe(stage);
-    stageKey = `${item.file}|${state.zoom}`;
-    if (keep) {
-        for (const f of frames) {
-            [f.scrollLeft, f.scrollTop] = keep;
-        }
-    }
-    if (item.baseline && item.capture) {
-        try {
-            diff ??= await diffOf(item);
-        } catch {
-            return;
-        }
-        if (seq !== stageRender) {
-            return;
-        }
-        shownBoxes = diff.boxes;
-        const count = document.getElementById("box-count");
-        count.textContent =
-            diff.boxes.length === 0
-                ? "No changed area at this threshold"
-                : `${Math.min(state.box, diff.boxes.length - 1) + 1} of ${diff.boxes.length}`;
-        showBox(stage, diff.boxes, false, !keep);
-    } else {
-        shownBoxes = [];
-    }
 }
 
-// The item's images are on the screen: Accept applies, the next two items load in the
-// background, and a quarter second later the stage says it is ready (a decision before then is
-// taken for the second tap of a double tap).
+// With both images, outlines the changed areas and counts them; with one, frames its focus point
+// when Focus is on.
+async function showChangedAreas({ item, keep, seq, stage }, drawnDiff) {
+    if (!(item.baseline && item.capture)) {
+        shownBoxes = [];
+        if (state.focus && !keep) {
+            const at = await focusBox(item).catch(() => null);
+            if (at && seq === stageRender) {
+                center(stage, at);
+            }
+        }
+        return;
+    }
+    let diff = drawnDiff;
+    try {
+        diff ??= await diffOf(item);
+    } catch {
+        return;
+    }
+    if (seq !== stageRender) {
+        return;
+    }
+    shownBoxes = diff.boxes;
+    const count = document.getElementById("box-count");
+    count.textContent =
+        diff.boxes.length === 0
+            ? "No changed area at this threshold"
+            : `${Math.min(state.box, diff.boxes.length - 1) + 1} of ${diff.boxes.length}`;
+    showBox(stage, diff.boxes, false, !keep);
+}
+
+// Runs `then` once what the page holds now has been drawn: a frame's callbacks run before it is
+// drawn, so the second frame's run after the first was.
+const afterPaint = (then) => requestAnimationFrame(() => requestAnimationFrame(then));
+
+// The item's images are in the stage: Accept applies once they have been drawn, the next two
+// items load in the background, and a quarter second after the drawing the stage says it is
+// ready (a decision before then is taken for the tail of a press meant for the item before).
 function shown(stage, item) {
     const first = stageShown !== item.file;
     stageShown = item.file;
@@ -2547,23 +3816,52 @@ function shown(stage, item) {
         accept.querySelector(".spinner")?.remove();
     }
     if (first) {
-        appearedAt = performance.now();
-        for (const next of passItems().slice(state.index + 1, state.index + 3)) {
+        appearedAt = Infinity;
+        const after = passItems().slice(state.index + 1, state.index + 3);
+        for (const next of after) {
             for (const kind of ["baseline", "capture"]) {
                 if (next[kind]) {
                     image(kind, next.file, next[kind]).catch(() => {});
                 }
             }
         }
+        // The next item's focus point, so after Accept it opens already framed.
+        if (state.focus && after[0]) {
+            focusBox(after[0]).catch(() => {});
+        }
     }
-    setTimeout(
-        () => {
-            if (stage.isConnected && stageShown === item.file) {
-                stage.dataset.ready = "";
-            }
-        },
-        Math.max(0, GUARD_MS - (performance.now() - appearedAt)),
-    );
+    afterPaint(() => {
+        if (!stage.isConnected || stageShown !== item.file) {
+            return;
+        }
+        if (appearedAt === Infinity) {
+            appearedAt = performance.now();
+            logUsage("drawn", { file: item.file, ms: Math.round(appearedAt - usageLog.itemAt) });
+        }
+        setTimeout(
+            () => {
+                if (stage.isConnected && stageShown === item.file) {
+                    stage.dataset.ready = "";
+                }
+            },
+            Math.max(0, GUARD_MS - (performance.now() - appearedAt)),
+        );
+    });
+}
+
+// Replaces a sheet's outline of the changed area (sheet pixels), or removes it when outlines are off.
+function markBox(sheet, [left, top, right, bottom]) {
+    sheet.querySelector(".boxmark")?.remove();
+    if (state.showBox) {
+        const mark = el("div", { class: "boxmark" });
+        Object.assign(mark.style, {
+            left: `${left}px`,
+            top: `${top}px`,
+            width: `${right - left}px`,
+            height: `${bottom - top}px`,
+        });
+        sheet.append(mark);
+    }
 }
 
 // Outlines the current changed area in every pane, and scrolls it into view. A pane opens at the
@@ -2586,18 +3884,12 @@ function showBox(stage, boxes, jump, reset = true) {
         // The outline is drawn inside the image, so an area at an edge keeps all four sides.
         const [left, top] = [Math.max(0, x * factor - 2), Math.max(0, y * factor - 2)];
         const [right, bottom] = [Math.min(sw, (x + w) * factor + 2), Math.min(sh, (y + h) * factor + 2)];
-        sheet.querySelector(".boxmark")?.remove();
-        if (state.showBox) {
-            const mark = el("div", { class: "boxmark" });
-            Object.assign(mark.style, {
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${right - left}px`,
-                height: `${bottom - top}px`,
-            });
-            sheet.append(mark);
-        }
+        markBox(sheet, [left, top, right, bottom]);
         if (!jump && !reset) {
+            continue;
+        }
+        if (state.focus) {
+            centerFrame(frame, sheet, [x, y, w, h]);
             continue;
         }
         if (!jump) {
@@ -2618,6 +3910,74 @@ function showBox(stage, boxes, jump, reset = true) {
         frame.scrollLeft = reveal(ox + left, ox + right, frame.scrollLeft, frame.clientWidth);
         frame.scrollTop = reveal(oy + top, oy + bottom, frame.scrollTop, frame.clientHeight);
     }
+}
+
+// Scrolls a pane so the middle of a box (image pixels) is in the middle of the pane, as near as
+// the image's edges allow. At Fit nothing scrolls.
+function centerFrame(frame, sheet, [x, y, w, h]) {
+    frame.scrollLeft = sheet.offsetLeft + (x + w / 2) * factor - frame.clientWidth / 2;
+    frame.scrollTop = sheet.offsetTop + (y + h / 2) * factor - frame.clientHeight / 2;
+}
+
+function center(stage, box) {
+    for (const frame of stage.querySelectorAll(".frame")) {
+        const sheet = frame.querySelector(".sheet");
+        if (sheet) {
+            centerFrame(frame, sheet, box);
+        }
+    }
+}
+
+const focusKey = (item) => `${state.target.id}/${state.project}/${item.file}/${item.baseline}/${item.capture}`;
+
+// Where the reviewer should look first: the largest changed area of a changed item, or the
+// content of an item with one image (new, no baseline yet, removed). None for a failed or
+// unstable item.
+async function focusBox(item) {
+    if (onlyExclude(item)) {
+        return null;
+    }
+    const key = focusKey(item);
+    if (!focusBoxes.has(key)) {
+        let box;
+        if (item.baseline && item.capture) {
+            box = (await diffOf(item)).boxes[0] ?? null;
+        } else {
+            const kind = item.capture ? "capture" : "baseline";
+            box = contentBox(await loaded(await image(kind, item.file, item[kind]), `${kind} of ${item.file}`));
+        }
+        focusBoxes.set(key, box);
+        if (focusBoxes.size > FOCUS_KEPT) {
+            focusBoxes.delete(focusBoxes.keys().next().value);
+        }
+    }
+    return focusBoxes.get(key);
+}
+
+// The box around every pixel that differs from the image's top-left pixel (the story's
+// background), or the whole image when nothing does.
+function contentBox(img) {
+    const [w, h] = [img.naturalWidth, img.naturalHeight];
+    const ctx = new OffscreenCanvas(w, h).getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const px = ctx.getImageData(0, 0, w, h).data;
+    const TOLERANCE = 16; // per channel: compression noise and anti-aliased edges of the background
+    let [x0, y0, x1, y1] = [w, h, -1, -1];
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const i = (y * w + x) * 4;
+            for (let c = 0; c < 4; c++) {
+                if (Math.abs(px[i + c] - px[c]) > TOLERANCE) {
+                    x0 = Math.min(x0, x);
+                    x1 = Math.max(x1, x);
+                    y0 = Math.min(y0, y);
+                    y1 = Math.max(y1, y);
+                    break;
+                }
+            }
+        }
+    }
+    return x1 < 0 ? [0, 0, w, h] : [x0, y0, x1 - x0 + 1, y1 - y0 + 1];
 }
 
 async function nextBox() {
@@ -2658,6 +4018,7 @@ async function fillEnd(card, seq) {
             api("/api/prs?cached=1").then((list) => {
                 if (list.targets) {
                     state.list = list;
+                    showCount(list.inbox);
                 }
             }),
         ]);
@@ -2684,22 +4045,31 @@ async function fillEnd(card, seq) {
     const others = [...t.projects.slice(at + 1), ...t.projects.slice(0, at)];
     const next = others.find((p) => p.undecided > 0 && !p.downloading && !p.problem);
     const waitingFor = others.filter((p) => p.downloading);
-    const everything = t.projects.every((p) => p.undecided === 0 && !p.downloading);
+    const left = leftToReview(t, state.project);
+    const offers = endOffers(t, here, next, left);
+    const verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
+    card.replaceChildren(
+        ...[
+            el(
+                "h2",
+                { id: "end-heading", tabindex: "-1" },
+                `End of ${state.project}: ${here.decided} of ${here.reviewable} decided, ${here.undecided} undecided.`,
+            ),
+            isLocal() ? null : el("p", {}, verdict),
+            el("div", { class: "offers" }, offers),
+            waitingFor.length > 0 ? downloadingList(t, waitingFor) : null,
+        ].filter(Boolean),
+    );
+    offers[0].focus();
+}
+
+// The end card's offers, in order: the next project, this project's undecided, Finish, the grid
+// and the next pull request.
+function endOffers(t, here, next, left) {
     const offer = (label, onclick, cls = null) =>
         el("button", { type: "button", class: cls, onclick, "aria-describedby": "end-heading" }, label);
     const offers = [];
-    const finish = isLocal()
-        ? null
-        : el(
-              "button",
-              {
-                  type: "button",
-                  class: next ? null : "primary",
-                  "aria-describedby": "end-heading",
-                  onclick: (e) => finishTarget(t.id, e.currentTarget),
-              },
-              `Finish ${labelOf(t)} (${t.unpublished})`,
-          );
+    const finish = isLocal() ? null : endFinish(t, !next);
     // The next project comes first (focused, so Enter takes it): moving on is the usual step. The
     // items of this project left undecided (a skim with J) come next, or first when no project is.
     if (next) {
@@ -2722,7 +4092,7 @@ async function fillEnd(card, seq) {
             ),
         );
     }
-    const finishFirst = !next && here.undecided === 0;
+    const finishFirst = !left;
     if (finishFirst && finish && t.unpublished > 0) {
         offers.unshift(finish);
     }
@@ -2737,38 +4107,34 @@ async function fillEnd(card, seq) {
             offer(`Next: ${labelOf(after)} (${undecidedOf(after)} undecided)`, () => openTarget(after.id, true)),
         );
     }
-    card.replaceChildren(
-        ...[
-            el(
-                "h2",
-                { id: "end-heading", tabindex: "-1" },
-                `End of ${state.project}: ${here.decided} of ${here.reviewable} decided, ${here.undecided} undecided.`,
-            ),
-            everything && !isLocal() ? el("p", {}, `Every project of ${labelOf(t)} is decided.`) : null,
-            el("div", { class: "offers" }, offers),
-            waitingFor.length > 0
-                ? el(
-                      "ul",
-                      { class: "meta" },
-                      waitingFor.map((p) =>
-                          el(
-                              "li",
-                              {},
-                              t.download
-                                  ? `${p.project}: downloading (${t.download.done} of ${plural(t.download.total, "artifact")} done)`
-                                  : `${p.project}: downloading`,
-                          ),
-                      ),
-                  )
-                : null,
-        ].filter(Boolean),
+    return offers;
+}
+
+// The end card's Finish, primary when no next project comes first.
+const endFinish = (t, primary) =>
+    el(
+        "button",
+        {
+            type: "button",
+            class: primary ? "primary" : null,
+            "aria-describedby": "end-heading",
+            onclick: (e) => finishTarget(t.id, e.currentTarget),
+        },
+        `Finish ${labelOf(t)} (${t.unpublished})`,
     );
-    offers[0].focus();
+
+// The end card's projects still downloading, with the download's progress when known.
+function downloadingList(t, projects) {
+    const progress = t.download ? ` (${t.download.done} of ${plural(t.download.total, "artifact")} done)` : "";
+    return el(
+        "ul",
+        { class: "meta" },
+        projects.map((p) => el("li", {}, `${p.project}: downloading${progress}`)),
+    );
 }
 
 function showEnd(message) {
     state.ended = true;
-    state.pending = null;
     showStory();
     say(message);
 }
@@ -2804,73 +4170,6 @@ async function diffOf(item) {
     });
 }
 
-// A square dilation by GROW pixels, as two passes (rows, then columns) of a sliding window.
-function grow(mask, w, h) {
-    const on = new Uint8Array(w * h);
-    for (let i = 0; i < w * h; i++) {
-        on[i] = mask[i * 4 + 3] !== 0 ? 1 : 0;
-    }
-    const pass = (src, count, length, at) => {
-        const out = new Uint8Array(w * h);
-        for (let line = 0; line < count; line++) {
-            let last = -Infinity;
-            // Forward then backward: distance to the nearest set pixel along the line.
-            for (let k = 0; k < length; k++) {
-                if (src[at(line, k)]) {
-                    last = k;
-                }
-                if (k - last <= GROW) {
-                    out[at(line, k)] = 1;
-                }
-            }
-            last = Infinity;
-            for (let k = length - 1; k >= 0; k--) {
-                if (src[at(line, k)]) {
-                    last = k;
-                }
-                if (last - k <= GROW) {
-                    out[at(line, k)] = 1;
-                }
-            }
-        }
-        return out;
-    };
-    const rows = pass(on, h, w, (y, x) => y * w + x);
-    return pass(rows, w, h, (x, y) => y * w + x);
-}
-
-// The bounding boxes [x, y, width, height] of the separate regions of a grown mask, largest first.
-function regions(grown, w, h) {
-    const seen = new Uint8Array(w * h);
-    const boxes = [];
-    const stack = [];
-    for (let start = 0; start < w * h; start++) {
-        if (!grown[start] || seen[start]) {
-            continue;
-        }
-        let [x0, y0, x1, y1] = [w, h, -1, -1];
-        seen[start] = 1;
-        stack.push(start);
-        while (stack.length > 0) {
-            const p = stack.pop();
-            const x = p % w;
-            const y = (p - x) / w;
-            x0 = Math.min(x0, x);
-            x1 = Math.max(x1, x);
-            y0 = Math.min(y0, y);
-            y1 = Math.max(y1, y);
-            for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w]) {
-                if (q >= 0 && q < w * h && grown[q] && !seen[q]) {
-                    seen[q] = 1;
-                    stack.push(q);
-                }
-            }
-        }
-        boxes.push([x0, y0, x1 - x0 + 1, y1 - y0 + 1]);
-    }
-    return boxes.sort((p, q) => q[2] * q[3] - p[2] * p[3]);
-}
-
 // The changed pixels alone, in solid red, transparent everywhere else: laid over an image in the
 // same grid cell, so it lines up with the image at every zoom.
 function overlay(diff) {
@@ -2890,17 +4189,7 @@ function overlay(diff) {
 // An image (the new one unless given) with everything dimmed except the changed pixels grown by GROW pixels.
 function spotlight(diff, px = diff.b) {
     const canvas = el("canvas", { width: String(diff.w), height: String(diff.h) });
-    const ctx = canvas.getContext("2d");
-    const out = ctx.createImageData(diff.w, diff.h);
-    const keep = 1 - SPOT_ALPHA / 255;
-    for (let i = 0; i < diff.w * diff.h; i++) {
-        const lit = diff.grown[i] === 1;
-        for (let c = 0; c < 3; c++) {
-            out.data[i * 4 + c] = lit ? px[i * 4 + c] : px[i * 4 + c] * keep;
-        }
-        out.data[i * 4 + 3] = lit ? px[i * 4 + 3] : Math.max(px[i * 4 + 3], SPOT_ALPHA);
-    }
-    ctx.putImageData(out, 0, 0);
+    canvas.getContext("2d").putImageData(new ImageData(dimmed(px, diff.grown), diff.w, diff.h), 0, 0);
     return canvas;
 }
 
@@ -2928,6 +4217,7 @@ function move(step) {
     }
     const count = passItems().length;
     const at = state.index + step;
+    logUsage("move", { step });
     if (at >= count) {
         showEnd("");
         return;
@@ -2946,9 +4236,103 @@ function move(step) {
     say(`Now #${numberOf(item)}, ${at + 1} of ${count}: ${itemName(item)}, ${statusLabel(item.status)}.`);
 }
 
+// The second click (or tap) of a double click belongs to its first: when the first was on another
+// item, it is dropped, however late the page gets to it. Says so and returns true.
+function doubleClickTail(press) {
+    const pressed = state.ended ? null : passItems()[state.index]?.file;
+    if (press?.detail > 1 && pressedOn !== pressed) {
+        say("Ignored: the second click of a double click meant for the item before.");
+        return true;
+    }
+    if (press?.detail === 1) {
+        pressedOn = pressed;
+    }
+    return false;
+}
+
+// Why the item's decision cannot be undone now, or null when it can.
+function undoRefusal(item) {
+    const before = decisionOf(item);
+    if (!firmDecision(item)) {
+        return "Nothing to undo.";
+    }
+    return before.posted ? postedText(before) : null;
+}
+
+// Why `decision` (null: Undo) cannot be taken on `item` now, or null when it can.
+function refusal(decision, item, press) {
+    if (decision === null) {
+        return undoRefusal(item);
+    }
+    const before = decisionOf(item);
+    const firm = firmDecision(item);
+    // No press reverses a decision: changing one is an explicit Undo first.
+    if (before?.posted) {
+        return postedText(before);
+    }
+    if (firm || (before && decision === "accept")) {
+        return `Already ${DONE[before.decision]}. Undo it to change it.`;
+    }
+    if (onlyExclude(item) && decision !== "exclude") {
+        return item.status === "unstable" ? UNSTABLE : FAILED;
+    }
+    if (!state.data.acceptable && decision !== "reject") {
+        return notSeeded();
+    }
+    if (decision === "accept" && stageShown !== item.file) {
+        return "Loading images: Accept waits for them.";
+    }
+    if ((press?.timeStamp ?? performance.now()) - appearedAt < GUARD_MS) {
+        return "Ignored: this image appeared less than a quarter second ago.";
+    }
+    return null;
+}
+
+// Reject's and Exclude's reason, and Exclude's confirmation: the reason (null for Accept), or
+// undefined when cancelled, having said so.
+async function reasonFor(decision, item, n) {
+    if (decision !== "reject" && decision !== "exclude") {
+        return null;
+    }
+    const reason = await askReason(item, decision);
+    if (reason === null) {
+        say(`${decision === "reject" ? "Reject" : "Exclude"} cancelled: ${n} is still undecided.`);
+        return undefined;
+    }
+    if (
+        decision === "exclude" &&
+        !(await ask(
+            `Exclude ${item.id}? Every mode of this story stops being captured, on every pull request, ` +
+                "until its settings file is removed. To clear a one-off failure, re-run the visual job instead.",
+            "Exclude",
+        ))
+    ) {
+        say("Exclude cancelled.");
+        return undefined;
+    }
+    return reason;
+}
+
+// A saved decision (null: an Undo) in the page's copy of the decisions.
+function rememberDecision(item, before, decision, reason) {
+    if (decision === null) {
+        delete state.data.decisions[item.file];
+        // The reason comes back as the item's draft, so an Undo to fix a typo does not lose it.
+        if (before.reason) {
+            drafts.set(draftKey(item), before.reason);
+        }
+    } else {
+        state.data.decisions[item.file] = { decision, reason };
+        drafts.delete(draftKey(item));
+    }
+}
+
 // Accept, Reject, Exclude and (with null) Undo of the item on screen. Every press either decides
-// or says in the status row why it did not.
-async function decide(decision) {
+// or says in the status row why it did not. `press` is the click or key press that asked for it.
+async function decide(decision, press = null) {
+    if (doubleClickTail(press)) {
+        return;
+    }
     if (state.ended) {
         say("End of this pass: choose what is next.");
         return;
@@ -2968,68 +4352,18 @@ async function decide(decision) {
         return;
     }
     const before = decisionOf(item);
-    const draft = (drafts.get(draftKey(item)) ?? "").trim();
-    if (decision === null) {
-        if (!before) {
-            say("Nothing to undo.");
-            return;
-        }
-        if (before.posted) {
-            say(postedText(before));
-            return;
-        }
-    } else {
-        // No press reverses a decision: changing one is an explicit Undo first.
-        if (before?.posted) {
-            say(postedText(before));
-            return;
-        }
-        if (before) {
-            say(
-                decision === "accept" && before.decision === "accept" && before.wasBulk && draft !== ""
-                    ? "Accepted without opening. Undo it to add a note."
-                    : `Already ${DONE[before.decision]}. Undo it to change it.`,
-            );
-            return;
-        }
-        if (onlyExclude(item) && decision !== "exclude") {
-            say(item.status === "unstable" ? UNSTABLE : FAILED);
-            return;
-        }
-        if (!state.data.acceptable && decision !== "reject") {
-            say(notSeeded());
-            return;
-        }
-        if (decision === "accept" && stageShown !== item.file) {
-            say("Loading images: Accept waits for them.");
-            return;
-        }
-        if (performance.now() - appearedAt < GUARD_MS) {
-            say("Ignored: this image appeared less than a quarter second ago.");
-            return;
-        }
-        if ((decision === "reject" || decision === "exclude") && draft === "") {
-            state.pending = decision;
-            showStory({ focusNote: true });
-            say(`Type the reason, then press Enter to ${decision}.`);
-            return;
-        }
-        if (
-            decision === "exclude" &&
-            !(await ask(
-                `Exclude ${item.id}? Every mode of this story stops being captured, on every pull request, ` +
-                    "until its settings file is removed. To clear a one-off failure, re-run the visual job instead.",
-                "Exclude",
-            ))
-        ) {
-            say("Exclude cancelled.");
-            return;
-        }
+    const refused = refusal(decision, item, press);
+    if (refused !== null) {
+        say(refused);
+        return;
     }
-    const reason = decision === null || draft === "" ? null : draft;
+    const reason = await reasonFor(decision, item, n);
+    if (reason === undefined) {
+        return;
+    }
     const slow = setTimeout(() => sayBusy("Saving the last decision..."), SLOW_MS);
     let answer;
-    saving = api("/api/decide", {
+    saving = api(groupRoute("/api/decide"), {
         id: state.target.id,
         project: state.project,
         file: item.file,
@@ -3051,27 +4385,27 @@ async function decide(decision) {
         clearTimeout(slow);
         saving = null;
     }
-    if (decision === null) {
-        delete state.data.decisions[item.file];
-        // The note comes back as the item's draft, so an Undo to fix a typo does not lose it.
-        if (before.reason) {
-            drafts.set(draftKey(item), before.reason);
-        }
-    } else {
-        state.data.decisions[item.file] = { decision, reason };
-        drafts.delete(draftKey(item));
-    }
-    state.pending = null;
+    logUsage(decision === null ? "undo" : "decide", {
+        project: state.project,
+        file: item.file,
+        d: decision,
+        was: before?.decision ?? null,
+        ms: Math.round(performance.now() - usageLog.itemAt),
+        view: state.view,
+        zoom: state.zoom,
+        reasonLength: reason?.length ?? 0,
+    });
+    rememberDecision(item, before, decision, reason);
     counted(item, before, decision, answer.unpublished);
     if (decision === null) {
         // Undo stays on the item, undecided again.
         showStory();
-        say(`Undid ${n}: undecided again.`);
+        say(`Undid ${n}: undecided again${alsoOn(answer)}.`);
         return;
     }
     // The pass is frozen, so a decided item stays in it: a decision moves on to the next one, and
     // Previous comes back to it. After the last one, the end card.
-    const did = `${DECISIONS[decision]} ${n}.`;
+    const did = `${DECISIONS[decision]} ${n}${alsoOn(answer)}.`;
     if (state.index >= items.length - 1) {
         showEnd(`${did} End of this pass.`);
         return;
@@ -3105,7 +4439,7 @@ async function undo(files, where, one = false) {
             if (!one) {
                 sayBusy(`Undoing ${done + 1} of ${files.length}...`, " ", meter, " ", stop);
             }
-            await api("/api/decide", {
+            await api(groupRoute("/api/decide"), {
                 id: state.target.id,
                 project: state.project,
                 file,
@@ -3118,6 +4452,7 @@ async function undo(files, where, one = false) {
     } catch (err) {
         say(`Undid ${done} of ${files.length}, then: ${err.message}`, true);
     }
+    logUsage("undo", { project: state.project, n: done });
     try {
         await reload();
     } catch (err) {
@@ -3125,14 +4460,19 @@ async function undo(files, where, one = false) {
     }
     showGrid();
     if (done === files.length || stopped) {
-        say(
-            one
-                ? `Undid ${where}: undecided again.`
-                : stopped
-                  ? `Stopped: undid ${done} of ${plural(files.length, "decision")} of ${where}.`
-                  : `Undid ${plural(done, "decision")} of ${where}.`,
-        );
+        say(undoneMessage(done, files.length, where, one, stopped));
     }
+}
+
+// What an undo says once it ends: one item, a stopped run, or every decision it was asked to undo.
+function undoneMessage(done, total, where, one, stopped) {
+    if (one) {
+        return `Undid ${where}: undecided again.`;
+    }
+    if (stopped) {
+        return `Stopped: undid ${done} of ${plural(total, "decision")} of ${where}.`;
+    }
+    return `Undid ${plural(done, "decision")} of ${where}.`;
 }
 
 // A component's Undo N, or More > Undo all decisions: asks first, naming the count.
@@ -3151,6 +4491,9 @@ async function bulkUndo(component) {
     }
 }
 
+// Accept all undecided (Shift+A) asks first; a component's Accept N does not: Undo N takes it back.
+// Both take only what the grid's filter and Find story show, and name those files to the server.
+// Neither reloads the project: the server names the files it accepted, and the page marks them.
 async function acceptAll(component) {
     if (!state.data.acceptable || isLocal()) {
         say(isLocal() ? "Local preview: look only. Nothing is decided on it." : notSeeded());
@@ -3160,44 +4503,122 @@ async function acceptAll(component) {
     const n = items.length;
     const where = component ?? state.project;
     if (n === 0) {
-        say(`Nothing undecided to accept in ${where}.`);
+        say(`Nothing undecided to accept in ${where}${narrowed() ? " that the grid shows" : ""}.`);
         return;
     }
-    // Accepting a removal deletes its baseline, so the question says how many it holds.
-    const removals = items.filter((i) => i.status === "removed").length;
-    const deletes =
-        removals === 0
-            ? ""
-            : ` This includes ${plural(removals, "removal")}: accepting deletes ${removals === 1 ? "its baseline" : "their baselines"}.`;
-    const stuck = state.data.items.filter(
-        (i) => onlyExclude(i) && !decisionOf(i) && (!component || componentOf(i.id) === component),
-    );
-    const left =
-        stuck.length === 0
-            ? ""
-            : ` ${stuck.length} more (${[...new Set(stuck.map((i) => i.status))].sort().join(", ")}) can only be excluded and stay undecided.`;
-    const question = component
-        ? `Accept the ${n} undecided ${n === 1 ? "item" : "items"} of ${component} without opening them?`
-        : `Accept ${n} undecided ${n === 1 ? "item" : "items"} of ${where} without opening them?`;
-    if (!(await ask(`${question}${deletes}${left}`, `Accept ${n}`))) {
-        return;
+    if (!component) {
+        // Accepting a removal deletes its baseline, so the question says how many it holds.
+        const removals = items.filter((i) => i.status === "removed").length;
+        const theirs = removals === 1 ? "its baseline" : "their baselines";
+        const deletes =
+            removals === 0 ? "" : ` This includes ${plural(removals, "removal")}: accepting deletes ${theirs}.`;
+        const stuck = state.data.items.filter((i) => onlyExclude(i) && !decisionOf(i));
+        const left =
+            stuck.length === 0 || narrowed()
+                ? ""
+                : ` ${stuck.length} more (${[...new Set(stuck.map((i) => i.status))].sort().join(", ")}) can only be excluded and stay undecided.`;
+        const what = STATUS_FILTERS[state.filter]?.toLowerCase() ?? "undecided";
+        const find = findText(state.text) === "" ? "" : ` matching "${state.text.trim()}"`;
+        const question = `Accept ${n} ${what} ${n === 1 ? "item" : "items"} of ${where}${find} without opening them?`;
+        if (!(await ask(`${question}${deletes}${left}`, `Accept ${n}`))) {
+            return;
+        }
     }
     let answer;
     try {
-        answer = await api("/api/accept-all", {
+        answer = await api(groupRoute("/api/accept-all"), {
             id: state.target.id,
             project: state.project,
             runId: state.data.target.runId,
             runAttempt: state.data.target.runAttempt,
             ...(component ? { component } : {}),
+            files: items.map((i) => i.file),
         });
-        await reload();
     } catch (err) {
         say(err.message, true);
         return;
     }
-    (state.screen === "story" ? showStory : showGrid)();
-    say(`Accepted ${plural(answer.accepted, "item")} in ${where}.`);
+    logUsage("decide", {
+        project: state.project,
+        d: "accept",
+        n: answer.files.length,
+        bulk: "accept-all",
+        component,
+    });
+    for (const file of answer.files) {
+        state.data.decisions[file] = { decision: "accept", reason: null, bulk: true };
+    }
+    const p = state.target.projects.find((x) => x.project === state.project);
+    if (p) {
+        p.decided += answer.files.length;
+        p.undecided -= answer.files.length;
+    }
+    state.target.unpublished = answer.unpublished;
+    if (state.screen === "story") {
+        showStory();
+    } else if (component && state.screen === "grid") {
+        acceptedInGrid(component, answer.files);
+    } else {
+        showGrid();
+    }
+    say(`Accepted ${plural(answer.accepted, "item")} in ${where}${alsoOn(answer)}.`);
+}
+
+// After a component's Accept N: its accepted tiles show their decision, or leave a filter that no
+// longer shows them, and the rest of the grid stays as it is, scrolled where it was. The focus goes
+// to the next component's Accept, which a filter that drops this component brings to the same spot.
+function acceptedInGrid(component, files) {
+    const shown = new Set(visibleItems().map((i) => i.file));
+    const boxes = files.map((f) => app.querySelector(`.tile-box[data-file="${CSS.escape(f)}"]`));
+    const section = app.querySelector(`.component[data-component="${CSS.escape(component)}"]`);
+    // A filter that now shows a tile the grid lacks (Accepted): draw the grid again.
+    if (!section || files.some((f, n) => shown.has(f) && !boxes[n])) {
+        showGrid();
+        return;
+    }
+    // Focus first: a focused button removed from the grid takes its scroll to the top.
+    const later = [...app.querySelectorAll(".component")];
+    const next = later
+        .slice(later.indexOf(section) + 1)
+        .map((c) => (c.hidden ? null : c.querySelector("h3 .accept")))
+        .find(Boolean);
+    (next ?? app).focus({ preventScroll: true });
+    // Where the grid is scrolled, or the component's own start when that is above the screen.
+    // Restored by hand: scroll anchoring would hold the next component where it was instead.
+    const top = Math.min(
+        app.scrollTop,
+        app.scrollTop + section.getBoundingClientRect().top - app.getBoundingClientRect().top,
+    );
+    const byFile = new Map(state.data.items.map((i) => [i.file, i]));
+    for (const [n, file] of files.entries()) {
+        const box = boxes[n];
+        if (!box) {
+            continue;
+        }
+        if (shown.has(file)) {
+            box.querySelector(".tile").classList.add("decided", "accept");
+            box.append(decisionLine(byFile.get(file)));
+        } else {
+            box.remove();
+        }
+    }
+    for (const story of section.querySelectorAll(".story")) {
+        if (!story.querySelector(".tile-box")) {
+            story.remove();
+        }
+    }
+    if (section.querySelector(".tile-box")) {
+        section.querySelector("h3").replaceWith(groupHead(component));
+    } else {
+        section.remove();
+    }
+    if (shown.size === 0) {
+        showGrid();
+        return;
+    }
+    app.scrollTop = top;
+    setBar(gridBar());
+    drawHeader();
 }
 
 // When the default branch has newer baselines for this project than the capture was compared with:
@@ -3209,14 +4630,17 @@ function staleBanner() {
         return null;
     }
     const master = branchName(t);
+    const what = plural(newer.length, `newer ${state.project} baseline`);
     return el(
         "section",
         { class: "card stale", id: "stale" },
         el(
             "p",
             { class: "warning" },
-            `${master} has ${plural(newer.length, `newer ${state.project} baseline`)} since this capture; ` +
-                "this review is out of date. Finish refuses it until the branch has them.",
+            `${master} has ${what} since this capture. ` +
+                "Finish still records your decisions against this capture. When the pull request merges, CI " +
+                "compares it with these baselines again, and any image they change comes back to you. Update " +
+                `only when the pull request conflicts with ${master}.`,
         ),
         el(
             "details",
@@ -3281,6 +4705,21 @@ const finishing = () =>
     `${isUpdate(state.job) ? "Updating" : "Finishing"} ${jobLabel(state.job)}: ${state.job.step}...`;
 
 // What Finish's sheet says it will do, from the server's preview: every line is the server's count.
+// Why the commit status a Finish sets is failure or pending, in brackets; nothing for success.
+function statusWhy(f) {
+    if (f.status.state === "failure") {
+        return ` (${f.rejects} rejected)`;
+    }
+    if (f.status.state !== "pending") {
+        return "";
+    }
+    const parts = [
+        f.undecided.length > 0 ? `${f.undecided.reduce((k, p) => k + p.undecided, 0)} undecided` : null,
+        f.unloaded.length > 0 ? `not loaded: ${f.unloaded.join(", ")}` : null,
+    ];
+    return ` (${parts.filter(Boolean).join("; ")})`;
+}
+
 function sheet(t, f, prepared, notice) {
     const label = labelOf(t);
     const seed = t.pr === null;
@@ -3321,20 +4760,15 @@ function sheet(t, f, prepared, notice) {
     } else if (posts.length > 0) {
         lines.push(`Post ${posts.join(" and ")} as a comment on ${label}.`);
     }
-    const why =
-        f.status.state === "failure"
-            ? ` (${f.rejects} rejected)`
-            : f.status.state === "pending"
-              ? ` (${[
-                    f.undecided.length > 0 ? `${f.undecided.reduce((k, p) => k + p.undecided, 0)} undecided` : null,
-                    f.unloaded.length > 0 ? `not loaded: ${f.unloaded.join(", ")}` : null,
-                ]
-                    .filter(Boolean)
-                    .join("; ")})`
-              : "";
+    const why = statusWhy(f);
     lines.push(`Then set the commit status 'Visual review' to ${f.status.state}${why}.`);
     if (f.notOpened > 0) {
         lines.push(`Accepted without opening: ${f.notOpened}.`);
+    }
+    if (f.approvedBefore > 0) {
+        lines.push(
+            `Approved before: ${f.approvedBefore}, the same images you accepted for the same stories elsewhere; the record names each earlier approval and the CI gate checks it.`,
+        );
     }
     if (f.undecided.length > 0) {
         lines.push(
@@ -3344,10 +4778,17 @@ function sheet(t, f, prepared, notice) {
     if (f.unloaded.length > 0) {
         lines.push(`Not loaded, so not reviewed: ${f.unloaded.join(", ")}.`);
     }
+    if (f.previews?.length > 0) {
+        lines.push(
+            `${plural(f.previews.length, "project")} from a local capture (${f.previews.join(", ")}): ` +
+                "CI will check them, and anything CI draws differently comes back to you.",
+        );
+    }
     return [
         el("h2", { id: "sheet-title" }, `Finish ${label}, every project:`),
         notice ? el("p", { class: "error" }, notice) : null,
         ...lines.map((l) => el("p", {}, l)),
+        approvedList(t, f.approvedBeforeItems ?? []),
         f.notes.length > 0
             ? [
                   el("p", {}, "Notes to publish:"),
@@ -3368,6 +4809,31 @@ function sheet(t, f, prepared, notice) {
             : null,
         passkeySentence(f, prepared),
     ].filter(Boolean);
+}
+
+// The accepts approved before, each a link that cancels the sheet and opens that item.
+function approvedList(t, items) {
+    if (items.length === 0) {
+        return null;
+    }
+    const link = (x) => {
+        const p = new URLSearchParams({ token, target: t.id, project: x.project, filter: "all", item: x.file });
+        return el(
+            "a",
+            { href: `#${p}`, onclick: (e) => e.currentTarget.closest("dialog")?.close("no") },
+            `${x.project}/${x.file} (${prName(x.pr)})`,
+        );
+    };
+    return el(
+        "details",
+        { class: "approved-list" },
+        el("summary", {}, `The ${plural(items.length, "image")} approved before`),
+        el(
+            "ul",
+            {},
+            items.map((x) => el("li", {}, link(x))),
+        ),
+    );
 }
 
 // What the passkey does for this Finish, from POST /api/finish-prepare: once a passkey is known it
@@ -3394,6 +4860,14 @@ function passkeySentence(f, prepared) {
 
 // Finish publishes every decision of one target. It asks the server what it would do, states it
 // in a sheet, and starts on the server; then the targets screen follows it step by step.
+// The Finish sheet's final button.
+function finishTitle(t, f, required, onlyRejects) {
+    if (required) {
+        return `Sign and finish ${labelOf(t)}`;
+    }
+    return onlyRejects ? `Post ${plural(f.rejects, "reject")} to ${labelOf(t)}` : `Finish ${labelOf(t)}`;
+}
+
 async function finishTarget(id, button) {
     if (running()) {
         say("A Finish is running: wait for it to end.");
@@ -3438,21 +4912,13 @@ async function finishTarget(id, button) {
         // When the server cannot prepare an approval the final button is unavailable, and the sheet
         // says why.
         let approval = null;
-        const go = await ask(
-            sheet(t, f, prepared, notice),
-            prepared.required
-                ? `Sign and finish ${labelOf(t)}`
-                : onlyRejects
-                  ? `Post ${plural(f.rejects, "reject")} to ${labelOf(t)}`
-                  : `Finish ${labelOf(t)}`,
-            {
-                label: "sheet-title",
-                unavailable: prepared.error ? "Finish cannot be approved now: see the sheet." : null,
-                why: "sheet-passkey",
-                focusYes: notice !== "",
-                onYes: () => (approval = prepared.required ? approve(prepared) : null),
-            },
-        );
+        const go = await ask(sheet(t, f, prepared, notice), finishTitle(t, f, prepared.required, onlyRejects), {
+            label: "sheet-title",
+            unavailable: prepared.error ? "Finish cannot be approved now: see the sheet." : null,
+            why: "sheet-passkey",
+            focusYes: notice !== "",
+            onYes: () => (approval = prepared.required ? approve(prepared) : null),
+        });
         if (!go) {
             reset();
             say("Finish cancelled: nothing was changed.");
@@ -3520,12 +4986,24 @@ async function finishTarget(id, button) {
 let watching = false;
 
 // Follows the running Finish to its end, then shows its result above the targets.
+// A Finish or an update from the default branch followed (also after a reload), and its end:
+// success or failure, and how long it was followed.
+function logJob(type) {
+    const job = state.job ?? {};
+    const end = type === "finish-end" && {
+        ok: job.error === null && !job.interrupted,
+        ms: Math.round(performance.now() - state.finishSeen),
+    };
+    logUsage(type, { id: job.target ?? null, kind: job.kind ?? "finish", ...end });
+}
+
 async function watchFinish() {
     if (watching) {
         return;
     }
     watching = true;
     state.finishSeen ??= performance.now();
+    logJob("finish-start");
     try {
         let spoken = "";
         while (running()) {
@@ -3536,7 +5014,9 @@ async function watchFinish() {
                 spoken = step;
             }
             drawFinishPanel();
-            await sleep(1000);
+            // A quarter second: the status is an in-memory read, and a one-second wait left a job
+            // that ended just after a check unseen for up to a second (#1530).
+            await sleep(250);
             try {
                 track((await api("/api/finish-status")).job);
             } catch (err) {
@@ -3547,6 +5027,7 @@ async function watchFinish() {
     } finally {
         watching = false;
     }
+    logJob("finish-end");
     state.finishSeen = null;
     say("");
     // The box closes on a Finish that worked: its result is the card on the targets screen. One
@@ -3586,6 +5067,7 @@ const UPDATE_STEPS = [
     ["fetching", "Fetching", /^(starting|fetching)/],
     ["merging", "Merging", /^merging/],
     ["committing", "Committing", /^committing/],
+    ["checking", "Checking the merge", /^checking/],
     ["pushing", "Pushing", /^pushing/],
 ];
 
@@ -3594,6 +5076,15 @@ let finishBox = null; // the wait box following the running Finish
 // The running Finish's steps, each marked done, in progress or waiting, with the count of the
 // current one and the time spent: in the wait box, over whatever screen is open. Finish runs on
 // the server, so the box has no Cancel: closing or reloading the page does not stop it.
+// Where a Finish step stands against the step running now, and how the panel says it.
+function stepState(i, now) {
+    if (i < now) {
+        return "done";
+    }
+    return i === now ? "now" : "waiting";
+}
+const STEP_TEXT = { done: "done", now: "in progress", waiting: "waiting" };
+
 function drawFinishPanel() {
     if (!running()) {
         return;
@@ -3633,8 +5124,8 @@ function drawFinishPanel() {
             steps.map(([key, name], i) =>
                 el(
                     "li",
-                    { class: i < now ? "done" : i === now ? "now" : "waiting" },
-                    `${key === "comment" && plan?.seed ? "Opening the issue" : name}: ${i < now ? "done" : i === now ? "in progress" : "waiting"}`,
+                    { class: stepState(i, now) },
+                    `${key === "comment" && plan?.seed ? "Opening the issue" : name}: ${STEP_TEXT[stepState(i, now)]}`,
                     i === now && count
                         ? [
                               ` (${count[1]} of ${count[2]})`,
@@ -3656,6 +5147,8 @@ function drawFinishPanel() {
             : "Publishing your decisions. Closing or reloading this page does not stop it.",
         body: panel,
         detail: `${Math.max(now, 0)} of ${plural(steps.length, "step")} done`,
+        // The server's step ends "(retrying after a network error, attempt 2 of 4)" while it retries.
+        net: /\((retrying after a network error[^)]*)\)$/.exec(step)?.[1].replace(/^r/, "R") ?? "",
         done: Math.max(now, 0),
         total: steps.length,
         since: state.finishSeen ?? performance.now(),
@@ -3685,6 +5178,37 @@ function track(job) {
 const repoUrl = (url) => (url ? url.replace(/\/pull\/\d+$/, "") : null);
 
 // What the newest Finish did, shown above the targets until it is dismissed or the server restarts.
+// The Finish result's commit, linked when the repository is known.
+function commitLine(out, repo) {
+    if (!out.commit) {
+        return el("p", {}, "No commit: nothing was accepted or excluded.");
+    }
+    const commit = repo ? link(`${repo}/commit/${out.commit}`, short(out.commit)) : short(out.commit);
+    if (out.alreadyFinished) {
+        return el(
+            "p",
+            {},
+            "Already finished: an earlier Finish committed these decisions as ",
+            commit,
+            ` to ${out.branch}.`,
+        );
+    }
+    return el("p", {}, "Committed ", commit, ` to ${out.branch}.`);
+}
+
+// The commit status a Finish posted, or why posting it failed; none when it was already finished.
+function finishStatusLine(out) {
+    if (out.alreadyFinished) {
+        return [];
+    }
+    const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");
+    return [
+        out.statusError
+            ? el("p", { class: "error" }, `The commit status failed: ${out.statusError}`)
+            : el("p", {}, `Commit status: ${out.state ?? "set"} -- ${counts}.`),
+    ];
+}
+
 function finishOutcome() {
     const job = state.job;
     if (!job || job.running || state.dismissed === job.id) {
@@ -3707,15 +5231,6 @@ function finishOutcome() {
     if (isUpdate(job)) {
         return updateOutcome(job, t, dismiss);
     }
-    // Finish refuses a capture older than the default branch's baselines: offer the update.
-    const stale =
-        t && /has newer .* baselines/.test(job.error ?? "")
-            ? el(
-                  "button",
-                  { type: "button", class: "primary", onclick: () => updateTarget(t) },
-                  `Update from ${branchName(t)}`,
-              )
-            : null;
     if (job.interrupted || job.error !== null) {
         return el(
             "section",
@@ -3729,24 +5244,14 @@ function finishOutcome() {
             ),
             el("pre", { class: "error" }, job.error),
             warnings,
-            el("p", { class: "offers" }, stale, dismiss),
+            el("p", { class: "offers" }, dismiss),
         );
     }
     const out = job.result;
     const repo = repoUrl(t?.url ?? out.pullRequest);
     const parts = [];
     const notes = out.acceptNotes ?? 0;
-    parts.push(
-        out.commit
-            ? el(
-                  "p",
-                  {},
-                  "Committed ",
-                  repo ? link(`${repo}/commit/${out.commit}`, short(out.commit)) : short(out.commit),
-                  ` to ${out.branch}.`,
-              )
-            : el("p", {}, "No commit: nothing was accepted or excluded."),
-    );
+    parts.push(commitLine(out, repo));
     if (out.pullRequest) {
         parts.push(
             el(
@@ -3782,12 +5287,7 @@ function finishOutcome() {
             el("p", { class: "error" }, `The comment with the accept notes was not posted: ${out.commentError}`),
         );
     }
-    const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");
-    parts.push(
-        out.statusError
-            ? el("p", { class: "error" }, `The commit status failed: ${out.statusError}`)
-            : el("p", {}, `Commit status: ${out.state ?? "set"} -- ${counts}.`),
-    );
+    parts.push(...finishStatusLine(out));
     const next = nextTarget(job.target);
     const offers = [
         next
@@ -3866,7 +5366,7 @@ function updateOutcome(job, t, dismiss) {
 // ---------------------------------------------------------------- the address
 
 // Every screen is in the address, after the session token, so a copied link opens it again:
-// #token=...&target=123&project=p&filter=undecided&q=text&item=file.png&pass=undecided&view=side&zoom=fit&box=on&blink=off&flash=off
+// #token=...&target=123&project=p&filter=undecided&q=text&item=file.png&pass=undecided&view=side&zoom=fit&box=on&baseline=on&focus=off&blink=off&flash=off
 // Only the fragment holds it: a browser never sends a fragment to a server or in a Referer.
 function hashFor() {
     const p = new URLSearchParams({ token });
@@ -3884,6 +5384,8 @@ function hashFor() {
         p.set("view", state.held ?? state.view);
         p.set("zoom", String(state.zoom));
         p.set("box", state.showBox ? "on" : "off");
+        p.set("baseline", state.baselinePane ? "on" : "off");
+        p.set("focus", state.focus ? "on" : "off");
         p.set("blink", state.blink ? "on" : "off");
         p.set("flash", state.spotFlash ? "on" : "off");
     }
@@ -3892,13 +5394,21 @@ function hashFor() {
 
 // Writes the screen into the address: a new history entry when the screen changes (so Back
 // returns to the one before), in place when only the item, view, zoom or filter does.
+// The screen a location hash's parameters open.
+function screenOf(params) {
+    if (params.has("item")) {
+        return "story";
+    }
+    return params.has("target") ? "grid" : "targets";
+}
+
 function remember() {
     const hash = hashFor();
     if (hash === location.hash) {
         return;
     }
     const was = new URLSearchParams(location.hash.slice(1));
-    const screen = was.has("item") ? "story" : was.has("target") ? "grid" : "targets";
+    const screen = screenOf(was);
     const moved =
         screen !== state.screen ||
         (screen !== "targets" &&
@@ -3908,7 +5418,9 @@ function remember() {
 }
 
 // Reads the newest Finish once; a running one is followed on whatever screen opens.
+// Also asks whether to log usage: both run once a token is known.
 async function checkFinish() {
+    startUsage();
     try {
         track((await api("/api/finish-status")).job);
     } catch {
@@ -3917,6 +5429,30 @@ async function checkFinish() {
     if (running()) {
         watchFinish();
     }
+}
+
+// The project to open for a link that names target `id` and no project, from the server's
+// counts (no GitHub call); null, having shown the targets screen, when there is none.
+async function projectOfLink(id, seq) {
+    let t;
+    try {
+        t = await api(`/api/target/${encodeURIComponent(id)}`);
+    } catch (err) {
+        if (seq === nav) {
+            const what = err.status === 404 ? `${id} is no longer listed` : `${id} could not be opened: ${err.message}`;
+            showTargets(`${what}: showing every target.`);
+        }
+        return null;
+    }
+    if (seq !== nav) {
+        return null;
+    }
+    const p = firstProject(t);
+    if (!p) {
+        showTargets(`${labelOf(t)} has nothing to review yet.`);
+        return null;
+    }
+    return p.project;
 }
 
 // Shows the screen the address names, from what the server already holds (no GitHub call); what
@@ -3932,7 +5468,11 @@ async function route() {
             showTargets();
             return;
         }
-        const project = p.get("project");
+        // A link that names a target but no project opens the project openTarget would.
+        const project = p.get("project") ?? (await projectOfLink(id, seq));
+        if (!project) {
+            return;
+        }
         if (state.data === null || state.target?.id !== id || state.project !== project) {
             const got = await loadProject(id, project, seq);
             if (!got) {
@@ -3993,9 +5533,15 @@ async function route() {
         state.view = VIEWS.includes(p.get("view")) ? p.get("view") : "side";
         const zoom = p.get("zoom") === "fit" ? "fit" : Number(p.get("zoom"));
         state.zoom = ZOOMS.includes(zoom) ? zoom : "fit";
-        // A link's box, blink and flash apply to this page; the browser's remembered choice is unchanged.
+        if (["on", "off"].includes(p.get("focus"))) {
+            state.focus = p.get("focus") === "on";
+        }
+        // A link's box, baseline, focus, blink and flash apply to this page; the browser's remembered choice is unchanged.
         if (["on", "off"].includes(p.get("box"))) {
             state.showBox = p.get("box") === "on";
+        }
+        if (["on", "off"].includes(p.get("baseline"))) {
+            state.baselinePane = p.get("baseline") === "on";
         }
         if (["on", "off"].includes(p.get("blink"))) {
             state.blink = p.get("blink") === "on";
@@ -4056,29 +5602,49 @@ function toggleView(view) {
 const SHORTCUTS_OFF = "Single-key shortcuts are off: letters do nothing until you turn them on again in Keys (?).";
 
 const KEYS = [
-    ["J / K", "Next / previous item of the pass; J on the last item shows what is next"],
+    ["J / K", "Previous / next item of the pass; K on the last item shows what is next"],
     ["A", "Accept, once the images are shown"],
-    ["(type), Esc, A", "Accept with a note: type it, leave the note box, accept"],
-    ["R", "Reject; with an empty note, type the reason, then Enter"],
-    ["E", "Exclude; with an empty note, type the reason, then Enter, then confirm"],
+    ["R", "Reject: a box asks the reason, ready to type; Enter rejects, Esc cancels"],
+    ["E", "Exclude: a box asks the reason, ready to type; Enter, then confirm; Esc cancels"],
     ["U", "Undo the item's decision; you stay on the item"],
-    ["Enter (note box)", "Send the Reject or Exclude waiting for its reason"],
     ["F", "Flash, or back to side by side; in Spotlight, Spotlight flash on or off"],
     ["Space (hold)", "Flash while held"],
     ["H", "Highlight the changed pixels in red, or back to side by side"],
     ["L", "In Highlight: Blink on or off"],
     ["S", "Spotlight, or back to side by side (on an iPad held upright, the way to see a change large)"],
-    ["B", "Outline the changed area, or not"],
-    ["N", "Next change"],
+    ["B", "Outline the changed area, or not (in Options)"],
+    ["P", "Baseline: show the baseline beside the new image, or the new image alone at twice the width (in Options)"],
+    [
+        "O",
+        "Focus: open each item centered on where to look (its largest change, or a new or removed image's content) at the zoom chosen (in Options)",
+    ],
+    ["N", "Next change (in Options)"],
     ["Z", "Next zoom: Fit, 1x, 2x, 4x, 8x, then Fit again (from Fit, 2x is two presses, or one tap on 2x)"],
     ["Shift+A", "Grid: accept every undecided item (asks first)"],
     ["/", "Grid: Find story"],
     ["?", "Show or hide this list"],
-    ["Esc", "Story: back to the grid; in the note box, first leaves the box (its text stays)"],
+    ["[ / ]", "Previous / next project with undecided items: its grid, or from a story its first undecided item"],
+    ["Esc", "Up one level: story to grid, grid to targets; first closes an open menu or box"],
     ["Enter (end card)", "Take the first offer: the next project, the undecided items left here, or Finish"],
 ];
 
-// The key overlay: every key, the last messages in full, and the single-key shortcuts switch.
+// The ten controls and keys pressed most in this browser: a button by its id or label, a key as
+// "key-J". Kept only here, never sent anywhere.
+function mostUsed() {
+    const top = Object.entries(usage())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+    return top.length === 0
+        ? el("p", { class: "meta" }, "Nothing counted yet.")
+        : el(
+              "ol",
+              { class: "usage" },
+              top.map(([name, n]) => el("li", {}, `${name}: ${n}`)),
+          );
+}
+
+// The key overlay: every key, the most used controls, the last messages in full, and the
+// single-key shortcuts switch.
 function toggleKeys() {
     const open = document.querySelector("dialog.keys");
     if (open) {
@@ -4112,6 +5678,8 @@ function toggleKeys() {
             {},
             KEYS.map(([k, what]) => el("tr", {}, el("td", {}, k), el("td", {}, what))),
         ),
+        el("h3", {}, "Most used in this browser"),
+        mostUsed(),
         el("h3", {}, "Recent messages"),
         el(
             "ol",
@@ -4156,18 +5724,17 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
         e.preventDefault();
         if (inInput) {
-            // Leaves the box; its text stays with its item. A reject waiting for its reason is dropped.
             e.target.blur();
-            if (state.pending) {
-                state.pending = null;
-                showStory();
-                say("");
-            }
             return;
         }
-        app.querySelector("details.menu[open]")?.removeAttribute("open");
-        if (state.screen === "story") {
+        // The grid's More menu is in the bar, outside app: any open menu closes before a level is left.
+        const menu = document.querySelector("details.menu[open]");
+        if (menu) {
+            menu.removeAttribute("open");
+        } else if (state.screen === "story") {
             toGrid();
+        } else {
+            showTargets();
         }
         return;
     }
@@ -4175,8 +5742,13 @@ document.addEventListener("keydown", (e) => {
         return;
     }
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (!state.shortcuts && /^[a-z/]$/.test(key)) {
+    if (!state.shortcuts && /^[a-z/[\]]$/.test(key)) {
         say(SHORTCUTS_OFF);
+        return;
+    }
+    if (key === "[" || key === "]") {
+        e.preventDefault();
+        stepProject(key === "]" ? 1 : -1);
         return;
     }
     if (state.screen === "grid") {
@@ -4206,22 +5778,29 @@ document.addEventListener("keydown", (e) => {
         return;
     }
     const keys = {
-        j: () => move(1),
-        k: () => move(-1),
-        a: () => decide("accept"),
-        r: () => decide("reject"),
-        e: () => decide("exclude"),
-        u: () => decide(null),
+        j: () => move(-1),
+        k: () => move(1),
+        a: () => decide("accept", e),
+        r: () => decide("reject", e),
+        e: () => decide("exclude", e),
+        u: () => decide(null, e),
         // In Spotlight, F flashes the spotlighted baseline and new instead of leaving it.
-        f: () =>
-            state.view === "spotlight"
-                ? state.spotFlash && !state.motion
-                    ? ((state.motion = true), showStory())
-                    : toggleOption("spotFlash")
-                : toggleView("flash"),
+        f: () => {
+            if (state.view !== "spotlight") {
+                return toggleView("flash");
+            }
+            if (state.spotFlash && !state.motion) {
+                state.motion = true;
+                showStory();
+                return;
+            }
+            return toggleOption("spotFlash");
+        },
         h: () => toggleView("highlight"),
         s: () => toggleView("spotlight"),
         b: () => toggleOption("showBox"),
+        p: () => toggleOption("baselinePane"),
+        o: () => toggleOption("focus"),
         l: () => {
             if (state.view !== "highlight") {
                 say("Blink works in Highlight (H).");
@@ -4250,6 +5829,7 @@ document.addEventListener("keydown", (e) => {
     }
     if (action) {
         e.preventDefault();
+        count(`key-${key.toUpperCase()}`);
         action();
     }
 });
@@ -4278,10 +5858,16 @@ async function copyLink() {
 document.getElementById("home").addEventListener("click", () => showTargets());
 document.getElementById("copy-link").addEventListener("click", copyLink);
 document.getElementById("keys-button").addEventListener("click", toggleKeys);
-window.addEventListener("popstate", () => route());
+globalThis.addEventListener("popstate", () => route());
+// Back on the page (another tab, the home screen): show the current list at once.
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && state.screen === "targets" && token) {
+        showTargets();
+    }
+});
 
 if (token === "") {
-    render(el("p", { class: "error" }, "No session token: open the URL that visual-review serve printed."));
+    askToken();
 } else {
     checkFinish();
     route();

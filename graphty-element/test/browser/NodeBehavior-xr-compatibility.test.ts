@@ -2,7 +2,6 @@ import { Vector3 } from "@babylonjs/core";
 import { assert } from "chai";
 import { afterEach, beforeEach, describe, test } from "vitest";
 
-import type { AdHocData } from "../../src/config/common";
 import { Graph } from "../../src/Graph";
 import type { Node as GraphNode } from "../../src/Node";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
@@ -24,7 +23,7 @@ describe("NodeBehavior XR Compatibility", () => {
 
         // Create test node using DataManager
         const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-1", label: "Test Node" } as unknown as AdHocData);
+        dataManager.addNode({ id: "test-node-1", label: "Test Node" });
         const retrievedNode = dataManager.getNode("test-node-1");
         assert.exists(retrievedNode, "Node should be created");
         node = retrievedNode;

@@ -571,74 +571,70 @@ import { bfsOptimized } from "@graphty/algorithms/optimized";
 import { shortestPathBFSOptimized } from "@graphty/algorithms/optimized";
 ```
 
-
 ## Performance Benchmarks
 
 ### Target Metrics
 
 Based on research and implementation analysis:
 
-| Algorithm | Graph Size | Current Performance | Target Performance | Expected Speedup |
-|-----------|------------|-------------------|-------------------|-----------------|
-| BFS | 1M nodes | ~800ms | <100ms | 8x |
-| BFS | 10M nodes | ~12s | <1s | 12x |
-| Connected Components | 1M nodes | ~1.2s | <200ms | 6x |
-| PageRank (via BFS) | 1M nodes | ~25s | <5s | 5x |
+| Algorithm            | Graph Size | Current Performance | Target Performance | Expected Speedup |
+| -------------------- | ---------- | ------------------- | ------------------ | ---------------- |
+| BFS                  | 1M nodes   | ~800ms              | <100ms             | 8x               |
+| BFS                  | 10M nodes  | ~12s                | <1s                | 12x              |
+| Connected Components | 1M nodes   | ~1.2s               | <200ms             | 6x               |
+| PageRank (via BFS)   | 1M nodes   | ~25s                | <5s                | 5x               |
 
 ### Benchmark Suite
 
 ```typescript
 interface BenchmarkResult {
-  algorithm: string;
-  graphSize: number;
-  edgeCount: number;
-  executionTime: number;
-  memoryUsed: number;
+    algorithm: string;
+    graphSize: number;
+    edgeCount: number;
+    executionTime: number;
+    memoryUsed: number;
 }
 
 class GraphBenchmark {
-  static async runBFSBenchmarks(): Promise<BenchmarkResult[]> {
-    const results: BenchmarkResult[] = [];
-    const sizes = [1000, 10_000, 100_000, 1_000_000];
+    static async runBFSBenchmarks(): Promise<BenchmarkResult[]> {
+        const results: BenchmarkResult[] = [];
+        const sizes = [1000, 10_000, 100_000, 1_000_000];
 
-    for (const size of sizes) {
-      // Generate scale-free graph (Barabási–Albert model)
-      const graph = generateScaleFreeGraph(size, 3);
+        for (const size of sizes) {
+            // Generate scale-free graph (Barabási–Albert model)
+            const graph = generateScaleFreeGraph(size, 3);
 
-      // Benchmark standard BFS
-      const standardResult = await this.benchmarkBFS(graph, false);
-      results.push(standardResult);
+            // Benchmark standard BFS
+            const standardResult = await this.benchmarkBFS(graph, false);
+            results.push(standardResult);
 
-      // Benchmark optimized BFS
-      const optimizedResult = await this.benchmarkBFS(graph, true);
-      results.push(optimizedResult);
+            // Benchmark optimized BFS
+            const optimizedResult = await this.benchmarkBFS(graph, true);
+            results.push(optimizedResult);
+        }
+
+        return results;
     }
 
-    return results;
-  }
+    private static async benchmarkBFS(graph: ReadonlyGraph<number>, optimized: boolean): Promise<BenchmarkResult> {
+        const start = performance.now();
+        const memBefore = process.memoryUsage().heapUsed;
 
-  private static async benchmarkBFS(
-    graph: ReadonlyGraph<number>,
-    optimized: boolean
-  ): Promise<BenchmarkResult> {
-    const start = performance.now();
-    const memBefore = process.memoryUsage().heapUsed;
+        // Run BFS from random source
+        const source = Math.floor(Math.random() * graph.nodeCount());
+        bfs(graph, source, { optimized });
 
-    // Run BFS from random source
-    const source = Math.floor(Math.random() * graph.nodeCount());
-    bfs(graph, source, { optimized });
+        const executionTime = performance.now() - start;
+        const memoryUsed = process.memoryUsage().heapUsed - memBefore;
 
-    const executionTime = performance.now() - start;
-    const memoryUsed = process.memoryUsage().heapUsed - memBefore;
-
-    return {
-      algorithm: optimized ? 'BFS-Optimized' : 'BFS-Standard',
-      graphSize: graph.nodeCount(),
-      edgeCount: graph.edgeCount(),
-      executionTime,
-      memoryUsed
-    };
-  }
+        return {
+            algorithm: optimized ? "BFS-Optimized" : "BFS-Standard",
+            graphSize: graph.nodeCount(),
+            edgeCount: graph.edgeCount(),
+            executionTime,
+            memoryUsed,
+        };
+    }
 }
 ```
 

@@ -1,4 +1,11 @@
-import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
+import {
+    type AdjacencyView,
+    INVALID_INDEX,
+    type NodeRef,
+    type NumericVector,
+    resolveNode,
+    type U32,
+} from "@graphty/graph-format";
 
 import { PathWalkError } from "../errors.js";
 import { arcSourceIn } from "./structures/arc-source.js";
@@ -18,15 +25,15 @@ export interface SsspResult {
     readonly predArc: U32;
     /**
      * Node indices from the source to `target` inclusive; empty when `target` is unreached.
-     * @param target - The node index to walk back from
+     * @param target - The node to walk back from: its index, or `{ id }`
      */
-    pathTo(target: number): U32;
+    pathTo(target: NodeRef): U32;
     /**
      * LOGICAL EDGE indices along that path, one fewer than `pathTo`; this is what graphty-element's
      * `isInPath` writes through. Empty when `target` is unreached.
-     * @param target - The node index to walk back from
+     * @param target - The node to walk back from: its index, or `{ id }`
      */
-    pathEdges(target: number): U32;
+    pathEdges(target: NodeRef): U32;
 }
 
 /** Options of the index-based SSSP. @public */
@@ -69,12 +76,13 @@ function walkBack(g: AdjacencyView, predArc: U32, source: number, target: number
  * @param g - The adjacency the search ran on
  * @param predArc - The search's predecessor-arc array
  * @param source - The search's source node index
- * @param target - The node to walk back from
+ * @param targetNode - The node to walk back from: its index, or `{ id }`
  * @returns Node indices from source to target inclusive, or an empty array when unreached
  * @throws PathWalkError when `predArc` has a gap or a cycle between `target` and `source`
  * @public
  */
-export function walkPredArcs(g: AdjacencyView, predArc: U32, source: number, target: number): U32 {
+export function walkPredArcs(g: AdjacencyView, predArc: U32, source: number, targetNode: NodeRef): U32 {
+    const target = resolveNode(g, targetNode);
     if (target === source) {
         return Uint32Array.of(source);
     }
@@ -94,12 +102,13 @@ export function walkPredArcs(g: AdjacencyView, predArc: U32, source: number, tar
  * @param g - The adjacency the search ran on
  * @param predArc - The search's predecessor-arc array
  * @param source - The search's source node index
- * @param target - The node to walk back from
+ * @param targetNode - The node to walk back from: its index, or `{ id }`
  * @returns Logical edge indices from source to target, or an empty array when unreached
  * @throws PathWalkError when `predArc` has a gap or a cycle between `target` and `source`
  * @public
  */
-export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, target: number): U32 {
+export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, targetNode: NodeRef): U32 {
+    const target = resolveNode(g, targetNode);
     if (target === source || predArc[target] === INVALID_INDEX) {
         return new Uint32Array(0);
     }
@@ -116,12 +125,13 @@ export function walkPredEdges(g: AdjacencyView, predArc: U32, source: number, ta
  * Dijkstra over an adjacency view, with the predecessor recorded as the relaxing ARC so a parallel
  * edge on the path is identified exactly.
  * @param g - The adjacency to search
- * @param source - The node index to start from
+ * @param sourceNode - The node to start from: its index, or `{ id }`
  * @param options - Cutoff and per-arc weight override
  * @returns The distances, the predecessor arcs, and the two path accessors
  * @public
  */
-export function dijkstra(g: AdjacencyView, source: number, options: SsspOptions = {}): SsspResult {
+export function dijkstra(g: AdjacencyView, sourceNode: NodeRef, options: SsspOptions = {}): SsspResult {
+    const source = resolveNode(g, sourceNode);
     const { nodeCount, rowPtr, colIdx } = g;
     const weights: NumericVector | null = options.weights ?? g.weights;
     const dist = new Float64Array(nodeCount).fill(Infinity);
@@ -148,7 +158,7 @@ export function dijkstra(g: AdjacencyView, source: number, options: SsspOptions 
     return {
         dist,
         predArc,
-        pathTo: (target: number): U32 => walkPredArcs(g, predArc, source, target),
-        pathEdges: (target: number): U32 => walkPredEdges(g, predArc, source, target),
+        pathTo: (target: NodeRef): U32 => walkPredArcs(g, predArc, source, target),
+        pathEdges: (target: NodeRef): U32 => walkPredEdges(g, predArc, source, target),
     };
 }

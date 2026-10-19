@@ -8,7 +8,7 @@
  *
  * That is how `Styles/Layered::ArrowSizeVariations` spent the 2.0 migration claiming three arrow
  * sizes in a comment while all three of its layers wrote a cap type and nothing else. Every gate
- * was green. Chromatic was green too, and could not have been anything else: the baseline it
+ * was green. The screenshot review was green too, and could not have been anything else: the baseline it
  * compares against was taken from the same hollow picture, so the day the sizes went away was the
  * day the baseline stopped being able to notice.
  *
@@ -305,7 +305,10 @@ describe("a layout, data or algorithm story demonstrates the key it is named aft
                 reports.flatMap((report) => report.findings),
                 [],
             );
-            assert.strictEqual(reports.reduce((total, report) => total + report.checked, 0), 1);
+            assert.strictEqual(
+                reports.reduce((total, report) => total + report.checked, 0),
+                1,
+            );
         });
     }
 });

@@ -12,7 +12,17 @@
  * @module
  */
 
-import type { AdjacencyView, F64, GraphSnapshot, U32 } from "@graphty/graph-format";
+import {
+    type AdjacencyView,
+    detLog,
+    type F64,
+    type GraphSnapshot,
+    type NodeRef,
+    type NodeSet,
+    resolveNode,
+    resolveNodeSet,
+    type U32,
+} from "@graphty/graph-format";
 
 import { type CommonNeighborsOptions, sortedRowMerge } from "./common-neighbors.js";
 
@@ -26,12 +36,18 @@ export interface LinkPredictionOptions extends CommonNeighborsOptions {
      * end, so 0 keeps none and -2 drops the last two.
      */
     readonly topK?: number | undefined;
+    /**
+     * List each pair once, lower node index first, so `topK` counts distinct pairs. Default false,
+     * which lists a pair both ways round unless `directed` is true. With `directed: true` each
+     * ordered pair is listed once anyway and this changes nothing.
+     */
+    readonly uniquePairs?: boolean | undefined;
 }
 
 /** Options of the per-node candidate functions. @public */
-export interface CandidateOptions extends LinkPredictionOptions {
-    /** The node indices to consider, in this order; default every node in index order. */
-    readonly candidates?: ArrayLike<number> | undefined;
+export interface CandidateOptions extends Omit<LinkPredictionOptions, "uniquePairs"> {
+    /** The nodes to consider (indices, `{ mask }` or `{ ids }`), in this order; default every node in index order. */
+    readonly candidates?: NodeSet | undefined;
 }
 
 /** Node pairs as two parallel index lists: pair k is (sources[k], targets[k]). @public */
@@ -77,7 +93,7 @@ function adamicAdarWeight(degree: number): number {
     // ponytail: exact only while a pair's score stays below 2^16 (tens of thousands of hub neighbours);
     // a coarser grid chosen from the graph's largest row sum lifts that ceiling if it is ever reached.
     if (degree > 1) {
-        return Math.round(WEIGHT_GRID / Math.log(degree)) / WEIGHT_GRID;
+        return Math.round(WEIGHT_GRID / detLog(degree)) / WEIGHT_GRID;
     }
     return degree === 1 ? 1 : 0;
 }
@@ -158,13 +174,42 @@ function ranked(sources: number[], targets: number[], scores: number[], end: num
     };
 }
 
+/**
+ * Append the pair (u, v) with its score, and its reverse with the same score when `mirror` is set.
+ * @param sources - Pair sources
+ * @param targets - Pair targets
+ * @param scores - Pair scores
+ * @param u - The pair's source
+ * @param v - The pair's target
+ * @param x - The pair's score
+ * @param mirror - Whether to list the reverse pair too
+ */
+function addPair(
+    sources: number[],
+    targets: number[],
+    scores: number[],
+    u: number,
+    v: number,
+    x: number,
+    mirror: boolean,
+): void {
+    sources.push(u);
+    targets.push(v);
+    scores.push(x);
+    if (mirror) {
+        sources.push(v);
+        targets.push(u);
+        scores.push(x);
+    }
+}
+
 function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): LinkPredictionResult {
     const sources: number[] = [];
     const targets: number[] = [];
     const scores: number[] = [];
-    // Each unordered pair is scored once as (u, v), u < v; without `directed` the reverse pair is
-    // listed too with the same score. Existence is tested on the arc u -> v only.
-    const mirror = o.directed !== true;
+    // Each unordered pair is scored once as (u, v), u < v; without `directed` or `uniquePairs` the
+    // reverse pair is listed too with the same score. Existence is tested on the arc u -> v only.
+    const mirror = o.directed !== true && o.uniquePairs !== true;
     for (let u = 0; u < s.nodeCount; u++) {
         for (let v = u + 1; v < s.nodeCount; v++) {
             if (o.includeExisting !== true && s.hasArc(u, v)) {
@@ -172,14 +217,7 @@ function predict(s: GraphSnapshot, o: LinkPredictionOptions, score: PairScore): 
             }
             const x = score(u, v);
             if (x > 0) {
-                sources.push(u);
-                targets.push(v);
-                scores.push(x);
-                if (mirror) {
-                    sources.push(v);
-                    targets.push(u);
-                    scores.push(x);
-                }
+                addPair(sources, targets, scores, u, v, x, mirror);
             }
         }
     }
@@ -197,7 +235,8 @@ function candidatesOf(s: GraphSnapshot, u: number, o: CandidateOptions, score: P
     const targets: number[] = [];
     const scores: number[] = [];
     if (u < n) {
-        const list = o.candidates ?? Array.from({ length: n }, (_, i) => i);
+        const list =
+            o.candidates === undefined ? Array.from({ length: n }, (_, i) => i) : resolveNodeSet(s, o.candidates);
         for (let k = 0; k < list.length; k++) {
             const v = list[k];
             if (v === u || (o.includeExisting !== true && v < n && s.hasArc(u, v))) {
@@ -276,12 +315,17 @@ export function commonNeighborsForPairs(s: GraphSnapshot, pairs: NodePairs, o: C
 /**
  * One node's best common-neighbour candidates, ranked.
  * @param s - The snapshot
- * @param u - The node index
+ * @param uNode - The node: its index, or `{ id }`
  * @param o - Options
  * @returns (u, v) pairs with a positive score, highest first
  * @public
  */
-export function getTopCandidatesForNode(s: GraphSnapshot, u: number, o: CandidateOptions = {}): LinkPredictionResult {
+export function getTopCandidatesForNode(
+    s: GraphSnapshot,
+    uNode: NodeRef,
+    o: CandidateOptions = {},
+): LinkPredictionResult {
+    const u = resolveNode(s, uNode);
     return candidatesOf(s, u, o, scorer(s, o));
 }
 
@@ -307,13 +351,20 @@ export function evaluateCommonNeighbors(
 /**
  * The Adamic-Adar index of two nodes: the sum over distinct common neighbours z of 1 / ln(degree(z)).
  * @param s - The snapshot
- * @param u - A node index
- * @param v - A node index
+ * @param uNode - A node: its index, or `{ id }`
+ * @param vNode - A node: its index, or `{ id }`
  * @param o - Options
  * @returns The score
  * @public
  */
-export function adamicAdarScore(s: GraphSnapshot, u: number, v: number, o: CommonNeighborsOptions = {}): number {
+export function adamicAdarScore(
+    s: GraphSnapshot,
+    uNode: NodeRef,
+    vNode: NodeRef,
+    o: CommonNeighborsOptions = {},
+): number {
+    const u = resolveNode(s, uNode);
+    const v = resolveNode(s, vNode);
     return scorer(s, o, adamicAdarWeightOf(s, o.directed === true))(u, v);
 }
 
@@ -343,16 +394,17 @@ export function adamicAdarForPairs(s: GraphSnapshot, pairs: NodePairs, o: Common
 /**
  * One node's best Adamic-Adar candidates, ranked.
  * @param s - The snapshot
- * @param u - The node index
+ * @param uNode - The node: its index, or `{ id }`
  * @param o - Options
  * @returns (u, v) pairs with a positive score, highest first
  * @public
  */
 export function getTopAdamicAdarCandidatesForNode(
     s: GraphSnapshot,
-    u: number,
+    uNode: NodeRef,
     o: CandidateOptions = {},
 ): LinkPredictionResult {
+    const u = resolveNode(s, uNode);
     return candidatesOf(s, u, o, adamicAdarScorer(s, o));
 }
 

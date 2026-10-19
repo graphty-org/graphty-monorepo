@@ -22,6 +22,7 @@ import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
 import { NODE_OUTLINE_CAVEAT } from "../../session/styles/channels";
 import type { TransactionScope } from "../../session/types";
+import { CONNECTED_BY_SYNTAX, isMatchAllSelector, nodeScopeOf, normalizeSelector, SELECTOR_SYNTAX } from "./selectors";
 import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
@@ -54,7 +55,7 @@ const NodeStyleParamsSchema = z
             .number()
             .positive()
             .optional()
-            .describe("Glow effect strength. One strength is drawn at a time for the whole scene"),
+            .describe("Glow effect strength. It scales a glow color and draws nothing without one"),
         outlineColor: z.string().optional().describe("Outline color"),
         outlineWidth: z
             .number()
@@ -198,23 +199,6 @@ function edgeChannels(params: z.infer<typeof EdgeStyleParamsSchema>): {
 }
 
 /**
- * Common selector spellings that mean "every element".
- *
- * A model reaches for one of these when it wants the whole graph, and the element's own spelling
- * for that is `{match: "everything"}` -- never an empty expression, which is refused.
- */
-const MATCH_ALL_SELECTORS = new Set(["", "*", "all", "*.*", "true"]);
-
-/**
- * Whether a selector means "every element".
- * @param selector - The selector string as it arrived.
- * @returns True when it should become `{match: "everything"}`.
- */
-function isMatchAllSelector(selector: string): boolean {
-    return !selector || MATCH_ALL_SELECTORS.has(selector.toLowerCase().trim());
-}
-
-/**
  * Build the layer one style command adds.
  *
  * The selector is normalised for quotes only. The element's expression parser accepts single
@@ -223,19 +207,26 @@ function isMatchAllSelector(selector: string): boolean {
  * @param target - Whether it paints nodes or edges.
  * @param selector - The selector as it arrived, empty or a match-all word meaning everything.
  * @param set - The literal channel values it writes.
+ * @param connectedBy - For a node layer, an edge expression: only nodes at an end of a matching edge.
  * @returns The specification to hand to `session.styles.add()`.
  */
-function layerSpecOf(name: string, target: "node" | "edge", selector: string, set: StaticStyle): LayerSpec {
-    return {
-        name,
-        target,
-        kind: "custom",
-        source: AI_LAYER_SOURCE,
-        selector: isMatchAllSelector(selector)
-            ? { match: "everything" }
-            : { match: "expression", where: selector.replace(/"/g, "'") },
-        set,
-    };
+function layerSpecOf(
+    name: string,
+    target: "node" | "edge",
+    selector: string,
+    set: StaticStyle,
+    connectedBy?: string,
+): LayerSpec {
+    let layerSelector: LayerSpec["selector"];
+    if (connectedBy !== undefined) {
+        layerSelector = { match: "member", of: nodeScopeOf(selector, connectedBy) };
+    } else if (isMatchAllSelector(selector)) {
+        layerSelector = { match: "everything" };
+    } else {
+        layerSelector = { match: "expression", where: normalizeSelector(selector) };
+    }
+
+    return { name, target, kind: "custom", source: AI_LAYER_SOURCE, selector: layerSelector, set };
 }
 
 /**
@@ -312,13 +303,10 @@ async function addLayer(
 export const findAndStyleNodes: GraphCommand = {
     name: "findAndStyleNodes",
     description:
-        "Style the nodes matching a selector by adding a style layer. Use an empty selector to match every node. A node's own fields are published under 'data.', so write 'data.type == \"server\"'. Styles include color, size, shape, glow color and outline color.",
+        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color and outline color.",
     parameters: z.object({
-        selector: z
-            .string()
-            .describe(
-                "Expression matching nodes (empty string matches all). A record's own fields live under 'data.', so write 'data.type == \"server\"'.",
-            ),
+        selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
+        connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
         style: NodeStyleParamsSchema,
         layerName: z.string().optional().describe("Name for this style layer (for later removal)"),
     }),
@@ -336,6 +324,15 @@ export const findAndStyleNodes: GraphCommand = {
             },
         },
         {
+            input: "Highlight the servers that have a slow link",
+            params: {
+                selector: "data.type == 'server'",
+                connectedBy: "data.latency > `50`",
+                style: { color: "#ff9900", glowColor: "#ff9900" },
+                layerName: "servers-with-slow-links",
+            },
+        },
+        {
             input: "Make nodes larger",
             params: { selector: "", style: { size: 2 }, layerName: "large-nodes" },
         },
@@ -348,17 +345,24 @@ export const findAndStyleNodes: GraphCommand = {
     async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
         const {
             selector,
+            connectedBy,
             style: styleParams,
             layerName = `ai-node-style-${Date.now()}`,
         } = params as {
             selector: string;
+            connectedBy?: string;
             style: z.infer<typeof NodeStyleParamsSchema>;
             layerName?: string;
         };
 
         const { set, unsupported } = nodeChannels(styleParams);
 
-        return addLayer(writerOf(graph, context), layerSpecOf(layerName, "node", selector, set), unsupported, "node");
+        return addLayer(
+            writerOf(graph, context),
+            layerSpecOf(layerName, "node", selector, set, connectedBy),
+            unsupported,
+            "node",
+        );
     },
 };
 
@@ -368,13 +372,9 @@ export const findAndStyleNodes: GraphCommand = {
 export const findAndStyleEdges: GraphCommand = {
     name: "findAndStyleEdges",
     description:
-        "Style the edges matching a selector by adding a style layer. Use an empty selector to match every edge. An edge's own fields are published under 'data.', so write 'data.weight > `0.5`'. Styles include color, width and line pattern.",
+        "Style the edges matching a selector by adding a style layer. Takes the same selector as findAndStyleNodes. Styles include color, width and line pattern.",
     parameters: z.object({
-        selector: z
-            .string()
-            .describe(
-                "Expression matching edges (empty string matches all). A record's own fields live under 'data.', so write 'data.weight > `0.5`'.",
-            ),
+        selector: z.string().describe(`Expression matching edges. ${SELECTOR_SYNTAX}`),
         style: EdgeStyleParamsSchema,
         layerName: z.string().optional().describe("Name for this style layer (for later removal)"),
     }),

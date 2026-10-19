@@ -112,6 +112,8 @@ export abstract class MetricAlgorithm<
                 // the bottom -- is computed from the column the measurement produced.
                 graph: { normalization: measurement.normalization },
                 nodes: measurement.nodes,
+                // Read through the snapshot's own id index, rather than a copy, when the nodes match it.
+                snapshotIds: input.graph.ids,
                 caveats: measurement.caveats,
                 durationMs: Date.now() - startedAt,
             }),

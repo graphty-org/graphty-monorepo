@@ -1,9 +1,10 @@
 import type { F32, GraphSnapshot } from "@graphty/graph-format";
 
-import type { LayoutResult } from "../positions";
-import { seedPositions } from "../simulation/seed";
-import { toLayoutSnapshot } from "../simulation/snapshot";
-import { layoutDim, startColumn } from "./start";
+import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { seedPositions } from "../simulation/seed.js";
+import { toLayoutSnapshot } from "../simulation/snapshot.js";
+import { refusal } from "./common.js";
+import { layoutDim, startColumn } from "./start.js";
 
 /** Options of indexed.arf. */
 export interface ArfOptions {
@@ -18,11 +19,20 @@ export interface ArfOptions {
     readonly a?: number | undefined;
     /** The iteration cap; default 1000. The run also stops once the summed force falls to 1e-6. */
     readonly maxIter?: number | undefined;
+    /**
+     * When given (or when `center` is), the result is rescaled so the farthest node is `scale` from `center`, as every
+     * other one-shot layout's is; default 1 then. When neither is given the result keeps the scale the forces settled
+     * at.
+     */
+    readonly scale?: number | undefined;
+    /** The centre the result is rescaled about (missing components are 0); see `scale`. */
+    readonly center?: ArrayLike<number> | undefined;
 }
 
 /**
- * The attractive and repulsive forces layout (networkx's `arf_layout`). Its result is not rescaled: the forces
- * settle at their own scale, which `scaling` sets.
+ * The attractive and repulsive forces layout (networkx's `arf_layout`). Without `scale` or `center` its result is not
+ * rescaled: the forces settle at their own scale, which `scaling` sets. With either, the farthest node ends `scale`
+ * from `center`.
  * @param g - the graph; a directed snapshot is laid out as its undirected copy
  * @param options - the options
  * @returns `dim` values per node
@@ -30,7 +40,7 @@ export interface ArfOptions {
 export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
     const { scaling = 1, a = 1.1, maxIter = 1000 } = options;
     if (a <= 1) {
-        throw new Error("The parameter a should be larger than 1");
+        throw refusal(new Error("The parameter a should be larger than 1"), "E_BAD_OPTION", { option: "a", value: a });
     }
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
@@ -72,7 +82,8 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
                 const dist = Math.sqrt(squares) || 0.01;
                 const spring = neighbour[j] === i + 1 ? a : 1;
                 for (let k = 0; k < dim; k++) {
-                    change[dim * i + k] += spring * diff[k] - (rho / dist) * diff[k];
+                    // diff points from j to i: the spring pulls i toward j, the repulsion pushes it away
+                    change[dim * i + k] += (rho / dist) * diff[k] - spring * diff[k];
                 }
             }
         }
@@ -85,6 +96,9 @@ export function arf(g: GraphSnapshot, options: ArfOptions = {}): LayoutResult {
             }
             error += Math.sqrt(squares);
         }
+    }
+    if (options.scale !== undefined || options.center !== undefined) {
+        rescaleInPlace(p, dim, options.scale ?? 1, options.center);
     }
     return { positions: Float32Array.from(p), dim, n };
 }

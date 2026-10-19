@@ -97,10 +97,7 @@ describe("the force layouts' option mapping", () => {
 
     it("keeps two accelerated batches in flight unless a host says otherwise", () => {
         assert.strictEqual(resolveSimulationOptions("forceatlas2", {}, BEHAVIOR).maxInFlight, 2);
-        assert.strictEqual(
-            resolveSimulationOptions("forceatlas2", {}, { ...BEHAVIOR, maxInFlight: 1 }).maxInFlight,
-            1,
-        );
+        assert.strictEqual(resolveSimulationOptions("forceatlas2", {}, { ...BEHAVIOR, maxInFlight: 1 }).maxInFlight, 1);
         assert.strictEqual(resolveSimulationOptions("forceatlas2", { maxInFlight: 4 }, BEHAVIOR).maxInFlight, 4);
     });
 
@@ -122,8 +119,10 @@ describe("the force layouts' option mapping", () => {
             300,
         );
         assert.strictEqual(
-            (resolveSimulationOptions("spring", { scalingFactor: 2, scale: 3 }, BEHAVIOR)
-                .model as FruchtermanReingoldOptions).scale,
+            (
+                resolveSimulationOptions("spring", { scalingFactor: 2, scale: 3 }, BEHAVIOR)
+                    .model as FruchtermanReingoldOptions
+            ).scale,
             6,
         );
     });
@@ -152,8 +151,7 @@ describe("the force layouts' option mapping", () => {
     });
 
     it("maps Spring Electrical's five ngraph names, with ngraph's defaults", () => {
-        const defaults = resolveSimulationOptions("spring-electrical", {}, BEHAVIOR)
-            .model as SpringElectricalOptions;
+        const defaults = resolveSimulationOptions("spring-electrical", {}, BEHAVIOR).model as SpringElectricalOptions;
 
         assert.deepEqual(
             [
@@ -176,6 +174,14 @@ describe("the force layouts' option mapping", () => {
             [set.springLength, set.springCoefficient, set.gravity, set.dragCoefficient, set.timeStep],
             [30, 0.5, -6, 0.7, 0.25],
         );
+    });
+
+    it("hands Spring Electrical its iteration cap, and no cap by default", () => {
+        const model = (options: Record<string, unknown>): SpringElectricalOptions =>
+            resolveSimulationOptions("spring-electrical", options, BEHAVIOR).model;
+
+        assert.strictEqual(model({}).maxIter, null, "no cap: the run ends when it settles");
+        assert.strictEqual(model({ maxIter: 250 }).maxIter, 250);
     });
 
     it("resolves a node-mass record by node id, not by insertion order", () => {

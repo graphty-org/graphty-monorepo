@@ -103,7 +103,7 @@ const BUILTIN_TYPES: ReadonlySet<string> = new Set([
     "vec4h",
 ]);
 const TEMPLATED_BUILTIN = /^(vec[234]|mat[234]x[234]|atomic|array)</;
-const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const IDENTIFIER = /^[A-Za-z_]\w*$/;
 /** The `var<...>` form of each binding kind (contract 4.2). */
 const ADDRESS_SPACE: Readonly<Record<BindingDecl["kind"], string>> = Object.freeze({
     storage: "var<storage, read_write>",
@@ -112,10 +112,10 @@ const ADDRESS_SPACE: Readonly<Record<BindingDecl["kind"], string>> = Object.free
 });
 /** The reserved words as a set (the frozen list stays the public form). */
 const RESERVED: ReadonlySet<string> = new Set(WGSL_RESERVED_WORDS);
-const MARKER = /\/\/@@([A-Za-z0-9_]+)@@/;
-const IDENTIFIER_TOKENS = /(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*/g;
+const MARKER = /\/\/@@(\w+)@@/;
+const IDENTIFIER_TOKENS = /(?<!\w)[A-Za-z_]\w*/g;
 const COMPUTE_ATTRIBUTE = /@compute\b/g;
-const ENTRY_FN = /\bfn\s+([A-Za-z_][A-Za-z0-9_]*)/;
+const ENTRY_FN = /\bfn\s+([A-Za-z_]\w*)/;
 
 /**
  * The compose-time error of contract 3.9.
@@ -482,7 +482,7 @@ function referencedOverrides(
         .replace(/^\s*override\s+\w+\s*:[^\n]*$/gm, " ");
     const referenced: Record<string, number | boolean> = {};
     for (const [name, value] of Object.entries(overrides)) {
-        if (new RegExp(`\\b${name}\\b`).test(stripped)) {
+        if (new RegExp(String.raw`\b${name}\b`).test(stripped)) {
             referenced[name] = value;
         }
     }

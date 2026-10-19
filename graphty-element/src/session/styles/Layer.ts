@@ -61,10 +61,15 @@ import type {
     StaticStyle,
 } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
+import type { GraphtyWarningCode } from "../../errors/codes";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, toColorValue } from "./channels";
-import type { CompiledSelector, SelectorSource, SelectorTarget } from "./predicate";
+import { trimTrailingSeparators } from "../runs/runId";
+import type { CodedFact } from "../shared";
+import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
+import { type RuleBinding, stopsProblem } from "./encoding";
+import type { FileStyleOrigin } from "./fileStyles/origin";
+import { columnsFor, type CompiledSelector, type SelectorSource, type SelectorTarget } from "./predicate";
 import type { ScaleRegistry } from "./scales";
 import { compileSelector, type Selector } from "./selector";
 
@@ -124,6 +129,12 @@ export interface Layer {
      * with the next release.
      */
     readonly userData?: Record<string, unknown>;
+    /**
+     * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
+     * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
+     * bag is never shared with them. Never used to paint.
+     */
+    readonly fileStyle?: FileStyleOrigin;
 }
 
 /**
@@ -191,6 +202,25 @@ export interface ValidationResult {
      * have meant the column, which reads as `data.graphty.<name>`.
      */
     readonly shadowedPaths: readonly Path[];
+    /**
+     * What will paint nothing, or not as written, as codes. Not errors: the layer is still added.
+     *
+     * `W_UNKNOWN_ID`: a `{ match: "ids" }` selector names ids no element of the layer's target
+     * answers to now, by either spelling of an integer id. `params.target` is `"node"` or
+     * `"edge"`, `params.ids` those ids as the layer named them.
+     *
+     * `W_ALPHA_IGNORED`: a color with an alpha written to a channel that cannot draw it
+     * translucent (`node.outline`), so it is drawn opaque. `params.channel` and `params.path`.
+     *
+     * `W_LABEL_STYLE_BOUND`: a whole label style channel (`node.labelStyle`) bound to a path. No
+     * scale produces a whole label style, so the binding paints nothing. `params.channel` is the
+     * channel, `params.path` where in the specification (`encode.node.labelStyle`), and
+     * `params.fieldChannels` the label field channels that can be bound instead
+     * (`node.labelSize` ...), empty when the channel has none.
+     *
+     * New codes may be added in a minor release: word an unknown one generically.
+     */
+    readonly warnings: readonly CodedFact<GraphtyWarningCode>[];
 }
 
 /**
@@ -368,6 +398,62 @@ const NO_PATHS: readonly Path[] = Object.freeze([]);
 /** Nothing was wrong. */
 const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
 
+/** Nothing to warn about. */
+const NO_WARNINGS: readonly CodedFact<GraphtyWarningCode>[] = Object.freeze([]);
+
+/**
+ * The warnings a layer's selector earns: the ids an `ids` selector names that nothing answers to.
+ * @param spec - The specification.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param elements - Where an id is looked up.
+ * @returns The warnings; none when the session cannot look an id up.
+ */
+function selectorWarnings(
+    spec: LayerSpec,
+    target: SelectorTarget | null,
+    elements: SelectorSource,
+): readonly CodedFact<GraphtyWarningCode>[] {
+    const selector = spec.selector as { match?: unknown; nodes?: unknown; edges?: unknown } | null | undefined;
+    if (target === null || selector?.match !== "ids") {
+        return NO_WARNINGS;
+    }
+
+    const named = (target === "node" ? selector.nodes : selector.edges) as readonly (string | number)[] | undefined;
+    const { indexOf } = columnsFor(elements, target);
+    if (named === undefined || indexOf === null) {
+        return NO_WARNINGS;
+    }
+
+    const unknown = named.filter((id) => indexOf(id) === undefined);
+
+    return unknown.length === 0
+        ? NO_WARNINGS
+        : Object.freeze([
+              Object.freeze({ code: "W_UNKNOWN_ID" as const, params: Object.freeze({ target, ids: unknown }) }),
+          ]);
+}
+
+/** The color channels that draw a color opaque whatever its alpha. See `NodeEffects.applyOutlineEffect`. */
+const OPAQUE_COLOR_CHANNELS: readonly string[] = ["node.outline"];
+
+/**
+ * The warnings a layer's literal colors earn: an alpha written to a channel that cannot draw it.
+ *
+ * Every other color channel multiplies a color's alpha into its opacity (issue #2071); an
+ * outline cannot be drawn translucent, so its alpha is dropped and this says so.
+ * @param spec - The specification.
+ * @returns The warnings; none when every literal color can be drawn as written.
+ */
+function alphaWarnings(spec: LayerSpec): readonly CodedFact<GraphtyWarningCode>[] {
+    return OPAQUE_COLOR_CHANNELS.filter((channel) => {
+        const color = toColorValue(asColorInput(spec.set?.[channel as keyof typeof spec.set]));
+
+        return color !== null && color.a < 1;
+    }).map((channel) =>
+        Object.freeze({ code: "W_ALPHA_IGNORED" as const, params: Object.freeze({ channel, path: `set.${channel}` }) }),
+    );
+}
+
 /**
  * Mint the id a new layer will carry.
  *
@@ -382,10 +468,9 @@ const NO_PROBLEMS: readonly LayerProblem[] = Object.freeze([]);
 export function mintLayerId(name: string, taken: ReadonlySet<LayerId>): LayerId {
     const slug = name
         .toLowerCase()
-        .replace(/[^a-z0-9_-]+/g, "-")
-        .replace(/^[^a-z]+/, "")
-        .replace(/[-_]+$/, "");
-    const base = slug === "" ? ID_FALLBACK : slug;
+        .replaceAll(/[^a-z0-9_-]+/g, "-")
+        .replace(/^[^a-z]+/, "");
+    const base = trimTrailingSeparators(slug) || ID_FALLBACK;
 
     let suffix = 1;
     let id = `${base}_${String(suffix)}`;
@@ -483,6 +568,8 @@ function asColorInput(value: unknown): Rgba | string | null {
 interface ProblemLog {
     /** The problems so far, in the order they were found. */
     readonly problems: LayerProblem[];
+    /** The warnings so far, in the order they were found. */
+    readonly warnings: CodedFact<GraphtyWarningCode>[];
     /** The paths the specification reads, in the order it names them, without repeats. */
     readonly paths: Path[];
 }
@@ -710,6 +797,10 @@ function checkBinding(
         return;
     }
 
+    if (descriptor.accepts === "labelStyle") {
+        warnLabelStyleBound(descriptor, path, log);
+    }
+
     if (typeof binding.by !== "string" || binding.by.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",
@@ -721,7 +812,55 @@ function checkBinding(
     }
 
     readsPath(log, binding.by);
+    checkBindingOptions(descriptor, binding, path, options, log);
 
+    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
+        report(log, {
+            code: "E_UNSCOPED_RUN_ENCODING",
+            message:
+                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
+                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
+                `with { match: "has", path: "${binding.by}" }.`,
+            path: "selector",
+        });
+    }
+}
+
+/**
+ * Reports a binding of a whole label style channel. Accepted, because refusing would reject stacks that load today,
+ * saved projects among them; reported, because no scale produces a whole label style, so it paints nothing.
+ * @param descriptor - The channel.
+ * @param path - Where in the specification the binding sits.
+ * @param log - Where warnings are collected.
+ */
+function warnLabelStyleBound(descriptor: ChannelDescriptor, path: string, log: ProblemLog): void {
+    log.warnings.push({
+        code: "W_LABEL_STYLE_BOUND",
+        params: {
+            channel: descriptor.channel,
+            path,
+            fieldChannels: channelsFor(descriptor.target)
+                .map((entry) => entry.channel)
+                .filter((channel) => labelFieldOf(channel)?.into === descriptor.channel),
+        },
+    });
+}
+
+/**
+ * Check what a binding says besides its path: its scale, palette, overflow, unmapped values, stops and hidden values.
+ * @param descriptor - The channel it writes.
+ * @param binding - The binding.
+ * @param path - Where in the specification it sits.
+ * @param options - The scales a binding may name.
+ * @param log - Where problems are collected.
+ */
+function checkBindingOptions(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    path: string,
+    options: LayerCheckOptions,
+    log: ProblemLog,
+): void {
     if (binding.scale !== undefined && options.scales.get(binding.scale) === undefined) {
         report(log, {
             code: "E_UNKNOWN_SCALE",
@@ -762,14 +901,29 @@ function checkBinding(
         });
     }
 
-    if (universal && binding.by.startsWith(RUN_PATH_PREFIX)) {
+    if (binding.unmapped !== undefined && binding.unmapped !== "skip") {
         report(log, {
-            code: "E_UNSCOPED_RUN_ENCODING",
-            message:
-                `This layer paints every ${descriptor.target} and encodes ${descriptor.channel} from "${binding.by}", ` +
-                "which would paint elements the run never measured. Scope it to the elements that carry the result " +
-                `with { match: "has", path: "${binding.by}" }.`,
-            path: "selector",
+            code: "E_BAD_LAYER",
+            message: `"${String(binding.unmapped)}" is not what an unmapped value does.`,
+            path: `${path}.unmapped`,
+            candidates: ["skip"],
+        });
+    }
+
+    const stops = binding.stops === undefined ? null : stopsProblem(descriptor, binding);
+    if (stops !== null) {
+        report(log, { code: "E_BAD_LAYER", message: stops, path: `${path}.stops` });
+    }
+
+    if (
+        binding.hidden !== undefined &&
+        (!Array.isArray(binding.hidden) ||
+            !binding.hidden.every((value) => ["string", "number", "boolean"].includes(typeof value)))
+    ) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: "hidden lists the values not to paint, such as [0, 3]: strings, numbers or booleans.",
+            path: `${path}.hidden`,
         });
     }
 }
@@ -876,7 +1030,7 @@ function checkSelector(
         // A selector's parse errors do not depend on which kind of element it speaks about, so an
         // unsettled target is compiled as a node selector to get the rest of the report out. The
         // layer itself is refused either way, because `target` is what decides what it paints.
-        const compiled = compileSelector(spec.selector as Selector, target ?? "node", options.elements);
+        const compiled = compileSelector(spec.selector, target ?? "node", options.elements);
 
         for (const path of compiled.paths) {
             readsPath(log, path);
@@ -900,12 +1054,7 @@ function checkSelector(
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
     const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
-    if (
-        options.admitScope === undefined ||
-        typeof selector !== "object" ||
-        selector === null ||
-        selector.match !== "member"
-    ) {
+    if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
 
@@ -970,7 +1119,7 @@ function checkChannels(
  * @returns The verdict, and the compiled layer when the verdict is that it is sound.
  */
 export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): LayerCheck {
-    const log: ProblemLog = { problems: [], paths: [] };
+    const log: ProblemLog = { problems: [], warnings: [], paths: [] };
     const spec = admitSelectorScope(given, options, log);
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
@@ -1002,13 +1151,22 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
                 errors: Object.freeze([...log.problems]),
                 unresolvedPaths,
                 shadowedPaths,
+                warnings: log.warnings.length === 0 ? NO_WARNINGS : Object.freeze([...log.warnings]),
             }),
             layer: null,
         };
     }
 
+    const warnings = [...log.warnings, ...selectorWarnings(spec, target, options.elements), ...alphaWarnings(spec)];
+
     return {
-        result: Object.freeze({ ok: true, errors: NO_PROBLEMS, unresolvedPaths, shadowedPaths }),
+        result: Object.freeze({
+            ok: true,
+            errors: NO_PROBLEMS,
+            unresolvedPaths,
+            shadowedPaths,
+            warnings: warnings.length === 0 ? NO_WARNINGS : Object.freeze(warnings),
+        }),
         layer: buildLayer(spec, options.id, target, compiled, log.paths),
     };
 }
@@ -1047,6 +1205,7 @@ function buildLayer(
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
+        ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1062,11 +1221,12 @@ export function specOf(layer: Layer): LayerSpec {
         name: layer.name,
         target: layer.target,
         kind: layer.kind,
-        selector: layer.selector as LayerSpec["selector"],
+        selector: layer.selector,
         source: layer.source,
         enabled: layer.enabled,
         ...(layer.set === undefined ? {} : { set: layer.set }),
         ...(layer.encode === undefined ? {} : { encode: layer.encode }),
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
+        ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
     };
 }

@@ -7,10 +7,7 @@ import * as os from "os";
 import * as path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-    logsGetFilePathHandler,
-    logsGetFilePathTool,
-} from "../../../src/mcp/tools/logs-get-file-path.js";
+import { logsGetFilePathHandler, logsGetFilePathTool } from "../../../src/mcp/tools/logs-get-file-path.js";
 import { JsonlWriter } from "../../../src/server/jsonl-writer.js";
 import { LogStorage } from "../../../src/server/log-storage.js";
 
@@ -88,7 +85,10 @@ describe("logs_get_file_path tool with JsonlWriter", () => {
     let testBaseDir: string;
 
     beforeEach(() => {
-        testBaseDir = path.join(os.tmpdir(), `logs-get-file-path-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        testBaseDir = path.join(
+            os.tmpdir(),
+            `logs-get-file-path-test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        );
         jsonlWriter = new JsonlWriter(testBaseDir);
         storage = new LogStorage({ jsonlWriter });
     });
@@ -106,9 +106,9 @@ describe("logs_get_file_path tool with JsonlWriter", () => {
         const marker = "file-exists-test";
 
         // Add logs to storage (which writes to JSONL)
-        storage.addLogs(`${marker}-session`, [
-            { time: new Date().toISOString(), level: "INFO", message: "Test log" },
-        ], { projectMarker: marker });
+        storage.addLogs(`${marker}-session`, [{ time: new Date().toISOString(), level: "INFO", message: "Test log" }], {
+            projectMarker: marker,
+        });
 
         await jsonlWriter.flush();
 
@@ -123,9 +123,11 @@ describe("logs_get_file_path tool with JsonlWriter", () => {
     it("returns correct file size after logs written", async () => {
         const marker = "file-size-test";
 
-        storage.addLogs(`${marker}-session`, [
-            { time: new Date().toISOString(), level: "INFO", message: "Test log message" },
-        ], { projectMarker: marker });
+        storage.addLogs(
+            `${marker}-session`,
+            [{ time: new Date().toISOString(), level: "INFO", message: "Test log message" }],
+            { projectMarker: marker },
+        );
 
         await jsonlWriter.flush();
 
@@ -140,10 +142,14 @@ describe("logs_get_file_path tool with JsonlWriter", () => {
     it("file contains valid JSONL format", async () => {
         const marker = "jsonl-format-test";
 
-        storage.addLogs(`${marker}-session`, [
-            { time: "2024-01-15T10:00:00Z", level: "INFO", message: "First" },
-            { time: "2024-01-15T10:00:01Z", level: "ERROR", message: "Second" },
-        ], { projectMarker: marker });
+        storage.addLogs(
+            `${marker}-session`,
+            [
+                { time: "2024-01-15T10:00:00Z", level: "INFO", message: "First" },
+                { time: "2024-01-15T10:00:01Z", level: "ERROR", message: "Second" },
+            ],
+            { projectMarker: marker },
+        );
 
         await jsonlWriter.flush();
 

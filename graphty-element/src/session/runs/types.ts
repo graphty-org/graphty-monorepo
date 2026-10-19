@@ -29,22 +29,17 @@ import type {
     ScopeInput,
     SetId,
 } from "../../catalog/types";
+import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
+import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
+import type { CodedFact } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
+import type { CaveatCode, PartialCode } from "./caveatFacts";
 
 // ---------------------------------------------------------------------------------------------
 // Identity
 // ---------------------------------------------------------------------------------------------
-
-/**
- * The identity of a journal entry.
- *
- * Declared here because a run carries the entry its command wrote and the journal itself has
- * not landed. It moves to the journal module when that arrives; nothing should declare a second
- * one in the meantime.
- */
-export type JournalId = string;
 
 /**
  * What a run id is allowed to look like.
@@ -239,11 +234,29 @@ export interface Caveats {
     /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
     readonly method: string;
     /**
-     * Why a run stopped before it finished, when it did. Present exactly when the run resolved
-     * with `partial` set -- a time box is the usual reason.
+     * Why a run stopped before it finished, when it did, as a code and its values. Present when
+     * the run resolved with `partial` set, whatever stopped it: a time box, a cancellation, a
+     * batch that did not finish, or the algorithm's own iteration cap. Absent for a run an
+     * extension stopped and explained only in words, in {@link Caveats.partialReason}.
+     * @since 3.18.0
+     */
+    readonly partialCause?: CodedFact<PartialCode>;
+    /**
+     * Why a run stopped before it finished, as an English sentence. Present exactly when the run
+     * resolved with `partial` set.
+     * @deprecated Word {@link Caveats.partialCause} yourself. Removed in the next major.
      */
     readonly partialReason?: string;
-    /** Anything else a reader should know, in sentences. */
+    /**
+     * Anything else a reader should know, one fact per remark, in the order a reader reads them.
+     * See {@link CaveatCode} for every code and its parameters.
+     * @since 3.18.0
+     */
+    readonly facts: readonly CodedFact<CaveatCode>[];
+    /**
+     * The same remarks as English sentences, followed by any sentence an extension wrote in words.
+     * @deprecated Word {@link Caveats.facts} yourself. Removed in the next major.
+     */
     readonly notes: readonly string[];
 }
 
@@ -259,7 +272,11 @@ export interface Caveats {
  * meantime.
  */
 export interface ResolvedScope {
-    /** The nodes in scope. Lazy: built on the first read, then the same set on every read. */
+    /**
+     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
+     * each id as the graph holds it, but `has` takes an integer id written either way: with node
+     * `34` in scope, `nodes.has("34")` is true.
+     */
     readonly nodes: ReadonlySet<NodeId>;
     /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
     readonly edges: ReadonlySet<EdgeId>;
@@ -387,7 +404,8 @@ export interface StartOptions extends RunOptions {
     readonly as?: RunId;
     /**
      * What the element paints on first completion. Set false to opt out of the encoding layer it
-     * applies, or `{ size: true }` to size the nodes by a node measurement as well. See
+     * applies, or `{ size: true }` to size the nodes by a node measurement, or widen the edges by an
+     * edge measurement, as well. See
      * {@link RunStyle}.
      */
     readonly style?: RunStyle;
@@ -407,15 +425,18 @@ export interface StartOptions extends RunOptions {
  *
  * - `true`, or left off: the colour suggestion its result shape calls for.
  * - `false`: nothing. The numbers are published and no layer is added.
- * - `{ size }`: the colour suggestion, plus -- for a run whose result is a node measurement
- *   (shape `"node-metric"`: PageRank, degree, betweenness and the rest) -- a node size encoding of
- *   the same field. `size: true` sizes nodes from 1 (the default node size, so the least
- *   important node looks unchanged) to 3; `size: [min, max]` uses that range. `size: false` or
- *   left off adds no size. For any other result shape the size is ignored, without an error,
- *   exactly as the colour suggestion itself depends on the shape.
+ * - `{ size }`: the colour suggestion, plus a size encoding of the same field. For a run whose
+ *   result is a node measurement (shape `"node-metric"`: PageRank, degree, betweenness and the
+ *   rest) that is a node size: `size: true` sizes nodes from 1 (the default node size, so the
+ *   least important node looks unchanged) to 3. For a run whose result is an edge measurement
+ *   (shape `"edge-metric"`: max flow, edge betweenness) it is an edge width: `size: true` draws
+ *   edges from the default edge width to twice it. `size: [min, max]` uses that range, in the
+ *   channel's own units. `size: false` or left off adds no size. For any other result shape the
+ *   size is ignored, without an error, exactly as the colour suggestion itself depends on the
+ *   shape.
  *
- * Every layer this adds is scoped to the nodes carrying the run's value, and is removed with the
- * run.
+ * Every layer this adds is scoped to the elements carrying the run's value, and is removed with
+ * the run.
  */
 export type RunStyle = boolean | { readonly size?: boolean | readonly [min: number, max: number] };
 
@@ -472,6 +493,20 @@ export interface BatchResult {
 // ---------------------------------------------------------------------------------------------
 
 /**
+ * The one option an unnamed run's name was suggested by: a built-in algorithm names its result by
+ * one setting worth telling two of its results apart by (PageRank's `dampingFactor`, Louvain's
+ * `resolution`), once that setting leaves its default. A run's label is worded from it, the
+ * algorithm's catalog name and the value.
+ * @since 3.18.0
+ */
+export interface RunDistinction {
+    /** The option's name, as the algorithm's catalog `options` spell it. */
+    readonly option: string;
+    /** The value the run used, canonicalized. */
+    readonly value: unknown;
+}
+
+/**
  * A frozen, structured-cloneable snapshot of a run.
  *
  * This is what crosses a worker boundary, what an event carries, what the journal stores and
@@ -481,8 +516,28 @@ export interface BatchResult {
 export interface RunRecord {
     /** The run id. */
     readonly id: RunId;
-    /** What the run is called, computed by the element. */
+    /**
+     * What the run is called, computed by the element.
+     * @deprecated Word the run from its `algorithm`, {@link RunRecord.distinguishedBy} and
+     *   {@link RunRecord.siblingsDifferBy} yourself. Removed in the next major.
+     */
     readonly label: string;
+    /**
+     * The option this run's name was suggested by, once it left its default: what tells it apart
+     * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
+     * caller named with `as`, a batch, and a run of an algorithm registered with its own
+     * `suggestedName`.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that go by the same
+     * name: the names of the parameters whose values differ, sorted, or an empty list when only
+     * the scope differs. Null while no other run shares the name.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it ran with, canonicalised. */
@@ -497,7 +552,7 @@ export interface RunRecord {
     readonly startedAt: string | null;
     /** How long it took, in milliseconds, or null until it finishes. */
     readonly durationMs: number | null;
-    /** Whether it stopped early and published what it had. */
+    /** Whether it stopped early and published what it had: true exactly when `caveats.partialReason` is set. */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
     readonly stale: StaleNote | null;
@@ -533,7 +588,7 @@ export interface RunRecord {
  * - Everything else rejects with a {@link GraphtyError} carrying a code.
  *
  * A time boxed run that hits its box does not reject at all: it RESOLVES, with `partial` set and
- * `caveats.partialReason` saying why. A stopped-early result is data.
+ * `caveats.partialCause` saying why. A stopped-early result is data.
  */
 export interface Run<T = RunResult> extends PromiseLike<T> {
     /** The run id: stable, selector-safe, and author-assignable through `as`. */
@@ -545,8 +600,26 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      * while it is the only run of that algorithm, gaining the parameter that differs in
      * parentheses the moment a sibling exists. One string, used by the layer row, the legend,
      * the journal and every export.
+     * @deprecated Word the run from its `algorithm`, {@link Run.distinguishedBy} and
+     *   {@link Run.siblingsDifferBy} yourself. Removed in the next major.
      */
     readonly label: string;
+    /**
+     * The option this run's name was suggested by, once it left its default: what tells it apart
+     * from a run of the same algorithm at the defaults. Null for a run at the defaults, a run the
+     * caller named with `as`, a batch, and a run of an algorithm registered with its own
+     * `suggestedName`.
+     * @since 3.18.0
+     */
+    readonly distinguishedBy: RunDistinction | null;
+    /**
+     * What tells this run apart from the other listed runs of its algorithm that go by the same
+     * name: the names of the parameters whose values differ, sorted, or an empty list when only
+     * the scope differs. Null while no other run shares the name.
+     * @since 3.18.0
+     */
+    readonly siblingsDifferBy: readonly string[] | null;
+
     /** Which algorithm is running. */
     readonly algorithm: AlgorithmKey;
     /** The parameters it is running with, canonicalised. */
@@ -567,7 +640,10 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly startedAt: string | null;
     /** How long it took, in milliseconds, or null until it finishes. */
     readonly durationMs: number | null;
-    /** Whether it stopped early and published what it had. Not a failure. */
+    /**
+     * Whether it stopped early and published what it had. Not a failure. True exactly when
+     * `caveats.partialReason` is set, whatever stopped it -- a time box or an iteration cap.
+     */
     readonly partial: boolean;
     /** Why its numbers no longer describe what is on screen, when they do not. */
     readonly stale: StaleNote | null;
@@ -593,7 +669,10 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
     readonly error?: GraphtyError | undefined;
     /** The frozen, structured-cloneable snapshot of everything above. */
     readonly record: RunRecord;
-    /** The journal entry this run's command wrote, or null until it lands. */
+    /**
+     * The journal entry this run's command wrote (`session.journal.get(run.journalId)`), or null
+     * until the command has finished. A re-run points it at the newer entry.
+     */
     readonly journalId: JournalId | null;
     /**
      * Stop the run.
@@ -618,14 +697,14 @@ export interface Run<T = RunResult> extends PromiseLike<T> {
      *
      * Derived from the run's own shape and the fields it published, never from a block of styling
      * written per algorithm: a measurement suggests a colour over the elements it measured, a
-     * grouping suggests a categorical colour, a route or a chosen set suggests a highlight, and a
+     * grouping suggests a categorical colour, a route or a chosen set suggests a mark, and a
      * table of pairs, a time series or a bare fact suggests nothing at all.
      *
      * The element applies these itself on a run's first completion unless `{ style: false }` was
      * asked for. Reading them is for a consumer that wants to show what WOULD be painted, apply it
      * at another moment, or alter the taste before it lands -- each suggestion is the specification
-     * `styles.encode()` or `styles.highlight()` takes, with its taste left unsaid so the element's
-     * own defaults settle it.
+     * `styles.encode()` or `styles.mark()` takes; an encoding leaves its taste unsaid so the
+     * element's own defaults settle it, and a mark carries the channel values it paints.
      * @returns The suggestions, empty when the result is read rather than painted.
      */
     suggestEncodings(): readonly StyleSuggestion[];
@@ -656,6 +735,70 @@ export interface RunRemoval {
     readonly removedLayers: number;
     /** Which ones, so an undo can name them. */
     readonly layerIds: readonly LayerId[];
+}
+
+/**
+ * What became of one style suggestion a run made when it first completed.
+ *
+ * Branch on `outcome` and keep a default branch: more outcomes may be added in a minor release.
+ * Ids only, never names, so a consumer looks a layer or run up live (`styles.get(id)`,
+ * `runs.get(id)`) and words the result itself.
+ */
+export type SuggestionOutcome =
+    | {
+          /** The suggestion was added to the style stack. */
+          readonly outcome: "added";
+          readonly suggestion: StyleSuggestion;
+          /** The layers it added: one for an encoding, one per half for a mark or a highlight. */
+          readonly layerIds: readonly LayerId[];
+          /**
+           * Set when it was placed directly beneath a hand-written layer that drives one of its
+           * channels on some elements, so that layer still shows there.
+           */
+          readonly placedBeneathLayerId?: LayerId;
+      }
+    | {
+          /** Not added: a hand-written layer already drives this channel on every element. */
+          readonly outcome: "suppressed";
+          readonly suggestion: StyleSuggestion;
+          /** That layer. */
+          readonly byLayerId: LayerId;
+      }
+    | {
+          /** Not added: a later member of the same batch suggested the same channel. */
+          readonly outcome: "superseded";
+          readonly suggestion: StyleSuggestion;
+          /** The batch member whose suggestion for this channel was used instead. */
+          readonly byRunId: RunId;
+      }
+    | {
+          /** Not added: the style stack refused it. The same error went to `style:problem`. */
+          readonly outcome: "refused";
+          readonly suggestion: StyleSuggestion;
+          /** The code of that error. */
+          readonly code: GraphtyErrorCode;
+      };
+
+/**
+ * What the element decided to paint for a run when it first completed.
+ *
+ * A snapshot of that one decision, kept with the run so undo and redo carry it. It does not track
+ * later edits to the stack; `styles.legend()` and `styles.explain()` answer what shows now.
+ */
+export interface RunPainting {
+    /**
+     * Where the decision stands. More states may be added in a minor release.
+     *
+     * - `"decided"`: `suggestions` is the decision; empty when the run had nothing to draw.
+     * - `"pending"`: the run has not finished, or it is a batch member and the batch has not.
+     * - `"opted-out"`: started with `style: false`.
+     * - `"not-succeeded"`: it failed or was cancelled.
+     * - `"no-styles"`: this session has no style stack.
+     * - `"unknown"`: the run was recorded without a decision, so none is known.
+     */
+    readonly state: "decided" | "pending" | "opted-out" | "not-succeeded" | "no-styles" | "unknown";
+    /** One entry per suggestion; empty unless `state` is `"decided"`. */
+    readonly suggestions: readonly SuggestionOutcome[];
 }
 
 /**
@@ -718,6 +861,17 @@ export interface RunsApi {
      * @returns The layer ids.
      */
     bindings(id: RunId): readonly LayerId[];
+    /**
+     * What the element decided to paint when a run first completed: one outcome per style
+     * suggestion the run made.
+     *
+     * Readable as soon as `await run` returns. A re-run keeps the first decision, because a
+     * re-run does not repaint. `"added"` means the layers went on the stack, not that they show:
+     * a layer added later may cover it, which `styles.legend()` shows.
+     * @param id - The run id.
+     * @returns The decision, or undefined when this session holds no run with that id.
+     */
+    painting(id: RunId): RunPainting | undefined;
     /** The runs waiting to start, in queue order. */
     readonly queue: readonly QueueEntry[];
 }

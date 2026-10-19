@@ -22,9 +22,9 @@ element.edgeData = [{ source: "a", target: "b" }];
 ```
 
 Assigning either property REPLACES what it describes. A node missing from a new `nodeData` array
-is removed along with the edges attached to it; a node that is still there keeps its position and,
-for now, its OLD data -- a changed field on a retained node is not applied. `edgeData` replaces
-edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
+is removed along with the edges attached to it; a node that is still there keeps its position and
+its edges and takes the record it was just given, so a changed field is applied and a style that
+reads it repaints. The whole assignment is one undo step. `edgeData` replaces edge records outright. To add to the graph instead, call `addNodes` and `addEdges`.
 
 ## Loading from URL
 
@@ -58,6 +58,70 @@ fileInput.addEventListener("change", async (e) => {
 });
 ```
 
+## A File's Own Styles
+
+Many formats carry what the graph looks like as well as what it holds: Gephi's colors and sizes
+in GEXF, yEd's shapes in GraphML, a Cytoscape visual style, a Cytoscape.js stylesheet, Graphviz
+attributes in DOT. Load with `styles: "file"` to draw them as style layers, so the graph looks as
+it does in the program that wrote the file:
+
+```typescript
+await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
+```
+
+`loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
+`session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
+`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
+look like, the choices that shape them and how to save them back into a file.
+
+## Text or Bytes
+
+A file is read as bytes, and the format's reader decodes them: a byte-order mark names the
+encoding, and so does an XML (`encoding="ISO-8859-1"`) or DOT (`charset`) declaration; anything
+else is read as UTF-8. Inline `data` can be text or bytes -- a `Uint8Array` or an `ArrayBuffer` --
+so a file you already hold in memory loads exactly as the file itself would:
+
+```typescript
+const bytes = new Uint8Array(await response.arrayBuffer());
+await element.session.data.import({ type: "graphml", config: { data: bytes } });
+
+// The same element property, as bytes:
+element.dataSource = "graphml";
+element.dataSourceConfig = { data: bytes };
+```
+
+Text you pass as a string is read as it is. Prefer bytes when the data came from a file or a
+download: decoding it to a string yourself fixes its encoding before the reader can read the
+file's own declaration, and a binary format (a zip) does not survive being turned into text.
+
+## Files That Hold Several Graphs
+
+Some formats can hold more than one graph in a file. Ask which graphs a file holds with
+`listGraphs` from `@graphty/graphty-element/catalog`, then load one by position or by name:
+
+```typescript
+import { listGraphs } from "@graphty/graphty-element/catalog";
+
+const graphs = await listGraphs({ config: { file } });
+// [{ index: 0, name: "Network 1", nodes: 120, edges: 340 }, ...], or null
+
+await element.loadFromFile(file, { graphIndex: 1 });
+await element.loadFromFile(file, { graphName: "Network 1" });
+await element.session.data.import({ config: { file, graphIndex: 1 } });
+```
+
+`listGraphs` takes the same source `session.data.import` does -- an optional `type` and a `config`
+with `data`, a `file` or a `url` -- and detects the format the same way. It answers `null` for a
+format whose file holds one graph. Cytoscape sessions, CX files, XGMML files (which can nest networks)
+and JSON documents with a `graphs` array (JGF, OBO Graphs) list their graphs; a format registered with
+`DataSource.fromImporter` answers it when its importer has `listGraphs`.
+
+Without a choice the first graph is loaded. A `graphIndex` that is not a non-negative integer, a
+`graphName` that is not a string, both at once, or a choice other than `graphIndex: 0` for a
+format whose file holds one graph, fails with `E_OPTION_RANGE` before anything is read. A name or
+an index that matches no graph in the file fails with `E_PARSE_FAILED`, and the message names
+what the file holds.
+
 ## Loading as One Undoable Step
 
 `session.data.import` loads a file, a URL or inline text as one step that undo takes back whole.
@@ -84,9 +148,29 @@ you give one. A file read also records its `size` in bytes. The inline text and 
 are never kept; the loaded rows already hold them. After `session.data.clear()`, `source()`
 answers `null`.
 
+To give the source a name of your reader's choosing, rename it. It is one undoable step, and the
+name is saved with the project:
+
+```typescript
+await session.data.renameSource("Les Miserables characters");
+session.data.source()?.name; // "Les Miserables characters"
+```
+
+With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.reason` `"no-source"`;
+an empty name rejects with `"empty-name"`.
+
+## Preview a Load Before Loading It
+
+`session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
+columns, choose which column is the node id, the edge endpoints or the weight, and see the counts
+the load would produce before anything is added to the graph. See
+[Previewing a Load](./load-preview).
+
 ## Replacing the Graph
 
-A load ADDS to the graph unless you pass `replace: true`. A replacing load swaps the graph as one
+A load through `loadFromFile`, `loadFromUrl` or `addDataFromSource` ADDS to the graph unless you
+pass `replace: true`. (`session.data.import()` and a draft's `load()` take `mode` instead, and
+replace by default; see [Previewing a Load](./load-preview).) A replacing load swaps the graph as one
 undoable step, and a load that fails rolls its whole step back, so a malformed or empty file
 rejects and leaves the current graph exactly as it was:
 
@@ -102,7 +186,9 @@ try {
 `replace` is accepted by `loadFromFile`, `loadFromUrl` and, as a third argument, by
 `addDataFromSource(type, opts, { replace: true })`. A source that holds no nodes and no edges at
 all fails with `E_EMPTY_LOAD`, whether or not it was replacing; when every row was rejected by
-the format's schema, `data-loading-error-summary` still reports why. A replacing load that stops at
+the format's schema, `data-loading-error-summary` still reports why. A file its parser could not
+read at all (`{` as JSON, `<graphml` as GraphML) is not empty: it fails with `E_PARSE_FAILED`,
+naming the format and, when the parser knows it, the line. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
 keeps the current graph.
 
@@ -113,6 +199,35 @@ no `*Vertices` section -- fails with
 carries `context: "parsing"` and, when the reader can name one, the `line` where the problem
 starts; a replacing load keeps the current graph. Problems a reader can skip past, such as one
 malformed vertex line, are reported in `data-loading-error-summary` and the rest of the file loads.
+
+GraphML and GEXF files are read differently. A file that is recognisably GraphML or GEXF but
+breaks off -- a stray end tag, a tag or attribute quote left open, garbage after the last tag, a
+file cut off mid-tag -- keeps every node and edge read before the break, and the load reports
+where it broke. A file that is not recognisable as either format at all still fails with
+`E_PARSE_FAILED`.
+
+### Reading the errors of a load
+
+Every problem a load met is in `errors` on its report, `session.data.lastImport()` after a load
+or `draft.report()` before one, in the order met and at most the source's `errorLimit` of them.
+An entry holds facts, not words, so word it yourself:
+
+| Field    | What it holds                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `code`   | The kind: `"parse-error"` (the file breaks off here), `"validation-error"`, `"missing-value"`, or `"refused-row"` (a record the graph would not store) |
+| `params` | The facts behind the code: for a graph file `issue` (the reader's own code) and `element`; for a refused row `rowsAre`                                 |
+| `line`   | The line of the file, or the row, when the reader knows it                                                                                             |
+| `field`  | The field or column concerned, when there is one                                                                                                       |
+
+```typescript
+await element.session.data.import({ type: "graphml", config: { data: text } });
+const [first] = element.session.data.lastImport()?.errors ?? [];
+if (first?.code === "parse-error") {
+    console.warn(`The file breaks off at line ${first.line}; what came before it was loaded.`);
+}
+```
+
+A clean load has an empty `errors` list.
 
 GML is read as NetworkX reads it, so three things the element's 2.x reader accepted fail with
 `E_PARSE_FAILED` naming the line: an unquoted word as a value (`id A`; quote it, `id "A"`), a
@@ -134,15 +249,75 @@ If that pair's load failed, assigning it again retries it.
 
 ## Supported Formats
 
-| Format  | Extensions                                    | Description                                              |
-| ------- | --------------------------------------------- | -------------------------------------------------------- |
-| JSON    | `.json`                                       | Native format with nodes/edges arrays                    |
-| GraphML | `.graphml`, `.xml`                            | XML-based graph format                                   |
-| GEXF    | `.gexf`, `.xml`                               | Gephi exchange format                                    |
-| GML     | `.gml`                                        | Graph Modeling Language                                  |
-| DOT     | `.dot`, `.gv`                                 | Graphviz format                                          |
-| CSV     | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
-| Pajek   | `.net`, `.paj`                                | Pajek network format                                     |
+| Format            | Extensions                                    | Description                                              |
+| ----------------- | --------------------------------------------- | -------------------------------------------------------- |
+| JSON              | `.json`                                       | Native format with nodes/edges arrays                    |
+| GraphML           | `.graphml`, `.xml`                            | XML-based graph format                                   |
+| GEXF              | `.gexf`, `.xml`                               | Gephi exchange format                                    |
+| GML               | `.gml`                                        | Graph Modeling Language                                  |
+| DOT               | `.dot`, `.gv`                                 | Graphviz format                                          |
+| CSV               | `.csv`, `.tsv`, `.tab`, `.edges`, `.edgelist` | Delimited edge or node list, including neo4j-admin files |
+| Pajek             | `.net`, `.paj`                                | Pajek network format                                     |
+| XGMML             | `.xgmml`, `.xml`                              | Cytoscape's XML network format                           |
+| CX2               | `.cx2`                                        | The NDEx / Cytoscape exchange format                     |
+| CX                | `.cx`                                         | Version 1 of CX, read only                               |
+| Cytoscape Session | `.cys`                                        | A saved Cytoscape session, read only                     |
+| OBO               | `.obo`                                        | The Gene Ontology's ontology format, read only           |
+
+An OBO Graphs document (the JSON form of an ontology, such as `go-basic.json`) is JSON: it is
+recognised by its content and read with the `json` format.
+
+### Cytoscape and ontology files
+
+XGMML, CX, CX2, Cytoscape sessions and OBO are read by `@graphty/graph-io` with nothing to wire
+up: hand the element the file and it loads. The format is recognised from the file name or, failing
+that, from the bytes:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+// A Cytoscape session, drawn where Cytoscape saved it. Cytoscape's coordinates are pixels, so
+// positionScale shrinks them to scene units (one unit per fifty pixels suits nodes of size one).
+element.positionScale = 0.02;
+await element.loadFromUrl("https://example.org/sessions/galFiltered.cys", { layout: "recommended" });
+
+// The Gene Ontology: about 48,000 terms and 71,000 is_a and part_of relations. The file has no
+// saved drawing, so pick a layout that computes one.
+element.layout = "ngraph";
+await element.loadFromUrl("https://release.geneontology.org/2026-08-05/ontology/go-basic.obo", {
+    replace: true,
+});
+```
+
+`loadFromFile(file)` and `dataSourceConfig = { data: bytes }` load the same files the same way. Every column of the file arrives on the node and edge
+records under the name the file gave it (`name`, `shared name`, `interaction`, an OBO term's
+`name`, `namespace`, `def`, `is_obsolete`, ...).
+
+- **Positions.** A node's saved position arrives as `position` on its record and seeds the layout;
+  load with `layout: "recommended"` to draw a session or a CX2 network exactly as it was saved
+  (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)). Cytoscape writes screen coordinates, whose y grows
+  downward; they are stored with y growing upward, like every other format's, so the drawing is
+  not upside down. Cytoscape's z is a drawing order, kept
+  as a `z` value on the record; the `zAs: "position"` option makes it the z coordinate instead.
+- **Styles are not imported yet.** A file's visual style rules (mappings, defaults) are reported
+  in the load report and not applied; the per-node and per-edge visual values a file holds arrive
+  as ordinary values on the records. Exporting to XGMML or CX2 writes the graph and its values,
+  never the element's style layers.
+- **Several networks.** A session and a CX collection can hold several networks: list them with
+  `listGraphs` and load one with `graphIndex` or `graphName` (see "Files That Hold Several Graphs").
+  So can a JGF or OBO Graphs document with a `graphs` array.
+- **Bytes.** A session is a zip archive: load it from a file, a URL or a `Uint8Array`, never as text.
+
+| Format  | Options                                                                                      |
+| ------- | -------------------------------------------------------------------------------------------- |
+| XGMML   | `labelAliases`, `repairBareAmpersands`, `graphName`, `zAs`                                   |
+| CX2     | `zAs`                                                                                        |
+| CX      | `graphName`, `zAs`                                                                           |
+| Session | `graphName`, `zAs`                                                                           |
+| OBO     | `obsolete` (`"keep"` or `"drop"`), `typedefs` (`"metadata"` or `"nodes"`), `addMissingNodes` |
+| JSON    | `oboIds` (`"curie"` or `"iri"`), for an OBO Graphs document                                  |
+
+`session.catalog.formats()` describes each option for a settings form.
 
 ### How the format is chosen
 
@@ -162,6 +337,68 @@ import { detectFormat } from "@graphty/graphty-element/catalog";
 detectFormat({ filename: "graph.xml", sample: firstKilobytes }); // "graphml" or "gexf"
 ```
 
+## Drawing a file where it was saved
+
+Many files store where each node was drawn: a GEXF file saved by Gephi, a yEd diagram, a Pajek
+network, Graphviz output, a Cytoscape session. Pass `layout: "recommended"` and the element draws
+each node where the file put it:
+
+```typescript
+const element = document.querySelector("graphty-element");
+
+await element.loadFromUrl("https://example.org/maps/USAir97.net", { layout: "recommended" });
+```
+
+`layout` takes two values:
+
+- `"recommended"`: once the load is in, the element chooses a layout for it. When every node
+  arrived with a position it picks `fixed`, which draws each node at its stored position. When
+  some or none did, it picks a layout that computes a drawing suited to the graph's size and
+  shape.
+- `"keep"` (the default): the layout stays as it is. The stored positions are still where each
+  node starts, so a force layout begins from the file's drawing instead of from random points.
+
+The same option works on every way of loading: `loadFromFile(file, { layout: "recommended" })`,
+`dataSourceConfig = { url, layout: "recommended" }`, and
+`session.data.import({ config: { url } }, { layout: "recommended" })`. Any other value is refused
+with `E_BAD_COMMAND`.
+
+### What the element does with each format
+
+Every format writes coordinates its own way. The element reads them all into one form, each
+node's center with y growing upward, so a drawing is never mirrored or shifted whichever program
+saved it:
+
+| Format                            | Positions read from                           | Unit                                                      | Which way y grows in the file                                              |
+| --------------------------------- | --------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| GEXF                              | `viz:position`                                | the file's own                                            | up                                                                         |
+| GraphML from yEd                  | the node's geometry (a box's top-left corner) | pixels                                                    | down; the corner is moved to the box's center                              |
+| GML                               | `graphics [ x y z ]`                          | pixels                                                    | down, as the GML specification says, unless `Creator` names Gephi or Tulip |
+| Pajek                             | the coordinates after a vertex's label        | the file's own (usually 0 to 1)                           | down; a z of 0.5 on every vertex is a flat drawing                         |
+| DOT                               | `pos`, and a cluster's `bb`                   | points with a root `bb` (Graphviz output), inches without | up                                                                         |
+| XGMML, CX, CX2, Cytoscape session | the network view's node positions             | pixels                                                    | down                                                                       |
+| Cytoscape.js JSON (`elements`)    | each element's `position`                     | pixels                                                    | down                                                                       |
+| Other JSON                        | each node record's `position`                 | the file's own                                            | up                                                                         |
+| CSV, Neo4j CSV, OBO               | not stored                                    |                                                           |                                                                            |
+
+With `layout: "recommended"`, a file with no stored positions gets a computed layout. A file where every node sits on one point
+is treated as having none. Plain `x` and `y` keys in a CSV or JSON file are ordinary values, not
+positions. A JSON node record's `position` may be `{ x, y, z }`, `[x, y]` or `[x, y, z]`; it is
+the node's center.
+
+The element multiplies each stored coordinate by `positionScale` (default 1). It frames the
+camera on the graph after every load, so a drawing in pixels and one in the 0 to 1 range both
+fill the view; change `positionScale` only to change how far apart nodes sit compared with their
+size.
+
+Saving writes each node's current position back the way its format spells it: `exportGraph` to
+GML or Pajek turns y downward again (and puts Pajek's 0.5 back on a 3D drawing's z), divided by
+`positionScale`, so a file loaded and saved is drawn the same way when it is loaded again.
+
+`@graphty/graph-io/positions` is the reader the element uses, and it can be called on its own:
+see [Reading stored positions](https://graphty.app/docs/graph-io/guide/positions) in the
+graph-io guide.
+
 ## Directed or Undirected
 
 Most graph formats state whether their edges point, and the importer reports what the file said.
@@ -177,6 +414,10 @@ formats define that omission as undirected, and so does graphty-element.
 | Pajek   | `*Arcs` are directed, `*Edges` are not; an empty section still counts | A file with no edge section states nothing                                                         |
 | CSV     | Gephi's `Type` column: `Directed` or `Undirected`                     | Every other dialect states nothing                                                                 |
 | JSON    | a top-level `"directed"` boolean, as node-link JSON writes it         | Any document without that key states nothing                                                       |
+| XGMML   | `directed` on `<graph>`, and Cytoscape's `cy:directed` per edge       | An absent attribute means undirected, unless every edge says otherwise                             |
+| CX, CX2 | every edge points from `s` to `t`                                     | Always directed                                                                                    |
+| Session | each edge's `cy:directed`                                             | Directed                                                                                           |
+| OBO     | a relation points from a term to its parent                           | Always directed                                                                                    |
 
 Read it back from the session:
 
@@ -204,6 +445,34 @@ own `type` or `directed` agrees with the graph carries no such key: it is drawn 
 edge. GEXF keywords are read in any case, so `defaultedgetype="Directed"` is directed. Direction is settled once per graph: a second file loaded into a graph
 that already holds edges cannot reinterpret the edges already in it, and that is logged too.
 
+**Edges you add yourself** can declare the direction the same way a node-link JSON file does,
+with `directed` on an `add-edges` change:
+
+```typescript
+await session.execute({
+    op: "data.apply",
+    mutation: { kind: "add-edges", records: edges, directed: false },
+});
+session.data.statistics().directednessSource; // { by: "file", statedBy: '"directed": false' }
+```
+
+It counts only while the graph holds no edges and `data.directed` is `"auto"`. Undo takes the
+declaration back with the edges. On a graph that already has edges, a matching value changes
+nothing and a different one is logged and ignored, exactly as a second file would be.
+
+**Setting the direction yourself** overrules every file, and takes effect at once, on a graph that
+already holds edges too:
+
+```typescript
+const session = createGraphSession({ config: { data: { directed: false } } });
+await session.config.set({ data: { directed: true } });
+```
+
+The graph is read again in the new direction: every edge is kept, in the orientation it was
+declared with, so a reciprocal pair read undirected is two parallel edges, and setting the
+direction back loses nothing. Undo puts the previous direction back. Setting `"auto"` returns the
+graph to the direction its file declared, or to directed when nothing did.
+
 ## GEXF and GraphML Records
 
 GEXF and GraphML files are read by `@graphty/graph-io`, and each node and edge record carries the
@@ -217,8 +486,22 @@ declared type:
   holding XML elements rather than text -- is left off the record and reported as a loading error;
 - a node id declared twice is one node, with the later declaration's values winning.
 
+A declared attribute titled `id` never replaces a node's id (nor one titled `source` or `target`
+an edge's endpoints): it goes on the record as `id#<attribute id>`, such as `id#att1` for a GEXF
+attribute declared `id="att1"` or `id#d1` for a GraphML key declared `id="d1"`.
+
 The GEXF `label=` attribute is overridden by a declared attribute titled `label`, and the
 `viz:` position, colour and size override attributes titled `position`, `color` or `size`.
+
+A GEXF node's `viz:` color and size arrive on its record as `color` (`{ r, g, b, a }`) and `size`,
+and a yEd GraphML file's graphics as `width`, `height`, `color`, `borderColor`, `borderWidth` and
+`shape` on nodes and `color`, `width`, `targetArrow` and `sourceArrow` on edges. These record keys
+are deprecated and go in the next major version: a load without `styles: "file"` still writes
+them, unchanged. Load with `styles: "file"` to draw the file's colors, sizes and shapes as style
+layers instead (see [Styles from Files](./file-styles)): the records then leave those keys out, and
+an attribute the file declared under one of those names keeps its own value. The position, the
+label and an edge's direction stay on the records either way.
+
 Nodes arrive in the order the file declares them. A GraphML document with no `<graph>` element
 loads nothing and reports a loading error.
 
@@ -237,8 +520,20 @@ These are read by `@graphty/graph-io` too, and each record keeps the keys the fi
   and the later line fills in only what the first left out (`1 0.1 0.2` then `1 "z"` is a node at
   0.1, 0.2 labelled `z`). A DOT node written in several statements has the attributes of all of
   them, the later ones winning, as Graphviz draws it;
-- a DOT cluster subgraph is a node only when an edge names it, and `pos` stays the text the file
-  wrote.
+- a DOT cluster subgraph is a node of its own, carrying the cluster's attributes (its `label`,
+  `fillcolor` and so on). A node's `pos` stays the text the file wrote, and it and a cluster's `bb`
+  give the record's `position` (see [Drawing a file where it was saved](#drawing-a-file-where-it-was-saved)).
+
+A Cytoscape.js document (an `elements` object or array, as Cytoscape.js and Cytoscape desktop's
+`.cyjs` export write it), a graphology document and a vis.js document are read in their own shape:
+
+- a Cytoscape.js element's record holds its `data` keys under their own names, its `classes`, its
+  `position` (with y pointing up, as the element draws it) and its `parent` as the parent node's
+  id. A document that also carries a `style` stylesheet loads the same way;
+- a graphology node's record is the record the file wrote, plus `id` (its `key`), so its
+  attributes stay under `attributes`; an edge's record is the record the file wrote. A node no
+  edge names is loaded too;
+- a vis.js record is the record the file wrote.
 
 ### Changes in graphty-element 3.1
 
@@ -276,8 +571,6 @@ Pajek:
   is not a number (`1 2 abc`), or names its ends by label (`"a" "b"`); 2.x kept all three;
 - a vertex line with a single coordinate (`1 "a" 0.5`) is reported and keeps only its id, and an
   unquoted word after the number (`1 5`) is the label, not x;
-- coordinates are stored as 32-bit floats, so a value with more than about seven significant
-  digits changes (`0.123456789` loads as `0.12345679`);
 - Pajek keywords after the coordinates (`ic Red`, `c Blue`, `l "x"`) are kept on the record under
   those keys, and `*Matrix` and `*Edgeslist` sections are read.
 
@@ -399,11 +692,7 @@ Graphty validates data using Zod schemas. Invalid data will throw descriptive er
 
 ```typescript
 try {
-    await graph.addNodes([
-        {
-            /* missing id */
-        },
-    ]);
+    await graph.addNodes([{/* missing id */}]);
 } catch (error) {
     console.error("Invalid node data:", error.message);
 }
@@ -492,10 +781,10 @@ Choose something else with `data.knownFields.repeatedEdges`:
 | `error`          | throws `E_DUPLICATE_EDGE`, naming both endpoints               |
 
 Per call, `addEdges` takes the same choice as an option, which is what an incremental load wants:
-re-fetching a node's neighbourhood legitimately re-supplies edges the graph already holds.
+re-fetching a node's neighborhood legitimately re-supplies edges the graph already holds.
 
 ```typescript
-await graph.addEdges(neighbourhood, { repeated: "first" });
+await graph.addEdges(neighborhood, { repeated: "first" });
 ```
 
 What the policy did is on the load report:
@@ -541,7 +830,7 @@ leaves the edges the graph had. Past those figures the renderer runs out of memo
 slowing down, so the error is the element declining what it cannot draw. The figures were measured
 with the default edge style; a patterned line style (dots, dashes) costs more memory per edge, so
 under one the renderer can run out before the ceiling. Load a subset, or explore a large graph a
-neighbourhood at a time (see [Incremental Loading](#incremental-loading)).
+neighborhood at a time (see [Incremental Loading](#incremental-loading)).
 
 1. **Batch loading**: Load nodes before edges
 2. **Progressive loading**: Load in chunks for very large graphs
@@ -563,8 +852,8 @@ for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
 
 ```typescript
 const result = await element.exportGraph("gexf");
-for (const note of result.lossNotes) {
-    console.warn(`${note.code}: ${note.message}`);
+for (const loss of result.losses) {
+    console.warn(loss.code, loss.params.columns, loss.params.count); // your app words each code
 }
 const text = await result.text(); // or iterate result.bytes for a large file
 ```
@@ -576,9 +865,54 @@ edge width and node shape each element is drawn with. Edge weights are the weigh
 runs on -- read through `edgeWeightPath` or the legacy `value` key, and folded under
 `repeatedEdges` -- and positions are written in file units (divided by `positionScale`), so a
 reload puts every node back where it was. Whatever the format has no place for -- positions in CSV,
-colours in GraphML, node attributes in an edge-list CSV -- is listed in `lossNotes`, one note per
-kind of omission, naming the column. A value an algorithm did not measure is left absent, never
-written as zero. The element's own edge ids and internal columns are not written.
+colours in GraphML (unless the export asks for `styles: true`, see
+[Styles from Files](./file-styles#exporting-with-styles)), node attributes in an edge-list CSV --
+is listed in `losses`, one per kind of omission, about the table or file actually written:
+exporting the CSV node table lists no edge or graph loss. A value an algorithm did not measure is left absent, never written as zero. The
+element's own edge ids and internal columns are not written.
+
+Each loss is a coded fact, `{ code, params: { columns, count } }`, and graphty-element writes no
+words for it:
+
+- `code` is an `ExportLossCode`: one of the codes in graph-io's loss tables for the format written
+  (`LOSS`, which every format shares, and `CSV_LOSS`, `GRAPHML_LOSS`, `GEXF_LOSS` and the rest,
+  each code listed on graph-io's [codes page](https://graphty.app/docs/graph-io/guide/codes.html)), or one of graphty-element's own: `W_GRAPHTY_COLUMN_DROPPED` (a
+  loaded column under the reserved `graphty.` root), `W_GRAPHTY_NOTES` (notes, which no format
+  holds as notes), `W_GRAPHTY_TRUNCATED` (note text cut to 64 KB), `W_GRAPHTY_CSV_NEUTRALIZED`
+  (cells a spreadsheet would run as a formula, prefixed with an apostrophe),
+  `W_WEIGHT_NOT_NUMERIC` (edge weights that are not numbers) and `W_RESULT_FIELD_DROPPED` (an
+  algorithm result no column could hold), plus the style codes listed under
+  [Exporting styles](#exporting-styles). A code starting `E_` means the writer refuses the graph
+  under these options, and `text()` rejects. A writer registered with `registerFormatWriter`
+  reports its own codes.
+- `columns` names every column the loss is about: one, several (every graph attribute a format has
+  no place for), or none (self-loops).
+- `count` is how many nodes, edges, values or columns are affected, or `null` when not counted.
+
+`lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
+release.
+
+### Exporting styles
+
+Pass `styles: true` to write the graph's style layers into the file as well:
+
+```typescript
+const result = await element.exportGraph("cx2", { styles: true });
+```
+
+Each element's look goes into the format's own style slots, the layers become rules in the
+format's own style language where it has one (Cytoscape's defaults and mappings in CX2), and
+wherever the format can keep extra data the layers themselves are written too, so loading the file
+back with `styles: "file"` rebuilds them. `session.catalog.formats()` says what each writer keeps
+(`styles.write`: `"rules"`, `"values"` or `"none"`). Anything the format cannot hold is a loss with
+a `W_STYLE_` code (`W_STYLE_NOT_WRITTEN`, `W_STYLE_APPROXIMATED`, `W_STYLE_RULES_NOT_KEPT`,
+`W_STYLE_LAYER_FLATTENED`), naming the `target` and `property` it is about. With `styles: true` the
+drawn colour, size, shape and width columns are left out, because the style slots carry them.
+
+Without `styles: true` the export is the file it always was, and a graph with layers of its own
+above the element's base layers reports one more loss, `W_STYLES_NOT_EXPORTED`, whose `count` is
+how many layers were left out. Use it to warn a reader before their styles are lost. See
+[Styles from Files](./file-styles#exporting-with-styles).
 
 | Format     | Positions     | Colour and size | Node attributes | Notes                                                                                                                                                                                |
 | ---------- | ------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -588,6 +922,14 @@ written as zero. The element's own edge ids and internal columns are not written
 | GraphML    | no            | no              | yes             | node ids must be XML name tokens; pass `{ sanitizeIds: "mangle" }` to rewrite the others                                                                                             |
 | JSON       | as attributes | as attributes   | yes             |                                                                                                                                                                                      |
 | CSV        | no            | no              | no (edge table) | `{ table: "nodes" }` writes the node table instead; `{ variant: "neo4j" }` writes a Neo4j admin-import file; a number id and the same text id (`1` and `"1"`) cannot both be written |
+
+CX, CX2 and Cytoscape session (`.cys`) node ids are integers: other ids are renumbered by default,
+each original kept in the file so reading it back restores it (`{ sanitizeIds: "error" }` refuses
+instead). A Cytoscape session is a zip file, so its catalogue entry says `binary: true`: its
+`text()` rejects with `E_UNSUPPORTED`, and the file is `bytes`.
+
+The "Colour and size" column describes an export without `styles: true`. With it, each format
+writes as much of the look as its own style slots hold; see [Exporting styles](#exporting-styles).
 
 A CSV export puts an apostrophe before every text cell, id and header that starts with `=`, `+`,
 `-`, `@`, a tab or a carriage return, so a spreadsheet does not run an imported value as a

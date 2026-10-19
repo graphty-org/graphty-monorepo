@@ -5,10 +5,11 @@
  * @module mcp/tools/logs-get-file-path
  */
 
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import * as z from "zod/v3";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
+import { z } from "zod";
 
 import type { LogStorage } from "../../server/log-storage.js";
 import { resolveProjectMarker } from "../../server/marker-utils.js";
@@ -71,9 +72,7 @@ export function logsGetFilePathHandler(
 
     // Get file path from JsonlWriter if available, otherwise use default
     const jsonlWriter = storage.getJsonlWriter();
-    const filePath = jsonlWriter
-        ? jsonlWriter.getFilePath(projectMarker)
-        : getLogFilePath(projectMarker);
+    const filePath = jsonlWriter ? jsonlWriter.getFilePath(projectMarker) : getLogFilePath(projectMarker);
 
     // Check if file exists and get stats
     // Prefer JsonlWriter stats if available for consistency

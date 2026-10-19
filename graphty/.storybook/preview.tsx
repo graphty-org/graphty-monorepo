@@ -3,7 +3,6 @@ import "@mantine/core/styles.css";
 
 import { MantineProvider } from "@mantine/core";
 import type { Preview, StoryContext } from "@storybook/react";
-import eruda from "eruda";
 import React from "react";
 
 import { pinErudaTopRight } from "../src/lib/eruda";
@@ -17,10 +16,33 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     initSentry();
 }
 
-// Initialize eruda for mobile debugging
-eruda.init();
-eruda.show("console");
-pinErudaTopRight(eruda);
+/**
+ * Whether a page URL carries the `eruda` query flag.
+ * @param read - returns the search string of the page to check; may throw for a cross-origin frame.
+ * @returns true when the flag is present.
+ */
+function hasErudaFlag(read: () => string): boolean {
+    try {
+        return new URLSearchParams(read()).has("eruda");
+    } catch {
+        return false;
+    }
+}
+
+// The eruda debug console, for mobile debugging, only when asked for with `&eruda` on the story
+// URL (the preview iframe's or the manager's), and never in a visual capture or an automated
+// browser, where it would be drawn into every snapshot.
+if (
+    !/[?&]chromatic=true/.test(globalThis.location.search) &&
+    !navigator.webdriver &&
+    (hasErudaFlag(() => window.location.search) || hasErudaFlag(() => window.parent.location.search))
+) {
+    void import("eruda").then(({ default: eruda }) => {
+        eruda.init();
+        eruda.show("console");
+        pinErudaTopRight(eruda);
+    });
+}
 
 /**
  * Determines the Mantine color scheme based on Storybook globals.
@@ -125,7 +147,7 @@ const preview: Preview = {
         },
         // Disable the default backgrounds addon since we use Mantine's color scheme
         backgrounds: { disable: true },
-        // Chromatic visual testing configuration
+        // Visual capture settings (visual-review reads them)
         chromatic: {
             // Capture both light and dark color schemes
             modes: {

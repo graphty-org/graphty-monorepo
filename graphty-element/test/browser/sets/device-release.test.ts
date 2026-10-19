@@ -82,7 +82,7 @@ afterAll(() => {
 });
 
 describe.skipIf(!GPU_LANE)("scoped runs on a real WebGPU device", () => {
-    it("releases every derived input it uploaded, once", { timeout: 120_000 }, async () => {
+    it("releases every derived input it uploaded, once", async () => {
         const element = document.createElement("graphty-element");
         element.style.width = "400px";
         element.style.height = "300px";

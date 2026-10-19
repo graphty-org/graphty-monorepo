@@ -1,15 +1,7 @@
-import { Box, Paper } from "@mantine/core";
+import { Box } from "@mantine/core";
 import { useIsomorphicEffect } from "@mantine/hooks";
-import {
-    type ReactPortal,
-    type SyntheticEvent,
-    useCallback,
-    useEffect,
-    useId,
-    useRef,
-    useState,
-} from "react";
-import { createPortal } from "react-dom";
+import { type ReactPortal, type SyntheticEvent, useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 
 import { POPOUT_NESTED_GAP } from "../../constants/popout";
 import type { PopoutPanelProps, PopoutPosition } from "../../types/popout";
@@ -19,7 +11,8 @@ import { usePopoutAnchorContext } from "./PopoutAnchor";
 import { usePopoutContext, usePopoutManagerContext } from "./PopoutContext";
 import { PopoutHeader } from "./PopoutHeader";
 import { findPanelElement, type PopoutAnchorElements, resolveAnchorElement } from "./utils/anchor";
-import { calculatePopoutPosition, resolvePlacement } from "./utils/position";
+import { calculatePopoutPosition, measureContainingBlock, resolvePlacement } from "./utils/position";
+import { tabId, tabPanelId } from "./utils/tabs";
 
 // Accessibility: the APG "Dialog (Modal)" pattern, made non-modal -- role
 // dialog with aria-modal="false", an accessible name from the header title (or
@@ -31,6 +24,10 @@ import { calculatePopoutPosition, resolvePlacement } from "./utils/position";
 // The panel does not set outline: none. The theme's focus ring is the library's
 // only focus indicator (WCAG 2.4.7), and suppressing it here would put this one
 // component back below AA.
+//
+// The look is Figma's light popover (design/figma-spec.md 8.4): the shared
+// cm-popover-surface (--cm-bg, radius 13, --cm-elevation-400, no border) plus
+// cm-popout for the panel's own layout, both in src/theme/css/overlays.css.ts.
 
 /**
  * The floating panel that appears when the pop-out's trigger is activated.
@@ -84,15 +81,11 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         onDragEnd,
     } = props;
 
-    const {
-        isOpen, close, triggerRef, id, parentId, region,
-    } = usePopoutContext();
-    // Including zIndexVersion in destructuring ensures re-render when z-index stack changes
-    const {
-        getZIndex, portalContainer, register, unregister, bringToFront, zIndexVersion, closeDescendants,
-    } = usePopoutManagerContext();
-    // Reference zIndexVersion to prevent "unused variable" warning while still subscribing to changes
-    void zIndexVersion;
+    const { isOpen, close, triggerRef, id, parentId, region, exclusive = true } = usePopoutContext();
+    // The context value is rebuilt whenever zIndexVersion changes, so this panel re-renders with
+    // the z-index stack without reading it.
+    const { getZIndex, portalContainer, register, unregister, bringToFront, closeDescendants } =
+        usePopoutManagerContext();
     // Get anchor context if available (from PopoutAnchor wrapper)
     const anchorContext = usePopoutAnchorContext();
     const direction = useDirection();
@@ -101,6 +94,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     const uniqueId = useId();
     const panelId = `popout-panel-${id}`;
     const titleId = `popout-title-${uniqueId}`;
+    // The base id Mantine's Tabs derives each tab's id and aria-controls from,
+    // shared with the tab panel below so the two point at each other.
+    const tabsBaseId = `popout-tabs-${uniqueId}`;
 
     // Where the panel sits before any dragging. Null means "not measured yet",
     // and is set back to null on close so a reopen never paints one frame at
@@ -113,6 +109,9 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
 
     // Ref for the panel element, used both to measure it and to manage focus
     const panelRef = useRef<HTMLDivElement>(null);
+    // An empty box at left 0, top 0 beside the panel: where it renders is the corner of the
+    // frame the panel's left and top are measured in (see measureContainingBlock).
+    const originRef = useRef<HTMLDivElement>(null);
 
     // A press on the header raises the panel, whether or not it becomes a drag.
     const handlePress = useCallback(() => {
@@ -120,9 +119,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     }, [bringToFront, id]);
 
     // Use the floating panel hook for drag behavior
-    const {
-        dragTriggerProps, dragOffset, resetDragOffset, hasDragged, consumeDragClick,
-    } = useFloatingPanel({
+    const { dragTriggerProps, dragOffset, resetDragOffset, hasDragged, consumeDragClick } = useFloatingPanel({
         isOpen,
         onPress: handlePress,
         onDragStart,
@@ -194,7 +191,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
     // Register/unregister panel with manager when open state changes
     useEffect(() => {
         if (isOpen) {
-            register(id, closeForManager, parentId, region);
+            register(id, closeForManager, parentId, region, exclusive);
         } else {
             unregister(id);
         }
@@ -203,7 +200,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             // Cleanup on unmount
             unregister(id);
         };
-    }, [isOpen, id, register, unregister, closeForManager, parentId, region]);
+    }, [isOpen, id, register, unregister, closeForManager, parentId, region, exclusive]);
 
     // Which elements the two axes line up with, resolved fresh on every
     // measurement because a parent panel only exists in the DOM while it is open.
@@ -233,29 +230,42 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // so a panel that content has widened would otherwise be positioned as
         // if it were still the declared width and would grow over its anchor.
         const measured = panelRef.current?.getBoundingClientRect();
-        const renderedWidth = Math.max(width, measured?.width ?? 0);
-        const renderedHeight = Math.max(height ?? 0, measured?.height ?? 0);
+        // The anchors are measured in viewport pixels, but left and top are applied in the
+        // panel's containing block, which a transformed ancestor moves and scales.
+        const frame = measureContainingBlock(originRef.current, panelRef.current);
+        const renderedWidth = Math.max(width * frame.scaleX, measured?.width ?? 0);
+        const renderedHeight = Math.max((height ?? 0) * frame.scaleY, measured?.height ?? 0);
 
         const physicalPlacement = resolvePlacement(placement, direction);
         const isBlockPlacement = physicalPlacement === "top" || physicalPlacement === "bottom";
         const placementAnchor = isBlockPlacement ? blockAnchor : inlineAnchor;
         const crossAnchor = isBlockPlacement ? inlineAnchor : blockAnchor;
 
-        const next = calculatePopoutPosition(
-            placementAnchor.getBoundingClientRect(),
-            renderedWidth,
-            effectiveGap,
-            {
-                placement: physicalPlacement,
-                alignment,
-                panelHeight: renderedHeight,
-                crossAnchorRect: crossAnchor.getBoundingClientRect(),
-                direction,
-            },
-        );
+        const next = calculatePopoutPosition(placementAnchor.getBoundingClientRect(), renderedWidth, effectiveGap, {
+            placement: physicalPlacement,
+            alignment,
+            panelHeight: renderedHeight,
+            crossAnchorRect: crossAnchor.getBoundingClientRect(),
+            direction,
+        });
+
+        // Moved up (and in) to stay on screen, as Figma's popovers are: a tall
+        // picker opened from a low row opens higher rather than off the bottom.
+        if (typeof window !== "undefined") {
+            const maxTop = window.innerHeight - renderedHeight;
+            const maxLeft = window.innerWidth - renderedWidth;
+            next.top = Math.max(0, Math.min(next.top, maxTop));
+            next.left = Math.max(0, Math.min(next.left, maxLeft));
+        }
+
+        // ponytail: the drag offset is still applied unscaled, so inside a scaled ancestor a
+        // dragged panel moves by the scale times the pointer's travel; divide it by the frame's
+        // scale if that matters.
+        next.left = (next.left - frame.x) / frame.scaleX;
+        next.top = (next.top - frame.y) / frame.scaleY;
 
         setPosition((previous) => {
-            if (previous && previous.left === next.left && previous.top === next.top) {
+            if (previous?.left === next.left && previous.top === next.top) {
                 return previous;
             }
             return next;
@@ -290,15 +300,20 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
             return undefined;
         }
 
-        // Coalesce every source into one measurement per frame.
+        // Coalesce every source into one measurement per frame. While one is queued the panel
+        // carries data-cm-repositioning, so a test or a screenshot can tell "has not moved yet"
+        // from "will not move": its box stays the same until the frame runs. flushSync applies
+        // the new place in that same frame, so the attribute goes when the panel has moved.
         let frame = 0;
         const schedule = (): void => {
             if (frame !== 0) {
                 return;
             }
+            panelRef.current?.setAttribute("data-cm-repositioning", "");
             frame = requestAnimationFrame(() => {
                 frame = 0;
-                updatePosition();
+                flushSync(updatePosition);
+                panelRef.current?.removeAttribute("data-cm-repositioning");
             });
         };
 
@@ -307,39 +322,45 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         // style; nothing else tells a child that its parent has moved.
         const moveObserver = new MutationObserver(schedule);
 
+        // A panel the person has deliberately dragged stays where they put it; only the panel it
+        // opened from still moves it, so a nested stack stays attached while its parent is dragged.
+        // A sidebar anchor, the trigger, the window, a scroll or a late font no longer does.
         const { inline, block } = resolveAnchors();
+        const parent = hasDragged ? findPanelElement(parentId) : null;
         for (const element of new Set([inline, block].filter((el): el is HTMLElement => el !== null))) {
+            if (hasDragged && element !== parent) {
+                continue;
+            }
             resizeObserver.observe(element);
             moveObserver.observe(element, { attributes: true, attributeFilter: ["style", "class"] });
         }
 
-        // The panel's own size decides where its inline edge falls.
-        if (panelRef.current) {
-            resizeObserver.observe(panelRef.current);
-        }
-
-        const handleViewportChange = (): void => {
-            // A panel the person has deliberately dragged stays where they put
-            // it; only a change to what it is anchored to still moves it.
-            if (hasDragged) {
-                return;
+        const fonts = typeof document !== "undefined" ? document.fonts : undefined;
+        if (!hasDragged) {
+            // The panel's own size decides where its inline edge falls.
+            if (panelRef.current) {
+                resizeObserver.observe(panelRef.current);
             }
-            schedule();
-        };
-
-        window.addEventListener("resize", handleViewportChange);
-        window.addEventListener("scroll", handleViewportChange, true);
+            window.addEventListener("resize", schedule);
+            window.addEventListener("scroll", schedule, true);
+            // A web font that finishes loading after the panel opened reflows the text beside its
+            // anchor ("Resolution" before an InfoCircle), which moves the anchor without resizing
+            // it, so neither observer fires and the panel stayed where the fallback font put it.
+            fonts?.addEventListener("loadingdone", schedule);
+        }
 
         return () => {
             if (frame !== 0) {
                 cancelAnimationFrame(frame);
             }
+            panelRef.current?.removeAttribute("data-cm-repositioning");
             resizeObserver.disconnect();
             moveObserver.disconnect();
-            window.removeEventListener("resize", handleViewportChange);
-            window.removeEventListener("scroll", handleViewportChange, true);
+            window.removeEventListener("resize", schedule);
+            window.removeEventListener("scroll", schedule, true);
+            fonts?.removeEventListener("loadingdone", schedule);
         };
-    }, [isOpen, updatePosition, resolveAnchors, hasDragged]);
+    }, [isOpen, updatePosition, resolveAnchors, hasDragged, parentId]);
 
     // Focus management: move focus to panel on open, return to trigger on close.
     useEffect(() => {
@@ -348,9 +369,12 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         }
 
         if (isOpen) {
-            // Small timeout to ensure portal is rendered
+            // Small timeout to ensure portal is rendered. A field marked
+            // data-autofocus (Mantine's convention) takes focus instead of the
+            // panel, which is how a settings panel starts in its first field.
             const timer = setTimeout(() => {
-                panelRef.current?.focus();
+                const target = panelRef.current?.querySelector<HTMLElement>("[data-autofocus]") ?? panelRef.current;
+                target?.focus();
             }, 0);
             return () => {
                 clearTimeout(timer);
@@ -385,30 +409,22 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         top: (position?.top ?? 0) + dragOffset.top,
     };
 
-    // Border styling - all popouts have full borders on all sides and rounded corners
-    const borderColor = "light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12))";
-    const borderStyle = `1px solid ${borderColor}`;
-
-    // Panel styling:
-    // - adaptive shadows via light-dark(), lighter in light mode
-    // - 8px corner radius and a full border on every side
-    // - the declared width is a minimum, so content can widen the panel; the
-    //   position is then computed from the width it renders at
-    // - width: min-content with that minimum means prose wraps at the declared
-    //   width while a child too wide to fit still widens the panel. Leaving the
-    //   width to shrink-to-fit instead measured it against the space left on
-    //   screen, so the same panel came out a different width depending on where
-    //   it opened, and a paragraph ran out to a single long line.
+    // The declared width is a minimum, so content can widen the panel; the
+    // position is then computed from the width it renders at. width:
+    // min-content with that minimum means prose wraps at the declared width
+    // while a child too wide to fit still widens the panel. Leaving the width to
+    // shrink-to-fit instead measured it against the space left on screen, so
+    // the same panel came out a different width depending on where it opened.
     const panel = (
-        <Paper
+        <Box
             ref={panelRef}
+            className="cm-popover-surface cm-popout"
             id={panelId}
             role="dialog"
             aria-modal="false"
             aria-labelledby={header ? titleId : undefined}
             aria-label={header ? undefined : label}
             tabIndex={-1}
-            radius={8}
             onClick={handlePanelClick}
             data-testid="popout-panel"
             data-popout-id={id}
@@ -424,14 +440,6 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                 // so the panel is never seen at an unmeasured position.
                 ...(position === null && { visibility: "hidden" as const }),
                 zIndex,
-                backgroundColor: "var(--mantine-color-body)",
-                border: borderStyle,
-                // Tight, hard near the edges and softer further out
-                boxShadow: [
-                    "0 1px 2px light-dark(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.4))",
-                    "0 4px 8px light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.35))",
-                    "0 8px 16px light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.25))",
-                ].join(", "),
             }}
         >
             {header ? (
@@ -443,16 +451,30 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                     onTabChange={handleTabChange}
                     actions={actions}
                     titleId={titleId}
+                    tabsId={tabsBaseId}
                 />
             ) : null}
-            <Box data-testid="popout-panel-content">
-                {isTabs
-                    ? tabsConfig?.tabs.find((tab) => tab.id === activeTab)?.content
-                    : children}
-            </Box>
-        </Paper>
+            {isTabs ? (
+                <Box
+                    data-testid="popout-panel-content"
+                    role="tabpanel"
+                    id={tabPanelId(tabsBaseId, activeTab)}
+                    aria-labelledby={tabId(tabsBaseId, activeTab)}
+                >
+                    {tabsConfig?.tabs.find((tab) => tab.id === activeTab)?.content}
+                </Box>
+            ) : (
+                <Box data-testid="popout-panel-content">{children}</Box>
+            )}
+        </Box>
     );
 
     // Render in a portal at the manager's container
-    return createPortal(panel, portalContainer);
+    return createPortal(
+        <>
+            <div ref={originRef} aria-hidden="true" style={{ position: "fixed", left: 0, top: 0 }} />
+            {panel}
+        </>,
+        portalContainer,
+    );
 }

@@ -1,4 +1,4 @@
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
 import { GraphtyError } from "../../../src/errors/GraphtyError";
@@ -136,20 +136,22 @@ describe("a run that finishes", () => {
     });
 
     it("takes the fields and caveats the work reported over the ones it started with", async () => {
-        const { run, queue } = makeRun((context) => Promise.resolve({
-            result: stubResult(context.runId),
-            caveats: { precision: "f32", method: "brandes-sampled", exact: false, sampleSize: 500 },
-            fields: [
-                {
-                    name: "value",
-                    plainName: "Betweenness",
-                    technicalName: "betweenness",
-                    kind: "node",
-                    type: "number",
-                    path: "results.degree_test.value",
-                },
-            ],
-        }));
+        const { run, queue } = makeRun((context) =>
+            Promise.resolve({
+                result: stubResult(context.runId),
+                caveats: { precision: "f32", method: "brandes-sampled", exact: false, sampleSize: 500 },
+                fields: [
+                    {
+                        name: "value",
+                        plainName: "Betweenness",
+                        technicalName: "betweenness",
+                        kind: "node",
+                        type: "number",
+                        path: "results.degree_test.value",
+                    },
+                ],
+            }),
+        );
 
         run.start();
         await queue.runLatest();
@@ -183,7 +185,7 @@ describe("progress", () => {
     it("turns a report into a fraction, an eta and a percentage on the queue's own channel", async () => {
         const { run, queue, progress } = makeRun(async (context) => {
             context.report({ phase: "measuring", completed: 25, total: 100, message: "Measuring nodes" });
-            await settle(5);
+            await settle();
             context.report({ completed: 50 });
 
             return { result: stubResult(context.runId) };
@@ -257,9 +259,11 @@ describe("cancelling", () => {
 
     it("aborts the work's own signal, so a running algorithm stops", async () => {
         let aborted = false;
+        let looping = false;
         const { run, queue } = makeRun(async (context) => {
             while (!context.signal.aborted) {
-                await settle(1);
+                looping = true;
+                await settle();
             }
 
             aborted = true;
@@ -268,7 +272,9 @@ describe("cancelling", () => {
 
         run.start();
         const body = queue.runLatest();
-        await settle(5);
+        await vi.waitFor(() => {
+            assert.isTrue(looping, "the work is running");
+        });
         run.cancel();
         await body;
 
@@ -291,7 +297,7 @@ describe("cancelling", () => {
         const { run, queue } = makeRun(
             async (context) => {
                 while (!context.signal.aborted) {
-                    await settle(1);
+                    await settle();
                 }
 
                 throw new DOMException("stopped", "AbortError");
@@ -332,7 +338,7 @@ describe("the time box", () => {
         const { run, queue } = makeRun(
             async (context) => {
                 while (!(context.timeBox?.aborted ?? false)) {
-                    await settle(1);
+                    await settle();
                 }
 
                 return { result: stubResult(context.runId) };
@@ -347,7 +353,50 @@ describe("the time box", () => {
         assert.strictEqual(run.partial, true);
         assert.isDefined(run.caveats.partialReason);
         assert.include(run.caveats.partialReason ?? "", "15 ms");
+        assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.time-box", params: { ms: 15 } });
+        assert.strictEqual(
+            run.caveats.partialReason,
+            "Stopped after the 15 ms time box and published what was computed.",
+        );
         assert.strictEqual(run.record.partial, true);
+    });
+
+    it("is partial whatever stopped it, when the caveats say why it stopped early (#933)", async () => {
+        const { run, queue } = makeRun(async (context) => {
+            await settle();
+
+            return {
+                result: stubResult(context.runId),
+                caveats: { exact: false, partialReason: "iteration cap reached" },
+            };
+        });
+
+        run.start();
+        await queue.runLatest();
+
+        assert.strictEqual(run.status, "succeeded");
+        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.isUndefined(run.caveats.partialCause, "a reason given only in words has no code");
+        assert.strictEqual(run.partial, true, "the caveats and the flag never disagree");
+        assert.strictEqual(run.record.partial, true);
+    });
+
+    it("words the reason from a cause the work gives as a code (#866)", async () => {
+        const { run, queue } = makeRun(async (context) => {
+            await settle();
+
+            return {
+                result: stubResult(context.runId),
+                caveats: { exact: false, partialCause: { code: "partial.iteration-cap", params: {} } },
+            };
+        });
+
+        run.start();
+        await queue.runLatest();
+
+        assert.strictEqual(run.partial, true);
+        assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.iteration-cap", params: {} });
+        assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
     });
 
     it("leaves the work's own signal alone, so stopping early is not an abort", async () => {
@@ -355,7 +404,7 @@ describe("the time box", () => {
         const { run, queue } = makeRun(
             async (context) => {
                 while (!(context.timeBox?.aborted ?? false)) {
-                    await settle(1);
+                    await settle();
                 }
 
                 sawAbort = context.signal.aborted;
@@ -416,7 +465,7 @@ describe("failing", () => {
 
             run.start();
             await queue.runLatest();
-            await settle(20);
+            await settle();
 
             assert.strictEqual(run.status, "failed");
             assert.deepStrictEqual(seen, []);
@@ -476,9 +525,13 @@ describe("rerun", () => {
 describe("staleness", () => {
     it("is derived rather than tracked, and only once there are numbers to qualify", async () => {
         const note = { ranOn: 4, nowVisible: 2, scopeSpec: "visible" as const };
-        const { run, queue } = makeRun(finishAtOnce, {}, {
-            stale: () => note,
-        });
+        const { run, queue } = makeRun(
+            finishAtOnce,
+            {},
+            {
+                stale: () => note,
+            },
+        );
 
         assert.strictEqual(run.stale, null, "a run that has computed nothing cannot be stale");
 

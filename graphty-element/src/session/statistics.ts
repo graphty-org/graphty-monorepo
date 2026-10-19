@@ -9,6 +9,8 @@
 
 import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
 
+import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
+import { arrayColumn, buildHistogram } from "./results/statistics";
 import { COMPONENT_SIZE_CAP, type ComponentStatistics, type DirectionProvenance, type GraphStatistics } from "./types";
 
 /**
@@ -109,7 +111,7 @@ function summariseComponents(snapshot: GraphSnapshot, labels: Int32Array, count:
         isolatedCount,
         truncatedSizes,
         componentOf(id: NodeId): number | undefined {
-            const index = snapshot.ids.indexOf(id);
+            const index = rowOfEitherSpelling(snapshot.ids, id);
             return index === INVALID_INDEX ? undefined : labels[index];
         },
     };
@@ -180,6 +182,100 @@ function degreeSummary(degrees: U32): { range: readonly [number, number]; mean: 
     }
 
     return { range: [low, high], mean: total / degrees.length };
+}
+
+/** Wedges {@link sampledTransitivity} draws: about 0.01 of standard error at any transitivity. */
+const WEDGE_SAMPLES = 4000;
+
+/**
+ * Whether `to` is in `from`'s row. Rows are sorted, so a binary search.
+ * @param rowPtr - the row offsets
+ * @param colIdx - the sorted neighbours
+ * @param from - the row
+ * @param to - the neighbour looked for
+ * @returns true when the arc exists
+ */
+function hasArc(rowPtr: U32, colIdx: U32, from: number, to: number): boolean {
+    let low = rowPtr[from];
+    let high = rowPtr[from + 1];
+    while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (colIdx[middle] < to) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+
+    return low < rowPtr[from + 1] && colIdx[low] === to;
+}
+
+/**
+ * The global clustering coefficient, direction ignored, from a fixed sample of wedges.
+ *
+ * A wedge is drawn uniformly: its centre with probability proportional to d(d - 1), then two
+ * distinct arc slots of the centre. It is closed when either arc joins its two ends. A self-loop or
+ * a repeated edge makes a wedge whose ends coincide; it counts as open.
+ * @param snapshot - the snapshot to measure
+ * @returns the closed share of the sampled wedges; 0 when the graph has no wedge
+ */
+export function sampledTransitivity(snapshot: GraphSnapshot): number {
+    const { nodeCount, rowPtr, colIdx } = snapshot;
+    // A directed snapshot's in-arcs are in its reverse view; an undirected one stores both ends.
+    const reverse = snapshot.directed ? snapshot.reverse() : undefined;
+    const out = (u: number): number => rowPtr[u + 1] - rowPtr[u];
+    const degree = (u: number): number =>
+        out(u) + (reverse === undefined ? 0 : reverse.rowPtr[u + 1] - reverse.rowPtr[u]);
+    const neighbour = (u: number, slot: number): number =>
+        slot < out(u) || reverse === undefined
+            ? colIdx[rowPtr[u] + slot]
+            : reverse.colIdx[reverse.rowPtr[u] + slot - out(u)];
+
+    const wedgesUpTo = new Float64Array(nodeCount + 1);
+    for (let u = 0; u < nodeCount; u++) {
+        const d = degree(u);
+        wedgesUpTo[u + 1] = wedgesUpTo[u] + d * (d - 1);
+    }
+
+    const wedges = wedgesUpTo[nodeCount];
+    if (wedges === 0) {
+        return 0;
+    }
+
+    let state = 12345;
+    const draw = (): number => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state / 2 ** 32;
+    };
+    let closed = 0;
+    for (let sample = 0; sample < WEDGE_SAMPLES; sample++) {
+        const target = draw() * wedges;
+        let low = 0;
+        let high = nodeCount;
+        while (low < high) {
+            const middle = (low + high) >>> 1;
+            if (wedgesUpTo[middle + 1] <= target) {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+
+        const d = degree(low);
+        const first = Math.floor(draw() * d);
+        let second = Math.floor(draw() * (d - 1));
+        if (second >= first) {
+            second++;
+        }
+
+        const a = neighbour(low, first);
+        const b = neighbour(low, second);
+        if (a !== b && a !== low && b !== low && (hasArc(rowPtr, colIdx, a, b) || hasArc(rowPtr, colIdx, b, a))) {
+            closed++;
+        }
+    }
+
+    return closed / WEDGE_SAMPLES;
 }
 
 /**
@@ -262,7 +358,8 @@ export function computeStatistics(
     directednessSource: DirectionProvenance,
 ): GraphStatistics {
     const { labels, count } = labelComponents(snapshot);
-    const degrees = degreeSummary(snapshot.degree());
+    const degreeVector = snapshot.degree();
+    const degrees = degreeSummary(degreeVector);
 
     return Object.freeze({
         nodeCount: snapshot.nodeCount,
@@ -275,6 +372,8 @@ export function computeStatistics(
         repeatedEdgeCount: countRepeatedEdges(snapshot),
         degreeRange: Object.freeze(degrees.range),
         meanDegree: degrees.mean,
+        degreeHistogram: buildHistogram(arrayColumn(degreeVector), { integerValued: true }),
+        transitivity: sampledTransitivity(snapshot),
         components: Object.freeze(summariseComponents(snapshot, labels, count)),
     } satisfies GraphStatistics);
 }
@@ -314,6 +413,13 @@ export function computeFingerprint(snapshot: GraphSnapshot): string {
         if (typeof id === "number") {
             mix(0x4e554d);
             mix(id | 0);
+            // An integer id past 32 bits (a millisecond timestamp, say) would otherwise hash the
+            // same as its low 32 bits. Folded only when nonzero, so every id within 32 bits keeps
+            // the fingerprint a saved project already recorded.
+            const high = Math.trunc(id / 2 ** 32);
+            if (high !== 0) {
+                mix(high);
+            }
             // The fractional half of a non-integer id would otherwise hash the same as its floor.
             mix(Math.round((id - Math.trunc(id)) * 0xffffff));
         } else {

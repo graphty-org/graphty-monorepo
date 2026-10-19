@@ -4,7 +4,14 @@ import "../src/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import cxUrl from "../../graph-io/test/conformance/fixtures/cx/ndex/WP4742-ketogenesis.cx?url";
+import cx2Url from "../../graph-io/test/conformance/fixtures/cx2/ndex/72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2?url";
+import cysUrl from "../../graph-io/test/conformance/fixtures/cys/tutorials/galFiltered.cys?url";
+import oboGraphsUrl from "../../graph-io/test/conformance/fixtures/json/obographs/goslim_generic.json?url";
+import oboUrl from "../../graph-io/test/conformance/fixtures/obo/go/goslim_generic.obo?url";
+import xgmmlUrl from "../../graph-io/test/conformance/fixtures/xgmml/efi-est/20920_3-oxoacyl_c_20_full_ssn.xgmml?url";
 import { assertGraphLoaded, assertLayoutPlaced, drawn } from "./assertions";
+import { data2Url, data3Url, karateGraphmlUrl } from "./datasets";
 import {
     edgeData,
     eventWaitingDecorator,
@@ -49,14 +56,22 @@ type Story = StoryObj<StoryArgs>;
  * @param story - Which importer this is, for the failure message.
  * @param nodes - The nodes the story's document declares.
  * @param edges - The edges it declares.
+ * @param distinct - Whether every node must sit at its own place; false for a saved drawing that
+ *     puts two nodes at one point.
  */
-const imported = async (canvasElement: HTMLElement, story: string, nodes: number, edges: number): Promise<void> => {
+const imported = async (
+    canvasElement: HTMLElement,
+    story: string,
+    nodes: number,
+    edges: number,
+    distinct = nodes > 1 && edges > 0,
+): Promise<void> => {
     await waitForGraphSettled(canvasElement);
 
     const scene = await drawn(canvasElement, `Data ${story}`);
 
     await assertGraphLoaded(scene, { nodes, edges });
-    await assertLayoutPlaced(scene, { distinct: nodes > 1 && edges > 0 });
+    await assertLayoutPlaced(scene, { distinct });
 };
 
 export const Basic: Story = {
@@ -78,7 +93,7 @@ export const Json: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         layout: "ngraph",
         layoutConfig: {
@@ -95,7 +110,7 @@ export const ModifiedJson: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data2.json",
+            data: data2Url,
             edge: {
                 path: "links",
             },
@@ -113,9 +128,12 @@ export const ModifiedJson: Story = {
 
 export const GraphML: Story = {
     args: {
+        // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "graphml",
         dataSourceConfig: {
-            url: "https://raw.githubusercontent.com/chengw07/NetWalk/master/data/karate.GraphML",
+            url: karateGraphmlUrl,
         },
     },
     play: async ({ canvasElement }) => {
@@ -125,6 +143,9 @@ export const GraphML: Story = {
 
 export const CSV: Story = {
     args: {
+        // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "csv",
         dataSourceConfig: {
             data: `source,target,weight,protocol,latency,bandwidth,active,description
@@ -147,6 +168,9 @@ backup-1,backup-2,0.6,Sync,25,200.0,true,"Backup synchronization"`,
 
 export const GML: Story = {
     args: {
+        // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "gml",
         dataSourceConfig: {
             data: `Creator "Comprehensive GML Test File"
@@ -273,6 +297,9 @@ graph [
 
 export const GEXF: Story = {
     args: {
+        // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "gexf",
         dataSourceConfig: {
             data: `<?xml version="1.0" encoding="UTF-8"?>
@@ -575,7 +602,8 @@ digraph ComprehensiveTest {
         setup: storySetup({ preSteps: 8000 }), // Extra preSteps for DOT with ngraph
     },
     play: async ({ canvasElement }) => {
-        await imported(canvasElement, "DOT", 9, 12);
+        // 9 nodes and the 2 cluster subgraphs, each drawn as a node of its own as Graphviz draws it
+        await imported(canvasElement, "DOT", 11, 12);
     },
 };
 
@@ -959,6 +987,9 @@ export const Pajek: Story = {
 // GraphMLYFiles: yFiles GraphML with 6 nodes in 3D space and 40x thicker edges
 export const GraphMLYFiles: Story = {
     args: {
+        // Pre-steps under visual capture, as every story states its own: 1000 is what these stories
+        // were captured with.
+        setup: storySetup({ preSteps: 1000 }),
         dataSource: "graphml",
         dataSourceConfig: {
             data: `<?xml version="1.0" encoding="UTF-8"?>
@@ -995,11 +1026,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Top node at (0, 3, 0) -->
+    <!-- Top node: yEd's y grows downward, so y -3 is above the middle -->
     <node id="n3">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="0.0" y="3.0" width="1.0" height="1.0"/>
+          <y:Geometry x="0.0" y="-3.0" width="1.0" height="1.0"/>
           <y:Fill color="#96CEB4" transparent="false"/>
           <y:BorderStyle color="#2F9E44" type="line" width="1.0"/>
           <y:NodeLabel>Top</y:NodeLabel>
@@ -1009,11 +1040,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Bottom node at (0, -3, 0) -->
+    <!-- Bottom node at y 3 -->
     <node id="n4">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="0.0" y="-3.0" width="1.0" height="1.0"/>
+          <y:Geometry x="0.0" y="3.0" width="1.0" height="1.0"/>
           <y:Fill color="#FFEAA7" transparent="false"/>
           <y:BorderStyle color="#E67700" type="line" width="1.0"/>
           <y:NodeLabel>Bottom</y:NodeLabel>
@@ -1023,11 +1054,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Top-Right node at (2, 2, 0) -->
+    <!-- Top-Right node at (2, -2) -->
     <node id="n5">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="2.0" y="2.0" width="1.0" height="1.0"/>
+          <y:Geometry x="2.0" y="-2.0" width="1.0" height="1.0"/>
           <y:Fill color="#A29BFE" transparent="false"/>
           <y:BorderStyle color="#6C5CE7" type="line" width="1.0"/>
           <y:NodeLabel>TR</y:NodeLabel>
@@ -1037,11 +1068,11 @@ export const GraphMLYFiles: Story = {
       <data key="d2">0.0</data>
     </node>
 
-    <!-- Bottom-Left node at (-2, -2, 0) -->
+    <!-- Bottom-Left node at (-2, 2) -->
     <node id="n6">
       <data key="d0">
         <y:ShapeNode>
-          <y:Geometry x="-2.0" y="-2.0" width="1.0" height="1.0"/>
+          <y:Geometry x="-2.0" y="2.0" width="1.0" height="1.0"/>
           <y:Fill color="#FD79A8" transparent="false"/>
           <y:BorderStyle color="#E84393" type="line" width="1.0"/>
           <y:NodeLabel>BL</y:NodeLabel>
@@ -1112,5 +1143,98 @@ export const GraphMLYFiles: Story = {
     },
     play: async ({ canvasElement }) => {
         await imported(canvasElement, "GraphMLYFiles", 6, 6);
+    },
+};
+
+/*
+ * The Cytoscape formats and OBO. Each story loads a real file, committed with graph-io's
+ * conformance fixtures under a license that allows it (graph-io/test/conformance/sources.md
+ * gives each file's origin, license and checksum), and checks the counts graph-io's independent
+ * oracles agree on. A file that holds a saved drawing is shown with the `fixed` layout, so the
+ * story draws the network as Cytoscape saved it, the right way up.
+ */
+
+// XGMML: an EFI-EST sequence similarity network (MIT, allie-walker/Natural-product-function)
+export const Xgmml: Story = {
+    args: {
+        dataSource: "xgmml",
+        dataSourceConfig: { url: xgmmlUrl },
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "Xgmml", 105, 221);
+    },
+};
+
+// CX2: WikiPathways WP615, senescence and autophagy (CC0, NDEx 72288e93), in its saved drawing
+export const Cx2: Story = {
+    args: {
+        dataSource: "cx2",
+        dataSourceConfig: { url: cx2Url },
+        layout: "fixed",
+        // a pathway drawing is only a few hundred pixels across, so it is spread out further
+        positionScale: 0.06,
+    },
+    play: async ({ canvasElement }) => {
+        // the saved WikiPathways drawing puts eight anchor nodes exactly on the nodes they join
+        await imported(canvasElement, "Cx2", 161, 118, false);
+    },
+};
+
+// CX version 1: WikiPathways WP4742, ketogenesis and ketolysis (CC0, NDEx cc593864)
+export const Cx: Story = {
+    args: {
+        dataSource: "cx",
+        dataSourceConfig: { url: cxUrl },
+        layout: "fixed",
+        // a pathway drawing is only a few hundred pixels across, so it is spread out further
+        positionScale: 0.06,
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "Cx", 58, 48);
+    },
+};
+
+// A Cytoscape session: galFiltered.cys, the yeast galactose network (CC0, cytoscape-tutorials)
+export const CytoscapeSession: Story = {
+    args: {
+        dataSource: "cys",
+        dataSourceConfig: { url: cysUrl },
+        layout: "fixed",
+        // Cytoscape saves coordinates in pixels; one scene unit per fifty pixels fits nodes of size one
+        positionScale: 0.02,
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "CytoscapeSession", 331, 362);
+    },
+};
+
+// OBO: the generic GO slim (CC BY 4.0, the Gene Ontology Consortium, release 2026-07-26)
+export const Obo: Story = {
+    args: {
+        dataSource: "obo",
+        dataSourceConfig: { url: oboUrl },
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "Obo", 140, 64);
+    },
+};
+
+// OBO Graphs JSON: the same GO slim as JSON, read by the json format (CC BY 4.0, GO Consortium)
+export const JsonOntology: Story = {
+    args: {
+        dataSource: "json",
+        dataSourceConfig: { url: oboGraphsUrl },
+        layout: "ngraph",
+        layoutConfig: { seed: 42 },
+        setup: storySetup({ preSteps: 8000 }),
+    },
+    play: async ({ canvasElement }) => {
+        await imported(canvasElement, "JsonOntology", 140, 64);
     },
 };

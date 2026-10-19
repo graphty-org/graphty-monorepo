@@ -16,8 +16,6 @@ import type { GraphSession } from "../../src/session";
 
 const WIDTH = 480;
 const HEIGHT = 360;
-const FRAMES = 8;
-const FRAME_MS = 10;
 /**
  * The strong-to-faint glow ratio with placement cancelled out. Drawn at one strength it is exactly
  * 1. Each at its own strength it measured 2.1, not 10: the strong glow's centre saturates the 8-bit
@@ -43,7 +41,7 @@ describe("glow strength per style", () => {
         // Circular, so the frame does not drift between reads.
         await graph.setLayout("circular", { scale: 0.2 });
         await operationQueueOf(graph).waitForCompletion();
-    }, 60000);
+    });
 
     afterAll(() => {
         graph.dispose();
@@ -51,14 +49,13 @@ describe("glow strength per style", () => {
     });
 
     async function frame(): Promise<Uint8Array> {
-        await operationQueueOf(graph).waitForCompletion();
-
-        for (let at = 0; at < FRAMES; at++) {
-            graph.scene.render();
-            await new Promise<void>((done) => {
-                setTimeout(done, FRAME_MS);
-            });
-        }
+        // Not a count of frames: the glow is drawn only once the render loop has applied the
+        // style to the node (the frame after the style pass), and once the glow layer that
+        // application creates has loaded and compiled its shaders. Until then Babylon composes no
+        // glow at all. The first glow took 6 to 7 frames on an idle workstation;
+        // on a loaded runner it took more, and the faint glow read exactly 0. The stable-frame
+        // wait covers both: no style work pending, and every effect layer's shaders ready.
+        await graph.waitForStableFrame();
 
         const { engine } = graph;
 

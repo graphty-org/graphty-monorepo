@@ -252,7 +252,11 @@ describe("queueScheduler over the element's operation queue", () => {
 
     const load: UndoableDefinition<Load> = {
         op: "load",
-        undo: { kind: "undoable", label: (c) => `Loaded ${c.name}` },
+        undo: {
+            kind: "undoable",
+            fact: () => ({ code: "transaction", params: { label: null } }),
+            label: (c) => `Loaded ${c.name}`,
+        },
         moves: false,
         keys: () => ["graph"],
         lane: { kind: "queued", category: "data-add" },
@@ -263,7 +267,11 @@ describe("queueScheduler over the element's operation queue", () => {
 
     const compute: UndoableDefinition<Compute> = {
         op: "compute",
-        undo: { kind: "undoable", label: () => "Ran degree" },
+        undo: {
+            kind: "undoable",
+            fact: () => ({ code: "transaction", params: { label: null } }),
+            label: () => "Ran degree",
+        },
         moves: false,
         keys: () => ["runs/degree"],
         lane: { kind: "queued", category: "algorithm-run" },

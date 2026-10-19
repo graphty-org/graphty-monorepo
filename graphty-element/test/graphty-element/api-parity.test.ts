@@ -102,10 +102,7 @@ describe("Graphty API Parity", () => {
              * and style layers are `session.styles`.
              */
             it("has a property for everything the style template used to carry", () => {
-                assert.notOk(
-                    hasMethod(graphtyContent, "setStyleTemplate"),
-                    "setStyleTemplate is gone, not deprecated",
-                );
+                assert.notOk(hasMethod(graphtyContent, "setStyleTemplate"), "setStyleTemplate is gone, not deprecated");
 
                 for (const property of [
                     "viewMode",

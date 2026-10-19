@@ -1,0 +1,12 @@
+pairs .pairs: read true, write true
+pairs: 3 nodes, 2 edges
+[ 'E_INVALID_WEIGHT line 5' ]
+# undirected
+alice = Alice Liddell
+bob
+carol
+alice,bob,2.5
+bob,carol
+
+read back: 3 nodes, 2 edges
+[ 'W_COLUMN_DROPPED: node column "color" is not written' ]

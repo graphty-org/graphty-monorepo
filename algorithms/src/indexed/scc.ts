@@ -6,6 +6,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { type ArcOrderOption, checkArcOrder } from "./bfs.js";
 import { type LabelResult, withGroups } from "./components.js";
 
@@ -48,8 +49,11 @@ export function stronglyConnectedComponents(g: AdjacencyView, options: ArcOrderO
  */
 function tarjan(g: AdjacencyView, options: ArcOrderOption = {}): { labels: U32; count: number; popped: U32 } {
     if (!g.directed) {
-        throw new Error(
-            "Strongly connected components require a directed graph. Use connectedComponents for an undirected one.",
+        throw withCode(
+            new Error(
+                "Strongly connected components require a directed graph. Use connectedComponents for an undirected one.",
+            ),
+            "E_NEEDS_DIRECTED",
         );
     }
     const { nodeCount, rowPtr, colIdx } = g;

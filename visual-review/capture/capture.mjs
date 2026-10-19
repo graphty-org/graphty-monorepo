@@ -5,7 +5,8 @@
  * `parameters.chromatic` from the preview's own `extract()`, then opens each story and mode in a
  * fresh browser context: a fixed start time, SwiftShader WebGL, a 1200 x 900 viewport at device
  * scale factor 2, as Chromatic captures. Each PNG is the whole canvas, never cropped to the content:
- * the full page of the story iframe, which is the viewport unless the story overflows it. It waits
+ * the full page of the story iframe, which is the viewport unless the story overflows it, however
+ * tall (see screenshotWholePage). It waits
  * for Storybook's render (play functions included) and, when the project's config names a
  * `waitFor` (an element selector and a method returning a promise, such as graphty-element's
  * `waitForStableFrame()`), for that; a story that errors or never settles is `failed`, never a picture,
@@ -34,18 +35,21 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { dirname, extname, join, normalize, sep } from "node:path";
+import { hostname, tmpdir } from "node:os";
+import { dirname, extname, join, normalize, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright";
+import { PNG } from "pngjs";
 
 import { classify, DEFAULT_THRESHOLD, readBaseline, sha256 } from "../trusted/lib/compare.mjs";
 import { validateResults } from "../trusted/lib/results.mjs";
 
-/* global document, window, requestAnimationFrame -- read only inside the page */
+/* global document, requestAnimationFrame -- read only inside the page */
 
 /** The instant every page's clock starts at. It keeps running from there. */
 const CLOCK_START = "2026-01-01T12:00:00Z";
@@ -249,7 +253,7 @@ const TYPES = {
  * @param {string} dir the directory to serve
  * @returns {Promise<[import("node:http").Server, string]>} the server and its base URL
  */
-function serve(dir) {
+export function serve(dir) {
     const server = createServer(async (req, res) => {
         try {
             let p = normalize(decodeURIComponent(new URL(req.url, "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
@@ -300,11 +304,11 @@ async function extract(browser, base) {
     try {
         const page = await context.newPage();
         await page.goto(`${base}iframe.html`, { waitUntil: "load", timeout: RENDER_TIMEOUT });
-        await page.waitForFunction(() => /** @type {any} */ (window).__STORYBOOK_PREVIEW__?.storyStoreValue, null, {
+        await page.waitForFunction(() => /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.storyStoreValue, null, {
             timeout: RENDER_TIMEOUT,
         });
         return await page.evaluate(async () => {
-            const preview = /** @type {any} */ (window).__STORYBOOK_PREVIEW__;
+            const preview = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__;
             const all = await preview.extract();
             const params = {};
             for (const [id, story] of Object.entries(all)) {
@@ -313,7 +317,10 @@ async function extract(browser, base) {
             }
             const gl = document.createElement("canvas").getContext("webgl");
             const info = gl?.getExtension("WEBGL_debug_renderer_info");
-            const renderer = gl ? String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) : null;
+            let renderer = null;
+            if (gl) {
+                renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+            }
             return { params, renderer, gpu: "gpu" in navigator };
         });
     } finally {
@@ -368,7 +375,7 @@ async function shootOnce(browser, url, { delay, waitFor }) {
                     if (document.body.classList.contains("sb-show-errordisplay")) {
                         return "errored";
                     }
-                    const p = /** @type {any} */ (window).__STORYBOOK_PREVIEW__?.currentRender?.phase;
+                    const p = /** @type {any} */ (globalThis).__STORYBOOK_PREVIEW__?.currentRender?.phase;
                     return ["completed", "afterEach", "finished", "errored", "aborted"].includes(p) && p;
                 },
                 null,
@@ -412,13 +419,76 @@ async function shootOnce(browser, url, { delay, waitFor }) {
         // full page of the story iframe -- the viewport, or everything a scroll would reach when
         // the story is taller or wider -- so every story of a project is the same size unless
         // it overflows.
-        const png = await page.screenshot({ animations: "disabled", caret: "hide", fullPage: true });
+        const png = await screenshotWholePage(page);
         return { png, reason: null, console: lines };
     } catch (e) {
         return fail(e.message);
     } finally {
         await context.close();
     }
+}
+
+/**
+ * Chromium's tallest screenshot in device pixels (8192 device px is 4096 CSS px at scale 2). A
+ * taller full-page screenshot either repeats the top of the page below this row instead of
+ * drawing the rest, or fails with "Unable to capture screenshot".
+ */
+export const MAX_SHOT_HEIGHT = 8192;
+
+/**
+ * A full-page screenshot of the whole page, however tall. A page within MAX_SHOT_HEIGHT is the
+ * one screenshot Playwright takes, byte for byte; a taller one is shot in slices of at most
+ * MAX_SHOT_HEIGHT device px, clipped from the full page, and stitched row for row into one PNG.
+ * @param {import("playwright").Page} page the page, at device scale factor SCALE
+ * @returns {Promise<Buffer>} the PNG
+ */
+export async function screenshotWholePage(page) {
+    const options = /** @type {const} */ ({ animations: "disabled", caret: "hide", fullPage: true });
+    // Chromium's first screenshot beyond the viewport lays text out again, and line boxes of
+    // 'normal' height can come out a pixel shorter for good (11px monospace: 21 CSS px a line
+    // before, 20 after), so a page measured before it is taller than the page it draws: the image
+    // gets background rows below the story (#1982), and later slices of a tall page come back
+    // short (#1976). One throwaway capture settles the layout; everything below measures after it.
+    // A full-page capture also resizes the page while it runs, and a story that redraws on resize
+    // (Cytoscape's canvases) draws again in the next frames: wait for them, or the real capture
+    // catches that redraw half done and two captures of the story differ.
+    await page.screenshot({ ...options, clip: { x: 0, y: 0, width: 1, height: 1 } });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // The page's size as Playwright measures it for a full-page screenshot.
+    const size = await page.evaluate(() => {
+        const [b, d] = [document.body, document.documentElement];
+        return {
+            width: Math.max(b.scrollWidth, d.scrollWidth, b.offsetWidth, d.offsetWidth, b.clientWidth, d.clientWidth),
+            height: Math.max(
+                b.scrollHeight,
+                d.scrollHeight,
+                b.offsetHeight,
+                d.offsetHeight,
+                b.clientHeight,
+                d.clientHeight,
+            ),
+        };
+    });
+    const width = size.width * SCALE;
+    const height = size.height * SCALE;
+    if (height <= MAX_SHOT_HEIGHT) {
+        return page.screenshot(options);
+    }
+    const out = new PNG({ width, height });
+    for (let top = 0; top < height; top += MAX_SHOT_HEIGHT) {
+        const rows = Math.min(MAX_SHOT_HEIGHT, height - top);
+        const clip = { x: 0, y: top / SCALE, width: size.width, height: rows / SCALE };
+        const slice = PNG.sync.read(await page.screenshot({ ...options, clip }));
+        if (slice.width !== width || slice.height !== rows) {
+            throw new Error(
+                `screenshot slice at ${top} px is ${slice.width} x ${slice.height}, not ${width} x ${rows}`,
+            );
+        }
+        slice.data.copy(out.data, top * width * 4);
+    }
+    // Paeth on every row: the same size as pngjs's default (try all five filters per row) on
+    // screenshots, at a third of the time.
+    return PNG.sync.write(out, { filterType: 4 });
 }
 
 /**
@@ -445,19 +515,31 @@ const clip = (lines) => lines.slice(0, MAX_CONSOLE).map((l) => l.slice(0, MAX_LI
 const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 30 }).trim();
 
 /**
- * Where this run came from: GitHub Actions' environment in CI, the working tree locally.
+ * Where this run came from: GitHub Actions' environment in CI, the working tree locally. A local
+ * preview of a pull request (tools/visual-preview.sh) sets VISUAL_REVIEW_PREVIEW_PR and
+ * VISUAL_REVIEW_PREVIEW_HEAD while it captures the pull request's merge tree: the capture then names
+ * the pull request and its head, and `local.preview` says which merge commit was built, where, and
+ * with which build of this tool, so the review page can offer it for decisions before CI's lands.
  * @returns {Promise<object>} the commit, pull request and run fields of results.json, and `local`
  */
 async function provenance() {
     if (process.env.GITHUB_ACTIONS !== "true") {
         const diff = execFileSync("git", ["diff", "HEAD", "--binary"], { maxBuffer: 1 << 30 });
+        const commit = git("rev-parse", "HEAD");
+        const pr = Number(process.env.VISUAL_REVIEW_PREVIEW_PR) || null;
+        const head = process.env.VISUAL_REVIEW_PREVIEW_HEAD ?? "";
+        const preview = pr !== null && /^[0-9a-f]{40}$/.test(head);
         return {
-            commit: git("rev-parse", "HEAD"),
-            headSha: null,
-            pr: null,
+            commit,
+            headSha: preview ? head : null,
+            pr: preview ? pr : null,
             runId: null,
             runAttempt: null,
-            local: { describe: git("describe", "--always", "--dirty"), diff: sha256(diff) },
+            local: {
+                describe: git("describe", "--always", "--dirty"),
+                diff: sha256(diff),
+                ...(preview && { preview: { merge: commit, host: hostname(), tool: toolVersion() } }),
+            },
         };
     }
     const event = process.env.GITHUB_EVENT_PATH
@@ -474,17 +556,51 @@ async function provenance() {
 }
 
 /**
- * Whether any font on this machine draws emoji, asked of fontconfig with one common emoji
- * (U+1F680). Without one, every emoji in a story renders as an empty box, so capture warns.
- * ponytail: one code point, a machine-level check; the pinned fonts of milestone 2 replace it.
+ * Whether any font draws emoji, asked of fontconfig with one common emoji (U+1F680): the pinned
+ * fonts when `env` names a FONTCONFIG_FILE, else the machine's. Without one, every emoji in a story
+ * renders as an empty box, so capture warns.
+ * @param {NodeJS.ProcessEnv} [env] the environment fc-list runs in
  * @returns {boolean | null} null when fc-list is not installed
  */
-export function hasEmojiFont() {
+export function hasEmojiFont(env = process.env) {
     try {
-        return execFileSync("fc-list", [":charset=1f680", "family"], { encoding: "utf8" }).trim() !== "";
+        return execFileSync("fc-list", [":charset=1f680", "family"], { encoding: "utf8", env }).trim() !== "";
     } catch {
         return null;
     }
+}
+
+const LFS_POINTER = "version https://git-lfs.github.com/spec/v1";
+
+/**
+ * Checks a pinned font configuration and fingerprints it: the SHA-256 over every file under the
+ * fonts.conf's directory (path and content), recorded in results.json as `environment.fonts`.
+ * A file that is still a Git LFS pointer is refused, never skipped: Chromium would silently fall
+ * back to some other font and every capture would differ from its baseline.
+ * @param {string} fontconfig the fonts.conf's absolute path
+ * @returns {Promise<string>} the fingerprint
+ */
+export async function pinnedFonts(fontconfig) {
+    const dir = dirname(fontconfig);
+    await stat(fontconfig).catch(() => {
+        throw new Error(`the config's fontconfig file ${fontconfig} does not exist`);
+    });
+    const files = (await readdir(dir, { recursive: true, withFileTypes: true }))
+        .filter((e) => e.isFile())
+        .map((e) => join(e.parentPath, e.name))
+        .sort();
+    const hash = createHash("sha256");
+    for (const file of files) {
+        const bytes = await readFile(file);
+        const name = relative(dir, file).split(sep).join("/");
+        if (bytes.subarray(0, LFS_POINTER.length).toString() === LFS_POINTER) {
+            throw new Error(
+                `${name} in ${dir} is a Git LFS pointer, not a font: run \`git lfs pull --include "${relative(process.cwd(), dir) || "."}/**"\``,
+            );
+        }
+        hash.update(`${name}\0${sha256(bytes)}\n`);
+    }
+    return hash.digest("hex");
 }
 
 async function cpuModel() {
@@ -529,7 +645,9 @@ async function loadReference(dir) {
  * Captures one project.
  * @param {{ project: string, storybook: string, baselines: string, out: string, workers: number,
  *     waitFor?: object | null, reference?: string | null, stories?: string[] | null,
- *     log?: (line: string) => void }} options `waitFor` is the project's config entry (see
+ *     fontconfig?: string | null, log?: (line: string) => void }} options `fontconfig` is the
+ *     absolute path of the fonts.conf every browser draws with (the config's `fontconfig`), null for
+ *     the host's fonts; `waitFor` is the project's config entry (see
  *     shootOnce); `reference` is the default branch's capture (see above); `stories` keeps only
  *     the story ids starting with one of these prefixes, for a quick local preview, and then no
  *     baseline is reported removed
@@ -544,9 +662,16 @@ export async function capture({
     waitFor = null,
     reference = null,
     stories = null,
+    fontconfig = null,
     log = console.log,
 }) {
     const started = Date.now();
+    // Pinned fonts: only the committed directory, and a font cache of this run's own (only for the
+    // browsers: Playwright finds its Chromium under XDG_CACHE_HOME).
+    const fonts = fontconfig ? await pinnedFonts(fontconfig) : null;
+    const fontEnv = fontconfig
+        ? { FONTCONFIG_FILE: fontconfig, XDG_CACHE_HOME: await mkdtemp(join(tmpdir(), "visual-review-fonts-")) }
+        : {};
     await mkdir(join(out, "baselines"), { recursive: true });
     await mkdir(join(out, "second"), { recursive: true });
     const allIds = storyIds(JSON.parse(await readFile(join(storybook, "index.json"), "utf8")));
@@ -558,7 +683,7 @@ export async function capture({
     // SwiftShader a busy WebGL page on one worker stalls the others' renders and screenshots.
     const browsers = await Promise.all(
         Array.from({ length: Math.max(1, workers) }, () =>
-            chromium.launch({ args: CHROMIUM_ARGS, env: { ...process.env, TZ: "UTC" } }),
+            chromium.launch({ args: CHROMIUM_ARGS, env: { ...process.env, ...fontEnv, TZ: "UTC" } }),
         ),
     );
     const [browser] = browsers;
@@ -631,11 +756,13 @@ export async function capture({
             ? []
             : [...existing].filter((f) => !planned.has(f) && !renamed.has(f) && BASELINE_NAME.test(f));
 
-        const emojiFont = hasEmojiFont();
+        const emojiFont = hasEmojiFont({ ...process.env, ...fontEnv });
         if (emojiFont === false) {
+            const where = fontconfig ? `in ${fontconfig}` : "on this machine";
             log(
-                "warning: no font on this machine draws emoji (fc-list :charset=1f680 found none), so " +
-                    "every emoji in a story is captured as an empty box; install fonts-noto-color-emoji",
+                `warning: no font ${where} draws emoji (fc-list ` +
+                    ":charset=1f680 found none), so every emoji in a story is captured as an empty box; " +
+                    "add one, such as Noto Color Emoji",
             );
         }
         const results = {
@@ -655,6 +782,7 @@ export async function capture({
                 gpu,
                 cpu: await cpuModel(),
                 emojiFont,
+                fonts,
                 tool: toolVersion(),
             },
             items,
@@ -734,7 +862,8 @@ export async function capture({
                     const item = await run(b, jobs[next++]);
                     items.push(item);
                     if (item.status !== "unchanged") {
-                        log(`${item.status} ${item.file}${item.reason ? `: ${item.reason}` : ""}`);
+                        const why = item.reason ? `: ${item.reason}` : "";
+                        log(`${item.status} ${item.file}${why}`);
                     }
                     await save();
                 }
@@ -758,6 +887,9 @@ export async function capture({
     } finally {
         await Promise.all(browsers.map((b) => b.close()));
         server.close();
+        if (fontEnv.XDG_CACHE_HOME) {
+            await rm(fontEnv.XDG_CACHE_HOME, { recursive: true, force: true });
+        }
     }
 }
 

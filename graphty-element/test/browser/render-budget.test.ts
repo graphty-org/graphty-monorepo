@@ -14,10 +14,10 @@
  *   reading the log, and never asserted.
  * - Load, clear, load, clear must return the scene to exactly the meshes, materials and textures
  *   it started with.
- * - Draw calls and materials must not grow with the number of edges.
+ * - Draw calls, materials and scene meshes must not grow with the number of edges.
  *
- * When a change lowers a count on purpose (instanced edges, issue #419, will), or raises one and
- * the cost is accepted, rewrite the baseline and commit it:
+ * When a change lowers a count on purpose, or raises one and the cost is accepted, rewrite the
+ * baseline and commit it:
  *
  *     GRAPHTY_UPDATE_RENDER_BUDGET=1 npx vitest run --project=browser test/browser/render-budget.test.ts
  */
@@ -96,13 +96,17 @@ async function load(graph: Graph, nodeCount: number, edgeCount: number): Promise
 }
 
 /**
- * Render one frame and read what it cost.
+ * Read what the last frame drawn cost.
+ *
+ * It reads the frame the render loop drew, rather than drawing one more: every caller has waited
+ * for a stable frame, so that frame is the finished picture, and on a software GPU one more frame of
+ * the 10,000-node graph is seconds of rasterising still queued when the test ends, which the next
+ * test's first frame waits behind.
  * @param graph - The graph to measure.
  * @returns The counts, and the frame time for the log.
  */
 function measure(graph: Graph): Counts & { frameMs: number } {
     const { scene } = graph;
-    scene.render();
     const snapshot = graph.getStatsManager().getSnapshot().scene;
     assert.isDefined(snapshot, "the element's stats have scene instrumentation");
 
@@ -142,6 +146,7 @@ describe("the cost of drawing a whole graph", () => {
     for (const [nodeCount, edgeCount] of GRAPHS) {
         const name = `${String(nodeCount)} nodes, ${String(edgeCount)} edges`;
 
+        // eslint-disable-next-line local/no-test-timing -- no condition to wait on: loading and drawing the 10,000-node graph took 25.8 s in a loaded pre-push gate, over the 15 s browser default; tracked in #1636
         it(
             `stays within its baseline for ${name}`,
             async () => {
@@ -190,7 +195,7 @@ describe("a load and a clear", () => {
         await graph.setLayout("fixed");
         // Babylon makes the scene's default material the first time anything asks for it and keeps
         // it for the life of the scene. It is the scene's, not the dataset's, so take it first.
-        void graph.scene.defaultMaterial;
+        const _defaultMaterial = graph.scene.defaultMaterial;
         const start = held(graph);
 
         for (const pass of [1, 2]) {
@@ -232,11 +237,9 @@ describe("the number of edges", () => {
         assert.strictEqual(more.materials, fewer.materials, "materials grew with the edges");
     });
 
-    // Known failure, kept as a tripwire. Every edge's line and arrowhead is still an InstancedMesh,
-    // and Babylon lists each one in scene.meshes, so the list grows by two per edge. Issue #419 draws
-    // edges as instances of one mesh per style; when that lands this starts passing, `it.fails`
-    // reports it, and the fix is to change `it.fails` to `it`.
-    it.fails("does not change the number of scene meshes", async () => {
+    // Each edge's line and arrowhead is a slot in one batch mesh per appearance (issue #419), so
+    // twice the edges is the same scene meshes. A renderer that gives each edge a mesh fails it.
+    it("does not change the number of scene meshes", async () => {
         const fewer = await costOf(200);
         const more = await costOf(400);
 

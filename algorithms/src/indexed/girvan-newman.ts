@@ -9,7 +9,9 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
 import { edgeBetweennessCentrality } from "./betweenness.js";
+import { type LabelResult, withGroups } from "./components.js";
 import { arcWeightsOf, exactEdgeWeights } from "./label-propagation.js";
 import { modularity } from "./modularity.js";
 import { IntUnionFind } from "./structures/union-find.js";
@@ -24,8 +26,13 @@ export interface GirvanNewmanOptions {
     readonly maxIterations?: number | undefined;
 }
 
-/** The Girvan-Newman dendrogram: one partition per level, the uncut graph first. @public */
-export interface GirvanNewmanResult {
+/**
+ * The Girvan-Newman dendrogram: one partition per level, the uncut graph first. As a `LabelResult` it is the most
+ * modular level, `levels[bestLevel]`. @public
+ */
+export interface GirvanNewmanResult extends LabelResult {
+    /** The level with the highest modularity, the first of any tie; 0 when every level's modularity is NaN. */
+    readonly bestLevel: number;
     /** Dense community label per node index at each level, in first-seen order. */
     readonly levels: U32[];
     /** Modularity of each level's partition over the original graph. */
@@ -77,7 +84,10 @@ function aliveComponents(s: GraphSnapshot, alive: EdgeMask): { labels: U32; coun
  */
 export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}): GirvanNewmanResult {
     if (s.directed) {
-        throw new Error("Girvan-Newman requires an undirected graph. Pass s.toUndirected().snapshot.");
+        throw withCode(
+            new Error("Girvan-Newman requires an undirected graph. Pass s.toUndirected().snapshot."),
+            "E_NEEDS_UNDIRECTED",
+        );
     }
     const maxCommunities = options.maxCommunities ?? 0;
     const minCommunitySize = options.minCommunitySize ?? 1;
@@ -87,9 +97,11 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
     const alive = makeMask(edgeCount, true);
     const levels: U32[] = [];
     const scores: number[] = [];
+    const counts: number[] = [];
     const record = (): number => {
         const { labels, count } = aliveComponents(s, alive);
         levels.push(labels);
+        counts.push(count);
         scores.push(modularity(s, labels, weights === null ? {} : { weights }));
         const sizes = new Uint32Array(count);
         for (let u = 0; u < n; u++) {
@@ -116,5 +128,16 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
             break;
         }
     }
-    return { levels, modularity: Float64Array.from(scores) };
+    let bestLevel = 0;
+    for (let i = 1; i < scores.length; i++) {
+        if (scores[i] > scores[bestLevel] || (Number.isNaN(scores[bestLevel]) && !Number.isNaN(scores[i]))) {
+            bestLevel = i;
+        }
+    }
+    return {
+        ...withGroups(levels[bestLevel], counts[bestLevel]),
+        bestLevel,
+        levels,
+        modularity: Float64Array.from(scores),
+    };
 }

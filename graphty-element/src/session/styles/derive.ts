@@ -16,7 +16,10 @@
  * - A community, a layered grouping or a category table puts each element in a group, so its
  *   primary field drives a colour too -- categorical, because group 7 is not seven of anything.
  * - A route, a chosen set of nodes or a chosen set of edges names a subset rather than measuring
- *   everything, so it is a HIGHLIGHT: "these ones", not "this much".
+ *   everything, so it is a MARK: "these ones", not "this much". A mark is an ordinary layer that
+ *   sets real channels on the chosen elements -- a colour on each, and a width on an edge -- with
+ *   values of its own ({@link SUGGESTED_MARK_STYLE}). It is not a highlight: it does not follow
+ *   the element's highlight colour, and it is not exclusive, so two algorithms' marks stack.
  * - A list of scored pairs, a time series and a bare fact publish nothing per element, so they
  *   suggest nothing. A picture would have to invent the thing it painted.
  * - A run whose primary field leaves the node colour free, and which also puts nodes in named
@@ -39,12 +42,13 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Channel, FieldDescriptor } from "../../catalog/types";
+import type { Channel, FieldDescriptor, StaticStyle } from "../../catalog/types";
+import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { resultShapeContract } from "../results/types";
 import type { RunStyle } from "../runs/types";
 import type { EncodingRun, EncodingSpec } from "./EncodingSpec";
 import type { SelectorTarget } from "./predicate";
-import type { HighlightSpec } from "./StylesApi";
+import type { HighlightSpec, MarkSpec } from "./StylesApi";
 
 // ---------------------------------------------------------------------------------------------
 // What a run suggests
@@ -76,8 +80,26 @@ export interface HighlightSuggestion {
     readonly spec: HighlightSpec;
 }
 
-/** One thing a run suggests be drawn from it. */
-export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion;
+/** Painting the elements a run chose with fixed channel values, which is what `styles.mark` takes. */
+export interface MarkSuggestion {
+    /** Which verb applies it. */
+    readonly as: "mark";
+    /**
+     * The colour channel of each half the run chose: what a layer somebody wrote by hand is
+     * checked against. The width an edge mark also sets travels with its colour.
+     */
+    readonly channels: readonly Channel[];
+    /** The mark itself, with the channel values it paints. */
+    readonly spec: MarkSpec;
+}
+
+/**
+ * One thing a run suggests be drawn from it.
+ *
+ * The element's own derivation suggests an encoding or a mark. `HighlightSuggestion` stays in the
+ * union for a suggestion built by hand.
+ */
+export type StyleSuggestion = EncodingSuggestion | HighlightSuggestion | MarkSuggestion;
 
 // ---------------------------------------------------------------------------------------------
 // Internals
@@ -96,6 +118,36 @@ const NOTHING: readonly StyleSuggestion[] = Object.freeze([]);
  * graph.
  */
 export const DEFAULT_SIZE_RANGE: readonly [number, number] = Object.freeze([1, 3]);
+
+/**
+ * The edge width range `style: { size: true }` uses on an edge measurement.
+ *
+ * It starts at the default edge width for the reason {@link DEFAULT_SIZE_RANGE} starts at the
+ * default node size: the edge the run ranks lowest looks exactly as it did, and the encoding only
+ * ever makes edges wider. It stops at twice the default, which keeps the widest edge clear of the
+ * nodes it joins at the element's default sizes.
+ */
+export const DEFAULT_EDGE_WIDTH_RANGE: readonly [number, number] = Object.freeze([
+    EDGE_CONSTANTS.DEFAULT_LINE_WIDTH,
+    EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 2,
+]);
+
+/** The channel `style: { size }` paints on each half, and the range `size: true` means there. */
+const SIZE_CHANNEL = {
+    node: { channel: "node.size", range: DEFAULT_SIZE_RANGE, shape: "node-metric" },
+    edge: { channel: "edge.width", range: DEFAULT_EDGE_WIDTH_RANGE, shape: "edge-metric" },
+} as const satisfies Record<SelectorTarget, { channel: Channel; range: readonly [number, number]; shape: string }>;
+
+/**
+ * What an algorithm's chosen elements are painted: Okabe-Ito vermilion, and an edge three times
+ * the default width so a chosen edge reads as chosen whatever its colour. Its own values, not the
+ * element's highlight colour, so changing that colour leaves every algorithm's picture alone.
+ */
+const SUGGESTED_MARK_STYLE: StaticStyle = Object.freeze({
+    "node.color": "#D55E00",
+    "edge.color": "#D55E00",
+    "edge.width": EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
+});
 
 /** The colour channel that paints one half of the graph. */
 const COLOR_CHANNEL = {
@@ -138,7 +190,7 @@ function halvesCarrying(fields: readonly FieldDescriptor[], name: string): reado
  * asks the same question the same way.
  *
  * `style` adds to the suggestions and never takes from them: `{ size }` appends a node size over
- * the same field for a node measurement, and everything else -- `true`, `false`, left off --
+ * the same field for a node measurement, or an edge width for an edge measurement, and everything else -- `true`, `false`, left off --
  * suggests the colour alone. Whether to paint at all is the auto-apply policy's question.
  * @param run - The run, read for its shape and the fields it published.
  * @param style - The run's style option, read only for `size`.
@@ -159,7 +211,7 @@ export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonl
 
     const primary =
         layer === "highlight"
-            ? [highlightOf(run, primaryField, halves)]
+            ? [markOf(run, primaryField, halves)]
             : halves.map((half) => encodingOf(run, primaryField, half));
     const grouping = groupingOf(run, primaryField, primary);
     const size = sizeOf(run, primaryField, halves, style);
@@ -168,11 +220,14 @@ export function suggestStyles(run: EncodingRun, style: RunStyle = true): readonl
 }
 
 /**
- * The node size a run started with `style: { size }` asks for.
+ * The size a run started with `style: { size }` asks for: a node size for a node measurement, an
+ * edge width for an edge measurement.
  *
- * Only a node measurement has a size to give: a group id is not an amount, and an edge has no
- * node to size. Anything else is ignored rather than refused, the same way the colour suggestion
- * depends on the shape.
+ * Only a measurement has an amount to give: a group id is not an amount, and a chosen subset is
+ * "these ones", not "this much". Anything else is ignored rather than refused, the same way the
+ * colour suggestion depends on the shape. The encoding names the run and the field and nothing
+ * else, so `planEncoding` scopes it to exactly the elements carrying the value, as it does the
+ * colour.
  * @param run - The run.
  * @param field - Its primary field.
  * @param halves - The halves carrying it.
@@ -186,35 +241,37 @@ function sizeOf(
     style: RunStyle,
 ): EncodingSuggestion | null {
     const size = typeof style === "object" ? style.size : undefined;
+    const half = halves.find((each) => SIZE_CHANNEL[each].shape === run.shape);
 
-    if (size === undefined || size === false || run.shape !== "node-metric" || !halves.includes("node")) {
+    if (size === undefined || size === false || half === undefined) {
         return null;
     }
 
-    const [min, max] = size === true ? DEFAULT_SIZE_RANGE : size;
+    const { channel, range } = SIZE_CHANNEL[half];
+    const [min, max] = size === true ? range : size;
 
     return {
         as: "encoding",
-        channels: Object.freeze(["node.size"] as const),
-        spec: { run: run.id, field, channel: "node.size", range: [min, max] },
+        channels: Object.freeze([channel]),
+        spec: { run: run.id, field, channel, range: [min, max] },
     };
 }
 
 /**
- * The highlight a chosen subset suggests.
+ * The mark a chosen subset suggests.
  * @param run - The run.
  * @param field - Its primary field.
  * @param halves - The halves carrying it.
- * @returns The highlight.
+ * @returns The mark.
  */
-function highlightOf(run: EncodingRun, field: string, halves: readonly SelectorTarget[]): HighlightSuggestion {
-    // One suggestion for the whole run, not one per half: `highlight()` paints every half the
-    // run chose in a single exclusive call, because a route is one thing however many kinds of
-    // element it runs through.
+function markOf(run: EncodingRun, field: string, halves: readonly SelectorTarget[]): MarkSuggestion {
+    // One suggestion for the whole run, not one per half: `mark()` paints every half the run
+    // chose in a single call, because a route is one thing however many kinds of element it
+    // runs through.
     return {
-        as: "highlight",
+        as: "mark",
         channels: Object.freeze(halves.map((half) => COLOR_CHANNEL[half])),
-        spec: { run: run.id, field },
+        spec: { run: run.id, field, set: SUGGESTED_MARK_STYLE },
     };
 }
 

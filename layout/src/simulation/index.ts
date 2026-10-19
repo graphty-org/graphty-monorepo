@@ -7,12 +7,12 @@
  * (`design/decisions/2026-09-19-graphty-element-owns-webgpu.md`).
  */
 
-export { createSimulation } from "./create-simulation";
-export { ForceAtlas2Simulation, type ForceAtlas2SimulationOptions } from "./forceatlas2";
-export { FruchtermanReingoldSimulation } from "./fruchterman-reingold";
-export { resolveNodeVector, resolveWeights } from "./inputs";
-export { Lcg, seedPositions } from "./seed";
-export { toLayoutSnapshot } from "./snapshot";
+export { createSimulation } from "./create-simulation.js";
+export { ForceAtlas2Simulation, type ForceAtlas2SimulationOptions } from "./forceatlas2.js";
+export { FruchtermanReingoldSimulation } from "./fruchterman-reingold.js";
+export { resolveNodeVector, resolveWeights } from "./inputs.js";
+export { Lcg, seedPositions } from "./seed.js";
+export { toLayoutSnapshot } from "./snapshot.js";
 export type {
     CommonLayoutOptions,
     ForceAtlas2Options,
@@ -22,4 +22,4 @@ export type {
     SimulationOptions,
     SimulationType,
     SpringElectricalOptions,
-} from "./types";
+} from "./types.js";

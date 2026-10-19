@@ -3,7 +3,7 @@
 import { type DatasetMeta } from "./build.js";
 
 /**
- * The metadata of every hosted dataset: too large to bundle, loaded with `fetchDataset(name)` from
+ * The metadata of every large dataset (over about 5,000 nodes), loaded with `fetchDataset(name)` from
  * https://graphty.app/data/graph-samples/v1/. `sha256` and `bytes` describe the published .gsnp.gz file.
  */
 export const HOSTED_DATASETS: readonly DatasetMeta[] = [
@@ -32,8 +32,8 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "minimum spanning trees and connectivity at scale",
         ],
         hosting: "remote",
-        bytes: 9424352,
-        sha256: "8c95611b0aa1e8aafe60eaac3aa716395f7fdf2a4d99b286b8b4b36ba58050f4",
+        bytes: 9424348,
+        sha256: "a5703c970f993a33bd623846e0fdf2296fc833443ee1fcd3e301743d1cd7c979",
     },
     {
         name: "ogbn-arxiv",
@@ -59,8 +59,91 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "near-DAG structure: strongly connected components, topological order by year",
         ],
         hosting: "remote",
-        bytes: 10637546,
-        sha256: "21c10fe0832a14ec628e7f221d70425b47dd879f9faf4e8a7650a9ade52ece9c",
+        bytes: 10637599,
+        sha256: "9997f61804b66a5f16420b9d48470917bcac9c67f51331f21c59581f3d286ff2",
+    },
+    {
+        name: "go-basic",
+        title: "Gene Ontology (go-basic)",
+        description:
+            "The Gene Ontology's basic edition: every GO term of the three namespaces (biological process, molecular function, cellular component) and the relations among them that never cross namespaces. An arc runs from a term to its parent (is_a, part_of, regulates, ...); a term related to one parent in two ways keeps one arc. Obsolete terms are kept, with no arcs, and marked. Read by graph-io's OBO importer from the release of 2026-07-26.",
+        citation:
+            "The Gene Ontology Consortium, The Gene Ontology knowledgebase in 2023, Genetics 224(1), iyad031 (2023). doi:10.1093/genetics/iyad031; GO release 2026-07-26 (release.geneontology.org/2026-08-05)",
+        source: "https://release.geneontology.org/2026-08-05/ontology/go-basic.obo",
+        license: "CC BY 4.0 (Gene Ontology Consortium; https://geneontology.org/docs/go-citation-policy/).",
+        nodes: 48340,
+        edges: 71496,
+        directed: true,
+        weighted: false,
+        attributes: {
+            label: "string: the term's name",
+            namespace: "dict: biological_process, molecular_function or cellular_component (ground truth)",
+            obsolete: "u8: 1 for an obsolete term (the OBO is_obsolete tag)",
+        },
+        groundTruth: "namespace",
+        showcases: [
+            "hierarchical layouts of a 48,000-term DAG",
+            "ancestors, descendants and topological order",
+            "coloring terms by namespace; hiding obsolete terms",
+        ],
+        hosting: "remote",
+        bytes: 1372076,
+        sha256: "d0c68b4d9d377bee34cf255c39a631dbb5a6aa809762518060fcda9f02f89a39",
+    },
+    {
+        name: "disease-ontology",
+        title: "Human Disease Ontology (DOID)",
+        description:
+            "The Human Disease Ontology: human diseases and the is_a hierarchy that classifies them, a second large ontology and a public-domain one. An arc runs from a disease to its parent. Obsolete terms are kept, with no arcs, and marked. Read by graph-io's OBO importer from release v2026-09-30.",
+        citation:
+            "L. M. Schriml et al., The Human Disease Ontology 2022 update, Nucleic Acids Research 50(D1), D1255-D1261 (2022). doi:10.1093/nar/gkab1063",
+        source: "https://raw.githubusercontent.com/DiseaseOntology/HumanDiseaseOntology/v2026-09-30/src/ontology/doid.obo",
+        license: "CC0 1.0 (the ontology's own terms:license).",
+        nodes: 14854,
+        edges: 17479,
+        directed: true,
+        weighted: false,
+        attributes: {
+            label: "string: the disease's name",
+            obsolete: "u8: 1 for an obsolete term (the OBO is_obsolete tag)",
+        },
+        groundTruth: null,
+        showcases: [
+            "tree and hierarchical layouts of a 15,000-term ontology",
+            "depth and ancestor queries",
+            "search by label",
+        ],
+        hosting: "remote",
+        bytes: 288394,
+        sha256: "c0deb41124eae90e9bb79a46227d9aed7f93b687007d13dff58690dc7c2a36cf",
+    },
+    {
+        name: "bioplex3-hct116",
+        title: "BioPlex 3.0 protein interactions in HCT116 cells",
+        description:
+            "Human protein-protein interactions found by affinity purification and mass spectrometry in HCT116 cells (BioPlex 3.0), as published on NDEx in CX2 with a full saved layout. Each protein carries its gene symbol as the label and its saved position (x, y, y growing upward). Directed as CX2 stores every edge, though an interaction itself has no direction. Read by graph-io's CX2 importer.",
+        citation:
+            "E. L. Huttlin et al., Dual proteome-scale networks reveal cell-specific remodeling of the human interactome, Cell 184(11), 3022-3040 (2021). doi:10.1016/j.cell.2021.04.011; NDEx network e96d063d-237a-11ea-bb65-0ac135e8bacf",
+        source: "https://www.ndexbio.org/v3/networks/e96d063d-237a-11ea-bb65-0ac135e8bacf",
+        license: "CC0 1.0 (the network's rights: Waiver-No rights reserved (CC0), holder Harvard Medical School).",
+        nodes: 10251,
+        edges: 75346,
+        directed: true,
+        weighted: false,
+        attributes: {
+            label: "string: the gene symbol",
+            x: "f64: the saved x",
+            y: "f64: the saved y, growing upward",
+        },
+        groundTruth: null,
+        showcases: [
+            "a 10,000-node network drawn from its saved layout",
+            "force layouts and community detection at scale",
+            "degree and betweenness of interaction hubs",
+        ],
+        hosting: "remote",
+        bytes: 718314,
+        sha256: "f3cec82afec54a53d5c25842dbab2730fd6cb3920dbb10d52f284830b28c8008",
     },
     {
         name: "com-dblp",
@@ -84,7 +167,7 @@ export const HOSTED_DATASETS: readonly DatasetMeta[] = [
             "degree distributions of a real collaboration network",
         ],
         hosting: "remote",
-        bytes: 15625518,
-        sha256: "c253f5f591d4e8076d05951ae702e4327f32e5db61381365ec2c86d237a0cdb0",
+        bytes: 15625484,
+        sha256: "fdf4976168e0461f42e651fd0bf4cb9e68dbbe1cfafd6813c93c9bb0097c7367",
     },
 ];

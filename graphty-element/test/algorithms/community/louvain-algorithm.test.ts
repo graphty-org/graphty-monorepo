@@ -75,6 +75,5 @@ describe("LouvainAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "louvain");
             assert.strictEqual(AlgClass, LouvainAlgorithm);
         });
-
     });
 });

@@ -63,7 +63,7 @@ export function packageManager(root) {
  */
 export function renderTemplate(name, { branch, manager, version }) {
     const m = MANAGERS[manager];
-    return readFileSync(join(PACKAGE, "templates", name), "utf8").replace(
+    return readFileSync(join(PACKAGE, "templates", name), "utf8").replaceAll(
         /^( *)# __SETUP__$|__BRANCH__|__CLI__|__VERSION__/gm,
         (match, indent) =>
             indent !== undefined
@@ -163,8 +163,6 @@ export function init(root, { force = false } = {}) {
         )
             ? `wrote    .gitattributes (${rule} in Git LFS)`
             : "kept     .gitattributes",
-    );
-    report.push(
         !ignored(root, config.workDir) &&
             appendOnce(join(root, ".gitignore"), `/${config.workDir}/`, `/${config.workDir}/`)
             ? `wrote    .gitignore (/${config.workDir}/)`

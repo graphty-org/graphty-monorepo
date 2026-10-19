@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { DIRECTION_FORCED_CODE, DIRECTION_REFUSED_CODE, MIXED_DIRECTION_CODE } from "../../../src/common/direction.js";
 import { PAJEK_ISSUE, pajekImporter, type PajekImportOptions } from "../../../src/formats/pajek/importer.js";
+import { tokenize, type TokenNotes } from "../../../src/formats/pajek/syntax.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../../../src/types.js";
 import {
     corpusFiles,
@@ -91,12 +92,18 @@ describe("pajekImporter: the corpus", () => {
         expect(snapshot.ids.toArray()).toEqual([1, 2, 3, 4, 5]);
         expect(label(snapshot, 0)).toBe("Node A");
         expect(label(snapshot, 4)).toBe("Node E");
-        const position = snapshot.nodes.requireTyped("position", "f32");
+        const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.role).toBe("position");
         expect(position.meta.components).toBe(3);
-        expect(position.meta.extra).toEqual({ sourceDims: 3, units: "file" });
-        expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([Math.fround(0.1), Math.fround(0.2), 0]);
-        expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([Math.fround(0.9), 1, 0]);
+        expect(position.meta.extra).toEqual({
+            sourceDims: 3,
+            units: "file",
+            yAxis: "down",
+            zOrigin: 0.5,
+            zeroUnplaced: true,
+        });
+        expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.1, 0.2, 0]);
+        expect(Array.from(position.value(4) as ArrayLike<number>)).toEqual([0.9, 1, 0]);
         // 3 arcs, then 2 undirected edges expanded into pairs
         expect(snapshot.directed).toBe(true);
         expect(snapshot.edgeCount).toBe(7);
@@ -228,7 +235,7 @@ describe("pajekImporter: vertex lines", () => {
         expect(label(snapshot, 0)).toBe("alpha");
         expect(label(snapshot, 1)).toBe("beta gamma");
         expect(label(snapshot, 2)).toBe("delta");
-        const position = snapshot.nodes.requireTyped("position", "f32");
+        const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.extra.sourceDims).toBe(2);
         expect(Array.from(position.value(0) as ArrayLike<number>)).toEqual([0.5, 0.25, 0]);
         expect(position.isSet(2)).toBe(false);
@@ -341,7 +348,7 @@ describe("pajekImporter: vertex lines", () => {
     it("warns once when vertex lines mix two and three coordinates", async () => {
         const { snapshot, report } = await load("*Vertices 3\n1 a 1 2\n2 b 3 4 5\n3 c 6 7 8\n*Edges\n");
         expect(codes(report)).toEqual([PAJEK_ISSUE.COORD_DIMS]);
-        const position = snapshot.nodes.requireTyped("position", "f32");
+        const position = snapshot.nodes.requireTyped("position", "f64");
         expect(position.meta.extra.sourceDims).toBe(2);
         expect(Array.from(position.value(1) as ArrayLike<number>)).toEqual([3, 4, 5]);
     });
@@ -372,10 +379,17 @@ describe("pajekImporter: numbering and ids", () => {
     it("forces the base with firstVertex and rejects other values", async () => {
         const zero = await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n", { firstVertex: 0 });
         expect(zero.snapshot.ids.toArray()).toEqual([0, 1]);
-        expect(codes(zero.report)).toEqual([PAJEK_ISSUE.ZERO_BASED]);
+        // the caller stated the numbering, so nothing is guessed and nothing is reported
+        expect(codes(zero.report)).toEqual([]);
+        expect(codes((await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n")).report)).toEqual([PAJEK_ISSUE.ZERO_BASED]);
         const one = await load("*Vertices 2\n0 a\n1 b\n*Edges\n0 1\n", { firstVertex: 1 });
         expect(one.snapshot.ids.toArray()).toEqual([1, 2]);
-        expect(codes(one.report)).toEqual([PAJEK_ISSUE.VERTEX_RANGE, PAJEK_ISSUE.UNKNOWN_NODE]);
+        // updated: vertex 2 has no line once the line numbered 0 is out of range, now reported
+        expect(codes(one.report)).toEqual([
+            PAJEK_ISSUE.VERTEX_RANGE,
+            PAJEK_ISSUE.VERTEX_COUNT,
+            PAJEK_ISSUE.UNKNOWN_NODE,
+        ]);
         await expect(load("*Vertices 1\n1 a\n*Edges\n", { firstVertex: 2 as unknown as 1 })).rejects.toMatchObject({
             code: "E_UNSUPPORTED",
         });
@@ -575,7 +589,7 @@ describe("pajekImporter: direction", () => {
         const undirected = await load(SIMPLE, { onMixedDirection: "undirected" });
         expect(undirected.snapshot.directed).toBe(false);
         expect(undirected.snapshot.edgeCount).toBe(5);
-        expect(codes(undirected.report)).toEqual([DIRECTION_FORCED_CODE, DIRECTION_FORCED_CODE]);
+        expect(codes(undirected.report)).toEqual([DIRECTION_FORCED_CODE]);
         // the direction is fixed by the first line, not the *Arcs header above it
         expect(undirected.report.issues[0].line).toBe(8);
     });
@@ -614,7 +628,8 @@ describe("pajekImporter: direction", () => {
 describe("pajekImporter: structure errors and the error limit", () => {
     it("refuses an empty file, garbage and a file without *Vertices with ImportError and a report", async () => {
         const empty = await fails(readMalformedText("pajek", "empty-file.net"));
-        expect(codes(empty.report)).toEqual([PAJEK_ISSUE.NO_VERTICES]);
+        // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_PAJEK_NO_VERTICES)
+        expect(codes(empty.report)).toEqual([PAJEK_ISSUE.EMPTY_INPUT]);
         expect(empty.report.issues[0].category).toBe("parse-error");
         const garbage = await fails(readMalformedText("pajek", "garbage-content.net"));
         expect(codes(garbage.report)).toEqual([
@@ -647,7 +662,7 @@ describe("pajekImporter: structure errors and the error limit", () => {
         expect(snapshot.nodeCount).toBe(1);
         expect(codes(report)).toEqual([PAJEK_ISSUE.MULTIPLE_GRAPHS]);
         expect(report.issues[0]).toMatchObject({ category: "unsupported", severity: "warning", line: 4 });
-        expect(report.issues[0].message).toContain("2 more network(s)");
+        expect(report.issues[0].message).toContain("2 more networks");
     });
 
     it("importAll reads every network of a project file into its own sink", async () => {
@@ -826,7 +841,7 @@ describe("pajekImporter: project objects (*Partition, *Vector, *Events)", () => 
     });
 
     it("skips *Events with a warning, not an error", async () => {
-        const { snapshot, report } = await load("*Vertices 3\n*Events\nTI 1\nAV 2 \"b\"\nTE 3\n");
+        const { snapshot, report } = await load('*Vertices 3\n*Events\nTI 1\nAV 2 "b"\nTE 3\n');
         expect(codes(report)).toEqual([PAJEK_ISSUE.UNSUPPORTED_SECTION, PAJEK_ISSUE.NO_LINES]);
         expect(report.errorCount).toBe(0);
         expect(snapshot.nodeCount).toBe(3);
@@ -932,7 +947,8 @@ describe("pajekImporter: the manual's line forms", () => {
 
     it("reads negative vertex numbers of *Arcslist as their absolute values", async () => {
         const { snapshot, report } = await load("*Vertices 4\n*Arcslist\n1 -2 3\n-3 4\n");
-        expect(report.issues).toEqual([]);
+        // updated: the dropped sign is now reported once (it was dropped silently)
+        expect(codes(report)).toEqual([PAJEK_ISSUE.NEGATIVE_LIST_ENTRY]);
         const { src, dst } = snapshot.edgeList();
         expect(Array.from(src)).toEqual([0, 0, 2]);
         expect(Array.from(dst)).toEqual([1, 2, 3]);
@@ -944,5 +960,30 @@ describe("pajekImporter: the manual's line forms", () => {
         expect(report.errorCount).toBe(0);
         expect(snapshot.nodeCount).toBe(5);
         expect(snapshot.edgeCount).toBe(2);
+    });
+});
+
+describe("pajek tokenize: runs of ordinary characters", () => {
+    // tokenize() takes each run up to the next quote, or blank outside quotes, in one slice
+    it.each([
+        ["a  bc\td", ["a", "bc", "d"], false],
+        ['1 "a b\tc" 0.5', ["1", "a b\tc", "0.5"], false],
+        ['ab"c d"e f', ["abc de", "f"], true],
+        ['"" x', ["", "x"], false],
+        ["[ 1, 3 ] x[ y", ["[ 1, 3 ]", "x[", "y"], false],
+        ['"a\u{1F600}b c"', ["a\u{1F600}b c"], false],
+    ])("%j", (line, tokens, oddQuote) => {
+        const notes: TokenNotes = { oddQuote: false };
+        expect(tokenize(line, notes)).toEqual(tokens);
+        expect(notes.oddQuote).toBe(oddQuote);
+    });
+
+    it("a 1 MB quoted label is one token", () => {
+        const label = "x y".repeat(350_000);
+        expect(tokenize(`1 "${label}"`)).toEqual(["1", label]);
+    });
+
+    it("an unclosed quote is null", () => {
+        expect(tokenize('1 "a b')).toBeNull();
     });
 });

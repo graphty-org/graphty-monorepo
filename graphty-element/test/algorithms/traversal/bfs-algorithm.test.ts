@@ -1,4 +1,3 @@
- 
 import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
@@ -13,7 +12,7 @@ import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helper
  * @param opts - which fixture to load
  * @returns the mock graph
  */
- 
+
 async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
     return createMockGraph(opts);
 }
@@ -161,7 +160,5 @@ describe("BFSAlgorithm", () => {
             const AlgClass = Algorithm.getClass("graphty", "bfs");
             assert.strictEqual(AlgClass, BFSAlgorithm);
         });
-
     });
-
 });

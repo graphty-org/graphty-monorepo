@@ -39,8 +39,9 @@
  * is why the all-pairs sweep has its own key rather than a switch on shortest-path.
  */
 
-import { z } from "zod/v4";
+import { z } from "zod";
 
+import { AStarAlgorithm } from "../algorithms/AStarAlgorithm";
 import { BellmanFordAlgorithm } from "../algorithms/BellmanFordAlgorithm";
 import { BetweennessCentralityAlgorithm } from "../algorithms/BetweennessCentralityAlgorithm";
 import { BFSAlgorithm } from "../algorithms/BFSAlgorithm";
@@ -51,9 +52,11 @@ import { ConnectedComponentsAlgorithm } from "../algorithms/ConnectedComponentsA
 import { DegreeAlgorithm } from "../algorithms/DegreeAlgorithm";
 import { DFSAlgorithm } from "../algorithms/DFSAlgorithm";
 import { DijkstraAlgorithm } from "../algorithms/DijkstraAlgorithm";
+import { EdgeBetweennessCentralityAlgorithm } from "../algorithms/EdgeBetweennessCentralityAlgorithm";
 import { EigenvectorCentralityAlgorithm } from "../algorithms/EigenvectorCentralityAlgorithm";
 import { FloydWarshallAlgorithm } from "../algorithms/FloydWarshallAlgorithm";
 import { GirvanNewmanAlgorithm } from "../algorithms/GirvanNewmanAlgorithm";
+import { HierarchicalClusteringAlgorithm } from "../algorithms/HierarchicalClusteringAlgorithm";
 import { HITSAlgorithm } from "../algorithms/HITSAlgorithm";
 import { KatzCentralityAlgorithm } from "../algorithms/KatzCentralityAlgorithm";
 import { KCoreAlgorithm } from "../algorithms/KCoreAlgorithm";
@@ -62,10 +65,12 @@ import { LabelPropagationAlgorithm } from "../algorithms/LabelPropagationAlgorit
 import { LeidenAlgorithm } from "../algorithms/LeidenAlgorithm";
 import { LinkPredictionAlgorithm } from "../algorithms/LinkPredictionAlgorithm";
 import { LouvainAlgorithm } from "../algorithms/LouvainAlgorithm";
+import { MarkovClusteringAlgorithm } from "../algorithms/MarkovClusteringAlgorithm";
 import { MaxFlowAlgorithm } from "../algorithms/MaxFlowAlgorithm";
 import { MinCutAlgorithm } from "../algorithms/MinCutAlgorithm";
 import { PageRankAlgorithm } from "../algorithms/PageRankAlgorithm";
 import { PrimAlgorithm } from "../algorithms/PrimAlgorithm";
+import { SpectralClusteringAlgorithm } from "../algorithms/SpectralClusteringAlgorithm";
 import { StronglyConnectedComponentsAlgorithm } from "../algorithms/StronglyConnectedComponentsAlgorithm";
 import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config/OptionsSchema";
 import { optionsFromZod } from "./optionsFromZod";
@@ -232,7 +237,15 @@ const MODULARITY_INTERPRETATION: FieldInterpretation = {
  */
 function communityFields(plainName: string, withModularity: boolean): readonly FieldDescriptor[] {
     const fields: FieldDescriptor[] = [
-        field({ name: "group", plainName, technicalName: "group", kind: "node", type: "integer" }),
+        // Group ids are names, not amounts: group 3 is not more than group 1.
+        field({
+            name: "group",
+            plainName,
+            technicalName: "group",
+            kind: "node",
+            type: "integer",
+            measurement: "categorical",
+        }),
         field({
             name: "groupSize",
             plainName: `${plainName} size`,
@@ -307,10 +320,15 @@ interface AlgorithmOptionsSource {
  * The class's Zod schema is the single source of truth for every option it already has; this
  * table adds names and costs, never option definitions.
  * @param algorithm - The registered algorithm class to read.
+ * @param overrides - Descriptor fields a Zod schema cannot express, by option name: that a string
+ * names an edge attribute, or that an option is accepted only for compatibility and is `internal`.
  * @returns The class's option descriptors, in declaration order.
  */
-function optionsOf(algorithm: AlgorithmOptionsSource): readonly OptionDescriptor[] {
-    return optionsFromZod(algorithm.getZodOptionsSchema());
+function optionsOf(
+    algorithm: AlgorithmOptionsSource,
+    overrides: Readonly<Record<string, Partial<OptionDescriptor>>> = {},
+): readonly OptionDescriptor[] {
+    return optionsFromZod(algorithm.getZodOptionsSchema(), { overrides });
 }
 
 /**
@@ -429,6 +447,20 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         legacyKeys: [{ key: "betweenness" }],
     },
     {
+        key: "edge-betweenness",
+        plainName: "Bridge edges",
+        technicalName: "Edge betweenness centrality",
+        description:
+            "Scores an edge by how many of the shortest paths between pairs of nodes cross it, which is what finds the edges that hold the graph together.",
+        category: "centrality",
+        shape: "edge-metric",
+        fields: metricFields("edge", { plainName: "Bridging", technicalName: "edge betweenness" }),
+        options: optionsOf(EdgeBetweennessCentralityAlgorithm),
+        costClass: "heavy",
+        complexity: "O(n * m)",
+        legacyKeys: [{ key: "edge-betweenness" }],
+    },
+    {
         key: "closeness",
         plainName: "Reach",
         technicalName: "Closeness centrality",
@@ -450,7 +482,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence", technicalName: "PageRank score" }),
-        options: optionsOf(PageRankAlgorithm),
+        options: optionsOf(PageRankAlgorithm, {
+            weight: { type: "attribute", on: "edge" },
+            useDelta: { internal: true },
+        }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "pagerank" }],
@@ -460,7 +495,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Influence by association",
         technicalName: "Eigenvector centrality",
         description:
-            "Scores a node by how influential its neighbours are, so a few important connections count for more than many unimportant ones.",
+            "Scores a node by how influential its neighbors are, so a few important connections count for more than many unimportant ones.",
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence by association", technicalName: "eigenvector score" }),
@@ -515,7 +550,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Community", true),
-        options: optionsOf(LouvainAlgorithm),
+        options: optionsOf(LouvainAlgorithm, { useOptimized: { internal: true } }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "louvain" }],
@@ -539,7 +574,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Communities, fast",
         technicalName: "Label propagation",
         description:
-            "Groups nodes into communities by letting every node repeatedly take whichever label most of its neighbours carry.",
+            "Groups nodes into communities by letting every node repeatedly take whichever label most of its neighbors carry.",
         category: "community",
         shape: "community",
         fields: communityFields("Community", false),
@@ -561,6 +596,48 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         costClass: "heavy",
         complexity: "O(n * m^2)",
         legacyKeys: [{ key: "girvan-newman" }],
+    },
+    {
+        key: "markov-clustering",
+        plainName: "Clusters by flow",
+        technicalName: "Markov clustering",
+        description:
+            "Groups nodes into clusters by letting flow spread along the edges and concentrate where it gets trapped, round after round.",
+        category: "community",
+        shape: "community",
+        fields: communityFields("Cluster", false),
+        options: optionsOf(MarkovClusteringAlgorithm),
+        costClass: "heavy",
+        complexity: "O(k * n^3) worst case, far less on a sparse graph",
+        legacyKeys: [{ key: "markov-clustering" }],
+    },
+    {
+        key: "spectral-clustering",
+        plainName: "Clusters by shape",
+        technicalName: "Spectral clustering",
+        description:
+            "Splits the nodes into a chosen number of clusters, placing each node by the graph's eigenvectors and grouping the nodes that land close together.",
+        category: "community",
+        shape: "community",
+        fields: communityFields("Cluster", false),
+        options: optionsOf(SpectralClusteringAlgorithm),
+        costClass: "iterative",
+        complexity: "O(k(n + m))",
+        legacyKeys: [{ key: "spectral-clustering" }],
+    },
+    {
+        key: "hierarchical-clustering",
+        plainName: "Clusters by merging",
+        technicalName: "Hierarchical clustering",
+        description:
+            "Starts with every node on its own and keeps merging the two closest clusters, by steps apart, until a chosen number remain.",
+        category: "community",
+        shape: "community",
+        fields: communityFields("Cluster", false),
+        options: optionsOf(HierarchicalClusteringAlgorithm),
+        costClass: "cubic",
+        complexity: "O(n^3)",
+        legacyKeys: [{ key: "hierarchical-clustering" }],
     },
     {
         key: "components",
@@ -635,7 +712,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf(DijkstraAlgorithm),
+            optionsOf(DijkstraAlgorithm, { bidirectional: { internal: true } }),
             optionsOf(BellmanFordAlgorithm),
             optionsFromZod(shortestPathEngineOptions),
         ),
@@ -645,6 +722,57 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             { key: "dijkstra", params: { method: "dijkstra" } },
             { key: "bellman-ford", params: { method: "bellman-ford" } },
         ],
+    },
+    {
+        key: "astar",
+        plainName: "Route by estimate",
+        technicalName: "A* search",
+        description:
+            "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+        category: "path",
+        shape: "path",
+        fields: [
+            field({
+                name: "onPath",
+                plainName: "On the route",
+                technicalName: "onPath",
+                kind: "node",
+                type: "boolean",
+            }),
+            field({
+                name: "order",
+                plainName: "Position on the route",
+                technicalName: "order",
+                kind: "node",
+                type: "integer",
+            }),
+            field({
+                name: "onPath",
+                plainName: "On the route",
+                technicalName: "onPath",
+                kind: "edge",
+                type: "boolean",
+            }),
+            field({
+                name: "length",
+                plainName: "Nodes on the route",
+                technicalName: "length",
+                kind: "graph",
+                type: "integer",
+            }),
+            field({ name: "cost", plainName: "Total cost", technicalName: "cost", kind: "graph", type: "number" }),
+            field({
+                name: "hops",
+                plainName: "Edges on the route",
+                technicalName: "hops",
+                kind: "graph",
+                type: "integer",
+            }),
+        ],
+        options: optionsOf(AStarAlgorithm),
+        costClass: "instant",
+        complexity: "O((n + m) log n)",
+        legacyKeys: [{ key: "astar" }],
     },
     {
         /* ONE KEY, ONE RESULT SHAPE. The all-pairs sweep used to be a PARAMETER on shortest-path
@@ -693,7 +821,14 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "layered-grouping",
         fields: [
-            field({ name: "level", plainName: "Steps away", technicalName: "level", kind: "node", type: "integer" }),
+            field({
+                name: "level",
+                plainName: "Steps away",
+                technicalName: "level",
+                kind: "node",
+                type: "integer",
+                measurement: "categorical",
+            }),
             field({
                 name: "levelSize",
                 plainName: "Nodes this many steps away",
@@ -866,7 +1001,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Core depth",
         technicalName: "K-core decomposition",
         description:
-            "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbours inside that core.",
+            "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
         category: "structure",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Core depth", technicalName: "core number", type: "integer" }),
@@ -880,7 +1015,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "How tightly knit",
         technicalName: "Clustering coefficient",
         description:
-            "Scores a node by how many of its neighbours are also neighbours of each other, and counts the triangles that makes.",
+            "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
         category: "structure",
         shape: "node-metric",
         fields: [
@@ -917,7 +1052,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         plainName: "Likely new links",
         technicalName: "Link prediction",
         description:
-            "Scores the pairs of nodes that are not yet joined by the neighbours they share, and lists the pairs most likely to be joined next.",
+            "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
         category: "prediction",
         shape: "pair-list",
         fields: [
@@ -939,6 +1074,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
 /** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
 const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
     [
+        AStarAlgorithm,
         BellmanFordAlgorithm,
         BetweennessCentralityAlgorithm,
         BFSAlgorithm,
@@ -948,9 +1084,11 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
         DegreeAlgorithm,
         DFSAlgorithm,
         DijkstraAlgorithm,
+        EdgeBetweennessCentralityAlgorithm,
         EigenvectorCentralityAlgorithm,
         FloydWarshallAlgorithm,
         GirvanNewmanAlgorithm,
+        HierarchicalClusteringAlgorithm,
         HITSAlgorithm,
         KatzCentralityAlgorithm,
         KCoreAlgorithm,
@@ -959,10 +1097,12 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
         LeidenAlgorithm,
         LinkPredictionAlgorithm,
         LouvainAlgorithm,
+        MarkovClusteringAlgorithm,
         MaxFlowAlgorithm,
         MinCutAlgorithm,
         PageRankAlgorithm,
         PrimAlgorithm,
+        SpectralClusteringAlgorithm,
         StronglyConnectedComponentsAlgorithm,
     ].map((cls) => [cls.type, cls]),
 );
@@ -970,7 +1110,7 @@ const CLASSES: ReadonlyMap<string, { readonly scopeInput?: string }> = new Map(
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
  *
- * Twenty-three descriptors for twenty-five registered algorithms: the two single-source
+ * Twenty-nine descriptors for thirty-one registered algorithms: the two single-source
  * shortest-path engines are one key with a `method` parameter, and the two component algorithms
  * are one key with a `strength` parameter. Each descriptor's `legacyKeys` names the 1.10 keys it
  * replaces and the parameters that reproduce them.

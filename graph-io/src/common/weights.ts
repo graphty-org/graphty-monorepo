@@ -12,10 +12,15 @@
 
 import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
+import { PRECISION_CODE } from "./codes.js";
 import { parseDecimalText } from "./declared-types.js";
 import { formatF32, formatF64, formatInteger } from "./format.js";
+import { type ImportReportBuilder } from "./report.js";
 
-/** The weight of an edge added without one (design section 3.7). */
+/**
+ * The weight of an edge added without one (design section 3.7).
+ * @category Plugin helpers
+ */
 export const DEFAULT_WEIGHT = 1;
 
 /**
@@ -23,6 +28,7 @@ export const DEFAULT_WEIGHT = 1;
  * @param name - the field name (attribute title, CSV header, JSON key)
  * @param weightFrom - the resolved option; null means unweighted
  * @returns true when the field is THE weight
+ * @category Plugin helpers
  */
 export function isWeightField(name: string, weightFrom: string | null): boolean {
     return weightFrom !== null && name === weightFrom;
@@ -32,9 +38,12 @@ export function isWeightField(name: string, weightFrom: string | null): boolean 
  * The weight argument of addEdge from a text cell: undefined for a blank cell (the weight is
  * omitted), the number otherwise.
  * @param text - the cell text
+ * @param report - the import report; when given, an integer beyond 2^53 that the nearest double
+ * changes is reported once as W_PRECISION
  * @returns the weight, or undefined when blank; E_INVALID_WEIGHT for NaN or non-numeric text
+ * @category Writing a format
  */
-export function parseWeightText(text: string): number | undefined {
+export function parseWeightText(text: string, report?: ImportReportBuilder): number | undefined {
     const trimmed = text.trim();
     if (trimmed.length === 0) {
         return undefined;
@@ -48,7 +57,34 @@ export function parseWeightText(text: string): number | undefined {
     if (Number.isNaN(value)) {
         throw invalidWeight(text, null);
     }
+    if (report !== undefined) {
+        reportWeightPrecision(trimmed, value, report);
+    }
     return value;
+}
+
+/**
+ * Report once (W_PRECISION) an integer weight beyond 2^53 that the nearest double changes, which
+ * the weights and the exact `graphty.weight` column would otherwise hold silently.
+ * @param text - the weight as written in the file
+ * @param value - the number it was read as
+ * @param report - the import report
+ */
+export function reportWeightPrecision(text: string, value: number, report: ImportReportBuilder): void {
+    if (
+        !Number.isSafeInteger(value) &&
+        Number.isFinite(value) &&
+        /^[+-]?\d+$/.test(text) &&
+        BigInt(text) !== BigInt(value)
+    ) {
+        report.warnOnce(
+            "precision",
+            PRECISION_CODE,
+            `edge weights: integers beyond 2^53 are stored as the nearest double (first: ${text})`,
+            undefined,
+            `${PRECISION_CODE}:edge weight`,
+        );
+    }
 }
 
 /**
@@ -56,6 +92,7 @@ export function parseWeightText(text: string): number | undefined {
  * undefined, the number for a finite or infinite number, the parsed number for numeric text.
  * @param value - the field value
  * @returns the weight, or undefined when absent; E_INVALID_WEIGHT for NaN, a boolean, an object or non-numeric text
+ * @category Plugin helpers
  */
 export function weightFromValue(value: unknown): number | undefined {
     if (value === undefined || value === null) {
@@ -100,12 +137,12 @@ function invalidWeight(value: unknown, cause: unknown): GraphFormatError {
 // ============================================================ the exporter side
 
 /**
- * The explicit weights of a snapshot for exporters (design sections 3.7 and 8.5): the weight
+ * The explicit weights of a snapshot for exporters: the weight
  * role column when present (its validity says which edges had an explicit weight, its dtype how
  * the value is written), else `edgeList().weights` as f32 for every edge of a weighted snapshot;
  * nothing for an unweighted one. One implementation for every exporter.
- * Consumed by the per-format exporters under src/formats.
  * @public
+ * @category Plugin helpers
  */
 export interface ExplicitWeights {
     /** Whether any edge can have an explicit weight (the snapshot is weighted). */
@@ -161,6 +198,7 @@ function weightFormatter(dtype: string): (value: number) => string {
  * Build the explicit-weight view of a snapshot.
  * @param snapshot - the snapshot
  * @returns the view
+ * @category Writing a format
  */
 export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
     const shadowColumn = snapshot.edges.byRole("weight");
@@ -208,4 +246,36 @@ export function explicitWeights(snapshot: GraphSnapshot): ExplicitWeights {
             return integral && Number.isInteger(value) ? formatInteger(value) : formatF32(value);
         },
     };
+}
+
+/**
+ * The weight of every edge, in edge order (`weights[e]` is edge `e`'s weight), exactly as the file
+ * wrote it, or null for a graph without weights. `snapshot.edgeList().weights` holds the same
+ * weights as 32-bit floats, in which 0.1 reads back as 0.10000000149011612; this reads the exact
+ * values the import also kept. An edge without a weight of its own has the weight 1.
+ * @example
+ * ```ts
+ * const { snapshot } = await importGraph("source,target,weight\na,b,0.1\n", { format: "csv" });
+ * edgeWeights(snapshot); // Float64Array [ 0.1 ]
+ * ```
+ * @param snapshot - the graph
+ * @returns one weight per edge, or null when the graph has no weights
+ * @category Loading
+ */
+export function edgeWeights(snapshot: GraphSnapshot): Float64Array | null {
+    const { weights } = snapshot.edgeList();
+    if (weights === null) {
+        return null;
+    }
+    const out = Float64Array.from(weights);
+    const exact = snapshot.edges.byRole("weight");
+    if (exact !== null) {
+        for (let e = 0; e < out.length; e++) {
+            const v = exact.value(e);
+            if (typeof v === "number") {
+                out[e] = v;
+            }
+        }
+    }
+    return out;
 }

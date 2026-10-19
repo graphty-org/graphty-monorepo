@@ -1,7 +1,8 @@
 /**
  * The bundle entries of @graphty/graph-io: the root barrel and one entry per format subpath
  * (design section 8.2: `@graphty/graph-io/gexf`, `/graphml`, `/gml`, `/dot`, `/pajek`, `/csv`,
- * `/json`, `/neo4j`). Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
+ * `/json`, `/neo4j`), plus `@graphty/graph-io/styles`, the format-independent style
+ * module. Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
  * scripts/bundle-types.js (which writes the matching dist/<name>.d.ts shim); package.json
  * "exports" must list the same names, which test/build-output.test.ts checks.
  *
@@ -18,9 +19,13 @@ export const ENTRIES = Object.freeze({
     csv: "src/formats/csv/index.ts",
     json: "src/formats/json/index.ts",
     neo4j: "src/formats/neo4j/index.ts",
+    xgmml: "src/formats/xgmml/index.ts",
     cx2: "src/formats/cx2/index.ts",
     cx: "src/formats/cx/index.ts",
     obo: "src/formats/obo/index.ts",
+    cys: "src/formats/cys/index.ts",
+    styles: "src/styles/index.ts",
+    positions: "src/positions/index.ts",
 });
 
 /**

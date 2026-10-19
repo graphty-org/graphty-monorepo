@@ -1,6 +1,16 @@
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
+import { Graph } from "../../src/Graph.js";
+
+/** The graphs the running test made, disposed after it. */
+const graphs: Graph[] = [];
+
+afterEach(() => {
+    for (const graph of graphs.splice(0)) {
+        graph.dispose();
+    }
+});
 
 describe("Graph.loadFromFile", () => {
     beforeEach(() => {
@@ -13,9 +23,9 @@ describe("Graph.loadFromFile", () => {
             '<?xml version="1.0"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns"><graph><node id="n1"/></graph></graphml>';
         const file = new File([xml], "test.graphml", { type: "application/xml" });
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(file);
 
@@ -26,9 +36,9 @@ describe("Graph.loadFromFile", () => {
         const csv = "source,target\nn1,n2\nn2,n3";
         const file = new File([csv], "edges.csv", { type: "text/csv" });
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(file);
 
@@ -39,9 +49,9 @@ describe("Graph.loadFromFile", () => {
         const csv = "source,target\nn1,n2";
         const file = new File([csv], "data.txt", { type: "text/plain" });
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         await graph.loadFromFile(file, { format: "csv" });
 
@@ -51,9 +61,9 @@ describe("Graph.loadFromFile", () => {
     test("throws error for unknown format", async () => {
         const file = new File(["unknown content"], "data.xyz", { type: "application/octet-stream" });
 
-        const { Graph } = await import("../../src/Graph.js");
         const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
         const graph = new Graph(canvas);
+        graphs.push(graph);
 
         let errorThrown = false;
         try {
@@ -75,5 +85,39 @@ describe("Graph.loadFromFile", () => {
         }
 
         assert.isTrue(errorThrown, "Should throw error for unknown format");
+    });
+
+    // A file is bytes, and the importer decodes them. Read as text first, a Latin-1 file whose
+    // XML declaration says so lost every accented letter to the UTF-8 replacement character.
+    const latin1Graphml = (): File => {
+        const xml =
+            '<?xml version="1.0" encoding="ISO-8859-1"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns">' +
+            '<key id="l" for="node" attr.name="label" attr.type="string"/>' +
+            `<graph><node id="a"><data key="l">Caf${String.fromCharCode(0xe9)}</data></node><node id="b"/></graph></graphml>`;
+        return new File([Uint8Array.from(xml, (char) => char.charCodeAt(0))], "cafe.graphml");
+    };
+
+    test("reads a file as bytes, so its declared encoding is honoured", async () => {
+        const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
+        const graph = new Graph(canvas);
+        graphs.push(graph);
+
+        await graph.loadFromFile(latin1Graphml());
+
+        assert.include(JSON.stringify(graph.getSession().data.nodes()), `Caf${String.fromCharCode(0xe9)}`);
+    });
+
+    test("refuses a choice of a second graph from a format that holds one", async () => {
+        const canvas = document.getElementById("test-canvas") as HTMLCanvasElement;
+        const graph = new Graph(canvas);
+        graphs.push(graph);
+
+        try {
+            await graph.loadFromFile(latin1Graphml(), { graphIndex: 1 });
+            assert.fail("expected a refusal");
+        } catch (error) {
+            assert.isTrue(isGraphtyError(error), String(error));
+            assert.strictEqual((error as GraphtyError).code, "E_OPTION_RANGE");
+        }
     });
 });

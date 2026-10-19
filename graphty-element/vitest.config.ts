@@ -32,6 +32,10 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { workerShare } from "../tools/test-slots.mjs";
+import { ciReporters } from "../vitest.ci-junit.mjs";
+import { getLlmRegressionCaseTimeoutMs } from "./test/helpers/llm-regression-env";
+
 /**
  * Babylon modules the element imports only for their side effects (see
  * test/packaging/babylon-side-effects.test.ts). Pre-bundled in every browser project: a
@@ -39,9 +43,42 @@ import { defineConfig } from "vitest/config";
  */
 const BABYLON_SIDE_EFFECTS = [
     "@babylonjs/core/Meshes/instancedMesh",
+    "@babylonjs/core/Meshes/thinInstanceMesh",
     "@babylonjs/core/Culling/ray",
     "@babylonjs/core/Animations/animatable",
+    // src/meshes/bundledStandardShaders.ts
+    "@babylonjs/core/Shaders/default.vertex",
+    "@babylonjs/core/Shaders/default.fragment",
+    "@babylonjs/core/ShadersWGSL/default.vertex",
+    "@babylonjs/core/ShadersWGSL/default.fragment",
 ];
+
+/**
+ * The lodash functions the element imports one by one (`lodash/cloneDeep.js`, ...). Pre-bundled
+ * in every browser project for the same reason: a dep cache written before an import was added
+ * still matches this config's hash, so Vite skips its scan, finds the import mid-run and
+ * re-optimizes. That re-optimization deletes the pre-bundled Babylon shader chunks
+ * (`default.vertex-<hash>.js`) a running test is about to import, the shader never compiles, and
+ * every test waiting on a drawn frame times out. Add a new lodash import here.
+ */
+const LODASH_FUNCTIONS = [
+    "lodash/cloneDeep.js",
+    "lodash/debounce.js",
+    "lodash/defaultsDeep.js",
+    "lodash/get.js",
+    "lodash/isEqual.js",
+];
+
+/**
+ * The workspace packages, which resolve to their built dist/ outside node_modules. Vitest
+ * transforms every module outside node_modules, so in the Node projects it would run each of
+ * these packages' megabytes of built code through its transform pipeline on first import; they
+ * are loaded as plain Node modules instead, like any other dependency.
+ */
+const WORKSPACE_DIST = /\/(graph-format|graph-io|graph-samples|algorithms|layout|webgpu-graph-algorithms)\/dist\//;
+
+/** Everything the browser projects pre-bundle up front. */
+const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS];
 
 /** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
 const XR_BROWSER_TESTS = [
@@ -51,6 +88,13 @@ const XR_BROWSER_TESTS = [
 ];
 
 const dirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * First in the setupFiles of every browser project that runs one file at a time under --coverage:
+ * frees the previous test files' pages, which V8 precise coverage otherwise keeps alive for the
+ * whole run (issue #2247).
+ */
+const BROWSER_COVERAGE_SETUP = path.join(dirname, "../vitest.browser-coverage-setup.ts");
 
 /**
  * The package's published names, resolved to its own source. The docs' examples
@@ -213,6 +257,12 @@ function appendBenchRow(log: string): undefined {
 
 export default defineConfig({
     test: {
+        // The machine-wide limit on concurrent test runs (tools/test-slots.mjs; off on GitHub Actions).
+        globalSetup: ["../tools/test-slots.mjs"],
+        // At most this run's share of the cores for the Node projects (tools/test-slots.mjs); browser
+        // projects keep their own maxWorkers or fileParallelism.
+        maxWorkers: workerShare(),
+        reporters: ["default", ...ciReporters()],
         onConsoleLog: appendBenchRow,
         // Vitest 4 also copies each failure screenshot into an attachments directory, by default
         // .vitest-attachments/ beside this file. Same diagnostics, same place as the screenshots.
@@ -222,7 +272,9 @@ export default defineConfig({
                 test: {
                     // Timing benchmarks, kept out of the coverage-collecting "default" project
                     // because instrumentation makes a stopwatch measure the instrumentation. Run
-                    // with: npx vitest run --project=bench.
+                    // with: npx vitest run --project=bench. They gate no push: CI runs them in
+                    // ci.yml's advisory "performance" job, because a stopwatch on a busy machine
+                    // measures the machine.
                     //
                     // What keeps them uninstrumented is that no coverage script names this
                     // project -- every one of them lists --project=default --project=mesh. A
@@ -242,6 +294,7 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "default",
+                    server: { deps: { external: [WORKSPACE_DIST] } },
                     setupFiles: ["./test/setup.ts"],
                     // The shared config's figure. Tests that import a whole entry point take several
                     // seconds on a CI runner or under the pre-push gate, past vitest's default five.
@@ -279,6 +332,7 @@ export default defineConfig({
                         "test/integration/Edge.integration.test.ts",
                         // Browser-only tests
                         "test/browser/**/*.test.ts",
+                        "test/fidelity/fidelity.test.ts",
                         // Interaction tests require browser environment
                         "test/interactions/**/*.test.ts",
                         // Performance tests need DOM and should run in browser
@@ -331,6 +385,7 @@ export default defineConfig({
                 },
                 test: {
                     name: "mesh",
+                    server: { deps: { external: [WORKSPACE_DIST] } },
                     environment: "node",
                     setupFiles: ["./test/mesh-testing/test-setup.ts"],
                     include: ["test/mesh-testing/**/*.test.ts"],
@@ -359,7 +414,7 @@ export default defineConfig({
                         ...OWN_ENTRY_POINTS,
                     },
                 },
-                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                optimizeDeps: { include: PREBUNDLED },
                 test: {
                     // The contract lane: the handful of browser tests that read what the element actually
                     // PAINTED -- pixels in the frame buffer, the order style layers landed in, whether a
@@ -382,7 +437,7 @@ export default defineConfig({
                         "test/browser/style-layer-ordering.test.ts",
                         "test/browser/first-paint-after-load.test.ts",
                         "test/browser/story-contract.test.ts",
-                        // Every story Chromatic snapshots is seeded, pre-stepped and settled. It
+                        // Every story the visual capture snapshots is seeded, pre-stepped and settled. It
                         // imports every story module, which is why it is here and not in "default".
                         "test/browser/story-determinism.test.ts",
                         // Proves a channel the table calls renderable really changes the picture,
@@ -441,10 +496,10 @@ export default defineConfig({
                 // (IWER) and checks the element's XR buttons and UI. About a second of tests plus
                 // the fixed cost of starting a browser project. These files are excluded from
                 // "browser" below, so CI runs them once, through this project, in its browser shards.
-                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "xr",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: XR_BROWSER_TESTS,
                     fileParallelism: false,
                     browser: {
@@ -459,10 +514,11 @@ export default defineConfig({
             {
                 // Timing benchmarks on a real graph in the browser, kept out of "browser" for the
                 // reason "bench" is kept out of "default": nothing here runs under coverage, which
-                // would time the instrumentation. CI runs it in the graphty-element-browser-1 job
-                // with: npx vitest run --project=browser-bench. Not "bench-browser": that is the
+                // would time the instrumentation. Like "bench", it gates no push: CI runs it in
+                // ci.yml's advisory "performance" job, and by hand with:
+                // npx vitest run --project=browser-bench. Not "bench-browser": that is the
                 // sets timing rows' project below, which never runs in CI.
-                optimizeDeps: { include: BABYLON_SIDE_EFFECTS },
+                optimizeDeps: { include: PREBUNDLED },
                 test: {
                     name: "browser-bench",
                     setupFiles: ["./test/setup.ts"],
@@ -492,11 +548,11 @@ export default defineConfig({
                 envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FC_", "GRAPHTY_UPDATE_RENDER_BUDGET"],
                 // Pre-bundle IWER up front: discovered mid-run, Vite re-optimizes and reloads the
                 // page under the running test (test/browser/xr-session.test.ts imports it).
-                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "browser",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: [
                         "test/browser/**/*.test.ts",
                         "test/managers/DataManager.test.ts",
@@ -543,6 +599,32 @@ export default defineConfig({
                 },
             },
             {
+                // The style fidelity harness's graphty side (graph-io/test/fidelity/): loads every
+                // fidelity sample with its file styles and writes what was drawn to
+                // test/fidelity/out/. It records and never gates, a sample's layout can take longer
+                // than the browser project's budget to settle, and so it is in no CI shard and not in
+                // the pre-push gate. Run with: npm run test:fidelity, and on this workstation with
+                // GRAPHTY_BROWSER_GPU=nvidia (and GRAPHTY_EGL_LIB_DIR): under SwiftShader the
+                // annotation session draws about one frame a second and does not settle.
+                envPrefix: ["VITE_", "GRAPHTY_BROWSER_GPU", "GRAPHTY_FIDELITY_RECORD"],
+                optimizeDeps: { include: PREBUNDLED },
+                resolve: { alias: OWN_ENTRY_POINTS },
+                test: {
+                    name: "fidelity",
+                    setupFiles: ["./test/setup.ts"],
+                    include: ["test/fidelity/fidelity.test.ts"],
+                    testTimeout: 0,
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        screenshotDirectory: FAILURE_SCREENSHOT_DIR,
+                        provider: playwright(),
+                        instances: [browserInstance()],
+                    },
+                },
+            },
+            {
                 // Browser timing rows for the sets work (design/sets/sets-plan.md 1.4): rows that need
                 // the element's store, a DataManager or a run, which the Node runner in benchmarks/
                 // cannot reach. Never asserts, never in CI or the pre-push gate, and its suffix is one
@@ -566,10 +648,10 @@ export default defineConfig({
                 },
             },
             {
-                optimizeDeps: { include: ["iwer", ...BABYLON_SIDE_EFFECTS] },
+                optimizeDeps: { include: ["iwer", ...PREBUNDLED] },
                 test: {
                     name: "interactions",
-                    setupFiles: ["./test/setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, "./test/setup.ts"],
                     include: ["test/interactions/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -636,18 +718,19 @@ export default defineConfig({
                         provider: playwright(),
                         instances: [{ browser: "chromium" }],
                     },
-                    setupFiles: [".storybook/vitest.setup.ts"],
+                    setupFiles: [BROWSER_COVERAGE_SETUP, ".storybook/vitest.setup.ts"],
                     // Storybook tests load complex 3D scenes and need longer timeout
                     testTimeout: 30000,
                 },
             },
             // LLM Regression Tests - Tests real LLM API calls for tool calling verification.
             //
-            // This project runs in no gate and in no CI job -- `grep -n llm .github/workflows/*.yml`
-            // finds nothing -- and that is deliberate rather than an oversight: every case makes a
-            // paid API call, and its seven real test files sit inside describe.skipIf(skipIfNoApiKey()),
-            // so without keys even `npm run test:llm-regression` collects harness.test.ts and nothing
-            // else. Run it by hand, with keys, when the tool-calling surface changes.
+            // Every case makes a paid API call, so this project runs in no pull-request or merge-queue
+            // job. The release train runs it on every release candidate (release.yml's "LLM regression"
+            // job). VITE_LLM_REGRESSION_PROVIDER picks the provider (google by default, as the release job
+            // runs; openai and anthropic also work) and its key variable (VITE_GOOGLE_API_KEY, ...). Its seven real test
+            // files sit inside describe.skipIf(skipIfNoApiKey()), so without a key they skip; the release
+            // job checks the key is set first and fails if it is not.
             {
                 test: {
                     name: "llm-regression",
@@ -664,8 +747,8 @@ export default defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // LLM calls are slow - 60s timeout per test
-                    testTimeout: 60000,
+                    // Per provider, sized from measured call latency (test/helpers/llm-regression-env.ts)
+                    testTimeout: getLlmRegressionCaseTimeoutMs(),
                     hookTimeout: 30000,
                     // Run tests sequentially to avoid rate limits
                     pool: "forks",

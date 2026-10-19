@@ -10,7 +10,7 @@
  * removed), format tokens spliced in, and compositions of up to four of those.
  *
  * Part 2 is the structural attack list: JSON nested 10k deep, XML with an internal DTD entity
- * expansion attempt, a 50 MB attribute value in every format, declared counts beyond MAX_COUNT,
+ * expansion attempt, a 16 MB attribute value in every format, declared counts beyond MAX_COUNT,
  * deep DOT nesting, `__proto__` keys, huge and non-finite numbers, repeated ids. The tests marked
  * FAILS pin the defects found: a repeated edge id in GEXF, Gephi CSV and three JSON dialects is
  * pushed without an issue and the core's freeze() then throws a raw E_DUPLICATE_EDGE_ID (the
@@ -30,6 +30,7 @@ import { describe, expect, it } from "vitest";
 import { registry } from "../../src/registry.js";
 import { type CommonImportOptions, ImportError, type ImportReport } from "../../src/types.js";
 import { CORPUS_FORMATS, corpusFiles, type CorpusFormat, readCorpusBytes } from "../helpers/corpus.js";
+import { makeZip } from "../helpers/zip.js";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -307,6 +308,66 @@ const TOKENS: Readonly<Record<CorpusFormat, readonly string[]>> = {
         '"success"',
         "\n",
     ],
+    cys: [
+        "PK\u0003\u0004",
+        "PK\u0001\u0002",
+        "PK\u0005\u0006",
+        "PK\u0006\u0006",
+        "PK\u0006\u0007",
+        "PK\u0007\u0008",
+        "\u0000",
+        "\u0000\u0000\u0000\u0000",
+        "\u0008\u0000",
+        "\u0001",
+        "/",
+        ".version",
+        "networks/",
+        "views/",
+        "tables/",
+        ".cytable",
+        ".xgmml",
+        "cytables.xml",
+        "cysession.xml",
+    ],
+    xgmml: [
+        "<",
+        ">",
+        "</",
+        "/>",
+        '"',
+        "'",
+        "=",
+        "&",
+        ";",
+        "<node",
+        "<edge",
+        "</node>",
+        "</edge>",
+        "id=",
+        "source=",
+        "target=",
+        "<att",
+        "name=",
+        "value=",
+        "type=",
+        "cy:type=",
+        'type="list"',
+        "<graphics",
+        "xlink:href=",
+        "cy:directed=",
+        "<graph",
+        "</graph>",
+        "<!--",
+        "-->",
+        "<![CDATA[",
+        "]]>",
+        "&amp;",
+        "&#",
+        "<?",
+        "?>",
+        "\n",
+        "&#xd83d;",
+    ],
     json: [
         "{",
         "}",
@@ -510,7 +571,7 @@ describe("fuzz audit: mutated corpus files import to a valid snapshot or throw I
                     }),
                     { numRuns: 60, seed: 20260914, endOnFailure: true },
                 );
-            }, 120_000);
+            });
         }
     }
 });
@@ -548,7 +609,7 @@ describe("fuzz audit: mutated corpus files, looking past the pinned E_DUPLICATE_
                 }),
                 { numRuns: 60, seed: 20260914, endOnFailure: true },
             );
-        }, 120_000);
+        });
     }
 });
 
@@ -701,9 +762,13 @@ describe("fuzz audit: structural attacks", () => {
         });
     });
 
-    describe("a 50 MB attribute value as one in-memory document", () => {
-        const big = "x".repeat(50 * MB);
-        const documents: Readonly<Record<CorpusFormat, string>> = {
+    // 16 MB is enough: it spans 64 of the input layer's 256 KB decode slices and 16 of the zip
+    // reader's 1 MB CRC slices, a quadratic scan of it never finishes, and V8's regexp backtrack
+    // stack already overflows at 4 to 8 MB of one repeated `(a|b)*` group, so a backtracking
+    // pattern over the value still throws RangeError here. 50 MB only added time.
+    describe("a 16 MB attribute value as one in-memory document", () => {
+        const big = "x".repeat(16 * MB);
+        const documents: Readonly<Record<CorpusFormat, string | Uint8Array>> = {
             json: `{"nodes":[{"id":"a","v":"${big}"}],"links":[]}`,
             cx: `[{"nodes":[{"@id":1,"n":"${big}"}]}]`,
             cx2: `[{"CXVersion":"2.0"},{"nodes":[{"id":1,"v":{"name":"${big}"}}]},{"status":[{"success":true}]}]`,
@@ -718,12 +783,22 @@ describe("fuzz audit: structural attacks", () => {
             neo4j: `:ID,name,:LABEL\n1,"${big}",P\n`,
             pajek: `*Vertices 1\n1 "${big}"\n*Edges\n1 1\n`,
             obo: `format-version: 1.4\n\n[Term]\nid: X:1\nname: ${big}\n`,
+            xgmml: `<graph><node id="a" label="${big}"/></graph>`,
+            cys: makeZip([
+                { name: "S/3.0.0.version", data: "" },
+                {
+                    // stored: 16 MB of one letter deflates above the 1000:1 ratio limit
+                    name: "S/networks/1-N.xgmml",
+                    method: 0,
+                    data: `<graph id="1" cy:registered="0" xmlns:cy="http://www.cytoscape.org"><att><graph id="2" cy:registered="1"><node id="3" label="${big}"/></graph></att></graph>`,
+                },
+            ]),
         };
         for (const format of CORPUS_FORMATS) {
             it(`${format}: completes with a snapshot or an ImportError`, async () => {
                 const outcome = await expectSnapshotOrImportError(format, documents[format]);
                 expect(outcome.kind).toBe("snapshot");
-            }, 60_000);
+            });
         }
     });
 
@@ -990,7 +1065,7 @@ describe("fuzz audit: structural attacks", () => {
         it("GraphML: 100k attributes on one element and 20k declared keys", async () => {
             const attrs = Array.from({ length: 100_000 }, (_, i) => `a${i}="v"`).join(" ");
             await expectSnapshotOrImportError("graphml", xmlGraphml(`<node id="a" ${attrs}/>`));
-        }, 60_000);
+        });
 
         it("GEXF: 100k attributes on one element", async () => {
             const attrs = Array.from({ length: 100_000 }, (_, i) => `x${i}="v"`).join(" ");

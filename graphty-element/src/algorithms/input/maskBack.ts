@@ -18,11 +18,14 @@ import { INVALID_INDEX, maskTest, type U32 } from "@graphty/graph-format";
 import type { EdgeId, NodeId, OptionDescriptor } from "../../catalog/types";
 import { edgeRowOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors/GraphtyError";
-import type { ResultElementValues, RunResultInit } from "../../session/results/RunResult";
+import { englishNotes } from "../../session/english";
+import type { ResultColumns, ResultElementValues, RunResultInit } from "../../session/results/RunResult";
+import { caveat, type CaveatCode, caveatSentence } from "../../session/runs/caveatFacts";
+import type { CodedFact } from "../../session/shared";
 import { declaresScopedInput, type ResolvedInputScope, runScopeOf } from "./ScopedInput";
 
 /** The note a run carries when its algorithm computed on the whole graph and was masked back. */
-export const WHOLE_GRAPH_CAVEAT = "Computed on the whole graph; values kept for the scope only.";
+export const WHOLE_GRAPH_CAVEAT = caveatSentence(caveat("scope.whole-graph"));
 
 /**
  * Whether a scope covers every node and every edge of its snapshot.
@@ -47,33 +50,40 @@ function has(mask: U32, row: number, length: number): boolean {
 }
 
 /**
- * Plural "node" or "edge".
- * @param count - How many.
- * @param noun - The singular.
- * @returns The phrase.
- */
-function counted(count: number, noun: string): string {
-    return `${String(count)} ${noun}${count === 1 ? "" : "s"}`;
-}
-
-/**
- * The sentence a scoped run carries about what it computed on, worded from the scope's reading so
- * the run can be reproduced.
+ * The fact a scoped run carries about what it computed on, from the scope's reading so the run can
+ * be reproduced.
  * @param declared - Whether the algorithm computes over its scope.
  * @param scope - The scope, not the whole graph.
- * @returns The note.
+ * @returns The fact.
  */
-function scopeCaveat(declared: boolean, scope: ResolvedInputScope): string {
+function scopeCaveat(declared: boolean, scope: ResolvedInputScope): CodedFact<CaveatCode> {
     if (!declared) {
-        return WHOLE_GRAPH_CAVEAT;
+        return caveat("scope.whole-graph");
     }
 
     const { nodeCount, edgeCount } = scope.resolution;
     if (scope.reading === "induced") {
-        return `Computed on the induced subgraph of ${counted(nodeCount, "node")}.`;
+        return caveat("scope.induced-subgraph", { nodes: nodeCount });
     }
 
-    return `Computed on the subgraph of ${counted(nodeCount, "node")} and the ${counted(edgeCount, "edge")} in scope.`;
+    return caveat("scope.subgraph", { nodes: nodeCount, edges: edgeCount });
+}
+
+/**
+ * The rows of published columns whose element is kept.
+ * @param published - The ids and their columns.
+ * @param keep - Whether an element is kept.
+ * @returns The kept ids and their columns.
+ */
+function keepRows(published: ResultColumns, keep: (id: NodeId) => boolean): ResultColumns {
+    const kept = published.ids.map(keep);
+
+    return {
+        ids: published.ids.filter((_, row) => kept[row]),
+        columns: Object.fromEntries(
+            Object.entries(published.columns).map(([name, column]) => [name, column.filter((_, row) => kept[row])]),
+        ),
+    };
 }
 
 /**
@@ -90,18 +100,22 @@ export function maskBack(algorithm: object, init: RunResultInit): RunResultInit 
     }
 
     const { graph, resolution } = scope;
-    const keepNode = (entry: ResultElementValues): boolean =>
-        has(resolution.nodes, graph.ids.indexOf(entry.id), graph.nodeCount);
+    const keepNode = (id: NodeId): boolean => has(resolution.nodes, graph.ids.indexOf(id), graph.nodeCount);
     const keepEdge = (entry: ResultElementValues<EdgeId>): boolean =>
         has(resolution.edges, edgeRowOf(graph, entry.id), graph.edgeCount);
+    const { nodes } = init;
+    const scopeFact = scopeCaveat(declaresScopedInput(algorithm), scope);
 
     return {
         ...init,
-        ...(init.nodes === undefined ? {} : { nodes: init.nodes.filter(keepNode) }),
+        ...(nodes === undefined
+            ? {}
+            : { nodes: "columns" in nodes ? keepRows(nodes, keepNode) : nodes.filter((entry) => keepNode(entry.id)) }),
         ...(init.edges === undefined ? {} : { edges: init.edges.filter(keepEdge) }),
         caveats: {
             ...init.caveats,
-            notes: [...init.caveats.notes, scopeCaveat(declaresScopedInput(algorithm), scope)],
+            facts: [...init.caveats.facts, scopeFact],
+            notes: [...englishNotes(init.caveats), caveatSentence(scopeFact)],
         },
     };
 }
@@ -124,28 +138,37 @@ export function checkNodeOptions(
         return;
     }
 
-    const { graph, resolution } = scope;
     for (const option of options) {
-        if (option.type !== "node-id" && option.type !== "node-set") {
+        if (option.type === "node-id" || option.type === "node-set") {
+            checkNodeOption(option.name, params[option.name], scope);
+        }
+    }
+}
+
+/**
+ * Refuse one node option's value (a node id, or a list of them) that names a node of the graph
+ * outside the run's scope.
+ * @param name - The option's name.
+ * @param given - The option's value.
+ * @param scope - The run's scope.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` and `details.reason: "outside-scope"`.
+ */
+function checkNodeOption(name: string, given: unknown, scope: ResolvedInputScope): void {
+    const { graph, resolution } = scope;
+    const values: readonly unknown[] = Array.isArray(given) ? given : [given];
+    for (const value of values) {
+        if (typeof value !== "string" && typeof value !== "number") {
             continue;
         }
 
-        const given = params[option.name];
-        const values: readonly unknown[] = Array.isArray(given) ? given : [given];
-        for (const value of values) {
-            if (typeof value !== "string" && typeof value !== "number") {
-                continue;
-            }
-
-            const row = graph.ids.indexOf(value as NodeId);
-            if (row !== INVALID_INDEX && !has(resolution.nodes, row, graph.nodeCount)) {
-                throw new GraphtyError({
-                    code: "E_OPTION_RANGE",
-                    message: `"${option.name}" names node "${String(value)}", which is outside the run's scope`,
-                    source: "run",
-                    details: { option: option.name, value, reason: "outside-scope" },
-                });
-            }
+        const row = graph.ids.indexOf(value);
+        if (row !== INVALID_INDEX && !has(resolution.nodes, row, graph.nodeCount)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `"${name}" names node "${String(value)}", which is outside the run's scope`,
+                source: "run",
+                details: { option: name, value, reason: "outside-scope" },
+            });
         }
     }
 }

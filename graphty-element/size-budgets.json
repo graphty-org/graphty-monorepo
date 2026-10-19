@@ -1,19 +1,19 @@
 {
-    "description": "Gzip budget in bytes for each JS entry point in package.json exports: the entry file plus every chunk it statically imports. Checked by tools/check-bundle-size.mjs; each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes.",
+    "description": "Minified gzip budget in bytes for each JS entry point in package.json exports: the entry file plus every chunk it statically imports, each minified with esbuild before it is gzipped. Checked by tools/check-bundle-size.mjs; each budget is the measured size plus headroomPercent, and at least minimumHeadroomBytes.",
     "headroomPercent": 10,
     "minimumHeadroomBytes": 1024,
     "entries": {
-        ".": 679426,
-        "./session": 391654,
-        "./schema": 11887,
-        "./catalog": 173474,
-        "./commands": 1562,
-        "./extend": 108642,
-        "./format": 1287,
-        "./logging": 12993,
-        "./react": 1045,
-        "./webgpu": 7119,
-        "./ai": 220868,
-        "./bundle": 3547981
+        ".": 512216,
+        "./session": 309663,
+        "./schema": 7654,
+        "./catalog": 124874,
+        "./commands": 1572,
+        "./extend": 80811,
+        "./format": 1266,
+        "./logging": 10118,
+        "./react": 1044,
+        "./webgpu": 4956,
+        "./ai": 134199,
+        "./bundle": 2762352
     }
 }

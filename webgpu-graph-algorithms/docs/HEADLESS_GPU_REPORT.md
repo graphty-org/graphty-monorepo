@@ -18,25 +18,25 @@ Status: root cause found, working recipe verified, nothing wired into the projec
   `lovelace`.
 - Required flags (all four, no more):
 
-  ```
-  --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
-  ```
+    ```
+    --enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface
+    ```
 
 ## Environment
 
-| Item | Value |
-|---|---|
-| Host GPU | NVIDIA GeForce RTX 4070 SUPER |
-| Driver (kernel + userspace) | 580.173.02 |
-| Container | Docker, Ubuntu 22.04.5, glibc 2.35, hostname dev.ato.ms |
-| NVIDIA container toolkit env | NVIDIA_VISIBLE_DEVICES=0, NVIDIA_DRIVER_CAPABILITIES=all |
-| Vulkan loader in container | libvulkan1 1.3.204.1 (jammy) |
-| Vulkan ICDs present | /etc/vulkan/icd.d/nvidia_icd.json (mounted from host) plus mesa lvp/radeon/intel/virtio |
-| Display | none (no DISPLAY, no Xvfb installed) |
-| Playwright (project) | 1.54.1, wants chromium build 1181 (Chromium 139) |
-| Other browsers | /usr/bin/google-chrome 145.0.7632.159 |
-| Vitest | 2.1.9 with @vitest/browser 2.1.9 |
-| CUDA in container | works (cuInit ok, device enumerated) |
+| Item                         | Value                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------- |
+| Host GPU                     | NVIDIA GeForce RTX 4070 SUPER                                                           |
+| Driver (kernel + userspace)  | 580.173.02                                                                              |
+| Container                    | Docker, Ubuntu 22.04.5, glibc 2.35, hostname dev.ato.ms                                 |
+| NVIDIA container toolkit env | NVIDIA_VISIBLE_DEVICES=0, NVIDIA_DRIVER_CAPABILITIES=all                                |
+| Vulkan loader in container   | libvulkan1 1.3.204.1 (jammy)                                                            |
+| Vulkan ICDs present          | /etc/vulkan/icd.d/nvidia_icd.json (mounted from host) plus mesa lvp/radeon/intel/virtio |
+| Display                      | none (no DISPLAY, no Xvfb installed)                                                    |
+| Playwright (project)         | 1.54.1, wants chromium build 1181 (Chromium 139)                                        |
+| Other browsers               | /usr/bin/google-chrome 145.0.7632.159                                                   |
+| Vitest                       | 2.1.9 with @vitest/browser 2.1.9                                                        |
+| CUDA in container            | works (cuInit ok, device enumerated)                                                    |
 
 Note: the driver libraries injected by the container toolkit show nlink=0 and
 appear as "(deleted)" in /proc/self/maps. That is cosmetic (host files were
@@ -51,20 +51,16 @@ replaced after the container started) and did not affect anything.
   Puppeteer does inject `--use-angle=swiftshader-webgl`; that gotcha does not
   apply to us.
 - Playwright issues asking for GPU in headless mode were closed without a fix:
-  - https://github.com/microsoft/playwright/issues/11627 (closed, not planned)
-  - https://github.com/microsoft/playwright/issues/15533 (closed, no resolution)
+    - https://github.com/microsoft/playwright/issues/11627 (closed, not planned)
+    - https://github.com/microsoft/playwright/issues/15533 (closed, no resolution)
 - Chromium tracker item "New Headless Chrome on Linux via Puppeteer does not
   use GPU": https://issues.chromium.org/issues/40274484 (login required to
   read; reported workaround is `--use-angle=vulkan`, which matches what worked
   here). Related: https://issues.chromium.org/issues/40540071 "Support GPU
   hardware in headless mode".
-- Chrome team guidance for headless WebGPU on NVIDIA Linux:
-  - https://developer.chrome.com/blog/supercharge-web-ai-testing
-  - https://github.com/jasonmayes/headless-chrome-nvidia-t4-gpu-support
-  - Recommended flags: `--headless=new --no-sandbox --use-angle=vulkan
-    --enable-features=Vulkan --disable-vulkan-surface --enable-unsafe-webgpu`
-  - Caveat from that repo: with `--disable-vulkan-surface`, WebGPU works for
-    compute but not for drawing to a canvas. Fine for this project.
+- Chrome team guidance for headless WebGPU on NVIDIA Linux: - https://developer.chrome.com/blog/supercharge-web-ai-testing - https://github.com/jasonmayes/headless-chrome-nvidia-t4-gpu-support - Recommended flags: `--headless=new --no-sandbox --use-angle=vulkan
+--enable-features=Vulkan --disable-vulkan-surface --enable-unsafe-webgpu` - Caveat from that repo: with `--disable-vulkan-surface`, WebGPU works for
+  compute but not for drawing to a canvas. Fine for this project.
 - https://tigerabrodi.blog/how-to-get-webgpu-in-headless-chrome-on-cloud-gpus
   claims Dawn blocklists NVIDIA drivers 570+ and suggests
   `--enable-dawn-features=allow_unsafe_apis,disable_adapter_blocklist` plus an
@@ -113,14 +109,14 @@ in vitest.config.ts were never reaching the browser anyway.
 Probe script: appendix A. Page served via `page.route` on http://localhost so
 it is a secure context. Each config in its own process with a hard timeout.
 
-| Browser | Flags | Result |
-|---|---|---|
-| headless_shell 139 | none | SwiftShader |
-| headless_shell 139 | `--enable-unsafe-webgpu --ignore-gpu-blocklist` (+/- Dawn flags) | SwiftShader |
-| full Chromium 139 | none / unsafe / unsafe+ignore / +Dawn / `--use-angle=vulkan` alone | SwiftShader |
-| full Chromium 139 | anything with `--enable-features=Vulkan` | GPU process fails to init Skia, Playwright hangs at newPage() |
-| Chrome 145 | unsafe+ignore (+/- Dawn) | SwiftShader |
-| any | `VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json` | requestAdapter() returns null, GPU process exits |
+| Browser            | Flags                                                              | Result                                                        |
+| ------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| headless_shell 139 | none                                                               | SwiftShader                                                   |
+| headless_shell 139 | `--enable-unsafe-webgpu --ignore-gpu-blocklist` (+/- Dawn flags)   | SwiftShader                                                   |
+| full Chromium 139  | none / unsafe / unsafe+ignore / +Dawn / `--use-angle=vulkan` alone | SwiftShader                                                   |
+| full Chromium 139  | anything with `--enable-features=Vulkan`                           | GPU process fails to init Skia, Playwright hangs at newPage() |
+| Chrome 145         | unsafe+ignore (+/- Dawn)                                           | SwiftShader                                                   |
+| any                | `VK_ICD_FILENAMES=/etc/vulkan/icd.d/nvidia_icd.json`               | requestAdapter() returns null, GPU process exits              |
 
 GPU process log with `--enable-features=Vulkan` and no libEGL:
 
@@ -164,17 +160,17 @@ LD_LIBRARY_PATH=$PWD/root/usr/lib/x86_64-linux-gnu python3 icd-check.py
 
 ### Step 5: flag matrix with libEGL on LD_LIBRARY_PATH
 
-| Browser | Flags | Adapter |
-|---|---|---|
-| full Chromium 139 | `--enable-unsafe-webgpu` | SwiftShader |
-| full Chromium 139 | `--enable-unsafe-webgpu --enable-features=Vulkan` | SwiftShader |
-| full Chromium 139 | `--enable-unsafe-webgpu --use-angle=vulkan` | SwiftShader |
-| full Chromium 139 | `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan` | SwiftShader |
-| full Chromium 139 | `--enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface` (no unsafe) | null |
-| full Chromium 139 | all four flags | NVIDIA lovelace, compute ok |
-| full Chromium 139 | all four + `--ignore-gpu-blocklist` (+/- Dawn flags) | NVIDIA lovelace, compute ok |
-| headless_shell 139 | all four + ignore | NVIDIA lovelace, compute ok |
-| Chrome 145 | all four + ignore (+/- Dawn flags) | default request: null; `high-performance` / `low-power`: NVIDIA lovelace |
+| Browser            | Flags                                                                              | Adapter                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| full Chromium 139  | `--enable-unsafe-webgpu`                                                           | SwiftShader                                                              |
+| full Chromium 139  | `--enable-unsafe-webgpu --enable-features=Vulkan`                                  | SwiftShader                                                              |
+| full Chromium 139  | `--enable-unsafe-webgpu --use-angle=vulkan`                                        | SwiftShader                                                              |
+| full Chromium 139  | `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan`               | SwiftShader                                                              |
+| full Chromium 139  | `--enable-features=Vulkan --use-angle=vulkan --disable-vulkan-surface` (no unsafe) | null                                                                     |
+| full Chromium 139  | all four flags                                                                     | NVIDIA lovelace, compute ok                                              |
+| full Chromium 139  | all four + `--ignore-gpu-blocklist` (+/- Dawn flags)                               | NVIDIA lovelace, compute ok                                              |
+| headless_shell 139 | all four + ignore                                                                  | NVIDIA lovelace, compute ok                                              |
+| Chrome 145         | all four + ignore (+/- Dawn flags)                                                 | default request: null; `high-performance` / `low-power`: NVIDIA lovelace |
 
 Adapter details on NVIDIA: `isFallbackAdapter=false`,
 `maxStorageBufferBindingSize=4294967292` (SwiftShader reports 1073741824).
@@ -185,12 +181,7 @@ Playwright launch that works:
 ```js
 await chromium.launch({
     headless: true,
-    args: [
-        "--enable-unsafe-webgpu",
-        "--enable-features=Vulkan",
-        "--use-angle=vulkan",
-        "--disable-vulkan-surface",
-    ],
+    args: ["--enable-unsafe-webgpu", "--enable-features=Vulkan", "--use-angle=vulkan", "--disable-vulkan-surface"],
     env: { ...process.env, LD_LIBRARY_PATH: "<dir containing libEGL.so.1>" },
 });
 ```
@@ -204,27 +195,28 @@ await chromium.launch({
 2. Put the four flags into vitest.config.ts via `browser.providerOptions`
    (Vitest 2.1 rejects a top-level `launch` key):
 
-   ```ts
-   browser: {
-       enabled: true,
-       name: "chromium",
-       provider: "playwright",
-       headless: true,
-       providerOptions: {
-           launch: {
-               args: [
-                   "--enable-unsafe-webgpu",
-                   "--enable-features=Vulkan",
-                   "--use-angle=vulkan",
-                   "--disable-vulkan-surface",
-               ],
-           },
-       },
-   },
-   ```
+    ```ts
+    browser: {
+        enabled: true,
+        name: "chromium",
+        provider: "playwright",
+        headless: true,
+        providerOptions: {
+            launch: {
+                args: [
+                    "--enable-unsafe-webgpu",
+                    "--enable-features=Vulkan",
+                    "--use-angle=vulkan",
+                    "--disable-vulkan-surface",
+                ],
+            },
+        },
+    },
+    ```
 
-   Remove the existing `--use-gl=swiftshader` and `--use-vulkan=swiftshader`
-   flags; they explicitly force software rendering.
+    Remove the existing `--use-gl=swiftshader` and `--use-vulkan=swiftshader`
+    flags; they explicitly force software rendering.
+
 3. Make the WebGPU check test assert `adapter.info.vendor === "nvidia"` (or at
    least `isFallbackAdapter === false`) so a SwiftShader fallback fails loudly.
    The current test passes identically on either backend. Replace the removed
@@ -280,44 +272,80 @@ async function probe(page) {
             const opts = pref === "default" ? {} : { powerPreference: pref };
             try {
                 const a = await navigator.gpu.requestAdapter(opts);
-                if (!a) { out[pref] = null; continue; }
+                if (!a) {
+                    out[pref] = null;
+                    continue;
+                }
                 const i = a.info;
-                out[pref] = { vendor: i.vendor, architecture: i.architecture, fallback: a.isFallbackAdapter,
-                              maxBuf: a.limits.maxStorageBufferBindingSize };
+                out[pref] = {
+                    vendor: i.vendor,
+                    architecture: i.architecture,
+                    fallback: a.isFallbackAdapter,
+                    maxBuf: a.limits.maxStorageBufferBindingSize,
+                };
                 if (pref === "default") {
                     const d = await a.requestDevice();
-                    const m = d.createShaderModule({ code: `
+                    const m = d.createShaderModule({
+                        code: `
                         @group(0) @binding(0) var<storage, read_write> o: array<u32>;
-                        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id: vec3<u32>) { o[id.x] = id.x * 2u; }` });
+                        @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) id: vec3<u32>) { o[id.x] = id.x * 2u; }`,
+                    });
                     const n = 1024;
-                    const buf = d.createBuffer({ size: n * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC });
-                    const st = d.createBuffer({ size: n * 4, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+                    const buf = d.createBuffer({
+                        size: n * 4,
+                        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+                    });
+                    const st = d.createBuffer({
+                        size: n * 4,
+                        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
+                    });
                     const p = d.createComputePipeline({ layout: "auto", compute: { module: m, entryPoint: "main" } });
-                    const bg = d.createBindGroup({ layout: p.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: buf } }] });
+                    const bg = d.createBindGroup({
+                        layout: p.getBindGroupLayout(0),
+                        entries: [{ binding: 0, resource: { buffer: buf } }],
+                    });
                     const e = d.createCommandEncoder();
-                    const ps = e.beginComputePass(); ps.setPipeline(p); ps.setBindGroup(0, bg); ps.dispatchWorkgroups(n / 64); ps.end();
+                    const ps = e.beginComputePass();
+                    ps.setPipeline(p);
+                    ps.setBindGroup(0, bg);
+                    ps.dispatchWorkgroups(n / 64);
+                    ps.end();
                     e.copyBufferToBuffer(buf, 0, st, 0, n * 4);
                     d.queue.submit([e.finish()]);
                     await st.mapAsync(GPUMapMode.READ);
                     const r = new Uint32Array(st.getMappedRange());
-                    out.compute = (r[1] === 2 && r[1023] === 2046) ? "ok" : "WRONG " + r[1023];
-                    st.unmap(); d.destroy();
+                    out.compute = r[1] === 2 && r[1023] === 2046 ? "ok" : "WRONG " + r[1023];
+                    st.unmap();
+                    d.destroy();
                 }
-            } catch (err) { out[pref] = "ERR " + String(err); }
+            } catch (err) {
+                out[pref] = "ERR " + String(err);
+            }
         }
         return out;
     });
 }
 
 const cfg = configs[process.argv[2]];
-if (!cfg) { console.log("known:", Object.keys(configs).join(" ")); process.exit(2); }
+if (!cfg) {
+    console.log("known:", Object.keys(configs).join(" "));
+    process.exit(2);
+}
 let browser;
 try {
-    browser = await chromium.launch({ executablePath: cfg.exe, headless: true, args: cfg.args, env: { ...process.env, ...(cfg.env ?? {}) } });
+    browser = await chromium.launch({
+        executablePath: cfg.exe,
+        headless: true,
+        args: cfg.args,
+        env: { ...process.env, ...(cfg.env ?? {}) },
+    });
     const page = await browser.newPage();
-    await page.route("http://localhost/**", r => r.fulfill({ contentType: "text/html", body: PAGE }));
+    await page.route("http://localhost/**", (r) => r.fulfill({ contentType: "text/html", body: PAGE }));
     await page.goto("http://localhost/probe");
-    const res = await Promise.race([probe(page), new Promise((_, rej) => setTimeout(() => rej(new Error("probe timed out")), 25000))]);
+    const res = await Promise.race([
+        probe(page),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("probe timed out")), 25000)),
+    ]);
     console.log(JSON.stringify(res));
 } catch (err) {
     console.log("ERROR:", String(err).split("\n")[0]);

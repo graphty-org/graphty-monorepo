@@ -1,8 +1,8 @@
 import { equalsTopology, fromEdgeArrays } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { karate } from "../../src/datasets/karate/index.js";
 import { DEFAULT_DATASET_BASE_URL, fetchDataset } from "../../src/datasets/remote.js";
+import { karate } from "../helpers/datasets.js";
 
 /**
  * Gzip bytes the way the hosted files are written.
@@ -46,8 +46,8 @@ describe("fetchDataset", () => {
 
     it("rejects an HTTP error and a name that is not a plain dataset name", async () => {
         const missing = (): Promise<Response> => Promise.resolve(new Response("nope", { status: 404 }));
-        await expect(fetchDataset("absent", { fetch: missing as typeof fetch })).rejects.toThrow(/HTTP 404/);
-        await expect(fetchDataset("../secrets", { fetch: missing as typeof fetch })).rejects.toThrow(RangeError);
-        await expect(fetchDataset("", { fetch: missing as typeof fetch })).rejects.toThrow(RangeError);
+        await expect(fetchDataset("absent", { fetch: missing })).rejects.toThrow(/HTTP 404/);
+        await expect(fetchDataset("../secrets", { fetch: missing })).rejects.toThrow(RangeError);
+        await expect(fetchDataset("", { fetch: missing })).rejects.toThrow(RangeError);
     });
 });

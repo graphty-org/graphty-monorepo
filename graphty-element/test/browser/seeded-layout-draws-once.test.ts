@@ -37,6 +37,9 @@ afterEach(() => {
     }
 });
 
+/** How long the element may take to connect and finish `Graph.init()`: the test's own budget. */
+const INIT_BUDGET_MS = 10_000;
+
 describe("a seeded layout draws the same graph every load", () => {
     test("a layout its pre-steps settled is started, not reheated", async () => {
         const { graph } = await createE2EGraph({ nodes: NODES, edges: EDGES, enableAi: false });
@@ -89,7 +92,12 @@ describe("a seeded layout draws the same graph every load", () => {
         element.layout = "spring";
         element.layoutConfig = { seed: 42 };
 
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await vi.waitFor(
+            () => {
+                assert.isTrue(element.graph.initialized, "the element finished initialising");
+            },
+            { timeout: INIT_BUDGET_MS },
+        );
         await operationQueueOf(element.graph).waitForCompletion();
 
         assert.instanceOf(element.graph.getLayoutManager().layoutEngine, SimulationLayoutEngine);

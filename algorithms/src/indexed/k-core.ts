@@ -1,5 +1,7 @@
 import type { GraphSnapshot, U32 } from "@graphty/graph-format";
 
+import { withCode } from "../errors.js";
+
 /**
  * Result of the index-based k-core decomposition. `coreness` is the shape the accelerator seam
  * declares (`CorenessResultLike`); `maxCore` and `cores()` are what the legacy
@@ -35,7 +37,10 @@ export interface CorenessResult {
  */
 export function kCoreDecomposition(s: GraphSnapshot): CorenessResult {
     if (s.directed) {
-        throw new Error("k-core requires an undirected graph. Pass s.toUndirected().snapshot.");
+        throw withCode(
+            new Error("k-core requires an undirected graph. Pass s.toUndirected().snapshot."),
+            "E_NEEDS_UNDIRECTED",
+        );
     }
     const n = s.nodeCount;
     const { rowPtr, colIdx } = s;

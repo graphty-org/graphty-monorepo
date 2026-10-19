@@ -66,6 +66,11 @@ export interface ScreenshotOptions {
     timing?: {
         waitForSettle?: boolean;
         waitForOperations?: boolean;
+        /**
+         * How long `waitForSettle` waits for a moving layout to come to rest before the capture
+         * fails with `LAYOUT_SETTLE_TIMEOUT`, in milliseconds. Default 30,000.
+         */
+        settleTimeoutMs?: number;
     };
 
     // -------------------------------------------------------------------------
@@ -118,7 +123,7 @@ export interface ScreenshotResult {
  * point -- so the declaration lives in a module `./extend` and `./catalog` can reach, and this
  * file keeps publishing the name every screenshot caller already imports.
  */
-export type { CameraState };
+export type { CameraState } from "../camera/types.js";
 
 // Camera animation options (extends QueueableOptions for operation queue integration)
 export interface CameraAnimationOptions {

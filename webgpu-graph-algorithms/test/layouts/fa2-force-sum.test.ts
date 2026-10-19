@@ -28,7 +28,6 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { assertCheckPasses, type CheckReport, mergeReports, ratioOf } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 const GRAVITY_FREE: ForceAtlas2Options = { ...BASE_OPTIONS, gravity: 0, distributedAction: false };
 
 interface SumCase {
@@ -114,42 +113,38 @@ describe("FA2 force-sum invariant: gravity 0, one iteration, |sum F| <= tol x su
     });
 
     for (const c of CASES) {
-        it(
-            `${c.name}: the net force vanishes within the traced tolerance, twice bitwise`,
-            async (t) => {
-                requireGpu(t);
-                const s = c.snapshot();
-                try {
-                    const supplied = c.positions();
-                    const start = supplied ?? startPositions(s, c.options, false);
-                    const runOnce = (): Promise<F32> =>
-                        withSim(ctx, c.options, c.tuning, async (sim) => {
-                            sim.load(s, Float32Array.from(start));
-                            const st = debugStages(sim);
-                            await st.run("K3");
-                            return asF32(await st.read("force"));
-                        });
-                    const a = await runOnce();
-                    const b = await runOnce();
-                    expectBitwiseEqual(a, b, `${c.name}: run 1 vs run 2`);
-                    const { ratio, total } = netForceRatio(a, s.nodeCount);
-                    expect(total, `${c.name}: some force exists`).toBeGreaterThan(0);
-                    const report: CheckReport = {
-                        worst: ratioOf(ratio, toleranceOf("fa2-force-sum")),
-                        worstLabel: c.name,
-                        samples: s.nodeCount,
-                    };
-                    reports.push(report);
-                    console.warn(
-                        `[fa2-force-sum] ${c.name}: |sum F| / sum |F| = ${ratio.toExponential(3)} (ratio ${report.worst.toExponential(3)})`,
-                    );
-                    assertCheckPasses(report);
-                } finally {
-                    ctx.release(s);
-                }
-            },
-            CASE_TIMEOUT,
-        );
+        it(`${c.name}: the net force vanishes within the traced tolerance, twice bitwise`, async (t) => {
+            requireGpu(t);
+            const s = c.snapshot();
+            try {
+                const supplied = c.positions();
+                const start = supplied ?? startPositions(s, c.options, false);
+                const runOnce = (): Promise<F32> =>
+                    withSim(ctx, c.options, c.tuning, async (sim) => {
+                        sim.load(s, Float32Array.from(start));
+                        const st = debugStages(sim);
+                        await st.run("K3");
+                        return asF32(await st.read("force"));
+                    });
+                const a = await runOnce();
+                const b = await runOnce();
+                expectBitwiseEqual(a, b, `${c.name}: run 1 vs run 2`);
+                const { ratio, total } = netForceRatio(a, s.nodeCount);
+                expect(total, `${c.name}: some force exists`).toBeGreaterThan(0);
+                const report: CheckReport = {
+                    worst: ratioOf(ratio, toleranceOf("fa2-force-sum")),
+                    worstLabel: c.name,
+                    samples: s.nodeCount,
+                };
+                reports.push(report);
+                console.warn(
+                    `[fa2-force-sum] ${c.name}: |sum F| / sum |F| = ${ratio.toExponential(3)} (ratio ${report.worst.toExponential(3)})`,
+                );
+                assertCheckPasses(report);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 
     it("prints the worst ratio of the fixture set", () => {

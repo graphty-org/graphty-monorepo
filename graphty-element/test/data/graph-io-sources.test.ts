@@ -292,7 +292,7 @@ describe("JSON read through graph-io", () => {
         assert.strictEqual(source.getErrorAggregator().getErrorCount(), 0);
     });
 
-    test("keeps the first record of a repeated node id, as the element does", async () => {
+    test("hands every record of a repeated node id to the element, which keeps the first", async () => {
         const data = JSON.stringify({
             nodes: [
                 { id: "a", v: 1 },
@@ -302,7 +302,10 @@ describe("JSON read through graph-io", () => {
         });
         const { nodes } = await collect(new JsonDataSource({ data }));
 
-        assert.deepStrictEqual(nodes, [{ id: "a", v: 1 }]);
+        assert.deepStrictEqual(nodes, [
+            { id: "a", v: 1 },
+            { id: "a", v: 2 },
+        ]);
     });
 
     test("reads arrays a JMESPath expression selects", async () => {
@@ -381,7 +384,10 @@ describe("GML, DOT and Pajek read through graph-io", () => {
             new PajekDataSource({ data: '*Vertices 2\n1 0.1 0.2\n1 "z" 0.9 0.9\n2\n*Edges\n1 2' }),
         );
 
-        assert.deepStrictEqual(nodes, [{ id: "1", label: "z", x: 0.1, y: 0.2 }, { id: "2" }]);
+        assert.deepStrictEqual(nodes, [
+            { id: "1", label: "z", x: 0.1, y: 0.2, position: { x: 0.1, y: -0.2, z: 0 } },
+            { id: "2" },
+        ]);
     });
 
     test("Pajek drops edges 2.x kept: an undeclared vertex, a word weight, ends named by label", async () => {
@@ -392,12 +398,13 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         assert.deepStrictEqual(edges, [{ source: "1", target: "2", directed: false }]);
     });
 
-    test("Pajek stores coordinates as 32-bit floats and reads an unquoted word as the label", async () => {
+    test("Pajek keeps coordinates exactly and reads an unquoted word as the label", async () => {
         const { nodes } = await collect(new PajekDataSource({ data: "*Vertices 2\n1 5\n2 0.123456789 0.5\n" }));
 
         assert.deepStrictEqual(nodes, [
             { id: "1", label: "5" },
-            { id: "2", x: 0.12345679, y: 0.5 },
+            // x and y as written; the position is y up (Pajek is y down)
+            { id: "2", x: 0.123456789, y: 0.5, position: { x: 0.123456789, y: -0.5, z: 0 } },
         ]);
     });
 
@@ -445,27 +452,26 @@ describe("GML, DOT and Pajek read through graph-io", () => {
             new DOTDataSource({ data: 'digraph { subgraph cluster_x { a; b [parent="mine"] } }' }),
         );
 
-        assert.deepStrictEqual(nodes, [{ id: "a" }, { id: "b", parent: "mine" }]);
+        assert.sameDeepMembers(nodes, [{ id: "cluster_x" }, { id: "a" }, { id: "b", parent: "mine" }]);
     });
 
-    test("DOT draws a cluster as a node only when an edge names it", async () => {
+    test("DOT keeps every cluster as a node, with its attributes, whether an edge names it or not", async () => {
         const named = await collect(new DOTDataSource({ data: "digraph { subgraph cluster_x { a } b -> cluster_x }" }));
-        const unnamed = await collect(new DOTDataSource({ data: "digraph { subgraph cluster_x { a } b -> a }" }));
-
-        assert.includeMembers(
-            named.nodes.map((node) => node.id),
-            ["cluster_x"],
+        const unnamed = await collect(
+            new DOTDataSource({ data: 'digraph { subgraph cluster_x { label="X"; a } b -> a }' }),
         );
-        assert.notInclude(
-            unnamed.nodes.map((node) => node.id),
+
+        assert.include(
+            named.nodes.map((node) => node.id),
             "cluster_x",
         );
+        assert.deepInclude(unnamed.nodes, { id: "cluster_x", label: "X" });
     });
 
-    test("DOT keeps pos as the text the file wrote", async () => {
+    test("DOT keeps pos as the text the file wrote beside the position read from it", async () => {
         const { nodes } = await collect(new DOTDataSource({ data: 'graph { a [pos="1,2!"] }' }));
 
-        assert.deepStrictEqual(nodes, [{ id: "a", pos: "1,2!" }]);
+        assert.deepStrictEqual(nodes, [{ id: "a", position: { x: 1, y: 2, z: 0 }, pos: "1,2!", pin: true }]);
     });
 
     test("DOT reads a body with no keyword by its edge operators", async () => {
@@ -480,12 +486,17 @@ describe("GML, DOT and Pajek read through graph-io", () => {
         );
     });
 
-    // GML is read as NetworkX reads it. These three loaded in the element's own 2.x reader and are
-    // refused now, each naming its line: none of them is GML that NetworkX, igraph or Gephi write.
+    test("GML keeps a string that runs onto the next line", async () => {
+        const { nodes } = await collect(new GMLDataSource({ data: 'graph [ node [ id 1 label "a\nb" ] ]' }));
+
+        assert.deepStrictEqual(nodes, [{ id: 1, label: "a\nb" }]);
+    });
+
+    // GML is read as NetworkX reads it. These two loaded in the element's own 2.x reader and are
+    // refused now, each naming its line: neither is GML that NetworkX, igraph or Gephi write.
     const refused: [string, string][] = [
         ["a bare-word id", "graph [ node [ id A ] node [ id B ] edge [ source A target B ] ]"],
         ["directed written as a word", "graph [ directed true node [ id 1 ] ]"],
-        ["a string that runs onto the next line", 'graph [ node [ id 1 label "a\nb" ] ]'],
     ];
     for (const [what, data] of refused) {
         test(`GML refuses ${what} with E_PARSE_FAILED naming the line`, async () => {

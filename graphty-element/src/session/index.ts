@@ -10,33 +10,89 @@
  * enforces it.
  */
 
+export { LOAD_ROLES } from "./draft";
 export { createElementSession, createGraphSession } from "./GraphSession";
-export type { LayoutRecommendation, LayoutRecommendationOptions } from "./layout";
+export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./layout";
 export { recommendLayout } from "./layout";
 export type { DefaultableLimits } from "./limits";
 export { DEFAULT_LIMITS } from "./limits";
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./planning";
 export { isAlgorithmRunCommand } from "./planning";
+export type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
+export type { LoadStyleReport } from "./styles/fileStyles/apply";
 export type {
+    ExportStyleLossCode,
+    FileStyleCode,
+    FileStyleNoteCode,
+    FileStyleTranslationCode,
+} from "./styles/fileStyles/codes";
+export {
+    EXPORT_STYLE_LOSS_CODES,
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_TRANSLATION_ISSUE,
+} from "./styles/fileStyles/codes";
+export type {
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+} from "./styles/fileStyles/origin";
+export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
+export type { FileStyleKind } from "./styles/fileStyles/path";
+export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
+export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
+export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
+export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
+export type {
+    ColumnHistogram,
+    ColumnRole,
     CommandOutcome,
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DraftColumn,
+    DraftRow,
+    DraftRowFilter,
+    DraftRowOptions,
+    DraftTable,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
     ElementSession,
+    Endpoint,
+    FileStyleSummary,
+    FileStyleTool,
+    FindEnd,
+    FindHit,
+    FindHitBase,
+    FindKind,
+    FindOptions,
+    FindResult,
+    FindValueRow,
     GraphSession,
     GraphStatistics,
     HistoryCause,
+    HistoryCode,
     HistoryOutcome,
     HistoryStep,
     HistoryStepId,
     ImportOptions,
+    LoadChoices,
+    LoadDraft,
+    LoadMapping,
+    LoadMappingRead,
+    Neighbor,
+    NeighborOptions,
+    NeighborPage,
+    NeighborSort,
     NodeRecord,
     NodeRecordInput,
+    PageColumn,
     PendingId,
     PendingStep,
     PositionEntry,
@@ -47,6 +103,10 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    ResultCell,
+    ResultColumn,
+    ResultColumnDescriptor,
+    ResultSort,
     RowUpdate,
     SessionAttributes,
     SessionCatalogApi,
@@ -62,6 +122,8 @@ export type {
     SessionStatus,
     SessionViews,
     StyleProblem,
+    TableMapping,
+    TableMappingRead,
     TransactionOptions,
     TransactionScope,
 } from "./types";

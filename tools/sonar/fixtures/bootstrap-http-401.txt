@@ -1,0 +1,8 @@
+[INFO]  Bootstrapper: Retrieving info from "package.json" file
+[INFO]  Bootstrapper: Platform: linux x64
+[INFO]  Bootstrapper: Server URL: http://sonarqube.example.lan:9000
+[INFO]  Bootstrapper: Using SonarScanner for NPM (@sonar/scan)
+[INFO]  Bootstrapper: Version: 5.0.1
+[INFO]  Bootstrapper: SonarQube server version: 26.3.0
+[INFO]  Bootstrapper: JRE provisioning is supported
+[ERROR] Bootstrapper: An error occurred: AxiosError: Request failed with status code 401

@@ -147,7 +147,7 @@ function fixtures(): FlowFixture[] {
 /** The per-arc f64 capacity override the facade will pass, or undefined when f32 is exact. */
 function exactWeights(s: GraphSnapshot): Float64Array | undefined {
     const shadow = s.edges.byRole("weight");
-    return shadow?.dtype === "f64" ? (expandEdges(s, shadow.data) as Float64Array) : undefined;
+    return shadow?.dtype === "f64" ? expandEdges(s, shadow.data) : undefined;
 }
 
 function legacyEdgeFlow(legacy: LegacyMaxFlowResult, s: GraphSnapshot, e: number): number {

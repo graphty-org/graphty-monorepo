@@ -53,7 +53,9 @@ import type {
     Scope,
     SelectionDirection,
 } from "../../catalog/types";
+import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import { type ComponentLabels, edgeSpaceOf, type ElementMask } from "../scope/index";
 import {
@@ -264,6 +266,9 @@ const FILTER_KINDS = [
     "degree",
     "component",
     "neighborhood",
+    "isolated",
+    "self-loop",
+    "repeated-edge",
     "edges",
     "member",
     "item",
@@ -320,7 +325,7 @@ function outOfRange(message: string, details: Readonly<Record<string, unknown>>)
  */
 function readsItself(through: readonly ChainStep[]): GraphtyError {
     return malformed(
-        `This filter reads ${through.map((step) => `"${step}"`).join(" through ")}, which is what the visibility ` +
+        `This filter reads ${quoteEach(through, " through ")}, which is what the visibility ` +
             "filter computes, so it would depend on itself. Create a set from the current members instead.",
         { reason: "cycle", through },
     );
@@ -450,6 +455,10 @@ function assertFilter(filter: RuleTree): void {
                 });
             }
 
+            return;
+        case "isolated":
+        case "self-loop":
+        case "repeated-edge":
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -909,6 +918,54 @@ function degreeTest(
 }
 
 /**
+ * A test for the nodes with no edge to another node, in either direction: the one-node components
+ * `statistics().components.isolatedCount` counts, so a node with only self-loops passes.
+ * @param context - The compile context.
+ * @returns The test.
+ */
+function isolatedTest(context: CompileContext): ElementTest {
+    const { graph } = context;
+    const reverse = graph.reverse();
+    const alone = (rowPtr: U32, colIdx: U32, index: number): boolean => {
+        for (let arc = rowPtr[index]; arc < rowPtr[index + 1]; arc++) {
+            if (colIdx[arc] !== index) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    return (index) => alone(graph.rowPtr, graph.colIdx, index) && alone(reverse.rowPtr, reverse.colIdx, index);
+}
+
+/**
+ * A test for the edges beyond the first between one pair of nodes, in edge order: the edges
+ * `statistics().repeatedEdgeCount` counts. A pair is ordered on a directed graph and unordered on
+ * an undirected one.
+ * @param context - The compile context.
+ * @returns The test.
+ */
+function repeatedEdgeTest(context: CompileContext): ElementTest {
+    const { graph } = context;
+    const n = graph.nodeCount;
+    const repeated = new Uint8Array(graph.edgeCount);
+    const seen = new Set<number>();
+    for (let edge = 0; edge < graph.edgeCount; edge++) {
+        const s = graph.edgeSource(edge);
+        const t = graph.edgeTarget(edge);
+        const pair = graph.directed || s <= t ? s * n + t : t * n + s;
+        if (seen.has(pair)) {
+            repeated[edge] = 1;
+        } else {
+            seen.add(pair);
+        }
+    }
+
+    return (index) => repeated[index] === 1;
+}
+
+/**
  * A test over which connected component a node belongs to.
  * @param context - The compile context.
  * @param id - The component number.
@@ -951,7 +1008,7 @@ function neighborhoodTest(context: CompileContext, seeds: readonly NodeId[], dep
     let frontier: number[] = [];
 
     for (const id of seeds) {
-        const index = graph.ids.indexOf(id);
+        const index = rowOfEitherSpelling(graph.ids, id);
 
         if (index !== INVALID_INDEX && reached[index] === 0) {
             reached[index] = 1;
@@ -1011,9 +1068,11 @@ function resultOf(context: CompileContext, kind: string, run: RunId): FilterRunR
  * @returns Whether nodes and edges carry it.
  */
 function fieldHalves(result: FilterRunResult, field: string): { node: boolean; edge: boolean } {
-    const kinds = result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind);
+    const kinds = new Set(
+        result.fields.filter((descriptor) => descriptor.name === field).map((descriptor) => descriptor.kind),
+    );
 
-    return { node: kinds.includes("node"), edge: kinds.includes("edge") };
+    return { node: kinds.has("node"), edge: kinds.has("edge") };
 }
 
 /**
@@ -1237,6 +1296,12 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: componentTest(context, filter.id), edge: null };
         case "neighborhood":
             return { node: neighborhoodTest(context, filter.seeds, filter.depth), edge: null };
+        case "isolated":
+            return { node: isolatedTest(context), edge: null };
+        case "self-loop":
+            return { node: null, edge: (index) => context.graph.edgeSource(index) === context.graph.edgeTarget(index) };
+        case "repeated-edge":
+            return { node: null, edge: repeatedEdgeTest(context) };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "member": {
@@ -1521,14 +1586,14 @@ export async function runPassInSlices(
         });
 
         if (signal.aborted) {
-            throw signal.reason as Error;
+            throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
         }
 
         deadline = performance.now() + SLICE_MS;
     };
 
     if (signal.aborted) {
-        throw signal.reason as Error;
+        throw signal.reason as Error; // NOSONAR(S3696): rethrows the abort signal's reason, as the platform does
     }
 
     for (let from = 0; from < nodeCount; from += CHUNK) {

@@ -510,8 +510,8 @@ function declaredEdges(s: GraphSnapshot): { readonly src: U32; readonly dst: U32
     for (let u = 0; u < nodeCount; u++) {
         const end = rowPtr[u + 1];
         for (let a = rowPtr[u]; a < end; a++) {
-            const e = arcToEdge === null ? a : arcToEdge[a];
-            if (edgeToArc !== null && edgeToArc[e] !== a) {
+            const e = declaringEdgeOf(a, arcToEdge, edgeToArc);
+            if (e < 0) {
                 continue;
             }
             src[e] = u;
@@ -522,6 +522,18 @@ function declaredEdges(s: GraphSnapshot): { readonly src: U32; readonly dst: U32
         }
     }
     return { src, dst, weights: edgeWeights };
+}
+
+/**
+ * The logical edge of arc `a` when `a` is the arc that declares it (`edgeToArc[e] === a`).
+ * @param a - the arc
+ * @param arcToEdge - arc -> edge, or null for the identity
+ * @param edgeToArc - edge -> declaring arc, or null for the identity
+ * @returns the edge, or -1 when `a` is the edge's mate arc
+ */
+function declaringEdgeOf(a: number, arcToEdge: U32 | null, edgeToArc: U32 | null): number {
+    const e = arcToEdge === null ? a : arcToEdge[a];
+    return edgeToArc !== null && edgeToArc[e] !== a ? -1 : e;
 }
 
 /**
@@ -761,7 +773,7 @@ export function fromCsr(input: CsrInput, options: FromCsrOptions = {}): GraphSna
 }
 
 /** The flags that describe which arrays are PRESENT; they are never taken from a claim (I9 at every level). */
-const PRESENCE_FLAGS: readonly (keyof SnapshotFlags)[] = ["weighted", "arcToEdgeIsIdentity"];
+const PRESENCE_FLAGS: ReadonlySet<keyof SnapshotFlags> = new Set(["weighted", "arcToEdgeIsIdentity"]);
 
 /**
  * The trusted flags of a "structure" or "none" level construction: every claimed predicate flag as
@@ -782,7 +794,7 @@ function applyClaims(computed: SnapshotFlags, claims: FlagClaims | undefined): S
         if (value === undefined) {
             continue;
         }
-        if (PRESENCE_FLAGS.includes(name)) {
+        if (PRESENCE_FLAGS.has(name)) {
             if (value !== computed[name]) {
                 throw invariantViolation(
                     "I9",

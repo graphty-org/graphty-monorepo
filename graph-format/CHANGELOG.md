@@ -1,3 +1,140 @@
+## 1.4.5 (2026-10-18)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.4 (2026-10-17)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.3 (2026-10-17)
+
+### 🩹 Fixes
+
+- **graph-format:** keep the staging reservation growth constants module-private ([bd9e2bf64](https://github.com/graphty-org/graphty-monorepo/commit/bd9e2bf64))
+- **graph-format:** reserve staging address space in proportion to use ([328de8926](https://github.com/graphty-org/graphty-monorepo/commit/328de8926))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.4.2 (2026-10-15)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.1 (2026-10-14)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.4.0 (2026-10-14)
+
+### 🚀 Features
+
+- **graph-format:** export engine-independent log, exp, sin, cos, acos, hypot and pow ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### 🩹 Fixes
+
+- **graph-format:** list the engine-independent math in design section 12.2 ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.15 (2026-10-13)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.14 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.13 (2026-10-12)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.12 (2026-10-11)
+
+### 🚀 Features
+
+- **tools:** fail a CI test that uses more than 25% of its time limit ([#1602](https://github.com/graphty-org/graphty-monorepo/issues/1602))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.11 (2026-10-09)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.10 (2026-10-09)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.9 (2026-10-08)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.8 (2026-10-07)
+
+### 🔥 Performance
+
+- **graph-format:** parse wire JSON without a reviver; cheapen the snapshot equality helper ([#1239](https://github.com/graphty-org/graphty-monorepo/issues/1239))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.7 (2026-10-07)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.6 (2026-10-06)
+
+### 🩹 Fixes
+
+- **graph-format:** refuse an oversized vertex count before building it ([#769](https://github.com/graphty-org/graphty-monorepo/issues/769))
+- **graph-format:** refuse ids past the id map limit with E_TOO_LARGE ([e83be97a8](https://github.com/graphty-org/graphty-monorepo/commit/e83be97a8))
+- **graph-format:** keep a JSON key named __proto__ as data ([82b2e4af1](https://github.com/graphty-org/graphty-monorepo/commit/82b2e4af1))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 1.3.5 (2026-10-05)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.4 (2026-10-05)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.3 (2026-10-04)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.2 (2026-10-04)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.1 (2026-10-04)
+
+This was a version bump only for graph-format to align it with other projects, there were no code changes.
+
+## 1.3.0 (2026-10-03)
+
+### 🚀 Features
+
+- **graph-format:** accept and return element ids ([#728](https://github.com/graphty-org/graphty-monorepo/issues/728))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 1.2.6 (2026-10-02)
 
 This was a version bump only for graph-format to align it with other projects, there were no code changes.

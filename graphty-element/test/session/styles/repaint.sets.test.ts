@@ -16,7 +16,6 @@ import { scopeResolverOfSession, setsNotifierOfSession } from "../../../src/sess
 import { resultExecutionOf } from "../../../src/session/results/ResultsApi";
 import type { SessionRunsApi } from "../../../src/session/runs";
 import { itemKeyOf } from "../../../src/session/sets/captures";
-import type { Resolution } from "../../../src/session/sets/resolve";
 import type { ElementSession } from "../../../src/session/types";
 import { type Harness, makeSession } from "../helpers";
 import { finishAtOnce } from "../runs/harness";
@@ -330,7 +329,7 @@ describe("a layer naming a set repaints only what moved", () => {
                     missingNodes: 0,
                     missingEdges: 0,
                     ambiguousEdges: 0,
-                } as Resolution);
+                });
             }
         };
         const held = (): boolean => (cache?.cached() ?? []).some(([key]) => key === definition);

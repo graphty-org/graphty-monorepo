@@ -15,8 +15,8 @@
  * ## Why a live stopwatch is steady enough for CI
  *
  * - Each algorithm is run once untimed on its smaller graph first, so the JIT is warm.
- * - Each size keeps the fastest of three runs. Load from other processes (other vitest workers,
- *   other jobs) only ever adds time, so the minimum is the steadiest reading of the work itself.
+ * - Each size keeps its fastest run. Load from other processes (other vitest workers, other jobs)
+ *   only ever adds time, so the minimum is the steadiest reading of the work itself.
  *   Sizes are chosen so one run takes roughly 0.05 to 1 s here: long enough that timer noise is
  *   small, short enough that the whole file stays near 40 s on the reference machine.
  * - Time is read on a clock that stops while this thread waits for a CPU (`runningMs`), and the
@@ -30,15 +30,24 @@
  *   divided by what that workload does on the machine the defaults were fitted on, scales every
  *   rate by this machine's speed. On the fitting machine the calibration is the defaults (the
  *   test prints the factor when `COST_GUARD_VERBOSE` is set); on a machine twice as slow every
- *   estimate doubles. The probe is re-run on both sides of each size's runs and its fastest
- *   reading kept, for the same reason the runs keep their fastest (see `machineSpeed`).
+ *   estimate doubles. The probe keeps its fastest reading for the same reason the runs keep
+ *   theirs, and the two are taken turn about over the same few seconds, a probe then a run (see
+ *   `machineSpeed`), so a quiet moment that gives the probe its best reading gives a run one too.
+ * - The probe stays in cache, so it cannot see a cloud runner's memory loaded by another tenant,
+ *   which slows the rows that walk large graphs 3 to 6x and leaves the rest alone. Each size's
+ *   memory is checked on both sides of its runs, and a size timed while it was loaded is skipped
+ *   with a warning instead of judged (see `memorySpeed`).
  *
  * Rows on other graph shapes are the worst cases found for each model when it was fitted: a model
  * can be tight on the default random graph and optimistic elsewhere, and only a row on the shape
  * where it is weakest shows that.
  *
  * What is timed is the element's `measure()` minus its progress reports and its chunked read of
- * the result back out, which is O(n) and small beside everything measured here.
+ * the result back out. Building the run's result (`createRunResult`) is not timed and not priced.
+ * It no longer builds an id index (it reads the snapshot's) or sorts for ranks (they are filled
+ * when first read), and it finds the value column's median by selection rather than by sorting, so
+ * for most rows it is small beside the work measured here. Degree is the closest: about 20 to 30 ns
+ * a node, against 30 to 48 for the counting.
  */
 
 import { execFileSync } from "node:child_process";
@@ -54,6 +63,7 @@ import type { AlgorithmKey } from "../../../src/catalog/types";
 import type { DataManager } from "../../../src/managers/DataManager";
 import { calibrateCost, DEFAULT_COST_RATES, estimateCost, type MachineCalibration } from "../../../src/session/cost";
 import type { CostRates } from "../../../src/session/cost/estimate";
+import { sampledTransitivity } from "../../../src/session/statistics";
 import type { GraphStatistics } from "../../../src/session/types";
 
 /**
@@ -115,7 +125,7 @@ function random(edgesPerNode: number): Shape {
         const src = new Uint32Array(edges);
         const dst = new Uint32Array(edges);
         const seen = new Set<number>();
-        for (let edge = 0; edge < edges; ) {
+        for (let edge = 0; edge < edges;) {
             const a = next();
             const b = next();
             const pair = Math.min(a, b) * nodes + Math.max(a, b);
@@ -272,9 +282,9 @@ const ROWS: readonly Row[] = [
         key: "degree",
         // Large enough that one run takes the 0.05 s or more the file header asks for (15 to 30 ms
         // here, about twice that on CI). At 50,000 and 100,000 nodes a run took 1 to 9 ms: the same
-        // 50,000-node run read 1 to 3 ms from one process to the next on one machine, as V8's young
-        // generation met the two objects built per node, and 6 ms on one CI runner, a ratio of 0.72
-        // where every other row held.
+        // 50,000-node run read 1 to 3 ms from one process to the next on one machine, and 6 ms on one
+        // CI runner, a ratio of 0.72 where every other row held (then with two objects built per
+        // node, which the element no longer builds).
         sizes: [400_000, 800_000],
         run: (data, nodes) => {
             // Each edge's source and target counted off the snapshot's edge list, as the degree
@@ -287,13 +297,21 @@ const ROWS: readonly Row[] = [
                 outDegrees[src[edge]]++;
                 inDegrees[dst[edge]]++;
             }
-            const out: object[] = [];
+            // Then each node's id looked up and its counts written into the three published columns.
+            const measured: unknown[] = [];
+            const value = new Float64Array(nodes);
+            const inDegree = new Float64Array(nodes);
+            const outDegree = new Float64Array(nodes);
             for (let node = 0; node < nodes; node++) {
-                const [inDegree, outDegree] = [inDegrees[node], outDegrees[node]];
-                out.push({ id: graph.ids.idOf(node), values: { value: inDegree + outDegree, inDegree, outDegree } });
+                const id = graph.ids.idOf(node);
+                const index = graph.ids.indexOf(id);
+                const row = measured.push(id) - 1;
+                inDegree[row] = inDegrees[index];
+                outDegree[row] = outDegrees[index];
+                value[row] = inDegrees[index] + outDegrees[index];
             }
 
-            return out;
+            return { ids: measured, columns: { value, inDegree, outDegree } };
         },
     },
     // The estimate prices the whole iteration bound, so the row held to both bounds is one that
@@ -364,19 +382,18 @@ const ROWS: readonly Row[] = [
             [scaleFree, "scale-free", [100_000], "about 63"],
             [path, "path", [100_000], "1 or 2"],
         ] as const
-    ).map(
-        ([shape, shapeName, sizes, passes]): Row => ({
-            key: "eigenvector",
-            sizes,
-            shape,
-            shapeName,
-            run: eigenvector,
-            optimismOnly: `this graph converges in ${passes} of the 1,000 passes the estimate charges`,
-        }),
-    ),
-    // Louvain on the graphs it is run on, held to both bounds: its model is pinned under the
-    // slowest of these per element (scale-free), and the sizes are large enough that the per-element
-    // growth its log term charges is visible.
+    ).map(([shape, shapeName, sizes, passes]): Row => ({
+        key: "eigenvector",
+        sizes,
+        shape,
+        shapeName,
+        run: eigenvector,
+        optimismOnly: `this graph converges in ${passes} of the 1,000 passes the estimate charges`,
+    })),
+    // Louvain on the graphs it is run on, held to both bounds: graphs with no triangles, which its
+    // model charges in full, and a planted partition (transitivity about 0.09), which it charges
+    // about half. The sizes are large enough that the per-element growth its log term charges is
+    // visible.
     { key: "louvain", sizes: [20_000, 50_000], run: louvainRun },
     ...(
         [
@@ -385,15 +402,13 @@ const ROWS: readonly Row[] = [
             [scaleFree, "scale-free", [20_000, 50_000]],
             [planted, "planted partition", [100_000]],
         ] as const
-    ).map(
-        ([shape, shapeName, sizes]): Row => ({
-            key: "louvain",
-            sizes,
-            shape,
-            shapeName,
-            run: louvainRun,
-        }),
-    ),
+    ).map(([shape, shapeName, sizes]): Row => ({
+        key: "louvain",
+        sizes,
+        shape,
+        shapeName,
+        run: louvainRun,
+    })),
     // Shapes where Louvain settles in few sweeps (5 on a path, 13 on a ring of cliques, about 23 on
     // a star, erratic 15 to 90 on a grid), so a model safe on the slow shapes is 4x to 8x over them.
     // Kept to prove it stays safe there, the star's hub included.
@@ -404,16 +419,14 @@ const ROWS: readonly Row[] = [
             [star, "star", [100_000, 200_000]],
             [cliqueRing, "ring of 10-cliques", [100_000]],
         ] as const
-    ).map(
-        ([shape, shapeName, sizes]): Row => ({
-            key: "louvain",
-            sizes,
-            shape,
-            shapeName,
-            run: louvainRun,
-            optimismOnly: "louvain settles in a handful of sweeps on this shape, well under the model's charge",
-        }),
-    ),
+    ).map(([shape, shapeName, sizes]): Row => ({
+        key: "louvain",
+        sizes,
+        shape,
+        shapeName,
+        run: louvainRun,
+        optimismOnly: "louvain settles in a handful of sweeps on this shape, well under the model's charge",
+    })),
 ];
 
 /**
@@ -428,31 +441,35 @@ function dataManagerOf(snapshot: GraphSnapshot): DataManager {
     return { getSnapshot: () => snapshot, undirected: () => undirected } as unknown as DataManager;
 }
 
-/** One measured graph, with the two facts the estimate reads from it beyond the node count. */
+/** One measured graph, with the facts the estimate reads from it beyond the node count. */
 interface Measured {
     readonly data: DataManager;
     readonly edges: number;
     readonly maxDegree: number;
+    readonly transitivity: number;
 }
 
 /**
  * Build a shape's graph as the element would hold it, declared directed as the loader stores it.
  * @param shape - The shape.
  * @param nodes - How many nodes.
- * @returns The graph, its edge count and its largest total degree.
+ * @returns The graph, its edge count, its largest total degree and its transitivity, as the
+ * session's statistics compute it.
  */
 function measuredGraph(shape: Shape, nodes: number): Measured {
     const { src, dst } = shape(nodes);
-    const degrees = new Uint32Array(nodes);
-    for (let edge = 0; edge < src.length; edge++) {
-        degrees[src[edge]]++;
-        degrees[dst[edge]]++;
-    }
+    const snapshot = fromEdgeArrays({ src, dst, nodeCount: nodes, directed: true });
 
+    // Read as the session's statistics read it: `degree()` and the transitivity build and cache the
+    // directed snapshot's reverse view, as they do on every graph the element loads. That view is
+    // part of the heap the algorithm then runs in; while degree built an object per node it moved
+    // that row's time by 2x (see the degree model in estimate.ts), so a run measured without it
+    // was not the element's run.
     return {
-        data: dataManagerOf(fromEdgeArrays({ src, dst, nodeCount: nodes, directed: true })),
+        data: dataManagerOf(snapshot),
         edges: src.length,
-        maxDegree: degrees.reduce((most, degree) => Math.max(most, degree), 0),
+        maxDegree: snapshot.degree().reduce((most, degree) => Math.max(most, degree), 0),
+        transitivity: sampledTransitivity(snapshot),
     };
 }
 
@@ -461,9 +478,10 @@ function measuredGraph(shape: Shape, nodes: number): Measured {
  * @param nodeCount - Nodes.
  * @param edgeCount - Edges.
  * @param maxDegree - The largest total degree.
+ * @param transitivity - The share of wedges closed into triangles.
  * @returns Statistics with nothing set that would make an algorithm unavailable.
  */
-function statistics(nodeCount: number, edgeCount: number, maxDegree: number): GraphStatistics {
+function statistics(nodeCount: number, edgeCount: number, maxDegree: number, transitivity: number): GraphStatistics {
     return {
         nodeCount,
         edgeCount,
@@ -475,6 +493,7 @@ function statistics(nodeCount: number, edgeCount: number, maxDegree: number): Gr
         repeatedEdgeCount: 0,
         degreeRange: [0, maxDegree],
         meanDegree: nodeCount === 0 ? 0 : (2 * edgeCount) / nodeCount,
+        transitivity,
         components: {
             count: 1,
             sizes: [nodeCount],
@@ -550,29 +569,43 @@ function fastestCoreCpus(): string | undefined {
     return fast.length === 0 ? undefined : fast.join(",");
 }
 
-/** Probes per calibration. Each is a few milliseconds, so many are cheap. */
+/** Probes per size, each followed by a run. A probe is a quarter of a second, a run 0.01 to 1 s. */
 const PROBES = 9;
 
 /**
  * How fast this machine is right now against the one the defaults were fitted on, as the
- * element's calibration probe measures it.
+ * element's calibration probe measures it, with a run of the work being judged after each probe.
  *
  * The FASTEST of several probes, as the runs keep their fastest time: contention from other
  * processes only ever adds time, so the minimum is the steadiest reading of the work itself.
  * The three classes' factors are collapsed to their median, because under load one class's probe
  * can swing by 2x on its own and the median discards it.
- * @returns The speed factor; 1 on the reference machine, 0.5 on one twice as slow.
+ *
+ * The runs are taken between the probes, not after them, because {@link runningMs} hides the time
+ * this thread waits for a CPU but not contention while it holds one: a busy SMT sibling on the same
+ * core, a shared cache, a lower clock under load. That comes and goes over seconds, and slows a
+ * run's code by a third. When the probes were taken on both sides of three back-to-back runs, the
+ * fastest of eighteen probes over about 4.5 s found a quiet moment that the three runs, about 0.1 s
+ * at 600 nodes, had missed: on 2026-10-12 (issue #2218) betweenness read 35 ms on a CI runner where
+ * one of the same kind read 27 ms, with the same probe reading, an estimate 0.94 of the stopwatch.
+ * Turn about, a quiet moment long enough for a probe is long enough for a run beside it.
+ * @param run - One run of the work being judged, timed after each probe.
+ * @returns The speed factor (1 on the reference machine, 0.5 on one twice as slow) and the
+ * fastest run, in running seconds.
  */
-async function machineSpeed(): Promise<number> {
+async function machineSpeed(run: () => unknown): Promise<{ speed: number; fastest: number }> {
     const probes: MachineCalibration[] = [];
-    // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
-    const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
-    try {
-        for (let probe = 0; probe < PROBES; probe++) {
+    let fastest = Infinity;
+    for (let probe = 0; probe < PROBES; probe++) {
+        // The probe reads `performance.now`; it is timed on the runs' clock so the two compare.
+        const clock = vi.spyOn(performance, "now").mockImplementation(runningMs);
+        try {
             probes.push(await calibrateCost({ budgetMs: 250 }));
+        } finally {
+            clock.mockRestore();
         }
-    } finally {
-        clock.mockRestore();
+
+        fastest = Math.min(fastest, seconds(run));
     }
 
     assert.isTrue(
@@ -583,21 +616,70 @@ async function machineSpeed(): Promise<number> {
         (key) => Math.max(...probes.map((probe) => probe.rates[key])) / DEFAULT_COST_RATES[key],
     );
 
-    return speeds.sort((a, b) => a - b)[1];
+    return { speed: speeds.sort((a, b) => a - b)[1], fastest };
+}
+
+/** A table larger than any machine's last-level cache: 64 MB, against 32 to 36 MB. */
+const FAR_TABLE = new Uint32Array(1 << 24);
+
+/**
+ * Milliseconds the reference machine takes for {@link memorySpeed}'s increments: 29 to 34 on its
+ * P-cores. A cache miss waits on DRAM, which is about as fast on a cloud runner as on a desktop:
+ * an unloaded 0.51x CI runner takes about 34.
+ */
+const REFERENCE_SCATTER_MS = 29;
+
+/**
+ * How fast this machine's memory is right now against the reference machine's, timed by 4M
+ * increments at pseudo-random places in {@link FAR_TABLE} (the same work as the degree row's
+ * counting loop), the fastest of three on {@link runningMs}.
+ *
+ * The calibration probe works on a graph of 20,000 nodes that stays in cache, so it measures the
+ * cores and cannot see the memory behind them. On a cloud runner that memory (the last-level cache
+ * and the DRAM bandwidth) is shared with other tenants, and one of them can load it hard: on
+ * 2026-10-11 (issue #2025) a runner's probe read 1.2x slower than usual while every row that
+ * walks a large graph at random -- degree at 800,000 nodes, PageRank and Louvain on random graphs,
+ * eigenvector on scale-free -- ran 3 to 6x slower, and the rows that stay in cache (betweenness,
+ * closeness, paths, stars) ran as usual. No estimate that scales by the probe can be held to a
+ * stopwatch on such a machine, so a reading under {@link MIN_MEMORY_SPEED} skips the size.
+ * @returns The speed factor; 1 on the reference machine, 0.5 with memory twice as slow.
+ */
+function memorySpeed(): number {
+    const once = (): number => {
+        let state = 1;
+        const started = runningMs();
+        for (let i = 0; i < 1 << 22; i++) {
+            state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+            FAR_TABLE[state >>> 8]++;
+        }
+
+        return runningMs() - started;
+    };
+
+    return REFERENCE_SCATTER_MS / Math.min(once(), once(), once());
 }
 
 /**
- * The default rates scaled to a machine of this speed, which is what `calibrateCost` produces.
+ * The slowest memory a size is timed on, against the reference machine's. Unloaded CI runners
+ * read about 0.85; the loaded one slowed the degree row's same increments 4 to 5x.
+ */
+const MIN_MEMORY_SPEED = 0.5;
+
+/**
+ * The default rates scaled to a machine of this speed, with this memory reading, which is what
+ * `calibrateCost` produces. Its memory probe makes the same increments into a table of the same
+ * size, against the same 29 ms, so the two readings are on one scale.
  * @param speed - The machine's speed factor.
+ * @param memory - The memory speed factor, from {@link memorySpeed}.
  * @returns A calibration to estimate with.
  */
-function calibrationAt(speed: number): MachineCalibration {
+function calibrationAt(speed: number, memory: number): MachineCalibration {
     const rates = { ...DEFAULT_COST_RATES };
     for (const key of Object.keys(rates) as (keyof CostRates)[]) {
         rates[key] *= speed;
     }
 
-    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe" };
+    return { rates, at: new Date().toISOString(), machine: "this test", basis: "probe", memorySpeed: memory };
 }
 
 /** This process's CPU affinity before the guard pinned it, restored afterwards; undefined if unpinned. */
@@ -612,8 +694,8 @@ beforeAll(async () => {
         execFileSync("taskset", ["-a", "-p", "-c", cpus, String(process.pid)]);
     }
 
-    await machineSpeed(); // warm the probe's JIT; its first answers are low
-}, 30_000);
+    await machineSpeed(() => undefined); // warm the probe's JIT; its first answers are low
+});
 
 afterAll(() => {
     if (affinity !== undefined) {
@@ -632,7 +714,8 @@ describe.runIf(process.env.COST_GUARD === "1")(
         for (const row of ROWS) {
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
-            it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async () => {
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a row is timed runs on graphs of up to 800,000 nodes between calibration probes of about 2.3 s each; degree takes 6.4 s locally and about twice that on CI's 0.5x-speed runners, more than a third of the 30 s budget; tracked in #1636
+            it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async (context) => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));
                 const once = (index: number): unknown => row.run(graphs[index].data, row.sizes[index]);
@@ -640,25 +723,32 @@ describe.runIf(process.env.COST_GUARD === "1")(
                 once(0); // warm-up, untimed
 
                 for (const [index, nodes] of row.sizes.entries()) {
-                    const { edges, maxDegree } = graphs[index];
-                    // Probed on both sides of the runs, keeping the faster reading, so a burst of load
-                    // during one probe window does not read as a slow machine.
-                    const before = await machineSpeed();
-                    const measured = Math.min(...[0, 1, 2].map(() => seconds(() => once(index))));
-                    const speed = Math.max(before, await machineSpeed());
-                    const calibration = calibrationAt(speed);
+                    const { edges, maxDegree, transitivity } = graphs[index];
+                    const memoryBefore = memorySpeed();
+                    const { speed, fastest: measured } = await machineSpeed(() => once(index));
+                    // Either side loaded means the runs between them may have been.
+                    const memory = Math.min(memoryBefore, memorySpeed());
+                    const calibration = calibrationAt(speed, memory);
                     const estimate = estimateCost({
                         algorithm: row.key,
                         descriptor,
-                        statistics: statistics(nodes, edges, maxDegree),
+                        statistics: statistics(nodes, edges, maxDegree, transitivity),
                         calibration,
                     });
                     assert.isTrue(estimate.available, estimate.reason);
 
                     const ratio = estimate.seconds / measured;
-                    const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
+                    const facts = `${row.key} on ${row.shapeName ?? "random, m = 5n"} n=${nodes} m=${edges} T=${transitivity.toFixed(3)}: estimated ${estimate.seconds.toFixed(3)} s, measured ${measured.toFixed(3)} s, ratio ${ratio.toFixed(2)}`;
                     if (process.env.COST_GUARD_VERBOSE !== undefined) {
-                        process.stdout.write(`${facts}, machine speed ${speed.toFixed(2)}x the reference\n`);
+                        process.stdout.write(
+                            `${facts}, machine speed ${speed.toFixed(2)}x the reference, memory ${memory.toFixed(2)}x\n`,
+                        );
+                    }
+
+                    if (memory < MIN_MEMORY_SPEED) {
+                        const note = `not timed: another tenant is loading this machine's memory (${memory.toFixed(2)}x the reference, under ${MIN_MEMORY_SPEED}). ${facts}`;
+                        process.stdout.write(`::warning title=Cost Estimate Accuracy::${note}\n`);
+                        context.skip(note);
                     }
 
                     assert.isAtLeast(ratio, MAX_OPTIMISM, `too optimistic. ${facts}`);

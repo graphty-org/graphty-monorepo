@@ -28,11 +28,11 @@ Evidence sources used (all read, not assumed):
    (this closes note 05 unverified item 2). Note: without LD_LIBRARY_PATH for libEGL the NO-OPTS run ALSO
    lands on llvmpipe -- the silent-fallback failure mode is real on this box.
 2. `verify-checksum-cross-adapter.mjs` (an FA2-shaped exact-tile iteration: paper law k/d2, max floor,
-   gravity with length(), swing = m*|F|; n = 2048, seeded LCG positions):
-   - mesa/software: forceSha256 6c338e2470ec11cb, swingSha256 4dbb035c48ab40c0, swingSum 478208467.34643555
-   - nvidia/lovelace: forceSha256 bf271f4f80286f1f, swingSha256 7b75112b2d11e051, swingSum 478208461.49072266
-   - f0 differs in the last ulp of z (317.65924072265625 vs 317.6592102050781).
-   -> The FA2 exact-tile iteration is NOT bit-identical across adapters; see VERIFY-5.
+   gravity with length(), swing = m\*|F|; n = 2048, seeded LCG positions):
+    - mesa/software: forceSha256 6c338e2470ec11cb, swingSha256 4dbb035c48ab40c0, swingSum 478208467.34643555
+    - nvidia/lovelace: forceSha256 bf271f4f80286f1f, swingSha256 7b75112b2d11e051, swingSum 478208461.49072266
+    - f0 differs in the last ulp of z (317.65924072265625 vs 317.6592102050781).
+      -> The FA2 exact-tile iteration is NOT bit-identical across adapters; see VERIFY-5.
 
 ## Findings (ordered by severity)
 
@@ -96,7 +96,7 @@ blocks".
 Lines 2878-2880 ("the registration token (fine-grained PAT with `Administration: write`, or a GitHub App) lives only in the
 host-side loop ... The job runs its steps DIRECTLY on the runner (no job-level `container:`)") versus 3025-3034
 (`docker run ... -v /srv/gha-runner/token:/run/secrets/gh-token:ro graphty-gpu-runner` and "entry loop: TOKEN=$(gh api -X
-POST ... registration-token) ... ./config.sh ... ./run.sh; rm -rf _work; loop").
+POST ... registration-token) ... ./config.sh ... ./run.sh; rm -rf \_work; loop").
 
 Claim: the entry loop is the container's process, so the PAT is inside the container; job steps run "directly on the runner"
 as the same `runner` user (Dockerfile `USER runner`, line 3024) in the same filesystem. Any job -- a same-repo PR from any
@@ -134,8 +134,7 @@ same command), 3159 (G1: "coverage >= 80/80/75/80 on the node project").
 Claim: the cited pattern is `thresholds: process.env.COVERAGE_DIR || process.argv.includes("--project=browser") ||
 process.argv.includes("--project=default") ? undefined : {...}` (graphty-monorepo/algorithms/vitest.config.ts lines 59-70):
 thresholds are DISABLED whenever `--project` is passed. Every CI invocation passes `--project=node`. "When run whole" would
-run all four projects, which cannot succeed on the default lane (`node-limits` needs limits lavapipe cannot raise, 11.1 line
-2663) and includes the Playwright project. The monorepo checks nothing after merging (`tools/merge-coverage.sh` contains no
+run all four projects, which cannot succeed on the default lane (`node-limits` needs limits lavapipe cannot raise, 11.1 line 2663) and includes the Playwright project. The monorepo checks nothing after merging (`tools/merge-coverage.sh` contains no
 threshold logic; grep "threshold" returns nothing in tools/ or .github/workflows/). So G1's coverage gate is prose.
 
 Fix: in 11.8 specify "thresholds apply when the selected project set is exactly `node` (`--project=node` alone) and are

@@ -21,6 +21,7 @@
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
 
 /**
@@ -29,7 +30,7 @@ import type { LabelStyle } from "./label-style";
  * Declared once, in the error module, so a code cannot mean one thing to a descriptor
  * and another to the error that carries it.
  */
-export type { GraphtyErrorCode };
+export type { GraphtyErrorCode } from "../errors/codes";
 
 /**
  * Which way the element is drawing: flat, or in three dimensions.
@@ -38,7 +39,7 @@ export type { GraphtyErrorCode };
  * {@link CameraDescriptor.modes} is nameable from `./catalog` without a consumer reaching into
  * a second module for one word.
  */
-export type { DrawingMode };
+export type { DrawingMode } from "../camera/types";
 
 // ---------------------------------------------------------------------------------------------
 // Identity
@@ -50,8 +51,29 @@ export type NodeId = string | number;
 /** The identity of an edge. */
 export type EdgeId = string;
 
+/**
+ * What `element.elementAt(point)` finds under a point: a node or an edge, by id.
+ *
+ * Only nodes are found today. The edge case is declared so code that switches on `kind` already
+ * handles it, and edges can be returned later without a breaking change.
+ */
+export type ElementAtResult =
+    { readonly kind: "node"; readonly id: NodeId } | { readonly kind: "edge"; readonly id: EdgeId };
+
 /** The identity of a run. Stable, selector-safe and author-assignable. */
 export type RunId = string;
+
+/**
+ * The name an algorithm suggests for a run's result, from the run's settings.
+ *
+ * `id` becomes the result path a style layer reads (`results.<id>.value`), so it is lower-case
+ * letters, digits and underscores, starting with a letter: `pagerank`, `louvain_resolution_1_5`.
+ * `label` is what a reader sees in the layer list and the legend: "Influence (damping 0.9)".
+ */
+export interface SuggestedName {
+    readonly id: string;
+    readonly label: string;
+}
 
 /** The identity of a style layer. Element-minted and stable; never an array index. */
 export type LayerId = string;
@@ -65,7 +87,14 @@ export type SetId = string;
 /** The identity of a saved scope: a kept set, so the same type as {@link SetId}. */
 export type ScopeId = SetId;
 
-/** A JMESPath expression over the published result root. */
+/**
+ * A column key: `data.<name>` for a data column, `results.<run>.<field>` for a run's result.
+ *
+ * The part after the root is the column's name LITERALLY, never an expression: a column named
+ * `shared chapters` or `a.b` has the path `data.shared chapters` or `data.a.b`. Wherever a path is
+ * taken as a path (a selector's `path`, a filter) it reads that column. To put one INSIDE an
+ * expression, pass it through `quotePath` first, which quotes every segment that needs it.
+ */
 export type Path = string;
 
 /** A JMESPath predicate. The same dialect everywhere an expression is accepted. */
@@ -108,6 +137,11 @@ export const KNOWN_ALGORITHMS = [
     "prim",
     "bipartite-matching",
     "link-prediction",
+    "markov-clustering",
+    "spectral-clustering",
+    "hierarchical-clustering",
+    "astar",
+    "edge-betweenness",
 ] as const;
 
 /**
@@ -162,13 +196,27 @@ export type LayoutId = (typeof KNOWN_LAYOUT_IDS)[number] | (string & {});
  * #306 and #307). A load that names either fails with that reason. Both are removed at the next
  * major release unless a reader lands first.
  */
-export const KNOWN_FORMAT_IDS = ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2"] as const;
+export const KNOWN_FORMAT_IDS = [
+    "json",
+    "csv",
+    "graphml",
+    "gexf",
+    "gml",
+    "dot",
+    "pajek",
+    "sif",
+    "cx2",
+    "xgmml",
+    "cx",
+    "cys",
+    "obo",
+] as const;
 
 /**
  * A format id: a built-in name, or a plugin's.
  *
- * The built-in names "sif" and "cx2" are deprecated and unserved (issues #306 and #307); they are
- * removed at the next major release unless a reader lands first.
+ * The built-in name "sif" is deprecated and unserved (issue #306); it is removed at the next major
+ * release unless a reader lands first.
  */
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
@@ -227,6 +275,33 @@ export const ATTRIBUTE_TYPES = ["string", "number", "integer", "boolean", "time"
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 
 /**
+ * What a column's values measure, which decides how a binding that names no scale draws it.
+ *
+ * - `"categorical"` -- names of groups with no order: one color per value.
+ * - `"ordinal"` -- groups with an order, such as Low, Medium, High: colors and sizes follow it.
+ * - `"quantitative"` -- amounts: a ramp, or a size range.
+ * - `"time"` -- points in time.
+ *
+ * OPEN UNION: values may be added in a minor release; treat one you do not know as no measurement.
+ */
+export type Measurement = "categorical" | "ordinal" | "quantitative" | "time" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/**
+ * Who said what a column measures, highest precedence first: a `data.declare` call, the algorithm
+ * catalogue, the file format, or the element's inference from the values. A data column reports
+ * `"declared"` or `"inferred"` today; `"catalog"` and `"file"` are reserved for results and for
+ * formats that write a column's measurement down.
+ *
+ * OPEN UNION: values may be added in a minor release.
+ */
+export type MeasurementSource = "declared" | "catalog" | "file" | "inferred" | (string & {}); // NOSONAR(S4335): the open-union idiom; keeps the known literals in autocomplete while accepting others
+
+/** What `session.data.declare` says a column measures. An ordinal column lists its values in order. */
+export type MeasurementDeclaration =
+    | { readonly measurement: "categorical" | "quantitative" | "time" }
+    | { readonly measurement: "ordinal"; readonly order: readonly (string | number)[] };
+
+/**
  * How expensive a computation is, in the one vocabulary every estimate uses. "instant" is
  * cheap enough to run without asking; "unbounded" cannot be estimated in advance at all.
  */
@@ -266,9 +341,15 @@ export type ResultShape = (typeof RESULT_SHAPES)[number];
 export interface FieldBand {
     /** A stable id a consumer may key its own wording on, such as "clear". */
     id: string;
-    /** The band in a few plain words, such as "Clearly separated". */
+    /**
+     * The band in a few plain words, such as "Clearly separated".
+     * @deprecated Word the band from {@link FieldBand.id} yourself. Removed in the next major.
+     */
     plainName: string;
-    /** One plain-language sentence on what a value in this band means. */
+    /**
+     * One plain-language sentence on what a value in this band means.
+     * @deprecated Word the band from {@link FieldBand.id} yourself. Removed in the next major.
+     */
     description: string;
     /** A value strictly greater than this is in the band. */
     above?: number;
@@ -281,7 +362,11 @@ export interface FieldBand {
  * thresholds come from.
  */
 export interface FieldInterpretation {
-    /** One sentence on what the score measures and the value that counts as good. */
+    /**
+     * One sentence on what the score measures and the value that counts as good.
+     * @deprecated Word the scale from the field's name and its bands' ids yourself. Removed in the
+     *   next major.
+     */
     summary: string;
     /** Where the thresholds come from, as a citation a reader can look up. */
     source: string;
@@ -303,6 +388,12 @@ export interface FieldDescriptor {
     normalization?: string;
     /** How to read the value, for a quality score whose number alone means little. */
     interpretation?: FieldInterpretation;
+    /**
+     * What the field's values measure, declared by the algorithm. A partition's group field is
+     * `"categorical"` by construction. Absent, the element reads strings and booleans as
+     * categorical and numbers as quantitative.
+     */
+    measurement?: Measurement;
     path: Path;
 }
 
@@ -398,13 +489,30 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 // Style documents, which a theme is made of
 // ---------------------------------------------------------------------------------------------
 
-/** Every property a layer can paint. */
+/**
+ * Every property a layer can paint.
+ *
+ * The label channels `labelColor`, `labelSize`, `labelFont`, `labelWeight` and `labelItalic` are
+ * single fields of the label style, so they can be bound to a column (`encode`) where the whole
+ * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
+ * writes, field by field, the higher layer winning each field.
+ *
+ * OPEN UNION: later releases add channels as the element learns to paint more. A consumer that
+ * keeps a table over every channel (`Record<Channel, ...>`) adds an entry for each new one, or
+ * types the table `Partial<Record<Channel, ...>>` and words an unknown channel generically.
+ */
 export type Channel =
     | "node.color"
     | "node.size"
+    | "node.sizeMode"
     | "node.shape"
     | "node.label"
     | "node.labelStyle"
+    | "node.labelColor"
+    | "node.labelSize"
+    | "node.labelFont"
+    | "node.labelWeight"
+    | "node.labelItalic"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
@@ -414,12 +522,23 @@ export type Channel =
     | "node.wireframe"
     | "node.flat"
     | "node.marker"
+    | "node.width"
+    | "node.height"
+    | "node.depth"
+    | "node.planar"
+    | "node.zIndex"
+    | "node.drawOrder"
+    | "node.borderColor"
+    | "node.borderWidth"
+    | "node.borderStyle"
+    | "node.cornerRadius"
     | "edge.color"
     | "edge.width"
     | "edge.opacity"
     | "edge.style"
     | "edge.patternCount"
     | "edge.curvature"
+    | "edge.bends"
     | "edge.arrowHead"
     | "edge.arrowHeadSize"
     | "edge.arrowHeadColor"
@@ -434,7 +553,12 @@ export type Channel =
     | "edge.arrowTailTextStyle"
     | "edge.animationSpeed"
     | "edge.label"
-    | "edge.labelStyle";
+    | "edge.labelStyle"
+    | "edge.labelColor"
+    | "edge.labelSize"
+    | "edge.labelFont"
+    | "edge.labelWeight"
+    | "edge.labelItalic";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -485,8 +609,8 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * colours. N is the palette's capacity: 8 for the default, Okabe-Ito.
  *
  * - `"other"`: the N largest groups keep the palette's colours in palette order, largest group
- *   first, and every remaining group is painted one dark grey (#505050). The legend names the
- *   grey "other: K groups".
+ *   first, and every remaining group is painted one mid grey (#686868). The legend lists the
+ *   grey as its last row, marked `role: "other"` with the elements it paints in `count`.
  * - `"shape"`: node encodings only. Group i is painted colour i mod N and drawn in shape
  *   floor(i / N) from a fixed list (icosphere, box, octahedron, cylinder, cone, torus), so the
  *   first N groups keep the element's default shape. Groups past N x 6 fold into the grey. On an
@@ -499,6 +623,30 @@ export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
  * Ignored by a scale that reads numbers, which has no groups to overflow.
  */
 export type BindingOverflow = "other" | "shape" | "extend";
+
+/**
+ * One point of a `stops` binding: what a number exactly at `at` paints, and what the stretches on
+ * either side of it start or end with.
+ *
+ * Between two points the value moves from the left point's `above` to the right point's `below`
+ * (numbers linearly, colors per red, green, blue and alpha component). Below the first point every
+ * value paints the first point's `below`; above the last, the last point's `above`; exactly at a
+ * point, its `value`. `below` and `above` default to `value`, so a plain ramp names only `at` and
+ * `value`; giving them separately draws a jump at the point. Points need not be evenly spaced.
+ *
+ * This is the model Cytoscape's continuous mappings use, so a mapping read from a Cytoscape file
+ * keeps its exact meaning.
+ */
+export interface BindingStop {
+    /** Where the point sits, in the bound value's own units. */
+    at: number;
+    /** What a value exactly at `at` paints: a number for a numeric channel, a color for a color channel. */
+    value: string | number;
+    /** What the stretch just below `at` ends with. Defaults to `value`. */
+    below?: string | number;
+    /** What the stretch just above `at` starts with. Defaults to `value`. */
+    above?: string | number;
+}
 
 /** One channel's binding: a literal, or a declarative mapping from a value in the data. */
 export type Binding =
@@ -529,6 +677,29 @@ export type Binding =
            */
           overflow?: BindingOverflow;
           missing?: "skip" | { value: string | number };
+          /**
+           * What a value `map` has no entry for paints. Absent, it goes on through the scale as
+           * before, so with `scale: "passthrough"` an unmapped "green" is painted green. `"skip"`
+           * leaves an element whose value the map does not hold exactly as the layers beneath
+           * paint it. An element with no value at all still follows `missing`.
+           */
+          unmapped?: "skip";
+          /**
+           * Points a number is read against instead of a scale, domain, range and palette: uneven
+           * spacing and jumps allowed. See {@link BindingStop}. Works on channels that carry a
+           * number or a color, with `scale` absent or `"linear"`; `palette`, `domain`, `clamp`,
+           * `range`, `reverse`, `midpoint`, `bins`, `exponent`, `map`, `other` and `overflow` are
+           * refused beside it, because the points already say what each of them would.
+           */
+          stops?: BindingStop[];
+          /**
+           * Values this binding does not paint: an element carrying one is left exactly as the
+           * layers beneath paint it, as an unmeasured element is. Compared as the legend spells a
+           * category, so the group `0` and the text `"0"` are the same value. The legend keeps
+           * the value's row, marked `hidden`, so it can be shown again. Set it per value with
+           * `styles.setValueHidden()`, which is one undoable step.
+           */
+          hidden?: (string | number | boolean)[];
           reverse?: boolean;
           midpoint?: number;
           bins?: number;
@@ -584,6 +755,12 @@ export interface LayerSpec {
     source?: LayerSource;
     enabled?: boolean;
     userData?: Record<string, unknown>;
+    /**
+     * Where a layer made from a file's styles came from: the element's facts about it, set when
+     * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
+     * Absent on every other layer. An update that does not name it keeps it.
+     */
+    fileStyle?: FileStyleOrigin;
 }
 
 /** A portable stack of layers, with any palettes it depends on travelling beside it. */
@@ -697,6 +874,11 @@ export interface FormatDescriptor {
     mimeTypes: readonly string[];
     canImport: boolean;
     canExport: boolean;
+    /**
+     * True when the format's files are not text (a Cytoscape session is a zip archive): an
+     * export's `text()` rejects with `E_UNSUPPORTED`, so read its `bytes`. Absent means text.
+     */
+    binary?: boolean;
     /** The options its reader accepts. */
     options: readonly OptionDescriptor[];
     /**
@@ -705,6 +887,21 @@ export interface FormatDescriptor {
      * here is refused with `E_UNKNOWN_OPTION`.
      */
     writerOptions?: readonly OptionDescriptor[];
+    /**
+     * Whether the format's files carry styles: `read` when its reader can draw a file's own
+     * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
+     * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
+     * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     */
+    styles?: FormatStyles;
+}
+
+/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+export interface FormatStyles {
+    /** Whether the reader can draw a file's own styles. */
+    readonly read: boolean;
+    /** What the writer keeps: the rules, only the values, or nothing. Open union. */
+    readonly write: "rules" | "values" | "none";
 }
 
 /** One colour palette. */
@@ -798,8 +995,28 @@ export interface FunctionDescriptor {
 // Attributes, metrics and validation
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * What a column does for the graph, beyond holding values: the node ids were read from it
+ * (`"key"`), nodes are named by it (`"label"`), edge weights were read from it (`"weight"`),
+ * edge endpoints (`"source"`, `"target"`), times (`"time"`) or the file's own edge ids
+ * (`"edgeId"`).
+ *
+ * OPEN UNION: roles may be added in a minor release; handle unknown roles.
+ */
+export type AttributeRole = "key" | "label" | "weight" | "source" | "target" | "time" | "edgeId";
+
+/**
+ * One thing that reads a column: a style layer whose selector or bindings read it, or a finished
+ * run that weighed its edges by it.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ */
+export type AttributeUse =
+    { readonly kind: "layer"; readonly id: LayerId } | { readonly kind: "run"; readonly id: RunId };
+
 /** One attribute available on this session, whether it was imported, joined or computed. */
 export interface AttributeDescriptor {
+    /** The column's key, `data.<name>`, with the name unquoted; see {@link Path}. Quote it with `quotePath` before using it inside an expression. */
     path: Path;
     /** The bracketed form a formula uses, such as "[betweenness_centrality]". */
     token: string;
@@ -808,6 +1025,14 @@ export interface AttributeDescriptor {
     technicalName: string;
     kind: "node" | "edge";
     type: AttributeType;
+    /**
+     * What the values measure. Inferred as `"categorical"` for strings and booleans and
+     * `"quantitative"` for numbers; `"ordinal"` and `"time"` are never inferred. A column of
+     * number codes needs a `data.declare` to be read as groups. Absent for a column with no values.
+     */
+    measurement?: Measurement;
+    /** Who said so. Present exactly when `measurement` is. */
+    measurementSource?: MeasurementSource;
     origin: "imported" | "joined" | "computed" | "result";
     /** The fraction of elements that carry a value, from 0 to 1. */
     completeness: number;
@@ -817,6 +1042,26 @@ export interface AttributeDescriptor {
     sampleValues: readonly unknown[];
     /** Set when the attribute came from a run. */
     runId?: RunId;
+    /**
+     * What the column does for the graph: the roles it plays, read from the data configuration
+     * (`data.knownFields`) and the last load. Absent when it plays none. A column named with
+     * spaces (`shared chapters`) is matched by its literal name.
+     *
+     * ```ts
+     * const key = session.data.attributes().find((a) => a.roles?.includes("key")); // the node ids
+     * ```
+     */
+    roles?: readonly AttributeRole[];
+    /**
+     * What reads the column now: each style layer that selects or paints by it, in stack order,
+     * then each run that weighed its edges by it. Absent when nothing does. Together with `roles`
+     * this is "the attributes in use":
+     *
+     * ```ts
+     * const inUse = session.data.attributes().filter((a) => a.roles !== undefined || a.usedBy !== undefined);
+     * ```
+     */
+    usedBy?: readonly AttributeUse[];
 }
 
 /**
@@ -888,10 +1133,11 @@ export type SelectionDirection = "in" | "out" | "all";
  * A rule tree: what the visibility filter keeps, and what a rule set holds.
  *
  * Every leaf speaks about nodes, edges or both, and is SILENT about the rest: `all` and `any` fold
- * the halves that are not silent, and `not` negates only those. `edges` speaks edges; `member`
- * speaks the referenced set's nodes, and its edges only when that set is read `listed` or
- * `clipped` (`"visible"` is); `item` and `threshold` speak the half or halves their field lives
- * on; every other leaf speaks nodes. A group with no members constrains nothing.
+ * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
+ * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
+ * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
+ * or halves their field lives on; every other leaf speaks nodes. A group with no members
+ * constrains nothing.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
@@ -907,6 +1153,20 @@ export type RuleTree =
       }
     | { readonly kind: "component"; readonly id: number }
     | { readonly kind: "neighborhood"; readonly seeds: readonly NodeId[]; readonly depth: number }
+    /**
+     * The nodes with no edge to another node: each is a component of its own, so these are exactly
+     * the nodes `data.statistics().components.isolatedCount` counts. A node whose only edges are
+     * self-loops is one. Speaks nodes.
+     */
+    | { readonly kind: "isolated" }
+    /** The edges whose two ends are the same node: `statistics().selfLoopCount` of them. Speaks edges. */
+    | { readonly kind: "self-loop" }
+    /**
+     * The edges beyond the first between one pair of nodes, in the graph's edge order: exactly the
+     * edges `statistics().repeatedEdgeCount` counts. On an undirected graph `a`-`b` and `b`-`a` are
+     * one pair; on a directed graph they are two. Speaks edges.
+     */
+    | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
@@ -1129,7 +1389,7 @@ export type PathKind = "simple" | "trail" | "walk" | "cycle";
 /**
  * The catalogue: everything the element can offer, as data.
  *
- * `session.catalog` implements every method here except the six named in
+ * `session.catalog` implements every method here except the ones named in
  * {@link DeprecatedCatalogMethod}, which nothing implements yet.
  */
 export interface CatalogApi {
@@ -1168,9 +1428,16 @@ export interface CatalogApi {
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
-     * The options for one algorithm or layout, with data-dependent bounds resolved.
-     * @deprecated Not implemented; `algorithms()` and `layouts()` carry the static option
-     * descriptors. Removed at the next major release unless it is implemented first (issue #336).
+     * The options for one algorithm or layout, with data-dependent bounds resolved for a scope.
+     *
+     * A bound written as an {@link OptionBound} reference (or as the bare reference string) comes
+     * back as the number measured over the scope, and a "node-id" or "node-set" option comes back
+     * with `values`: one choice per node in the scope, its value and label the node id as a
+     * string. Every other field is the static descriptor's.
+     * @param key - An algorithm key, looked for first, or a layout id.
+     * @param scope - What to measure; the session's default run scope when absent.
+     * @returns The options, in declaration order.
+     * @throws `E_UNKNOWN_ALGORITHM` when no algorithm or layout is registered under `key`.
      */
     optionsFor(key: AlgorithmKey | LayoutId, scope?: Scope): Promise<readonly OptionDescriptor[]>;
 }
@@ -1181,13 +1448,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod =
-    | "themes"
-    | "functions"
-    | "timeAttributes"
-    | "applicable"
-    | "validate"
-    | "optionsFor";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

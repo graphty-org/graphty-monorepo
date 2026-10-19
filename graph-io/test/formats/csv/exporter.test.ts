@@ -243,7 +243,7 @@ describe("csvExporter: check() loss notes", () => {
             [CSV_LOSS.ID_TEXT_TYPE, 1],
         ]);
         expect(() => csvExporter.export(s)).toThrow(/E_INVALID_ID|share their text/);
-        expect(() => csvExporter.exportToString(s)).toThrow(/share their text/);
+        expect(() => csvExporter.exportToString(s)).toThrow(/shares? their text/);
     });
 
     it("reports ids whose type changes under the canonical re-read", () => {
@@ -656,5 +656,63 @@ describe("csvExporter: adjacency tables", () => {
             }),
             { numRuns: 300, seed: 20260927 },
         );
+    });
+});
+
+describe("csvExporter: header: false", () => {
+    it("notes every column a headerless read would put elsewhere, and nothing for a plain weighted edge list", async () => {
+        const s = await importCsv("source,target,weight\na,b,5\nb,c,2\n", undefined, false);
+        const generic = { header: false, dialect: "generic" } as const;
+        expect(codesOf(csvExporter.check(s, generic))).not.toContain(CSV_LOSS.HEADERLESS);
+        // what the note promises: the plain list reads back with its weights
+        const back = await importCsv(await csvExporter.exportToString(s, generic), undefined, false);
+        expect(Array.from(back.edgeList().weights ?? [])).toEqual([5, 2]);
+
+        // the Gephi dialect's Type column sits where a headerless read expects the weight
+        const gephi = csvExporter.check(s, { header: false });
+        expect(codesOf(gephi)).toContain(CSV_LOSS.HEADERLESS);
+        expect(gephi.find((n) => n.code === CSV_LOSS.HEADERLESS)?.message).toContain('"Type"');
+
+        // an edge id or an attribute column has no name without a header
+        const withId = await importCsv("source,target,id,weight,kind\na,b,e1,5,x\n", undefined, false);
+        expect(codesOf(csvExporter.check(withId, generic))).toContain(CSV_LOSS.HEADERLESS);
+        expect(codesOf(csvExporter.check(withId, { ...generic, header: true }))).not.toContain(CSV_LOSS.HEADERLESS);
+    });
+
+    it("notes a headerless node table with columns beyond the id", async () => {
+        const s = await importCsv("id,label\na,Alice\n", { table: "nodes" });
+        expect(codesOf(csvExporter.check(s, { table: "nodes", header: false }))).toContain(CSV_LOSS.HEADERLESS);
+    });
+});
+
+describe("CSV export: the notes are about the table written", () => {
+    /** A graph with a loss in every table: a list node column, a list edge column, a graph attribute. */
+    function lossy(): GraphSnapshot {
+        const b = new GraphBuilder({ directed: false });
+        b.addNodeRecord("a", { tags: ["x", "y"], name: "A" });
+        b.addNodeRecord("b", { tags: ["z"], name: "B" });
+        b.addEdgeRecord("a", "b", { hops: [1, 2] });
+        b.addEdgeRecord("a", "a", { hops: [3] });
+        b.setGraphValue("title", "t");
+        b.setGraphValue("year", 2026);
+        return b.freeze();
+    }
+
+    it("the node table names node losses only: no edge column, graph attribute, direction or self-loop", () => {
+        const notes = csvExporter.check(lossy(), { table: "nodes" });
+
+        expect(notes.filter((n) => n.column === "hops" || n.columns !== undefined)).toEqual([]);
+        expect(notes.map((n) => n.code)).not.toContain(LOSS.GRAPH_ATTRIBUTES);
+        expect(notes.map((n) => n.code)).not.toContain(CSV_LOSS.DIRECTION_DROPPED);
+        expect(notes.map((n) => n.code)).not.toContain(LOSS.SELF_LOOPS);
+        expect(notes.some((n) => n.column === "tags")).toBe(true);
+    });
+
+    it("the edge table names the graph attributes and the node columns it leaves out, by name", () => {
+        const notes = csvExporter.check(lossy());
+
+        expect(notes.find((n) => n.code === LOSS.GRAPH_ATTRIBUTES)?.columns).toEqual(["title", "year"]);
+        expect(notes.find((n) => n.code === CSV_LOSS.NODE_TABLE)?.columns).toEqual(["tags", "name"]);
+        expect(notes.some((n) => n.column === "hops")).toBe(true);
     });
 });

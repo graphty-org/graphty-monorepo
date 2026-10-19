@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Convert the bundled sample datasets from their published sources into
- * src/datasets/<name>/data.ts.
+ * Convert the small sample datasets from their published sources into data/<name>.ts, the
+ * repository's copy that scripts/pack-datasets.mjs publishes on graphty.app (no package bundles it).
  *
  *     node scripts/convert-datasets.mjs [--cache <dir>]
  *
@@ -16,6 +16,8 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { datasetOf, importSource } from "./graph-io-source.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cacheFlag = process.argv.indexOf("--cache");
@@ -80,6 +82,27 @@ const SOURCES = {
         url: "https://raw.githubusercontent.com/jpatokal/openflights/e3bc6dedbcceb8b7b74248a00dcd6207254da6bd/data/routes.dat",
         sha256: "bd373706238134f619c624c606dccc74c05c2582a977c489c81de501735f2390",
         file: "openflights-routes.dat",
+    },
+    galFiltered: {
+        url: "https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/galFiltered.cys",
+        sha256: "3513217733656d964d683538a0591a2054c1270040a9f8702367275bedf53a6f",
+        file: "galFiltered.cys",
+    },
+    stelzl: {
+        url: "https://raw.githubusercontent.com/cytoscape/cytoscape-tutorials/8d1f66e4cd12446f4a928ab72e3cf2660cd6c74a/protocols/data/STELZ.cys",
+        sha256: "3d4356d095eee438d0f7f567b94d46555f16d30766a9db9b6b3fc7e47a32c1d8",
+        file: "STELZ.cys",
+    },
+    wp615: {
+        // NDEx writes the CX2 on request; the checksum stops the script if it ever writes other bytes
+        url: "https://www.ndexbio.org/v3/networks/72288e93-5c67-11ec-b3be-0ac135e8bacf",
+        sha256: "0aa7058d667a6e4a8431f08990cc7b34acc442d8f3750cab9c9e14313d5c06fc",
+        file: "ndex-72288e93-5c67-11ec-b3be-0ac135e8bacf.cx2",
+    },
+    goslimGeneric: {
+        url: "https://release.geneontology.org/2026-08-05/ontology/subsets/goslim_generic.obo",
+        sha256: "a28d9dd0364e39a6dc926599bd628c524d3c389017b5398642c8cf2484d9f111",
+        file: "goslim_generic-2026-08-05.obo",
     },
 };
 
@@ -268,7 +291,7 @@ const CONVERTERS = {
     "davis-southern-women"(social) {
         const body = pythonFunction(social, "davis_southern_women_graph");
         const list = (name) =>
-            [...body.match(new RegExp(`${name} = \\[([^\\]]*)\\]`))[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+            [...body.match(new RegExp(String.raw`${name} = \[([^\]]*)\]`))[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
         const women = list("women");
         const events = list("events");
         const ids = [...women, ...events];
@@ -525,7 +548,7 @@ const CONVERTERS = {
         const used = [...new Set([...pairs.keys()].flatMap((key) => key.split(",")))].sort((a, b) => a - b);
         const rows = used.map((id) => airports.get(id));
         const index = new Map(used.map((id, i) => [id, i]));
-        const code = (value) => (value === "\\N" || value === "" ? null : value);
+        const code = (value) => (value === String.raw`\N` || value === "" ? null : value);
         const ids = rows.map(([id, , , , iata, icao]) => code(iata) ?? code(icao) ?? `openflights-${id}`);
         if (new Set(ids).size !== ids.length) {
             throw new Error("openflights: airport codes are not unique");
@@ -550,6 +573,59 @@ const CONVERTERS = {
     },
 };
 
+/** The saved drawing of a Cytoscape-family file, stored y-up by graph-io. */
+const XY = { x: { position: 0, dtype: "f64" }, y: { position: 1, dtype: "f64" } };
+
+/** The datasets read by graph-io's importers: the source, its format and what to keep. */
+const GRAPH_IO_DATASETS = {
+    "yeast-perturbation": {
+        source: "galFiltered",
+        format: "cys",
+        spec: {
+            id: "name",
+            columns: {
+                label: { from: "COMMON", fallback: "name", dtype: "string", role: "label" },
+                ...XY,
+                gal1RGexp: { from: "gal1RGexp", dtype: "f64" },
+                gal4RGexp: { from: "gal4RGexp", dtype: "f64" },
+                gal80Rexp: { from: "gal80Rexp", dtype: "f64" },
+            },
+        },
+    },
+    "stelzl-interactome": {
+        source: "stelzl",
+        format: "cys",
+        spec: {
+            id: "name",
+            columns: {
+                label: { from: "Official HUGO Symbol", fallback: "name", dtype: "string", role: "label" },
+                ...XY,
+            },
+        },
+    },
+    "wikipathways-senescence-autophagy": {
+        source: "wp615",
+        format: "cx2",
+        spec: {
+            columns: {
+                label: { from: "name", dtype: "string", role: "label" },
+                ...XY,
+                type: { from: "Type", dtype: "dict", missing: "Unknown" },
+            },
+        },
+    },
+    "go-slim-generic": {
+        source: "goslimGeneric",
+        format: "obo",
+        spec: {
+            columns: {
+                label: { from: "name", dtype: "string", role: "label" },
+                namespace: { from: "namespace", dtype: "dict", missing: "none" },
+            },
+        },
+    },
+};
+
 const SOURCE_OF = {
     karate: "networkx",
     "florentine-families": "networkx",
@@ -563,13 +639,17 @@ const SOURCE_OF = {
     "celegans-neural": "celegans",
     "political-blogs": "polblogs",
     openflights: ["airports", "routes"],
+    ...Object.fromEntries(Object.entries(GRAPH_IO_DATASETS).map(([name, { source }]) => [name, source])),
 };
 
 // ------------------------------------------------------------------ output
 
 /** JSON with every non-ASCII character escaped, so the TS source stays plain ASCII. */
 function asciiJson(value) {
-    return JSON.stringify(value).replace(/[\u0080-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+    return JSON.stringify(value).replaceAll(
+        /[\u0080-\uffff]/g,
+        (c) => String.raw`\u${c.codePointAt(0).toString(16).padStart(4, "0")}`,
+    );
 }
 
 async function main() {
@@ -579,13 +659,28 @@ async function main() {
     }
     const social = readFileSync(files.networkx, "utf8");
     const written = [];
-    for (const [name, convert] of Object.entries(CONVERTERS)) {
-        const data = convert(social, files);
+    const converters = {
+        ...CONVERTERS,
+        ...Object.fromEntries(
+            Object.entries(GRAPH_IO_DATASETS).map(([name, { source: key, format, spec }]) => [
+                name,
+                async () => {
+                    const { data, dropped } = datasetOf(await importSource(files[key], format), spec);
+                    console.log(
+                        `${name}: ${dropped.loops} self-loops dropped, ${dropped.parallel} parallel edges merged`,
+                    );
+                    return data;
+                },
+            ]),
+        ),
+    };
+    for (const [name, convert] of Object.entries(converters)) {
+        const data = await convert(social, files);
         checkSimple(name, data.directed, data.edges);
         const provenance = [SOURCE_OF[name]]
             .flat()
             .flatMap((key) => [`// Source: ${SOURCES[key].url}`, `// sha256: ${SOURCES[key].sha256}`]);
-        const out = path.join(packageRoot, "src/datasets", name, "data.ts");
+        const out = path.join(packageRoot, "data", `${name}.ts`);
         mkdirSync(path.dirname(out), { recursive: true });
         writeFileSync(
             out,
@@ -593,7 +688,7 @@ async function main() {
                 "// THIS FILE IS AUTO GENERATED: DO NOT EDIT THIS FILE. INSTEAD EDIT graph-samples/scripts/convert-datasets.mjs",
                 ...provenance,
                 "",
-                'import { type DatasetData } from "../build.js";',
+                'import { type DatasetData } from "./build.js";',
                 "",
                 `export const DATA: DatasetData = ${asciiJson(data)};`,
                 "",

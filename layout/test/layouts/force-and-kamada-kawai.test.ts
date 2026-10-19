@@ -1,5 +1,5 @@
 import { fromEdgeArrays, GraphBuilder, type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import * as layout from "../../src";
 import { idealDistances } from "../../src/indexed/kamada-kawai";
@@ -155,6 +155,21 @@ describe("kamadaKawai", () => {
         assert.throws(() => layout.kamadaKawai(grid(2, 2), { dist: new Float32Array(3) }), /16/);
         assert.equal(layout.kamadaKawai(grid(0, 0)).positions.length, 0);
         assert.deepEqual(Array.from(layout.kamadaKawai(grid(1, 1), { center: [2, 3] }).positions), [2, 3]);
+    });
+
+    it("rejects a dist with no finite distance between two different nodes", () => {
+        const s = grid(2, 2);
+        const noEdges = new Float64Array(16).fill(Number.POSITIVE_INFINITY);
+        for (let i = 0; i < 4; i++) {
+            noEdges[i * 4 + i] = 0;
+        }
+        assert.throws(() => layout.kamadaKawai(s, { dist: noEdges }), RangeError, /graph without edges/);
+        assert.throws(() => layout.kamadaKawai(s, { dist: new Float32Array(16).fill(Number.NaN) }), RangeError);
+        // one finite pair is enough, and a single node needs no pair at all
+        const onePair = noEdges.slice();
+        onePair[1] = 1;
+        assert.equal(layout.kamadaKawai(s, { dist: onePair }).positions.length, 8);
+        assert.deepEqual(Array.from(layout.kamadaKawai(grid(1, 1), { dist: new Float64Array([0]) }).positions), [0, 0]);
     });
 
     it("gives an unreachable pair, computed or a non-finite dist entry, the ideal distance 1e6", () => {
@@ -344,18 +359,116 @@ describe("fruchtermanReingold", () => {
 });
 
 describe("arf", () => {
-    it("gives the positions arfLayout gave from the same start", () => {
+    // the expected rows are NetworkX's arf_layout iteration run in NumPy from the same start
+    it("gives the positions NetworkX's arf_layout gives from the same start", () => {
         const s = grid(4, 3);
         const pos = Float32Array.from({ length: 24 }, (_, i) => ((i * 37) % 11) / 11);
         const r = layout.arf(s, { pos, a: 1.5, maxIter: 300 });
         matchesGolden(r, golden("arf from a start"), 1e-5);
     });
 
-    it("seeds from the seed as arfLayout did, rejects a <= 1 and handles n = 0", () => {
+    it("seeds from the seed, rejects a <= 1 and handles n = 0", () => {
         const s = grid(3, 3);
         const r = layout.arf(s, { seed: 9, maxIter: 50 });
         matchesGolden(r, golden("arf seeded"), 1e-4);
         assert.throws(() => layout.arf(s, { a: 1 }), /larger than 1/);
         assert.equal(layout.arf(grid(0, 0)).n, 0);
+    });
+
+    it("pulls neighbours closer than other pairs and keeps nodes apart", () => {
+        // two 5-node cliques joined by one edge: the cliques come out as two clusters
+        const edges: [number, number][] = [[4, 5]];
+        for (const base of [0, 5]) {
+            for (let u = 0; u < 5; u++) {
+                for (let v = u + 1; v < 5; v++) {
+                    edges.push([base + u, base + v]);
+                }
+            }
+        }
+        const s = fromEdgeArrays({
+            directed: false,
+            nodeCount: 10,
+            src: Uint32Array.from(edges, ([u]) => u),
+            dst: Uint32Array.from(edges, ([, v]) => v),
+        });
+        const r = layout.arf(s, { seed: 1, a: 5 });
+        const d = (i: number, j: number): number =>
+            Math.hypot(r.positions[2 * i] - r.positions[2 * j], r.positions[2 * i + 1] - r.positions[2 * j + 1]);
+        let inside = 0;
+        let across = 0;
+        for (let i = 0; i < 10; i++) {
+            for (let j = i + 1; j < 10; j++) {
+                assert.ok(d(i, j) > 0.1, `nodes ${i} and ${j} are ${d(i, j)} apart`);
+                if (i < 5 === j < 5) {
+                    inside += d(i, j) / 20;
+                } else {
+                    across += d(i, j) / 25;
+                }
+            }
+        }
+        assert.ok(across > 1.5 * inside, `inside ${inside}, across ${across}`);
+    });
+});
+
+describe("kamadaKawai size guard", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /** The error a call throws. */
+    function thrown(f: () => unknown): RangeError & { code?: string; params?: unknown } {
+        try {
+            f();
+        } catch (e) {
+            return e as RangeError & { code?: string; params?: unknown };
+        }
+        throw new Error("did not throw");
+    }
+
+    it("refuses a graph above maxNodes before allocating, with E_TOO_LARGE and its params", () => {
+        const s = grid(3, 3);
+        vi.stubGlobal(
+            "Float64Array",
+            class extends Float64Array {
+                constructor(...args: unknown[]) {
+                    if (typeof args[0] === "number") {
+                        throw new Error("allocated before refusing");
+                    }
+                    super(...(args as []));
+                }
+            },
+        );
+        const err = thrown(() => layout.kamadaKawai(s, { maxNodes: 8 }));
+        vi.unstubAllGlobals();
+        assert.instanceOf(err, RangeError);
+        assert.equal(err.code, "E_TOO_LARGE");
+        assert.deepEqual(err.params, { nodeCount: 9, maxNodes: 8, bytes: 24 * 81 });
+    });
+
+    it("turns an n x n allocation the runtime refuses into E_TOO_LARGE", () => {
+        const s = grid(3, 3);
+        vi.stubGlobal(
+            "Float64Array",
+            class extends Float64Array {
+                constructor(...args: unknown[]) {
+                    if (args[0] === 81) {
+                        throw new RangeError("Array buffer allocation failed");
+                    }
+                    super(...(args as []));
+                }
+            },
+        );
+        const err = thrown(() => layout.kamadaKawai(s));
+        vi.unstubAllGlobals();
+        assert.equal(err.code, "E_TOO_LARGE");
+        assert.deepEqual(err.params, { nodeCount: 9, maxNodes: null, bytes: 24 * 81 });
+    });
+
+    it("lays out as before with no maxNodes or one at the node count", () => {
+        const s = grid(3, 3);
+        assert.deepEqual(
+            Array.from(layout.kamadaKawai(s, { maxNodes: 9 }).positions),
+            Array.from(layout.kamadaKawai(s).positions),
+        );
     });
 });

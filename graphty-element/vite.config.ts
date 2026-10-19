@@ -1,8 +1,8 @@
-import { readFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { defineConfig, loadEnv, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
-// import eslint from "vite-plugin-eslint";
 
 /**
  * The published entry points, as `<output file name>: <source file>`.
@@ -17,7 +17,8 @@ import VitePluginCustomElementsManifest from "vite-plugin-cem";
  *
  * Four lists name these files and nothing checks them against each other at build time:
  * this one, `tsconfig.build.json`'s `include`, `typedoc.json`'s `entryPoints` and the
- * graphty-element entry list in the repository root's `knip.config.ts`. Adding an entry to this
+ * graphty-element entry list in the repository root's `knip.config.ts`. The other three also
+ * name `jsx.ts`, the `./jsx` entry, which is types only and so has no place here. Adding an entry to this
  * one alone produces a `dist/<name>.js` with no `.d.ts` beside it, which fails far away from
  * here -- in a consumer's editor. `test/logging/logging-entry-point.test.ts` holds the four
  * lists to each other.

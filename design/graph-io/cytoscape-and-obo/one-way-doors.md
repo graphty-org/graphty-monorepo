@@ -171,7 +171,9 @@ a catalog `listGraphs(source)`, `graphName` / `graphIndex` and `fileStyles` load
 ## The owner's decisions (2026-10-02)
 
 1. Public names: one subpath per format, as recommended.
-2. OBO Graphs JSON: a dialect of the JSON reader, as recommended.
+2. OBO Graphs JSON: a dialect of the JSON reader, as recommended. Amended 2026-10-03: the owner
+   asked for every format to be writable, so `"obographs"` is now a dialect the JSON exporter
+   writes too (a member of `JsonDialect`), no longer import-only.
 3. Visual information: SKIPPED for now. The owner asked whether graph-io already had a style-import
    solution; it does not (GEXF viz values, GML graphics, yEd graphics and DOT attributes land as
    plain columns, and nothing reads style rules). Building one for Cytoscape alone would fix a

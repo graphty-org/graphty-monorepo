@@ -30,6 +30,7 @@ import {
     type Scope,
     type ScopeInput,
     type SetId,
+    type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import { ALGO_DEFINITIONS, type AlgoRemoveCommand, type RunService } from "../commands/algo";
@@ -45,8 +46,18 @@ import type { Draft } from "../project/draft";
 import type { RunEntry } from "../project/state";
 import type { RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
-import { type AutoApplyPolicy, type PaintHold, suggestionCommand } from "../styles/autoApply";
+import type { CodedFact } from "../shared";
+import {
+    authoredDriving,
+    type AutoApplyPolicy,
+    bare,
+    idOf,
+    type PaintHold,
+    suggestionCommand,
+} from "../styles/autoApply";
 import type { StyleSuggestion } from "../styles/derive";
+import type { Layer } from "../styles/Layer";
+import type { HistoryCode } from "../types";
 import {
     ManagedRun,
     type RunBody,
@@ -62,13 +73,13 @@ import {
     canonicalize,
     canonicalizeParams,
     canonicalResultIdentity,
-    deriveResultId,
     deriveRunId,
     freezeScope,
     type LiveKeyword,
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
+import { type RunName, suggestRunName } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
@@ -80,6 +91,7 @@ import {
     type Run,
     type RunChange,
     type RunOptions,
+    type RunPainting,
     type RunPhase,
     type RunRemoval,
     type RunsApi,
@@ -87,6 +99,7 @@ import {
     type RunSpec,
     type StaleNote,
     type StartOptions,
+    type SuggestionOutcome,
 } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -303,6 +316,60 @@ export interface SessionRunsApi extends RunsApi {
 /** What a run with no captures keeps. */
 const NO_HELD: HeldCaptures = new Map();
 
+/** A run whose decision is not made yet. */
+const PENDING: RunPainting = bare("pending");
+
+/** A run recorded without a decision. */
+const UNKNOWN: RunPainting = bare("unknown");
+
+/**
+ * The layers a style command added, read off what it resolved with: one layer for an encoding,
+ * one per half for a highlight.
+ * @param outcome - What the command resolved with.
+ * @returns Their ids.
+ */
+function addedLayers(outcome: unknown): LayerId[] {
+    const result = typeof outcome === "object" && outcome !== null && "result" in outcome ? outcome.result : undefined;
+
+    return [result]
+        .flat()
+        .filter((layer): layer is Layer => typeof layer === "object" && layer !== null && "id" in layer)
+        .map((layer) => layer.id);
+}
+
+/**
+ * What became of a suggestion that was added: its layers, and the hand-written layer it was
+ * placed directly beneath, if any.
+ * @param suggestion - The suggestion.
+ * @param outcome - What its command resolved with.
+ * @param stack - The stack after it, bottom first.
+ * @returns The outcome.
+ */
+function addedOutcome(suggestion: StyleSuggestion, outcome: unknown, stack: readonly Layer[]): SuggestionOutcome {
+    const layerIds = Object.freeze(addedLayers(outcome));
+    const top = Math.max(...layerIds.map((id) => stack.findIndex((layer) => layer.id === id)));
+    const above = top < 0 ? undefined : stack[top + 1];
+
+    return Object.freeze({
+        outcome: "added",
+        suggestion,
+        layerIds,
+        ...(above !== undefined && authoredDriving(above, suggestion.channels)
+            ? { placedBeneathLayerId: above.id }
+            : {}),
+    });
+}
+
+/**
+ * What became of a suggestion the stack refused.
+ * @param suggestion - The suggestion.
+ * @param error - Why.
+ * @returns The outcome, carrying the code `style:problem` carried.
+ */
+function refusedOutcome(suggestion: StyleSuggestion, error: unknown): SuggestionOutcome {
+    return Object.freeze({ outcome: "refused", suggestion, code: isGraphtyError(error) ? error.code : "E_INTERNAL" });
+}
+
 const DEFAULT_CAVEATS: Caveats = Object.freeze({
     exact: true,
     seed: null,
@@ -310,6 +377,7 @@ const DEFAULT_CAVEATS: Caveats = Object.freeze({
     weight: null,
     precision: "f64",
     method: "exact",
+    facts: Object.freeze([]),
     notes: Object.freeze([]),
 });
 
@@ -475,8 +543,8 @@ function randomHex(): string {
     if (typeof globalThis.crypto?.getRandomValues === "function") {
         globalThis.crypto.getRandomValues(words);
     } else {
-        words[0] = Math.floor(Math.random() * 0x1_0000_0000);
-        words[1] = Math.floor(Math.random() * 0x1_0000_0000);
+        words[0] = Math.floor(Math.random() * 0x1_00_00_00_00);
+        words[1] = Math.floor(Math.random() * 0x1_00_00_00_00);
     }
 
     return [...words].map((word) => word.toString(16).padStart(8, "0")).join("");
@@ -565,6 +633,8 @@ interface ResolvedRun {
     readonly spec: Scope;
     readonly id: RunId;
     readonly derived: boolean;
+    /** The name the algorithm suggested, for a run the caller did not name. */
+    readonly name?: RunName;
 }
 
 /** Starting runs, finding them, and taking them away. */
@@ -590,6 +660,9 @@ class Runs implements SessionRunsApi {
     /** The ids the element minted, which are the ones a saved document may not reference. */
     private readonly derivedIds = new Set<RunId>();
 
+    /** The name each minted id was suggested as: the id it tried first, and the run's label. */
+    private readonly names = new Map<RunId, RunName>();
+
     /** The command each run was started with, which a re-run dispatches again. */
     private readonly commands = new Map<RunId, AlgorithmRunCommand>();
 
@@ -601,6 +674,15 @@ class Runs implements SessionRunsApi {
 
     /** The batch each member's painting is held for. */
     private readonly holds = new Map<RunId, PaintHold>();
+
+    /**
+     * What a batch decided for its members when it released their hold. Kept beside the runs
+     * slice rather than in it, because the release paints through the batch's transaction after
+     * each member's entry is written; `painting()` reads it for an entry still marked pending.
+     * Undo takes the members' entries away with the batch, and redo brings back entries this
+     * still answers for.
+     */
+    private readonly released = new Map<RunId, RunPainting>();
 
     /**
      * Runs that are not listed although their handle lives on: removed while still going, or
@@ -734,7 +816,12 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(specs, label, () => run),
+            execute: this.batchExecutor(
+                specs,
+                label,
+                { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
+                () => run,
+            ),
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -792,6 +879,31 @@ class Runs implements SessionRunsApi {
      */
     bindings(id: RunId): readonly LayerId[] {
         return Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
+    }
+
+    /**
+     * What the element decided to paint when a run first completed.
+     * @param id - The run id.
+     * @returns The decision, or undefined when this session holds no run with that id.
+     */
+    painting(id: RunId): RunPainting | undefined {
+        const run = this.get(id);
+
+        if (run === undefined) {
+            return undefined;
+        }
+
+        const entry = this.dispatcher.state.runs.get(id);
+
+        if (entry === undefined) {
+            return run.status === "failed" || run.status === "canceled" ? bare("not-succeeded") : PENDING;
+        }
+
+        if (entry.painting?.state === "pending") {
+            return this.released.get(id) ?? entry.painting;
+        }
+
+        return entry.painting ?? (this.options.styling === undefined ? bare("no-styles") : UNKNOWN);
     }
 
     /**
@@ -854,6 +966,7 @@ class Runs implements SessionRunsApi {
         this.runs.clear();
         this.identities.clear();
         this.derivedIds.clear();
+        this.names.clear();
         this.commands.clear();
         this.launches.clear();
         this.bodies.clear();
@@ -908,7 +1021,7 @@ class Runs implements SessionRunsApi {
             });
         }
 
-        const { descriptor, identity, result, spec, id, derived } = this.resolve(algorithm, params, options);
+        const { descriptor, identity, result, spec, id, derived, name } = this.resolve(algorithm, params, options);
         // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
         const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
         const launch: Launch = { via, command, beside: options.queue === "now" };
@@ -924,7 +1037,11 @@ class Runs implements SessionRunsApi {
             return this.reuse(existing, identity, result, descriptor, launch);
         }
 
-        return this.create(id, identity, result, descriptor, spec, options, derived, launch);
+        if (name !== undefined) {
+            this.names.set(id, name);
+        }
+
+        return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
     }
 
     /**
@@ -960,16 +1077,38 @@ class Runs implements SessionRunsApi {
             sample: identity.sample,
             exact: identity.exact,
         };
-        const assignedId = options.as;
+        const canonical = canonicalResultIdentity(result);
 
-        return {
-            descriptor,
-            identity,
-            result: canonicalResultIdentity(result),
-            spec,
-            id: assignedId === undefined ? deriveResultId(result) : assertRunId(assignedId),
-            derived: assignedId === undefined,
-        };
+        if (options.as !== undefined) {
+            return { descriptor, identity, result: canonical, spec, id: assertRunId(options.as), derived: false };
+        }
+
+        const name = suggestRunName(descriptor, identity.params);
+
+        return { descriptor, identity, result: canonical, spec, id: this.mintId(name, canonical), derived: true, name };
+    }
+
+    /**
+     * The id an unnamed run answers to: the run already holding this result under this name, or
+     * else the name itself, counting up from `_2` past every id something else holds.
+     * @param name - The name the algorithm suggested.
+     * @param result - The canonical identity of the result.
+     * @returns The id.
+     */
+    private mintId(name: SuggestedName, result: string): RunId {
+        for (const id of this.derivedIds) {
+            if (this.identities.get(id) === result && this.names.get(id)?.id === name.id) {
+                return id;
+            }
+        }
+
+        for (let count = 1; ; count++) {
+            const id = count === 1 ? name.id : `${name.id}_${count}`;
+
+            if (!this.runs.has(id) && !this.dispatcher.state.runs.has(id)) {
+                return id;
+            }
+        }
     }
 
     /**
@@ -978,9 +1117,10 @@ class Runs implements SessionRunsApi {
      * @param identity - What the run is.
      * @param result - The canonical identity of the result it answers.
      * @param descriptor - The algorithm's catalogue entry.
-     * @param spec - The scope specification it was asked for.
-     * @param options - What the caller passed.
-     * @param derived - Whether the element minted the id rather than the author naming it.
+     * @param request - How it was asked for.
+     * @param request.spec - The scope specification it was asked for.
+     * @param request.options - What the caller passed.
+     * @param request.derived - Whether the element minted the id rather than the author naming it.
      * @param launch - How its first execution is dispatched.
      * @returns The run.
      */
@@ -989,11 +1129,10 @@ class Runs implements SessionRunsApi {
         identity: RunIdentity,
         result: string,
         descriptor: AlgorithmDescriptor,
-        spec: Scope,
-        options: StartOptions,
-        derived: boolean,
+        request: { readonly spec: Scope; readonly options: StartOptions; readonly derived: boolean },
         launch: Launch,
     ): Run {
+        const { spec, options, derived } = request;
         if (options.queue === "replace") {
             this.cancelSiblings(descriptor.key, id);
         }
@@ -1017,6 +1156,8 @@ class Runs implements SessionRunsApi {
         };
         const surroundings: RunSurroundings = {
             label: () => this.labelOf(id),
+            distinguishedBy: () => this.names.get(id)?.distinguishedBy ?? null,
+            siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
@@ -1044,6 +1185,7 @@ class Runs implements SessionRunsApi {
             this.derivedIds.add(id);
         } else {
             this.derivedIds.delete(id);
+            this.names.delete(id);
         }
 
         run.start();
@@ -1198,9 +1340,9 @@ class Runs implements SessionRunsApi {
      * as data, start one here -- and write the run into the command's step when it finishes.
      * @param command - The command.
      * @param ctx - The command's context.
-     * @returns Settles once the run is written; rejects when it failed or was cancelled first.
+     * @returns The run's id, once the run is written; rejects when it failed or was cancelled first.
      */
-    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<void> {
+    private async execute(command: AlgorithmRunCommand, ctx: UndoableContext): Promise<RunId> {
         const run = this.adopt(command);
         const body = this.bodies.get(run.id);
 
@@ -1211,7 +1353,7 @@ class Runs implements SessionRunsApi {
                 this.applySuggested(ctx.draft, run);
             }
 
-            return;
+            return run.id;
         }
 
         this.bodies.delete(run.id);
@@ -1255,6 +1397,9 @@ class Runs implements SessionRunsApi {
         if (!wrote) {
             throw run.error ?? new DOMException(`Run "${run.id}" stopped before it was recorded.`, "AbortError");
         }
+
+        // The journal reads which run this command finished from what it resolves with.
+        return run.id;
     }
 
     /**
@@ -1297,7 +1442,13 @@ class Runs implements SessionRunsApi {
         const decision = this.options.styling?.completed(run, prior?.painted === true, hold) ?? {
             painted: prior?.painted === true,
             paint: [],
+            painting: bare("no-styles"),
         };
+
+        if (decision.painting !== undefined) {
+            // A fresh first completion: whatever an earlier batch decided for this id is gone.
+            this.released.delete(run.id);
+        }
         const entry: RunEntry = Object.freeze({
             command: this.commands.get(run.id) ?? command,
             record: run.record,
@@ -1305,6 +1456,8 @@ class Runs implements SessionRunsApi {
             ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
             ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),
             painted: decision.painted,
+            // A re-run keeps the decision of its first completion.
+            ...(prior?.painting === undefined ? {} : { painting: prior.painting }),
             derived: this.derivedIds.has(run.id),
             stale: ctx.state.graph.token !== token,
         });
@@ -1312,7 +1465,16 @@ class Runs implements SessionRunsApi {
 
         try {
             draft.runs.set(run.id, entry);
-            this.paint(draft, run.id, decision.paint);
+            const outcomes = this.paint(draft, run.id, decision.paint);
+
+            if (decision.painting !== undefined) {
+                // Written after the layers, which need the run's entry to bind to.
+                const painting: RunPainting = Object.freeze({
+                    state: decision.painting.state,
+                    suggestions: Object.freeze([...decision.painting.suggestions, ...outcomes]),
+                });
+                draft.runs.set(run.id, Object.freeze({ ...entry, painting }));
+            }
 
             if (command.applySuggestedStyles === true) {
                 this.applySuggested(draft, run);
@@ -1328,21 +1490,30 @@ class Runs implements SessionRunsApi {
      * @param draft - The draft.
      * @param runId - The run they come from.
      * @param suggestions - What to paint.
+     * @returns What became of each.
      */
-    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): void {
+    private paint(draft: Draft, runId: RunId, suggestions: readonly StyleSuggestion[]): SuggestionOutcome[] {
         const { styles } = this.dispatcher.services;
 
         if (styles === undefined) {
-            return;
+            return [];
         }
 
-        for (const suggestion of suggestions) {
+        return suggestions.map((suggestion) => {
             try {
-                styles.execute(suggestionCommand(suggestion, true), draft);
+                const outcome = styles.execute(suggestionCommand(suggestion, true), draft);
+
+                return addedOutcome(
+                    suggestion,
+                    outcome,
+                    draft.styles.map((each) => each.layer),
+                );
             } catch (error) {
                 this.options.styling?.refused(runId, error);
+
+                return refusedOutcome(suggestion, error);
             }
-        }
+        });
     }
 
     /**
@@ -1388,7 +1559,7 @@ class Runs implements SessionRunsApi {
         const { layerIds } = removal;
         const run = this.runs.get(id);
 
-        if (run !== undefined && run.cancellable) {
+        if (run?.cancellable) {
             this.dropped.add(id);
             run.cancel(`Run "${id}" was removed.`);
         }
@@ -1512,27 +1683,58 @@ class Runs implements SessionRunsApi {
             return id;
         }
 
-        const descriptor = this.findDescriptor(run.algorithm);
-        const base = descriptor?.plainName ?? run.algorithm;
-        const siblings = [...this.runs.values()].filter(
-            (other) => other.algorithm === run.algorithm && other.id !== id && this.listed(other),
-        );
+        const base = this.baseLabelOf(run);
+        const differing = this.siblingsDifferBy(id);
 
-        if (siblings.length === 0) {
+        if (differing === null) {
             return base;
         }
 
-        return `${base} (${this.qualifierFor(run, siblings)})`;
+        const qualifier =
+            differing.length === 0
+                ? describeScope(run.scope.spec, this.options.setName)
+                : differing.map((name) => `${name} ${formatParamValue(run.params[name])}`).join(", ");
+
+        return `${base} (${qualifier})`;
     }
 
     /**
-     * What tells one run apart from its siblings: the parameters that differ, or failing that the
-     * scope it ran over.
-     * @param run - The run being labelled.
-     * @param siblings - The other runs of the same algorithm.
-     * @returns The qualifier, without its parentheses.
+     * What a run is called before any sibling shares the name: what its algorithm suggested, or
+     * the algorithm's plain name.
+     * @param run - The run.
+     * @returns The label.
      */
-    private qualifierFor(run: ManagedRun, siblings: readonly ManagedRun[]): string {
+    private baseLabelOf(run: ManagedRun): string {
+        return this.names.get(run.id)?.label ?? this.findDescriptor(run.algorithm)?.plainName ?? run.algorithm;
+    }
+
+    /**
+     * What tells one run apart from the other listed runs of its algorithm that go by the same
+     * name: the parameters that differ, or failing that the scope it ran over.
+     * @param id - The run id.
+     * @returns The differing parameter names, sorted; an empty list when only the scope differs;
+     *   null while no other run shares the name.
+     */
+    private siblingsDifferBy(id: RunId): readonly string[] | null {
+        const run = this.runs.get(id);
+
+        if (run === undefined) {
+            return null;
+        }
+
+        const base = this.baseLabelOf(run);
+        const siblings = [...this.runs.values()].filter(
+            (other) =>
+                other.algorithm === run.algorithm &&
+                other.id !== id &&
+                this.listed(other) &&
+                this.baseLabelOf(other) === base,
+        );
+
+        if (siblings.length === 0) {
+            return null;
+        }
+
         const differing = new Set<string>();
 
         for (const sibling of siblings) {
@@ -1543,14 +1745,7 @@ class Runs implements SessionRunsApi {
             }
         }
 
-        if (differing.size === 0) {
-            return describeScope(run.scope.spec, this.options.setName);
-        }
-
-        return [...differing]
-            .sort((left, right) => (left < right ? -1 : 1))
-            .map((name) => `${name} ${formatParamValue(run.params[name])}`)
-            .join(", ");
+        return Object.freeze([...differing].sort((left, right) => (left < right ? -1 : 1)));
     }
 
     // -- the catalogue ------------------------------------------------------------------------
@@ -1640,12 +1835,14 @@ class Runs implements SessionRunsApi {
      * one transaction, so its members and their layers are one step.
      * @param specs - What to run.
      * @param label - What the batch is called.
+     * @param fact - What its step did.
      * @param handle - The batch's own run, once it exists.
      * @returns The executor.
      */
     private batchExecutor(
         specs: readonly RunSpec[],
         label: string,
+        fact: CodedFact<HistoryCode>,
         handle: () => ManagedRun<BatchResult> | null,
     ): RunExecutor<BatchResult> {
         return async (context) => {
@@ -1686,27 +1883,28 @@ class Runs implements SessionRunsApi {
                     }
                 }
 
-                for (const suggestion of hold?.release() ?? []) {
-                    const runId = typeof suggestion.spec.run === "string" ? suggestion.spec.run : label;
-                    await via(suggestionCommand(suggestion, true)).catch((error: unknown) => {
-                        this.options.styling?.refused(runId, error);
-                    });
+                if (hold !== undefined) {
+                    await this.release(hold, via);
                 }
             };
 
             try {
-                await this.dispatcher.transaction(label, async (tx, signal) => {
-                    // Undo cancelling the batch aborts the transaction; the batch stops with it
-                    // and settles with what it had, which the undo has already taken back.
-                    signal.addEventListener(
-                        "abort",
-                        () => {
-                            handle()?.cancel("The batch was undone.");
-                        },
-                        { once: true },
-                    );
-                    await members((command, options) => tx.dispatch(command, options), signal);
-                });
+                await this.dispatcher.transaction(
+                    label,
+                    async (tx, signal) => {
+                        // Undo cancelling the batch aborts the transaction; the batch stops with it
+                        // and settles with what it had, which the undo has already taken back.
+                        signal.addEventListener(
+                            "abort",
+                            () => {
+                                handle()?.cancel("The batch was undone.");
+                            },
+                            { once: true },
+                        );
+                        await members((command, options) => tx.dispatch(command, options), signal);
+                    },
+                    { fact },
+                );
             } catch (error) {
                 if (!(error instanceof Error && error.name === "AbortError")) {
                     throw error;
@@ -1718,9 +1916,53 @@ class Runs implements SessionRunsApi {
             return {
                 result: Object.freeze({ label, total: specs.length, completed, partial, steps: Object.freeze(steps) }),
                 partial,
-                ...(partial ? { partialReason: `${completed} of ${specs.length} members finished.` } : {}),
+                ...(partial
+                    ? {
+                          partialCause: {
+                              code: "partial.batch-incomplete" as const,
+                              params: { completed, total: specs.length },
+                          },
+                      }
+                    : {}),
             };
         };
+    }
+
+    /**
+     * Paint what a batch held, and record for each member what became of its suggestions.
+     * @param hold - The batch's hold.
+     * @param via - The batch's transaction.
+     */
+    private async release(hold: PaintHold, via: DispatchFunction): Promise<void> {
+        const { paint, settled, members } = hold.release();
+        const outcomes = new Map<RunId, SuggestionOutcome[]>(members.map((id) => [id, []]));
+        const record = (outcome: SuggestionOutcome): void => {
+            outcomes.get(idOf(outcome.suggestion.spec.run))?.push(outcome);
+        };
+
+        settled.forEach(record);
+
+        for (const suggestion of paint) {
+            const runId = idOf(suggestion.spec.run);
+
+            try {
+                const outcome = await via(suggestionCommand(suggestion, true));
+                record(
+                    addedOutcome(
+                        suggestion,
+                        outcome,
+                        this.dispatcher.state.styles.map((each) => each.layer),
+                    ),
+                );
+            } catch (error) {
+                this.options.styling?.refused(runId, error);
+                record(refusedOutcome(suggestion, error));
+            }
+        }
+
+        for (const [id, suggestions] of outcomes) {
+            this.released.set(id, Object.freeze({ state: "decided", suggestions: Object.freeze(suggestions) }));
+        }
     }
 
     /**

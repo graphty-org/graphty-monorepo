@@ -66,6 +66,14 @@ Edge.getInterceptPoints.rayIntersections: 630ms
 Total CPU bottleneck: 4,563ms (76% of total settlement time)
 ```
 
+> **The first line of that profile measured an API misuse, not thin instances** (corrected
+> 2026-09-26). `thinInstanceSetMatrixAt` defaults to `refresh = true`, which re-uploads the whole
+> matrix buffer on every call, so moving n instances one at a time is O(n^2) -- which is what
+> 0.12 ms a call and 3,933 ms for 252 edges is. Writing the floats into the array and calling
+> `thinInstanceBufferUpdated` once a frame measures 1.7 ms for 20,000 instances, and 2.6 ms a
+> frame for 200,000 moving edges. `src/meshes/EdgeLineBatch.ts` draws the 3D solid edge line that
+> way today. The ray-intersection half of the profile stands, and is now the larger term.
+
 **Per-Frame Breakdown** (252 edges):
 
 ```

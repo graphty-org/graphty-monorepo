@@ -30,10 +30,11 @@ export function positionsAreReadOnly(): void {
 
 /** The configuration document on `Graph` cannot be replaced; settings go through the session. */
 export function graphStylesIsReadOnly(): void {
+    const { styles } = graph;
     // @ts-expect-error `Graph.styles` is readonly
-    graph.styles = null as unknown as typeof graph.styles;
+    graph.styles = styles;
     // @ts-expect-error the operation queue is private
-    void graph.operationQueue;
+    const _queue = graph.operationQueue;
 }
 
 /** A published session is the only writer of its graph and settings. */

@@ -35,6 +35,8 @@ const NODE_SAFE_ENTRIES = [
     "format.ts",
     "logging.ts",
     "react.ts",
+    // Types only: its emitted JavaScript is empty, and must stay so.
+    "jsx.ts",
     // Not an entry point yet, but the headless session's data write verbs will reach it, so it
     // is held to the same rule now: ingest must never need a renderer.
     "src/session/project/ingest.ts",
@@ -203,6 +205,28 @@ describe("the Node-safe entry points", () => {
         const loaded = [session, schema, catalog, commands, extend, format, logging];
 
         assert.isTrue(loaded.every((module) => typeof module === "object"));
+    });
+
+    it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
+        const origin: session.FileStyleOrigin = {
+            format: "gexf",
+            importId: "i1",
+            ruleId: "node.by.Modularity Class",
+            role: "mapping",
+            origin: "declared",
+        };
+
+        assert.deepEqual(session.fileStyleOf({ fileStyle: origin }), origin);
+        assert.isNull(session.fileStyleOf({}));
+    });
+
+    it("lists every style code in plain Node, from ./session alone", () => {
+        const code: session.FileStyleNoteCode = session.FILE_STYLE_ISSUE.LAYER_REFUSED;
+
+        assert.include(session.FILE_STYLE_CODES, code);
+        assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
+        assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "sphere");
+        assert.include(session.FILE_STYLE_REASONS, "NO_EXPLANATION");
     });
 });
 

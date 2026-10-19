@@ -61,13 +61,13 @@ const directed = directedTraversalFixtures();
 const all = [...undirected, ...directed];
 
 function ids(s: GraphSnapshot, indices: ArrayLike<number>): NodeId[] {
-    return Array.from(indices, (i) => s.ids.idOf(i) as NodeId);
+    return Array.from(indices, (i) => s.ids.idOf(i));
 }
 
 function parentMap(s: GraphSnapshot, order: ArrayLike<number>, parent: ArrayLike<number>): Map<NodeId, NodeId | null> {
     const tree = new Map<NodeId, NodeId | null>();
     for (const i of Array.from(order)) {
-        tree.set(s.ids.idOf(i) as NodeId, parent[i] === INVALID_INDEX ? null : (s.ids.idOf(parent[i]) as NodeId));
+        tree.set(s.ids.idOf(i), parent[i] === INVALID_INDEX ? null : s.ids.idOf(parent[i]));
     }
     return tree;
 }
@@ -179,7 +179,7 @@ describe("indexed.isBipartite against legacy isBipartite and bipartitePartition"
             const left: NodeId[] = [];
             const right: NodeId[] = [];
             for (let i = 0; i < s.nodeCount; i++) {
-                (sides !== null && maskTest(sides, i) ? right : left).push(s.ids.idOf(i) as NodeId);
+                (sides !== null && maskTest(sides, i) ? right : left).push(s.ids.idOf(i));
             }
             expect(sortedStrings(left), name).toEqual(sortedStrings(partition.left));
             expect(sortedStrings(right), name).toEqual(sortedStrings(partition.right));
@@ -205,7 +205,7 @@ describe("indexed.isBipartite against legacy isBipartite and bipartitePartition"
             const left: NodeId[] = [];
             const right: NodeId[] = [];
             for (let i = 0; i < s.nodeCount; i++) {
-                (sides !== null && maskTest(sides, i) ? right : left).push(s.ids.idOf(i) as NodeId);
+                (sides !== null && maskTest(sides, i) ? right : left).push(s.ids.idOf(i));
             }
             expect(sortedStrings(left), name).toEqual(sortedStrings(partition.left));
             expect(sortedStrings(right), name).toEqual(sortedStrings(partition.right));
@@ -231,7 +231,7 @@ describe("indexed.stronglyConnectedComponents against legacy Tarjan and Kosaraju
                 }
             });
             expect(
-                Array.from(port.labels, (_, i) => expected.get(s.ids.idOf(i) as NodeId)),
+                Array.from(port.labels, (_, i) => expected.get(s.ids.idOf(i))),
                 name,
             ).toEqual(Array.from(port.labels));
         }
@@ -291,7 +291,7 @@ describe("indexed.directionOptimizedBfs against legacy directionOptimizedBFS", (
                     expect(port.visitedCount, at).toBe(legacy.visitedCount);
                     const depths = new Map<NodeId, number>();
                     for (const i of Array.from(port.order)) {
-                        depths.set(s.ids.idOf(i) as NodeId, port.depth[i]);
+                        depths.set(s.ids.idOf(i), port.depth[i]);
                     }
                     expect([...depths].sort(), at).toEqual([...legacy.distances].sort());
                     if (compareParents) {
@@ -337,7 +337,7 @@ describe("indexed.breadthFirstSearch target option against legacy breadthFirstSe
                 const visited = ids(s, port.order);
                 expect(visited, name).toEqual([...legacy.visited]);
                 // legacy.order lists the nodes it expanded: the visit order up to and including the target.
-                expect(visited.slice(0, visited.indexOf(s.ids.idOf(target) as NodeId) + 1), name).toEqual(legacy.order);
+                expect(visited.slice(0, visited.indexOf(s.ids.idOf(target)) + 1), name).toEqual(legacy.order);
                 expect([...parentMap(s, port.order, port.parent)], name).toEqual([...legacy.tree]);
             }
         }

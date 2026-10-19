@@ -4,16 +4,8 @@
  * @module server
  */
 
-export {
-    createDualServer,
-    type DualServerOptions,
-    type DualServerResult,
-} from "./dual-server.js";
-export {
-    type FileStats,
-    type JsonlEntry,
-    JsonlWriter,
-} from "./jsonl-writer.js";
+export { createDualServer, type DualServerOptions, type DualServerResult } from "./dual-server.js";
+export { type FileStats, type JsonlEntry, JsonlWriter } from "./jsonl-writer.js";
 export {
     clearLogs,
     createLogServer,

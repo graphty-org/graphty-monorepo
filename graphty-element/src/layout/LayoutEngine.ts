@@ -1,5 +1,6 @@
 import {
     type DerivedGraph,
+    detHypot,
     type F32,
     GraphBuilder,
     type GraphSnapshot,
@@ -10,13 +11,14 @@ import {
     type NodeMask,
 } from "@graphty/graph-format";
 import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { AuthoredLayoutDescriptor } from "../catalog/types";
 import type { OptionsSchema } from "../config";
 import { readonlyPositions, writableLane } from "../data/lane";
+import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { ElementPositions, isStorableCoordinate } from "../data/positions";
 import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
@@ -220,6 +222,8 @@ export const layoutEngineInternals = {} as {
     attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
     /** See `LayoutEngine.edgeProblems`. */
     edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
+    /** See `LayoutEngine.setFollowers`. */
+    setFollowers(engine: LayoutEngine, rows: ReadonlySet<number> | null): void;
 };
 
 /**
@@ -308,6 +312,9 @@ export abstract class LayoutEngine {
         layoutEngineInternals.attachPositions = (engine, positions) => {
             engine.attachPositions(positions);
         };
+        layoutEngineInternals.setFollowers = (engine, rows) => {
+            engine.setFollowers(rows);
+        };
     }
 
     static type: string;
@@ -379,6 +386,9 @@ export abstract class LayoutEngine {
 
     /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
     private holdRows = 0;
+
+    /** The rows the element places itself (group nodes following their members), or null. */
+    private followers: ReadonlySet<number> | null = null;
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -605,12 +615,48 @@ export abstract class LayoutEngine {
      * @returns True while a hold is set and the row is held or newer than the hold.
      */
     protected isHeld(index: number): boolean {
+        if (this.isFollower(index)) {
+            return true;
+        }
+
         const { hold } = this;
         if (hold === null) {
             return false;
         }
 
         return index >= this.holdRows || !Number.isInteger(index) || index < 0 || maskTest(hold, index);
+    }
+
+    /**
+     * Hand the engine the rows the element places itself: group nodes with no stored position,
+     * which follow their members' box. Each is held like a scoped layout's held row -- never
+     * integrated, never written by a layout step -- and an engine with forces of its own makes
+     * it exert none (see {@link LayoutEngine.isFollower}). Re-applies the hold through
+     * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
+     * the followers up too.
+     * @param rows - The follower rows, or null for none.
+     */
+    protected setFollowers(rows: ReadonlySet<number> | null): void {
+        this.followers = rows === null || rows.size === 0 ? null : rows;
+        this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Whether the element places this row itself, as a group following its members: an engine
+     * with forces of its own gives it none, so it neither repels nor attracts another node.
+     * @param index - The node's row.
+     * @returns True for a follower row.
+     */
+    protected isFollower(index: number): boolean {
+        return this.followers?.has(index) === true;
+    }
+
+    /**
+     * Whether any row is held, by a scope or as a follower.
+     * @returns True when {@link LayoutEngine.isHeld} can answer true.
+     */
+    protected get holdsAny(): boolean {
+        return this.hold !== null || this.followers !== null;
     }
 
     /**
@@ -669,6 +715,33 @@ export abstract class LayoutEngine {
 
         positions.read(n.index, out);
         return true;
+    }
+
+    /**
+     * Answer a read of one node from the engine's own coordinates: publish them over the node's
+     * row and read the row back, so a caller reading one node at a time sees what a caller reading
+     * the array in bulk does.
+     *
+     * A READ NEVER PLACES A ROW. A row that is unplaced stays unplaced, and the answer is null: a
+     * step or a placement places it. An engine that keeps coordinates of its own still holds one
+     * for a node whose row undo has just put back to unplaced, and a redraw reading it would
+     * otherwise place the node outside any history step -- at an earlier history position where it
+     * was never placed (issue #582).
+     * @param n - the node read
+     * @param x - the engine's scene-unit x
+     * @param y - the engine's scene-unit y
+     * @param z - the engine's scene-unit z
+     * @returns the node's published coordinates, or null when its row is unplaced or missing
+     */
+    protected publishOnRead(n: Node, x: number, y: number, z: number): Position | null {
+        const out = { x: 0, y: 0, z: 0 };
+        if (!this.readNodePosition(n, out)) {
+            return null;
+        }
+
+        this.writeNodePosition(n, x, y, z);
+        this.readNodePosition(n, out);
+        return out;
     }
 
     /**
@@ -986,6 +1059,29 @@ interface SnapshotReplacement {
 }
 
 /**
+ * Drop the marked items from a list in one pass, keeping the order of the rest, and forget the marks.
+ * @param list - the list, changed in place
+ * @param gone - the items to drop, emptied
+ * @returns the list
+ */
+function compact<T>(list: T[], gone: Set<T>): T[] {
+    if (gone.size === 0) {
+        return list;
+    }
+
+    let kept = 0;
+    for (const item of list) {
+        if (!gone.has(item)) {
+            list[kept++] = item;
+        }
+    }
+
+    list.length = kept;
+    gone.clear();
+    return list;
+}
+
+/**
  * Whether two lists hold the same items in the same order.
  * @param a - one list
  * @param b - the other
@@ -1156,10 +1252,10 @@ function alignToHeld(column: F32, positions: ElementPositions, keep: NodeMask): 
     // alone would pick either; the mirror has to win by more than rounding, or the newcomers of a
     // re-run that already matches (the fixed layout's) would be reflected across the line.
     const tie = 1e-6 * Math.sqrt(spreadFrom * spreadTo);
-    const mirror = Math.hypot(mirrorRe, mirrorIm) > Math.hypot(re, im) + tie;
+    const mirror = detHypot(mirrorRe, mirrorIm) > detHypot(re, im) + tie;
     const turnRe = mirror ? mirrorRe : re;
     const turnIm = mirror ? mirrorIm : im;
-    const length = Math.hypot(turnRe, turnIm);
+    const length = detHypot(turnRe, turnIm);
     const cos = length === 0 ? 1 : turnRe / length;
     const sin = length === 0 ? 0 : turnIm / length;
     const scale = spreadFrom === 0 || spreadTo === 0 ? 1 : Math.sqrt(spreadTo / spreadFrom);
@@ -1219,8 +1315,12 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     }
 
     static type: string;
-    protected _nodes: Node[] = [];
-    protected _edges: Edge[] = [];
+    readonly #nodes: Node[] = [];
+    readonly #edges: Edge[] = [];
+    /** Nodes removed since the list was last read; see {@link StaticLayoutEngine.removeNode}. */
+    readonly #goneNodes = new Set<Node>();
+    /** Edges removed since the list was last read. */
+    readonly #goneEdges = new Set<Edge>();
     stale = true;
     /** What an engine that does not read the protected `graph` computed, keyed by node id, in layout units. */
     positions: Record<string | number, number[]> = {};
@@ -1282,7 +1382,12 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @param n - The node to add
      */
     addNode(n: Node): void {
-        this._nodes.push(n);
+        // A node removed and added back before the list was read goes to the end, as it always has.
+        if (this.#goneNodes.has(n)) {
+            compact(this.#nodes, this.#goneNodes);
+        }
+
+        this.#nodes.push(n);
         this.stale = true;
     }
 
@@ -1291,7 +1396,11 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @param e - The edge to add
      */
     addEdge(e: Edge): void {
-        this._edges.push(e);
+        if (this.#goneEdges.has(e)) {
+            compact(this.#edges, this.#goneEdges);
+        }
+
+        this.#edges.push(e);
         this.stale = true;
     }
 
@@ -1341,14 +1450,16 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
     /**
      * The row of a node named in an option, in the protected `graph`.
      *
-     * A key of an options record is always a string, so a string that misses is tried again as the
-     * number it spells: `{ 1: [...] }` names the node whose id is the number 1.
+     * An integer id may be written either way, and a key of an options record is always a string,
+     * so `{ 1: [...] }` names the node whose id is the number 1 and `1` names node `"1"`.
      * @param id - the node id, or a record key naming one
      * @returns the row, or `INVALID_INDEX` when the graph has no such node
      */
     protected rowOfId(id: string | number): number {
         const { ids } = this.graph;
-        const row = ids.indexOf(id);
+        const row = rowOfEitherSpelling(ids, id);
+        // ponytail: the Number() retry reads " 1", "1e0" and "0x1" as 1 too, which the either-spelling
+        // rule does not; it shipped that way, so dropping it waits for a major.
         return row === INVALID_INDEX && typeof id === "string" && id.trim() !== "" ? ids.indexOf(Number(id)) : row;
     }
 
@@ -1357,12 +1468,18 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @param id - the node id
      * @param what - what the option names, for the message
      * @returns the row
-     * @throws when the graph has no such node
+     * @throws A `GraphtyError` with `E_UNKNOWN_ELEMENT` when the graph has no such node; `details`
+     * carry `kind: "node"`, the `id`, the `option` and the `layout`
      */
     protected requireRow(id: string | number, what: string): number {
         const row = this.rowOfId(id);
         if (row === INVALID_INDEX) {
-            throw new Error(`${what} node ${String(id)} is not in the graph`);
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ELEMENT",
+                message: `${what} node ${String(id)} is not in the graph`,
+                source: "layout",
+                details: { kind: "node", id, option: what, layout: (this.constructor as typeof LayoutEngine).type },
+            });
         }
 
         return row;
@@ -1505,14 +1622,14 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * its data record and its endpoints -- for as long as the engine lives, and the frame loop
      * keeps walking it, so a node the reader deleted still draws at wherever it last was. The
      * layout is marked stale, so the next read recomputes it without the node.
+     *
+     * The node is only marked here, and the list is swept once, in order, at the next read of
+     * `_nodes`. Finding and splicing it out at once cost the length of the list per removal, so
+     * tearing down a graph of n nodes one node at a time cost n^2/2 moves: 8.6 s at 100,000 nodes.
      * @param n - the node leaving the graph
      */
     override removeNode(n: Node): void {
-        const index = this._nodes.indexOf(n);
-        if (index >= 0) {
-            this._nodes.splice(index, 1);
-        }
-
+        this.#goneNodes.add(n);
         this.stale = true;
     }
 
@@ -1521,12 +1638,25 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * @param e - the edge leaving the graph
      */
     override removeEdge(e: Edge): void {
-        const index = this._edges.indexOf(e);
-        if (index >= 0) {
-            this._edges.splice(index, 1);
-        }
-
+        this.#goneEdges.add(e);
         this.stale = true;
+    }
+
+    /**
+     * The nodes this layout holds, in the order they were added, without any removed since the
+     * last read.
+     * @returns the live list
+     */
+    protected get _nodes(): Node[] {
+        return compact(this.#nodes, this.#goneNodes);
+    }
+
+    /**
+     * The edges this layout holds, in the order they were added. See {@link StaticLayoutEngine._nodes}.
+     * @returns the live list
+     */
+    protected get _edges(): Edge[] {
+        return compact(this.#edges, this.#goneEdges);
     }
 
     /**
@@ -1605,7 +1735,18 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
         // An empty graph has nothing to arrange, and an option that names a node -- a bfs start, a
         // radial root -- could only fail on it: a layout chosen before the data arrives waits for it.
         if (this._nodes.length > 0) {
-            this.doLayout();
+            try {
+                this.doLayout();
+            } catch (error) {
+                // A layout that refuses the graph (planar's E_NOT_PLANAR) places nothing: every node
+                // stays where it was, and no later publish puts back the answer it gave an earlier
+                // graph. The refused graph was not laid out, so an add to it is not an add either.
+                this.stale = false;
+                this.#column = new Float32Array(0);
+                this.#keep = null;
+                this.#laidOut = null;
+                throw error;
+            }
         }
 
         // doLayout() clears this itself in every engine that ships here, but an engine written

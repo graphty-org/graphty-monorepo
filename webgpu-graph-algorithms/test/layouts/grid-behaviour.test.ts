@@ -161,6 +161,7 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
 
     for (const name of ["karate", "random1k", "rmat14"] as const satisfies readonly ParityGraph[]) {
         for (const dim of [2, 3] as const) {
+            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 40 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
             it(
                 `(1) repulsion: "grid" on ${name} in ${dim}D: 50 iterations finite, the grid stats, run twice bitwise`,
                 async (t) => {
@@ -219,103 +220,91 @@ describe("FA2 grid tier behaviour (spec 7.7, 7.8, 11.4)", () => {
         }
     });
 
-    it(
-        "(3) deterministic: true is bitwise reproducible through the radix sort; deterministic: false runs the counting sort and is finite",
-        async (t) => {
-            requireGpu(t);
-            const own = await acquire({ label: "grid-behaviour/counting" });
-            const s = paritySnapshot("random1k", gpuScale(), false);
-            try {
-                const start = startPositions(s, BASE_OPTIONS, false);
-                await layoutTwice(ctx, s, start, BASE_OPTIONS, { ...GRID, deterministic: true }, 20, 5);
-                const { positions, stats } = await layout(
-                    own,
-                    s,
-                    start,
-                    BASE_OPTIONS,
-                    { ...GRID, deterministic: false },
-                    20,
-                    5,
-                );
-                expectFinite(positions, "counting sort");
-                expectGridStats(stats, "counting sort");
-                const keys = own.pipelines.keys();
-                expect(
-                    keys.some((k) => k.startsWith("counting-scatter|")),
-                    "the counting path compiled",
-                ).toBe(true);
-                expect(
-                    keys.some((k) => k.startsWith("radix-scatter|")),
-                    "the radix path never compiled",
-                ).toBe(false);
-            } finally {
-                ctx.release(s);
-                own.release(s);
-                own.dispose();
-            }
-        },
-        CASE_TIMEOUT,
-    );
+    it("(3) deterministic: true is bitwise reproducible through the radix sort; deterministic: false runs the counting sort and is finite", async (t) => {
+        requireGpu(t);
+        const own = await acquire({ label: "grid-behaviour/counting" });
+        const s = paritySnapshot("random1k", gpuScale(), false);
+        try {
+            const start = startPositions(s, BASE_OPTIONS, false);
+            await layoutTwice(ctx, s, start, BASE_OPTIONS, { ...GRID, deterministic: true }, 20, 5);
+            const { positions, stats } = await layout(
+                own,
+                s,
+                start,
+                BASE_OPTIONS,
+                { ...GRID, deterministic: false },
+                20,
+                5,
+            );
+            expectFinite(positions, "counting sort");
+            expectGridStats(stats, "counting sort");
+            const keys = own.pipelines.keys();
+            expect(
+                keys.some((k) => k.startsWith("counting-scatter|")),
+                "the counting path compiled",
+            ).toBe(true);
+            expect(
+                keys.some((k) => k.startsWith("radix-scatter|")),
+                "the radix path never compiled",
+            ).toBe(false);
+        } finally {
+            ctx.release(s);
+            own.release(s);
+            own.dispose();
+        }
+    });
 
-    it(
-        "(4) nearMax: 4 on onecell1025 and hubcell is finite; an all-coincident start puts every node in one cell (maxCellOccupancy === n)",
-        async (t) => {
-            requireGpu(t);
-            const tuning: GpuLayoutTuning = { ...GRID, nearMax: 4 };
-            for (const name of ["onecell1025", "hubcell"]) {
-                const { snapshot, positions: start } = positioned(name, gpuScale());
-                try {
-                    const { positions, stats } = await layoutTwice(ctx, snapshot, start, BASE_OPTIONS, tuning, 10, 5);
-                    expectFinite(positions, name);
-                    expectGridStats(stats, name);
-                } finally {
-                    ctx.release(snapshot);
-                }
-            }
-            const karate = paritySnapshot("karate", 1, false);
+    it("(4) nearMax: 4 on onecell1025 and hubcell is finite; an all-coincident start puts every node in one cell (maxCellOccupancy === n)", async (t) => {
+        requireGpu(t);
+        const tuning: GpuLayoutTuning = { ...GRID, nearMax: 4 };
+        for (const name of ["onecell1025", "hubcell"]) {
+            const { snapshot, positions: start } = positioned(name, gpuScale());
             try {
-                const sim = createSim(ctx, BASE_OPTIONS, tuning);
-                try {
-                    const positions = coincidentStart(karate.nodeCount);
-                    sim.load(karate, positions);
-                    // the second K1 reads the first iteration's occupancy max: every node in one finest cell
-                    await sim.step(2);
-                    expect(sim.stats.maxCellOccupancy).toBe(karate.nodeCount);
-                    expect(sim.stats.outsideGrid).toBe(0);
-                    expectFinite(positions, "coincident");
-                } finally {
-                    sim.dispose();
-                }
-            } finally {
-                ctx.release(karate);
-            }
-        },
-        CASE_TIMEOUT,
-    );
-
-    it(
-        "(5) gridMax2D: 32 on random20k (the software saturation case) is finite with an occupancy max",
-        async (t) => {
-            requireGpu(t);
-            const { snapshot, positions: start } = positioned("random20k", gpuScale());
-            try {
-                const { positions, stats } = await layoutTwice(
-                    ctx,
-                    snapshot,
-                    start,
-                    BASE_OPTIONS,
-                    { ...GRID, gridMax2D: 32 },
-                    10,
-                    5,
-                );
-                expectFinite(positions, "random20k G = 32");
-                expectGridStats(stats, "random20k G = 32");
+                const { positions, stats } = await layoutTwice(ctx, snapshot, start, BASE_OPTIONS, tuning, 10, 5);
+                expectFinite(positions, name);
+                expectGridStats(stats, name);
             } finally {
                 ctx.release(snapshot);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        }
+        const karate = paritySnapshot("karate", 1, false);
+        try {
+            const sim = createSim(ctx, BASE_OPTIONS, tuning);
+            try {
+                const positions = coincidentStart(karate.nodeCount);
+                sim.load(karate, positions);
+                // the second K1 reads the first iteration's occupancy max: every node in one finest cell
+                await sim.step(2);
+                expect(sim.stats.maxCellOccupancy).toBe(karate.nodeCount);
+                expect(sim.stats.outsideGrid).toBe(0);
+                expectFinite(positions, "coincident");
+            } finally {
+                sim.dispose();
+            }
+        } finally {
+            ctx.release(karate);
+        }
+    });
+
+    it("(5) gridMax2D: 32 on random20k (the software saturation case) is finite with an occupancy max", async (t) => {
+        requireGpu(t);
+        const { snapshot, positions: start } = positioned("random20k", gpuScale());
+        try {
+            const { positions, stats } = await layoutTwice(
+                ctx,
+                snapshot,
+                start,
+                BASE_OPTIONS,
+                { ...GRID, gridMax2D: 32 },
+                10,
+                5,
+            );
+            expectFinite(positions, "random20k G = 32");
+            expectGridStats(stats, "random20k G = 32");
+        } finally {
+            ctx.release(snapshot);
+        }
+    });
 
     it("(6) setFixed pins a node on the grid tier, setPosition is honoured and reheats, reheat() resets the counters", async (t) => {
         requireGpu(t);

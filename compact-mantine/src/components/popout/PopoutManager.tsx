@@ -16,8 +16,10 @@ export interface PopoutManagerProps {
  * Put one high in the tree, around anything that contains a pop-out. It owns
  * the stacking order, the portal the panels render into, and the dismissal
  * rules they all obey: Escape closes the innermost open panel, a click outside
- * closes them all, opening one panel closes the others at its own level, and
- * closing a panel closes everything opened from it.
+ * closes them all, opening one panel closes the one already open at its level
+ * (one root pop-out on the whole page at a time, as in Figma; a panel opened
+ * from inside an open one is its child and stays), and closing a panel closes
+ * everything opened from it.
  * @param props - Component props
  * @param props.children - The part of the tree that may contain pop-outs
  * @returns The provider that pop-outs inside it coordinate through

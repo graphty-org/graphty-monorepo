@@ -145,8 +145,8 @@ describe("indexed.betweennessCentrality", () => {
 
         it("draws a fixed list for a given (n, k), so a saved k call reruns on the same sources", () => {
             // pinned: a changed seed or draw changes every sampled score a caller has stored
-            expect(resolveSources(6, undefined, 2)).toEqual([2, 1]);
-            expect(resolveSources(10, undefined, 4)).toEqual([3, 1, 7, 9]);
+            expect(resolveSources({ nodeCount: 6 }, undefined, 2)).toEqual([2, 1]);
+            expect(resolveSources({ nodeCount: 10 }, undefined, 4)).toEqual([3, 1, 7, 9]);
         });
 
         it("accepts k equal to the list's length and refuses anything else", () => {

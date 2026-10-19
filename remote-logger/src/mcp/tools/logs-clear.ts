@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-clear
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogStorage } from "../../server/log-storage.js";
 
@@ -47,10 +47,7 @@ export interface LogsClearOutput {
  * @param input - Input parameters
  * @returns Success status and count of cleared sessions
  */
-export function logsClearHandler(
-    storage: LogStorage,
-    input: Partial<LogsClearInput>,
-): Promise<LogsClearOutput> {
+export function logsClearHandler(storage: LogStorage, input: Partial<LogsClearInput>): Promise<LogsClearOutput> {
     // Require explicit confirmation
     if (input.confirm !== true) {
         return Promise.resolve({

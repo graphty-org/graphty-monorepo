@@ -109,8 +109,11 @@ in-neighbours. A negative, NaN or infinite weight throws a `RangeError`.
 
 To hold some nodes at a known community, pass one seed per node to `labelPropagationSemiSupervised`: a label for
 a fixed node, `INVALID_INDEX` for a free one. Seeded nodes never move, seeds with the same label share a community, and
-seeds with different labels never do. The result is renumbered like every partition here, so read a seed's community
-through `labels[seedNode]`.
+seeds with different labels never do. Free nodes start unlabeled, as in igraph's `community_label_propagation` with
+`initial` and `fixed`: a free node takes a label only when one reaches it from a seed, so a single seed per group is
+enough to label every node connected to it. Each connected group of nodes no seed reaches (a component without a seed)
+becomes a community of its own; with no seed at all the result is the connected components. The result is renumbered
+like every partition here, so read a seed's community through `labels[seedNode]`.
 
 <!-- doc-check -->
 

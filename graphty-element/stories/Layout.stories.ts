@@ -15,6 +15,7 @@ import {
     drawn,
     holds,
 } from "./assertions";
+import { data3FixedUrl, data3Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
 
 /**
@@ -218,7 +219,7 @@ const meta: Meta = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
     },
 };
@@ -271,7 +272,7 @@ export const D3: Story = {
     args: {
         setup: storySetup({
             viewMode: "3d",
-            // D3 physics-based layout needs preSteps for Chromatic
+            // D3 physics-based layout needs preSteps for the visual capture
             preSteps: 15000,
         }),
         layout: "d3",
@@ -311,7 +312,7 @@ export const Circular: Story = {
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         setup: storySetup({ viewMode: "3d" }),
         layout: "circular",
@@ -356,7 +357,7 @@ export const Random: Story = {
 export const Spring: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
          * before the first frame is drawn, off the frame clock. Everywhere else the layout
          * animates, one iteration per rendered frame. The picture is the same either way:
          * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
@@ -390,7 +391,7 @@ export const KamadaKawai: Story = {
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         setup: storySetup({ viewMode: "3d" }),
         layout: "kamada-kawai",
@@ -422,10 +423,10 @@ export const ForceAtlas2: Story = {
     args: {
         dataSource: "json", // Add data source
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
         /*
-         * `preSteps` MATCHES `maxIter` BELOW, so under Chromatic the 500 iterations run before the
+         * `preSteps` MATCHES `maxIter` BELOW, so under capture the 500 iterations run before the
          * first frame. Everywhere else the layout animates, and a simulation computes
          * `stepMultiplier` iterations per RENDERED frame -- one, by default -- so 500 iterations
          * would be 500 frames: measured at 33 frames a second in the Storybook test browser, 15.1
@@ -535,7 +536,7 @@ export const Fixed: Story = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3-fixed-positions.json",
+            data: data3FixedUrl,
         },
         layout: "fixed",
         layoutConfig: {

@@ -268,6 +268,7 @@ describe("sabotage coverage of the P4 LAW table (PD-21, PD-22)", () => {
 });
 
 describe("sabotage: the grid far field, near field and K1 grid block against the grid-inspect checks (spec 11.9 item 1)", () => {
+    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on the dev box's RTX 4070 SUPER under load, 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it(
         "the pristine kernels pass every row's check (the baseline the mutants are measured against)",
         async (t) => {
@@ -299,35 +300,27 @@ describe("sabotage: the grid far field, near field and K1 grid block against the
 
     for (const { id, rows } of GRID_ROWS) {
         for (const row of rows) {
-            it(
-                `${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`,
-                async (t) => {
-                    requireGpu(t);
-                    const report = await withSabotage(id, row, (ctx) => checkOf(ctx, row));
-                    console.warn(
-                        `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${id}/${row.name}: fails its check by >= ${row.minFactor}x the tolerance`, async (t) => {
+                requireGpu(t);
+                const report = await withSabotage(id, row, (ctx) => checkOf(ctx, row));
+                console.warn(
+                    `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                );
+                expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
+            });
         }
     }
 
     for (const id of Object.keys(SABOTAGE_P4_LAW) as KernelId[]) {
         for (const row of SABOTAGE_P4_LAW[id] ?? []) {
-            it(
-                `${id}/${row.name} (LAW): fails its check by >= ${row.minFactor}x the tolerance`,
-                async (t) => {
-                    requireGpu(t);
-                    const report = await withSabotage(id, row, lawCheckFor(id, row));
-                    console.warn(
-                        `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
-                    );
-                    expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
-                },
-                CASE_TIMEOUT,
-            );
+            it(`${id}/${row.name} (LAW): fails its check by >= ${row.minFactor}x the tolerance`, async (t) => {
+                requireGpu(t);
+                const report = await withSabotage(id, row, lawCheckFor(id, row));
+                console.warn(
+                    `[sabotage] ${id}/${row.name}: ratio ${report.worst.toExponential(3)} at ${report.worstLabel}`,
+                );
+                expect(report.worst, `${id}/${row.name}: detection factor`).toBeGreaterThanOrEqual(row.minFactor);
+            });
         }
     }
 });

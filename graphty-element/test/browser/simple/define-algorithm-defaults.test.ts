@@ -7,7 +7,7 @@
 
 import "../../../src/graphty-element";
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { defineAlgorithm, type GraphtyError, isGraphtyError } from "../../../extend";
 import type { Graphty } from "../../../index";
@@ -111,6 +111,8 @@ describe("the caveats a run is filled in with", () => {
         assert.strictEqual(run.caveats.iterations, 7);
         assert.isFalse(run.caveats.exact, "stopping at the cap publishes what the run has, marked inexact");
         assert.strictEqual(run.caveats.partialReason, "iteration cap reached");
+        assert.deepStrictEqual(run.caveats.partialCause, { code: "partial.iteration-cap", params: {} });
+        assert.isTrue(run.partial, "a result that stopped at its cap is partial, as its caveats say (#933)");
     });
 
     it("warns when nothing was measured", async () => {
@@ -196,10 +198,8 @@ describe("cancelling a whole-graph function", () => {
         assert.instanceOf(error, DOMException);
         assert.strictEqual(error.name, "AbortError");
         assert.strictEqual(run.status, "canceled");
-        const deadline = Date.now() + 5000;
-        while (!stopped && Date.now() < deadline) {
-            await new Promise((settle) => setTimeout(settle, 10));
-        }
-        assert.isTrue(stopped, "the author's own loop unwound");
+        await vi.waitFor(() => {
+            assert.isTrue(stopped, "the author's own loop unwound");
+        });
     });
 });

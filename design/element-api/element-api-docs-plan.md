@@ -28,15 +28,15 @@ Both fail today, and they fail for the same reason: **the documentation is prose
 written once and never executed, and the machine-readable artifacts are either absent or
 invisible.** The measured evidence:
 
-| Symptom | Evidence |
-|---|---|
-| The quickstart is wrong three ways at once | `graphty-element/docs/guide/getting-started.md` documents `source`/`target` while `graphty-element/src/config/DataConfig.ts:7-8` defaults `edgeSrcIdPath` to `"src"`; it lists `hierarchical` and `grid`, which are not registered; it sets `style-template="dark"`, and `graphty-element/src/graphty-element.ts:1475` takes a `StyleSchema` object |
-| Every documentation link on the npm page is dead | 11 occurrences of `graphty.app/docs/graphty/` in `graphty-element/README.md` (lines 6, 52, 53, 54, 59, 60, 61, 62, 63, 64, 65); that URL is an HTTP 404 that never existed |
-| 32 internal doc links 404 and nobody noticed | `docs/.vitepress/config.ts:40` sets `ignoreDeadLinks: true` |
-| The manifest ships and no tool can find it | `graphty-element/package.json` has no `customElements` key (the exports block is lines 9-15) |
-| There is no machine-readable API description | `graphty-element/typedoc.json` has no `json` or `outputs` key; nothing in the repo emits `docs.json` |
-| The reference documents the wrong surface | `graphty-element/typedoc.json` `entryPoints` names 11 `src/*` files including `./src/managers/index.ts`; the package builds and types `index.ts` (`graphty-element/vite.config.ts:27` `entry: "./index.ts"`, `graphty-element/package.json:8` `"types": "./dist/index.d.ts"`) |
-| 41 MB unpacked for a component | `graphty-element/package.json:23-27` `files: ["dist/", "README.md", "LICENSE"]`, and `dist/` carries every Babylon chunk and 26 MB of sourcemaps |
+| Symptom                                          | Evidence                                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The quickstart is wrong three ways at once       | `graphty-element/docs/guide/getting-started.md` documents `source`/`target` while `graphty-element/src/config/DataConfig.ts:7-8` defaults `edgeSrcIdPath` to `"src"`; it lists `hierarchical` and `grid`, which are not registered; it sets `style-template="dark"`, and `graphty-element/src/graphty-element.ts:1475` takes a `StyleSchema` object |
+| Every documentation link on the npm page is dead | 11 occurrences of `graphty.app/docs/graphty/` in `graphty-element/README.md` (lines 6, 52, 53, 54, 59, 60, 61, 62, 63, 64, 65); that URL is an HTTP 404 that never existed                                                                                                                                                                          |
+| 32 internal doc links 404 and nobody noticed     | `docs/.vitepress/config.ts:40` sets `ignoreDeadLinks: true`                                                                                                                                                                                                                                                                                         |
+| The manifest ships and no tool can find it       | `graphty-element/package.json` has no `customElements` key (the exports block is lines 9-15)                                                                                                                                                                                                                                                        |
+| There is no machine-readable API description     | `graphty-element/typedoc.json` has no `json` or `outputs` key; nothing in the repo emits `docs.json`                                                                                                                                                                                                                                                |
+| The reference documents the wrong surface        | `graphty-element/typedoc.json` `entryPoints` names 11 `src/*` files including `./src/managers/index.ts`; the package builds and types `index.ts` (`graphty-element/vite.config.ts:27` `entry: "./index.ts"`, `graphty-element/package.json:8` `"types": "./dist/index.d.ts"`)                                                                       |
+| 41 MB unpacked for a component                   | `graphty-element/package.json:23-27` `files: ["dist/", "README.md", "LICENSE"]`, and `dist/` carries every Babylon chunk and 26 MB of sourcemaps                                                                                                                                                                                                    |
 
 The plan has nine parts:
 
@@ -144,7 +144,7 @@ Three naming decisions, stated so they are not relitigated:
    gains a version segment at 3.0 breaks every link printed at 2.x, which is the mistake
    this plan exists to stop repeating.
 2. **`/docs/graphty-element/` keeps its name even though the tag becomes `<graphty-element>`
-   in 2.0.** The directory names the *package*; the tag names the *element*. Renaming the
+   in 2.0.** The directory names the _package_; the tag names the _element_. Renaming the
    directory would 404 the only documentation URLs on the site that currently work.
 3. **`/storybook/element/` and `/storybook/app/` keep their paths.** Root `CLAUDE.md:498`
    states the convention as `/storybook/{package}/`, which is wrong for both; the
@@ -175,20 +175,20 @@ const SITE = "https://graphty.app";
 
 // Paths that 1.x READMEs printed and that have no 1:1 successor.
 const ALIASES = {
-    "/docs/graphty/":                          "/docs/graphty-element/",
-    "/docs/graphty/api/":                      "/docs/graphty-element/API",
-    "/docs/graphty/guide/getting-started":     "/docs/graphty-element/quickstart",
-    "/docs/graphty/guide/installation":        "/docs/graphty-element/guide/install",
-    "/docs/graphty/guide/camera":              "/docs/graphty-element/guide/camera",
-    "/docs/graphty/guide/layouts":             "/docs/graphty-element/guide/layouts",
-    "/docs/graphty/guide/styling":             "/docs/graphty-element/guide/styling",
-    "/docs/graphty/guide/events":              "/docs/graphty-element/guide/events",
-    "/docs/graphty/guide/extending/":          "/docs/graphty-element/guide/extending/algorithm",
-    "/docs/graphty/guide/algorithms":          "/docs/graphty-element/guide/algorithms",
-    "/docs/graphty/guide/vr-ar":               "/docs/graphty-element/guide/camera",
-    "/docs/guide/web-component":               "/docs/graphty-element/reference/element",
-    "/docs/guide/events":                      "/docs/graphty-element/reference/events",
-    "/docs/api/javascript":                    "/docs/graphty-element/API",
+    "/docs/graphty/": "/docs/graphty-element/",
+    "/docs/graphty/api/": "/docs/graphty-element/API",
+    "/docs/graphty/guide/getting-started": "/docs/graphty-element/quickstart",
+    "/docs/graphty/guide/installation": "/docs/graphty-element/guide/install",
+    "/docs/graphty/guide/camera": "/docs/graphty-element/guide/camera",
+    "/docs/graphty/guide/layouts": "/docs/graphty-element/guide/layouts",
+    "/docs/graphty/guide/styling": "/docs/graphty-element/guide/styling",
+    "/docs/graphty/guide/events": "/docs/graphty-element/guide/events",
+    "/docs/graphty/guide/extending/": "/docs/graphty-element/guide/extending/algorithm",
+    "/docs/graphty/guide/algorithms": "/docs/graphty-element/guide/algorithms",
+    "/docs/graphty/guide/vr-ar": "/docs/graphty-element/guide/camera",
+    "/docs/guide/web-component": "/docs/graphty-element/reference/element",
+    "/docs/guide/events": "/docs/graphty-element/reference/events",
+    "/docs/api/javascript": "/docs/graphty-element/API",
 };
 
 function stub(to, note) {
@@ -220,9 +220,10 @@ async function walk(dir, base) {
     return out;
 }
 
-const NOTE = "graphty-element documentation lives at /docs/graphty-element/. " +
-             "The /docs/graphty/ path was never valid and is kept only so that links " +
-             "printed in the 1.x npm README resolve.";
+const NOTE =
+    "graphty-element documentation lives at /docs/graphty-element/. " +
+    "The /docs/graphty/ path was never valid and is kept only so that links " +
+    "printed in the 1.x npm README resolve.";
 
 const from = join(PUBLIC, "docs", "graphty-element");
 for (const rel of await walk(from, from)) {
@@ -243,8 +244,8 @@ Wired into `.github/workflows/deploy-pages.yml`, immediately after the
 "Unified docs (/docs/)" copy block (currently lines 120-127):
 
 ```yaml
-            - name: Build redirect stubs for historical npm links
-              run: node tools/build-redirects.mjs ./public
+- name: Build redirect stubs for historical npm links
+  run: node tools/build-redirects.mjs ./public
 ```
 
 **Second safety net: a real 404 page.** GitHub Pages serves `/404.html` from the site root
@@ -255,28 +256,38 @@ placed at `./public/404.html` by the assembly step so it covers the whole origin
 ```html
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8"><title>Page not found - graphty.app</title>
-<script>
-  // Rescue the one path shape that 1.x READMEs printed.
-  var p = location.pathname;
-  if (p.indexOf("/docs/graphty/") === 0) {
-    location.replace(p.replace("/docs/graphty/", "/docs/graphty-element/") + location.hash);
-  }
-</script>
-<style>body{font:16px/1.6 system-ui,sans-serif;max-width:40rem;margin:4rem auto;padding:0 1rem}</style>
-</head>
-<body>
-<h1>Page not found</h1>
-<p>Try one of these:</p>
-<ul>
-  <li><a href="/docs/graphty-element/">graphty-element documentation</a></li>
-  <li><a href="/docs/graphty-element/quickstart">Quickstart</a></li>
-  <li><a href="/docs/graphty-element/API">The whole API on one page</a></li>
-  <li><a href="/docs/">All packages</a></li>
-  <li><a href="/storybook/element/">Storybook examples</a></li>
-</ul>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <title>Page not found - graphty.app</title>
+        <script>
+            // Rescue the one path shape that 1.x READMEs printed.
+            var p = location.pathname;
+            if (p.indexOf("/docs/graphty/") === 0) {
+                location.replace(p.replace("/docs/graphty/", "/docs/graphty-element/") + location.hash);
+            }
+        </script>
+        <style>
+            body {
+                font:
+                    16px/1.6 system-ui,
+                    sans-serif;
+                max-width: 40rem;
+                margin: 4rem auto;
+                padding: 0 1rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Page not found</h1>
+        <p>Try one of these:</p>
+        <ul>
+            <li><a href="/docs/graphty-element/">graphty-element documentation</a></li>
+            <li><a href="/docs/graphty-element/quickstart">Quickstart</a></li>
+            <li><a href="/docs/graphty-element/API">The whole API on one page</a></li>
+            <li><a href="/docs/">All packages</a></li>
+            <li><a href="/storybook/element/">Storybook examples</a></li>
+        </ul>
+    </body>
 </html>
 ```
 
@@ -286,13 +297,13 @@ anything else that rots. Neither costs a build step worth measuring.
 
 ### 1.4 Paths that must stop 404ing, and how
 
-| Path | Cause | Fix |
-|---|---|---|
-| `/docs/graphty/**` | never existed; stale comment at `deploy-pages.yml:98` seeded it | the redirect stubs above, plus the README corrections in the fix list below |
-| `/docs/layout/` | `layout/docs` does not exist, so `tools/copy-docs-content.js` skips it and VitePress emits no index; `docs/.vitepress/config.ts:58` and `:70` (the two nav entries), the whole `"/layout/"` sidebar block at `:170-199`, and the documentation badge at `README.md:37` link to it | create `layout/docs/index.md` (a hero page plus a link to the generated API), which is the smaller change than deleting two nav entries, a sidebar block and a README badge |
-| `/storybook/compact-mantine/` | `ci.yml:221-223` uploads `build-storybook-compact-mantine`; `deploy-pages.yml` has no matching download | add the download and copy steps (fix list below) |
-| `/docs/guide/**`, `/docs/api/**` (32 links) | `graphty-element/docs/**` uses root-relative `/guide/...` under `base: "/docs/"` | rewrite the links relative to the package root and set `ignoreDeadLinks: false` (fix list below) |
-| `/data/**` | never existed, and nothing in `deploy-pages.yml` writes it, yet documentation examples fetch from it. Verified 2026-09-19: `https://graphty.app/data/karate.json` and `https://graphty.app/data/lesmis.graphml` both return **404** while `https://graphty.app/` and `https://graphty.app/docs/graphty-element/` return 200 | publish the fixture files the docs fetch, from `graphty-element/examples/data/` (`miserables.json`, `blocks.json` today), plus one file per built-in sample dataset emitted at build (fix list below) |
+| Path                                        | Cause                                                                                                                                                                                                                                                                                                                       | Fix                                                                                                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/docs/graphty/**`                          | never existed; stale comment at `deploy-pages.yml:98` seeded it                                                                                                                                                                                                                                                             | the redirect stubs above, plus the README corrections in the fix list below                                                                                                                           |
+| `/docs/layout/`                             | `layout/docs` does not exist, so `tools/copy-docs-content.js` skips it and VitePress emits no index; `docs/.vitepress/config.ts:58` and `:70` (the two nav entries), the whole `"/layout/"` sidebar block at `:170-199`, and the documentation badge at `README.md:37` link to it                                           | create `layout/docs/index.md` (a hero page plus a link to the generated API), which is the smaller change than deleting two nav entries, a sidebar block and a README badge                           |
+| `/storybook/compact-mantine/`               | `ci.yml:221-223` uploads `build-storybook-compact-mantine`; `deploy-pages.yml` has no matching download                                                                                                                                                                                                                     | add the download and copy steps (fix list below)                                                                                                                                                      |
+| `/docs/guide/**`, `/docs/api/**` (32 links) | `graphty-element/docs/**` uses root-relative `/guide/...` under `base: "/docs/"`                                                                                                                                                                                                                                            | rewrite the links relative to the package root and set `ignoreDeadLinks: false` (fix list below)                                                                                                      |
+| `/data/**`                                  | never existed, and nothing in `deploy-pages.yml` writes it, yet documentation examples fetch from it. Verified 2026-09-19: `https://graphty.app/data/karate.json` and `https://graphty.app/data/lesmis.graphml` both return **404** while `https://graphty.app/` and `https://graphty.app/docs/graphty-element/` return 200 | publish the fixture files the docs fetch, from `graphty-element/examples/data/` (`miserables.json`, `blocks.json` today), plus one file per built-in sample dataset emitted at build (fix list below) |
 
 ---
 
@@ -365,13 +376,13 @@ Change: add a download step after the layout Storybook download (currently lines
 a copy block in the assembly step:
 
 ```yaml
-            - name: Download compact-mantine Storybook
-              uses: actions/download-artifact@v4
-              with:
-                  name: build-storybook-compact-mantine
-                  path: ./compact-mantine/storybook-static/
-                  run-id: ${{ github.event.workflow_run.id }}
-                  github-token: ${{ secrets.GITHUB_TOKEN }}
+- name: Download compact-mantine Storybook
+  uses: actions/download-artifact@v4
+  with:
+      name: build-storybook-compact-mantine
+      path: ./compact-mantine/storybook-static/
+      run-id: ${{ github.event.workflow_run.id }}
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ```bash
@@ -391,7 +402,7 @@ Change: set `ignoreDeadLinks: false`, then fix the links it reports. The pattern
 package is mounted at `/docs/graphty-element/` (the site `base` is `/docs/` at
 `docs/.vitepress/config.ts:39`, and `tools/copy-docs-content.js` puts the package under
 `docs/graphty-element/`). Rewrite each as `/graphty-element/guide/x` -- VitePress prefixes
-`base` itself, so the link must be site-relative *without* `/docs/`, exactly as the nav
+`base` itself, so the link must be site-relative _without_ `/docs/`, exactly as the nav
 entries at `config.ts:56-58` already are.
 This is the single change that makes the dead-link class impossible to reintroduce.
 
@@ -399,9 +410,9 @@ This is the single change that makes the dead-link class impossible to reintrodu
 File: `.github/workflows/ci.yml:131-133`:
 
 ```yaml
-            - name: Build docs
-              if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-              run: npm run docs:build
+- name: Build docs
+  if: github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+  run: npm run docs:build
 ```
 
 Change: drop the `if:` from the build step so every PR builds the docs (which, once dead
@@ -563,29 +574,29 @@ audiences the 2.0 API is written for -- a person putting a graph on a page, an a
 developer embedding it, a coding agent generating calls, and an extension author -- in the
 order they arrive.
 
-| # | Page | The question it answers | Longest a reader should spend |
-|---|---|---|---|
-| 1 | `index.md` | What is this and what does it look like? | 60 seconds |
-| 2 | `quickstart.md` | Can I get a graph on my page right now? | 5 minutes |
-| 3 | `guide/install.md` | npm, CDN, bundler, peer deps, sizing, CSP, SSR | 5 minutes |
-| 4 | `guide/data.md` | What shape is my data, and how do I load a file? | 10 minutes |
-| 5 | `guide/algorithms.md` | How do I measure the graph, and what does a `Run` give me? | 10 minutes |
-| 6 | `guide/styling.md` | How do I colour and size things by what I measured? | 10 minutes |
-| 7 | `guide/layouts.md` | How do I arrange it, and which layout should I pick? | 5 minutes |
-| 8 | `guide/selection.md` | How do I select, and how do my UI and the graph stay in sync? | 5 minutes |
-| 9 | `guide/filters.md` | How do I hide things, including over time? | 5 minutes |
-| 10 | `guide/events.md` | What fires, when, and what is in `detail`? | 5 minutes |
-| 11 | `guide/camera.md` | How do I move the camera and bookmark a view? | 5 minutes |
-| 12 | `guide/export.md` | How do I get a PNG, a CSV, a video, a report out? | 5 minutes |
-| 13 | `guide/acceleration.md` | How do I turn on the GPU, and how do I tell if it is on? | 3 minutes |
-| 14 | `guide/frameworks/*` | How do I use this in React / Vue / Svelte / Angular / plain HTML? | 5 minutes |
-| 15 | `guide/headless.md` | How do I run this with no screen, and how does Compare work? | 10 minutes |
-| 16 | `guide/commands.md` | How do I record, replay, undo and script what I did? | 10 minutes |
-| 17 | `guide/troubleshooting.md` | It is blank / has no edges / is slow / throws | as needed |
-| 18 | `guide/extending/*` | How do I add my own algorithm, layout, format, scale, palette? | as needed |
-| 19 | `recipes/*` | One concrete task, copy-pasteable | as needed |
-| 20 | `reference/*`, `API.md` | Exactly what exists | as needed |
-| 21 | `migration/v1-to-v2.md` | I am on 1.x; what changed and what do I type instead? | as needed |
+| #   | Page                       | The question it answers                                           | Longest a reader should spend |
+| --- | -------------------------- | ----------------------------------------------------------------- | ----------------------------- |
+| 1   | `index.md`                 | What is this and what does it look like?                          | 60 seconds                    |
+| 2   | `quickstart.md`            | Can I get a graph on my page right now?                           | 5 minutes                     |
+| 3   | `guide/install.md`         | npm, CDN, bundler, peer deps, sizing, CSP, SSR                    | 5 minutes                     |
+| 4   | `guide/data.md`            | What shape is my data, and how do I load a file?                  | 10 minutes                    |
+| 5   | `guide/algorithms.md`      | How do I measure the graph, and what does a `Run` give me?        | 10 minutes                    |
+| 6   | `guide/styling.md`         | How do I colour and size things by what I measured?               | 10 minutes                    |
+| 7   | `guide/layouts.md`         | How do I arrange it, and which layout should I pick?              | 5 minutes                     |
+| 8   | `guide/selection.md`       | How do I select, and how do my UI and the graph stay in sync?     | 5 minutes                     |
+| 9   | `guide/filters.md`         | How do I hide things, including over time?                        | 5 minutes                     |
+| 10  | `guide/events.md`          | What fires, when, and what is in `detail`?                        | 5 minutes                     |
+| 11  | `guide/camera.md`          | How do I move the camera and bookmark a view?                     | 5 minutes                     |
+| 12  | `guide/export.md`          | How do I get a PNG, a CSV, a video, a report out?                 | 5 minutes                     |
+| 13  | `guide/acceleration.md`    | How do I turn on the GPU, and how do I tell if it is on?          | 3 minutes                     |
+| 14  | `guide/frameworks/*`       | How do I use this in React / Vue / Svelte / Angular / plain HTML? | 5 minutes                     |
+| 15  | `guide/headless.md`        | How do I run this with no screen, and how does Compare work?      | 10 minutes                    |
+| 16  | `guide/commands.md`        | How do I record, replay, undo and script what I did?              | 10 minutes                    |
+| 17  | `guide/troubleshooting.md` | It is blank / has no edges / is slow / throws                     | as needed                     |
+| 18  | `guide/extending/*`        | How do I add my own algorithm, layout, format, scale, palette?    | as needed                     |
+| 19  | `recipes/*`                | One concrete task, copy-pasteable                                 | as needed                     |
+| 20  | `reference/*`, `API.md`    | Exactly what exists                                               | as needed                     |
+| 21  | `migration/v1-to-v2.md`    | I am on 1.x; what changed and what do I type instead?             | as needed                     |
 
 Four ordering rules that the current set violates and this one obeys:
 
@@ -598,7 +609,7 @@ Four ordering rules that the current set violates and this one obeys:
    being possible.
 3. **The reference is separate from the guide.** The guide teaches and may be selective; the
    reference is generated and is exhaustive. Today `api/web-component.md` is a hand-written
-   table that is the *only* place in the docs that states the `src`/`dst` defaults
+   table that is the _only_ place in the docs that states the `src`/`dst` defaults
    correctly, and it is drifting from the code by construction.
 4. **One page per question, and the page title is the question where it can be.** This is
    what makes the `llms.txt` index useful: an agent picking one 6 KB page out of a list picks
@@ -607,7 +618,7 @@ Four ordering rules that the current set violates and this one obeys:
 ### 3.2 What each page must contain that no page contains today
 
 - **`index.md`**: one image of a rendered graph, the install line, and the 20-line
-  first-graph example from the API design *inline on the page*. The current root README
+  first-graph example from the API design _inline on the page_. The current root README
   contains no code at all -- not one fenced block, no `npm install`, no element snippet.
 - **`guide/install.md`**: the explicit sentence that the element needs a height
   (`display:block; height:...`), because a zero-height custom element renders a blank page
@@ -616,7 +627,7 @@ Four ordering rules that the current set violates and this one obeys:
   `graphty-element/examples/basic.html:24-30` currently does; the `exports` map as a table of
   what is Node-safe; CSP notes; SSR (`./session` runs in Node, `.` does not).
 - **`guide/data.md`**: the record shapes, `source`/`target` as canonical with `src`/`dst` and
-  `from`/`to` accepted and *reported*, the two-phase `inspect()` then `import()` flow, and
+  `from`/`to` accepted and _reported_, the two-phase `inspect()` then `import()` flow, and
   `data.samples()` so a reader has a graph before they have a file.
 - **`guide/events.md`**: the contract sentence verbatim -- **every declared event is emitted,
   and every emitted event is subscribable** -- followed by the generated table. Today four
@@ -654,11 +665,9 @@ responding to clicks, and exported as a PNG. Five minutes, no build step require
 The fastest path is a script tag. Nothing to install, nothing to configure.
 
 ```html test=browser name=quickstart-cdn
-<script type="module"
-        src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js"></script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js"></script>
 
-<graphty-element id="g" sample="karate"
-               style="display: block; height: 480px"></graphty-element>
+<graphty-element id="g" sample="karate" style="display: block; height: 480px"></graphty-element>
 ```
 
 That is a working graph. Two things in it are load-bearing:
@@ -684,19 +693,19 @@ Set the `data` property. Nodes need an `id`; edges need a `source` and a `target
 const g = document.getElementById("g");
 
 g.data = {
-  nodes: [
-    { id: "ada",    role: "engineer" },
-    { id: "grace",  role: "engineer" },
-    { id: "katherine", role: "mathematician" },
-  ],
-  edges: [
-    { source: "ada",   target: "grace" },
-    { source: "grace", target: "katherine" },
-    { source: "katherine", target: "ada" },
-  ],
+    nodes: [
+        { id: "ada", role: "engineer" },
+        { id: "grace", role: "engineer" },
+        { id: "katherine", role: "mathematician" },
+    ],
+    edges: [
+        { source: "ada", target: "grace" },
+        { source: "grace", target: "katherine" },
+        { source: "katherine", target: "ada" },
+    ],
 };
 
-await g.ready;   // resolves once the engine is up, the data is in, and the first layout ran
+await g.ready; // resolves once the engine is up, the data is in, and the first layout ran
 ```
 
 ::: warning Edge field names
@@ -716,18 +725,20 @@ Point `src` at a URL, or hand `load()` a `File` from an `<input type="file">`. T
 sniffs the format; twelve are built in (see [Formats](./reference/formats.md)).
 
 ```html test=browser name=quickstart-src
-<graphty-element src="https://graphty.app/data/miserables.json"
-               layout="force"
-               style="display: block; height: 480px"></graphty-element>
+<graphty-element
+    src="https://graphty.app/data/miserables.json"
+    layout="force"
+    style="display: block; height: 480px"
+></graphty-element>
 ```
 
 ```js test=browser name=quickstart-load
 const report = await g.load(fileInput.files[0], undefined, {
-  onProgress: (p) => console.log(p.fraction),
+    onProgress: (p) => console.log(p.fraction),
 });
 
-console.log(report.counts);   // { nodes, edges, selfLoops, repeatedEdges, isolatedNodes, ... }
-console.log(report.quality);  // 0..100
+console.log(report.counts); // { nodes, edges, selfLoops, repeatedEdges, isolatedNodes, ... }
+console.log(report.quality); // 0..100
 for (const issue of report.issues) console.warn(issue.severity, issue.message);
 ```
 
@@ -740,25 +751,25 @@ If you want to see and correct the column mapping before committing, that is
 progress, a cancel button and a result. Awaiting it gives you the result.
 
 ```js test=browser name=quickstart-run
-const run = g.run("betweenness");        // bind the Run. Do NOT write `await g.run(...)`
-                                         // here: that gives you the RunResult, and the
-                                         // encode() in step 5 wants the Run.
-console.log(run.id, run.label);          // "betweenness", "Betweenness"
-console.log(run.progress.fraction);      // 0..1, or null while indeterminate
+const run = g.run("betweenness"); // bind the Run. Do NOT write `await g.run(...)`
+// here: that gives you the RunResult, and the
+// encode() in step 5 wants the Run.
+console.log(run.id, run.label); // "betweenness", "Betweenness"
+console.log(run.progress.fraction); // 0..1, or null while indeterminate
 
-const result = await run;                // awaiting the Run gives the RunResult
-console.log(result.summary().top[0]);    // { id, value, rank, percentile }
-console.log(result.reading());           // a plain-language sentence about what it found
-console.log(result.caveats.exact);       // false if the element sampled because the graph
-                                         // was above config.exactComputationCap
+const result = await run; // awaiting the Run gives the RunResult
+console.log(result.summary().top[0]); // { id, value, rank, percentile }
+console.log(result.reading()); // a plain-language sentence about what it found
+console.log(result.caveats.exact); // false if the element sampled because the graph
+// was above config.exactComputationCap
 ```
 
-Everything the element can run, with cost estimates for *this* graph on *this* machine, is
+Everything the element can run, with cost estimates for _this_ graph on _this_ machine, is
 in `session.catalog.metrics()` -- including the ones you have not run yet:
 
 ```js test=browser name=quickstart-catalog
 for (const m of g.session.catalog.metrics()) {
-  console.log(m.plainName, m.available, m.costClass, m.estimateSeconds.toFixed(1) + "s");
+    console.log(m.plainName, m.available, m.costClass, m.estimateSeconds.toFixed(1) + "s");
 }
 ```
 
@@ -768,7 +779,7 @@ button on it:
 ```js test=browser name=quickstart-estimate
 const cost = g.session.estimate({ op: "algo.run", algorithm: "betweenness" });
 if (cost.seconds > 5) {
-  console.log(`This will take about ${cost.seconds.toFixed(0)} s (${cost.basis})`);
+    console.log(`This will take about ${cost.seconds.toFixed(0)} s (${cost.basis})`);
 }
 ```
 
@@ -779,11 +790,11 @@ It is the one path an analysis layer takes.
 
 ```js test=browser name=quickstart-encode
 const layer = await g.encode({
-  run,                       // the Run from step 4 (a RunResult or a run id also work)
-  channel: "node.color",
-  palette: "viridis",
-  scale: "sqrt",             // betweenness has zeros; under "log" those take the
-                             // `missing` branch and are counted in the legend's departures
+    run, // the Run from step 4 (a RunResult or a run id also work)
+    channel: "node.color",
+    palette: "viridis",
+    scale: "sqrt", // betweenness has zeros; under "log" those take the
+    // `missing` branch and are counted in the legend's departures
 });
 
 const layer2 = await g.encode({ run, channel: "node.size", scale: "sqrt" });
@@ -800,8 +811,8 @@ The legend is derived, never written:
 
 ```js test=browser name=quickstart-legend
 for (const block of g.session.styles.legend()) {
-  console.log(block.channel, block.field.plainName, block.scale.label, block.swatches);
-  console.log(block.departures);   // "clamped at p2/p98", "not measured (312 nodes)"
+    console.log(block.channel, block.field.plainName, block.scale.label, block.swatches);
+    console.log(block.departures); // "clamped at p2/p98", "not measured (312 nodes)"
 }
 ```
 
@@ -819,13 +830,13 @@ Every DOM event is `graphty-` prefixed, bubbles, is composed, and has a serialis
 
 ```js test=browser name=quickstart-events
 const off = g.on("graphty-node-click", (e) => {
-  console.log(e.detail.id, e.detail.node, e.detail.results);
+    console.log(e.detail.id, e.detail.node, e.detail.results);
 });
 
 // plain addEventListener works too, and is typed in TypeScript:
 g.addEventListener("graphty-node-click", (e) => console.log(e.detail.id));
 
-off();   // unsubscribe
+off(); // unsubscribe
 ```
 
 The full list is in the [Events reference](./reference/events.md). The contract: **every
@@ -850,44 +861,42 @@ evidence.
 
 ```html test=browser name=quickstart-complete
 <!doctype html>
-<meta charset="utf-8">
-<script type="module"
-        src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js"></script>
+<meta charset="utf-8" />
+<script type="module" src="https://cdn.jsdelivr.net/npm/@graphty/graphty-element@2/dist/graphty.bundle.js"></script>
 
-<graphty-element id="g" sample="karate" layout="force"
-               style="display: block; height: 70vh"></graphty-element>
+<graphty-element id="g" sample="karate" layout="force" style="display: block; height: 70vh"></graphty-element>
 <p id="bar"></p>
 
 <script type="module">
-  const g = document.getElementById("g");
-  const bar = document.getElementById("bar");
+    const g = document.getElementById("g");
+    const bar = document.getElementById("bar");
 
-  await g.ready;
+    await g.ready;
 
-  const run = g.run("betweenness");     // a Run; awaiting it gives the RunResult
-  await run;
-  await g.encode({ run, channel: "node.color", palette: "viridis", scale: "sqrt" });
-  await g.encode({ run, channel: "node.size", scale: "sqrt" });
+    const run = g.run("betweenness"); // a Run; awaiting it gives the RunResult
+    await run;
+    await g.encode({ run, channel: "node.color", palette: "viridis", scale: "sqrt" });
+    await g.encode({ run, channel: "node.size", scale: "sqrt" });
 
-  g.on("graphty-node-click", (e) => {
-    const v = e.detail.results[run.id]?.value;
-    bar.textContent = `${e.detail.id}: betweenness ${v?.toFixed(4) ?? "-"}`;
-  });
+    g.on("graphty-node-click", (e) => {
+        const v = e.detail.results[run.id]?.value;
+        bar.textContent = `${e.detail.id}: betweenness ${v?.toFixed(4) ?? "-"}`;
+    });
 
-  const png = await g.capture({ format: "png", scale: 2, legend: true });
-  console.log(`${png.width}x${png.height}, ${(png.bytes / 1e6).toFixed(1)} MB`);
+    const png = await g.capture({ format: "png", scale: 2, legend: true });
+    console.log(`${png.width}x${png.height}, ${(png.bytes / 1e6).toFixed(1)} MB`);
 </script>
 ```
 
 ## It did not work
 
-| What you see | Why | Fix |
-|---|---|---|
-| A blank page, no errors | the element has no height | `style="display:block; height:480px"` |
-| Nodes but no edges, and an error in the console | the endpoint columns were not recognised | the error's `details.columns` lists what was found; pass an `ImportPlan` -- see [Data](./guide/data.md#two-phase-load) |
-| `[object Object]` in a console error naming a property | a framework set a rich value as an HTML attribute before the element upgraded | set it as a property, or import the element eagerly -- see [React](./guide/frameworks/react.md) |
-| `E_NO_ACCELERATOR` | you set `acceleration="required"` and there is no GPU | read `session.capabilities.acceleration.reason`; drop to `"auto"` |
-| It renders but drags | the graph is above the render ceiling; the element is in performance mode | `g.rendered.performanceMode.reasons` says why -- see [Troubleshooting](./guide/troubleshooting.md) |
+| What you see                                           | Why                                                                           | Fix                                                                                                                    |
+| ------------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| A blank page, no errors                                | the element has no height                                                     | `style="display:block; height:480px"`                                                                                  |
+| Nodes but no edges, and an error in the console        | the endpoint columns were not recognised                                      | the error's `details.columns` lists what was found; pass an `ImportPlan` -- see [Data](./guide/data.md#two-phase-load) |
+| `[object Object]` in a console error naming a property | a framework set a rich value as an HTML attribute before the element upgraded | set it as a property, or import the element eagerly -- see [React](./guide/frameworks/react.md)                        |
+| `E_NO_ACCELERATOR`                                     | you set `acceleration="required"` and there is no GPU                         | read `session.capabilities.acceleration.reason`; drop to `"auto"`                                                      |
+| It renders but drags                                   | the graph is above the render ceiling; the element is in performance mode     | `g.rendered.performanceMode.reasons` says why -- see [Troubleshooting](./guide/troubleshooting.md)                     |
 
 ## Next
 
@@ -913,34 +922,34 @@ Three properties of that page worth naming, because they are what the current pa
 A recipe is one page, one task, one copy-pasteable block, tested like everything else. The
 order is by how often the question comes up, not by API area.
 
-| # | `recipes/<file>.md` -- the title is the question | Primary API |
-|---|---|---|
-| 1 | How do I load a CSV / GraphML / GEXF file? | `data.inspect` + `data.import` |
-| 2 | How do I colour nodes by a property? | `styles.encode` with `by: "data.x"` |
-| 3 | How do I colour nodes by a metric I computed? | `run()` + `encode({ run })` |
-| 4 | How do I handle a click and show my own panel? | `graphty-node-click`, `data.neighbors` |
-| 5 | How do I render 100,000 nodes without freezing the tab? | `acceleration`, `status.loading`, `view.rendered` |
-| 6 | How do I search for a node and select it? | `data.find`, `selection.set`, `camera.zoomToNodes` |
-| 7 | How do I hide everything except what matters? | `visibility.set(filter)`, `scope.count` |
-| 8 | How do I find communities and label them? | `run("louvain")`, `encode`, `styles.legend` |
-| 9 | How do I find the path between two nodes? | `run("shortest-path", { from, to })`, `kind: "highlight"` |
-| 10 | How do I export a PNG with a legend for a slide? | `plan({op:"view.capture"})`, `capture({legend:true})` |
-| 11 | How do I export my results as CSV? | `data.export("csv", { include: { results: "all" } })` |
-| 12 | How do I use this in React? | `./react`, or React 19 props |
-| 13 | How do I turn on WebGPU, and how do I know it is on? | `import ".../webgpu"`, `capabilities.acceleration` |
-| 14 | How do I expand a neighbourhood one hop at a time? | `data.expand`, `plan()` preview, `data.collapse` |
-| 15 | How do I save a view and come back to it? | `camera.bookmark`, `positions.snapshot`, `styles.toDocument` |
-| 16 | How do I undo a change? | `MutationReceipt.inverse`, `session.run(inverse)` |
-| 17 | How do I record what I did and replay it on another file? | `journal.export`, `journal.replay({ onData })` |
-| 18 | How do I compare two graphs side by side? | two views one session; `createComparison` |
-| 19 | How do I show a progress bar and a cancel button? | `Run.progress`, `Run.cancel`, `graphty-run-change` |
-| 20 | How do I step through time? | `visibility.window`, `visibility.steps` |
-| 21 | How do I merge duplicate nodes? | `data.apply({kind:"merge-nodes"})`, `plan()` preview |
-| 22 | How do I compute a new attribute from existing ones? | `data.compute(name, formula)` |
-| 23 | How do I add my own algorithm? | `defineAlgorithm` + `use` |
-| 24 | How do I add my own file format? | `defineFormat` + `./io/*` |
-| 25 | How do I run this in a test with no browser? | `createGraphSession` from `./session` |
-| 26 | How do I generate a report? | `report({ format: "pdf", sections })` |
+| #   | `recipes/<file>.md` -- the title is the question          | Primary API                                                  |
+| --- | --------------------------------------------------------- | ------------------------------------------------------------ |
+| 1   | How do I load a CSV / GraphML / GEXF file?                | `data.inspect` + `data.import`                               |
+| 2   | How do I colour nodes by a property?                      | `styles.encode` with `by: "data.x"`                          |
+| 3   | How do I colour nodes by a metric I computed?             | `run()` + `encode({ run })`                                  |
+| 4   | How do I handle a click and show my own panel?            | `graphty-node-click`, `data.neighbors`                       |
+| 5   | How do I render 100,000 nodes without freezing the tab?   | `acceleration`, `status.loading`, `view.rendered`            |
+| 6   | How do I search for a node and select it?                 | `data.find`, `selection.set`, `camera.zoomToNodes`           |
+| 7   | How do I hide everything except what matters?             | `visibility.set(filter)`, `scope.count`                      |
+| 8   | How do I find communities and label them?                 | `run("louvain")`, `encode`, `styles.legend`                  |
+| 9   | How do I find the path between two nodes?                 | `run("shortest-path", { from, to })`, `kind: "highlight"`    |
+| 10  | How do I export a PNG with a legend for a slide?          | `plan({op:"view.capture"})`, `capture({legend:true})`        |
+| 11  | How do I export my results as CSV?                        | `data.export("csv", { include: { results: "all" } })`        |
+| 12  | How do I use this in React?                               | `./react`, or React 19 props                                 |
+| 13  | How do I turn on WebGPU, and how do I know it is on?      | `import ".../webgpu"`, `capabilities.acceleration`           |
+| 14  | How do I expand a neighbourhood one hop at a time?        | `data.expand`, `plan()` preview, `data.collapse`             |
+| 15  | How do I save a view and come back to it?                 | `camera.bookmark`, `positions.snapshot`, `styles.toDocument` |
+| 16  | How do I undo a change?                                   | `MutationReceipt.inverse`, `session.run(inverse)`            |
+| 17  | How do I record what I did and replay it on another file? | `journal.export`, `journal.replay({ onData })`               |
+| 18  | How do I compare two graphs side by side?                 | two views one session; `createComparison`                    |
+| 19  | How do I show a progress bar and a cancel button?         | `Run.progress`, `Run.cancel`, `graphty-run-change`           |
+| 20  | How do I step through time?                               | `visibility.window`, `visibility.steps`                      |
+| 21  | How do I merge duplicate nodes?                           | `data.apply({kind:"merge-nodes"})`, `plan()` preview         |
+| 22  | How do I compute a new attribute from existing ones?      | `data.compute(name, formula)`                                |
+| 23  | How do I add my own algorithm?                            | `defineAlgorithm` + `use`                                    |
+| 24  | How do I add my own file format?                          | `defineFormat` + `./io/*`                                    |
+| 25  | How do I run this in a test with no browser?              | `createGraphSession` from `./session`                        |
+| 26  | How do I generate a report?                               | `report({ format: "pdf", sections })`                        |
 
 Each recipe page is the same five sections, so a reader who has read one has read the shape
 of all of them:
@@ -989,14 +998,14 @@ under a heading that says what the other eight are (internals and optional peers
 Six artifacts. The ranking is by benefit per unit of work, and each is a file with a name,
 a format and a consumer.
 
-| # | Artifact | Where it lives | Who reads it |
-|---|---|---|---|
-| 1 | `custom-elements.json` (CEM 2.1.0) | `dist/`, pointed at by `package.json` `customElements` | editors, Storybook docgen, CEM linters, wrapper generators |
-| 2 | `llms.txt` + `llms-full.txt` + `.md` page twins | `/docs/` and `/docs/graphty-element/` | any agent told "read the docs" |
-| 3 | `graphty-commands.json` + `graphty-commands.schema.json` | `dist/` and `/docs/graphty-element/` | an agent generating or validating an operation |
-| 4 | `graphty-tools.json` | `dist/` and `/docs/graphty-element/` | an LLM tool layer, including the element's own |
-| 5 | `api.json` (TypeDoc) | `dist/` | a generator; too verbose to read directly |
-| 6 | `AGENTS.md` | the tarball root and `/docs/graphty-element/` | a coding agent working in a consumer repo |
+| #   | Artifact                                                 | Where it lives                                         | Who reads it                                               |
+| --- | -------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------- |
+| 1   | `custom-elements.json` (CEM 2.1.0)                       | `dist/`, pointed at by `package.json` `customElements` | editors, Storybook docgen, CEM linters, wrapper generators |
+| 2   | `llms.txt` + `llms-full.txt` + `.md` page twins          | `/docs/` and `/docs/graphty-element/`                  | any agent told "read the docs"                             |
+| 3   | `graphty-commands.json` + `graphty-commands.schema.json` | `dist/` and `/docs/graphty-element/`                   | an agent generating or validating an operation             |
+| 4   | `graphty-tools.json`                                     | `dist/` and `/docs/graphty-element/`                   | an LLM tool layer, including the element's own             |
+| 5   | `api.json` (TypeDoc)                                     | `dist/`                                                | a generator; too verbose to read directly                  |
+| 6   | `AGENTS.md`                                              | the tarball root and `/docs/graphty-element/`          | a coding agent working in a consumer repo                  |
 
 ### 4.1 Why the current state fails an agent
 
@@ -1115,7 +1124,7 @@ Two rules for the index, both enforced by the `llms.txt` invariants test describ
 
 ```json
 {
-  "customElements": "./dist/custom-elements.json"
+    "customElements": "./dist/custom-elements.json"
 }
 ```
 
@@ -1203,7 +1212,7 @@ supports both outputs at once, so the markdown reference and the JSON come from 
 invocation.
 
 It is **not** the file an agent is pointed at. Reflection IDs and numeric `kind` values make
-it verbose and structurally awkward to read; it is a *source* for generators. Two consumers:
+it verbose and structurally awkward to read; it is a _source_ for generators. Two consumers:
 
 - `tools/generate-reference.mjs` reads it to emit `reference/types.md` and the type columns
   of `API.md`;
@@ -1223,9 +1232,9 @@ turns it outward, and it needs no new invention.
 
 ```ts
 export interface GraphCommand {
-    readonly name: string;              // used as the tool name
-    readonly description: string;       // used in the LLM prompt
-    readonly parameters: z.ZodType;     // Zod schema
+    readonly name: string; // used as the tool name
+    readonly description: string; // used in the LLM prompt
+    readonly parameters: z.ZodType; // Zod schema
     readonly examples: CommandExample[];
     execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult>;
 }
@@ -1239,7 +1248,7 @@ LayoutCommands, ModeCommands, QueryCommands, SchemaCommands, StyleCommands), reg
 **What 2.0 does with it.** In 2.0 the `Command` union is the canonical serialisation of every
 operation -- every method is a command, and every command is a method -- and the union plus a
 JSON Schema is emitted at build to `dist/graphty-commands.json`. The AI command registry
-stops being a parallel hand-written list and becomes a *projection* of that union.
+stops being a parallel hand-written list and becomes a _projection_ of that union.
 Concretely, `src/api/commands.ts` carries, next to the TypeScript union, a runtime descriptor
 array:
 
@@ -1247,17 +1256,17 @@ array:
 // graphty-element/src/api/commands.ts  (source of truth)
 export interface CommandDescriptor {
     readonly op: Command["op"];
-    readonly title: string;             // "Run an algorithm"
-    readonly description: string;       // one paragraph, used verbatim as a tool description
-    readonly parameters: z.ZodType;     // validated at runtime by session.run()
+    readonly title: string; // "Run an algorithm"
+    readonly description: string; // one paragraph, used verbatim as a tool description
+    readonly parameters: z.ZodType; // validated at runtime by session.run()
     readonly mutates: boolean;
     readonly undoable: boolean;
     readonly costClass: CostClass;
     readonly examples: readonly { title: string; command: Command }[];
-    readonly since: string;             // "2.0.0"
+    readonly since: string; // "2.0.0"
 }
 
-export const commandDescriptors: readonly CommandDescriptor[] = [ /* one per op */ ];
+export const commandDescriptors: readonly CommandDescriptor[] = [/* one per op */];
 ```
 
 **Three artifacts are emitted from that one array** by
@@ -1269,46 +1278,57 @@ export const commandDescriptors: readonly CommandDescriptor[] = [ /* one per op 
 
 ```json
 {
-  "version": "2.0.0",
-  "commands": [
-    {
-      "op": "algo.run",
-      "title": "Run an algorithm",
-      "description": "Starts one algorithm with one parameter set over one scope and returns a Run. Awaiting the Run gives its result. Results are addressed at results.<runId>.<field>.",
-      "mutates": false,
-      "undoable": false,
-      "costClass": "iterative",
-      "since": "2.0.0",
-      "parameters": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "op":        { "const": "algo.run" },
-          "algorithm": { "type": "string", "description": "A key from catalog.algorithms()" },
-          "params":    { "type": "object", "additionalProperties": true },
-          "scope":     { "$ref": "#/$defs/Scope" },
-          "seed":      { "type": "integer" },
-          "as":        { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$",
-                         "description": "Author-assigned run id. Required for anything persisted." },
-          "style":     { "type": "boolean", "default": true }
-        },
-        "required": ["op", "algorithm"]
-      },
-      "examples": [
-        { "title": "Betweenness on the whole graph",
-          "command": { "op": "algo.run", "algorithm": "betweenness" } },
-        { "title": "Louvain at a named resolution, with a stable id",
-          "command": { "op": "algo.run", "algorithm": "louvain",
-                       "params": { "resolution": 1.2 }, "as": "communities" } }
-      ]
-    }
-  ]
+    "version": "2.0.0",
+    "commands": [
+        {
+            "op": "algo.run",
+            "title": "Run an algorithm",
+            "description": "Starts one algorithm with one parameter set over one scope and returns a Run. Awaiting the Run gives its result. Results are addressed at results.<runId>.<field>.",
+            "mutates": false,
+            "undoable": false,
+            "costClass": "iterative",
+            "since": "2.0.0",
+            "parameters": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "op": { "const": "algo.run" },
+                    "algorithm": { "type": "string", "description": "A key from catalog.algorithms()" },
+                    "params": { "type": "object", "additionalProperties": true },
+                    "scope": { "$ref": "#/$defs/Scope" },
+                    "seed": { "type": "integer" },
+                    "as": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_-]*$",
+                        "description": "Author-assigned run id. Required for anything persisted."
+                    },
+                    "style": { "type": "boolean", "default": true }
+                },
+                "required": ["op", "algorithm"]
+            },
+            "examples": [
+                {
+                    "title": "Betweenness on the whole graph",
+                    "command": { "op": "algo.run", "algorithm": "betweenness" }
+                },
+                {
+                    "title": "Louvain at a named resolution, with a stable id",
+                    "command": {
+                        "op": "algo.run",
+                        "algorithm": "louvain",
+                        "params": { "resolution": 1.2 },
+                        "as": "communities"
+                    }
+                }
+            ]
+        }
+    ]
 }
 ```
 
 2. `dist/graphty-commands.schema.json` -- one JSON Schema for the whole `Command` union
    (a `oneOf` over the per-op schemas, discriminated on `op`). This is what a consumer or an
-   agent validates a generated command against *before* sending it, and what CI validates
+   agent validates a generated command against _before_ sending it, and what CI validates
    every example in the docs against.
 
 3. `dist/graphty-tools.json` -- the same descriptors reshaped as tool definitions, which is
@@ -1338,10 +1358,10 @@ fetchable without an npm install. `llms.txt` names them in its header.
 
 ### 4.6 `AGENTS.md`
 
-`graphty-element/CLAUDE.md` exists and documents how to work *on* the package. It is the
+`graphty-element/CLAUDE.md` exists and documents how to work _on_ the package. It is the
 wrong document for a consumer's agent. New file `graphty-element/AGENTS.md`, shipped in the
 tarball (`files[]`) and published at `/docs/graphty-element/AGENTS.md`, written for an agent
-editing a *consumer's* repository. It is short and is mostly the list of things that are
+editing a _consumer's_ repository. It is short and is mostly the list of things that are
 wrong in generated code:
 
 ```
@@ -1388,14 +1408,14 @@ of descriptors. Because the runtime reads them, a descriptor that is missing or 
 runtime bug, not a documentation bug -- which is the only mechanism that actually prevents
 drift.
 
-| Module | Exports | Used at runtime by | Generates |
-|---|---|---|---|
-| `src/api/attributes.ts` | `attributeDescriptors` | the Lit `static properties` block and the attribute converters | CEM `attributes[]`, `reference/element.md`, `API.md` |
-| `src/api/events.ts` | `eventDescriptors` | the dispatcher (an event not in the table cannot be emitted) | CEM `events[]`, `GraphtyEventMap`, `reference/events.md` |
-| `src/api/commands.ts` | `commandDescriptors` | `session.run()` parameter validation and the dispatch table | `graphty-commands.json`, `graphty-commands.schema.json`, `graphty-tools.json`, `reference/commands.md` |
-| `src/api/errors.ts` | `errorDescriptors` | `GraphtyError` construction; the code is looked up here | `reference/errors.md`, the error index in `API.md` |
-| `src/api/config.ts` | `configKeyDescriptors` | `ConfigDocument.set`/`reset`/`applyDocument` validation | `reference/config.md` |
-| `src/api/catalog/*.ts` | `algorithmDescriptors`, `layoutDescriptors`, `formatDescriptors`, `paletteDescriptors`, `scaleDescriptors`, `themeDescriptors`, `functionDescriptors` | `session.catalog.*`, which returns exactly these | `reference/{algorithms,layouts,formats,palettes,scales,themes}.md`, the `KnownAlgorithm` and `LayoutId` union types |
+| Module                  | Exports                                                                                                                                               | Used at runtime by                                             | Generates                                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `src/api/attributes.ts` | `attributeDescriptors`                                                                                                                                | the Lit `static properties` block and the attribute converters | CEM `attributes[]`, `reference/element.md`, `API.md`                                                                |
+| `src/api/events.ts`     | `eventDescriptors`                                                                                                                                    | the dispatcher (an event not in the table cannot be emitted)   | CEM `events[]`, `GraphtyEventMap`, `reference/events.md`                                                            |
+| `src/api/commands.ts`   | `commandDescriptors`                                                                                                                                  | `session.run()` parameter validation and the dispatch table    | `graphty-commands.json`, `graphty-commands.schema.json`, `graphty-tools.json`, `reference/commands.md`              |
+| `src/api/errors.ts`     | `errorDescriptors`                                                                                                                                    | `GraphtyError` construction; the code is looked up here        | `reference/errors.md`, the error index in `API.md`                                                                  |
+| `src/api/config.ts`     | `configKeyDescriptors`                                                                                                                                | `ConfigDocument.set`/`reset`/`applyDocument` validation        | `reference/config.md`                                                                                               |
+| `src/api/catalog/*.ts`  | `algorithmDescriptors`, `layoutDescriptors`, `formatDescriptors`, `paletteDescriptors`, `scaleDescriptors`, `themeDescriptors`, `functionDescriptors` | `session.catalog.*`, which returns exactly these               | `reference/{algorithms,layouts,formats,palettes,scales,themes}.md`, the `KnownAlgorithm` and `LayoutId` union types |
 
 Most of this the 2.0 API already requires: descriptors are plain JSON crossing the element
 boundary, `CatalogApi` returns descriptor arrays, and `KnownAlgorithm` is generated from the
@@ -1464,13 +1484,13 @@ graphty-element/docs/**            (prose, hand-written; reference/ generated)
 
 ### 5.3 The generators, named
 
-| Script | Input | Output | Run by |
-|---|---|---|---|
-| `graphty-element/scripts/generate-api-artifacts.mjs` | built `dist/api/*.js` | the four `dist/*.json`, `src/api/generated/unions.ts` | `npm run build` (after `vite build`, before `tsc`) |
-| `graphty-element/custom-elements-manifest.config.mjs` (plugin) | `index.ts`, `src/graphty-element.ts`, the descriptor tables | `dist/custom-elements.json` | `npm run build` |
-| `tools/generate-reference.mjs` | `dist/*.json`, `dist/api.json` | `graphty-element/docs/reference/*.md`, `docs/API.md` | `npm run docs:reference`, called by `docs:build` |
-| `tools/extract-doc-tests.mjs` | `graphty-element/docs/**/*.md` | `graphty-element/test/docs/__generated__/*.doctest.ts` | `npm run docs:tests`, called by `pretest` and by CI |
-| `tools/build-redirects.mjs` | the built `public/docs/graphty-element/` tree | redirect stubs under `public/docs/graphty/` | `deploy-pages.yml` |
+| Script                                                         | Input                                                       | Output                                                 | Run by                                              |
+| -------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------- |
+| `graphty-element/scripts/generate-api-artifacts.mjs`           | built `dist/api/*.js`                                       | the four `dist/*.json`, `src/api/generated/unions.ts`  | `npm run build` (after `vite build`, before `tsc`)  |
+| `graphty-element/custom-elements-manifest.config.mjs` (plugin) | `index.ts`, `src/graphty-element.ts`, the descriptor tables | `dist/custom-elements.json`                            | `npm run build`                                     |
+| `tools/generate-reference.mjs`                                 | `dist/*.json`, `dist/api.json`                              | `graphty-element/docs/reference/*.md`, `docs/API.md`   | `npm run docs:reference`, called by `docs:build`    |
+| `tools/extract-doc-tests.mjs`                                  | `graphty-element/docs/**/*.md`                              | `graphty-element/test/docs/__generated__/*.doctest.ts` | `npm run docs:tests`, called by `pretest` and by CI |
+| `tools/build-redirects.mjs`                                    | the built `public/docs/graphty-element/` tree               | redirect stubs under `public/docs/graphty/`            | `deploy-pages.yml`                                  |
 
 Root `package.json` scripts, replacing lines 32-40:
 
@@ -1520,7 +1540,7 @@ generator's input list and the real surface. Three tests close that:
 ### 6.1 The rule and the fence syntax
 
 > **Every fenced code block in `graphty-element/docs/**` runs in CI. A block with no test
-> directive fails the docs build.**
+> directive fails the docs build.\*\*
 
 The directive lives in the fence info string, after the language:
 
@@ -1533,13 +1553,13 @@ The directive lives in the fence info string, after the language:
 ```bash test=none reason="shell command, not executable in the harness"
 ````
 
-| Directive | Where it runs | What "passing" means |
-|---|---|---|
-| `test=browser` | the `docs` vitest project, Playwright Chromium | the block runs against a real `<graphty-element>` with no thrown error and no `graphty-error` event |
-| `test=node` | the `docs` vitest project, node environment | the block runs against `createGraphSession()` from `./session` with no thrown error |
-| `test=types` | `tsc --noEmit` over a generated file | the block type-checks against the built `dist/*.d.ts` |
-| `test=schema` | a node test | the JSON validates against the named schema in `dist/` |
-| `test=none reason="..."` | nowhere | the reason is recorded and rendered in the extraction report |
+| Directive                | Where it runs                                  | What "passing" means                                                                                |
+| ------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `test=browser`           | the `docs` vitest project, Playwright Chromium | the block runs against a real `<graphty-element>` with no thrown error and no `graphty-error` event |
+| `test=node`              | the `docs` vitest project, node environment    | the block runs against `createGraphSession()` from `./session` with no thrown error                 |
+| `test=types`             | `tsc --noEmit` over a generated file           | the block type-checks against the built `dist/*.d.ts`                                               |
+| `test=schema`            | a node test                                    | the JSON validates against the named schema in `dist/`                                              |
+| `test=none reason="..."` | nowhere                                        | the reason is recorded and rendered in the extraction report                                        |
 
 `name=` is required for every executable block and must be unique across the corpus; it
 becomes the test name, so a failure report says `quickstart-run` rather than
@@ -1628,15 +1648,15 @@ parallel test jobs to 21.
 
 ### 6.4 The other checks CI runs on the documentation
 
-| Check | Command | Catches |
-|---|---|---|
-| Internal links resolve | `vitepress build` with `ignoreDeadLinks: false` | the 32 broken links that ship today |
-| Every JSON command example validates | `node tools/check-command-examples.mjs` | a docs example that names an op or a parameter that no longer exists |
-| The manifest is complete and valid CEM 2.1.0 | `node tools/check-manifest.mjs` -- validates `dist/custom-elements.json` against the CEM schema and asserts `events.length === eventDescriptors.length` (22 today), **zero** `#private` members -- an assertion, not a count -- and both slots present | the nearly-empty manifest reappearing |
-| Public surface changes are recorded | `node tools/check-api-diff.mjs` -- diffs `dist/api.json` against the base ref; a removed or re-typed public symbol requires a matching row in `migration/v1-to-v2.md` or a changeset | an unrecorded breaking change |
-| External links resolve | `node tools/check-external-links.mjs` over both READMEs and `graphty-element/docs/**` | the dead `graphty.app/docs/graphty/` links reappearing; a badge pointing at a dead or foreign project |
-| `llms.txt` invariants | a node test: an H1 is present; every entry has a `: note`; the first three entries are `API.md`, `quickstart.md`, `install.md`; every listed URL exists in the build output | an index that has rotted away from the site |
-| Tarball budget | `node tools/check-package-size.mjs` in `prepack` | a return to a 41 MB package |
+| Check                                        | Command                                                                                                                                                                                                                                                | Catches                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| Internal links resolve                       | `vitepress build` with `ignoreDeadLinks: false`                                                                                                                                                                                                        | the 32 broken links that ship today                                                                   |
+| Every JSON command example validates         | `node tools/check-command-examples.mjs`                                                                                                                                                                                                                | a docs example that names an op or a parameter that no longer exists                                  |
+| The manifest is complete and valid CEM 2.1.0 | `node tools/check-manifest.mjs` -- validates `dist/custom-elements.json` against the CEM schema and asserts `events.length === eventDescriptors.length` (22 today), **zero** `#private` members -- an assertion, not a count -- and both slots present | the nearly-empty manifest reappearing                                                                 |
+| Public surface changes are recorded          | `node tools/check-api-diff.mjs` -- diffs `dist/api.json` against the base ref; a removed or re-typed public symbol requires a matching row in `migration/v1-to-v2.md` or a changeset                                                                   | an unrecorded breaking change                                                                         |
+| External links resolve                       | `node tools/check-external-links.mjs` over both READMEs and `graphty-element/docs/**`                                                                                                                                                                  | the dead `graphty.app/docs/graphty/` links reappearing; a badge pointing at a dead or foreign project |
+| `llms.txt` invariants                        | a node test: an H1 is present; every entry has a `: note`; the first three entries are `API.md`, `quickstart.md`, `install.md`; every listed URL exists in the build output                                                                            | an index that has rotted away from the site                                                           |
+| Tarball budget                               | `node tools/check-package-size.mjs` in `prepack`                                                                                                                                                                                                       | a return to a 41 MB package                                                                           |
 
 The external-link check runs on a schedule as well as on PRs, because an external link rots
 without anyone touching the repo. Failure on the schedule opens an issue rather than failing
@@ -1672,7 +1692,7 @@ app today, and anyone who installed from npm -- must not find their documentatio
 
 **Surface 1: the frozen 1.x archive.** VitePress has no built-in version switcher, and
 maintaining two live doc trees is how a 1.x page silently acquires a 2.x example. So 1.x is
-frozen as *build output*, not as maintained source:
+frozen as _build output_, not as maintained source:
 
 1. At the `1.10.1` documentation-only release, check out that tag and run the existing docs
    build (`npm run docs:build` as it is today), producing `docs/.vitepress/dist`.
@@ -1693,9 +1713,9 @@ frozen as *build output*, not as maintained source:
 
 ```html
 <div style="background:#fef3c7;border-bottom:1px solid #f59e0b;padding:.75rem 1rem;font:14px system-ui">
-  You are reading the documentation for graphty-element 1.x, which is no longer developed.
-  <a href="/docs/graphty-element/">Go to the current documentation</a> or read the
-  <a href="/docs/graphty-element/migration/v1-to-v2">migration guide</a>.
+    You are reading the documentation for graphty-element 1.x, which is no longer developed.
+    <a href="/docs/graphty-element/">Go to the current documentation</a> or read the
+    <a href="/docs/graphty-element/migration/v1-to-v2">migration guide</a>.
 </div>
 ```
 
@@ -1729,11 +1749,11 @@ the API design:
 export interface BreakingChange {
     readonly id: `BC${number}`;
     readonly title: string;
-    readonly old: string;              // the 1.x spelling, as code
-    readonly new: string;              // the 2.x spelling, as code
-    readonly why: string;              // one sentence
-    readonly codemod?: string;         // a jscodeshift transform name, if one exists
-    readonly design: string;           // where the change is specified in the API design
+    readonly old: string; // the 1.x spelling, as code
+    readonly new: string; // the 2.x spelling, as code
+    readonly why: string; // one sentence
+    readonly codemod?: string; // a jscodeshift transform name, if one exists
+    readonly design: string; // where the change is specified in the API design
 }
 ```
 
@@ -1747,7 +1767,7 @@ time -- but a deprecation-warning bridge can only warn about things that have a 
 replacement, and almost nothing here does. `1.10.1` ships before 2.0, changes no behaviour
 and no signature, and does three things:
 
-1. Carries the documentation fixes listed under "Ship now", so the *published* README on
+1. Carries the documentation fixes listed under "Ship now", so the _published_ README on
    every historical npm page has working links even before 2.0 exists. This is the item that
    pays for the release on its own: the eleven `graphty.app/docs/graphty/` links are printed
    on the npm page of 1.0.0 through 1.10.0 and npm README text is immutable, so the only fix
@@ -1810,13 +1830,13 @@ measures 39 MB across 158 files, of which 26 MB are `.map` files; the registry r
 }
 ```
 
-| Ships | Does not ship | Why not |
-|---|---|---|
-| every `dist/**/*.js` including `graphty.bundle.js` | `dist/**/*.map` (26 MB) | published as a GitHub release asset instead (below) |
-| every `dist/**/*.d.ts` | `dist/**/*.d.ts.map` | same |
-| the six machine-readable JSON artifacts | `storybook-static/` | never was in `files[]`; belongs on the site |
-| `README.md`, `AGENTS.md`, `LICENSE` | `examples/` | deployed to `/docs/graphty-element/examples/`, where they are runnable |
-| -- | `src/` | the `sideEffects` array at `package.json:16-22` currently names three `src/` paths that are not even published; they are removed in 2.0 |
+| Ships                                              | Does not ship           | Why not                                                                                                                                 |
+| -------------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| every `dist/**/*.js` including `graphty.bundle.js` | `dist/**/*.map` (26 MB) | published as a GitHub release asset instead (below)                                                                                     |
+| every `dist/**/*.d.ts`                             | `dist/**/*.d.ts.map`    | same                                                                                                                                    |
+| the six machine-readable JSON artifacts            | `storybook-static/`     | never was in `files[]`; belongs on the site                                                                                             |
+| `README.md`, `AGENTS.md`, `LICENSE`                | `examples/`             | deployed to `/docs/graphty-element/examples/`, where they are runnable                                                                  |
+| --                                                 | `src/`                  | the `sideEffects` array at `package.json:16-22` currently names three `src/` paths that are not even published; they are removed in 2.0 |
 
 ### 8.3 Sourcemaps
 
@@ -1992,34 +2012,34 @@ The plan is done when all five of these are true, and each is checkable:
 `docs-archive/v1/` (about 1.7 MB of static HTML) keeps `deploy-pages.yml` simple and makes
 the archive reproducible from a checkout. The alternative -- a `gh-pages-archive` branch --
 keeps the working tree clean but adds a fetch step and a second place to look.
-*Recommendation: commit it.* It is written once and never touched again.
+_Recommendation: commit it._ It is written once and never touched again.
 
 **Q2. Do the six machine-readable JSON artifacts ship in the tarball as well as on the
 site?** They total well under a megabyte and make the package self-describing offline, which
 is what an agent working in an air-gapped or npm-only context needs.
-*Recommendation: both.* The site copy is what `llms.txt` links; the tarball copy is what
+_Recommendation: both._ The site copy is what `llms.txt` links; the tarball copy is what
 `package.json` `customElements` and a local tool resolve.
 
 **Q3. Is `vitepress-plugin-llms` an acceptable dependency for the docs build?** It is at
 v1.14.0 and is the only maintained option for this stack; VitePress's own site ships the
 same three artifacts. The fallback is a 150-line generator in `tools/`, which we would then
 own.
-*Recommendation: use the plugin*, and keep the invariants test so a plugin regression is
+_Recommendation: use the plugin_, and keep the invariants test so a plugin regression is
 caught rather than silently shipping a worse index.
 
 **Q4. How much of the 1.x archive is worth keeping?** The 1.x guide tree is 5,320 lines and
 its quickstart is wrong. An archive that teaches a reader three incorrect facts is arguably
 worse than a single page saying "1.x documentation is no longer published; here is the
 migration guide".
-*Recommendation: archive everything except `guide/getting-started.md`*, and replace that one
+_Recommendation: archive everything except `guide/getting-started.md`_, and replace that one
 page in the archive with a stub pointing at the 2.x quickstart and the migration guide.
 
 **Q5. Who owns the docs for `graph-format`, `graph-io` and `webgpu-graph-algorithms`?** They
 have no `docs/` tree and no typedoc config, and a consumer doing anything non-trivial with
 data reaches all three. This plan scopes only graphty-element and the element's own
 sibling-facing surface (`./format`, `./io/*`).
-*Recommendation: out of scope here; a one-page stub each under `/docs/<package>/` so the
-nav stops lying, tracked as separate work.*
+_Recommendation: out of scope here; a one-page stub each under `/docs/<package>/` so the
+nav stops lying, tracked as separate work._
 
 ---
 

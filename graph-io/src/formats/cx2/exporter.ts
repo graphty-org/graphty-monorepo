@@ -6,6 +6,11 @@
  * `z` from the `z` column), `edges`, the `cx2.bypass` columns as `nodeBypasses` / `edgeBypasses`,
  * the opaque aspects a CX2 import kept (which returns its own style rules) and `status`.
  *
+ * Given styles (`exportGraph(..., { styles })`), `visualProperties` and `visualEditorProperties` are the
+ * Cytoscape style of the rules (defaults and mappings), the bypasses are every element whose value the style
+ * cannot give, and the style values the rules read are attributes; the `graphty.styles` block, which graph-io
+ * hands over as a graph attribute, is written as an aspect of its own (a kept one is written back the same way).
+ *
  * What CX2 cannot hold is announced by check() before anything is written: every edge is
  * directed (W_CX2_UNDIRECTED_AS_DIRECTED, W_MUTUAL_EXPANDED), node ids are integers (E_ID_CHARSET
  * unless `sanitizeIds: "mangle"`, which keeps the original in the `graphty:originalId` attribute
@@ -13,26 +18,49 @@
  * the infinities as null (W_CX2_NONFINITE_AS_NULL), and the generic notes of checkCapabilities().
  */
 
-import { type Column, GraphFormatError, type GraphSnapshot, type NodeId } from "@graphty/graph-format";
+import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
 
+import {
+    aspectBlock,
+    declaredType,
+    directionNotes,
+    nonFinitePositions,
+    planEdgeIds,
+    planNodeIds,
+    stringify,
+    type WrittenIds,
+} from "../../common/cx-export.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { capabilities, checkCapabilities, LOSS } from "../../common/export.js";
 import { isRecord, POSITION_COLUMN } from "../../common/json-elements.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
+import { plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import { cytoscapeCx2Aspects, type CytoscapeEmitted } from "../../styles/cytoscape/emit.js";
+import { STYLE_BLOCK_NAME } from "../../styles/io/block.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
+import { blockAspect, cytoscapeStyledExport, snapshotBlock } from "../cx/styles.js";
 import { BYPASS_NAMESPACE, CX2_FORMAT, cx2Type, ORIGINAL_ID_ATTRIBUTE } from "./importer.js";
-
-/** The format-specific options of the CX2 exporter: none yet. */
-export type Cx2ExportOptions = Readonly<Record<never, never>>;
+import { CX2_STYLE_CAPABILITIES } from "./styles.js";
 
 /**
- * The loss notes the CX2 exporter's check() returns (design section 1.3), by name. A key is the
+ * The options of the CX2 exporter: the common export options; it has none of its own.
+ * @category Built-in formats
+ */
+export type Cx2ExportOptions = CommonExportOptions;
+
+/**
+ * The loss notes the CX2 exporter's check() returns, by name. A key is the
  * code without its severity and format prefixes.
+ * @category Built-in formats
  */
 export const CX2_LOSS = Object.freeze({
-    /** Every edge is written directed: an undirected snapshot, or the undirected pairs of a mixed one. */
+    /**
+     * Every edge is written as directed, so an undirected graph, or the undirected edges of a mixed graph, read back
+     * as directed.
+     */
     UNDIRECTED_AS_DIRECTED: "W_CX2_UNDIRECTED_AS_DIRECTED",
     /** A nested (json) column is written as a string attribute holding its JSON text. */
     JSON_AS_STRING: "W_CX2_JSON_AS_STRING",
@@ -40,17 +68,26 @@ export const CX2_LOSS = Object.freeze({
     NONFINITE_AS_NULL: "W_CX2_NONFINITE_AS_NULL",
     /** A mutual pair is written as two directed edges without its mark. */
     MUTUAL_EXPANDED: LOSS.MUTUAL_EXPANDED,
-    /** A plain edge column named like the weight key reads back as THE weight (or is skipped when weights are written). */
+    /**
+     * An attribute without the weight role is named like the key weights are written under; it reads back as the edge
+     * weight, or is not written when the graph has weights of its own.
+     */
     WEIGHT_KEY_CLASH: LOSS.WEIGHT_KEY_CLASH,
     /** A parent / parents column: CX2 has no containment. */
     HIERARCHY_DROPPED: LOSS.HIERARCHY,
     /** A start / end / timestamp column: CX2 has no time. */
     TEMPORAL_DROPPED: LOSS.TEMPORAL,
-    /** A role column written as a plain attribute. */
+    /** An attribute with a role the format has no place for is written as a plain attribute; the role is lost. */
     ROLE_DROPPED: LOSS.ROLE,
-    /** A dtype CX2 declares as another (f32 as double, u32 as long, dict as string, ...). */
+    /**
+     * An attribute type CX2 stores as another (a 32-bit float as double, an unsigned integer as long, a dictionary as
+     * string); it reads back with that type.
+     */
     DTYPE_UNSUPPORTED: LOSS.DTYPE,
-    /** Node ids that are not integers under the default sanitizeIds "error": export() throws E_INVALID_ID. */
+    /**
+     * Node ids the format cannot write, under `sanitizeIds: "error"`; the save fails with E_INVALID_ID. Pass
+     * `sanitizeIds: "mangle"` to rewrite them.
+     */
     ID_CHARSET: LOSS.ID_CHARSET,
     /** Node ids that are not integers under sanitizeIds "mangle": renumbered, originals kept. */
     ID_MANGLED: LOSS.ID_MANGLED,
@@ -59,10 +96,11 @@ export const CX2_LOSS = Object.freeze({
 });
 
 /**
- * What CX2 keeps (design section 1.3): directed multigraphs with self-loops, integer node ids,
+ * What CX2 keeps: directed multigraphs with self-loops, integer node ids,
  * required integer edge ids, declared string / double / integer / boolean columns and lists of
  * them, declared defaults, network attributes and the position role. f32, u32, u8 and dict columns
  * are written as the nearest declared type and read back as it.
+ * @category Built-in formats
  */
 export const CX2_CAPABILITIES: ExportCapabilities = capabilities({
     mixedDirection: false,
@@ -114,8 +152,12 @@ const SKIPPED_ROLES: ReadonlySet<string> = new Set([
     "thickness",
 ]);
 
+/** The style aspects; written from the styles when styles are given, else the kept ones. */
+const STYLE_ASPECTS: ReadonlySet<string> = new Set(["visualProperties", "visualEditorProperties"]);
+
 /** The aspects the exporter writes itself; an opaque aspect of the same name is not written again. */
 const CORE_ASPECTS: ReadonlySet<string> = new Set([
+    STYLE_BLOCK_NAME,
     "nodes",
     "edges",
     "attributeDeclarations",
@@ -128,104 +170,6 @@ const CORE_ASPECTS: ReadonlySet<string> = new Set([
 
 /** The weight attribute name. */
 const WEIGHT_ATTRIBUTE = "weight";
-
-/**
- * The prefix of a string that stands for a raw number literal in the output: -0 (which
- * JSON.stringify writes as 0) and an integer id beyond 2^53 (kept as its digits).
- */
-const RAW = `${String.fromCharCode(0)}cx2:`;
-
-/** A raw literal as JSON.stringify writes it, to be unquoted. */
-const RAW_JSON = /"\\u0000cx2:(-?[0-9]+)"/g;
-
-/** An integer literal beyond 2^53 as text: a CX2 id graph-io keeps as its digits. */
-const BIG_INTEGER_TEXT = /^-?[1-9][0-9]{15,}$/;
-
-/** The node ids as written: the original, a renumbered one, or a raw big integer. */
-interface WrittenIds {
-    /** How many ids were renumbered (sanitizeIds "mangle"). */
-    readonly changed: number;
-    /** The written id of node i (a number, or a RAW string for a big integer). */
-    idAt(i: number): NodeId;
-    /** Whether node i was renumbered. */
-    isChanged(i: number): boolean;
-    /** The original id of node i. */
-    originalAt(i: number): NodeId;
-}
-
-/**
- * Whether an id can be written as a CX2 id unchanged: a safe integer, or the digits of an integer
- * beyond 2^53 (the CX2 importer reads those back as the same digits).
- * @param id - the id
- * @returns true when writable
- */
-function writableId(id: NodeId): boolean {
-    return typeof id === "number"
-        ? Number.isSafeInteger(id)
-        : BIG_INTEGER_TEXT.test(id) && !Number.isSafeInteger(Number(id));
-}
-
-/**
- * The written node ids; under "error" an id that is not writable throws E_INVALID_ID, under
- * "mangle" it gets the next unused integer.
- * @param snapshot - the snapshot
- * @param mode - the sanitizeIds option
- * @returns the ids
- */
-function writtenIds(snapshot: GraphSnapshot, mode: "error" | "mangle"): WrittenIds {
-    const { ids } = snapshot;
-    const bad: number[] = [];
-    const used = new Set<number>();
-    for (let i = 0; i < ids.size; i++) {
-        const id = ids.idOf(i);
-        if (!writableId(id)) {
-            bad.push(i);
-        } else if (typeof id === "number") {
-            used.add(id);
-        }
-    }
-    if (bad.length > 0 && mode === "error") {
-        const first = ids.idOf(bad[0]);
-        throw new GraphFormatError(
-            "E_INVALID_ID",
-            `${bad.length} node id(s) cannot be written as CX2 integers (first: ${JSON.stringify(first)} at index ${bad[0]}); pass sanitizeIds: "mangle" to rewrite them`,
-            { reason: "charset", charset: "integer", count: bad.length, index: bad[0] },
-        );
-    }
-    const renumbered = new Map<number, number>();
-    let next = 0;
-    for (const i of bad) {
-        while (used.has(next)) {
-            next++;
-        }
-        used.add(next);
-        renumbered.set(i, next);
-    }
-    return {
-        changed: bad.length,
-        idAt: (i: number): NodeId => {
-            const id = renumbered.get(i) ?? ids.idOf(i);
-            return typeof id === "string" ? `${RAW}${id}` : id;
-        },
-        isChanged: (i: number): boolean => renumbered.has(i),
-        originalAt: (i: number): NodeId => ids.idOf(i),
-    };
-}
-
-/**
- * How many node ids are not writable unchanged.
- * @param snapshot - the snapshot
- * @returns the count
- */
-function unwritableIds(snapshot: GraphSnapshot): number {
-    let count = 0;
-    for (let i = 0; i < snapshot.ids.size; i++) {
-        if (!writableId(snapshot.ids.idOf(i))) {
-            count++;
-        }
-    }
-    return count;
-}
 
 /** One attribute column as it will be written. */
 interface AttributePlan {
@@ -278,62 +222,6 @@ function isZ(column: Column): boolean {
 }
 
 /**
- * The CX2 type of a scalar dtype.
- * @param dtype - the dtype
- * @param longOrigin - whether the source declared the column long
- * @returns the type text
- */
-function scalarType(dtype: string, longOrigin: boolean): string {
-    switch (dtype) {
-        case "f64":
-            return longOrigin ? "long" : "double";
-        case "f32":
-            return "double";
-        case "i32":
-        case "u8":
-            return "integer";
-        case "u32":
-            return "long";
-        case "bool":
-            return "boolean";
-        default:
-            return "string";
-    }
-}
-
-/**
- * Whether every set value of an f64 column is integral (so a declared long stays long).
- * @param column - the column
- * @returns true when every set value is a safe integer
- */
-function allIntegral(column: Column): boolean {
-    for (let i = 0; i < column.length; i++) {
-        if (column.isSet(i) && !Number.isSafeInteger(column.value(i))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/**
- * The declared type of a column.
- * @param column - the column
- * @returns the CX2 type text
- */
-function declaredType(column: Column): string {
-    const { meta } = column;
-    const origin = meta.origin?.type ?? null;
-    const longOrigin = origin !== null && /long$/.test(origin) && (meta.dtype !== "f64" || allIntegral(column));
-    if (meta.dtype === "list") {
-        return meta.itemDtype === null || meta.itemDtype === "json"
-            ? "string"
-            : `list_of_${scalarType(meta.itemDtype, longOrigin)}`;
-    }
-    // a multi-component column (a color, a 3D vector) is written as a list of its components
-    return meta.components > 1 ? `list_of_${scalarType(meta.dtype, false)}` : scalarType(meta.dtype, longOrigin);
-}
-
-/**
  * Count the non-finite numbers of a column.
  * @param column - the column
  * @returns how many set cells (or list items) are NaN or infinite
@@ -355,7 +243,7 @@ function nonFiniteCount(column: Column): number {
             if ((value as readonly number[]).some((v) => !Number.isFinite(v))) {
                 count++;
             }
-        } else if (!Number.isFinite(value as number)) {
+        } else if (!Number.isFinite(value)) {
             count++;
         }
     }
@@ -396,18 +284,26 @@ function planAttributes(
     return plans;
 }
 
+/** A note-recording callback. */
+type Note = (code: string, message: string, column?: string | null, count?: number | null) => void;
+
 /**
- * Plan an export: the notes, the fatal condition and what is written.
+ * The generic notes of checkCapabilities(), adapted to CX2: bypass columns hold any JSON value,
+ * ids are counted by planNodeIds(), nested values are written as JSON text, and only the node
+ * label is written into the "n" slot (an edge label keeps its own name but loses its role).
  * @param snapshot - the snapshot
  * @param common - the resolved common options
- * @returns the plan
+ * @param notes - the notes so far, appended to
+ * @param note - the recorder
+ * @returns the fatal condition, or null
  */
-function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
-    const notes: LossNote[] = [];
+function capabilityNotes(
+    snapshot: GraphSnapshot,
+    common: ResolvedExportOptions,
+    notes: LossNote[],
+    note: Note,
+): GraphFormatError | null {
     let fatal: GraphFormatError | null = null;
-    const note = (code: string, message: string, column: string | null = null, count: number | null = null): void => {
-        notes.push(Object.freeze({ code, message, column, count }));
-    };
     // bypass columns are written as bypasses, which hold any JSON value
     const bypassNames = new Set(
         [...snapshot.nodes, ...snapshot.edges].filter((c) => isBypass(c) || isZ(c)).map((c) => c.meta.name),
@@ -415,18 +311,17 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     for (const gen of checkCapabilities(snapshot, CX2_CAPABILITIES, common, {
         roles: SLOT_ROLES,
         roleNames: ROLE_NAMES,
+        // only the node label is written into the "n" slot; an edge label keeps its own name
+        edgeRoleNames: {},
     })) {
-        if (gen.column !== null && bypassNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
-            continue;
-        }
-        if (gen.code === LOSS.ID_CHARSET || gen.code === LOSS.ID_MANGLED) {
-            // counted below: CX2 also keeps integer ids beyond 2^53, which the generic rule refuses
+        if (!keepGenericNote(gen, bypassNames)) {
             continue;
         }
         if (gen.code === LOSS.JSON) {
+            const what = gen.column === null ? "a column" : `column "${gen.column}"`;
             note(
                 CX2_LOSS.JSON_AS_STRING,
-                `${gen.column === null ? "a column" : `column "${gen.column}"`} holds nested values; written as a string attribute holding their JSON text`,
+                `${what} holds nested values; written as a string attribute holding their JSON text`,
                 gen.column,
                 gen.count,
             );
@@ -437,29 +332,119 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         }
         notes.push(gen);
     }
-
-    const folding = pairFolding(snapshot);
-    directionNotes(snapshot, folding, common, note);
-
-    const unwritable = unwritableIds(snapshot);
-    if (unwritable > 0) {
+    const edgeLabel = snapshot.edges.byRole("label");
+    if (edgeLabel !== null) {
         note(
-            common.sanitizeIds === "mangle" ? LOSS.ID_MANGLED : LOSS.ID_CHARSET,
-            common.sanitizeIds === "mangle"
-                ? `${unwritable} node id(s) that are not integers are renumbered; the originals are kept in the ${ORIGINAL_ID_ATTRIBUTE} attribute (restored by restoreMangledIds)`
-                : `${unwritable} node id(s) that are not integers; export() will throw unless sanitizeIds is "mangle"`,
-            null,
-            unwritable,
+            LOSS.ROLE,
+            `edge column "${edgeLabel.meta.name}" (label) is written as a plain attribute; CX2 edges have no label slot and the role is lost`,
+            edgeLabel.meta.name,
+            edgeLabel.length - edgeLabel.nullCount,
         );
     }
-    let ids: WrittenIds | null = null;
-    try {
-        ids = writtenIds(snapshot, common.sanitizeIds);
-    } catch (err) {
-        if (!(err instanceof GraphFormatError)) {
-            throw err;
+    return fatal;
+}
+
+/**
+ * Whether a generic note applies to CX2 as it stands.
+ * @param gen - the generic note
+ * @param bypassNames - the names of the columns written as bypasses
+ * @returns false for a note CX2 drops or replaces
+ */
+function keepGenericNote(gen: LossNote, bypassNames: ReadonlySet<string>): boolean {
+    if (gen.column !== null && bypassNames.has(gen.column) && (gen.code === LOSS.JSON || gen.code === LOSS.DTYPE)) {
+        return false;
+    }
+    // ids are counted by planNodeIds(): CX2 also keeps integer ids beyond 2^53, which the generic rule refuses
+    return gen.code !== LOSS.ID_CHARSET && gen.code !== LOSS.ID_MANGLED;
+}
+
+/**
+ * Note the NaN and infinite values written as null: attribute cells, explicit weights, positions.
+ * @param snapshot - the snapshot
+ * @param attrs - every planned attribute
+ * @param weights - the explicit weights
+ * @param position - the position column, or null
+ * @param note - the recorder
+ */
+function nonFiniteNote(
+    snapshot: GraphSnapshot,
+    attrs: readonly AttributePlan[],
+    weights: ExplicitWeights,
+    position: Column | null,
+    note: Note,
+): void {
+    let nonfinite = 0;
+    for (const p of attrs) {
+        nonfinite += nonFiniteCount(p.column);
+    }
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (weights.isExplicit(e) && !Number.isFinite(weights.value(e))) {
+            nonfinite++;
         }
-        fatal ??= err;
+    }
+    if (position !== null) {
+        nonfinite += nonFinitePositions(position);
+    }
+    if (nonfinite > 0) {
+        note(
+            CX2_LOSS.NONFINITE_AS_NULL,
+            `${nonfinite} NaN or infinite value${plural(nonfinite)} cannot be written in CX2; written as null, they read back unset`,
+            null,
+            nonfinite,
+        );
+    }
+}
+
+/**
+ * Plan the edge attributes, noting a plain `weight` column that clashes with the weight key.
+ * @param snapshot - the snapshot
+ * @param weights - the explicit weights
+ * @param note - the recorder
+ * @returns the edge attribute plans
+ */
+function planEdgeAttributes(snapshot: GraphSnapshot, weights: ExplicitWeights, note: Note): AttributePlan[] {
+    const plainWeight = snapshot.edges.get(WEIGHT_ATTRIBUTE);
+    if (plainWeight !== null && plainWeight.meta.role === null) {
+        note(
+            LOSS.WEIGHT_KEY_CLASH,
+            weights.weighted
+                ? `edge column "${WEIGHT_ATTRIBUTE}" is not written: the explicit weights are written under that name`
+                : `edge column "${WEIGHT_ATTRIBUTE}" reads back as the edge weight`,
+            WEIGHT_ATTRIBUTE,
+            null,
+        );
+    }
+    return planAttributes(
+        snapshot.edges,
+        (c) =>
+            (c.meta.role !== null && (SKIPPED_ROLES.has(c.meta.role) || c.meta.role === "id")) ||
+            isBypass(c) ||
+            (weights.weighted && c === plainWeight),
+        (c) => c.meta.name,
+        weights.weighted ? new Set([WEIGHT_ATTRIBUTE]) : new Set(),
+    );
+}
+
+/**
+ * Plan an export: the notes, the fatal condition and what is written.
+ * @param snapshot - the snapshot
+ * @param common - the resolved common options
+ * @returns the plan
+ */
+function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
+    const notes: LossNote[] = [];
+    const note: Note = (code, message, column = null, count = null) => {
+        notes.push(Object.freeze({ code, message, column, count }));
+    };
+    let fatal = capabilityNotes(snapshot, common, notes, note);
+
+    const folding = pairFolding(snapshot);
+    directionNotes(snapshot, folding, common, CX2_LOSS.UNDIRECTED_AS_DIRECTED, note);
+
+    const planned = planNodeIds(snapshot, common, "CX2", ORIGINAL_ID_ATTRIBUTE, note);
+    const ids = planned instanceof GraphFormatError ? null : planned;
+    if (planned instanceof GraphFormatError) {
+        fatal ??= planned;
     }
 
     const weights = explicitWeights(snapshot);
@@ -470,65 +455,18 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
         (c) => (c === label && !snapshot.nodes.has("name") ? "name" : c.meta.name),
         ids !== null && ids.changed > 0 ? new Set([ORIGINAL_ID_ATTRIBUTE]) : new Set(),
     );
-    const plainWeight = snapshot.edges.get(WEIGHT_ATTRIBUTE);
-    const weightColumnClash = plainWeight !== null && plainWeight.meta.role === null;
-    if (weightColumnClash) {
-        note(
-            LOSS.WEIGHT_KEY_CLASH,
-            weights.weighted
-                ? `edge column "${WEIGHT_ATTRIBUTE}" is not written: the explicit weights are written under that name`
-                : `edge column "${WEIGHT_ATTRIBUTE}" reads back as the edge weight`,
-            WEIGHT_ATTRIBUTE,
-            null,
-        );
-    }
-    const edgeAttrs = planAttributes(
-        snapshot.edges,
-        (c) =>
-            (c.meta.role !== null && (SKIPPED_ROLES.has(c.meta.role) || c.meta.role === "id")) ||
-            isBypass(c) ||
-            (weights.weighted && c === plainWeight),
-        (c) => c.meta.name,
-        weights.weighted ? new Set([WEIGHT_ATTRIBUTE]) : new Set(),
-    );
+    const edgeAttrs = planEdgeAttributes(snapshot, weights, note);
     const graphAttrs = planAttributes(
         snapshot.graph,
-        () => false,
+        // the graphty.styles block is an aspect of its own
+        (c) => c.meta.name === STYLE_BLOCK_NAME,
         (c) => c.meta.name,
     ).map((p) => ({ ...p, key: p.name }));
 
-    let nonfinite = 0;
-    for (const p of [...nodeAttrs, ...edgeAttrs, ...graphAttrs]) {
-        nonfinite += nonFiniteCount(p.column);
-    }
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (weights.isExplicit(e) && !Number.isFinite(weights.value(e))) {
-            nonfinite++;
-        }
-    }
     const position = snapshot.nodes.byRole("position");
-    if (position !== null) {
-        nonfinite += nonFinitePositions(position);
-    }
-    if (nonfinite > 0) {
-        note(
-            CX2_LOSS.NONFINITE_AS_NULL,
-            `${nonfinite} NaN or infinite value(s) cannot be written in CX2; written as null, they read back unset`,
-            null,
-            nonfinite,
-        );
-    }
+    nonFiniteNote(snapshot, [...nodeAttrs, ...edgeAttrs, ...graphAttrs], weights, position, note);
 
-    const edgeIds = planEdgeIds(snapshot, note);
-    const idColumn = snapshot.edges.byRole("id");
-    if (idColumn !== null && idColumn.dtype !== "f64") {
-        note(
-            LOSS.DTYPE,
-            `edge id column "${idColumn.meta.name}" is ${idColumn.dtype}; CX2 edge ids are integers and read back as f64`,
-            idColumn.meta.name,
-            snapshot.edgeCount - idColumn.nullCount,
-        );
-    }
+    const edgeIds = planEdgeIds(snapshot, note, ids);
     const z = [...snapshot.nodes].find(isZ) ?? null;
     const positionZ = position !== null && z === null && position.meta.extra.sourceDims === 3;
     return {
@@ -550,138 +488,7 @@ function plan(snapshot: GraphSnapshot, common: ResolvedExportOptions): Plan {
     };
 }
 
-/**
- * The direction notes: every CX2 edge is directed, so an undirected snapshot (or the undirected
- * pairs of a mixed one, folded under onMixedDirection) is written directed, and a mutual pair as
- * two edges without its mark.
- * @param snapshot - the snapshot
- * @param folding - the pair folding
- * @param common - the resolved common options
- * @param note - records a note
- */
-function directionNotes(
-    snapshot: GraphSnapshot,
-    folding: PairFolding,
-    common: ResolvedExportOptions,
-    note: (code: string, message: string, column?: string | null, count?: number | null) => void,
-): void {
-    if (!snapshot.directed) {
-        note(
-            CX2_LOSS.UNDIRECTED_AS_DIRECTED,
-            `the snapshot is undirected; every edge is written as a directed CX2 edge (${snapshot.edgeCount} edge(s))`,
-            null,
-            snapshot.edgeCount,
-        );
-    } else if (common.onMixedDirection !== "error") {
-        let undirected = 0;
-        for (let e = 0; e < snapshot.edgeCount; e++) {
-            if (!folding.folded(e) && !folding.sourceDirected(e)) {
-                undirected++;
-            }
-        }
-        if (undirected > 0) {
-            note(
-                CX2_LOSS.UNDIRECTED_AS_DIRECTED,
-                `${undirected} undirected edge(s) are written as one directed edge each (a pair folded to its primary); CX2 has no undirected edge`,
-                null,
-                undirected,
-            );
-        }
-    }
-    if (folding.mutualCount > 0) {
-        note(
-            LOSS.MUTUAL_EXPANDED,
-            `${folding.mutualCount} mutual pair(s) are written as two directed edges; the mutual mark is lost`,
-            null,
-            folding.mutualCount,
-        );
-    }
-}
-
-/**
- * Count the positions with a non-finite x or y.
- * @param position - the position column
- * @returns the count
- */
-function nonFinitePositions(position: Column): number {
-    let count = 0;
-    for (let i = 0; i < position.length; i++) {
-        if (position.isSet(i)) {
-            const p = position.value(i) as ArrayLike<number>;
-            if (!Number.isFinite(p[0]) || !Number.isFinite(p[1])) {
-                count++;
-            }
-        }
-    }
-    return count;
-}
-
-/**
- * The edge ids to write: the id role column's values when they are distinct safe integers,
- * next unused integers for edges without one.
- * @param snapshot - the snapshot
- * @param note - records a note
- * @returns one id per edge
- */
-function planEdgeIds(
-    snapshot: GraphSnapshot,
-    note: (code: string, message: string, column?: string | null, count?: number | null) => void,
-): number[] {
-    const column = snapshot.edges.byRole("id");
-    const ids: (number | null)[] = new Array<number | null>(snapshot.edgeCount).fill(null);
-    const used = new Set<number>();
-    let generated = 0;
-    if (column !== null) {
-        for (let e = 0; e < snapshot.edgeCount; e++) {
-            const value = column.isSet(e) ? column.value(e) : undefined;
-            let n = NaN;
-            if (typeof value === "number") {
-                n = value;
-            } else if (typeof value === "string") {
-                n = Number(value);
-            }
-            if (Number.isSafeInteger(n) && !used.has(n)) {
-                ids[e] = n === 0 ? 0 : n;
-                used.add(n);
-            }
-        }
-    }
-    let next = 0;
-    const out: number[] = [];
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        let id = ids[e];
-        if (id === null) {
-            while (used.has(next)) {
-                next++;
-            }
-            id = next;
-            used.add(next);
-            generated++;
-        }
-        out.push(id);
-    }
-    if (column !== null && generated > 0) {
-        note(
-            LOSS.EDGE_IDS_GENERATED,
-            `${generated} edge(s) have no distinct integer id in "${column.meta.name}"; they are written with generated ids`,
-            column.meta.name,
-            generated,
-        );
-    }
-    return out;
-}
-
 // ============================================================ writing
-
-/**
- * The JSON text of a value, keeping -0.
- * @param value - the value
- * @returns the text
- */
-function stringify(value: unknown): string {
-    const text = JSON.stringify(value, (_key, v: unknown) => (Object.is(v, -0) ? `${RAW}-0` : v));
-    return text.includes("\\u0000cx2:") ? text.replace(RAW_JSON, "$1") : text;
-}
 
 /**
  * The value written for one cell.
@@ -777,36 +584,16 @@ function attributesOf(plans: readonly AttributePlan[], row: number): Record<stri
 }
 
 /**
- * Write the document as text parts.
+ * The networkAttributes element and its declarations: the graph attributes, then the snapshot's name and
+ * description where no attribute of that name is written.
  * @param snapshot - the snapshot
  * @param p - the plan
- * @yields the document's text
- * @returns nothing
+ * @returns the element and the declarations
  */
-function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undefined> {
-    if (p.fatal !== null) {
-        throw p.fatal;
-    }
-    const { ids } = p;
-    if (ids === null) {
-        throw new GraphFormatError("E_INVALID_ID", "node ids cannot be written as CX2 integers", { reason: "charset" });
-    }
-    const { src, dst } = snapshot.edgeList();
-    const edges: number[] = [];
-    for (let e = 0; e < snapshot.edgeCount; e++) {
-        if (!p.folding.folded(e)) {
-            edges.push(e);
-        }
-    }
-
-    const nodeDecls = declarations(p.nodeAttrs, true);
-    if (p.originalIds) {
-        nodeDecls[ORIGINAL_ID_ATTRIBUTE] = { d: "string" };
-    }
-    const edgeDecls = declarations(p.edgeAttrs, true);
-    if (p.weights.weighted) {
-        edgeDecls[WEIGHT_ATTRIBUTE] = { d: "double" };
-    }
+function networkOf(
+    snapshot: GraphSnapshot,
+    p: Plan,
+): { network: Record<string, unknown>; networkDecls: Record<string, unknown> } {
     const networkDecls = declarations(p.graphAttrs, false);
     const network: Record<string, unknown> = {};
     for (const a of p.graphAttrs) {
@@ -825,81 +612,155 @@ function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undef
             networkDecls[key] = { d: "string" };
         }
     }
-    const kept = isRecord(meta.extra.cx2) ? meta.extra.cx2 : {};
+    return { network, networkDecls };
+}
+
+/**
+ * The attributeDeclarations element: the kept declarations of other tables, then the network's, the nodes' and the
+ * edges' where there are any.
+ * @param p - the plan
+ * @param kept - what an import kept in meta.extra.cx2
+ * @param networkDecls - the network's declarations
+ * @returns the element
+ */
+function declarationsElementOf(
+    p: Plan,
+    kept: Record<string, unknown>,
+    networkDecls: Record<string, unknown>,
+): Record<string, unknown> {
+    const nodeDecls = declarations(p.nodeAttrs, true);
+    if (p.originalIds) {
+        nodeDecls[ORIGINAL_ID_ATTRIBUTE] = { d: "string" };
+    }
+    const edgeDecls = declarations(p.edgeAttrs, true);
+    if (p.weights.weighted) {
+        edgeDecls[WEIGHT_ATTRIBUTE] = { d: "double" };
+    }
     const otherDecls = isRecord(kept.declarations) ? kept.declarations : {};
-    const opaque = meta.sourceFormat === CX2_FORMAT && isRecord(kept.opaque) ? kept.opaque : {};
-    const declarationsElement: Record<string, unknown> = { ...otherDecls };
+    const element: Record<string, unknown> = { ...otherDecls };
     for (const [key, table] of [
         ["networkAttributes", networkDecls],
         ["nodes", nodeDecls],
         ["edges", edgeDecls],
     ] as const) {
         if (Object.keys(table).length > 0) {
-            declarationsElement[key] = table;
+            element[key] = table;
         }
     }
-    const nodeBypassRows = bypassRows(p.nodeBypasses, snapshot.nodeCount);
-    const edgeBypassRows = bypassRows(p.edgeBypasses, snapshot.edgeCount).filter((e) => !p.folding.folded(e));
-    const opaqueAspects = Object.entries(opaque).filter(
-        (entry): entry is [string, unknown[]] => !CORE_ASPECTS.has(entry[0]) && Array.isArray(entry[1]),
-    );
+    return element;
+}
 
-    const counts: [string, number][] = [];
+/**
+ * One edge element.
+ * @param p - the plan
+ * @param ids - the written node ids
+ * @param src - the source of each edge
+ * @param dst - the target of each edge
+ * @param e - the edge
+ * @returns the element
+ */
+function edgeElement(
+    p: Plan,
+    ids: WrittenIds,
+    src: ArrayLike<number>,
+    dst: ArrayLike<number>,
+    e: number,
+): Record<string, unknown> {
+    const element: Record<string, unknown> = {
+        id: p.edgeIds[e],
+        s: ids.idAt(src[e]),
+        t: ids.idAt(dst[e]),
+    };
+    let v = attributesOf(p.edgeAttrs, e);
+    if (p.weights.isExplicit(e)) {
+        const w = p.weights.value(e);
+        v ??= {};
+        v[WEIGHT_ATTRIBUTE] = Number.isFinite(w) ? w : null;
+    }
+    if (v !== null) {
+        element.v = v;
+    }
+    return element;
+}
+
+/**
+ * The optional aspects of a document that are written: those with elements.
+ * @param aspects - each aspect's name and element count
+ * @returns the metaData counts
+ */
+function presentAspects(aspects: readonly (readonly [string, number])[]): [string, number][] {
+    return aspects.filter(([, n]) => n > 0).map(([name, n]) => [name, n]);
+}
+
+/**
+ * Write the document as text parts.
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param styled - the styles as a Cytoscape style, or null without styles
+ * @yields the document's text
+ * @returns nothing
+ */
+function* write(
+    snapshot: GraphSnapshot,
+    p: Plan,
+    styled: CytoscapeEmitted | null = null,
+): Generator<string, void, undefined> {
+    if (p.fatal !== null) {
+        throw p.fatal;
+    }
+    const { ids } = p;
+    if (ids === null) {
+        throw new GraphFormatError("E_INVALID_ID", "node ids cannot be written as CX2 integers", { reason: "charset" });
+    }
+    const edges: number[] = [];
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (!p.folding.folded(e)) {
+            edges.push(e);
+        }
+    }
+    const { network, networkDecls } = networkOf(snapshot, p);
+    const { meta } = snapshot;
+    const kept = isRecord(meta.extra.cx2) ? meta.extra.cx2 : {};
+    const opaque = meta.sourceFormat === CX2_FORMAT && isRecord(kept.opaque) ? kept.opaque : {};
+    const declarationsElement = declarationsElementOf(p, kept, networkDecls);
+    const { bypassOf, nodeBypassRows, edgeBypassRows, opaqueAspects } = styleParts(snapshot, p, styled, opaque);
     const hasDeclarations = Object.keys(declarationsElement).length > 0;
-    if (hasDeclarations) {
-        counts.push(["attributeDeclarations", 1]);
-    }
-    if (Object.keys(network).length > 0) {
-        counts.push(["networkAttributes", 1]);
-    }
-    counts.push(["nodes", snapshot.nodeCount], ["edges", edges.length]);
-    if (nodeBypassRows.length > 0) {
-        counts.push(["nodeBypasses", nodeBypassRows.length]);
-    }
-    if (edgeBypassRows.length > 0) {
-        counts.push(["edgeBypasses", edgeBypassRows.length]);
-    }
-    for (const [name, elements] of opaqueAspects) {
-        counts.push([name, elements.length]);
-    }
+    const hasNetwork = Object.keys(network).length > 0;
+    const counts: [string, number][] = [
+        ...presentAspects([
+            ["attributeDeclarations", hasDeclarations ? 1 : 0],
+            ["networkAttributes", hasNetwork ? 1 : 0],
+        ]),
+        ["nodes", snapshot.nodeCount],
+        ["edges", edges.length],
+        ...presentAspects([
+            ["nodeBypasses", nodeBypassRows.length],
+            ["edgeBypasses", edgeBypassRows.length],
+        ]),
+        ...opaqueAspects.map(([name, elements]): [string, number] => [name, elements.length]),
+    ];
 
     yield '[{"CXVersion":"2.0","hasFragments":false},\n';
     yield `{"metaData":${stringify(counts.map(([name, elementCount]) => ({ name, elementCount })))}},\n`;
     if (hasDeclarations) {
         yield `{"attributeDeclarations":[${stringify(declarationsElement)}]},\n`;
     }
-    if (Object.keys(network).length > 0) {
+    if (hasNetwork) {
         yield `{"networkAttributes":[${stringify(network)}]},\n`;
     }
     yield* block("nodes", snapshot.nodeCount, (i) => stringify(nodeElement(p, ids, i)));
-    yield* block("edges", edges.length, (k) => {
-        const e = edges[k];
-        const element: Record<string, unknown> = {
-            id: p.edgeIds[e],
-            s: ids.idAt(src[e]),
-            t: ids.idAt(dst[e]),
-        };
-        let v = attributesOf(p.edgeAttrs, e);
-        if (p.weights.isExplicit(e)) {
-            const w = p.weights.value(e);
-            v ??= {};
-            v[WEIGHT_ATTRIBUTE] = Number.isFinite(w) ? w : null;
-        }
-        if (v !== null) {
-            element.v = v;
-        }
-        return stringify(element);
-    });
+    const { src, dst } = snapshot.edgeList();
+    yield* block("edges", edges.length, (k) => stringify(edgeElement(p, ids, src, dst, edges[k])));
     if (nodeBypassRows.length > 0) {
         yield* block("nodeBypasses", nodeBypassRows.length, (k) => {
             const i = nodeBypassRows[k];
-            return stringify({ id: ids.idAt(i), v: bypassValues(p.nodeBypasses, i) });
+            return stringify({ id: ids.idAt(i), v: bypassOf("node", i) });
         });
     }
     if (edgeBypassRows.length > 0) {
         yield* block("edgeBypasses", edgeBypassRows.length, (k) => {
             const e = edgeBypassRows[k];
-            return stringify({ id: p.edgeIds[e], v: bypassValues(p.edgeBypasses, e) });
+            return stringify({ id: p.edgeIds[e], v: bypassOf("edge", e) });
         });
     }
     for (const [name, elements] of opaqueAspects) {
@@ -908,20 +769,90 @@ function* write(snapshot: GraphSnapshot, p: Plan): Generator<string, void, undef
     yield '{"status":[{"error":"","success":true}]}]\n';
 }
 
+/** The bypasses and the extra aspects of a document. */
+interface StyleParts {
+    /** An element's bypasses, or null. */
+    readonly bypassOf: (target: "node" | "edge", row: number) => Record<string, unknown> | null;
+    /** The nodes with bypasses. */
+    readonly nodeBypassRows: number[];
+    /** The written edges with bypasses. */
+    readonly edgeBypassRows: number[];
+    /** The aspects written after the bypasses: the kept opaque ones, the style, the `graphty.styles` block. */
+    readonly opaqueAspects: [string, unknown[]][];
+}
+
+/**
+ * The bypasses and the extra aspects of a document. With styles, the bypasses and the style aspects are the
+ * styles' own (the bypass columns and style aspects of an import are what the styles were read from); without, the
+ * bypass columns and the kept aspects are written back.
+ * @param snapshot - the snapshot
+ * @param p - the plan
+ * @param styled - the styles as a Cytoscape style, or null without styles
+ * @param opaque - the opaque aspects a CX2 import kept
+ * @returns the parts
+ */
+function styleParts(
+    snapshot: GraphSnapshot,
+    p: Plan,
+    styled: CytoscapeEmitted | null,
+    opaque: Record<string, unknown>,
+): StyleParts {
+    const bypassOf = (target: "node" | "edge", row: number): Record<string, unknown> | null => {
+        if (styled === null) {
+            return bypassValues(target === "node" ? p.nodeBypasses : p.edgeBypasses, row);
+        }
+        const m = styled.bypasses[target][row];
+        return m === null || m.size === 0 ? null : Object.fromEntries(m);
+    };
+    const rowsWith = (target: "node" | "edge", n: number): number[] => {
+        if (styled === null) {
+            return bypassRows(target === "node" ? p.nodeBypasses : p.edgeBypasses, n);
+        }
+        const out: number[] = [];
+        for (let i = 0; i < n; i++) {
+            if (bypassOf(target, i) !== null) {
+                out.push(i);
+            }
+        }
+        return out;
+    };
+    const nodeBypassRows = rowsWith("node", snapshot.nodeCount);
+    const edgeBypassRows = rowsWith("edge", snapshot.edgeCount).filter((e) => !p.folding.folded(e));
+    const opaqueAspects = Object.entries(opaque).filter(
+        (entry): entry is [string, unknown[]] =>
+            !CORE_ASPECTS.has(entry[0]) && !(styled !== null && STYLE_ASPECTS.has(entry[0])) && Array.isArray(entry[1]),
+    );
+    if (styled !== null) {
+        const aspects = cytoscapeCx2Aspects(styled.style);
+        opaqueAspects.push(
+            ["visualProperties", aspects.visualProperties],
+            ["visualEditorProperties", aspects.visualEditorProperties],
+        );
+    }
+    const styleBlock = snapshotBlock(snapshot);
+    if (styleBlock !== null) {
+        opaqueAspects.push([STYLE_BLOCK_NAME, blockAspect(styleBlock)]);
+    }
+
+    return { bypassOf, nodeBypassRows, edgeBypassRows, opaqueAspects };
+}
+
 /**
  * The text of one aspect block, element by element.
  * @param aspect - the aspect name
  * @param count - its element count
  * @param element - the JSON text of element k
- * @yields the block's text
- * @returns nothing
+ * @returns the block's text parts
  */
-function* block(aspect: string, count: number, element: (k: number) => string): Generator<string, void, undefined> {
-    yield `{${JSON.stringify(aspect)}:[`;
-    for (let k = 0; k < count; k++) {
-        yield k === 0 ? `\n${element(k)}` : `,\n${element(k)}`;
-    }
-    yield "]},\n";
+function block(aspect: string, count: number, element: (k: number) => string): Generator<string, void, undefined> {
+    return aspectBlock(
+        aspect,
+        (function* elements(): Generator<string, void, undefined> {
+            for (let k = 0; k < count; k++) {
+                yield element(k);
+            }
+        })(),
+    );
 }
 
 /**
@@ -998,11 +929,14 @@ function bypassValues(columns: readonly Column[], row: number): Record<string, u
 }
 
 /**
- * The CX2 exporter plugin (design section 1.3).
+ * The CX2 exporter plugin.
+ * @category Built-in formats
  */
 export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
     format: CX2_FORMAT,
+    options: Object.freeze([]),
     capabilities: CX2_CAPABILITIES,
+    styles: Object.freeze({ capabilities: CX2_STYLE_CAPABILITIES }),
 
     /**
      * Pre-flight: what export() would lose, without writing anything.
@@ -1010,8 +944,12 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the notes, empty when the export is exact
      */
-    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions & CommonExportOptions): readonly LossNote[] {
-        return Object.freeze([...plan(snapshot, resolveExportOptions(options)).notes]);
+    check(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): readonly LossNote[] {
+        const styled = cytoscapeStyledExport(snapshot, options?.styles, "cx2");
+        return Object.freeze([
+            ...plan(styled?.snapshot ?? snapshot, resolveExportOptions(options)).notes,
+            ...(styled?.notes ?? []),
+        ]);
     },
 
     /**
@@ -1020,8 +958,8 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
-        return encodeChunks(write(snapshot, plan(snapshot, resolveExportOptions(options))));
+    export(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): AsyncIterable<Uint8Array> {
+        return encodeChunks(written(snapshot, options));
     },
 
     /**
@@ -1030,7 +968,22 @@ export const cx2Exporter: GraphExporter<Cx2ExportOptions> = Object.freeze({
      * @param options - the common options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions & CommonExportOptions): Promise<string> {
-        return joinText(write(snapshot, plan(snapshot, resolveExportOptions(options))));
+    exportToString(snapshot: GraphSnapshot, options?: Cx2ExportOptions & ExporterStyleOptions): Promise<string> {
+        return joinText(written(snapshot, options));
     },
 });
+
+/**
+ * The document's text, with the styles when they are given.
+ * @param snapshot - the snapshot
+ * @param options - the options
+ * @returns the text parts
+ */
+function written(
+    snapshot: GraphSnapshot,
+    options: (Cx2ExportOptions & ExporterStyleOptions) | undefined,
+): Generator<string, void, undefined> {
+    const styled = cytoscapeStyledExport(snapshot, options?.styles, "cx2");
+    const target = styled?.snapshot ?? snapshot;
+    return write(target, plan(target, resolveExportOptions(options)), styled?.styled ?? null);
+}

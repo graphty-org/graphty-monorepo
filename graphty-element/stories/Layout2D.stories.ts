@@ -1,5 +1,6 @@
 import "../index.ts";
 
+import { randomApollonianGraph } from "@graphty/graph-samples/generators";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
@@ -14,6 +15,7 @@ import {
     type Drawn,
     drawn,
 } from "./assertions";
+import { data3Url, data5Url } from "./datasets";
 import { eventWaitingDecorator, renderFn, storySetup, waitForGraphSettled } from "./helpers";
 
 /**
@@ -217,7 +219,7 @@ const meta: Meta = {
     args: {
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data3.json",
+            data: data3Url,
         },
     },
 };
@@ -289,7 +291,7 @@ export const Shell: Story = {
         shellScale: 1,
         dataSource: "json",
         dataSourceConfig: {
-            data: "https://raw.githubusercontent.com/graphty-org/graphty-element/refs/heads/master/test/helpers/data5.json",
+            data: data5Url,
         },
     },
     parameters: {
@@ -343,7 +345,7 @@ export const Random: Story = {
 export const Spring: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `springIterations` BELOW, so under Chromatic the 50 iterations run
+         * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
          * before the first frame is drawn, off the frame clock. Everywhere else the layout
          * animates, one iteration per rendered frame. The picture is the same either way:
          * Fruchterman-Reingold is deterministic under `seed` and stops at `iterations` whichever
@@ -369,50 +371,20 @@ export const Spring: Story = {
     },
 };
 
+/** The planar story's graph: a seeded random Apollonian network, a planar triangulation other layouts tangle. */
+const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
+
+/**
+ * A planar layout of a 20-node random Apollonian network (seed 42): every edge straight, every node on a grid point,
+ * and no two edges crossing. The nodes are not evenly spaced.
+ */
 export const Planar: Story = {
     args: {
         dataSource: undefined,
-        nodeData: [
-            { id: 0 },
-            { id: 1 },
-            { id: 2 },
-            { id: 3 },
-            { id: 4 },
-            { id: 5 },
-            { id: 6 },
-            { id: 7 },
-            { id: 8 },
-            { id: 9 },
-        ],
-        edgeData: [
-            { src: 0, dst: 1 },
-            { src: 1, dst: 2 },
-            { src: 2, dst: 0 },
-            { src: 3, dst: 2 },
-            { src: 3, dst: 1 },
-            { src: 3, dst: 0 },
-            { src: 4, dst: 3 },
-            { src: 4, dst: 2 },
-            { src: 4, dst: 1 },
-            { src: 5, dst: 4 },
-            { src: 5, dst: 3 },
-            { src: 5, dst: 2 },
-            { src: 6, dst: 5 },
-            { src: 6, dst: 4 },
-            { src: 6, dst: 3 },
-            { src: 7, dst: 6 },
-            { src: 7, dst: 5 },
-            { src: 7, dst: 4 },
-            { src: 8, dst: 7 },
-            { src: 8, dst: 6 },
-            { src: 8, dst: 5 },
-            { src: 9, dst: 8 },
-            { src: 9, dst: 7 },
-            { src: 9, dst: 6 },
-        ],
+        nodeData: Array.from({ length: apollonian.nodeCount }, (_, id) => ({ id })),
+        edgeData: Array.from(apollonian.src, (src, e) => ({ src, dst: apollonian.dst[e] })),
         setup: storySetup({ viewMode: "2d" }),
         layout: "planar",
-        layoutConfig: { seed: 42 },
         planarScale: 1,
     },
     parameters: {
@@ -421,7 +393,10 @@ export const Planar: Story = {
         },
     },
     play: async ({ canvasElement }) => {
-        const scene = await placed(canvasElement, "Planar", { nodes: 10, edges: 24 });
+        const scene = await placed(canvasElement, "Planar", {
+            nodes: apollonian.nodeCount,
+            edges: apollonian.src.length,
+        });
 
         await assertDistinctPicture(scene, "Layout/2D");
     },
@@ -457,7 +432,7 @@ export const KamadaKawai: Story = {
 export const ForceAtlas2: Story = {
     args: {
         /*
-         * `preSteps` MATCHES `fa2MaxIter` BELOW, so under Chromatic the 100 iterations run before
+         * `preSteps` MATCHES `fa2MaxIter` BELOW, so under capture the 100 iterations run before
          * the first frame is drawn, off the frame clock. Everywhere else the layout animates, one
          * iteration per rendered frame. The picture is the same either way, because ForceAtlas2 is
          * deterministic under `seed` and stops at `maxIter` whichever clock ran it.

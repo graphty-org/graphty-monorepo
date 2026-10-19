@@ -16,9 +16,15 @@
 #   compact-mantine/storybook-static    -> /storybook/compact-mantine/
 #   algorithms/storybook-static         -> /storybook/algorithms/
 #   layout/storybook-static             -> /storybook/layout/
+#   cytoscape-extensions/storybook-static -> /storybook/cytoscape-extensions/  (the demo)
 #   algorithms/gh-pages                 -> /algorithms/          landing page
 #   layout/gh-pages                     -> /layout/              examples
 #   graph-samples/public-data/v1        -> /data/graph-samples/v1/  (only if built)
+#
+# GRAPHTY_BUILD (optional), e.g. "commit=<sha> release=graphty@0.8.35", is written into the app's
+# index.html as <meta name="graphty-build" content="...">, replacing any stamp the build left there.
+# The deploy sets it, so the live page says which commit and which release it serves; the deploy
+# also reads it back to skip publishing a commit that is already live.
 #
 # A missing input is reported and skipped, as the deploy always did; the link check then fails on
 # every link into it.
@@ -42,12 +48,17 @@ copy() {
 }
 
 copy graphty/dist ""
+if [ -n "${GRAPHTY_BUILD:-}" ] && [ -f "$OUT/index.html" ]; then
+    STAMP="$GRAPHTY_BUILD" perl -0pi -e 's/\s*<meta name="graphty-build"[^>]*>//g; s|</head>|    <meta name="graphty-build" content="$ENV{STAMP}" />\n    </head>|' "$OUT/index.html"
+    echo "Stamped /index.html: $GRAPHTY_BUILD"
+fi
 copy docs/.vitepress/dist docs
 copy graphty-element/storybook-static storybook/graphty-element
 copy graphty/storybook-static storybook/app
 copy compact-mantine/storybook-static storybook/compact-mantine
 copy algorithms/storybook-static storybook/algorithms
 copy layout/storybook-static storybook/layout
+copy cytoscape-extensions/storybook-static storybook/cytoscape-extensions
 copy algorithms/gh-pages algorithms
 copy layout/gh-pages layout
 if [ -d graph-samples/public-data/v1 ]; then
@@ -84,10 +95,15 @@ cat > "$OUT/storybook/index.html" << 'EOF'
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Graphty Storybooks</title>
+  <title>graphty Storybooks</title>
+  <link rel="icon" href="/docs/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/docs/favicon.svg" type="image/svg+xml">
   <style>
     body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 1rem; }
-    h1 { color: #333; }
+    body { background: #ffffff; }
+    h1 { color: #333; margin: 0; }
+    h1 img { display: block; }
+    .subtitle { color: #333; font-size: 1.5rem; margin: 1rem 0 0; }
     ul { list-style: none; padding: 0; }
     li { margin: 1rem 0; }
     a { color: #0066cc; text-decoration: none; font-size: 1.2rem; }
@@ -96,7 +112,8 @@ cat > "$OUT/storybook/index.html" << 'EOF'
   </style>
 </head>
 <body>
-  <h1>Graphty Storybooks</h1>
+  <h1><img src="/docs/brand/graphty-lockup-color-on-light.svg" alt="graphty" height="48"></h1>
+  <p class="subtitle">Storybooks</p>
   <ul>
     <li>
       <a href="/storybook/graphty-element/">graphty-element</a>
@@ -117,6 +134,10 @@ cat > "$OUT/storybook/index.html" << 'EOF'
     <li>
       <a href="/storybook/layout/">layout</a>
       <div class="desc">Graph layout algorithm demonstrations</div>
+    </li>
+    <li>
+      <a href="/storybook/cytoscape-extensions/">cytoscape-extensions</a>
+      <div class="desc">Every graphty layout and algorithm running in Cytoscape.js, on the CPU and the GPU</div>
     </li>
   </ul>
   <p><a href="/">&larr; Back to graphty.app</a></p>

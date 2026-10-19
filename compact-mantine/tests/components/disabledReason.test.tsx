@@ -3,21 +3,12 @@ import { render, screen } from "@testing-library/react";
 import React, { type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import {
-    CompactColorInput,
-    compactTheme,
-    IconGroupRow,
-    PopoutManager,
-    StyleNumberInput,
-    StyleSelect,
-    ToggleRow,
-    ToggleWithContent,
-} from "../../src";
+import { CompactColorInput, compactTheme, PanelField, PopoutManager, ToggleRow, ToggleWithContent } from "../../src";
 import { LabelsProvider } from "../../src/i18n";
 
 // What this file holds the line on, and the defect it was written for.
 //
-// Six controls in this library take `disabled`, and until U6 of the shell
+// Five controls in this library take `disabled`, and until U6 of the shell
 // repair not one of them could say WHY it was off. A dimmed, silent control is
 // read as a broken application rather than as a state of the reader's own data:
 // the shell's "Show legend" toggle is off whenever nothing is encoded, and a
@@ -32,13 +23,13 @@ import { LabelsProvider } from "../../src/i18n";
 // in action -- the shared component was wrong, so the shared component is fixed
 // and every caller gets the fix.
 //
-// The table below is deliberately one table rather than six suites, because the
-// whole value of the contract is that the six controls spell it IDENTICALLY. A
+// The table below is deliberately one table rather than five suites, because the
+// whole value of the contract is that the five controls spell it IDENTICALLY. A
 // per-component test would let one of them drift into a colon, or into a
 // tooltip that never reaches a screen reader, without anything failing.
 
 /**
- * Every provider the six controls need between them.
+ * Every provider the five controls need between them.
  * @param props - Component props
  * @param props.children - The control under test
  * @returns The wrapped tree
@@ -51,14 +42,6 @@ function TestWrapper({ children }: { children: ReactNode }): React.JSX.Element {
             </MantineProvider>
         </DirectionProvider>
     );
-}
-
-/**
- * A 14px placeholder drawing for the icon group's options.
- * @returns A decorative square
- */
-function TestGlyph(): React.JSX.Element {
-    return <svg width={14} height={14} aria-hidden="true" focusable="false" />;
 }
 
 /**
@@ -95,35 +78,42 @@ interface ReasonCase {
 
 const CASES: ReasonCase[] = [
     {
-        name: "StyleSelect",
+        name: "PanelField (select)",
         label: "Shape",
         reason: "Load data first",
         render: (props) => (
-            <StyleSelect
+            <PanelField
                 label="Shape"
+                kind="select"
                 defaultValue="sphere"
-                options={[
+                data={[
                     { value: "sphere", label: "Sphere" },
                     { value: "box", label: "Box" },
                 ]}
                 {...props}
             />
         ),
-        described: () => screen.getByRole("textbox", { name: "Shape" }),
+        // The Select's input is a combobox (it opens a listbox).
+        described: () => screen.getByRole("combobox", { name: "Shape" }),
+        enabledTitle: "Shape",
     },
     {
-        name: "StyleNumberInput",
+        name: "PanelField (number)",
         label: "Size",
         reason: "Load data first",
-        render: (props) => <StyleNumberInput label="Size" defaultValue={1} {...props} />,
-        described: () => screen.getByRole("textbox", { name: "Size" }),
+        // The arrow-key hint is its own aria-description; left out here so the description
+        // under test is only the reason.
+        render: (props) => <PanelField label="Size" kind="number" defaultValue={1} stepHint="" {...props} />,
+        // A scrubbable number field is a spinbutton (spec 6.1), not a plain textbox.
+        described: () => screen.getByRole("spinbutton", { name: "Size" }),
+        enabledTitle: "Size",
     },
     {
         name: "CompactColorInput",
         label: "Fill",
         reason: "Load data first",
         render: (props) => <CompactColorInput label="Fill" defaultColor="#FF0000" {...props} />,
-        described: () => screen.getByRole("button", { name: /swatch/i }),
+        described: () => screen.getByRole("button", { name: "Pick Fill color" }),
     },
     {
         name: "ToggleRow",
@@ -139,44 +129,24 @@ const CASES: ReasonCase[] = [
         reason: "Glow is not drawn yet",
         render: (props) => (
             <ToggleWithContent label="Glow" {...props}>
-                <StyleNumberInput label="Strength" defaultValue={1} />
+                <PanelField label="Strength" kind="number" defaultValue={1} />
             </ToggleWithContent>
         ),
         described: () => screen.getByRole("checkbox", { name: "Glow" }),
         enabledTitle: "Glow",
-    },
-    {
-        name: "IconGroupRow",
-        label: "Node shape",
-        reason: "Load data first",
-        render: (props) => (
-            <IconGroupRow
-                label="Node shape"
-                options={[
-                    { value: "sphere", label: "Sphere", icon: <TestGlyph /> },
-                    { value: "box", label: "Box", icon: <TestGlyph /> },
-                ]}
-                {...props}
-            />
-        ),
-        described: () => screen.getByRole("radiogroup"),
     },
 ];
 
 describe("disabledReason", () => {
     describe.each(CASES)("$name", (testCase: ReasonCase) => {
         it("appends its disabledReason to its title after a full stop", () => {
-            render(
-                <TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>,
-            );
+            render(<TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>);
 
             expect(screen.getByTitle(`${testCase.label}. ${testCase.reason}`)).toBeInTheDocument();
         });
 
         it("puts the reason in the accessible description", () => {
-            render(
-                <TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>,
-            );
+            render(<TestWrapper>{testCase.render({ disabled: true, disabledReason: testCase.reason })}</TestWrapper>);
 
             expect(testCase.described()).toHaveAccessibleDescription(testCase.reason);
         });
@@ -248,7 +218,7 @@ describe("bound toggles", () => {
             </TestWrapper>,
         );
 
-        expect(container.querySelector("[data-glyph=\"attribute\"]")).toHaveAttribute("data-filled", "true");
+        expect(container.querySelector('[data-glyph="attribute"]')).toHaveAttribute("data-filled", "true");
         expect(screen.getByTestId("toggle-row")).toHaveAttribute("data-bound", "true");
         expect(screen.getByRole("checkbox", { name: "Labels" })).toHaveAccessibleDescription(
             "Bound to a data attribute",
@@ -259,16 +229,14 @@ describe("bound toggles", () => {
         const { container } = render(
             <TestWrapper>
                 <ToggleWithContent label="Glow" bound>
-                    <StyleNumberInput label="Strength" defaultValue={1} />
+                    <PanelField label="Strength" kind="number" defaultValue={1} />
                 </ToggleWithContent>
             </TestWrapper>,
         );
 
-        expect(container.querySelector("[data-glyph=\"attribute\"]")).toHaveAttribute("data-filled", "true");
+        expect(container.querySelector('[data-glyph="attribute"]')).toHaveAttribute("data-filled", "true");
         expect(screen.getByTestId("toggle-with-content")).toHaveAttribute("data-bound", "true");
-        expect(screen.getByRole("checkbox", { name: "Glow" })).toHaveAccessibleDescription(
-            "Bound to a data attribute",
-        );
+        expect(screen.getByRole("checkbox", { name: "Glow" })).toHaveAccessibleDescription("Bound to a data attribute");
     });
 
     it("draws no marker and says nothing when the value is set by hand", () => {
@@ -278,7 +246,7 @@ describe("bound toggles", () => {
             </TestWrapper>,
         );
 
-        expect(container.querySelector("[data-glyph=\"attribute\"]")).toBeNull();
+        expect(container.querySelector('[data-glyph="attribute"]')).toBeNull();
         expect(screen.getByTestId("toggle-row")).not.toHaveAttribute("data-bound");
         expect(screen.getByRole("checkbox", { name: "Labels" })).toHaveAccessibleDescription("");
     });
@@ -299,7 +267,7 @@ describe("bound toggles", () => {
         render(
             <TestWrapper>
                 <ToggleWithContent label="Glow" bound boundDescription="">
-                    <StyleNumberInput label="Strength" defaultValue={1} />
+                    <PanelField label="Strength" kind="number" defaultValue={1} />
                 </ToggleWithContent>
             </TestWrapper>,
         );

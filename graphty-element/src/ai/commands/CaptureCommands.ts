@@ -59,7 +59,7 @@ export const captureScreenshot: GraphCommand = {
 
             // If download requested and we're in a browser context, trigger download
             if (download && typeof document !== "undefined") {
-                const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+                const timestamp = new Date().toISOString().replaceAll(/[:.]/g, "-");
                 const filename = `graph-screenshot-${timestamp}.${format}`;
                 triggerDownload(dataUrl, filename);
             }
@@ -113,7 +113,7 @@ function triggerDownload(dataUrl: string, filename: string): void {
     link.download = filename;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
 }
 
 /**
@@ -152,9 +152,10 @@ export const captureVideo: GraphCommand = {
         // Video recording is a more complex feature that requires MediaRecorder
         // For Phase 7, we provide a basic structure but note this needs canvas-level implementation
         if (action === "start") {
+            const autoStop = duration ? ` (will auto-stop in ${duration}s)` : "";
             return Promise.resolve({
                 success: true,
-                message: `Video recording started${duration ? ` (will auto-stop in ${duration}s)` : ""}.`,
+                message: `Video recording started${autoStop}.`,
                 data: {
                     action: "started",
                     duration,

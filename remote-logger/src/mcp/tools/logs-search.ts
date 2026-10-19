@@ -5,7 +5,7 @@
  * @module mcp/tools/logs-search
  */
 
-import * as z from "zod/v3";
+import { z } from "zod";
 
 import type { LogEntryWithSession, LogStorage } from "../../server/log-storage.js";
 
@@ -50,10 +50,7 @@ export interface LogsSearchOutput {
  * @param input - Input parameters
  * @returns Matching logs and count
  */
-export function logsSearchHandler(
-    storage: LogStorage,
-    input: LogsSearchInput,
-): Promise<LogsSearchOutput> {
+export function logsSearchHandler(storage: LogStorage, input: LogsSearchInput): Promise<LogsSearchOutput> {
     // Validate regex if provided
     if (input.regex) {
         try {

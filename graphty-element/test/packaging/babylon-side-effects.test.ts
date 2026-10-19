@@ -35,6 +35,11 @@ const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const AUGMENTATIONS = [
     { module: "@babylonjs/core/Meshes/instancedMesh", members: ["createInstance"], receiver: /./ },
     {
+        module: "@babylonjs/core/Meshes/thinInstanceMesh",
+        members: ["thinInstanceSetBuffer", "thinInstanceBufferUpdated", "thinInstanceSetMatrixAt"],
+        receiver: /./,
+    },
+    {
         module: "@babylonjs/core/Culling/ray",
         members: ["pick", "pickWithRay", "multiPick", "multiPickWithRay", "createPickingRay", "createPickingRayToRef"],
         receiver: /scene$/i,
@@ -56,8 +61,15 @@ function sourceFiles(dir: string): string[] {
     });
 }
 
+/** Every member name above, as a whole word: a file without one cannot call any of them. */
+const ANY_MEMBER = new RegExp(`\\b(?:${AUGMENTATIONS.flatMap((aug) => aug.members).join("|")})\\b`);
+
 /** Side-effect modules this file needs but does not import. */
 function missingImports(path: string, text = readFileSync(path, "utf8")): string[] {
+    // Parsing is the whole cost of this test, and most of the source names none of the members.
+    if (!ANY_MEMBER.test(text)) {
+        return [];
+    }
     const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
     const bareImports = new Set(
         source.statements

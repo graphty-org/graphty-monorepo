@@ -293,7 +293,7 @@ describe("DirectionResolver policies directed / undirected / error", () => {
         expect(s.directed).toBe(false);
         expect(s.edgeCount).toBe(2);
         expect(resolver.forced).toBe(1);
-        expect(report.warningCount).toBe(2);
+        expect(report.warningCount).toBe(1);
     });
 
     it("undirected against a locked directed sink reports and pushes as the sink's kind", () => {

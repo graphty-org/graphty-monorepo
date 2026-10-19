@@ -341,4 +341,18 @@ describe("XGMML labels as Cytoscape desktop draws them", () => {
         expect(resolveStyles(ex, "edge", "labelOffsetX", snapshot)).toEqual([-80]);
         expect(resolveStyles(ex, "edge", "labelShiftX", snapshot)).toEqual([-0.5]);
     });
+
+    it("draws an edge label level under EDGE_LABEL_AUTOROTATE, as Cytoscape desktop draws an XGMML file", async () => {
+        // Cytoscape 3.10.5 turns this edge's label along its line read from CX, CX2 or a session, and draws it level
+        // read from XGMML (the label-autorotate-true edge of the edge-labels sheet in its SVG)
+        const turned = doc(
+            [
+                node("s", 0, ""),
+                `<node id="t" label="t"><graphics x="100" y="-50" w="40" h="20"/></node>`,
+                `<edge source="s" target="t"><graphics>${att("EDGE_LABEL", "e")}${att("EDGE_LABEL_AUTOROTATE", "true")}${att("EDGE_LABEL_ROTATION", "10.0")}</graphics></edge>`,
+            ].join("\n"),
+        );
+        const { snapshot, styles } = await load(turned);
+        expect(resolveStyles(styles as ExtractedStyles, "edge", "labelRotation", snapshot)).toEqual([10]);
+    });
 });

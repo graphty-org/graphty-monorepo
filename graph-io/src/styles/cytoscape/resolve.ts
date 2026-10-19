@@ -114,6 +114,18 @@ export interface CytoscapeResolveOptions {
 
 /** How closely desktop stacks the edges it fans, 0..1: its anchors are twice this times the node size apart. */
 const EDGE_STACKING_DENSITY_VP = "EDGE_STACKING_DENSITY";
+/** Whether an edge's label is turned along its line. */
+const AUTOROTATE_VP = "EDGE_LABEL_AUTOROTATE";
+
+/**
+ * A map without one key.
+ * @param m - the map
+ * @param key - the key left out
+ * @returns a copy without it
+ */
+function withoutKey(m: ReadonlyMap<string, unknown>, key: string): ReadonlyMap<string, unknown> {
+    return new Map([...m].filter(([k]) => k !== key));
+}
 /** Desktop's `EDGE_STACKING_DENSITY` default. */
 const EDGE_STACKING_DENSITY_DEFAULT = 0.5;
 
@@ -687,7 +699,7 @@ function autorotate(
     n: number,
     ends: CytoscapeElements["ends"],
 ): void {
-    const on = one("EDGE_LABEL_AUTOROTATE", rawText, "labelRotation", e);
+    const on = one(AUTOROTATE_VP, rawText, "labelRotation", e);
     const [si, ti] = [ends?.source[e], ends?.target[e]];
     const [s, t] = [si === undefined ? null : ends?.nodeAt?.[si], ti === undefined ? null : ends?.nodeAt?.[ti]];
     if (String(on).toLowerCase() !== "true" || !s || !t || (s[0] === t[0] && s[1] === t[1])) {
@@ -1063,7 +1075,10 @@ export function resolveCytoscapeBypasses(
     const elements: CytoscapeElements = {
         count: maps.length,
         value: options.value ?? (() => null),
-        bypasses: maps,
+        // Cytoscape 3.10.5 draws an XGMML edge's EDGE_LABEL_AUTOROTATE true level, where it turns the same edge read
+        // from CX, CX2 or a session along its line (the label-autorotate-true edge of the edge-labels and
+        // mappings-bypass-p13 sheets in its SVG): its XGMML reader does not apply it, so neither does graph-io
+        bypasses: maps.map((m) => (m?.has(AUTOROTATE_VP) === true ? withoutKey(m, AUTOROTATE_VP) : m)),
         ends: options.ends,
     };
     const out = resolveCytoscape(target, style, elements, { notes, budget: options.budget });

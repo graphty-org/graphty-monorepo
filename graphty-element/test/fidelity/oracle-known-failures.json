@@ -66708,8 +66708,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -66745,8 +66749,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -66785,8 +66793,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -66825,8 +66837,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -66856,8 +66872,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -66892,6 +66912,7 @@
                 "default-s->default-t#0",
                 "reverse-pair-s->reverse-pair-t#0",
                 "reverse-pair-t->reverse-pair-s#0",
+                "self-loop-s->self-loop-s#0",
                 "target-size-12-s->target-size-12-t#0",
                 "type-default-s->type-default-t#0",
                 "type-directed-s->type-directed-t#0",
@@ -66899,7 +66920,9 @@
                 "weight-0-5-s->weight-0-5-t#0",
                 "weight-4-s->weight-4-t#0"
             ],
-            "edge.curve": [],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -66943,6 +66966,7 @@
                 "default-s->default-t#0",
                 "reverse-pair-s->reverse-pair-t#0",
                 "reverse-pair-t->reverse-pair-s#0",
+                "self-loop-s->self-loop-s#0",
                 "target-size-12-s->target-size-12-t#0",
                 "type-default-s->type-default-t#0",
                 "type-directed-s->type-directed-t#0",
@@ -66950,7 +66974,9 @@
                 "weight-0-5-s->weight-0-5-t#0",
                 "weight-4-s->weight-4-t#0"
             ],
-            "edge.curve": [],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67071,8 +67097,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67102,8 +67132,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67133,8 +67167,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67170,8 +67208,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67207,8 +67249,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67244,8 +67290,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67294,8 +67344,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67350,8 +67404,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67406,8 +67464,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67462,8 +67524,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67620,8 +67686,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67670,8 +67740,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67720,8 +67794,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67770,8 +67848,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67820,8 +67902,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67870,8 +67956,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67920,8 +68010,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -67970,8 +68064,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68020,8 +68118,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68070,8 +68172,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68120,8 +68226,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68170,8 +68280,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68226,8 +68340,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68282,8 +68400,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68338,8 +68460,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68394,8 +68520,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68444,8 +68574,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68494,8 +68628,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68544,8 +68682,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68594,8 +68736,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68650,8 +68796,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68706,8 +68856,12 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68743,8 +68897,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
+            "edge.curve": [
+                "label-on-loop-s->label-on-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68774,8 +68932,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68805,8 +68967,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68836,8 +69002,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68867,8 +69037,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -68898,8 +69072,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69033,8 +69211,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69064,8 +69246,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69227,8 +69413,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69258,8 +69448,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69289,8 +69483,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69320,8 +69518,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69351,8 +69553,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69382,8 +69588,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69413,8 +69623,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69444,8 +69658,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69475,8 +69693,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69506,8 +69728,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69537,8 +69763,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69568,8 +69798,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69599,8 +69833,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69630,8 +69868,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -69661,8 +69903,12 @@
             "label.present": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": [],
-            "edge.curve": [],
+            "edge.route": [
+                "self-loop-s->self-loop-s#0"
+            ],
+            "edge.curve": [
+                "self-loop-s->self-loop-s#0"
+            ],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -70789,7 +71035,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -70833,7 +71090,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -70877,7 +71145,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -70921,7 +71200,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -70965,7 +71255,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -71009,7 +71310,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -72121,7 +72433,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -72165,7 +72488,18 @@
                 "label-newline"
             ],
             "label.anchor": [],
-            "label.outline": [],
+            "label.outline": [
+                "label-digits",
+                "label-entity",
+                "label-long",
+                "label-newline",
+                "label-node-size-10",
+                "label-node-size-25",
+                "label-on-red",
+                "label-overlap-small",
+                "label-text",
+                "label-words"
+            ],
             "label.background": [],
             "label.backgroundBorder": [],
             "group.extra": [
@@ -73076,7 +73410,9 @@
             "background": []
         },
         "gexf-specimen-node-sizes-opacity-p3": {
-            "node.present": [],
+            "node.present": [
+                "position-none"
+            ],
             "node.extra": [],
             "node.position": [
                 "alpha-0",
@@ -73231,7 +73567,9 @@
             "background": []
         },
         "gexf-specimen-node-sizes-opacity-p3@matched": {
-            "node.present": [],
+            "node.present": [
+                "position-none"
+            ],
             "node.extra": [],
             "node.position": [],
             "node.width": [
@@ -73243,6 +73581,7 @@
                 "anchor-ne",
                 "anchor-nw",
                 "anchor-se",
+                "anchor-sw",
                 "default",
                 "position-z",
                 "size-0",
@@ -73264,6 +73603,7 @@
                 "anchor-ne",
                 "anchor-nw",
                 "anchor-se",
+                "anchor-sw",
                 "default",
                 "position-z",
                 "size-0",
@@ -73285,6 +73625,7 @@
                 "anchor-ne",
                 "anchor-nw",
                 "anchor-se",
+                "anchor-sw",
                 "default",
                 "position-z",
                 "size-0",

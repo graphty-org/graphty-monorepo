@@ -36,8 +36,6 @@ interface AlgorithmWords {
     readonly answers: string;
     /** Words a reader might type for it ("brokers" finds Betweenness). */
     readonly aliases: readonly string[];
-    /** The one "Start here" of its heading (at most one per heading). */
-    readonly startHere?: boolean;
 }
 
 /** The words for the element's own algorithms, by key. */
@@ -66,7 +64,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "PageRank",
         answers: "Which nodes are connected to other well-connected nodes.",
         aliases: ["influence", "important", "importance", "random walk", "central"],
-        startHere: true,
     },
     eigenvector: {
         name: "Eigenvector",
@@ -87,7 +84,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "Louvain",
         answers: "Which nodes form densely linked groups.",
         aliases: ["communities", "clusters", "groups", "modularity"],
-        startHere: true,
     },
     leiden: {
         name: "Leiden",
@@ -128,7 +124,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "Shortest path",
         answers: "The fewest steps, or the lightest route, between two nodes.",
         aliases: ["route", "dijkstra", "how are they connected"],
-        startHere: true,
     },
     astar: {
         name: "Guided route",

@@ -16,6 +16,7 @@ const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stop
 vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
 
 import { render, screen, waitFor } from "../../../test/test-utils";
+import { SELECTED_CARD_TEMPLATE_ID } from "../../canvas/selectedCard";
 import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -51,14 +52,19 @@ async function elementSession(): Promise<GraphSession> {
 }
 
 /**
- * The style layers beyond the element's own locked base layers (node and edge defaults).
+ * The style layers beyond the element's own locked base layers (node and edge defaults) and the
+ * app's selected-node card, which every project starts with.
  * @param session - the element's session.
  * @returns the names of the added layers.
  */
 function addedLayers(session: GraphSession): string[] {
     return session.styles
         .list()
-        .filter((layer) => layer.kind !== "base")
+        .filter(
+            (layer) =>
+                layer.kind !== "base" &&
+                !(layer.source.by === "template" && layer.source.templateId === SELECTED_CARD_TEMPLATE_ID),
+        )
         .map((layer) => layer.name);
 }
 
@@ -75,7 +81,7 @@ describe("T1 and T2: first launch and pick a sample, on the real element", () =>
         // T1: the card is at the foot of the start screen until it is answered.
         assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
         await userEvent.click(screen.getByRole("button", { name: "Share usage data" }));
-        assert.isNotNull(screen.getByRole("button", { name: "Usage data on, content masked" }));
+        assert.isNotNull(screen.getByText(/Thank you\. Usage data is on, with content masked\./));
         assert.equal(initSentry.mock.calls.length, 1);
 
         // T2: a sample opens as a project on the Graph place.

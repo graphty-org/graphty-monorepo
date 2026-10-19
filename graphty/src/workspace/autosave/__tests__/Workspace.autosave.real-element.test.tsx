@@ -62,7 +62,7 @@ async function openElement(): Promise<{ element: ElementUnderTest; session: Grap
     let found: { element: ElementUnderTest; session: GraphSession } | undefined;
     await waitFor(
         () => {
-            const element = document.querySelector<ElementUnderTest>("graphty-element");
+            const element = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
             const session: GraphSession | undefined = element?.session;
             assert.isDefined(session);
             if (element !== null && session !== undefined) {
@@ -182,7 +182,8 @@ describe("Workspace autosave with the real graphty-element", () => {
         });
         assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
         assert.isNull(second.store.get().project);
-        assert.isNull(document.querySelector("graphty-element"));
+        // The start page draws its own graph; no project element is up.
+        assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
         second.view.unmount();
 
         // Nothing is offered on the next visit.

@@ -122,6 +122,16 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_CAMERA"
     /**
+     * `data.generate` names a generator the catalogue does not list. `details.available` lists
+     * the generator names. The caller picks one from `catalog.generators()`.
+     */
+    | "E_UNKNOWN_GENERATOR"
+    /**
+     * `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+     * the dataset names. The caller picks one from `catalog.datasets()`.
+     */
+    | "E_UNKNOWN_DATASET"
+    /**
      * A logging configuration names a log destination nothing registered. `details.available`
      * lists the registered sink ids. The caller registers the sink before naming it, which is
      * what makes a destination configurable by name rather than by holding a live object.
@@ -542,6 +552,8 @@ const CODE_TABLE = {
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",
     E_UNKNOWN_PALETTE: "E_UNKNOWN_PALETTE",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
+    E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
+    E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
     E_UNKNOWN_SINK: "E_UNKNOWN_SINK",
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",

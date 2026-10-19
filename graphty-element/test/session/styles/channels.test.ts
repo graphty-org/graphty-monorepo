@@ -42,8 +42,13 @@ const DECLARED = [
     "node.outline",
     "node.glow",
     "node.glowStrength",
+    "node.halo",
+    "node.haloColor",
+    "node.haloScale",
+    "node.haloOpacity",
     "node.wireframe",
     "node.flat",
+    "node.unlit",
     "node.marker",
     "node.width",
     "node.height",
@@ -108,8 +113,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty node channels and twenty-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 30);
+    it("splits into thirty-five node channels and twenty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 35);
         assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -300,6 +305,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.outline",
         "node.glow",
         "node.glowStrength",
+        // Unset, a node is highlighted when it is selected and not otherwise.
+        "node.halo",
         "node.marker",
         // Unset, a node's width, height and depth follow its size and its shape's proportions.
         "node.width",
@@ -410,12 +417,13 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the nine that carry a colour, and the type says the same nine", () => {
+    it("are the ten that carry a colour, and the type says the same ten", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
             "node.outline",
             "node.glow",
+            "node.haloColor",
             "node.borderColor",
             "edge.color",
             "edge.arrowHeadColor",

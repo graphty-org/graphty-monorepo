@@ -12,6 +12,14 @@
 import "../data/index";
 
 import { type DerivedGraph, fromBytes, type GraphSnapshot, INVALID_INDEX, type NodeId } from "@graphty/graph-format";
+import {
+    DATASET_NAMES,
+    fetchDataset,
+    GENERATOR_CATALOG,
+    type SampleGraph,
+    toElementData,
+} from "@graphty/graph-samples";
+import { generateGraph, type GeneratorParams } from "@graphty/graph-samples/generators";
 
 import { detectFormat, undetectedFormat } from "../catalog/detect";
 import type {
@@ -69,6 +77,7 @@ import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
 import type {
     ColumnHistogram,
+    DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
     EdgePageOptions,
@@ -78,6 +87,7 @@ import type {
     FindOptions,
     FindResult,
     GraphStatistics,
+    ImportOptions,
     LoadChoices,
     Neighbor,
     NeighborOptions,
@@ -516,7 +526,100 @@ export class SessionData implements SessionDataApi {
         this.requireLive("import");
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
+        await this.importVia(this.writes.importer(), source, options);
+    }
+
+    /**
+     * Load a generated graph from the catalogue, as one undoable step.
+     * @param name - The generator's name.
+     * @param params - Its parameters; each one left out takes its catalogue default.
+     * @param options - Whether to replace the graph (the default) or add to it.
+     * @returns Settles once the graph is loaded.
+     */
+    async generate(name: string, params: GeneratorParams = {}, options: ImportOptions = {}): Promise<void> {
+        this.requireLive("generate");
         const send = this.writes.importer();
+        const descriptor = GENERATOR_CATALOG.find((each) => each.name === name);
+        if (descriptor === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_GENERATOR",
+                message: `There is no generator named "${name}".`,
+                source: "data",
+                details: { name, available: GENERATOR_CATALOG.map((each) => each.name) },
+            });
+        }
+        const available = descriptor.params.map((each) => each.name);
+        const unknown = Object.keys(params).find((key) => !available.includes(key));
+        if (unknown !== undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_OPTION",
+                message: `The ${name} generator takes no parameter "${unknown}".`,
+                source: "data",
+                details: { option: unknown, available },
+            });
+        }
+        let graph: SampleGraph;
+        try {
+            graph = generateGraph(name, params);
+        } catch (error) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: error instanceof Error ? error.message : String(error),
+                source: "data",
+                details: { generator: name, params },
+                cause: error,
+            });
+        }
+        await this.importVia(send, recordsSource(graph, name), options);
+    }
+
+    /**
+     * Download a sample dataset from the catalogue and load it, as one undoable step.
+     * @param name - The dataset's name.
+     * @param options - The import mode, a mirror to download from, and a signal.
+     * @returns Settles once the graph is loaded.
+     */
+    async loadDataset(name: string, options: DatasetLoadOptions = {}): Promise<void> {
+        this.requireLive("loadDataset");
+        const send = this.writes.importer();
+        const { baseUrl, signal, ...load } = options;
+        // A mirror may serve any name; only graphty.app's own list is checked.
+        if (baseUrl === undefined && !DATASET_NAMES.includes(name)) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_DATASET",
+                message: `There is no dataset named "${name}".`,
+                source: "data",
+                details: { name, available: DATASET_NAMES },
+            });
+        }
+        let snapshot: GraphSnapshot;
+        try {
+            snapshot = await fetchDataset(name, { baseUrl, signal });
+        } catch (error) {
+            throw new GraphtyError({
+                code: "E_FETCH_FAILED",
+                message: `The dataset "${name}" could not be downloaded.`,
+                source: "data",
+                recoverable: true,
+                details: { name, ...(baseUrl === undefined ? {} : { baseUrl }) },
+                cause: error,
+            });
+        }
+        await this.importVia(send, recordsSource(snapshot, name), load);
+    }
+
+    /**
+     * The body of `import`, dispatching through an importer taken before any await.
+     * @param send - The importer, taken when the verb was called.
+     * @param source - What `import` takes.
+     * @param options - What `import` takes.
+     * @returns Settles once the last chunk is in the graph.
+     */
+    private async importVia(
+        send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
+        source: DataSourceInput,
+        options: LoadChoices,
+    ): Promise<void> {
         this.draft?.dispose();
         if (
             options.mapping !== undefined ||
@@ -906,6 +1009,17 @@ export class SessionData implements SessionDataApi {
             // ponytail: a collator sort per (node, options) per revision; share item 3's per-revision
             // name rank if a host clicks through many 40,000-degree hubs.
             rows.sort((a, b) => direction * NATURAL.compare(a.name ?? "", b.name ?? ""));
+        } else if (sort.by === "degree") {
+            const degree = new Map<number, number>();
+            for (const row of rows) {
+                let count = 0;
+                eachAdjacentArc(snapshot, row.other, "all", () => {
+                    count++;
+                });
+                degree.set(row.other, count);
+            }
+
+            rows.sort((a, b) => direction * ((degree.get(a.other) ?? 0) - (degree.get(b.other) ?? 0)));
         } else {
             rows.sort((a, b) => direction * (a.weight - b.weight));
         }
@@ -1511,6 +1625,18 @@ export class SessionData implements SessionDataApi {
             });
         }
     }
+}
+
+/**
+ * A generated graph or a downloaded dataset as the JSON source `import` reads: graph-samples' own
+ * records for it, with its direction stated.
+ * @param graph - The graph.
+ * @param name - What the source is called.
+ * @returns The source.
+ */
+function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSourceInput {
+    const data = JSON.stringify({ directed: graph.directed, ...toElementData(graph) });
+    return { type: "json", name, config: { data } };
 }
 
 /**

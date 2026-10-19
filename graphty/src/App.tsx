@@ -1,6 +1,13 @@
-import { CompactComponentsDemo } from "./components/demo/CompactComponentsDemo";
+import { lazy, Suspense } from "react";
+
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Workspace } from "./workspace/Workspace";
+
+// The gallery loads only when asked for, so the start page's first paint
+// does not wait for it.
+const CompactComponentsDemo = lazy(async () => ({
+    default: (await import("./components/demo/CompactComponentsDemo")).CompactComponentsDemo,
+}));
 
 /**
  * Main application component.
@@ -17,7 +24,9 @@ export function App(): React.JSX.Element {
     if (params.has("demo")) {
         return (
             <ErrorBoundary>
-                <CompactComponentsDemo />
+                <Suspense>
+                    <CompactComponentsDemo />
+                </Suspense>
             </ErrorBoundary>
         );
     }

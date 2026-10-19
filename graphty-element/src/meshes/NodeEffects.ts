@@ -1,24 +1,60 @@
 import {
     AbstractMesh,
-    type Color3,
+    Camera,
+    Color3,
     type Color4,
     type EffectLayer,
     GlowLayer,
-    HighlightLayer,
     InstancedMesh,
     type Material,
     Mesh,
     Scene,
+    StandardMaterial,
     type SubMesh,
+    TransformNode,
+    Vector3,
+    VertexData,
 } from "@babylonjs/core";
 
 import type { NodeStyleConfig } from "../config";
+import type { MeshCache } from "./MeshCache";
 import { readColor } from "./readColor";
 
 /**
- * Default outline configuration for selection highlight.
+ * The outline color drawn when a style names an outline whose color cannot be read.
  */
 const DEFAULT_OUTLINE_COLOR = "#FFFF00";
+
+/** The name every outline ring's source mesh and instances start with; the color follows. */
+const OUTLINE_RING_PREFIX = "graphty-node-outline-";
+
+/**
+ * The ring's inner radius, in radii of the node's outline as the camera sees it: a little inside
+ * the node's edge, so it overlaps it.
+ */
+const OUTLINE_RING_INNER = 0.9;
+
+/** The ring's outer radius, in radii of the node's outline as the camera sees it. */
+const OUTLINE_RING_OUTER = 1.35;
+
+/**
+ * How far the ring sits in front of the node's centre, toward the camera, in node radii: at the
+ * node's front surface. Through the centre, the node's own edges (which meet there) were drawn
+ * over the ring wherever they crossed it; in front, they pass behind it.
+ */
+const OUTLINE_RING_LIFT = 1.05;
+
+/** How many straight pieces the ring is drawn in. */
+const OUTLINE_RING_SEGMENTS = 48;
+
+/** The ring's depth offset; see createOutlineRingSource. */
+const OUTLINE_RING_DEPTH_OFFSET = 2;
+
+/** The smallest node radius a ring is sized for, so a node with no bounds yet still gets one. */
+const MIN_RING_RADIUS = 0.01;
+
+/** Scratch vector, so placing a ring every frame allocates nothing. */
+const TO_CAMERA = new Vector3();
 
 /**
  * Glow colour for a glowing mesh whose colour entry is missing from the selector's map. A style
@@ -29,18 +65,16 @@ const DEFAULT_GLOW_COLOR = "#FFFFFF";
 /**
  * Manages visual effects for node meshes.
  * Currently supports:
- * - Outline effect using Babylon.js HighlightLayer
+ * - Outline effect: a ring mesh around the node
  * - Glow effect using Babylon.js GlowLayer
  */
 // eslint-disable-next-line @typescript-eslint/no-extraneous-class
 export class NodeEffects {
-    private static readonly HIGHLIGHT_LAYER_NAME = "graphty-selection-highlight";
-
     private static readonly GLOW_LAYER_NAME = "graphty-node-glow";
 
     /**
      * Check if an effect layer has been disposed.
-     * Neither HighlightLayer nor GlowLayer has an isDisposed property, so we check whether the
+     * A GlowLayer has no isDisposed property, so we check whether the
      * scene still lists it. A disposed layer that is still cached on `scene.metadata` would throw
      * on the next add/remove, which is why every accessor below runs this check first.
      * @param layer - The effect layer to check
@@ -52,87 +86,173 @@ export class NodeEffects {
     }
 
     /**
-     * Get or create the HighlightLayer for selection outlines.
+     * Draw (or take away) a node's outline: a flat ring around the node, facing the camera.
      *
-     * CREATED LAZILY, ON THE FIRST MESH THAT ASKS FOR AN OUTLINE, for the reason spelled out on
-     * {@link NodeEffects.getOrCreateGlowLayer}: a highlight layer is a full-screen post-process
-     * with a render target and two blur passes, and until this was lazy every graph paid for one
-     * on its first node paint whether anything was ever outlined or not. The removal branch of
-     * {@link NodeEffects.applyOutlineEffect} deliberately does NOT create one.
+     * THE RING IS GEOMETRY IN THE SCENE, drawn in the opaque pass and depth-tested like the node
+     * it rings. It used to be a Babylon highlight layer, a full-screen pass composited after the
+     * whole frame with the depth test off and kept off only the outlined node's own pixels by the
+     * stencil. So the ring of a node behind another was painted across the nearer node, and every
+     * ring was painted over every label (`test/browser/node-outline-depth.test.ts`). As geometry
+     * at the node's front surface, a nearer node or label covers the ring, a label beside it is
+     * drawn over it, and the node's own edges pass behind it.
      *
-     * The layer is stored on scene.metadata for reuse.
-     * @param scene - The Babylon.js scene
-     * @returns The highlight layer for the scene
+     * ONE SOURCE MESH PER OUTLINE COLOR, cached in the mesh cache, and one instance of it per
+     * outlined node. The instance is a CHILD of the node's mesh, so it moves, hides and is
+     * disposed with it (a restyle that rebuilds the mesh takes the old ring with it, and this is
+     * called again for the new mesh). Its scaling is the node's own largest half-extent, and the
+     * node mesh's scaling and the graph root's carry through the parent link.
+     * @param mesh - The node's mesh, normally an InstancedMesh from MeshCache.
+     * @param effect - The effect configuration from the node style.
+     * @param cache - The mesh cache the ring's source mesh is kept in.
      */
-    private static getOrCreateHighlightLayer(scene: Scene): HighlightLayer {
-        // Check if layer already exists on scene metadata
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            return existingLayer;
-        }
+    static applyOutlineEffect(
+        mesh: AbstractMesh,
+        effect: NodeStyleConfig["effect"] | undefined,
+        cache: MeshCache,
+    ): void {
+        const existing = mesh.getChildMeshes(true).find((child) => child.name.startsWith(OUTLINE_RING_PREFIX));
 
-        // Create new highlight layer
-        const highlightLayer = new HighlightLayer(this.HIGHLIGHT_LAYER_NAME, scene, {
-            isStroke: true,
-            blurHorizontalSize: 0.5,
-            blurVerticalSize: 0.5,
-        });
-        // AN OUTLINE IS DRAWN AROUND A NODE, NEVER OVER IT. Babylon's inner glow (on by default)
-        // paints the outline color over the node's own pixels, and its blur is a share of the
-        // screen rather than of the node, so on a node a few dozen pixels wide it was nearly
-        // opaque: a solid disc of the outline color, with the fill and a centered label under it
-        // (issue #2323).
-        highlightLayer.innerGlow = false;
-
-        // Store on scene metadata
-        scene.metadata = scene.metadata ?? {};
-        scene.metadata.highlightLayer = highlightLayer;
-
-        return highlightLayer;
-    }
-
-    /**
-     * Apply (or remove) the outline effect for a mesh, based on the style configuration.
-     *
-     * WHAT WAS BROKEN, and it drew nothing at all in any circumstance: this method used to hand
-     * `HighlightLayer.addMesh` the node's own mesh, which is always an `InstancedMesh` -- see
-     * {@link NodeEffects.resolveRenderedMesh}. Babylon renders an instance through its SOURCE
-     * mesh, so the inclusion list was given a mesh the layer never consults; and before it could
-     * even fail quietly it failed loudly, because `addMesh` subscribes to
-     * `mesh.onBeforeBindObservable`, which `Mesh` declares and `InstancedMesh` does not. The
-     * resulting TypeError went into a `try/catch` whose comment said the failure "is expected for
-     * instanced meshes", so an outline was accepted, validated, interned and silently dropped for
-     * the whole life of the channel. `test/browser/channel-paints.test.ts` measured it at zero
-     * pixels changed and `node.outline` sat in `UNPAINTED_CHANNELS` because of it.
-     *
-     * THE FIX IS THE ONE THE GLOW PATH ALREADY USED: resolve the rendered mesh first. The call no
-     * longer throws, so there is no catch here -- an outline that cannot be applied is a defect
-     * that must be seen rather than a frame that must be saved.
-     * @param mesh The mesh to apply the effect to
-     * @param effect The effect configuration from the node style
-     */
-    static applyOutlineEffect(mesh: AbstractMesh, effect: NodeStyleConfig["effect"] | undefined): void {
-        const scene = mesh.getScene();
-        const renderedMesh = this.resolveRenderedMesh(mesh);
-
-        if (effect?.outline) {
-            // THE ALPHA IS DROPPED, because the highlight layer draws every outline with alpha 1
-            // (ThinHighlightLayer pins it) -- there is no translucent outline to draw. The layer
-            // check reports it as W_ALPHA_IGNORED, so the drop is said rather than silent.
-            const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
-
-            this.getOrCreateHighlightLayer(scene).addMesh(renderedMesh, rgb);
+        if (!effect?.outline) {
+            existing?.dispose();
 
             return;
         }
 
-        // NO LAYER IS CREATED HERE, for the reason on getOrCreateHighlightLayer: asking a node
-        // not to be outlined must not cost the scene a full-screen post-process.
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
+        // THE ALPHA IS DROPPED: an outline is drawn opaque. The layer check reports it as
+        // W_ALPHA_IGNORED, so the drop is said rather than silent.
+        const { rgb } = readColor(this.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+        const name = `${OUTLINE_RING_PREFIX}${rgb.toHexString()}`;
+        const ring =
+            existing?.name === name && !existing.isDisposed()
+                ? existing
+                : cache.get(name, () => this.createOutlineRingSource(name, rgb, mesh.getScene()));
 
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            existingLayer.removeMesh(renderedMesh);
+        if (ring !== existing) {
+            existing?.dispose();
+            ring.isPickable = false;
+            ring.parent = mesh;
+            const scene = mesh.getScene();
+            const observer = scene.onBeforeCameraRenderObservable.add((camera) => {
+                this.followCamera(ring, camera);
+            });
+            ring.onDisposeObservable.addOnce(() => {
+                scene.onBeforeCameraRenderObservable.remove(observer);
+            });
         }
+
+        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
+        ring.metadata = { outlineRadius: Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS) };
+        const camera = mesh.getScene().activeCamera;
+        if (camera) {
+            this.followCamera(ring, camera);
+        }
+    }
+
+    /**
+     * Place a node's ring for one camera, before that camera draws: on the line from the node's
+     * centre to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
+     * of sight lines that graze the node, so its inner edge lies on the node's visible edge.
+     *
+     * WHY EVERY FRAME. Under perspective a node's visible edge is where that cone meets it, and the
+     * cone depends on how far away and in which direction the camera is. The ring used to be a
+     * billboard turned with the camera's rotation, lifted along the view axis and sized once for a
+     * node straight ahead: for a node off to the side the lift carried the ring further out than
+     * the node, and as the graph turned a node toward the side of the view a gap opened between
+     * the node and its ring (`test/browser/node-outline-perspective.test.ts`). An orthographic
+     * camera has no cone: the ring is the node's own radius, lifted along the view axis, as before.
+     *
+     * Cost: a few vector operations per outlined node per camera, no scene search.
+     * @param ring - The node's ring, a child of the node's mesh.
+     * @param camera - The camera about to draw.
+     */
+    private static followCamera(ring: AbstractMesh, camera: Camera): void {
+        const node = ring.parent;
+        const radius = (ring.metadata as { outlineRadius?: number } | null)?.outlineRadius;
+        if (!(node instanceof AbstractMesh) || radius === undefined) {
+            return;
+        }
+
+        const { m } = node.computeWorldMatrix();
+        // The node's world scale; a node is scaled the same along every axis.
+        const scale = Math.hypot(m[0], m[1], m[2]) || 1;
+        const r = radius * scale;
+        const lift = OUTLINE_RING_LIFT * r;
+        const toCamera = TO_CAMERA;
+        let seen = r;
+
+        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
+            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+            camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
+            toCamera.scaleInPlace(-1);
+        } else {
+            // Turned toward the camera's POSITION, not its rotation, so the ring is square to the
+            // line of sight to this node wherever it is in the view.
+            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
+            camera.globalPosition.subtractToRef(node.getAbsolutePosition(), toCamera);
+            const distance = toCamera.length();
+            toCamera.scaleInPlace(1 / (distance || 1));
+            // The cone's radius at the ring's distance from the camera.
+            seen = (Math.max(distance - lift, 0) * r) / Math.sqrt(Math.max(distance * distance - r * r, r * r * 1e-6));
+        }
+
+        // The billboard keeps the parent's scale and position but not its rotation, so the
+        // position is a world direction in the parent's units.
+        toCamera.scaleToRef(lift / scale, ring.position);
+        ring.scaling.setAll(seen / scale);
+    }
+
+    /**
+     * Build the source mesh of one outline color: a flat ring of inner radius
+     * {@link OUTLINE_RING_INNER} and outer radius {@link OUTLINE_RING_OUTER} in the XY plane;
+     * followCamera places and sizes it.
+     * @param name - The mesh name, which is also its cache key.
+     * @param color - The ring's color.
+     * @param scene - The scene to build it in.
+     * @returns The source mesh.
+     */
+    private static createOutlineRingSource(name: string, color: Color3, scene: Scene): Mesh {
+        const positions: number[] = [];
+        const indices: number[] = [];
+        for (let i = 0; i <= OUTLINE_RING_SEGMENTS; i++) {
+            const angle = (i / OUTLINE_RING_SEGMENTS) * Math.PI * 2;
+            const x = Math.cos(angle);
+            const y = Math.sin(angle);
+            positions.push(
+                x * OUTLINE_RING_INNER,
+                y * OUTLINE_RING_INNER,
+                0,
+                x * OUTLINE_RING_OUTER,
+                y * OUTLINE_RING_OUTER,
+                0,
+            );
+            if (i < OUTLINE_RING_SEGMENTS) {
+                const at = i * 2;
+                indices.push(at, at + 1, at + 2, at + 1, at + 3, at + 2);
+            }
+        }
+
+        const source = new Mesh(name, scene);
+        const data = new VertexData();
+        data.positions = positions;
+        data.indices = indices;
+        // +z faces the camera: the ring is a billboard turned toward the camera's position.
+        data.normals = positions.map((_, i) => (i % 3 === 2 ? 1 : 0));
+        data.applyToMesh(source);
+
+        const material = new StandardMaterial(`${name}-material`, scene);
+        // Unlit: a ring is a mark on the node, the same color from every side.
+        material.disableLighting = true;
+        material.emissiveColor = color;
+        material.diffuseColor = Color3.Black();
+        material.specularColor = Color3.Black();
+        material.backFaceCulling = false;
+        // Pushed back a little in depth, so a label drawn in the same plane (a billboard through
+        // the same node) is drawn over the ring rather than fighting it for the pixel.
+        material.zOffset = OUTLINE_RING_DEPTH_OFFSET;
+        material.freeze();
+        source.material = material;
+
+        return source;
     }
 
     /**
@@ -143,9 +263,7 @@ export class NodeEffects {
      * meshes/MeshCache.ts). Babylon renders an instance through its SOURCE mesh's sub-meshes, and
      * `ThinEffectLayer._renderSubMesh` asks `hasMesh(subMesh.getRenderingMesh())` -- the source --
      * when deciding whether a sub-mesh belongs in the effect. Putting the INSTANCE in the
-     * inclusion list therefore includes a mesh Babylon never consults, and nothing glows: that is
-     * the same class of failure as the "HighlightLayer has issues with InstancedMesh" note on
-     * `applyOutlineEffect`.
+     * inclusion list therefore includes a mesh Babylon never consults, and nothing glows.
      *
      * Including the source is not a compromise, it is exactly the right granularity: glow colour
      * and strength are part of the node style, `Styles.styleToId` interns a style by deep value
@@ -359,27 +477,6 @@ export class NodeEffects {
     }
 
     /**
-     * Remove a mesh from the highlight layer.
-     *
-     * EXACTLY THE MESH IT IS HANDED, AND NOT THAT MESH'S SOURCE, which is what makes it safe to
-     * call while a node is being disposed. An outline is applied to the shared source mesh (see
-     * {@link NodeEffects.applyOutlineEffect}), so one source is precisely the set of nodes drawn
-     * with one outline configuration -- and resolving to it here would take the outline away from
-     * every sibling still on screen. That is the same reasoning `Node.dispose` records for glow,
-     * and it has the same consequence: for an instanced node this removes nothing, the source is
-     * freed when `MeshCache` prunes or clears it, and the layer's leftover uniqueId is inert
-     * because Babylon's uniqueIds are monotonic per scene and never reused.
-     * @param mesh - The mesh to remove from highlighting
-     */
-    static removeFromHighlight(mesh: AbstractMesh): void {
-        const scene = mesh.getScene();
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            existingLayer.removeMesh(mesh as Mesh);
-        }
-    }
-
-    /**
      * Extract a color string from a color configuration.
      * @param color - Color configuration object or string
      * @returns Extracted color string or undefined
@@ -397,19 +494,6 @@ export class NodeEffects {
         }
 
         return undefined;
-    }
-
-    /**
-     * Dispose the highlight layer for a scene.
-     * Should be called when the graph is disposed.
-     * @param scene - The Babylon.js scene
-     */
-    static disposeHighlightLayer(scene: Scene): void {
-        const existingLayer = scene.metadata?.highlightLayer as HighlightLayer | undefined;
-        if (existingLayer && !this.isLayerDisposed(existingLayer, scene)) {
-            existingLayer.dispose();
-            scene.metadata.highlightLayer = undefined;
-        }
     }
 
     /**

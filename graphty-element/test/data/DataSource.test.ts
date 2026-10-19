@@ -77,8 +77,9 @@ describe("DataSource base class", () => {
 
             assert.strictEqual(chunks.length, 3);
             assert.strictEqual(chunks[0].nodes.length, 1000);
-            assert.strictEqual(chunks[0].edges.length, 1); // Edges in first chunk
-            assert.strictEqual(chunks[1].edges.length, 0); // No edges in subsequent chunks
+            assert.strictEqual(chunks[0].edges.length, 0); // No edges before the last chunk
+            assert.strictEqual(chunks[1].edges.length, 0);
+            assert.strictEqual(chunks[2].edges.length, 1); // Edges after every node
         });
 
         test("yields edges-only chunk when no nodes", async () => {

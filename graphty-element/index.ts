@@ -75,6 +75,8 @@ export { Node } from "./src/Node";
 export type {
     AdHocData,
     EdgeStyleConfig,
+    // The room `element.fitInsets` keeps clear when the graph is framed
+    FitInsets,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
@@ -397,7 +399,7 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
 
 // =============================================================================
 // Acceleration

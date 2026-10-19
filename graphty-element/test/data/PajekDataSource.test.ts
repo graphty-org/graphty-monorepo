@@ -261,7 +261,7 @@ describe("PajekDataSource", () => {
             assert.equal(chunk4.done, true);
         });
 
-        it("should include all edges with first chunk", async () => {
+        it("should include all edges with the last chunk", async () => {
             const data = `*Vertices 4
 1 "A"
 2 "B"
@@ -276,11 +276,11 @@ describe("PajekDataSource", () => {
 
             const chunk1 = await gen.next();
             assert.equal(chunk1.value?.nodes.length, 2);
-            assert.equal(chunk1.value?.edges.length, 3); // All edges with first chunk
+            assert.equal(chunk1.value?.edges.length, 0); // No edges before the last chunk
 
             const chunk2 = await gen.next();
             assert.equal(chunk2.value?.nodes.length, 2);
-            assert.equal(chunk2.value?.edges.length, 0); // No edges in subsequent chunks
+            assert.equal(chunk2.value?.edges.length, 3); // All edges with the last chunk
         });
     });
 

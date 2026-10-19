@@ -360,6 +360,12 @@ export class EdgeLineBatch {
 
     /** Upload everything written since the last upload, in one call. */
     flush(): void {
+        // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
+        // of data uploaded in part), so the first frame after one uploads every slot again.
+        if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
+            this.dirty = true;
+        }
+
         if (!this.dirty || this.gone) {
             return;
         }

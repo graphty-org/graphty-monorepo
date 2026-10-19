@@ -28,6 +28,8 @@
  * No entry point exports this module.
  */
 
+import { fromEdgeArrays } from "@graphty/graph-format";
+
 import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
@@ -206,6 +208,20 @@ interface ImportExtra {
 function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportExtra = {}): SessionCommand {
     return { op: "data.import", source, mode, ...extra };
 }
+
+/** The records `data.generate("path", { n: 2 })` loads. */
+const GENERATED_PATH_JSON = JSON.stringify({
+    directed: false,
+    nodes: [{ id: 0 }, { id: 1 }],
+    edges: [{ source: 0, target: 1 }],
+});
+
+/** The records of the two-node dataset the `loadDataset` door downloads. */
+const DATASET_JSON = JSON.stringify({
+    directed: false,
+    nodes: [{ id: "d1" }, { id: "d2" }],
+    edges: [{ source: "d1", target: "d2" }],
+});
 
 /** The data rows the element and `Graph` share. */
 const DATA_DOORS: Readonly<Record<string, Door>> = {
@@ -479,6 +495,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     truncated: READ,
     origin: READ,
     has: READ,
+    hovered: READ,
+    hover: exempt("The node under the pointer is view state, not saved in a project file."),
     nodeMask: READ,
     edgeMask: READ,
     apply: SELECTION,
@@ -662,6 +680,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ]),
             labelDeclutter: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
+            autoRotate: VIEW_SETTING,
+            fitInsets: VIEW_SETTING,
+            pixelRatio: VIEW_SETTING,
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -919,6 +940,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeNodes: REMOVE_NODES,
             setCameraMode: CAMERA,
             setRenderSettings: VIEW_SETTING,
+            setPixelRatio: VIEW_SETTING,
+            pixelRatio: READ,
             batchOperations: BATCH,
             getSession: READ,
             getNodeCount: READ,
@@ -1584,6 +1607,39 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [{ type: "json", config: { data: TINY_JSON } }],
                 [imports("replace", { type: "json", config: { data: TINY_JSON } })],
             ),
+            // The generated graph's records, through the JSON reader.
+            generate: calls(
+                ["path", { n: 2 }],
+                [imports("replace", { type: "json", name: "path", config: { data: GENERATED_PATH_JSON } })],
+            ),
+            loadDataset: {
+                kind: "dispatches",
+                op: "data.import",
+                call: {
+                    kind: "call",
+                    args: ["door-dataset", { baseUrl: "https://door.invalid/" }],
+                    // The download is answered here, with a two-node dataset file.
+                    around: async () => {
+                        const bytes = fromEdgeArrays({
+                            directed: false,
+                            nodeCount: 2,
+                            src: new Uint32Array([0]),
+                            dst: new Uint32Array([1]),
+                            ids: ["d1", "d2"],
+                        }).toBytes();
+                        const zipped = await new Response(
+                            new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
+                        ).arrayBuffer();
+                        const original = globalThis.fetch;
+                        globalThis.fetch = () => Promise.resolve(new Response(zipped));
+                        return () => {
+                            globalThis.fetch = original;
+                            return Promise.resolve();
+                        };
+                    },
+                },
+                expect: [imports("replace", { type: "json", name: "door-dataset", config: { data: DATASET_JSON } })],
+            },
         },
     },
     {
@@ -2195,6 +2251,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
+            setPixelRatio: RENDER,
             drawHeld: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,

@@ -396,14 +396,40 @@ export function cyjsProperties(target: StyleTarget): ReadonlyMap<string, CyjsPro
 }
 
 /**
+ * Cytoscape.js 3.34.3's property aliases (`styfn.aliases`): each name is read as the property it points to.
+ */
+const CYJS_ALIASES: ReadonlyMap<string, string> = new Map([
+    ["content", "label"],
+    ["control-point-distance", "control-point-distances"],
+    ["control-point-weight", "control-point-weights"],
+    ["segment-distance", "segment-distances"],
+    ["segment-weight", "segment-weights"],
+    ["segment-radius", "segment-radii"],
+    ["edge-text-rotation", "text-rotation"],
+    ["padding-left", "padding"],
+    ["padding-right", "padding"],
+    ["padding-top", "padding"],
+    ["padding-bottom", "padding"],
+]);
+
+/**
+ * A dash-form property name with Cytoscape.js's aliases resolved (`content` is `label`, `segment-distance` is
+ * `segment-distances`, `padding-left` is `padding`).
+ * @param dashed - the name in dash form
+ * @returns the property it sets
+ */
+export function cyjsAliasOf(dashed: string): string {
+    return CYJS_ALIASES.get(dashed) ?? dashed;
+}
+
+/**
  * A property name in Cytoscape.js's dash form, aliases resolved (`backgroundColor` and `content` are read as
  * `background-color` and `label`).
  * @param name - the name as written
  * @returns the dash-form name
  */
 export function cyjsPropertyName(name: string): string {
-    const dashed = name.replaceAll(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
-    return dashed === "content" ? "label" : dashed;
+    return cyjsAliasOf(name.replaceAll(/[A-Z]/g, (c) => `-${c.toLowerCase()}`));
 }
 
 /** A parsed value, ready to draw. */

@@ -46,6 +46,7 @@ import { combineFace } from "./face.js";
 import {
     applyCyjsMapper,
     CYJS_THROWS,
+    cyjsAliasOf,
     type CyjsFlat,
     cyjsNeutral,
     type CyjsParsed,
@@ -1700,7 +1701,7 @@ function entryProperties(
 ): EntryProperty[] {
     const out: EntryProperty[] = [];
     for (const [name0, value] of entry.properties) {
-        const name = entry.dashOnly ? dashOnlyName(name0) : cyjsPropertyName(name0);
+        const name = entry.dashOnly ? cyjsAliasOf(name0) : cyjsPropertyName(name0);
         const spec = specs.get(name);
         if (spec === undefined) {
             if (kind === "node" && !CYJS_EDGE_ONLY.has(name) && !entry.tool) {
@@ -1719,15 +1720,6 @@ function entryProperties(
         out.push({ name, spec, parsed });
     }
     return out;
-}
-
-/**
- * A property name of an entry Cytoscape.js reads in dash form only: `content` is `label`, any other name as it is.
- * @param name - the name as written
- * @returns the name
- */
-function dashOnlyName(name: string): string {
-    return name === "content" ? "label" : name;
 }
 
 /** Edge properties a node never carries: not noted as dropped on nodes. */

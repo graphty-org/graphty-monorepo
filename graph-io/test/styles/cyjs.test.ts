@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 import { gunzipSync } from "node:zlib";
 
 import type { GraphSnapshot } from "@graphty/graph-format";
+import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
 import { importGraph } from "../../src/registry.js";
-import { cyjsPolygonShapes, cyjsProperties, cyjsRendered } from "../../src/styles/cyjs/mappers.js";
+import { cyjsPolygonShapes, cyjsProperties, cyjsPropertyName, cyjsRendered } from "../../src/styles/cyjs/mappers.js";
 import {
     CYJS_PROPERTY_DEFAULTS,
     type CyjsCheck,
@@ -651,6 +652,64 @@ describe("the cascade", () => {
         expect(Array.from({ length: s.nodeCount }, (_, i) => col[i] === true)).toEqual(
             Array.from({ length: s.nodeCount }, (_, i) => ["a", "c"].includes(String(s.ids.idOf(i)))),
         );
+    });
+});
+
+describe("property aliases", () => {
+    it("names every alias of Cytoscape.js's live style table as the property it points to", () => {
+        const cy = cytoscape({ headless: true, styleEnabled: true });
+        const table = (
+            cy.style() as unknown as { properties: { name: string; alias?: boolean; pointsTo?: { name: string } }[] }
+        ).properties;
+        const aliases = table.filter((p) => p.alias === true);
+        expect(aliases.length).toBeGreaterThan(0);
+        for (const a of aliases) {
+            expect(cyjsPropertyName(a.name), a.name).toBe(a.pointsTo?.name);
+        }
+        cy.destroy();
+    });
+
+    it("draws an alias as the property it points to", async () => {
+        // content is carried; padding, the edge route properties and edge text-rotation are not carried at all yet
+        // (ISSUES.md, Specimen sheets: Cytoscape.js), so their aliases can only match their properties by name
+        const pairs: [string, string, unknown][] = [
+            ["content", "label", "Label"],
+            ["edge-text-rotation", "text-rotation", "30deg"],
+        ];
+        const elements: unknown[] = [];
+        const style: unknown[] = [];
+        pairs.forEach(([alias, prop, value], k) => {
+            for (const [side, name] of [
+                ["a", alias],
+                ["p", prop],
+            ] as const) {
+                const id = `${side}${String(k)}`;
+                elements.push({ data: { id: `${id}s` } }, { data: { id: `${id}t` } });
+                elements.push({ data: { id, source: `${id}s`, target: `${id}t` } });
+                style.push({ selector: `#${id}, #${id}s`, style: { label: "L", [name]: value } });
+            }
+        });
+        const doc = { elements, style };
+        const s = await snapshotOf(doc);
+        const all = resolved(extract(doc, s), s);
+        const nodeOf = (id: string): number => s.ids.requireIndex(id);
+        const edgeOf = (id: string): number => {
+            for (let e = 0; e < s.edgeCount; e++) {
+                if (String(s.ids.idOf(s.edgeSource(e))) === `${id}s`) {
+                    return e;
+                }
+            }
+            throw new Error(id);
+        };
+        pairs.forEach(([alias], k) => {
+            for (const [key, values] of Object.entries(all)) {
+                const at = key.startsWith("node.")
+                    ? [nodeOf(`a${String(k)}s`), nodeOf(`p${String(k)}s`)]
+                    : [edgeOf(`a${String(k)}`), edgeOf(`p${String(k)}`)];
+                expect(values[at[0]], `${alias}: ${key}`).toEqual(values[at[1]]);
+            }
+        });
+        expect(all["node.label"][nodeOf("a0s")]).toBe("Label");
     });
 });
 

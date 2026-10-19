@@ -99,7 +99,7 @@ describe("the oracle SVG reader", () => {
         assert.isAbove(band.subpaths?.[0].length ?? 0, 15);
     });
 
-    it("reads Gephi's self-loop and its parallel edges of two kinds as edges of their own", () => {
+    it("reads Gephi's self-loop, its parallel edges of two kinds and its edge labels as Gephi drew them", () => {
         // as Gephi Toolkit 0.11.3 writes them (gexf-specimen-edges-lines): an edge names its two end nodes in its
         // class, a self-loop its one node, and two edges of different kinds between one pair share one name
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200">
@@ -117,6 +117,13 @@ describe("the oracle SVG reader", () => {
                 <circle class="id_a" cx="100" cy="100" r="5" fill="#646464"/>
                 <circle class="id_b" cx="200" cy="100" r="5" fill="#646464"/>
             </g>
+            <g id="node-labels">
+                <text font-size="10" x="100" y="100" fill="#000000" class="id_a">A</text>
+                <text font-size="10" x="150" y="60" fill="none" stroke="#ff8000" class="id_e1">ab</text>
+            </g>
+            <g id="edge-labels">
+                <text font-size="10" x="150" y="60" fill="#000000" class="id_e1">ab</text>
+            </g>
         </svg>`;
         const guide: PScene = {
             side: "graphty",
@@ -130,7 +137,9 @@ describe("the oracle SVG reader", () => {
             strays: [],
         };
         const { scene } = associate(readSvgPrimitives(svg).prims, 400, 200, guide);
+        // an edge label names its edge's id (e1): it is no node, and is left to be matched to its edge by place
         assert.deepEqual(scene.nodes.map((n) => n.id).sort(), ["a", "b", "s"]);
+        assert.strictEqual(scene.nodes.find((n) => n.id === "a")?.label?.content, "A");
         assert.deepEqual(
             scene.edges.map((e) => [e.id, e.arrows.length]),
             [

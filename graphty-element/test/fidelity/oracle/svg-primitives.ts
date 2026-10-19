@@ -371,6 +371,18 @@ function pajekHint(el: Element): Prim["hint"] {
     return null;
 }
 
+/**
+ * Whether Gephi's drawing has a node of this id among its nodes.
+ * @param el - an element of the drawing
+ * @param id - the id its class names
+ * @returns true when a node's shape carries the id
+ */
+function gephiNode(el: Element, id: string): boolean {
+    return [...(el.ownerDocument.querySelector("g#nodes")?.children ?? [])].some((n) =>
+        n.classList.contains(`id_${id}`),
+    );
+}
+
 /** What the program's markup says an element belongs to. */
 function hintOf(el: Element): Prim["hint"] {
     // Graphviz: <g class="node|edge|cluster"><title>id</title>
@@ -391,6 +403,11 @@ function hintOf(el: Element): Prim["hint"] {
     }
     // Gephi: class="id_<node>" on a node's circle and label, "id_<source> id_<target>" on an edge
     const ids = [...el.classList].filter((c) => c.startsWith("id_")).map((c) => c.slice(3));
+    // an edge label (and its outline, which Gephi writes among the node labels) names its edge's own id, not a
+    // node: left to be matched to its edge by where it is drawn
+    if (ids.length === 1 && el.closest("g#edge-labels, g#node-labels") !== null && !gephiNode(el, ids[0])) {
+        return null;
+    }
     if (ids.length === 1) {
         // a self-loop names its one node: in Gephi's edge and arrow groups it is an edge, not the node
         if (el.closest("g#edges, g#arrows") !== null) {

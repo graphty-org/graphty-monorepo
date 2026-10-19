@@ -639,15 +639,16 @@ property and enumerated value. What Cytoscape.js does, which the importer must m
   still connected" state, and graphty-element must keep an edge whose end node is only invisible.
 - An edge's `underlay-*` and `overlay-*` draw a band along the line (`edge-underlay-opacity-0-5`,
   `edge-overlay-opacity-0-5` in `cytoscapejs-specimen-edges-lines-p2`; the node forms are on
-  `cytoscapejs-specimen-node-sizes-opacity`). OPEN: the neutral vocabulary has no underlay or overlay and
-  graphty-element cannot draw one, for nodes or edges; graph-io notes them as not carried.
+  `cytoscapejs-specimen-node-sizes-opacity`). Read into the neutral `underlay*` / `overlay*` properties and drawn
+  by graphty-element's `underlay` / `overlay` (a node's padded filled shape, an edge's band), matching the SVG. OPEN,
+  comparator work: the oracle's node underlays and overlays are unassociated strays (`stray.present`), and an
+  edge's overlay, a wider stroke drawn OVER its line, is read as a second edge (`edge-overlay-opacity-0-5`
+  `#g1` fails `edge.present`); the underlay is judged as the edge's outline and passes.
 - `*-arrow-fill: hollow` strokes the arrow's outline (`target-arrow-fill-hollow`, `-circle`, `-square`, `-diamond`
   and the source and middle forms in `cytoscapejs-specimen-arrows-p2`). The importer reads a hollow triangle,
-  diamond and circle as `triangle-open`, `diamond-open`, `circle-open`. OPEN: a hollow square is
-  `other:open-square`, which graphty-element draws as a filled box (it has no open box cap; add one to
-  `FilledArrowRenderer.POLYGON_ARROWS`); the comparator does not flag that box's fill (`edge.arrowFill` passes
-  `target-arrow-fill-hollow-square`), a blind spot for the comparator work. The other shapes (vee, tee, chevron,
-  the compound arrows) stay filled when hollow.
+  diamond and circle as `triangle-open`, `diamond-open`, `circle-open`, and a hollow square as `other:open-square`,
+  which graphty-element draws as its `open-box` cap (`target-arrow-fill-hollow-square` passes `edge.arrowFill`).
+  The other shapes (vee, tee, chevron, the compound arrows) stay filled when hollow.
 - How a value is spelled (`cytoscapejs-specimen-mappings-bypass-p2`, and the color specimens of
   `cytoscapejs-specimen-node-fills-borders`): cy.json() respells every color as `rgb(r,g,b)`, every alias as the
   property it points to and drops a value it refuses, so these rules are written into the sheet as authored, the
@@ -1130,14 +1131,55 @@ rows these sheets still fail, and why each cannot pass yet:
   mid-source `triangle-tee` and `triangle-cross` read "other" on the oracle side. Comparator work: classes for the
   compound arrows.
 - vis-network `image` arrows (`vis-network-specimen-arrows`: `arrow-to-image`, `arrow-from-image`,
-  `arrow-middle-image`, `arrow-image-size`) draw nothing in graphty: graphty-element has no image cap yet (a cap
-  textured with the file's image); its oracle images are unassociated strays. graphty-element work.
+  `arrow-middle-image`, `arrow-image-size`) are drawn since fix round 1 as graphty-element's `image` cap, the
+  picture standing on the line at the file's `imageWidth` x `imageHeight`, and the comparator takes a picture at an
+  edge's end as its arrowhead (shape class "image") on both sides.
 - Cytoscape.js `source-text-margin-x/-y` and `target-text-margin-x/-y` (`cytoscapejs-specimen-edge-labels`): an end
   caption has no shift of its own yet. The node label offsets (`text-margin-x/-y`) are the import work's
   `label-anchor-offset`; the end captions should take the same option once it exists.
 - Cytoscape.js `outline-style: dashed` reads as dotted (its dash lengths, the same as the border's `dash-pattern`
   gap), and `outline-style: double` erases a band a third of the BORDER's width (Cytoscape.js drawOutline), so its
   "double" outline is nearly solid, as `border-style-double` already is in this SVG.
+
+## Specimen sheets: arrow caps, underlays and overlays graphty-element now draws (fix round 1, rendering batch 1, 2026-10-19)
+
+graphty-element now draws, each as a style option with a channel, and graph-io maps the files onto them:
+
+- Cytoscape's HALF_BOTTOM on its own side of the line (cap `half-open-flipped`; graph-io reads it as
+  `other:half-bottom`, where it read it as HALF_TOP's `half`): `{xgmml,cx,cx2,cys}-specimen-arrows` target and
+  source `half-bottom` now put the barb where Cytoscape does. The comparator does not judge which side a half
+  arrow is on, so this was checked by eye on the aligned overlays. Cytoscape strokes the barb as a line the
+  line's width and runs the line on to the tip; graphty's barb is a filled sliver, and its line stops at the cap.
+- A hollow square (cap `open-box`): Cytoscape's OPEN_SQUARE and Cytoscape.js `*-arrow-fill: hollow` on a square.
+- vis-network image arrows (cap `image`, field `arrowHead.image` and channel `edge.arrowHeadImage`, and the tail's
+  and middle caps'; graph-io's `targetArrowImage`, `-ImageWidth`, `-ImageHeight` and the source and middle forms).
+- Cytoscape.js `underlay-*` and `overlay-*` for nodes (`underlay` / `overlay`: color, opacity, padding, shape,
+  corner radius; channels `node.underlayColor` and so on) and edges (`line.underlay` / `line.overlay`: color,
+  opacity, padding; channels `edge.underlayColor` and so on), with Cytoscape.js's defaults (black, 10 px, a round
+  rectangle) under a file's own. `cytoscapejs-specimen-edges-lines-p2` `edge-underlay-opacity-0-5` passes.
+
+Re-judged at this commit, the gaps the round-1 list gave graphty-element here: Cytoscape.js middle arrows, line
+gradients, line outlines and node outline rings (solid) pass their rows of `cytoscapejs-specimen-arrows`,
+`-arrows-p2`, `-edges-lines` and `-node-fills-borders`; its end labels (`-edge-labels`) pass their size, their end
+and `source/target-text-offset`, and fail only `label.family` (graphty's pinned test face, as every label on the
+sheet) and the margins below; vis-network middle arrows, box size and image arrows pass on
+`vis-network-specimen-arrows`. Still open, and why:
+
+- Comparator work: vis-network `curve` / `inv_curve` and Cytoscape's OPEN_HALF_CIRCLE arcs are not associated as
+  arrowheads (above); Cytoscape.js `circle-triangle` and the mid-source `triangle-tee`
+  / `triangle-cross` are shape class "other" on the oracle side; the large middle arrow of `scale-factor-middle`
+  (vis-network, `scaleFactor` 2 on a short edge) is associated with the source end; an edge overlay reads as a
+  second edge, a node underlay or overlay as strays; vis-network's dashed background under a curved edge
+  (`background-curved-dashes`, `vis-network-specimen-edges-lines-p3`) is read as the edge, its line as a second.
+- Cytoscape desktop's arrows sheets (`{xgmml,cx,cx2,cys}-specimen-arrows`, `-mappings-bypass-p11`): 18 of 43 edges
+  are still not associated with the oracle's paths (`comparator-edge-association`), so their caps are unjudged.
+- vis-network's dashed background (`background.dashes`): graphty draws the band solid; `line.outline` has no line
+  style. graphty-element work, with a graph-io property for it.
+- Cytoscape.js `source-text-margin-*` / `target-text-margin-*`: an end caption has no shift of its own yet; it waits
+  for the label offset the import work's `label-anchor-offset` adds.
+- Cytoscape.js `outline-style: double` is drawn by Cytoscape.js with a compositing erase the SVG does not record
+  (oracle wrong, as `border-style-double`), and `outline-style: dashed` reads as dotted on the oracle side, the
+  border's `dash-pattern` share of the import work.
 
 ## Specimen sheets: node images, charts and shapes graphty-element now draws (rendering round 1, batch 2, 2026-10-18)
 

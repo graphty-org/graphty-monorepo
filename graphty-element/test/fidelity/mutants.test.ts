@@ -8,8 +8,12 @@
  * failing the property it is for (`absorbedByKnownFailures`), or where it cannot be planted (a mirror or a turn
  * between unrelated layouts).
  *
- * About twenty minutes on the workstation GPU (cx-syn-mappings alone takes seven), so it runs in the fidelity
- * project only, not in CI or the pre-push gate (no pull request runs the fidelity project):
+ * The default samples between them exercise every planted defect the drawings can show, and the last test asserts
+ * that: every defect is caught on at least one of them, except the few no sample can exercise yet (`UNTESTABLE`,
+ * each with its reason), which must stay uncaught until their reason is gone.
+ *
+ * About twenty minutes on the workstation GPU, so it runs in the fidelity project only, not in CI or the pre-push
+ * gate (no pull request runs the fidelity project):
  *
  *     GRAPHTY_BROWSER_GPU=nvidia npx vitest run --project=fidelity test/fidelity/mutants.test.ts
  *
@@ -32,13 +36,13 @@ import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
 /**
  * The samples that between them exercise every planted defect: synthetic files, and the specimen sheets that hold
  * what they lack (label backgrounds and wrapped labels, edge-label placement, group outlines and opacity, edge
- * patterns, annotations). cx2-syn-mappings and cys-syn-mappings, the same Cytoscape desktop network saved as CX2 and
- * as a session, catch exactly what cx-syn-mappings catches and take about eight minutes each; VITE_MUTANT_IDS=all
- * adds them.
+ * patterns, annotations, outer rings). cx-syn-mappings, and the same Cytoscape desktop network saved as CX2 and as a
+ * session, catch nothing the specimen sheets do not and take about eight minutes each; VITE_MUTANT_IDS=all adds them.
  */
 const DEFAULT_IDS = [
-    "cx-syn-mappings",
     "cx-syn-bypass",
+    "cx-specimen-edges-lines",
+    "cytoscapejs-specimen-node-fills-borders",
     "json-cyjs-synth-edges-saved",
     "json-cyjs-synth-nodes",
     "gexf-miserables",
@@ -56,7 +60,26 @@ const DEFAULT_IDS = [
     "vis-network-specimen-arrows",
     "gml-specimen-groups",
 ];
-const ALL_IDS = [...DEFAULT_IDS, "cx2-syn-mappings", "cys-syn-mappings"];
+const ALL_IDS = [...DEFAULT_IDS, "cx-syn-mappings", "cx2-syn-mappings", "cys-syn-mappings"];
+const ONLY = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");
+
+/**
+ * Planted defects no sample can exercise yet, and why: graphty draws nothing they could change where the oracle
+ * draws the same (graph-io/test/fidelity/oracles/ISSUES.md, "Not testable yet"). Each must be caught as soon as its
+ * reason is gone, so the last test fails if one is caught: then take it off this list.
+ */
+const UNTESTABLE: Readonly<Record<string, string>> = {
+    "node gradient removed":
+        "graphty draws no gradient where an oracle draws the same one (Cytoscape.js background-fill gradients are not imported)",
+    "label background removed": "graph-io's style vocabulary has no label background, so graphty draws none",
+    "label background opacity 0.5": "graph-io's style vocabulary has no label background, so graphty draws none",
+    "label background border opacity 0.5": "graph-io's style vocabulary has no label background, so graphty draws none",
+    "label background border added": "graph-io's style vocabulary has no label background, so graphty draws none",
+    "label outline removed": "graph-io's style vocabulary has no label outline, so graphty draws none",
+    "label outline opacity 0.5": "graph-io's style vocabulary has no label outline, so graphty draws none",
+};
+/** Every defect caught on some sample this run. */
+const caughtSomewhere = new Set<string>();
 const ASKED = (import.meta.env.VITE_MUTANT_IDS as string | undefined) ?? DEFAULT_IDS.join(",");
 const IDS = ASKED === "all" ? ALL_IDS : ASKED.split(",");
 
@@ -89,9 +112,8 @@ describe("comparator mutants", () => {
         // (a raster), cannot judge the rest: a defect only there is not judged by it
         let blind = false;
         const missed: string[] = [];
-        const only = (import.meta.env.VITE_MUTANT_ONLY as string | undefined)?.split("|");
         for (const [name, { mutate, targets, applies }] of Object.entries(MUTATIONS)) {
-            if (only !== undefined && name !== "none" && !only.includes(name)) {
+            if (ONLY !== undefined && name !== "none" && !ONLY.includes(name)) {
                 continue;
             }
             // the property it is for first: the rest are what it is judged after
@@ -154,6 +176,9 @@ describe("comparator mutants", () => {
             if (outcome === "MISSED") {
                 missed.push(name);
             }
+            if (outcome === "caught") {
+                caughtSomewhere.add(name);
+            }
             out[name] = { outcome, caughtBy: caughtBy.slice(0, 20), scores: r.scores };
         }
         await commands.writeFile(
@@ -161,5 +186,20 @@ describe("comparator mutants", () => {
             `${JSON.stringify(out, null, 1)}\n`,
         );
         assert.deepEqual(missed, [], `${id}: planted defects the oracle comparator passes`);
+    });
+
+    // only a run of the default samples and every defect says whether they exercise every defect
+    it.runIf(ASKED === DEFAULT_IDS.join(",") && ONLY === undefined)("catches every defect on some sample", () => {
+        const defects = Object.keys(MUTATIONS).filter((n) => n !== "none");
+        assert.deepEqual(
+            defects.filter((n) => !caughtSomewhere.has(n) && !(n in UNTESTABLE)),
+            [],
+            "planted defects no default sample catches: add a sample that exercises them to DEFAULT_IDS",
+        );
+        assert.deepEqual(
+            defects.filter((n) => caughtSomewhere.has(n) && n in UNTESTABLE),
+            [],
+            "planted defects now caught: take them off UNTESTABLE",
+        );
     });
 });

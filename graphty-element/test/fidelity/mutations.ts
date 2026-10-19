@@ -17,6 +17,7 @@ import {
     type PGradient,
     type PNode,
     type PScene,
+    type PStroke,
     type Pt,
     type PText,
 } from "./oracle/primitives";
@@ -90,6 +91,17 @@ const RED_BLUE: PGradient = {
     ],
 };
 const swapPattern: Partial<Record<DashClass, DashClass>> = { zigzag: "sinewave", sinewave: "zigzag" };
+/**
+ * A line drawn in another dash class: its class and the dash array it is drawn with, which the comparison reads again
+ * at the oracle's scale (a class with no dash array to back it is not what a renderer would draw).
+ * @param st - the stroke
+ * @param to - the class to draw it in
+ */
+const redash = (st: PStroke, to: "solid" | "dashed" | "dotted"): void => {
+    const w = st.width;
+    st.dashClass = to;
+    st.dash = { solid: null, dashed: [4 * w + 6, 3 * w + 4], dotted: [w, 2 * w + 2] }[to];
+};
 const firstEdge = (s: PScene): PEdge | undefined => s.edges.find((e) => e.stroke !== null);
 const eachNode = (f: (n: PNode) => void) => (s: PScene) => {
     s.nodes.forEach(f);
@@ -226,7 +238,7 @@ const DEFECTS = {
     },
     "edge dashed->solid": eachEdge((e) => {
         if (e.stroke !== null && e.stroke.dashClass === "dashed") {
-            e.stroke.dashClass = "solid";
+            redash(e.stroke, "solid");
         }
     }),
     "edge pattern (zigzag, sine wave, double, slashes, arrows) drawn solid": eachEdge((e) => {
@@ -237,7 +249,7 @@ const DEFECTS = {
     }),
     "edge dotted->dashed": eachEdge((e) => {
         if (e.stroke !== null && e.stroke.dashClass === "dotted") {
-            e.stroke.dashClass = "dashed";
+            redash(e.stroke, "dashed");
         }
     }),
     "curved edges straightened": eachEdge((e) => {
@@ -320,6 +332,23 @@ const DEFECTS = {
             e.stroke.gradient = structuredClone(RED_BLUE);
         }
     }),
+    "edge gradient removed": eachEdge((e) => {
+        if (e.stroke?.gradient) {
+            e.stroke.gradient = null;
+        }
+    }),
+    "label background removed": (s) => {
+        allTexts(s).forEach((t) => {
+            t.background = null;
+        });
+        return s;
+    },
+    "label outline removed": (s) => {
+        allTexts(s).forEach((t) => {
+            t.outline = null;
+        });
+        return s;
+    },
     "edge pattern swapped (zigzag<->sine wave)": eachEdge((e) => {
         const to = e.stroke === null ? undefined : swapPattern[e.stroke.dashClass];
         if (e.stroke !== null && to !== undefined) {
@@ -328,7 +357,7 @@ const DEFECTS = {
     }),
     "edge dashed->dotted": eachEdge((e) => {
         if (e.stroke !== null && e.stroke.dashClass === "dashed") {
-            e.stroke.dashClass = "dotted";
+            redash(e.stroke, "dotted");
         }
     }),
     "curved edges drawn as sine waves (arc->sine)": eachEdge((e) => {
@@ -727,6 +756,16 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "node gradient added": ["node.gradient", "node.fill"],
     "node gradient removed": ["node.gradient", "node.fill"],
     "edge gradient added": ["edge.gradient", "edge.color"],
+    "edge gradient removed": ["edge.gradient", "edge.color"],
+    "label background removed": [
+        "label.background",
+        "label.backgroundBox",
+        "label.backgroundBorder",
+        "label.present",
+        "edge.label",
+        "group.label",
+    ],
+    "label outline removed": ["label.outline", "label.present", "edge.label", "group.label"],
     "edge pattern swapped (zigzag<->sine wave)": ["edge.dash"],
     "edge dashed->dotted": ["edge.dash"],
     "curved edges drawn as sine waves (arc->sine)": ["edge.route", "edge.curve"],
@@ -817,9 +856,9 @@ export const MUTATIONS: Readonly<Record<string, Mutation>> = Object.fromEntries(
 /**
  * Whether a planted defect lands only on elements the unplanted comparison already fails in a property the defect is
  * for: the floors list each failing element once per property, so there is nothing new to catch there, and the
- * defect tests nothing on that sample. A change to the scene as a whole (its free texts and shapes) is never absorbed,
- * nor is an element the defect adds; one for the drawing as a whole (its background, its zoom) is, where the
- * comparison already fails the drawing in it.
+ * defect tests nothing on that sample. A change to the scene's free texts is never absorbed, nor is an element or an
+ * annotation the defect adds or changes, nor one it removes that the oracle draws something under; one for the
+ * drawing as a whole (its background, its zoom) is, where the comparison already fails the drawing in it.
  * @param before - graphty's drawn primitives
  * @param after - the same with the defect planted
  * @param base - the unplanted comparison
@@ -837,13 +876,24 @@ export function absorbedByKnownFailures(
     if (targets.length > 0 && targets.every(whole) && targets.some((p) => (base.failures[p]?.length ?? 0) > 0)) {
         return true;
     }
-    const same = (k: "background" | "texts" | "strays" | "width" | "height"): boolean =>
+    const same = (k: "background" | "texts" | "width" | "height"): boolean =>
         JSON.stringify(before[k]) === JSON.stringify(after[k]);
-    if (!(["background", "texts", "strays", "width", "height"] as const).every(same)) {
+    if (!(["background", "texts", "width", "height"] as const).every(same)) {
         return false;
     }
     const KIND = { nodes: "node", edges: "edge", groups: "group" } as const;
     const failing = new Map(base.elements.map((e) => [`${e.kind}\u0000${e.id}`, e.failed]));
+    // an annotation of graphty's the oracle draws nothing under already fails as an extra one: removing only those
+    // tests nothing; adding or changing one, or removing one the oracle draws, does
+    const extraStrays = new Set(base.failures["stray.extra"] ?? []);
+    const strayKey = (x: PScene["strays"][number]): string => JSON.stringify(x);
+    const [had, kept] = [new Set(before.strays.map(strayKey)), new Set(after.strays.map(strayKey))];
+    if (
+        after.strays.some((x) => !had.has(strayKey(x))) ||
+        before.strays.some((x) => !kept.has(strayKey(x)) && !extraStrays.has(`graphty:${x.tag}#${String(x.index)}`))
+    ) {
+        return false;
+    }
     const fails = (kind: "nodes" | "edges" | "groups", gid: string): boolean => {
         const k = KIND[kind];
         const oid = base.paired[kind][gid] as string | undefined;

@@ -53,6 +53,32 @@ describe("planted defects", () => {
         assert.isFalse(absorbedByKnownFailures(graphty, mutate("canvas background changed"), base, ["background"]));
     });
 
+    it("excuses removing only annotations the oracle draws nothing under", () => {
+        const ann = (index: number): PScene["strays"][number] => ({
+            index,
+            tag: "annotation-shape",
+            kind: "shape",
+            box: { x0: 300 + index * 20, y0: 250, x1: 310 + index * 20, y1: 260 },
+            fill: null,
+            stroke: null,
+            text: null,
+        });
+        const g = { ...structuredClone(graphty), strays: [ann(0)] };
+        const r = compareOracle("t", oracle, g);
+        assert.include(r.failures["stray.extra"] ?? [], "graphty:annotation-shape#0");
+        const removed = MUTATIONS["annotations removed"].mutate(structuredClone(g));
+        assert.isTrue(absorbedByKnownFailures(g, removed, r, ["stray.present"]));
+        // one the oracle draws under is judged
+        const o = { ...structuredClone(oracle), strays: [{ ...ann(0), tag: "path" }] };
+        const r2 = compareOracle("t", o, g);
+        assert.isFalse(absorbedByKnownFailures(g, removed, r2, ["stray.present"]));
+        assert.isFalse(
+            absorbedByKnownFailures(g, MUTATIONS["one extra annotation added"].mutate(structuredClone(g)), r, [
+                "stray.extra",
+            ]),
+        );
+    });
+
     it("names the properties each defect is for", () => {
         for (const [name, m] of Object.entries(MUTATIONS)) {
             assert.isTrue(name === "none" || m.targets.length > 0, name);

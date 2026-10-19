@@ -1,4 +1,4 @@
-The study runs on build 52cb47a85a served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d3-52cb47a85a
+The study runs on build 1fa51e2b0b served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-1fa51e2b0b
 
 Frozen on 2026-10-18 for the tier 3 rounds.
 
@@ -285,6 +285,9 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-18 (round 1 build frozen): the study build is now 1fa51e2b0b, in
+  `.study-builds/tier3-r1-1fa51e2b0b`. It replaces build 52cb47a85a
+  (`.study-builds/tier3-r1d3-52cb47a85a`), the third dry run's build. No bar changed.
 - 2026-10-18 (third review by the researcher, the user advocate and the red team; frozen for the
   round 1 build 52cb47a85a; no session has run):
     - Preflight 4's "until a pass finds nothing new" is replaced by an exit test (no blocking

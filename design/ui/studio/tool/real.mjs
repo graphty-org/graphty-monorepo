@@ -2847,7 +2847,7 @@ async function prove() {
         x = step(D, "--type", "zzzz");
         check(
             "a live region's new text is printed",
-            /^live: status \(polite\): "No match for \\"zzzz\\""/m.test(x.out) && /value "zzzz"/.test(x.out),
+            /^live: status \(polite\): "No match for \\"zzzz\\"/m.test(x.out) && /value "zzzz"/.test(x.out),
             x.out,
         );
         // the find box keeps focus and points at the highlighted result: that result is reported

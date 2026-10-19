@@ -440,6 +440,23 @@ export function resolveCytoscape(
             s.dependencies.get("nodeCustomGraphicsSizeSync") !== false,
         );
     }
+    if (
+        target === "edge" &&
+        s.dependencies.get("arrowColorMatchesEdge") === true &&
+        !used.has("EDGE_UNSELECTED_PAINT") &&
+        s.defaults.has("EDGE_STROKE_UNSELECTED_PAINT")
+    ) {
+        // the dependency replaces the stroke's default with EDGE_UNSELECTED_PAINT's, Cytoscape's own when the style
+        // has none: only a mapping or a bypass of the stroke still draws in its own color (specimen-mappings-bypass)
+        const unset = { ...s, defaults: new Map(s.defaults) };
+        unset.defaults.delete("EDGE_STROKE_UNSELECTED_PAINT");
+        const stroke = resolver(target, unset, elements, new StyleNotes(), undefined).one;
+        const paint = (toolDefaults("cytoscape-fallbacks")?.edge.color?.value ?? null) as StyleValue | null;
+        out.color = Array.from(
+            { length: n },
+            (_, i) => stroke("EDGE_STROKE_UNSELECTED_PAINT", colorParser, "color", i) ?? paint,
+        );
+    }
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();
         out.targetArrowColor = out.color.slice();

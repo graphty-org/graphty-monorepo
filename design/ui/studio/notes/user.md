@@ -12,44 +12,40 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-17, second review of the tier 3 first-use styling study) The first review's asks all
-  landed (T51 added, "is missing", blue ties, "clearly bigger", reporter colleague's sources, T48
-  count, Tom off T47/T48). Eight new asks: the color-by-category route (its popover and the key)
-  and a colleague's project opened are on no scripted screen, so bars 6 and 8, the wording check
-  and the expert walks never see T51's or T50's route; the expert walks and screenshot audit must
-  also check every session's last screenshot for key vs drawing agreement; "must not rise" needs a
-  bar; T47 A "clearly bigger" vs a key that grades "above 1, the same for all"; Tom on T51 B (the
-  only B session for question 6, and his persona quits at "discrete or continuous?"); Maren on T39
-  B inside bar 4's newcomer median; T48 says "clusters" in both halves and T46 B / T47 B / T48
-  echo the Groups row's info line ("Cluster nodes that interact more with each other"); T45's
-  halves test different cards, so its per-half rule compares unlike things.
-- (2026-10-17) Watch in round 1: whether T51's colors are distinct and its key names every value;
-  whether anyone opens the collapsed picker unprompted; whether anyone thinks Close undid an edit;
-  whether anyone hunts ties on the Node tab; touches of the purple <<Layer>> token on T47.
-- (2026-10-16) V7 accepted (Node | Edge tabs, a collapsible picker of typed condition cards). My
-  standing asks: a new or empty layer opens with its picker on "Add a condition"; Close is not
-  Cancel, one undo step per card edit; a card that leaves 0 says so; the Edge tab of a node-picked
-  layer offers "Touching / Between the picked nodes" first; a selector the cards cannot draw shows
-  a read-only Expression card, never nothing; a bulk card that differs shows <<Layer>> and is never
-  written in bulk.
-- (2026-10-16) Bulk field whose layers differ draws as one bound value: strip in the pill,
-  <<Layer>> where the source goes, "N layers", chits under it (up to 6, else 5 and "+N", gray Other
-  last). One look for one layer or ten.
+- (2026-10-18, third review, before round 1) Round 1 has not started. Four dry-run passes found
+  344, 217, 151 and 129 "fix now" rows; 41% of pass 4's were caused by pass 3's fixes and three
+  behaviors flipped between triages. A fifth pass began on 52cb47a85a. Preflight 4's "until a pass
+  finds nothing new" can never be met; it needs the exit test (0 blocking rows on success paths
+  and listed detours, regressions under 10%, no reversed decision) and a binding decisions file.
+- (2026-10-18) Confusing rows off the success path are what the sessions are for; holding round 1
+  for them spends the study on polish and teaches nothing about first use.
+- (2026-10-18) A skipped pilot reads as a clean one: pass 4 never walked T39 (bar 4's only task),
+  T41 B or T46 A, and T46 A is owed since 5bd16cda6e.
+- (2026-10-18) WALKS3 still misses success-path screens of core tasks: the find box and its
+  results (T46 steps 7-8), a node's inspector with Memberships and "Why this look" (T46, T50), a
+  node's own Style tab and Fill "+" (a pass-4 blocker), the shape list (T47, a pass-4 blocker).
+  Bars 6 and 8, the expert walks and the audit inherit that blindness.
+- (2026-10-18) The wording check has never run on any tier 3 build. "cluster" (T46 B, T47 B,
+  T48 B) is neither kept nor avoided while the groups info line and "Clustering coefficient" use it.
+- (2026-10-18) Grade the user's goal, not the answer key's route: any groups run counts for T46 to
+  T48 when the prompt names none; a T49 drawing and key back at the start is SD, not F.
+- (2026-10-18) T51's halves both answer green (the fixtures list values in the same order), so
+  they test one palette slot; B should ask for the companies.
 - Top risk, every tier: a picture that looks right and answers wrong (stale key, twelve oranges for
   twelve values, a count that disagrees with the drawing). Any such screen is severity 3.
-- Expert walks and the screenshot audit were the bar that failed every round of tier 2 while
-  sessions passed near 100%: their coverage decides what tier 3 can find. Walk the routes the tasks
-  take, not only the screens the scripts know.
-- A dry run must walk the commonest detours and the keyboard route, not only the answer key.
+- A new task brings its route's screens into WALKS3 in the same change.
 - Task wording never reuses the target's screen words, including tooltips and info lines; every
-  wording at stake runs on two domains.
+  wording at stake runs on two domains. A fix that adds an alias for a prompt's word makes that
+  task re-test in a word the fix did not add.
 - No tours, hint panels or first-run aids; the same screens for everyone.
 - Grade from what ended on screen and in the style tree, never from a participant's rating.
 - Simulated passes are weak; failures and scripted repros count. One model's matching asides are
   one voice.
 - Personas whose files script a quit are placed only where the quit is the finding, never as the
   sole session of a study question.
-- Drawn names overlapping ties and dots stays an element and owner item; the app must not hide it.
+- (2026-10-16) V7 accepted (Node | Edge tabs, typed condition cards, bulk field as one bound value
+  with <<Layer>>). Standing asks: a new layer opens on "Add a condition"; Close is not Cancel; a
+  card that leaves 0 says so; a selector the cards cannot draw shows a read-only Expression card.
 
 ## Priorities and values
 
@@ -108,6 +104,15 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
+- **2026-10-18 (me, third review of tier 3 criteria and tasks, before round 1):** Eight changes:
+  preflight 4's exit test and a decisions file; walk what pass 4 skipped first; five screens into
+  WALKS3; run the wording check now and declare "cluster"; any groups run counts on T46 to T48;
+  T49's start-looking drawing SD; bar 4 written as 10, twice the key's 5; T51 B asks for the
+  companies. Reason: each is either a bar that cannot be met or reconciled, a route a newcomer
+  takes that no check sees, or a grade that measures the key instead of the user. Evidence:
+  `tmp/tier3-dryrun-analysis/summary.txt` and `match_p3_p4_summary.md`; `dry-run-r1-4.md` "Not
+  piloted"; `tool/bars.mjs` WALKS3; no `vocabulary.json` under `tier3/rounds/`; `answers.md` T46,
+  T49, T51; the convergence rules on branch `chore/studio-convergence-rules` (4a01f1747).
 - **2026-10-17 (me, second review of tier 3 criteria and tasks):** Eight changes (above, Top of
   mind). Reason: every one is a route a first-time user will take that no bar, check or walk
   currently sees, a grade the key cannot give from the prompt's words, or a placement that spends
@@ -161,22 +166,10 @@ AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other 
   finding; no door removed on fewer than 8 sessions. Reason: repeat cost and kept habits judge a
   returning user.
 
-- 2026-10-07 (studio, tier 1 round 2 decisions; summarized 2026-10-11) -- Twelve fixes in their
-  owning packages (menu focus, key omits covered layer, 2D Fit, finished announcements, "Show all
-  labels" writing the element's declutter setting). I agreed; T10 kept its prompt.
-- 2026-10-07 (me, tier 1 round 2 critique; summarized 2026-10-09) -- Order: menu-to-dialog
-  focus, Force re-apply and 2D Fit, groupings as an element fact, key omits a fully covered
-  layer, Size "+" opens its picker, chevron inside the row, finished announcements. Reason:
-  smallest reproduced fixes on the first-time path. The "stale key" was a visibility fact.
-- 2026-10-06 (me, tier 1 round 1 critique; summarized 2026-10-09) -- First fix: the route people
-  take must arrive (the Neighborhood command opens the named list), not a patch on the route they
-  skip; then make detours work, wheel zoom, refusals as element facts, key never over a node.
-- 2026-10-06 (me, tier 1 criteria critique; summarized 2026-10-08) -- Asked: a scripted build
-  defect is confirmed at one participant; size/color steps pass only if the participant reads the
-  legend's meaning; one T15 run on friends.csv; bar 6 counts only commits that should change the
-  drawing; answer key gaps filled; "unprompted" replaced by "picked a measure without help";
-  a words-at-rest counting rule. Reason: every bar scorable from the last screenshot and transcript
-  with no judgment call, and measuring understanding, not only clicks.
+- 2026-10-06 to 2026-10-07 (tier 1 critiques, summarized 2026-10-18) -- The route people take
+  must arrive before patching the route they skip; smallest reproduced fixes on the first-time
+  path; every bar scorable from the last screenshot and transcript with no judgment call; a
+  size or color step passes only if the legend's meaning is read.
 - 2026-10-06 (me) -- My scope widens from the weekly analyst alone to the first-time user plus the
   weekly analyst. Reason: the owner's tier 1 priority (2026-10-02). Elena and Alex fail in the same
   places on the same tasks (round 8), so one design serves both.
@@ -224,6 +217,12 @@ AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other 
   several outputs. Standard graph terms, explained by (i).
 
 ## Tried: worked / did not work
+
+- 2026-10-18 -- DID NOT WORK: a dry run whose exit is "finds nothing new" while every pass's
+  fixes are judged only by the next full pass. Four passes, 41% of the last list caused by the
+  one before, three behaviors flip-flopped, and round 1 still has not started. WORKED: matching
+  each pass's rows to the commits before it (`tmp/tier3-dryrun-analysis/`), which named the
+  cause in one read.
 
 - 2026-10-17 -- WORKED: a first review of study materials that names each ask with its reason;
   all eight landed in one pass. DID NOT (found on the second pass): a new task (T51) added
@@ -292,6 +291,8 @@ AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other 
 
 ## Sources
 
+- `tier3/dry-run-r1-4.md`; `tmp/tier3-dryrun-analysis/` (main checkout); `tool/bars.mjs`
+  WALKS3; `.claude/skills/design-studio/SKILL.md` on `chore/studio-convergence-rules` (2026-10-18).
 - `design/ui/studio/tier3/criteria.md`, `tasks.md`, `answers.md`, `roster.md`; `../tool/bars.mjs`
   (WALKS3); `graphty/src/components/shell/panel/AnalyzePanel.tsx` (SUGGESTED_CARDS);
   `graphty/src/workspace/style/words.ts` (LAYER_TOKEN, bindingTitle); `P/recipe-recipient.md`
@@ -308,10 +309,8 @@ AnalyzePanel.tsx` Groups info "Cluster nodes that interact more with each other 
   `graphty/src/workspace/canvas/legendWords.ts:336` (2026-10-11).
 - `design/ui/studio/tier2/rounds/round-3/decisions.md` (2026-10-11).
 
-- `design/ui/studio/tier2/rounds/round-3/insights.md`, `scores.md`, `expert/*.md`; screenshots
-  `sessions/r3-s10/02.png`, `r3-s33/03.png`, `r3-s43/13.png` (2026-10-10).
-- `design/ui/studio/tier2/rounds/round-1/insights.md`, `scores.md`, `expert/*.md`;
-  screenshots `sessions/r1-s46/12.png`, `r1-s29/08.png`, `r1-s28/07.png` (2026-10-09).
+- `design/ui/studio/tier2/rounds/round-1/` and `round-3/` insights, scores and expert walks
+  (2026-10-09, 2026-10-10).
 - `design/ui/studio/digests/decisions.md`, `framework.md`, `owner-voice.md`, `study-rounds.md`,
   `tier1.md` (this worktree, 2026-10-06).
 - `.worktrees/ux-storyboards-mocks-and-study/design/ui/prototype/study/decision-log.md`, "Round 8"

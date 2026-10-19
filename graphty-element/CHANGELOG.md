@@ -1,3 +1,19 @@
+## 3.29.2 (2026-10-19)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep every batch of an assistant message in its one undo step ([6c4905822](https://github.com/graphty-org/graphty-monorepo/commit/6c4905822))
+- **graphty-element:** start the load-time algorithms when a non-add write trails the adds ([494c465c5](https://github.com/graphty-org/graphty-monorepo/commit/494c465c5))
+- **graphty-element:** move a selected node's halo with it while it is dragged ([37380db7e](https://github.com/graphty-org/graphty-monorepo/commit/37380db7e))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.46
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 3.29.1 (2026-10-18)
 
 ### 🩹 Fixes

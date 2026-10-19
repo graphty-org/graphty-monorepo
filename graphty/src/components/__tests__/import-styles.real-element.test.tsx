@@ -7,7 +7,6 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import { fileStyleOf, type GraphSession } from "@graphty/graphty-element/session";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
@@ -82,7 +81,9 @@ async function elementSession(): Promise<GraphSession> {
     await waitFor(
         () => {
             // The start screen draws a graph of its own; the project's element is the other one.
-            session = document.querySelector<GraphtyElement>("graphty-element:not([data-start-page])")?.session;
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
             assert.isDefined(session);
         },
         { timeout: TIMEOUT_MS },

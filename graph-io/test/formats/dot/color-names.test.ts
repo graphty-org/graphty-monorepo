@@ -36,18 +36,7 @@ function differences(scheme: "x11" | "svg" | "brewer"): string[] {
 // 14.1.2 knows and graph-io's X11 table (measured on Graphviz 2.43) does not, drawn black. Delete each line once
 // graph-io reads it.
 const OPEN: Record<"x11" | "svg" | "brewer", string[]> = {
-    x11: [
-        "webgray: unknown -> #808080",
-        "webgreen: unknown -> #008000",
-        "webgrey: unknown -> #808080",
-        "webmaroon: unknown -> #800000",
-        "webpurple: unknown -> #800080",
-        "x11gray: unknown -> #bebebe",
-        "x11green: unknown -> #00ff00",
-        "x11grey: unknown -> #bebebe",
-        "x11maroon: unknown -> #b03060",
-        "x11purple: unknown -> #a020f0",
-    ],
+    x11: [],
     svg: [],
     brewer: [],
 };

@@ -168,6 +168,9 @@ export const X11_COLORS: ReadonlyMap<string, string> = table(
         "tomato3=cd4f39 tomato4=8b3626 turquoise=40e0d0 turquoise1=00f5ff turquoise2=00e5ee turquoise3=00c5cd " +
         "turquoise4=00868b violet=ee82ee violetred=d02090 violetred1=ff3e96 violetred2=ee3a8c violetred3=cd3278 " +
         "violetred4=8b2252 wheat=f5deb3 wheat1=ffe7ba wheat2=eed8ae wheat3=cdba96 wheat4=8b7e66 white=ffffff " +
+        // added in later Graphviz releases (measured on 14.1.2): the web and X11 spellings of the five clashing names
+        "webgray=808080 webgreen=008000 webgrey=808080 webmaroon=800000 webpurple=800080 x11gray=bebebe " +
+        "x11green=00ff00 x11grey=bebebe x11maroon=b03060 x11purple=a020f0 " +
         "whitesmoke=f5f5f5 yellow=ffff00 yellow1=ffff00 yellow2=eeee00 yellow3=cdcd00 yellow4=8b8b00 " +
         "yellowgreen=9acd32",
 );

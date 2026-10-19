@@ -185,6 +185,12 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelOutlineWidth",
                         "node.labelBorder",
                         "node.labelBorderWidth",
+                        "node.labelOpacity",
+                        "node.labelBackgroundOpacity",
+                        "node.labelOffsetX",
+                        "node.labelOffsetY",
+                        "node.labelShiftX",
+                        "node.labelShiftY",
                         "node.labelDeclutter",
                         "node.labelTextAlign",
                     ],
@@ -315,5 +321,31 @@ describe("label field channels take a rule", () => {
         const drawn = drawnLabel(held, 0);
         assert.strictEqual(drawn.borderColor, "#25537A");
         assert.strictEqual(drawn.borderWidth, 2);
+    });
+
+    it("draws the words and their box translucent, and moves the label, as the new label fields say", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: {
+                "node.label": "hi",
+                "node.labelBackground": "#b7c9e3",
+                "node.labelOpacity": 0.25,
+                "node.labelBackgroundOpacity": 0.5,
+                "node.labelOffsetX": 1.5,
+                "node.labelOffsetY": -2,
+                "node.labelShiftX": -0.5,
+                "node.labelShiftY": 0.5,
+            },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(labelFieldOf("edge.labelOffsetY"), { into: "edge.labelStyle", field: "offsetY" });
+        const drawn = drawnLabel(held, 0);
+        assert.strictEqual(drawn.textOpacity, 0.25);
+        assert.strictEqual(drawn.backgroundOpacity, 0.5);
+        assert.strictEqual(drawn.offsetX, 1.5);
+        assert.strictEqual(drawn.offsetY, -2);
+        assert.strictEqual(drawn.shiftX, -0.5);
+        assert.strictEqual(drawn.shiftY, 0.5);
     });
 });

@@ -14,6 +14,7 @@ import {
 
 import { BadgeStyleManager } from "../BadgeStyleManager";
 import { type RichTextStyleType } from "../config";
+import { toColorValue } from "../session/styles/channels";
 import { FrameRoster } from "./FrameRoster";
 import {
     buildMaterial,
@@ -170,6 +171,12 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "minScreenSize"
     | "declutter"
     | "rotation"
+    | "textOpacity"
+    | "backgroundOpacity"
+    | "offsetX"
+    | "offsetY"
+    | "shiftX"
+    | "shiftY"
     | "_badgeType"
     | "_smartSizing"
     | "_paddingRatio"
@@ -203,6 +210,21 @@ const POINTER_AWAY_FROM: Partial<Record<AttachPosition, PointerDirection>> = {
     left: "right",
     right: "left",
 };
+
+/**
+ * A colour with an opacity applied over its own alpha.
+ * @param color - The colour, in any spelling the element accepts; anything else (a gradient) is kept.
+ * @param opacity - The opacity, 0-1; unset or 1 leaves the colour as it is.
+ * @returns The colour, as `#rrggbbaa` when an opacity below 1 changed it.
+ */
+function withOpacity<T>(color: T, opacity: number | undefined): T | string {
+    if (opacity === undefined || opacity >= 1 || typeof color !== "string" || color === "transparent") {
+        return color;
+    }
+
+    const value = toColorValue(color);
+    return value === null ? color : (toColorValue({ ...value, a: value.a * Math.max(0, opacity) })?.hex ?? color);
+}
 
 /** Which side of a target's bounds, on one axis: before it, centered on it, or after it. */
 type Side = -1 | 0 | 1;
@@ -509,6 +531,10 @@ export class RichTextLabel {
                 },
             ];
         }
+
+        // An opacity of the words or of the panel is drawn as their colour's alpha.
+        finalOptions.textColor = withOpacity(finalOptions.textColor, finalOptions.textOpacity);
+        finalOptions.backgroundColor = withOpacity(finalOptions.backgroundColor, finalOptions.backgroundOpacity);
 
         this.options = finalOptions;
         this.id = `richLabel_${Math.random().toString(36).substring(2, 11)}`;
@@ -1343,6 +1369,18 @@ export class RichTextLabel {
                 this.options.attachOffset,
                 stretch ?? undefined,
             );
+        }
+
+        // Moved by its offset and its shift, right and down on screen: y is up in every frame here.
+        const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
+        const moveX = offsetX + shiftX * labelWidth;
+        const moveY = offsetY + shiftY * labelHeight;
+        if (moveX !== 0 || moveY !== 0) {
+            // beside its target the label is in the target's own frame, whose stretch its gaps undo
+            const sx = inFront ? 1 : (stretch?.x ?? 1) || 1;
+            const sy = inFront ? 1 : (stretch?.y ?? 1) || 1;
+            newPos.x += moveX / sx;
+            newPos.y -= moveY / sy;
         }
 
         this.mesh.position = newPos;

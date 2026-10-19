@@ -659,6 +659,13 @@ function channelPlans(
             ["labelOutlineWidth", [labelLength("node.labelOutlineWidth")]],
             ["labelBorderColor", [label("labelBorder")]],
             ["labelBorderWidth", [labelLength("node.labelBorderWidth", false)]],
+            ["labelOpacity", [label("labelOpacity")]],
+            ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
+            // moved in the scene's units, as a wrap width is
+            ["labelOffsetX", [length("node.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
+            ["labelOffsetY", [length("node.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+            ["labelShiftX", [label("labelShiftX")]],
+            ["labelShiftY", [label("labelShiftY")]],
             ["labelFit", [id("node.labelFit")]],
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
@@ -777,6 +784,13 @@ function channelPlans(
         ["labelOutlineWidth", [labelLength("edge.labelOutlineWidth")]],
         ["labelBorderColor", [label("labelBorder")]],
         ["labelBorderWidth", [labelLength("edge.labelBorderWidth", false)]],
+        ["labelOpacity", [label("labelOpacity")]],
+        ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
+        // moved in the scene's units, as a wrap width is
+        ["labelOffsetX", [length("edge.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],
+        ["labelOffsetY", [length("edge.labelOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+        ["labelShiftX", [label("labelShiftX")]],
+        ["labelShiftY", [label("labelShiftY")]],
         ["labelMinScreenSize", [id("edge.labelMinScreenSize")]],
         ["labelOnTop", [id("edge.labelOnTop")]],
     ]);

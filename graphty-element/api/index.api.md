@@ -951,6 +951,7 @@ export const EdgeStyle: z.ZodObject<{
             }>>;
             onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOpacity: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
                 colorType: z.ZodLiteral<"solid">;
                 value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -965,6 +966,7 @@ export const EdgeStyle: z.ZodObject<{
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1010,6 +1012,10 @@ export const EdgeStyle: z.ZodObject<{
                 "inside-bottom-right": "inside-bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            offsetX: z.ZodOptional<z.ZodNumber>;
+            offsetY: z.ZodOptional<z.ZodNumber>;
+            shiftX: z.ZodOptional<z.ZodNumber>;
+            shiftY: z.ZodOptional<z.ZodNumber>;
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1158,6 +1164,7 @@ export const EdgeStyle: z.ZodObject<{
             }>>;
             onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOpacity: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
                 colorType: z.ZodLiteral<"solid">;
                 value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1172,6 +1179,7 @@ export const EdgeStyle: z.ZodObject<{
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1217,6 +1225,10 @@ export const EdgeStyle: z.ZodObject<{
                 "inside-bottom-right": "inside-bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            offsetX: z.ZodOptional<z.ZodNumber>;
+            offsetY: z.ZodOptional<z.ZodNumber>;
+            shiftX: z.ZodOptional<z.ZodNumber>;
+            shiftY: z.ZodOptional<z.ZodNumber>;
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1459,6 +1471,7 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1473,6 +1486,7 @@ export const EdgeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1518,6 +1532,10 @@ export const EdgeStyle: z.ZodObject<{
             "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -4013,6 +4031,7 @@ export const NodeStyle: z.ZodObject<{
         }>>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4027,6 +4046,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -4072,6 +4092,10 @@ export const NodeStyle: z.ZodObject<{
             "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -4186,6 +4210,7 @@ export const NodeStyle: z.ZodObject<{
         }>>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4200,6 +4225,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -4245,6 +4271,10 @@ export const NodeStyle: z.ZodObject<{
             "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -4829,6 +4859,7 @@ export const RichTextStyle: z.ZodObject<{
     }>>;
     onTop: z.ZodOptional<z.ZodBoolean>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    textOpacity: z.ZodOptional<z.ZodNumber>;
     backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
         colorType: z.ZodLiteral<"solid">;
         value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -4843,6 +4874,7 @@ export const RichTextStyle: z.ZodObject<{
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+    backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -4888,6 +4920,10 @@ export const RichTextStyle: z.ZodObject<{
         "inside-bottom-right": "inside-bottom-right";
     }>>;
     attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    offsetX: z.ZodOptional<z.ZodNumber>;
+    offsetY: z.ZodOptional<z.ZodNumber>;
+    shiftX: z.ZodOptional<z.ZodNumber>;
+    shiftY: z.ZodOptional<z.ZodNumber>;
     depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;

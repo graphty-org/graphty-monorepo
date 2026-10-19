@@ -160,8 +160,19 @@ export interface LabelStyle {
     /** How the lines are lined up against each other. */
     textAlign?: LabelTextAlign;
 
+    /**
+     * How opaque the words are, from 0 (not drawn) to 1, applied over their colour's own alpha.
+     * Unset, 1.
+     */
+    opacity?: number;
+
     /** The colour of the panel behind the words. */
     background?: string;
+    /**
+     * How opaque that panel is, from 0 (not drawn) to 1, applied over its colour's own alpha.
+     * Unset, 1.
+     */
+    backgroundOpacity?: number;
     /** How much room there is between the words and the edge of that panel. */
     padding?: number;
     /** How far the panel's corners are rounded. */
@@ -183,6 +194,20 @@ export interface LabelStyle {
     location?: LabelLocation;
     /** How far from the node or edge it sits, in world units. */
     attachOffset?: number;
+    /**
+     * How far the label is moved to the right of where `location` puts it, in the units of `size`
+     * (the scene's). Unset, 0.
+     */
+    offsetX?: number;
+    /** How far the label is moved down from where `location` puts it, in the units of `size`. Unset, 0. */
+    offsetY?: number;
+    /**
+     * How far the label is moved to the right of where `location` and `offsetX` put it, as a
+     * fraction of its own width: -0.5 puts its right edge where its middle was. Unset, 0.
+     */
+    shiftX?: number;
+    /** How far the label is moved down, as a fraction of its own height; see `shiftX`. Unset, 0. */
+    shiftY?: number;
     /** Empty space above the panel. */
     marginTop?: number;
     /** Empty space below the panel. */
@@ -280,7 +305,9 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     declutter: 0,
     onTop: 0,
     textAlign: 0,
+    opacity: 0,
     background: 0,
+    backgroundOpacity: 0,
     padding: 0,
     cornerRadius: 0,
     borderWidth: 0,
@@ -291,6 +318,10 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     gradientDirection: 0,
     location: 0,
     attachOffset: 0,
+    offsetX: 0,
+    offsetY: 0,
+    shiftX: 0,
+    shiftY: 0,
     marginTop: 0,
     marginBottom: 0,
     marginLeft: 0,

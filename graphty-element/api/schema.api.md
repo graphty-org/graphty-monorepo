@@ -72,7 +72,7 @@ export const BLUES_COLORS: readonly ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelTextAlign" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "edge.color" | "edge.width" | "edge.opacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextDistance" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailPosition" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextDistance" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelLetterSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.labelWrapWidth" | "node.labelWrapTrailingSpace" | "node.labelMinScreenSize" | "node.labelOnTop" | "node.labelDeclutter" | "node.labelTextAlign" | "node.labelRotation" | "node.labelBackground" | "node.labelOutline" | "node.labelOutlineWidth" | "node.labelBorder" | "node.labelBorderWidth" | "node.labelOpacity" | "node.labelBackgroundOpacity" | "node.labelOffsetX" | "node.labelOffsetY" | "node.labelShiftX" | "node.labelShiftY" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderScreenWidth" | "node.borderOpacity" | "node.borderStyle" | "node.borderPosition" | "node.outerBorderColor" | "node.outerBorderWidth" | "node.outerBorderOpacity" | "node.outerBorderStyle" | "node.outerBorderOffset" | "node.underlayColor" | "node.underlayOpacity" | "node.underlayPadding" | "node.underlayShape" | "node.underlayCornerRadius" | "node.overlayColor" | "node.overlayOpacity" | "node.overlayPadding" | "node.overlayShape" | "node.overlayCornerRadius" | "node.cornerRadius" | "node.exactCornerRadius" | "node.shapePoints" | "node.shapeStretchPoints" | "node.labelFit" | "node.labelPaddingX" | "node.labelPaddingY" | "node.labelFitSquare" | "node.gradientColor" | "node.gradientDirection" | "node.image" | "node.imageFallback" | "node.imageFit" | "node.imageWidth" | "node.imageHeight" | "node.imagePixelSize" | "node.imagePositionX" | "node.imagePositionY" | "node.imageOffsetX" | "node.imageOffsetY" | "node.imageRepeat" | "node.imageClip" | "node.imageSmoothing" | "node.imageOpacity" | "node.glyph" | "node.glyphFont" | "node.glyphSize" | "node.glyphWeight" | "node.glyphColor" | "node.pieColors" | "node.pieSizes" | "node.pieOpacities" | "node.pieRadius" | "node.pieHole" | "node.pieRotation" | "node.pieFitBox" | "node.pieOffsetX" | "node.pieOffsetY" | "node.stripeColors" | "node.stripeSizes" | "node.stripeOpacities" | "node.stripeDirection" | "node.stripeSize" | "edge.color" | "edge.width" | "edge.opacity" | "edge.outlineColor" | "edge.outlineWidth" | "edge.outlineOpacity" | "edge.underlayColor" | "edge.underlayOpacity" | "edge.underlayPadding" | "edge.overlayColor" | "edge.overlayOpacity" | "edge.overlayPadding" | "edge.gradientColors" | "edge.gradientStops" | "edge.gradientKind" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.fanSpacing" | "edge.fanned" | "edge.bendCurve" | "edge.arcRadius" | "edge.sourcePort" | "edge.targetPort" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadWidth" | "edge.arrowHeadPosition" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadImage" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextLetterSize" | "edge.arrowHeadTextDistance" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailWidth" | "edge.arrowTailPosition" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailImage" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.arrowTailTextSize" | "edge.arrowTailTextLetterSize" | "edge.arrowTailTextDistance" | "edge.arrowMiddleHead" | "edge.arrowMiddleHeadSize" | "edge.arrowMiddleHeadWidth" | "edge.arrowMiddleHeadPosition" | "edge.arrowMiddleHeadColor" | "edge.arrowMiddleHeadOpacity" | "edge.arrowMiddleHeadImage" | "edge.arrowMiddleTail" | "edge.arrowMiddleTailSize" | "edge.arrowMiddleTailWidth" | "edge.arrowMiddleTailPosition" | "edge.arrowMiddleTailColor" | "edge.arrowMiddleTailOpacity" | "edge.arrowMiddleTailImage" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelLetterSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "edge.labelWrapWidth" | "edge.labelWrapTrailingSpace" | "edge.labelMinScreenSize" | "edge.labelOnTop" | "edge.labelTextAlign" | "edge.labelRotation" | "edge.labelBackground" | "edge.labelOutline" | "edge.labelOutlineWidth" | "edge.labelBorder" | "edge.labelBorderWidth" | "edge.labelOpacity" | "edge.labelBackgroundOpacity" | "edge.labelOffsetX" | "edge.labelOffsetY" | "edge.labelShiftX" | "edge.labelShiftY";
 
 // @public
 export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
@@ -244,6 +244,7 @@ export const EdgeStyle: z.ZodObject<{
             }>>;
             onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOpacity: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
                 colorType: z.ZodLiteral<"solid">;
                 value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -258,6 +259,7 @@ export const EdgeStyle: z.ZodObject<{
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -303,6 +305,10 @@ export const EdgeStyle: z.ZodObject<{
                 "inside-bottom-right": "inside-bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            offsetX: z.ZodOptional<z.ZodNumber>;
+            offsetY: z.ZodOptional<z.ZodNumber>;
+            shiftX: z.ZodOptional<z.ZodNumber>;
+            shiftY: z.ZodOptional<z.ZodNumber>;
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -451,6 +457,7 @@ export const EdgeStyle: z.ZodObject<{
             }>>;
             onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+            textOpacity: z.ZodOptional<z.ZodNumber>;
             backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
                 colorType: z.ZodLiteral<"solid">;
                 value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -465,6 +472,7 @@ export const EdgeStyle: z.ZodObject<{
                 colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
                 opacity: z.ZodOptional<z.ZodNumber>;
             }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+            backgroundOpacity: z.ZodOptional<z.ZodNumber>;
             borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -510,6 +518,10 @@ export const EdgeStyle: z.ZodObject<{
                 "inside-bottom-right": "inside-bottom-right";
             }>>;
             attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+            offsetX: z.ZodOptional<z.ZodNumber>;
+            offsetY: z.ZodOptional<z.ZodNumber>;
+            shiftX: z.ZodOptional<z.ZodNumber>;
+            shiftY: z.ZodOptional<z.ZodNumber>;
             depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
             depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
             depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -752,6 +764,7 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -766,6 +779,7 @@ export const EdgeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -811,6 +825,10 @@ export const EdgeStyle: z.ZodObject<{
             "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1006,6 +1024,7 @@ export interface LabelStyle {
     animationSpeed?: number;
     attachOffset?: number;
     background?: string;
+    backgroundOpacity?: number;
     badge?: LabelBadge;
     borderColor?: string;
     borderWidth?: number;
@@ -1033,7 +1052,10 @@ export interface LabelStyle {
     marginTop?: number;
     maxNumber?: number;
     minScreenSize?: number;
+    offsetX?: number;
+    offsetY?: number;
     onTop?: boolean;
+    opacity?: number;
     outline?: string;
     outlineWidth?: number;
     overflowSuffix?: string;
@@ -1051,6 +1073,8 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
+    shiftX?: number;
+    shiftY?: number;
     size?: number;
     sizePx?: number;
     smartOverflow?: boolean;
@@ -1553,6 +1577,7 @@ export const NodeStyle: z.ZodObject<{
         }>>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1567,6 +1592,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1612,6 +1638,10 @@ export const NodeStyle: z.ZodObject<{
             "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1726,6 +1756,7 @@ export const NodeStyle: z.ZodObject<{
         }>>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+        textOpacity: z.ZodOptional<z.ZodNumber>;
         backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
             colorType: z.ZodLiteral<"solid">;
             value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1740,6 +1771,7 @@ export const NodeStyle: z.ZodObject<{
             colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
             opacity: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
         borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -1785,6 +1817,10 @@ export const NodeStyle: z.ZodObject<{
             "inside-bottom-right": "inside-bottom-right";
         }>>;
         attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        shiftX: z.ZodOptional<z.ZodNumber>;
+        shiftY: z.ZodOptional<z.ZodNumber>;
         depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
         depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1979,6 +2015,7 @@ export const RichTextStyle: z.ZodObject<{
     }>>;
     onTop: z.ZodOptional<z.ZodBoolean>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
+    textOpacity: z.ZodOptional<z.ZodNumber>;
     backgroundColor: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{
         colorType: z.ZodLiteral<"solid">;
         value: z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>;
@@ -1993,6 +2030,7 @@ export const RichTextStyle: z.ZodObject<{
         colors: z.ZodArray<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>]>, z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>]>>;
+    backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     borderWidth: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     borderColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     borders: z.ZodOptional<z.ZodArray<z.ZodObject<{
@@ -2038,6 +2076,10 @@ export const RichTextStyle: z.ZodObject<{
         "inside-bottom-right": "inside-bottom-right";
     }>>;
     attachOffset: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
+    offsetX: z.ZodOptional<z.ZodNumber>;
+    offsetY: z.ZodOptional<z.ZodNumber>;
+    shiftX: z.ZodOptional<z.ZodNumber>;
+    shiftY: z.ZodOptional<z.ZodNumber>;
     depthFadeEnabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;
     depthFadeNear: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
     depthFadeFar: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;

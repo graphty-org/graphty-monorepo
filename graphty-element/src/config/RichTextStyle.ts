@@ -91,7 +91,11 @@ export const RichTextStyle = z.strictObject({
 
     // Colors
     textColor: ColorStyle.default("#000000").optional(),
+    // How opaque the words are, over their color's own alpha; unset, 1.
+    textOpacity: z.number().min(0).max(1).optional(),
     backgroundColor: AdvancedColorStyle.or(ColorStyle).optional(),
+    // How opaque the background is, over its color's own alpha; unset, 1.
+    backgroundOpacity: z.number().min(0).max(1).optional(),
 
     // Single border (legacy)
     borderWidth: z.number().default(0).optional(),
@@ -117,6 +121,12 @@ export const RichTextStyle = z.strictObject({
     position: Position3D.optional(),
     attachPosition: AttachPosition.optional(),
     attachOffset: z.number().default(0).optional(),
+    // How far the label is moved right and down of where attachPosition puts it, in the scene's units.
+    offsetX: z.number().optional(),
+    offsetY: z.number().optional(),
+    // How far it is moved right and down again, as fractions of its own width and height.
+    shiftX: z.number().optional(),
+    shiftY: z.number().optional(),
 
     // Depth fading
     depthFadeEnabled: z.boolean().default(false).optional(),

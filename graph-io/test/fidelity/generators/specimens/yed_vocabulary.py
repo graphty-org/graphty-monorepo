@@ -147,6 +147,9 @@ STYLE_PROPERTIES = {
     "yed.table.lane.style": "java.lang.String",
     "yed.table.section.color": "java.awt.Color",
     "yed.table.header.height": "java.lang.Double",
+    # SBGN multimer count and a complex's corner radius, as yEd-made SBGN maps write them (YED_SBGN_FILES below)
+    "com.yworks.sbgn.style.mcount": "java.lang.Integer",
+    "com.yworks.sbgn.style.radiusY": "java.lang.Integer",
 }
 
 # yEd's GenericNode palette ids, which no schema lists: yEd's Flowchart, BPMN, Entity Relationship, SBGN and
@@ -161,11 +164,22 @@ GENERIC_CONFIGURATIONS = {
     "bpmn": ["Activity", "Activity.withShadow", "Event", "Event.withShadow", "Gateway", "Gateway.withShadow",
              "Conversation", "Conversation.withShadow", "Artifact", "Artifact.withShadow"],
     "entityRelationship": ["big_entity", "small_entity", "relationship", "attribute"],
-    "sbgn": ["unspecifiedEntity", "simpleChemical", "macromolecule", "nucleicAcidFeature", "perturbingAgent",
-             "phenotype", "emptySet", "submap", "unitOfInformation", "stateVariable", "tag", "process", "operator"],
+    # SBGN ids are spelled as yEd writes them (YED_SBGN_FILES), not as draw.io's lower-cased table suggests
+    "sbgn": ["UnspecifiedEntity", "SimpleChemical", "Macromolecule", "NucleicAcidFeature", "PerturbingAgent",
+             "Phenotype", "EmptySet", "Submap", "UnitOfInformation", "StateVariable", "Tag", "Process", "Operator"],
     "yjava": ["BevelNode", "BevelNode2", "BevelNode3", "BevelNodeWithShadow", "ShinyPlateNode", "ShinyPlateNode2",
               "ShinyPlateNode3", "ShinyPlateNodeWithShadow"],
 }
+# yEd's GenericGroupNode palette ids beyond the corpus's PanelNode and DemoGroup: the SBGN palette's complex.
+GENERIC_GROUP_CONFIGURATIONS = {"sbgn": ["Complex"]}
+# Where the SBGN spellings come from (no corpus file is an SBGN map): a file saved by yEd 3.17.1 (Process,
+# SimpleChemical), the ACSN maps the ySBGN project ships for yEd (every other id, Complex as a GenericGroupNode,
+# mcount, radiusY), and ySBGN's own table of yEd's ids (ConverterDefines.java), which agrees with both.
+YED_SBGN_FILES = [
+    "https://raw.githubusercontent.com/sbgn/ySBGN/master/example_files/process_port_diagrams/ProcessPorts.graphml",
+    "https://raw.githubusercontent.com/sbgn/ySBGN/master/acsn_diagrams/apoptosis_v1.graphml",
+    "https://raw.githubusercontent.com/sbgn/ySBGN/master/src/main/java/fr/eisbm/GRAPHML2SBGNML/ConverterDefines.java",
+]
 PREFIX = {"flowchart": "com.yworks.flowchart.", "bpmn": "com.yworks.bpmn.",
           "entityRelationship": "com.yworks.entityRelationship.", "sbgn": "com.yworks.sbgn.", "yjava": "com.yjava."}
 
@@ -378,8 +392,10 @@ def main():
         if a not in arrows:
             arrows.append(a)
     configurations = [{"id": PREFIX[g] + n, "palette": g,
-                       "spelling": "observed" if PREFIX[g] + n in seen["configurations"] else "inferred"}
+                       "spelling": "observed" if PREFIX[g] + n in seen["configurations"] else ("ySBGN" if g == "sbgn" else "inferred")}
                       for g, names in GENERIC_CONFIGURATIONS.items() for n in names]
+    group_configurations = [{"id": PREFIX[g] + n, "palette": g, "spelling": "ySBGN"}
+                            for g, names in GENERIC_GROUP_CONFIGURATIONS.items() for n in names]
     html_seen, html_files = observed_yfiles_html()
     html = {}
     for cls in HTML_ENUMS + HTML_TYPES:
@@ -414,6 +430,7 @@ def main():
             "yfilesHtml2": HTML2DOC.format("<Type>"),
             "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
             "ybpmn": YBPMN.format("<Enum>"),
+            "ysbgn": YED_SBGN_FILES,
             "yfilesHtml": HTMLDOC.format("<Type>"),
             "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'",
         },
@@ -427,6 +444,7 @@ def main():
             "nodeLabelPositions": NODE_LABEL_POSITIONS,
             "edgeLabelPositions": EDGE_LABEL_POSITIONS,
             "genericConfigurations": configurations,
+            "genericGroupConfigurations": group_configurations,
             "bpmnStyleProperties": bpmn,
             "styleProperties": STYLE_PROPERTIES,
             "observedInCorpus": seen,

@@ -1,7 +1,7 @@
 {
     "sample": "yed-graphml-specimen-groups-p2",
     "file": "graph-io/test/fidelity/specimens/yed-graphml/specimen-groups-p2.graphml",
-    "sha256": "28224f7bfd4695ed1ae3befbb3e4264b3d7da02130a984a9a42d1172e4082a58",
+    "sha256": "da16aca2e36c4fd9d2da7c37e11837ffd09358f0628f568103a69012ccb934e3",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",

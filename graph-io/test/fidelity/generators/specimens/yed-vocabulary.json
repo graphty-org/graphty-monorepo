@@ -9,6 +9,11 @@
         "yfilesHtml2": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
         "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
         "ybpmn": "https://docs.yworks.com/ybpmn/doc/api/com/yworks/yfiles/bpmn/view/<Enum>.html",
+        "ysbgn": [
+            "https://raw.githubusercontent.com/sbgn/ySBGN/master/example_files/process_port_diagrams/ProcessPorts.graphml",
+            "https://raw.githubusercontent.com/sbgn/ySBGN/master/acsn_diagrams/apoptosis_v1.graphml",
+            "https://raw.githubusercontent.com/sbgn/ySBGN/master/src/main/java/fr/eisbm/GRAPHML2SBGNML/ConverterDefines.java"
+        ],
         "yfilesHtml": "https://docs.yworks.com/yfiles-html/api/<Type>.html",
         "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'"
     },
@@ -630,69 +635,69 @@
                 "spelling": "observed"
             },
             {
-                "id": "com.yworks.sbgn.unspecifiedEntity",
+                "id": "com.yworks.sbgn.UnspecifiedEntity",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.simpleChemical",
+                "id": "com.yworks.sbgn.SimpleChemical",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.macromolecule",
+                "id": "com.yworks.sbgn.Macromolecule",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.nucleicAcidFeature",
+                "id": "com.yworks.sbgn.NucleicAcidFeature",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.perturbingAgent",
+                "id": "com.yworks.sbgn.PerturbingAgent",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.phenotype",
+                "id": "com.yworks.sbgn.Phenotype",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.emptySet",
+                "id": "com.yworks.sbgn.EmptySet",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.submap",
+                "id": "com.yworks.sbgn.Submap",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.unitOfInformation",
+                "id": "com.yworks.sbgn.UnitOfInformation",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.stateVariable",
+                "id": "com.yworks.sbgn.StateVariable",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.tag",
+                "id": "com.yworks.sbgn.Tag",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.process",
+                "id": "com.yworks.sbgn.Process",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
-                "id": "com.yworks.sbgn.operator",
+                "id": "com.yworks.sbgn.Operator",
                 "palette": "sbgn",
-                "spelling": "inferred"
+                "spelling": "ySBGN"
             },
             {
                 "id": "com.yjava.BevelNode",
@@ -733,6 +738,13 @@
                 "id": "com.yjava.ShinyPlateNodeWithShadow",
                 "palette": "yjava",
                 "spelling": "inferred"
+            }
+        ],
+        "genericGroupConfigurations": [
+            {
+                "id": "com.yworks.sbgn.Complex",
+                "palette": "sbgn",
+                "spelling": "ySBGN"
             }
         ],
         "bpmnStyleProperties": {
@@ -1136,7 +1148,9 @@
             "com.yworks.sbgn.style.inverse": "java.lang.Boolean",
             "yed.table.lane.style": "java.lang.String",
             "yed.table.section.color": "java.awt.Color",
-            "yed.table.header.height": "java.lang.Double"
+            "yed.table.header.height": "java.lang.Double",
+            "com.yworks.sbgn.style.mcount": "java.lang.Integer",
+            "com.yworks.sbgn.style.radiusY": "java.lang.Integer"
         },
         "observedInCorpus": {
             "realizers": [

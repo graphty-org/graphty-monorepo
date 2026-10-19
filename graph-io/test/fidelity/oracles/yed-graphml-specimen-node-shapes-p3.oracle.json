@@ -1,7 +1,7 @@
 {
     "sample": "yed-graphml-specimen-node-shapes-p3",
     "file": "graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p3.graphml",
-    "sha256": "da5ac309a858d9b044020ff8501f37506f97d920cb6581f078101574d296a71d",
+    "sha256": "e56d583969fed6f2505d3391bf425b67a88d1f70dff62f9296479990ec03840e",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",

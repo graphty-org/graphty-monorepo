@@ -7,7 +7,7 @@
  * yEd's license forbids automating it. Pages: node-shapes-p2 and -p3 GenericNode configurations and UML nodes;
  * node-shapes-p4 to -p6 the BPMN palette's style properties (event, gateway, task, artifact, data object, activity and
  * conversation types, event characteristics, activity types, markers, icon colors; values from the yFiles BPMN
- * javadoc); labels-p2 label models and positions; groups-p2 table lane style, section color, header height and BPMN pools.
+ * javadoc); labels-p2 label models and positions; groups-p2 table lane style, section color, header height, lane labels, BPMN pools and the SBGN complex.
  */
 import { type SpecimenFormat } from "../sheets.js";
 

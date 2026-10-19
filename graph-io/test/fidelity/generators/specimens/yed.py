@@ -367,10 +367,11 @@ def yed_node_shapes():
                 use(YED, "umlAttribute", *[x.split("=")[0] for x in ua.split()])
             p.add("uml-note", "UMLNoteNode", lambda c, w: w.shape("uml-note", c["x"], c["y"], 56, 36, realizer="UMLNoteNode"))
             for sid, prop, val in [("sbgn-style-radius-20", "com.yworks.sbgn.style.radius", "20.0"),
-                                   ("sbgn-style-inverse-true", "com.yworks.sbgn.style.inverse", "true")]:
+                                   ("sbgn-style-inverse-true", "com.yworks.sbgn.style.inverse", "true"),
+                                   ("sbgn-style-mcount-2", "com.yworks.sbgn.style.mcount", "2")]:
                 p.add(sid, f"{prop[len('com.yworks.sbgn.'):]}={val} (macromolecule)",
                       lambda c, w, sid=sid, prop=prop, val=val: w.shape(
-                          sid, c["x"], c["y"], 56, 36, realizer="GenericNode", conf="com.yworks.sbgn.macromolecule",
+                          sid, c["x"], c["y"], 56, 36, realizer="GenericNode", conf="com.yworks.sbgn.Macromolecule",
                           extra=style_props(**{prop: val})))
     yed_bpmn_properties()
     return s
@@ -860,6 +861,32 @@ def yed_groups():
                            ("table-header-height-40", "yed.table.header.height", "40.0")]:
         t2.add(sid, f"{prop[len('yed.table.'):]}={val}", lambda c, w, sid=sid, prop=prop, val=val: table(
             c, w, sid, {prop: (sp[prop], val)}))
+    # table lane labels: a row's or column's header label, placed by yEd's row and column label models
+    for sid, cap, kind, axis in [("table-row-label", "row label (RowNodeLabelModel)", "Row", "row_0"),
+                                 ("table-column-label", "column label (ColumnNodeLabelModel)", "Column", "column_0")]:
+        def lane_label(c, w, sid=sid, kind=kind, axis=axis):
+            table(c, w, sid)
+            lw, lh = text_box("Lane", NEU["fontSize"])
+            rot = ' rotationAngle="270.0"' if kind == "Row" else ""
+            x, y = (3.0, 30.0) if kind == "Row" else (GW / 2 - lw / 2, 30.0 + 3.0)
+            lab = (f'<y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="{FONT}" fontSize="{NEU["fontSize"]}" '
+                   f'fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="{fnum(lh)}" '
+                   f'horizontalTextPosition="center" iconTextGap="4" modelName="custom"{rot} textColor="{NEU["labelColor"]}" '
+                   f'verticalTextPosition="bottom" visible="true" width="{fnum(lw)}" x="{fnum(x)}" y="{fnum(y)}" '
+                   f'xml:space="preserve">Lane<y:LabelModel><y:{kind}NodeLabelModel offset="3.0"/></y:LabelModel>'
+                   f'<y:ModelParameter><y:{kind}NodeLabelModelParameter id="{axis}" inside="true"/></y:ModelParameter></y:NodeLabel>')
+            node = w.nodes[-1]
+            w.nodes[-1] = node.replace("<y:StyleProperties>", lab + "<y:StyleProperties>", 1)
+        t2.add(sid, cap, lane_label)
+    t2.add("genericgroup-sbgn-complex", "GenericGroupNode com.yworks.sbgn.Complex", lambda c, w: w.nodes.append(
+        group_xml(w, "genericgroup-sbgn-complex", c["x"], c["y"], GW, GH, members(w, "genericgroup-sbgn-complex", c["x"], c["y"]),
+                  realizer="GenericGroupNode", conf="com.yworks.sbgn.Complex")))
+    t2.add("genericgroup-sbgn-complex-radiusy-20", "Complex style.radiusY=20", lambda c, w: w.nodes.append(
+        group_xml(w, "genericgroup-sbgn-complex-radiusy-20", c["x"], c["y"], GW, GH,
+                  members(w, "genericgroup-sbgn-complex-radiusy-20", c["x"], c["y"]), realizer="GenericGroupNode",
+                  conf="com.yworks.sbgn.Complex", extra=style_props(**{"com.yworks.sbgn.style.radiusY": "20"}))))
+    use(YED, "groupConfiguration", "com.yworks.sbgn.Complex")
+    use(YED, "styleProperty", "com.yworks.sbgn.style.radiusY", "com.yworks.sbgn.style.mcount")
     bt = VOCAB[YED]["bpmnStyleProperties"]["com.yworks.bpmn.type"]
     for t in [v["value"] for v in bt["values"] if v["value"].startswith("POOL_TYPE_")]:
         sid = "bpmn-" + t.lower().replace("_", "-")
@@ -2272,8 +2299,6 @@ YED_NOT_DRAWN = {
         "href": "an ImageNode by URL: the sheets embed the image as a resource (the form yEd writes); a URL would make the oracle depend on the network",
         "considerNodeLabelSize": "group auto-bounds input: yEd recomputes the group bounds from it when editing; the stored bounds are drawn",
         "preferredPlacement": "a placement hint for yEd's automatic labeling; a stored label position does not depend on it",
-        "offset": "a TableNodeLabelModel offset: table lane labels are not swept (the TableNode is drawn with its label)",
-        "inside": "a TableNodeLabelModel parameter: table lane labels are not swept",
         "id": "an identifier, not a style",
         "minimumWidth": "a table column's minimum width: an editing constraint, not a drawing",
         "minimumHeight": "a table row's minimum height: an editing constraint, not a drawing",
@@ -2361,6 +2386,7 @@ def check():
     got = lambda fmt, kind: USED.get((fmt, kind), set())  # noqa: E731
     for kind, vals in [("shape", yv["shapes"]), ("arrow", yv["arrows"]), ("lineType", yv["lineTypes"]),
                        ("configuration", [x["id"] for x in yv["genericConfigurations"]]),
+                       ("groupConfiguration", [x["id"] for x in yv["genericGroupConfigurations"]]),
                        ("realizer", yv["observedInCorpus"]["realizers"])]:
         for v in vals:
             need(YED, f"{kind} {v}", v in got(YED, kind))

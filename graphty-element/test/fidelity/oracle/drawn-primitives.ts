@@ -13,6 +13,7 @@ import {
     type ArrowShape,
     compareIds,
     type DashClass,
+    dashClassOf,
     type PArrow,
     type PGradient,
     type PNode,
@@ -94,6 +95,32 @@ const LINE_CLASS: Readonly<Record<string, DashClass>> = {
     sinewave: "sinewave",
     zigzag: "zigzag",
 };
+
+/** The patterns whose elements are dashes or dots, whose class the drawn element lengths and gaps decide. */
+const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "dash-dot", "dashed", "dotted"]);
+
+/**
+ * The line class of an edge as graphty drew it: a dashed or dotted pattern by its elements' drawn lengths and the gaps
+ * between them against the line's width (`dashClassOf`, the rule the oracle's dash arrays are read by), so elements
+ * crowded together on a short edge read as the solid line they show; any other pattern by its name.
+ * @param style - the scene's line style
+ * @param pattern - the pattern graphty drew, or null
+ * @param dashPx - the drawn elements and gaps, or null where none were read
+ * @param width - the line's width in pixels
+ * @returns the class
+ */
+function drawnLineClass(
+    style: string,
+    pattern: string | null,
+    dashPx: readonly number[] | null,
+    width: number,
+): DashClass {
+    const name = pattern ?? style;
+    if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
+        return dashClassOf(dashPx, width);
+    }
+    return LINE_CLASS[name] ?? "other";
+}
 
 /** The shape class of each cap type graphty draws; a hollow cap's is its filled twin's. */
 const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
@@ -276,8 +303,14 @@ export function drawnPrimitives(
                     : measureArrow(c.outline, d.points, end, look);
             });
         const gradient = edgeGradientOf(d.gradient, d.points);
-        // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other")
-        const dashClass = (d.pattern === null ? LINE_CLASS[e.style] : LINE_CLASS[d.pattern]) ?? "other";
+        // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other"), a dashed or
+        // dotted one measured off its drawn elements
+        const dashClass = drawnLineClass(
+            e.style,
+            d.pattern,
+            d.dashPx ?? null,
+            d.thicknessPx > 0 ? d.thicknessPx : e.width,
+        );
         return [
             {
                 id: e.id,
@@ -294,6 +327,7 @@ export function drawnPrimitives(
                     gradient,
                 },
                 arrows,
+                outline: d.outline ?? null,
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]

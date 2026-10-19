@@ -160,6 +160,37 @@ describe("line widths", () => {
     });
 });
 
+describe("group outlines", () => {
+    const withGroup = (s: PScene, groupStroke: PStroke | null): PScene => ({
+        ...s,
+        groups: [
+            {
+                id: "g",
+                box: { x0: 60, y0: 60, x1: 340, y1: 140 },
+                fill: null,
+                stroke: groupStroke,
+                label: null,
+                members: ["a", "b"],
+            },
+        ],
+    });
+    const judged = (o: PStroke | null, g: PStroke | null): string[] =>
+        failing(withGroup(scene("oracle", [edge()]), o), withGroup(scene("graphty", [edge()]), g));
+
+    it("judges a group's outline by the node's rule: a hairline is none, a pattern's unread width is not judged", () => {
+        assert.deepEqual(judged(stroke("#000000", 2), stroke("#000000", 2.1)), []);
+        assert.deepEqual(judged(stroke("#000000", 2), stroke("#000000", 2.4)), ["group.strokeWidth"]);
+        // under the hairline on one side and none on the other is the same outline, and not a width that fails
+        assert.deepEqual(judged(stroke("#000000", 0.1), null), []);
+        // a zigzag the program drew as a fill has no width to read: its line class is judged, not its width
+        const zig = stroke("#000000", Number.NaN, { dashClass: "zigzag", patterned: true, painted: true });
+        assert.deepEqual(judged(zig, stroke("#000000", 2, { dashClass: "zigzag" })), []);
+        assert.deepEqual(judged(zig, stroke("#000000", 2)), ["group.strokeDash"]);
+        // an outline drawn on one side only fails the outline once, not its width as well
+        assert.deepEqual(judged(stroke("#000000", 2), null), ["group.stroke"]);
+    });
+});
+
 describe("line classes", () => {
     it("reads a dash array by its dashes and its gaps against the width", () => {
         assert.strictEqual(dashClassOf([6, 3], 1), "dashed");
@@ -368,6 +399,114 @@ describe("patterns a program drew as fills", () => {
         ).scene;
         assert.strictEqual(withBar.edges.length, 1);
         assert.strictEqual(withBar.edges[0].stroke?.color, "#0000ff");
+    });
+
+    it("finds a wide zigzag on a short edge, little longer than it is tall, as that edge and not a stray", () => {
+        // Cytoscape desktop's zigzag on a specimen cell: three teeth 20 px high over 60 px
+        const tooth = (x: number): number => {
+            const k = x % 20;
+            return (k < 10 ? k : 20 - k) * 2 - 10;
+        };
+        const short = strokedOutline(
+            along(120, 180, (x) => 100 + tooth(x), 241),
+            2,
+        );
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const nodes: [string, number, number][] = [
+            ["a", 100, 100],
+            ["b", 200, 100],
+            ["c", 500, 100],
+            ["d", 100, 300],
+            ["e", 300, 300],
+            ["f", 500, 300],
+        ];
+        const prims = [
+            ...nodes.map(([, x, y]) => prim({ tag: "ellipse", points: disc(x, y, 20), fill: fill("#cccccc") })),
+            prim({ points: short, fill: fill("#0000ff"), subpaths: [short] }),
+        ];
+        const g = scene(
+            "graphty",
+            [
+                edge({
+                    points: [
+                        [120, 100],
+                        [180, 100],
+                    ],
+                }),
+            ],
+            nodes.map(([id, x, y]) => node(id, x, y)),
+        );
+        const o = associate(prims, 600, 400, g).scene;
+        assert.strictEqual(o.edges.length, 1);
+        assert.strictEqual(o.edges[0].stroke?.dashClass, "zigzag");
+        assert.deepEqual(o.strays, []);
+        assert.strictEqual(compareOracle("t", o, g).properties["edge.dash"].passRate, 0);
+    });
+});
+
+describe("edge outlines", () => {
+    it("reads a wider line drawn under a narrower one along its route as the edge's outline, not a second edge", () => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "path",
+            box: boxOfPoints(over.points),
+            closed: false,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const route: Pt[] = [
+            [120, 100],
+            [280, 100],
+        ];
+        const nodes = NODES.map(([, x, y]) =>
+            prim({ tag: "ellipse", kind: "shape", closed: true, points: disc(x, y, 20), fill: fill("#cccccc") }),
+        );
+        const band = prim({ points: route, stroke: stroke("#ff0000", 6) });
+        const line = prim({ points: route, stroke: stroke("#0000ff", 2) });
+        const g = scene("graphty", [edge({ outline: { color: "#ff0000", opacity: 1, width: 6 } })]);
+        const o = associate([...nodes, band, line], 600, 400, g).scene;
+        assert.strictEqual(o.edges.length, 1);
+        assert.strictEqual(o.edges[0].stroke?.color, "#0000ff");
+        assert.deepEqual(o.edges[0].outline, { color: "#ff0000", opacity: 1, width: 6 });
+        // drawn over the line, the wider one hides it: no outline then
+        const over = associate(
+            [...nodes, { ...line, index: band.index }, { ...band, index: line.index }],
+            600,
+            400,
+            g,
+        ).scene;
+        assert.isUndefined(over.edges.find((e) => e.stroke?.color === "#0000ff")?.outline);
+    });
+
+    it("fails an edge drawn without the band the program draws under it, or with a band of another width", () => {
+        const withBand = (width: number, color = "#ff0000"): PEdge => edge({ outline: { color, opacity: 1, width } });
+        const o = scene("oracle", [withBand(6)]);
+        assert.deepEqual(failing(o, scene("graphty", [withBand(6)])), []);
+        assert.deepEqual(failing(o, scene("graphty", [edge()])), ["edge.outline"]);
+        assert.deepEqual(failing(o, scene("graphty", [withBand(8)])), ["edge.outline"]);
+        assert.deepEqual(failing(o, scene("graphty", [withBand(6, "#000000")])), ["edge.outline"]);
+        assert.deepEqual(failing(scene("oracle", [edge()]), scene("graphty", [withBand(6)])), ["edge.outline"]);
     });
 });
 

@@ -29,6 +29,7 @@ import type { Edge, EdgeCapEnd } from "../../src/Edge";
 import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
+import { JOIN_FLOATS_PER_PIECE } from "../../src/meshes/edgeJoinShader";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
 import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
@@ -180,6 +181,8 @@ export function cssColor(css: string): { hex: string; alpha: number } {
 interface EdgeInternals {
     lineBatch: EdgeLineBatch | null;
     lineSlots: number[];
+    outlineBatch: EdgeLineBatch | null;
+    outlineSlots: number[];
     lineIsCurve: boolean;
     drawnStyle: { line?: { bezier?: boolean; gradient?: { kind?: string } } } | null;
 }
@@ -788,6 +791,14 @@ export interface DrawnEdge {
     color: string | null;
     opacity: number;
     pattern: string | null;
+    /**
+     * A dashed or dotted line's elements as drawn, in screen pixels along the line: each element's length and the gap
+     * after it, alternating, from the drawing's own geometry (a pattern element's outline, a joined line's element length
+     * and spacing); null for a line drawn whole or a pattern whose pieces are not read.
+     */
+    dashPx: number[] | null;
+    /** The band drawn under the line (`line.outline`): its color, opacity and whole width in pixels; null for none. */
+    outline: { color: string; opacity: number; width: number } | null;
     caps: {
         end: EdgeCapEnd;
         name: string;
@@ -863,6 +874,91 @@ function capOutline(cap: ArrowCap | null, p: Projector): [number, number][] | nu
 }
 
 /**
+ * A joined line's dashes or dots on screen: each element is `elementLength` long along the line and the elements sit
+ * `spacing` apart centre to centre (the slot's spacing, `EdgeLineBatch`), so each gap is the spacing less the length.
+ * @param batch - the line's batch
+ * @param slots - the edge's slots in it
+ * @param pattern - the batch's pattern, or undefined for a solid line
+ * @param at - a world point on the line
+ * @param p - the projector
+ * @returns element and gap lengths in pixels, or null for a solid line
+ */
+function joinedDashes(
+    batch: EdgeLineBatch,
+    slots: readonly number[],
+    pattern: { kind: string; elementLength?: number } | undefined,
+    at: Vector3,
+    p: Projector,
+): number[] | null {
+    const floats = (batch as unknown as { slots?: Float32Array }).slots;
+    const length = pattern?.elementLength;
+    if (pattern === undefined || length === undefined || floats === undefined || slots.length === 0) {
+        return null;
+    }
+    const spacing = floats[slots[0] * JOIN_FLOATS_PER_PIECE + 13];
+    if (!(spacing > 0)) {
+        return null;
+    }
+    const k = p.pxPerWorld(at);
+    return [length * k, Math.max(0, spacing - length) * k];
+}
+
+/**
+ * A patterned line's elements on screen, from their own drawn outlines: each element's extent along the line and the
+ * gap to the next one, alternating. A billboarded element has no outline to read, and then nothing is read.
+ * @param elements - the pattern's elements, in order along the line
+ * @param p - the projector
+ * @returns element and gap lengths in pixels, or null
+ */
+function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | null {
+    const outlines = elements.map((el) => capOutline(el, p));
+    if (outlines.length < 2 || outlines.some((o) => o === null || o.length === 0)) {
+        return null;
+    }
+    const centers = elements.map((el) => {
+        const s = p.point(el.position);
+        return [s.x, s.y] as const;
+    });
+    const [a, b] = [centers[0], centers[centers.length - 1]];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (L < 1e-9) {
+        return null;
+    }
+    const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+    const spans = (outlines as [number, number][][]).map((o) => {
+        const t = o.map(([x, y]) => (x - a[0]) * u[0] + (y - a[1]) * u[1]);
+        return [Math.min(...t), Math.max(...t)] as const;
+    });
+    return spans.slice(0, -1).flatMap(([t0, t1], i) => [t1 - t0, spans[i + 1][0] - t1]);
+}
+
+/**
+ * The band drawn under an edge's line (`line.outline`), as drawn.
+ * @param internal - the edge's internals
+ * @param p - the projector
+ * @returns its color, opacity and whole width in pixels, or null for none
+ */
+function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"] {
+    const batch = internal.outlineBatch;
+    if (batch === null || batch.disposed || internal.outlineSlots.length === 0 || !batch.mesh.isEnabled()) {
+        return null;
+    }
+    const [a, b] = batch.endsOf(internal.outlineSlots[0]);
+    const mid = a.add(b).scale(0.5);
+    const m = materialColor(batch.mesh.material);
+    const meta = batch.mesh.metadata as { lineOpacity?: number; joinedLine?: boolean } | null;
+    // a joined line's shader draws its own opacity and never reads the mesh's visibility (as `readEdge` reads it)
+    const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
+    return m === null
+        ? null
+        : {
+              color: hex(m.rgb),
+              opacity: (meta?.lineOpacity ?? m.alpha) * visibility,
+              width: lineThickness(batch.mesh, mid, p),
+          };
+}
+
+/**
  * Reads one edge off the scene graph.
  * @param edge - the edge
  * @param p - the projector
@@ -877,6 +973,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let color: string | null = null;
     let opacity = 1;
     let pattern: string | null = null;
+    let dashPx: number[] | null = null;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -904,6 +1001,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         } | null;
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
+        dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
         const styled = meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -919,6 +1017,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         thicknessPx = fields.width * p.pxPerWorld(mid);
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
+        dashPx = elementDashes(pm.elements, p);
     }
     // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
     // The line stops short of a tip by the arrow's length, which on a short edge between two ports
@@ -965,6 +1064,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color,
         opacity,
         pattern,
+        dashPx,
+        outline: readOutline(internal, p),
         caps,
         label: readLabel(edge.label, p),
         endLabels: [edge.arrowTailText, edge.arrowHeadText].flatMap((l) => {

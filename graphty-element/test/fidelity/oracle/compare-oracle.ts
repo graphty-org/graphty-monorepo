@@ -72,6 +72,7 @@ export const ORACLE_PROPERTIES = [
     "edge.opacity",
     "edge.dash",
     "edge.gradient",
+    "edge.outline",
     "edge.arrow",
     "edge.arrowShape",
     "edge.arrowFill",
@@ -769,6 +770,7 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "edge.dash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows from a pattern's geometry); a pattern no class names matches nothing",
     "edge.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction against the edge's chord within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
+    "edge.outline": `a band under the line (a line outline, an edge background) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its whole width ratio in [${ORACLE_TOLERANCES.edgeWidthRatio.join(", ")}] and its opacity within ${String(ORACLE_TOLERANCES.opacity)}`,
     "edge.arrow": "an arrowhead at the same ends",
     "edge.arrowShape":
         "the same shape class at each end (triangle, inverted, vee, crow, diamond, circle, box, tee, half); one no class names matches nothing",
@@ -1401,6 +1403,21 @@ export function compareOracle(
             });
             j.add("edge.gradient", "edge", id, grad.miss, grad.oracle, grad.graphty);
         }
+        // a band under the line, judged wherever either side draws one
+        const shownBand = (e: PEdge): PEdge["outline"] =>
+            e.outline !== undefined && e.outline !== null && e.outline.opacity > 0.05 ? e.outline : null;
+        const [ob, gb] = [shownBand(o), shownBand(g)];
+        if (ob !== null || gb !== null) {
+            const show = (b: PEdge["outline"], k: number): unknown =>
+                b === null || b === undefined ? null : [b.color, R(b.opacity), R(b.width * k)];
+            const miss =
+                ob === null || gb === null || ob === undefined || gb === undefined
+                    ? 1
+                    : Math.max(0, deltaE(ob.color, gb.color) - T.colorDeltaE) +
+                      ratioMiss((gb.width * lengthScale) / Math.max(ob.width, 1e-9), T.edgeWidthRatio) +
+                      opacityMiss(ob.opacity, gb.opacity);
+            j.add("edge.outline", "edge", id, miss, show(ob, 1), show(gb, lengthScale));
+        }
         const swap = { source: "target", target: "source", middle: "middle" } as const;
         const flip = (a: PArrow): PArrow => (flipped ? { ...a, end: swap[a.end] } : a);
         const ga = g.arrows.map(flip);
@@ -1577,8 +1594,20 @@ export function compareOracle(
                 g.fill.opacity,
             );
         }
-        const os = o.stroke !== null && o.stroke.width >= T.hairline ? o.stroke : null;
-        const gs = g.stroke !== null && g.stroke.width * lengthScale >= T.hairline ? g.stroke : null;
+        // the same outline rule as a node's: under the hairline is none unless the other side draws one of a width
+        // within the tolerance of it, a patterned line read off a fill is an outline whatever its width, and a width
+        // is judged only where both outlines show and the program's can be read
+        const gScale = g.stroke?.screen === true ? 1 : lengthScale;
+        const near =
+            o.stroke !== null &&
+            g.stroke !== null &&
+            o.stroke.width > 0 &&
+            ratioMiss((g.stroke.width * gScale) / o.stroke.width, T.strokeWidthRatio) === 0;
+        const os =
+            o.stroke !== null && (near || o.stroke.width >= T.hairline || o.stroke.patterned === true)
+                ? o.stroke
+                : null;
+        const gs = g.stroke !== null && (near || g.stroke.width * gScale >= T.hairline) ? g.stroke : null;
         if (os === null || gs === null) {
             j.add(
                 "group.stroke",
@@ -1605,18 +1634,16 @@ export function compareOracle(
                 os.dashClass,
                 gs.dashClass,
             );
-        }
-        if (o.stroke !== null && g.stroke !== null) {
-            j.add(
-                "group.strokeWidth",
-                "group",
-                o.id,
-                ratioMiss((g.stroke.width * lengthScale) / o.stroke.width, T.strokeWidthRatio),
-                o.stroke.width,
-                g.stroke.width * lengthScale,
-            );
-        } else if ((o.stroke === null) !== (g.stroke === null)) {
-            j.add("group.strokeWidth", "group", o.id, 1, o.stroke?.width ?? 0, (g.stroke?.width ?? 0) * lengthScale);
+            if (Number.isFinite(os.width)) {
+                j.add(
+                    "group.strokeWidth",
+                    "group",
+                    o.id,
+                    ratioMiss((gs.width * gScale) / os.width, T.strokeWidthRatio),
+                    os.width,
+                    gs.width * gScale,
+                );
+            }
         }
         if (o.label !== null || g.label !== null) {
             j.add(

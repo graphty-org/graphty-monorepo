@@ -21,7 +21,12 @@ const cap = (over: Partial<Cap>): Cap => ({
     ...over,
 });
 
-function graphOf(caps: Cap[], pattern: string | null = null, gradient: DrawnEdge["gradient"] = null): PScene {
+function graphOf(
+    caps: Cap[],
+    pattern: string | null = null,
+    gradient: DrawnEdge["gradient"] = null,
+    over: Partial<DrawnEdge> = {},
+): PScene {
     const sceneEdge: SceneEdge = {
         id: "e",
         source: "a",
@@ -47,10 +52,13 @@ function graphOf(caps: Cap[], pattern: string | null = null, gradient: DrawnEdge
         color: "#000000",
         opacity: 1,
         pattern,
+        dashPx: null,
+        outline: null,
         caps,
         label: null,
         endLabels: [],
         gradient,
+        ...over,
     };
     const drawn: DrawnGraph = {
         nodes: new Map(),
@@ -125,5 +133,26 @@ describe("graphty's drawing in the oracle comparison's model", () => {
             "sinewave",
             "other",
         ]);
+    });
+
+    it("reads a dashed or dotted line by the lengths and gaps of the elements it drew, not by its pattern's name", () => {
+        const of = (pattern: string, dashPx: number[]): string | undefined =>
+            graphOf([], pattern, null, { dashPx }).edges[0].stroke?.dashClass;
+        // dashes three widths long a width and a half apart, discs a width across: as named
+        assert.strictEqual(of("dash", [6, 3, 6, 3]), "dashed");
+        assert.strictEqual(of("dot", [2, 1, 2, 1]), "dotted");
+        assert.strictEqual(of("dash-dot", [6, 2, 1.2, 2]), "dash-dot");
+        // two dashes crowded onto a short edge, over one another: a solid line to a reader
+        assert.strictEqual(of("dash", [6, 0, 6, 0]), "solid");
+        // a dash drawn no longer than a dot is a dot
+        assert.strictEqual(of("dash", [2, 2, 2, 2]), "dotted");
+        // a pattern of other shapes keeps its name's class
+        assert.strictEqual(of("star", [2, 1, 2, 1]), "other");
+    });
+
+    it("carries the band graphty draws under a line", () => {
+        const outline = { color: "#ff0000", opacity: 1, width: 6 };
+        assert.deepEqual(graphOf([], null, null, { outline }).edges[0].outline, outline);
+        assert.isNull(graphOf([]).edges[0].outline ?? null);
     });
 });

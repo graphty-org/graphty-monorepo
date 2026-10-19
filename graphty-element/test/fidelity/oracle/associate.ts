@@ -11,7 +11,7 @@
  * total order (cost, then id, then document order), so the same inputs always associate the same
  * way. Pure: no DOM.
  */
-import { apply, deltaE, fitSimilarity } from "../../../../graph-io/test/fidelity/compare";
+import { apply, deltaE, fitSimilarity, frechet, resample } from "../../../../graph-io/test/fidelity/compare";
 import {
     type ArrowEnd,
     type ArrowShape,
@@ -38,6 +38,21 @@ type Similarity = NonNullable<ReturnType<typeof fitSimilarity>>;
 const cx = (b: PBox): number => (b.x0 + b.x1) / 2;
 const cy = (b: PBox): number => (b.y0 + b.y1) / 2;
 const bw = (b: PBox): number => b.x1 - b.x0;
+
+/**
+ * Whether two lines run along one route, either way round: their Frechet distance over 64 samples within `tol`.
+ * @param a - one line
+ * @param b - the other
+ * @param tol - how far apart, in the side's pixels
+ * @returns true when they run together
+ */
+function sameRoute(a: readonly Pt[], b: readonly Pt[], tol: number): boolean {
+    if (a.length < 2 || b.length < 2) {
+        return false;
+    }
+    const [ra, rb] = [resample(a, 64), resample(b, 64)];
+    return Math.min(frechet(ra, rb), frechet(ra, [...rb].reverse())) <= tol;
+}
 const bh = (b: PBox): number => b.y1 - b.y0;
 const area = (b: PBox): number => Math.max(0, bw(b)) * Math.max(0, bh(b));
 const union = (boxes: readonly PBox[]): PBox =>
@@ -993,6 +1008,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     const withPieces: PEdge[] = [];
     const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
     const geoEdges = new Map<string, number>();
+    /** Where in the drawing each edge found by geometry was drawn: what is drawn first lies under what comes after. */
+    const drawnAt = new Map<PEdge, number>();
     const arcs: { readonly p: Prim; readonly piece: PEdge }[] = [];
     // An edge's line a program drew as a filled band (Cytoscape desktop's zigzag, sine-wave, dotted, slashed and double
     // edges), its route the band's axis: one of the pairs graphty draws, between two nodes, read after the lines.
@@ -1057,6 +1074,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             label: null,
         };
         withPieces.push(edge);
+        drawnAt.set(edge, p.index);
         if (!(a === b && !guideLoops.has(a.id))) {
             edges.push(edge);
         } else if (p.points.length >= 5 && Math.max(bw(p.box), bh(p.box)) < 0.5 * Math.max(a.w, a.h)) {
@@ -1064,6 +1082,32 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             // half circle), judged with the arrowheads below
             arcs.push({ p, piece: edge });
         }
+    }
+    // A solid line drawn under a narrower one along the same route between the same nodes is that edge's outline
+    // (Cytoscape.js's line outline, vis-network's edge background): one edge with a band under its line, not two.
+    for (const under of [...edges]) {
+        const band = under.stroke;
+        if (!under.id.includes("#g") || band === null || band.dashClass !== "solid" || !Number.isFinite(band.width)) {
+            continue;
+        }
+        const tol = Math.max(band.width, 2);
+        const over = edges.find(
+            (e) =>
+                e !== under &&
+                e.id.includes("#g") &&
+                e.stroke !== null &&
+                e.outline === undefined &&
+                pairOf(e.source, e.target) === pairOf(under.source, under.target) &&
+                (drawnAt.get(e) ?? -1) > (drawnAt.get(under) ?? -1) &&
+                band.width >= 1.2 * e.stroke.width &&
+                sameRoute(e.points, under.points, tol),
+        );
+        if (over === undefined) {
+            continue;
+        }
+        over.outline = { color: band.color, opacity: band.opacity, width: band.width };
+        edges.splice(edges.indexOf(under), 1);
+        withPieces.splice(withPieces.indexOf(under), 1);
     }
     // a drawing whose lines mostly run on to the nodes' centers draws its arrowheads at the nodes' outlines
     const atCenter = (e: PEdge, end: "source" | "target"): boolean => {

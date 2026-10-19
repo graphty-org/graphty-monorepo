@@ -216,6 +216,11 @@ export interface PEdge {
     stroke: PStroke | null;
     arrows: PArrow[];
     label: PText | null;
+    /**
+     * A band drawn under the line along its length (Cytoscape.js `line-outline-*`, vis-network's edge `background`):
+     * its paint and its whole width across, in the side's pixels; absent or null for none.
+     */
+    outline?: { color: string; opacity: number; width: number } | null;
 }
 
 /** A group box as drawn. */
@@ -658,6 +663,9 @@ export function outlinePaintedAsFill(subpaths: readonly (readonly Pt[])[]): Pain
     return patternResult(dashClass, width, box);
 }
 
+/** How many times as long as it is wide a filled band must be to be read as a line at all. */
+const BAND_ASPECT = 1.5;
+
 /** An edge a program drew as a filled band between its two ends: the ends of its axis and its line's pattern. */
 export interface PaintedBand extends PaintedOutline {
     /** The two ends of the band's axis, along its longest direction. */
@@ -666,8 +674,10 @@ export interface PaintedBand extends PaintedOutline {
 
 /**
  * Whether a filled path is an edge's line drawn as a fill (Cytoscape desktop exports a zigzag, sine-wave, dotted,
- * slashed, arrowed or double edge so), and what of its line can be read: a band at least four times as long as it is
- * wide, of one outline or of many pieces along its axis.
+ * slashed, arrowed or double edge so), and what of its line can be read: a band at least one and a half times as long
+ * as it is wide, of one outline or of many pieces along its axis. A zigzag drawn wide on a short edge is little longer
+ * than it is tall (Cytoscape desktop's on a specimen sheet's cell: 60 px long, 27 px across); what makes it an edge is
+ * where it ends, which the association checks.
  * @param subpaths - the path's subpaths, each sampled evenly by arc length in the side's frame
  * @returns the band, or null when the path is no such line
  */
@@ -691,7 +701,7 @@ export function bandPaintedAsFill(subpaths: readonly (readonly Pt[])[]): Painted
     const across = all.map(([x, y]) => -(x - mx) * u[1] + (y - my) * u[0]);
     const [a0, a1] = [Math.min(...along), Math.max(...along)];
     const spread = Math.max(...across) - Math.min(...across);
-    if (a1 - a0 < 4 * Math.max(spread, 1e-9)) {
+    if (a1 - a0 < BAND_ASPECT * Math.max(spread, 1e-9)) {
         return null;
     }
     const box = boxOfPoints(all);

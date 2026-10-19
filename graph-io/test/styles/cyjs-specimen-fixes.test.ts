@@ -103,6 +103,7 @@ describe("Cytoscape.js nodes", () => {
         );
         expect(r.node.values.visible?.slice(0, 3)).toEqual([true, false, null]);
         expect(r.node.values.opacity?.[0]).toBe(0);
+        expect(r.node.values.borderOpacity?.[0]).toBe(0);
         expect(r.node.values.label?.[0]).toBe("");
     });
 
@@ -125,5 +126,60 @@ describe("Cytoscape.js nodes", () => {
             }).angle,
         ).toBe(-135);
         expect(at({ "background-fill": "solid", "background-gradient-stop-colors": stops }).to).toBeUndefined();
+    });
+});
+
+describe("Cytoscape.js edge routes", () => {
+    const routed = (edge: Record<string, unknown>, to = { x: 100, y: 0 }): Record<string, unknown> => {
+        const v = evaluateCytoscapeJs(
+            doc({}, edge, [
+                { data: { id: "a" }, position: { x: 0, y: 0 } },
+                { data: { id: "b" }, position: to },
+                { data: { id: "ab", source: "a", target: "b" } },
+            ]),
+        ).edge.values;
+        return { bends: v.bends?.[0] ?? null, curved: v.curved?.[0] ?? null };
+    };
+
+    it("draws a segments edge through its points, offset from the line between the nodes' outlines", () => {
+        // the line runs from (15, 0) to (85, 0); 20 px to its right is 20 px down, below it
+        expect(routed({ "curve-style": "segments" })).toEqual({ bends: "0.5,-0.2", curved: false });
+        expect(
+            routed({ "curve-style": "segments", "segment-distances": "20px -20px", "segment-weights": "0.25 0.75" })
+                .bends,
+        ).toBe("0.325,-0.2 0.675,0.2");
+    });
+
+    it("draws a taxi edge through its two corners, turning halfway between the nodes' sides", () => {
+        expect(routed({ "curve-style": "taxi", "taxi-direction": "horizontal" }, { x: 100, y: 50 })).toEqual({
+            bends: "0.4,0.2 0.6,-0.2",
+            curved: false,
+        });
+    });
+
+    it("draws an unbundled bezier with control points, and a loop, through the curve Cytoscape.js draws", () => {
+        const curve = routed({
+            "curve-style": "unbundled-bezier",
+            "control-point-distances": "40px",
+            "control-point-weights": "0.5",
+        });
+        expect(curve.curved).toBe(false);
+        // the quadratic runs from the outlines toward its control point (50, 40): its middle is halfway between the
+        // control point and those ends, which are 9.37 px below the line, so 24.69 px below it
+        const points = String(curve.bends)
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        expect(Math.min(...points.map(([, across]) => across))).toBeCloseTo(-0.2469, 3);
+        const loop = evaluateCytoscapeJs(
+            doc({}, { "curve-style": "bezier" }, [
+                { data: { id: "a" }, position: { x: 0, y: 0 } },
+                { data: { id: "aa", source: "a", target: "a" } },
+            ]),
+        ).edge.values;
+        expect(loop.curved?.[0]).toBe(false);
+        // the default loop reaches up and to the left of the node (loop-direction -45deg, from 12 o'clock)
+        const [x, y] = String(loop.bends?.[0]).split(" ")[4].split(",").map(Number);
+        expect(x).toBeLessThan(0);
+        expect(y).toBeGreaterThan(0);
     });
 });

@@ -59,6 +59,7 @@ import {
     gradientStopColors,
     parseCyjsValue,
 } from "./mappers.js";
+import { cyjsRoute, type CyjsRouteEdge, type CyjsRouteNode } from "./routes.js";
 import { type CyjsCheck, type CyjsQuery, type CyjsSelector, parseCyjsSelector } from "./selector.js";
 import { type CyjsSheetEntry, parseCyjsStylesheetText } from "./stylesheet-text.js";
 
@@ -1203,8 +1204,8 @@ export function evaluateCytoscapeJs(input: CyjsStyleInput): CyjsStyles {
         notes.add(STYLE_ISSUE.SELECTOR, null, "selector", { count: deep, sample: "nested too deep" });
     }
     const matcher = new Matcher(graph, notes);
-    const node = evaluateTarget("node", graph, sheet, matcher, input, notes, budget);
-    const edge = evaluateTarget("edge", graph, sheet, matcher, input, notes, budget);
+    const node = evaluateTarget("node", graph, sheet, matcher, input, { notes, budget, nodes: null });
+    const edge = evaluateTarget("edge", graph, sheet, matcher, input, { notes, budget, nodes: node });
     return { node, edge, graph };
 }
 
@@ -1306,8 +1307,10 @@ function cellsOf(cells: Cells, name: string, n: number): (Cell | undefined)[] {
  * @param sheet - the entries
  * @param matcher - the selector evaluator
  * @param input - the input
- * @param notes - where problems are noted
- * @param budget - the counted budget
+ * @param env - where problems are noted, the counted budget, and for edges the nodes' values
+ * @param env.notes - where problems are noted
+ * @param env.budget - the counted budget
+ * @param env.nodes - the nodes' values, which edge routes are measured against (null for nodes)
  * @returns the target's values and rules
  */
 function evaluateTarget(
@@ -1316,9 +1319,9 @@ function evaluateTarget(
     sheet: readonly Entry[],
     matcher: Matcher,
     input: CyjsStyleInput,
-    notes: StyleNotes,
-    budget: StyleWorkBudget,
+    env: { readonly notes: StyleNotes; readonly budget: StyleWorkBudget; readonly nodes: CyjsTargetStyles | null },
 ): CyjsTargetStyles {
+    const { notes, budget } = env;
     const els = kind === "node" ? graph.nodes : graph.edges;
     const spend = (ops: number): void => {
         budget.spend(kind, ops);
@@ -1339,12 +1342,12 @@ function evaluateTarget(
     // a file read with Cytoscape.js's own defaults draws an edge no rule curves as a haystack (a file graphty wrote
     // is read with graphty's)
     if (kind === "edge" && input.toolDefaults !== false) {
-        const curves = drawnColumn(
-            { kind, els, cells, order, rendered: input.rendered, notes },
-            "curve-style",
-            CURVE_PART,
-        );
+        const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
+        const curves = drawnColumn(read, "curve-style", CURVE_PART);
         noArrowsOnHaystacks(curves, drawn);
+        if (env.nodes !== null) {
+            edgeRoutes(graph, read, curves, env.nodes, drawn);
+        }
     }
     if (kind === "edge") {
         straightenUnpairedBeziers(graph, curveStyles(graph, cells, input.rendered), coreToOut, drawn.curved);
@@ -1938,7 +1941,8 @@ function combineParts(
 
 /**
  * `visibility` with `display` into `visible`. Cytoscape.js leaves the edges of a node hidden with `visibility:
- * hidden` drawn (only `display: none` takes them away), so such a node is kept and drawn at opacity 0, with no label.
+ * hidden` drawn (only `display: none` takes them away), so such a node is kept and drawn at opacity 0 (its border and
+ * outline too), with no label.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
@@ -1965,7 +1969,10 @@ function combineVisibility(
         const keptInvisible = kind === "node" && a === "hidden" && b !== "none";
         col[i] = keptInvisible || (a !== "hidden" && b !== "none");
         if (keptInvisible) {
-            (values.opacity ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
+            // nothing of it is drawn: its body, its border, its outline or its label
+            for (const p of ["opacity", "borderOpacity", "outerBorderOpacity"]) {
+                (values[p] ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
+            }
             (values.label ??= new Array<StyleValue | null>(n).fill(null))[i] = "";
         }
     }
@@ -2110,6 +2117,128 @@ function combineBackgroundGradient(
         (values.fillGradientAngle ??= new Array<StyleValue | null>(n).fill(null))[i] =
             GRADIENT_ANGLES.get(direction?.[i] ?? "to-bottom") ?? 90;
     }
+}
+
+/** An edge's routing settings, each read as Cytoscape.js spells it. */
+const ROUTE_PARTS: readonly (readonly [keyof CyjsRouteEdge, string, CyjsPropertySpec])[] = [
+    ["segmentDistances", "segment-distances", { property: "_segmentDistances", type: "text" }],
+    ["segmentWeights", "segment-weights", { property: "_segmentWeights", type: "text" }],
+    ["controlPointDistances", "control-point-distances", { property: "_controlPointDistances", type: "text" }],
+    ["controlPointWeights", "control-point-weights", { property: "_controlPointWeights", type: "text" }],
+    ["controlPointStepSize", "control-point-step-size", { property: "_controlPointStepSize", type: "size" }],
+    ["taxiDirection", "taxi-direction", { property: "_taxiDirection", type: "text" }],
+    ["taxiTurn", "taxi-turn", { property: "_taxiTurn", type: "text" }],
+    ["taxiTurnMinDistance", "taxi-turn-min-distance", { property: "_taxiTurnMinDistance", type: "size" }],
+    ["edgeDistances", "edge-distances", { property: "_edgeDistances", type: "text" }],
+    ["loopDirection", "loop-direction", { property: "_loopDirection", type: "text" }],
+    ["loopSweep", "loop-sweep", { property: "_loopSweep", type: "text" }],
+];
+
+/**
+ * The routes of the edges Cytoscape.js does not draw straight (`segments`, `taxi`, an `unbundled-bezier` with
+ * control points, a loop) as `bends`, drawn straight through them (`curved` false).
+ * @param graph - the core's elements
+ * @param read - the edges' cells
+ * @param curves - each edge's curve style, in output order
+ * @param nodes - the nodes' values
+ * @param values - the edges' values; changed in place
+ */
+function edgeRoutes(
+    graph: CyjsGraph,
+    read: DrawnRead,
+    curves: readonly (StyleValue | null | undefined)[],
+    nodes: CyjsTargetStyles,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const words = new Map(ROUTE_PARTS.map(([key, name, spec]) => [key, drawnColumn(read, name, spec)] as const));
+    const nodeAt = new Map<CyjsElement, number>();
+    nodes.elements.forEach((el, k) => {
+        if (el !== null) {
+            nodeAt.set(el, k);
+        }
+    });
+    const geometry = (core: number): CyjsRouteNode | null => {
+        const el = graph.nodes[core];
+        const k = nodeAt.get(el);
+        const pos = el.json.position;
+        if (k === undefined || !isObject(pos) || typeof pos.x !== "number" || typeof pos.y !== "number") {
+            return null;
+        }
+        const num = (p: string, fallback: number): number => {
+            const v = nodes.values[p]?.[k];
+            return typeof v === "number" ? v : fallback;
+        };
+        const [w, h, bw] = [num("width", 30), num("height", 30), num("borderWidth", 0)];
+        return {
+            center: [pos.x, pos.y],
+            size: [w + bw, h + bw],
+            box: [w, h],
+            ellipse: (nodes.values.shape?.[k] ?? "ellipse") === "ellipse",
+        };
+    };
+    const loops = new Map<string, number>();
+    let routed: (StyleValue | null)[] | null = null;
+    for (let k = 0; k < read.order.length; k++) {
+        const e = read.order[k];
+        const loop = e >= 0 && graph.source[e] === graph.target[e];
+        const src = e >= 0 ? geometry(graph.source[e]) : null;
+        const tgt = loop || e < 0 ? src : geometry(graph.target[e]);
+        if (src === null || tgt === null) {
+            continue;
+        }
+        const edge = routeSettings(words, k, curves[k]);
+        let index = 0;
+        if (loop) {
+            const key = `${String(graph.source[e])} ${String(edge.loopDirection)} ${String(edge.loopSweep)}`;
+            index = loops.get(key) ?? 0;
+            loops.set(key, index + 1);
+        }
+        const bends = cyjsRoute(edge, src, tgt, index);
+        if (bends !== null) {
+            routed ??= values.bends ?? new Array<StyleValue | null>(read.order.length).fill(null);
+            routed[k] = bends;
+            (values.curved ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = false;
+        }
+    }
+    if (routed !== null) {
+        values.bends = routed;
+    }
+}
+
+/**
+ * One edge's routing settings.
+ * @param words - each setting's values, in output order
+ * @param k - the edge's output index
+ * @param curve - its curve style
+ * @returns the settings
+ */
+function routeSettings(
+    words: ReadonlyMap<keyof CyjsRouteEdge, readonly (StyleValue | null | undefined)[]>,
+    k: number,
+    curve: StyleValue | null | undefined,
+): CyjsRouteEdge {
+    const text = (key: keyof CyjsRouteEdge): string | null => {
+        const v = words.get(key)?.[k];
+        return v === null || v === undefined ? null : String(v);
+    };
+    const num = (key: keyof CyjsRouteEdge): number | null => {
+        const v = text(key);
+        return v === null ? null : Number(v);
+    };
+    return {
+        curveStyle: String(curve ?? "haystack"),
+        segmentDistances: text("segmentDistances"),
+        segmentWeights: text("segmentWeights"),
+        controlPointDistances: text("controlPointDistances"),
+        controlPointWeights: text("controlPointWeights"),
+        controlPointStepSize: num("controlPointStepSize"),
+        taxiDirection: text("taxiDirection"),
+        taxiTurn: text("taxiTurn"),
+        taxiTurnMinDistance: num("taxiTurnMinDistance"),
+        edgeDistances: text("edgeDistances"),
+        loopDirection: text("loopDirection"),
+        loopSweep: text("loopSweep"),
+    };
 }
 
 /** The curve style read as Cytoscape.js's word. */

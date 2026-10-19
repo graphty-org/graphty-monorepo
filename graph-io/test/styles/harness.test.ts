@@ -41,14 +41,6 @@ const results: StyleResult[] = [];
  * failure, so the fix turns it red until it is removed from here. All found by the style fidelity fixtures.
  */
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
-    [
-        "json/fidelity/cyjs-synth-edges.json writes",
-        "the written Cytoscape.js stylesheet does not read back as the same rules",
-    ],
-    [
-        "json/fidelity/cyjs-synth-edges-saved.json writes",
-        "the written Cytoscape.js stylesheet does not read back as the same rules",
-    ],
     ["dot/fidelity/real-depcruise.gv writes", "an outside edit of the written DOT gives no new exception"],
 ]);
 

@@ -431,6 +431,17 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["mid-target-arrow-fill", { property: "_midTargetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
     ["mid-source-arrow-fill", { property: "_midSourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
     ["curve-style", { property: "curved", type: "enum", enums: CYJS_CURVE_STYLES }],
+    // a route's settings, read by the routes (`edgeRoutes`) as Cytoscape.js spells them
+    ["segment-distances", { property: "_segmentDistances", type: "text" }],
+    ["segment-weights", { property: "_segmentWeights", type: "text" }],
+    ["control-point-distances", { property: "_controlPointDistances", type: "text" }],
+    ["control-point-weights", { property: "_controlPointWeights", type: "text" }],
+    ["taxi-direction", { property: "_taxiDirection", type: "text" }],
+    ["taxi-turn", { property: "_taxiTurn", type: "text" }],
+    ["taxi-turn-min-distance", { property: "_taxiTurnMinDistance", type: "size" }],
+    ["edge-distances", { property: "_edgeDistances", type: "text" }],
+    ["loop-direction", { property: "_loopDirection", type: "text" }],
+    ["loop-sweep", { property: "_loopSweep", type: "text" }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],

@@ -12,8 +12,9 @@
  * character references in strings, `Creator` / `Version` top-level metadata, `directed 0|1` and
  * `multigraph 0|1` graph flags, comments, keys and values on one line or split across lines, and
  * a `graphics [ x y z ]` node record mapped to the `position` role (note 07 section 9) with the
- * remaining graphics keys kept as a json column, and yEd's `gid` (the group a node sits in) read
- * into the parent column as well as kept as a plain column.
+ * remaining graphics keys kept as a json column, yEd's `gid` (the group a node sits in) read
+ * into the parent column as well as kept as a plain column, and OGDF's `rootcluster` read as group
+ * nodes (`cluster<id>`) holding their vertices through the parent column.
  *
  * Node ids are the `id` keys under `nodeIdFrom: "id"`, the `label` under `"label"`, and the node's
  * ordinal under `"index"`; `source` / `target` always resolve through the `id` keys. The GML spec
@@ -200,12 +201,13 @@ export const GRAPHICS_CODE = "W_GML_GRAPHICS";
  */
 export const NESTED_ELEMENT_CODE = "W_GML_NESTED_ELEMENT";
 /**
- * A yEd `gid` that names no other node: it stays a plain column value and puts the node in no group.
+ * A yEd `gid` that names no other node: it stays a plain column value and puts the node in no group. Also an OGDF
+ * cluster `vertex` that names no node (it is in no cluster), and a cluster whose id a node has (it is read as no group).
  * @category Issue and loss codes
  */
 export const GROUPS_CODE = "W_GML_GROUPS";
 
-/** The parent column yEd's `gid` keys are read into. */
+/** The parent column yEd's `gid` keys and OGDF's clusters are read into. */
 const GROUP_PARENT_COLUMN = "graphty.parent";
 /**
  * A key whose values mix numbers and strings; the column is string, the numbers kept as written.
@@ -456,6 +458,15 @@ class GmlImport {
     /** Each node's yEd `gid` (its group's file id): the node's index and the value token. */
     private readonly groupRefs: [node: number, token: number][] = [];
 
+    /** The `[` of OGDF's `rootcluster` record (its cluster tree, after the graph block), or -1. */
+    private rootCluster = -1;
+
+    /** The parent column, once a node is given a parent. */
+    private parentHandle: ColumnHandle | null = null;
+
+    /** How many OGDF clusters were read, which names a cluster without an id. */
+    private clusterCount = 0;
+
     /** Node indices declared by a node block of this import, for duplicate detection. */
     private declared = new Uint32Array(64);
 
@@ -550,6 +561,9 @@ class GmlImport {
             this.creatorToken = v;
         } else if (key === "Version" && !record && this.versionToken < 0) {
             this.versionToken = v;
+        } else if (key === "rootcluster" && record && this.rootCluster < 0) {
+            // OGDF's cluster tree is structure: its clusters are read as group nodes (pushClusters)
+            this.rootCluster = v;
         } else {
             this.observe(this.topSchema, "graph", key, v, TOP_SEQ);
         }
@@ -830,6 +844,7 @@ class GmlImport {
         this.pushTopLevel();
         this.pushNodes();
         this.pushGroups();
+        this.pushClusters();
         this.pushEdges();
     }
 
@@ -839,7 +854,6 @@ class GmlImport {
      */
     private pushGroups(): void {
         const t = this.requireTokens();
-        let handle: ColumnHandle | null = null;
         for (const [node, v] of this.groupRefs) {
             let parent: number = INVALID_INDEX;
             try {
@@ -857,16 +871,130 @@ class GmlImport {
                 );
                 continue;
             }
-            handle ??= this.sink.declareNodeColumn({
-                name: uniqueColumnName(GROUP_PARENT_COLUMN, null, (c) => this.sink.nodeColumn(c) !== INVALID_INDEX),
-                dtype: "u32",
-                role: "parent",
-                refersTo: "node",
-                nullable: true,
-                origin: { format: "gml", id: null, title: null, type: "gid", namespace: null },
-            });
-            this.sink.setNodeValue(handle, node, parent);
+            this.setParent(node, parent, "gid");
         }
+    }
+
+    /**
+     * Put a node in a group: the parent column, declared on first use.
+     * @param node - the node's index
+     * @param parent - the group node's index
+     * @param type - the file key the hierarchy came from (`gid`, `rootcluster`)
+     */
+    private setParent(node: number, parent: number, type: string): void {
+        this.parentHandle ??= this.sink.declareNodeColumn({
+            name: uniqueColumnName(GROUP_PARENT_COLUMN, null, (c) => this.sink.nodeColumn(c) !== INVALID_INDEX),
+            dtype: "u32",
+            role: "parent",
+            refersTo: "node",
+            nullable: true,
+            origin: { format: "gml", id: null, title: null, type, namespace: null },
+        });
+        this.sink.setNodeValue(this.parentHandle, node, parent);
+    }
+
+    /**
+     * Read OGDF's cluster tree (`rootcluster`, GraphIO::writeGML): every cluster below the root becomes a group node
+     * (id `cluster<id>`) holding its `vertex` nodes and its child clusters, with its label, its box as the node's
+     * center and size, and its graphics as a node's (`color` is the outline, `style` the shape, `stipple` kept as
+     * `clusterStipple`, since OGDF draws a cluster's outline solid). The root cluster is
+     * the whole graph and draws nothing of its own. A `vertex` that names no node is warned once.
+     */
+    private pushClusters(): void {
+        if (this.rootCluster < 0) {
+            return;
+        }
+        const t = this.requireTokens();
+        const stack: [open: number, parent: number][] = [[this.rootCluster, INVALID_INDEX]];
+        for (let frame = stack.pop(); frame !== undefined; frame = stack.pop()) {
+            const [open, parent] = frame;
+            for (let p = open + 1; p < t.match[open]; p = t.nextPair(p)) {
+                const key = t.textOf(p);
+                const v = p + 1;
+                if (key === "cluster" && t.kind[v] === TOKEN_OPEN) {
+                    const cluster = this.addCluster(v, parent);
+                    if (cluster !== INVALID_INDEX) {
+                        stack.push([v, cluster]);
+                    }
+                } else if (key === "vertex" && parent !== INVALID_INDEX) {
+                    this.addClusterVertex(v, parent);
+                }
+            }
+        }
+    }
+
+    /**
+     * Put a cluster's `vertex` in it.
+     * @param v - the value token, the vertex's id as a string
+     * @param cluster - the cluster's group node
+     */
+    private addClusterVertex(v: number, cluster: number): void {
+        const t = this.requireTokens();
+        const id = t.kind[v] === TOKEN_STRING ? this.coercer.text(t.stringOf(v)) : null;
+        const node = id === null ? INVALID_INDEX : this.sink.indexOf(this.idMap?.get(id) ?? id);
+        if (node === INVALID_INDEX || node === cluster) {
+            this.report.warnOnce(
+                "validation-error",
+                GROUPS_CODE,
+                `cluster vertex ${describeValue(t, v)} names no node; it is in no cluster`,
+                { line: t.line[v], element: "vertex" },
+            );
+            return;
+        }
+        this.setParent(node, cluster, "rootcluster");
+    }
+
+    /**
+     * Add one OGDF cluster as a group node: its label, and its graphics box (x, y its top-left corner, width and
+     * height) as a node's center, w and h.
+     * @param open - the cluster record's `[`
+     * @param parent - the group node of the cluster it is in, or INVALID_INDEX under the root
+     * @returns the group node's index, or INVALID_INDEX when its id is taken
+     */
+    private addCluster(open: number, parent: number): number {
+        const t = this.requireTokens();
+        const record = parseRecord(t, open);
+        const ordinal = this.clusterCount++;
+        const id = `cluster${typeof record.id === "number" || typeof record.id === "string" ? String(record.id) : `#${String(ordinal)}`}`;
+        if (this.sink.indexOf(id) !== INVALID_INDEX) {
+            this.report.warnOnce(
+                "validation-error",
+                GROUPS_CODE,
+                `cluster ${id} has the id of a node; it is read as no group`,
+                { line: t.line[open], element: id },
+            );
+            return INVALID_INDEX;
+        }
+        const index = this.sink.addNode(id);
+        this.report.counts.nodes++;
+        if (parent !== INVALID_INDEX) {
+            this.setParent(index, parent, "rootcluster");
+        }
+        const label = this.nodePlans.get("label");
+        if (typeof record.label === "string" && record.label !== "" && label?.kind === "string" && !label.list) {
+            this.sink.setNodeValue(this.handleOf(label, "node"), index, record.label);
+        }
+        const graphics = this.nodePlans.get("graphics");
+        const g = isRecord(record.graphics) ? record.graphics : null;
+        if (g === null || graphics?.position === undefined || graphics.position === null) {
+            return index;
+        }
+        // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple: it is kept under a name of its own
+        const { x, y, width, height, color, style, stipple, ...rest } = g;
+        if (typeof x === "number" && typeof y === "number" && typeof width === "number" && typeof height === "number") {
+            this.sink.setNodeValue(this.handleOf(graphics.position, "node"), index, [x + width / 2, y + height / 2, 0]);
+            Object.assign(rest, { w: width, h: height });
+        }
+        Object.assign(
+            rest,
+            color === undefined ? {} : { outline: color },
+            style === undefined ? {} : { type: style },
+            stipple === undefined ? {} : { clusterStipple: stipple },
+        );
+        if (graphics.rest !== null) {
+            this.sink.setNodeValue(this.handleOf(graphics.rest, "node"), index, rest);
+        }
+        return index;
     }
 
     /** Turn every schema entry into a column plan. */

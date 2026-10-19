@@ -60,6 +60,8 @@ const LENGTHS: ReadonlySet<string> = new Set([
     "labelWrapWidth",
     "labelPaddingX",
     "labelPaddingY",
+    "labelOffsetX",
+    "labelOffsetY",
     "fanSpacing",
 ]);
 

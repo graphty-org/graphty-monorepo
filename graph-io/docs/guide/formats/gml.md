@@ -79,6 +79,10 @@ names back as the ids. Saving the graph to GML again needs the same option, and 
 - yEd's group keys are read as nesting: a node's `gid` names the group node it sits in, which
   becomes its parent (`snapshot.nodes.byRole("parent")`). `isGroup` and `gid` are also kept as
   plain columns. A `gid` that names no other node is warned (`W_GML_GROUPS`) and nests nothing.
+- OGDF's clusters (the `rootcluster` record after the graph) are read the same way: each cluster
+  becomes a group node with the id `cluster<id>`, the parent of its `vertex` nodes and of the
+  clusters inside it, with its label, its box and its graphics. OGDF draws a cluster's outline
+  solid whatever its `stipple`, so that is kept as `clusterStipple` and not drawn.
 - The GML specification makes node ids integers. NetworkX and Gephi also write text ids; graph-io
   reads them under the `ids` option with one `W_GML_STRING_ID` warning per file.
 - `nodeIdFrom: "label"` or `"index"` takes node ids from the labels or from the node order, for

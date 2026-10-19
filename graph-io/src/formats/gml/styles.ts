@@ -25,7 +25,7 @@ import {
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber } from "../../styles/canon/number.js";
+import { canonNumber, canonSigned } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -482,6 +482,9 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
         put("height", g.h === undefined ? null : canonNumber(g.h, at("height")));
     }
+    if (v === "ogdf") {
+        readOgdfLabelOffset(g.label, put, at);
+    }
     if (v === "ogdf" && typeof g.type === "string") {
         readOgdfShape(g.type, writer, put, at);
     } else if (v === "cytoscape" && g.type !== undefined) {
@@ -501,6 +504,22 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             put("shapePoints", outline.points);
         }
     }
+}
+
+/**
+ * Reads where OGDF draws a node's label: GraphIO::writeGML writes the label's center as an offset from the node's
+ * center (`graphics [ label [ x y z ] ]`, GraphAttributes::xLabel / yLabel, y down), and GraphIO::drawSVG draws it there.
+ * @param label - the graphics record's `label` value
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readOgdfLabelOffset(label: unknown, put: Put, at: At): void {
+    if (typeof label !== "object" || label === null || Array.isArray(label)) {
+        return;
+    }
+    const { x, y } = label as Rec;
+    put("labelOffsetX", x === undefined ? null : canonSigned(x, at("labelOffsetX")));
+    put("labelOffsetY", y === undefined ? null : canonSigned(y, at("labelOffsetY")));
 }
 
 /**

@@ -187,6 +187,67 @@ describe("GML styles: who wrote the file", () => {
         expect(edge$("sourcePort")[0]).toBeNull();
     });
 
+    it("reads OGDF's label place: the label's center offset from the node's, y down, where drawSVG draws it", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                'node [ id 0 label "Abc" graphics [ x 0 y 0 label [ x 0 y -24 z 0 ] w 36 h 36 ] ]',
+                'node [ id 1 label "Abc" graphics [ x 100 y 0 label [ x 30.5 y 0 z 0 ] w 36 h 36 ] ]',
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)).toEqual([0, 30.5]);
+        expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([-24, 0]);
+    });
+
+    it("reads OGDF's clusters as group nodes holding their vertices, with their box, fill, outline and label", async () => {
+        const graphics = (fill: string): string =>
+            `graphics [ x 10 y 20 width 100 height 60 fill "${fill}" color "#0000FF" lineWidth 3.0 stipple "Dash" style "rectangle" ]`;
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                'node [ id 0 label "a" graphics [ x 30 y 40 w 18 h 18 fill "#C8C8C8" type "Ellipse" ] ]',
+                'node [ id 1 label "b" graphics [ x 60 y 40 w 18 h 18 fill "#C8C8C8" type "Ellipse" ] ]',
+                "]",
+                'rootcluster [ graphics [ x 0 y 0 width 0 height 0 ] vertex "0"',
+                `  cluster [ id 1 label "Outer" ${graphics("#F5F5F5")}`,
+                `    cluster [ id 2 label "Inner" ${graphics("#E0E0FF")} vertex "1" ] ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(snapshot.nodeCount).toBe(4);
+        const index = (id: string | number): number => snapshot.ids.requireIndex(id);
+        const parent = snapshot.nodes.byRole("parent");
+        expect(parent).not.toBeNull();
+        const parentOf = (id: string | number): unknown => {
+            const i = index(id);
+            return parent?.isSet(i) === true ? snapshot.ids.idOf(Number(parent.value(i))) : null;
+        };
+        // a vertex of the root cluster is in no group; nested clusters nest
+        expect([parentOf(0), parentOf(1), parentOf("cluster1"), parentOf("cluster2")]).toEqual([
+            null,
+            "cluster2",
+            null,
+            "cluster1",
+        ]);
+        // x and y are the box's top-left corner: the node's center is the box's middle
+        expect([...(snapshot.nodes.byRole("position")?.value(index("cluster1")) as Float64Array)]).toEqual([60, 50, 0]);
+        type Property = Parameters<typeof resolveStyles>[2];
+        const at = (p: Property): unknown => resolveStyles(styles, "node", p, snapshot)[index("cluster2")];
+        expect([at("width"), at("height"), at("fill"), at("borderColor"), at("borderWidth")]).toEqual([
+            100,
+            60,
+            "#e0e0ff",
+            "#0000ff",
+            3,
+        ]);
+        expect([at("shape"), at("label")]).toEqual(["rectangle", "Inner"]);
+        // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple
+        expect(at("borderStyle")).not.toBe("dashed");
+    });
+
     it("reads what Graphviz's gv2gml writes: H, hasFill, visible, fontColor, Graphviz names, y up, dir as arrow", async () => {
         // gv2gml 14.1.2's own output for a three-node digraph (cmd/tools/gv2gml.c), trimmed of its pass-through keys
         const node = (id: number, x: number, g: string, label = ""): string =>

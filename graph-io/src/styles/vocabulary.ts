@@ -57,6 +57,8 @@ export const STYLE_PROPERTIES: {
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],
+        ["labelOffsetX", "signed"],
+        ["labelOffsetY", "signed"],
         ["labelFit", "labelFit"],
         ["labelPaddingX", "number"],
         ["labelPaddingY", "number"],

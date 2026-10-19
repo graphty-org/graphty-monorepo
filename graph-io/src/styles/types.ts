@@ -256,6 +256,10 @@ export interface NodeStyleValues {
     readonly labelPosition: StyleLabelPosition;
     /** How the label's lines line up with one another: `left`, `center` (the default) or `right`. */
     readonly labelTextAlign: StyleLabelTextAlign;
+    /** How far right of where `labelPosition` puts it the label is drawn (a length). */
+    readonly labelOffsetX: number;
+    /** How far down from where `labelPosition` puts it the label is drawn (a length). */
+    readonly labelOffsetY: number;
     /**
      * The label is not drawn while its letters are drawn smaller than this many screen pixels: a screen size, not a
      * length, so it is never scaled with the file's lengths (vis-network's `scaling.label.drawThreshold`). Unset, the

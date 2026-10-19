@@ -122,6 +122,16 @@ function drawnLineClass(
     return LINE_CLASS[name] ?? "other";
 }
 
+/**
+ * The drawn elements and gaps a line's class is measured off, or null where it is read by name.
+ * @param style - the scene's line style
+ * @param pattern - the pattern graphty drew, or null
+ * @param dashPx - the drawn elements and gaps, or null
+ * @returns the dash array in pixels, or null
+ */
+const dashed = (style: string, pattern: string | null, dashPx: readonly number[] | null): number[] | null =>
+    dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(pattern ?? style) ? [...dashPx] : null;
+
 /** The shape class of each cap type graphty draws; a hollow cap's is its filled twin's. */
 const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     normal: "triangle",
@@ -322,7 +332,8 @@ export function drawnPrimitives(
                     color: gradient?.stops[0]?.color ?? e.color,
                     opacity: e.opacity,
                     width: e.width,
-                    dash: null,
+                    // the elements and gaps it drew, where its class was measured off them
+                    dash: dashed(e.style, d.pattern, d.dashPx ?? null),
                     dashClass,
                     gradient,
                 },

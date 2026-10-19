@@ -213,6 +213,31 @@ describe("line classes", () => {
         ]);
     });
 
+    it("reads graphty's measured dashes at the oracle's scale, where graphty drew the graph ten times smaller", () => {
+        const small = (dash: number[] | null, dashClass: PStroke["dashClass"]): PScene =>
+            scene(
+                "graphty",
+                [
+                    edge({
+                        points: [
+                            [12, 10],
+                            [28, 10],
+                        ],
+                        stroke: stroke("#0000ff", 0.2, { dash, dashClass }),
+                    }),
+                ],
+                NODES.map(([id, x, y]) => node(id, x / 10, y / 10, { w: 4, h: 4 })),
+            );
+        const o = scene("oracle", [edge({ stroke: stroke("#0000ff", 2, { dash: [6, 3], dashClass: "dashed" }) })]);
+        // (the drawing fills a tenth as much of its canvas, which frame.zoom reports; only the line class is asked here)
+        const dash = (g: PScene): number | null => compareOracle("t", o, g).properties["edge.dash"].passRate;
+        // dashes 0.6 render px long are dots under graphty's own pixel floor, and 6 oracle px long dashes in its frame
+        assert.strictEqual(dash(small([0.6, 0.3], "dotted")), 1);
+        assert.strictEqual(dash(small([0.2, 0.3], "dotted")), 0);
+        // a class read by name, with no measured dashes, is taken as it is
+        assert.strictEqual(dash(small(null, "dotted")), 0);
+    });
+
     it("fails a zigzag edge drawn solid, and a pattern no class names even against another", () => {
         const line = (dashClass: PStroke["dashClass"]): PEdge => edge({ stroke: stroke("#0000ff", 2, { dashClass }) });
         assert.deepEqual(failing(scene("oracle", [line("zigzag")]), scene("graphty", [line("solid")])), ["edge.dash"]);

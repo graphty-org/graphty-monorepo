@@ -653,8 +653,14 @@ function PageFoot(): React.JSX.Element {
     );
 }
 
+/** The sticky header's height, in CSS pixels (start.css, `.ws-land-top`). */
+const HEADER_HEIGHT = 52;
+
 /**
  * Whether the big lockup has scrolled up under the header, so the header shows its own small one.
+ * Read from the scroll, not an IntersectionObserver: an observer also fires when the window
+ * shrinks (a screenshot tool sets it to 1 x 1 for a moment), and could leave the header showing
+ * its lockup with the page at the top.
  * @param lockup - The big lockup.
  * @returns True once it has.
  */
@@ -665,15 +671,14 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
         if (target === null) {
             return undefined;
         }
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                setPast(!entry.isIntersecting);
-            },
-            { rootMargin: "-52px 0px 0px 0px" },
-        );
-        observer.observe(target);
+        const read = (): void => {
+            setPast(target.getBoundingClientRect().bottom <= HEADER_HEIGHT);
+        };
+        read();
+        // Captured, so a scroll of whichever box holds the page is heard.
+        document.addEventListener("scroll", read, { capture: true, passive: true });
         return () => {
-            observer.disconnect();
+            document.removeEventListener("scroll", read, { capture: true });
         };
     }, [lockup]);
     return past;

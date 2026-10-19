@@ -109,6 +109,31 @@ describe("the start page in the app's frame", () => {
         });
     });
 
+    it("shows the header's own lockup only once the page is scrolled past the big one", async () => {
+        await startPage();
+        const samples = screen.getByRole("region", { name: "Sample library" });
+        const header = document.querySelector<HTMLElement>(".ws-land-top");
+        assert.isUndefined(header?.dataset.scrolled, "at the top, the big lockup is in view");
+
+        // A window shrunk to nothing and back, as a screenshot tool does, is not a scroll.
+        await page.viewport(1, 1);
+        await page.viewport(1440, 900);
+        await waitFor(() => {
+            assert.equal(window.innerWidth, 1440);
+        });
+        assert.isUndefined(header?.dataset.scrolled, "a resize did not scroll the page");
+
+        await userEvent.click(screen.getByRole("button", { name: "Samples" }));
+        await waitFor(() => {
+            assert.isTrue(atSamples(samples), "Samples scrolled the page down to them");
+            assert.equal(header?.dataset.scrolled, "true", "scrolled down, the header shows its lockup");
+        });
+        await wheelOver(screen.getByRole("heading", { name: "Sample library" }), -5000);
+        await waitFor(() => {
+            assert.isUndefined(header?.dataset.scrolled, "back at the top, it hides it again");
+        });
+    });
+
     it("scrolls back up from the samples by touch", async () => {
         await showSamples();
 

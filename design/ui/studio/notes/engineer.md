@@ -16,26 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, an unset line takes the value it shows) The equality checks lived in
-   compact-mantine, so the fix is there. `CompactColorInput.commitHex`: while unset, Enter on the
-   shown color or typing exactly it (`typedHere` ref, cleared on Escape and on a new shown value)
-   chooses it; Tab past an untouched box does not. Its name is "Node color, not set, drawn
-   #6366F1 indigo" (new optional label `colorDrawn`). `StyleSelect`: unset means Mantine holds
-   `null` and the default is the placeholder (same italic), so no option is checked and picking the
-   default fires (Mantine skips a pick equal to its value). The list still opens on the default:
-   the trigger carries `data-in-force`, and listbox.tsx's `inForce()` falls back to it wherever it
-   looked for the checked option (open walk, type-ahead start). `useNumberField` selects on focus,
-   however focus came (824 bug). App: ValuePicker "In use" = this line only, "Used elsewhere" =
-   other lines and layers; `fixedInForce` marks Fixed text. Tests: compact-mantine FieldStates
-   "an unset field takes the value it shows" (5; 4 fail on HEAD), graphty `UnsetLine.real-element`
-   (4), Labels "source list, opened again, marks the choice in force", Groups "number box just
-   added". Walk `design/ui/studio/tmp/r1-dry3-unset-line-takes-shown-value/` (w1 07-08 Enter sets
-   6366F1 and the key gains Color; w2 06 grid with no check, 07 Enter sets Icosphere, 10 typed
-   6366f1 sets it, 15 Fixed text lit on reopen; w3 11 Width 8 selected, 12 typing 24 gives 24).
-   Known red on HEAD too (36 real-element tests in 24 files: VaryByLayer 7, PropertyRows 3,
-   StylePanel 3, ColorBox "replaces its value", FocusAfterAdding "typed color", Groups "Shift+arrow",
-   ...; lists in `tmp/.../graphty-tests.log`); a HEAD-vs-mine run of those files differed only in
-   Sections "inside a binding" (it read the unset palette's `.value`; updated) and my new test.
+0. (2026-10-18, find box words) Every column in find by its on-screen name: the app shows a rule
+   through the element's `renamePaths` (now exported from `session`) with `shownName` (readable
+   value -> `readableName`, else new `data.structureValues()` "Degree"/"In-degree"/"Out-degree",
+   else the attribute's plainName). A correction reads "Did you mean Degree?" with the row
+   "Degree > 30"; Enter runs it and the box KEEPS the reader's "=degree > 30" (`ran` also matches
+   `correctedRule`; a ran rule hides the refusal). Example rule is `>=` and skips id columns of
+   any kind. Spoken: nothing until the element has read plain text (`settled`), an offer is said
+   with its count; Enter with nothing to pick says the line again. "Select by a value:" only with
+   the list open. Shift picks: `ResultRow picked` (check + aria-selected; the blue fill keys on
+   `data-active`), hits from the real selection, value rows from a local set; the box clears
+   when the list closes after a Shift pick. Tests `FindBoxWords.real-element` (9; 8 fail on the
+   old FindBox), element `shared-types` renamePaths/structureValues. Walk
+   `design/ui/studio/tmp/r1-dry3-find-box-words/` (w1 02 karate "=degree > 30": "Did you mean
+   Degree?", row "Degree > 30"; w2 03 Enter keeps "=degree > 10", "3 nodes selected"; w2 05
+   Enter on zzzz said again; w3 sources: "Select the 9 nodes" announced). Known red on HEAD too:
+   tasks "a click on a drawn name ..." (15 s timeout).
+   0a. (2026-10-18, an unset line takes the value it shows) compact-mantine `commitHex` /
+   `StyleSelect` placeholder default / `inForce()`; in full in
+   `git show 2c0d540aa:design/ui/studio/notes/engineer.md`, Top of mind 0.
 1. (2026-10-18, keyboard stops and Escape) App and compact-mantine, no API change. A full section
    "+" has `tabIndex -1` (Section.tsx; tooltip and description keep the reason). Escape in the
    inspector is kept from Clear selection only in a field (`FIELD` selector in useCommandKeys.ts:
@@ -117,6 +116,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
     on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
+
+- (2026-10-18) **The app names a rule's columns through the element, not by parsing.** The rule
+  language is the element's; `renamePaths` already rewrote paths for `checkRule`'s suggestion, so
+  exporting it was the smallest additive door. Structure values had no name fact anywhere (panels
+  hard-coded "Degree"), so `data.structureValues()` was added beside `readableValues()` rather
+  than into it: new entries there would change an existing call's result. The example rule stays
+  in rule text (bare column names), since it teaches what to type.
+- (2026-10-18) **After a corrected rule runs, the box keeps the reader's words.** Writing the
+  corrected path into the box put `=graphty.degree > 10` on screen, the very path the reader never
+  sees elsewhere. Whether a bare name should read the structure stays the owner's question.
+- (2026-10-18) **`picked` adds to aria-selected rather than replacing `current`'s.** Tests and the
+  combobox pattern read the current option as aria-selected; a picked row is marked too, with a
+  visible check so the mark is not color alone.
 
 - (2026-10-18) **An unset select holds no value; its default is the placeholder.** A check must
   mean "set here", and Mantine will not fire a pick equal to its value, so holding the default made
@@ -238,6 +250,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) Did not work: proving the Enter-says-No-match test by waiting for the first "No
+  match" announcement. The old box spoke twice while typing (unsettled, then with the example), so
+  the second arrived after Enter and the test passed on the old code. Waiting for the settled line
+  ("To select by a value") before Enter made it fail on the old code and pass on the new.
+- (2026-10-18) Worked: compact-mantine's States play test strips the "on" attributes and expects
+  the drawing to change; a fill keyed on a new `data-current` failed it, `data-active` (an "on"
+  marker it knows) passes.
 
 - (2026-10-18) Mantine's Select calls `onDropdownOpen` BEFORE queuing its own
   `updateSelectedOptionIndex` timer, so a timer set in `onDropdownOpen` runs first and is undone:

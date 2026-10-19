@@ -9,7 +9,7 @@ import {
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, ColorSwatch, Group, Menu, Popover, Stack, Text, Tooltip } from "@mantine/core";
 import { Minus, Plus } from "lucide-react";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CARD_LOOK, isCard, plainLook } from "./cardLook";
@@ -348,6 +348,7 @@ function CardLine({
     onFail,
 }: Readonly<CardLineProps>): React.JSX.Element {
     const [open, setOpen] = useState(false);
+    const settingsButton = useRef<HTMLButtonElement>(null);
     const lines = cardLines(line);
     const first = lines.map(labelTemplateRow).find((r) => r !== null);
     const firstName =
@@ -385,6 +386,7 @@ function CardLine({
                 >
                     <Popover.Target>
                         <AdvancedButton
+                            ref={settingsButton}
                             label="Card settings"
                             aria-expanded={open}
                             onClick={() => {
@@ -401,6 +403,10 @@ function CardLine({
                                 event.key === "Escape" &&
                                 from?.closest('[role="dialog"], [role="menu"]') === event.currentTarget
                             ) {
+                                // Back to the button now, as Mantine's own Escape does (its onTrigger):
+                                // returnFocus alone waits 10 ms after the dropdown unmounts, and in
+                                // between focus is on the page body.
+                                settingsButton.current?.focus({ preventScroll: true });
                                 setOpen(false);
                             }
                         }}

@@ -18,6 +18,7 @@ export type StyleEnumKind =
     | "borderPosition"
     | "lineStyle"
     | "arrow"
+    | "arrowSide"
     | "weight"
     | "position"
     | "labelFit"
@@ -178,6 +179,11 @@ const BORDER_POSITIONS: Aliases = {
     outside: ["outside"],
 };
 
+const ARROW_SIDES: Aliases = {
+    left: ["left"],
+    right: ["right"],
+};
+
 const TEXT_ALIGNS: Aliases = {
     left: ["left", "start"],
     center: ["center", "centre", "middle"],
@@ -245,6 +251,7 @@ const COMMON: ReadonlyMap<StyleEnumKind, ReadonlyMap<string, string>> = new Map(
     ["borderStyle", lookup(BORDER_STYLES)],
     ["lineStyle", lookup(LINE_STYLES)],
     ["arrow", lookup(ARROWS)],
+    ["arrowSide", lookup(ARROW_SIDES)],
     ["weight", lookup(WEIGHTS)],
     ["position", lookup(POSITIONS)],
     ["labelFit", lookup(LABEL_FITS)],

@@ -84,10 +84,20 @@ describe("Cytoscape's arrows", () => {
         expect(v.targetArrow).toEqual(["triangle", "triangle"]);
         expect(v.targetArrowLength).toEqual([0.5, null]);
         expect(v.targetArrowWidth).toEqual([null, null]);
-        // ARROW_SHORT's notch is too shallow to show, so it is drawn as the triangle it reads as
-        expect(v.sourceArrow).toEqual(["triangle", "vee"]);
+        // ARROW_SHORT's notch is too shallow to show, so it is drawn as the triangle it reads as; CROSS_DELTA is a delta
+        // with a bar behind it, 1.5 times a DELTA's length and width
+        expect(v.sourceArrow).toEqual(["triangle", "other:cross-delta"]);
         expect(v.sourceArrowLength).toEqual([0.6, 1.5]);
         expect(v.sourceArrowWidth).toEqual([0.8, 1.5]);
+    });
+
+    it("reads CX2's crossed deltas, triangle-cross and cross_open_delta, at a crossed delta's size", async () => {
+        const doc = cx2({ EDGE_TARGET_ARROW_SHAPE: "triangle-cross", EDGE_SOURCE_ARROW_SHAPE: "cross_open_delta" });
+        const v = await edgeValues("cx2", doc, ["targetArrow", "targetArrowLength", "sourceArrow", "sourceArrowWidth"]);
+        expect(v.targetArrow).toEqual(["other:cross-delta", "other:cross-delta"]);
+        expect(v.targetArrowLength).toEqual([1.5, 1.5]);
+        expect(v.sourceArrow).toEqual(["other:cross-open-delta", "other:cross-open-delta"]);
+        expect(v.sourceArrowWidth).toEqual([1.5, 1.5]);
     });
 
     it("keeps which side of the line a half arrow is on: HALF_TOP as half, HALF_BOTTOM as its mirror", async () => {
@@ -111,26 +121,33 @@ describe("Cytoscape's arrows", () => {
 });
 
 describe("Graphviz's arrow names", () => {
-    it("draws the shape at the edge's end, half as wide for an l or r half, and a one-sided normal as half", async () => {
+    it("draws the shape at the edge's end, and an l or r arrow as the shape's half on that side of the line", async () => {
         const doc = `digraph {
             a -> b [arrowhead=dotodot]; b -> c [arrowhead=ltee]; c -> d [arrowhead=lteeoldiamond];
             d -> e [arrowhead=olnormal]; e -> f [arrowhead=rcrow]; f -> g [arrowhead=nonenormal];
             g -> h [arrowhead=obox]; h -> i [arrowhead=empty]; i -> j [dir=back, arrowtail=lbox];
         }`;
-        const v = await edgeValues("dot", doc, ["targetArrow", "targetArrowWidth", "sourceArrow", "sourceArrowWidth"]);
+        const v = await edgeValues("dot", doc, [
+            "targetArrow",
+            "targetArrowSide",
+            "targetArrowWidth",
+            "sourceArrow",
+            "sourceArrowSide",
+        ]);
         expect(v.targetArrow).toEqual([
             "circle",
             "tee",
             "tee",
-            "half",
+            "triangle-open",
             "crow",
             "triangle",
             "square",
             "triangle-open",
             "none",
         ]);
-        expect(v.targetArrowWidth).toEqual([null, 0.5, 0.5, null, 0.5, null, null, null, null]);
+        expect(v.targetArrowSide).toEqual([null, "left", "left", "left", "right", null, null, null, null]);
+        expect(v.targetArrowWidth).toEqual([null, null, null, null, null, null, null, null, null]);
         expect(v.sourceArrow.at(-1)).toBe("square");
-        expect(v.sourceArrowWidth.at(-1)).toBe(0.5);
+        expect(v.sourceArrowSide.at(-1)).toBe("left");
     });
 });

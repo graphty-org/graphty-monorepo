@@ -326,6 +326,7 @@ const ENUM_KINDS: ReadonlySet<string> = new Set([
     "borderStyle",
     "lineStyle",
     "arrow",
+    "arrowSide",
     "weight",
     "position",
     "labelFit",

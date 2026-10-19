@@ -183,6 +183,8 @@ const DESKTOP_ARROWS = {
     "diamond-open": "OPEN_DIAMOND",
     "circle-open": "OPEN_CIRCLE",
     half: "HALF_TOP",
+    "other:cross-delta": "CROSS_DELTA",
+    "other:cross-open-delta": "CROSS_OPEN_DELTA",
 };
 const CX2_ARROWS = {
     none: "none",
@@ -196,6 +198,9 @@ const CX2_ARROWS = {
     "diamond-open": "open-diamond",
     "circle-open": "open-circle",
     half: "half-top",
+    // as Cytoscape 3.10.5 writes CROSS_DELTA and CROSS_OPEN_DELTA in CX2
+    "other:cross-delta": "triangle-cross",
+    "other:cross-open-delta": "cross_open_delta",
 };
 const NEAR_ARROWS = { crow: "vee", inverted: "triangle" };
 

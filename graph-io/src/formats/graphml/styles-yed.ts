@@ -554,7 +554,43 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
         }
     }
     if (node) {
-        put("labelPosition", nodeLabelPosition(label, geometry, at));
+        const position = nodeLabelPosition(label, geometry, at);
+        put("labelPosition", position);
+        readInsideInset(label, geometry, position, put);
+    }
+}
+
+/**
+ * How far in from the sides it is drawn against yEd puts a label inside its node (its internal model's insets, 4 by
+ * default), from the label's stored box, for a label sized to its words: the label is moved that far right of a left side, left of a right side, down
+ * from the top and up from the bottom.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param position - where the label is placed
+ * @param put - receives the values
+ */
+function readInsideInset(label: unknown, geometry: unknown, position: string | null, put: PutValue): void {
+    // a label sized to its node (a group's header band) has a box that is not its words'
+    const sized = treeAttr(label, "autoSizePolicy")?.startsWith("node_") === true;
+    if (position?.startsWith("inside-") !== true || sized) {
+        return;
+    }
+    const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
+    const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
+    const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
+    const inset = (value: number): number | null =>
+        Number.isFinite(value) && value > 0 ? Math.round(value * 1000) / 1000 : null;
+    if (position.includes("left")) {
+        put("labelOffsetX", inset(x));
+    } else if (position.includes("right")) {
+        const gap = inset(nw - x - w);
+        put("labelOffsetX", gap === null ? null : -gap);
+    }
+    if (position.includes("top")) {
+        put("labelOffsetY", inset(y));
+    } else if (position.includes("bottom")) {
+        const gap = inset(nh - y - h);
+        put("labelOffsetY", gap === null ? null : -gap);
     }
 }
 

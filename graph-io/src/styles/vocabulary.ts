@@ -24,6 +24,7 @@ export type StyleValueKind =
     | "borderPosition"
     | "lineStyle"
     | "arrow"
+    | "arrowSide"
     | "weight"
     | "textAlign"
     | "position"
@@ -163,6 +164,8 @@ export const STYLE_PROPERTIES: {
         ["targetArrowLength", "number"],
         ["sourceArrowWidth", "number"],
         ["targetArrowWidth", "number"],
+        ["sourceArrowSide", "arrowSide"],
+        ["targetArrowSide", "arrowSide"],
         ["arrowPosition", "number"],
         ["lineStyle", "lineStyle"],
         ["sourceArrow", "arrow"],
@@ -265,6 +268,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
             "inverted",
         ],
     ],
+    ["arrowSide", ["left", "right"]],
     ["weight", ["normal", "bold"]],
     ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],

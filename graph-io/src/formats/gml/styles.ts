@@ -714,8 +714,9 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             `${end}Arrow`,
             on ? canonEnum("arrow", graphvizArrow(name)?.name ?? name, "graphviz", at(`${end}Arrow`)) : "none",
         );
-        if (on && graphvizArrow(name)?.side === true) {
-            put(`${end}ArrowWidth`, 0.5);
+        const side = on ? graphvizArrow(name)?.side : null;
+        if (side !== null && side !== undefined) {
+            put(`${end}ArrowSide`, side);
         }
     }
 }

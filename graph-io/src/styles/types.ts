@@ -86,6 +86,12 @@ export type StyleArrowShape =
     | `other:${string}`;
 
 /**
+ * The side of its line an arrowhead cut along the line keeps, looking along the line toward the arrowhead's tip.
+ * @category Styles
+ */
+export type StyleArrowSide = "left" | "right";
+
+/**
  * Label font weights.
  * @category Styles
  */
@@ -459,6 +465,14 @@ export interface EdgeStyleValues {
     readonly sourceArrowWidth: number;
     /** How wide the target arrowhead is, as `sourceArrowWidth` says. */
     readonly targetArrowWidth: number;
+    /**
+     * The side of its line the source arrowhead is drawn on alone, cut along the line: `left` or `right` looking along
+     * the line toward the arrowhead's tip (Graphviz's `l` and `r` arrow modifiers: `lcrow`, `rdiamond`). Unset, the
+     * whole arrowhead.
+     */
+    readonly sourceArrowSide: StyleArrowSide;
+    /** The side of its line the target arrowhead is drawn on alone, as `sourceArrowSide` says. */
+    readonly targetArrowSide: StyleArrowSide;
     /**
      * Where along the line each arrowhead is drawn, as a fraction of the line measured from the arrow's own end: 0 (the
      * default) at the end, 0.5 at the middle, at most 1.

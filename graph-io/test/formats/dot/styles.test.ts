@@ -531,10 +531,19 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             expect(x * scaleX).toBeCloseTo(graphviz[k][0], 0);
             expect(y * scaleY).toBeCloseTo(graphviz[k][1], 0);
         });
-        // a regular polygon's corners lie on its box's ellipse
-        for (const [x, y] of corners("t")) {
-            expect(Math.hypot(x, y)).toBeCloseTo(1, 6);
-        }
+        // Graphviz grows a regular polygon until its farthest corners reach its box's sides on each axis
+        const t = corners("t");
+        expect(Math.max(...t.map(([x]) => Math.abs(x)))).toBeCloseTo(1, 6);
+        expect(Math.max(...t.map(([, y]) => Math.abs(y)))).toBeCloseTo(1, 6);
+    });
+
+    it("keeps a distorted polygon reaching past its box, as Graphviz draws it, and draws its corners unstretched", async () => {
+        // neato -n2 draws u (1 inch, fixedsize) 1.5 inches wide at its top and 1 inch tall: 290,-72 182,-72 218,0 254,0
+        const { snapshot, styles } = await load(`digraph {
+            u [shape=polygon, sides=4, distortion=1, fixedsize=true, width=1, height=1];
+        }`);
+        expect(byId(styles, snapshot, "shapePoints").get("u")).toBe("1.5,1 -1.5,1 -0.5,-1 0.5,-1");
+        expect(byId(styles, snapshot, "shapePointsStretch").get("u")).toBe(false);
     });
 
     it("draws Graphviz's named polygons and decorated boxes as their outlines, and writes them back by name", async () => {

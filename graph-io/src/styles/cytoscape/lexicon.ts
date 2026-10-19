@@ -115,13 +115,15 @@ const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["open_circle", "circle-open"],
     ["open_diamond", "diamond-open"],
     ["open_square", "other:open-square"],
-    ["cross_delta", "vee"],
-    ["cross_open_delta", "triangle-open"],
+    // a delta with a bar across the line behind it
+    ["cross_delta", "other:cross-delta"],
+    ["cross_open_delta", "other:cross-open-delta"],
     ["open_half_circle", "other:open-half-circle"],
     ["half_circle", "other:half-circle"],
     ["triangle", "triangle"],
     ["triangle-tee", "tee"],
-    ["triangle-cross", "vee"],
+    // CX2's spelling of CROSS_DELTA
+    ["triangle-cross", "other:cross-delta"],
     ["triangle-backcurve", "triangle"],
     ["tee", "tee"],
     ["vee", "vee"],
@@ -148,6 +150,7 @@ const CY_ARROW_PROPORTIONS: ReadonlyMap<string, { readonly length: number; reado
     ["diamond_short_2", { length: 0.25, width: 1 }],
     ["cross_delta", { length: 1.5, width: 1.5 }],
     ["cross_open_delta", { length: 1.5, width: 1.5 }],
+    ["triangle-cross", { length: 1.5, width: 1.5 }],
 ]);
 
 /** Cytoscape 2.x numbered arrow codes. */

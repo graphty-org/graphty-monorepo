@@ -783,6 +783,10 @@ function readNodeShape(n: NodeRead): void {
     } else if (NAMED_OUTLINES.has(n.shape)) {
         n.put("shape", "polygon");
         n.put("shapePoints", NAMED_OUTLINES.get(n.shape) ?? null);
+        // a polygon shape's corners are where Graphviz draws them, one reaching past its box too
+        if (GRAPHVIZ_POLYGON_SHAPES.has(n.shape)) {
+            n.put("shapePointsStretch", false);
+        }
     } else if (n.shapeRaw !== null) {
         const shape =
             rounded && BOX_LIKE.has(n.shape)
@@ -817,8 +821,23 @@ function readPolygon(n: NodeRead, rounded: boolean): void {
         n.put("shape", "ellipse");
     } else {
         n.put("shape", "polygon");
-        n.put("shapePoints", cornersText(graphvizPolygonCorners(polygon)));
+        n.put("shapePoints", cornersText(graphvizDrawnCorners(polygon)));
+        n.put("shapePointsStretch", false);
     }
+}
+
+/**
+ * A Graphviz polygon's corners where Graphviz draws them, as fractions of its box's half width and half height: it
+ * grows a polygon that falls short of the box along an axis until it reaches the box's sides, and keeps one that
+ * reaches past them (a distortion, a skew, an egg) as it is (shapes.c `poly_init`: `scalex = bb.x / xmax`).
+ * @param polygon - the polygon's attributes
+ * @returns the corners
+ */
+function graphvizDrawnCorners(polygon: Parameters<typeof graphvizPolygonCorners>[0]): [number, number][] {
+    const corners = graphvizPolygonCorners(polygon);
+    const grow = (axis: 0 | 1): number => Math.max(1, 1 / Math.max(...corners.map((c) => Math.abs(c[axis]))));
+    const [gx, gy] = [grow(0), grow(1)];
+    return corners.map(([x, y]) => [x * gx, y * gy]);
 }
 
 /**
@@ -833,7 +852,7 @@ function cornersText(corners: readonly (readonly [number, number])[]): string {
 /** The outline of each Graphviz shape graphty draws as a polygon of its corners, by shape name. */
 const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map([
     ...[...GRAPHVIZ_POLYGON_SHAPES].map(
-        ([name, polygon]) => [name, cornersText(graphvizPolygonCorners(polygon))] as const,
+        ([name, polygon]) => [name, cornersText(graphvizDrawnCorners(polygon))] as const,
     ),
     ...[...GRAPHVIZ_DECORATED_BOXES].map(([name, corners]) => [name, cornersText(corners)] as const),
 ]);
@@ -1114,8 +1133,8 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
                 `${end}Arrow`,
                 on ? canonEnum("arrow", first?.name ?? raw ?? "normal", "graphviz", at(`${end}Arrow`)) : "none",
             );
-            if (first?.side === true) {
-                put(`${end}ArrowWidth`, 0.5);
+            if (first?.side !== null && first?.side !== undefined) {
+                put(`${end}ArrowSide`, first.side);
             }
         }
     }
@@ -1125,17 +1144,22 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     }
 }
 
+/** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
+const ARROW_SIDES = ["left", "right"] as const;
+
 /** The open forms of Graphviz arrows that a neutral shape draws; the others are drawn filled. */
 const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", "dot"]);
 
 /**
  * The arrow Graphviz draws at an edge's very end, from an arrow name of up to four shapes (`dotodot`,
  * `lteeoldiamond`): the first shape that is not `none`, with its `o` (open) kept where a neutral shape draws it, and
- * whether an `l` or `r` draws only the half on one side of the line.
+ * the side an `l` or `r` keeps alone ("clip the shape, leaving only the part to the left of the edge", looking along
+ * the edge toward the arrow's tip).
  * @param raw - the arrow name
- * @returns the shape's own name and its side, or null for a name outside the grammar (a synonym such as `empty`)
+ * @returns the shape's own name and its side (null for the whole shape), or null for a name outside the grammar (a
+ * synonym such as `empty`)
  */
-export function graphvizArrow(raw: string): { readonly name: string; readonly side: boolean } | null {
+export function graphvizArrow(raw: string): { readonly name: string; readonly side: "left" | "right" | null } | null {
     let rest = raw.trim().toLowerCase();
     while (rest.length > 0) {
         const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
@@ -1145,10 +1169,9 @@ export function graphvizArrow(raw: string): { readonly name: string; readonly si
         rest = rest.slice(m[0].length);
         const [, mods, shape] = m;
         if (shape !== "none") {
-            const side = /[lr]/.test(mods);
+            const side = ARROW_SIDES.find((s) => mods.includes(s[0])) ?? null;
             const open = mods.includes("o") && GRAPHVIZ_OPEN_ARROWS.has(shape) ? "o" : "";
-            // a one-sided normal is the neutral half arrow; any other shape is drawn whole, half as wide
-            return shape === "normal" && side ? { name: "lnormal", side: false } : { name: open + shape, side };
+            return { name: open + shape, side };
         }
     }
     return null;
@@ -1452,7 +1475,6 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
     ["circle-open", "odot"],
     ["square", "box"],
     ["crow", "crow"],
-    ["half", "lnormal"],
     ["inverted", "inv"],
 ]);
 
@@ -1843,7 +1865,7 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
     const target = get("targetArrow");
     const tail = typeof source === "string" && source !== "none";
     const head = typeof target === "string" && target !== "none";
-    const plain = directed ? head && !tail && target === "triangle" : !head && !tail;
+    const plain = directed ? head && !tail && target === "triangle" && get("targetArrowSide") === null : !head && !tail;
     if (plain || (source === null && target === null)) {
         return;
     }
@@ -1856,11 +1878,22 @@ function writeEdgeArrows(get: Get, directed: boolean, approximate: Approximate, 
         dir = "back";
     }
     out.set("dir", dir);
+    // a one-sided arrow is its shape with an `l` or `r` before it; the neutral half arrow, one barb, is nearest to the
+    // left half of Graphviz's triangle, which reads back as that
+    const arrow = (value: string, side: StyleValue | null, property: string): string => {
+        if (value === "half") {
+            approximate(property, value);
+            approximate(`${property}Side`, value);
+            return "lnormal";
+        }
+        const name = spelled(ARROWS, value, "normal", property, approximate);
+        return side === "left" || side === "right" ? `${side[0]}${name}` : name;
+    };
     if (head) {
-        out.set("arrowhead", spelled(ARROWS, target, "normal", "targetArrow", approximate));
+        out.set("arrowhead", arrow(target, get("targetArrowSide"), "targetArrow"));
     }
     if (tail) {
-        out.set("arrowtail", spelled(ARROWS, source, "normal", "sourceArrow", approximate));
+        out.set("arrowtail", arrow(source, get("sourceArrowSide"), "sourceArrow"));
     }
 }
 

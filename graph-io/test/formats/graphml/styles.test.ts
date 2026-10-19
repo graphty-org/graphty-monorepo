@@ -183,6 +183,25 @@ describe("GraphML styles: yEd", () => {
             "inside-bottom-left",
             "center",
         ]);
+        // inside, the label is as far from the sides it is against as its stored box says; a header band says nothing
+        expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)).toEqual([
+            null,
+            null,
+            null,
+            null,
+            null,
+            2,
+            null,
+        ]);
+        expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([
+            null,
+            null,
+            null,
+            null,
+            null,
+            -2,
+            null,
+        ]);
     });
 
     it("finds the positions of UML class nodes and of yFiles 3 NodeGeometry", async () => {

@@ -603,27 +603,38 @@ describe.skipIf(!available)("6.4 select trigger", () => {
     });
 });
 
-describe.skipIf(!available)("6.5 dark listbox", () => {
+// The listbox follows the page's scheme (light here unless a test says otherwise); Figma's is dark
+// in both, which the class cm-menu-inverse gives.
+describe.skipIf(!available)("6.5 listbox", () => {
     const DATA = ["Center", "Inside", "Outside"];
 
-    it.each(SCHEMES)("%s: #1e1e1e surface, radius 13, elevation-400 of the page, padding 8 0", async (scheme) => {
-        const surface = await figmaElement("ii/select-listbox-open", { index: 85 });
-        const list = await figmaElement("ii/select-listbox-open", { index: 86 });
-        const option = await figmaElement("ii/select-listbox-open", { index: 87 });
-        const { container } = await renderFigma(
-            <Select aria-label="Stroke align" data={DATA} defaultValue="Inside" style={{ width: 76 }} />,
-            { scheme },
-        );
-        await drive(part(container, "input"), "open");
-        const dropdown = await listbox();
-        expectMeasured(dropdown, figmaSpec(surface, ["backgroundColor", "borderRadius"]));
-        expectMeasured(dropdown, figmaSpec(list, ["paddingTop", "paddingBottom", "paddingLeft", "paddingRight"]));
-        if (scheme === "light") {
-            expect(shadowSet(computed(dropdown).boxShadow)).toEqual(figmaShadow(surface));
-        }
-        const row = part(dropdown, ".cm-listbox-option");
-        expectMeasured(row, figmaSpec(option, ["height", "paddingLeft", "paddingRight", ...TYPE]));
-    });
+    it.each(SCHEMES)(
+        "%s inverse: #1e1e1e surface, radius 13, elevation-400 of the page, padding 8 0",
+        async (scheme) => {
+            const surface = await figmaElement("ii/select-listbox-open", { index: 85 });
+            const list = await figmaElement("ii/select-listbox-open", { index: 86 });
+            const option = await figmaElement("ii/select-listbox-open", { index: 87 });
+            const { container } = await renderFigma(
+                <Select
+                    aria-label="Stroke align"
+                    data={DATA}
+                    defaultValue="Inside"
+                    style={{ width: 76 }}
+                    classNames={{ dropdown: "cm-menu-inverse" }}
+                />,
+                { scheme },
+            );
+            await drive(part(container, "input"), "open");
+            const dropdown = await listbox();
+            expectMeasured(dropdown, figmaSpec(surface, ["backgroundColor", "borderRadius"]));
+            expectMeasured(dropdown, figmaSpec(list, ["paddingTop", "paddingBottom", "paddingLeft", "paddingRight"]));
+            if (scheme === "light") {
+                expect(shadowSet(computed(dropdown).boxShadow)).toEqual(figmaShadow(surface));
+            }
+            const row = part(dropdown, ".cm-listbox-option");
+            expectMeasured(row, figmaSpec(option, ["height", "paddingLeft", "paddingRight", ...TYPE]));
+        },
+    );
 
     it("opens over the trigger: the selected option's box sits on the trigger within 1px, the list 8px before it", async () => {
         const { container } = await renderFigma(
@@ -645,7 +656,7 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         const highlight = measure(selected, ["backgroundColor", "borderTopLeftRadius", "left", "right"], {
             pseudo: "::before",
         });
-        expect(highlight.style.backgroundColor).toBe("#0c8ce9");
+        expect(highlight.style.backgroundColor).toBe("#0768cf");
         expect(highlight.style.borderTopLeftRadius).toBe("5px");
         expect(highlight.style.left).toBe("8px");
         expect(highlight.style.right).toBe("8px");
@@ -715,7 +726,7 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         const dropdown = await listbox();
         const [center, inside] = [...dropdown.querySelectorAll<HTMLElement>(".cm-listbox-option")];
         await userEvent.hover(center);
-        expectMeasured(center, { backgroundColor: "#0c8ce9" }, { pseudo: "::before" });
+        expectMeasured(center, { backgroundColor: "#0768cf" }, { pseudo: "::before" });
         expectMeasured(inside, { backgroundColor: "#00000000" }, { pseudo: "::before" });
         expectMeasured(center, figmaSpec(hovered, ["color"]));
         // The check stays with the value.
@@ -734,7 +745,7 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         const dropdown = await listbox();
         // The only filled row is the selected one.
         const filled = [...dropdown.querySelectorAll(".cm-listbox-option")].filter(
-            (row) => hex(computed(row, "::before").backgroundColor) === "#0c8ce9",
+            (row) => hex(computed(row, "::before").backgroundColor) === "#0768cf",
         );
         expect(filled.map((row) => row.textContent)).toEqual(["Inside"]);
         await userEvent.keyboard("{ArrowDown}{Enter}");
@@ -857,7 +868,7 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         expect(dropdown.scrollHeight).toBeGreaterThan(dropdown.clientHeight);
         expect(dropdown.hasAttribute("data-cm-scroll-down")).toBe(true);
         expect(dropdown.hasAttribute("data-cm-scroll-up")).toBe(false);
-        expectMeasured(dropdown, { backgroundColor: "#1e1e1e" }, { pseudo: "::after" });
+        expectMeasured(dropdown, { backgroundColor: "#ffffff" }, { pseudo: "::after" });
         expect(computed(dropdown, "::after").height).toBe("24px");
         const box = dropdown.getBoundingClientRect();
         await userEvent.hover(dropdown, { position: { x: box.width / 2, y: box.height - 8 } });
@@ -883,12 +894,12 @@ describe.skipIf(!available)("6.5 dark listbox", () => {
         );
         await drive(part(container, "input"), "open");
         const dropdown = await listbox();
-        expectMeasured(part(dropdown, ".cm-listbox-group-label"), { height: 24, color: "#ffffffb2" });
-        expectMeasured(part(dropdown, "[data-combobox-disabled]"), { color: "#ffffff66", opacity: "1" });
+        expectMeasured(part(dropdown, ".cm-listbox-group-label"), { height: 24, color: "#0000008c" });
+        expectMeasured(part(dropdown, "[data-combobox-disabled]"), { color: "#0000004d", opacity: "1" });
         const groups = dropdown.querySelectorAll<HTMLElement>(".cm-listbox-group");
         expectMeasured(groups[1], {
             borderTopWidth: "1px",
-            borderTopColor: "#ffffff1a",
+            borderTopColor: "#0000001a",
             paddingTop: "8px",
             marginTop: "8px",
         });

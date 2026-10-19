@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pr": 3026,
+  "subject": {
+    "builtMerge": "4b3b98d8f5abcac8bc00502eb8ea9900e700311f",
+    "head": "d44644ee47f2512f3bba01a5dec55d5f9fd80eb5",
+    "runId": 38839747603,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "4b3b98d8f5abcac8bc00502eb8ea9900e700311f"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--panel-ink.dark.png",
+      "from": "252d9755e7319b13ff264d7c907e75e154d8c28d6631e8a816f0e6505669463c",
+      "to": "22e370eec4c544919c20bb0a39be286b69b789081e3e309c5c1c5a8c671c62b4",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--panel-ink.light.png",
+      "from": "fa820792f714c450f79dda420aaed916db774db6d0e8b701f6e3900a7647b78b",
+      "to": "ba2f2be18fe16a8b88956c13539ee8212930c305c7fca36cb05ac444aab14ef1",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--tokens.dark.png",
+      "from": "f87a1e1e573d443ef9682f6187121fca8290c158b29ba2566de53289d5290c69",
+      "to": "3f815afc4f324aa87d0d0e9b7b444a904c47c93895a9d23af9ebefc1215c0227",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/compact-mantine/foundations-color--tokens.light.png",
+      "from": "a1f87c33d79451ce33b242b0e9c1b56eb802f65b95fe8c525441ed58a2f42dc4",
+      "to": "df29debdc338c98151295fda9fad322721a9ec801bff76ab5eb0993613b37297",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-acceleration--device-lost.dark.png",
+      "from": "6f3b9c6ee77c21b911ce72a54ee93f8766f7edb6f02db809f0442cfcb58cf94c",
+      "to": "02c4b77ea9175d397c397a97582a975b16af54c325b44400f6f5e881822a78b5",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-acceleration--device-lost.light.png",
+      "from": "9f079ddf2f732dcc2827f67cf02395d925678c9889490458d304abe486825ff8",
+      "to": "a1d2048e8b6c1d591d5602694bd509af7409c2626930d02e7222e81c3ee6c6b5",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-16T03:48:01.161Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiUkxIa3JTUGxxRER2d3dYelNSb0Q3VXo4Q1dQTllkV3g1UDJLdFI2cjA5YyIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEQCIFQie4bL_syk7DA4DdMd5ExiKdIjiBu8xaXBTEuF3C8OAiB7dbz5k-jbwyqJG8gKnyAiL3mXlf7fICt-7Bgj-i9aAQ"
+  }
+}

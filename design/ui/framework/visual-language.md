@@ -114,8 +114,10 @@ or popover 400, a dialog 500. Those levels are shadow recipes, not a z-order. **
 own order, bottom to top: the canvas region (everything graphty-element draws, its legend,
 not-drawn line and node tooltip included), persistent floating surfaces, the notice, menus and
 popovers, dialogs, and **the tooltip always on top**, so a tooltip on a menu item or a popover
-control is never hidden. Menus, tooltips and the toast are dark in both themes; the element's node
-tooltip matches (`canvas-drawing.md` 8), so hovering a node and hovering a button give one tooltip.
+control is never hidden. Menus, list boxes and context menus follow the page theme: a light
+surface with dark text in light mode, dark in dark mode (compact-mantine's `variant="inverse"`
+keeps a menu dark in both, for a consumer that wants it). Tooltips and the toast are dark in both
+themes; the element's node tooltip matches (`canvas-drawing.md` 8), so hovering a node and hovering a button give one tooltip.
 **The canvas stays mostly clear.** At the Laptop window class, the furniture floating over the
 canvas together (the legend with its not-drawn line, the minimap, the floating toolbar with its
 secondary bar, the notice and Help) covers at most a fifth of the canvas region (proposed). Past

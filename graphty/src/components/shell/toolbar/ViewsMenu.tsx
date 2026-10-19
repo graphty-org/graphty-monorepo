@@ -213,7 +213,7 @@ function ViewsMenuRow(props: ViewsMenuRowProps): React.JSX.Element {
                     flex: `0 0 ${PANEL_GRID.GLYPH}px`,
                     width: PANEL_GRID.GLYPH,
                     height: PANEL_GRID.GLYPH,
-                    color: checked === true ? PANEL_INK.ACCENT_GRAPHIC : PANEL_INK.CHROME,
+                    color: checked === true ? PANEL_INK.BRAND_TEXT : PANEL_INK.CHROME,
                 }}
             >
                 {glyph}
@@ -335,8 +335,6 @@ export function ViewsMenu(props: ViewsMenuProps): React.JSX.Element {
                     flexDirection: "column",
                     gap: VIEWS_MENU_ROW_GAP,
                     padding: VIEWS_MENU_PADDING,
-                    background: PANEL_INK.SURFACE,
-                    border: `1px solid ${PANEL_INK.BORDER}`,
                     overflowY: "auto",
                 },
             }}

@@ -180,7 +180,7 @@ describe("WelcomeState surface", () => {
             const error = container.querySelector<HTMLElement>("[data-welcome-error]");
 
             expect(error).toHaveAttribute("role", "alert");
-            expect(error?.style.color).toBe(PANEL_INK.DANGER);
+            expect(error?.style.color).toBe(PANEL_INK.DANGER_TEXT);
 
             /* Spec 975-979: "Nothing in this block is iconified and the error text is
                never moved behind an info circle." So it is not a button, not a tooltip's

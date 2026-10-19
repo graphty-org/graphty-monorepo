@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, mergeTexts, outerRingOf, underlaysOf } from "./associate";
+import { associate, mergeTexts, outerRingOf, stackedTexts, underlaysOf } from "./associate";
 import {
     browserFace,
     browserFontClass,
@@ -668,5 +668,30 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.isNull(outerRingOf([...halves, prim({ points: rect(80, 80, 120, 120), stroke: stroke("#000000", 1) })]));
         // nor is a border drawn over the fill's edge a ring
         assert.isNull(outerRingOf([body, prim({ points: circle(100, 100, 20), stroke: stroke("#999999", 3) })]));
+    });
+});
+
+describe("a label wrapped into stacked lines", () => {
+    it("is placed by the box of all its lines, not its first line's", () => {
+        const line = (content: string, y: number): Prim => {
+            const t = text(content, 100, y, { anchor: "start" });
+            return {
+                index: y,
+                tag: "text",
+                kind: "text",
+                box: t.box,
+                points: [],
+                closed: false,
+                corners: 0,
+                fill: null,
+                stroke: null,
+                text: t,
+                markers: { start: false, end: false },
+                hint: null,
+            };
+        };
+        const stacked = stackedTexts([line("Two", 100), line("longer lines", 112)]).at(-1)?.text;
+        assert.strictEqual(stacked?.content, "Two longer lines");
+        assert.deepEqual(stacked?.box, { x0: 85, y0: 95, x1: 115, y1: 117 });
     });
 });

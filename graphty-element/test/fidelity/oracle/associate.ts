@@ -1873,6 +1873,8 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
                 text: {
                     ...(first.text as PText),
                     content: run.map((q) => q.text?.content ?? "").join(" "),
+                    // the words' box is every line's, not the first line's: a label is placed by its whole box
+                    box: union(run.map((q) => q.text?.box ?? q.box)),
                     lines: run.flatMap((q) => q.text?.lines ?? [q.box]),
                 },
             };

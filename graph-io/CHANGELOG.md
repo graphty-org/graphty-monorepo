@@ -1,3 +1,14 @@
+## 0.3.46 (2026-10-19)
+
+### 🩹 Fixes
+
+- **graph-io:** keep Pajek's vertex borders visible by giving lines no default width ([ae2702d07](https://github.com/graphty-org/graphty-monorepo/commit/ae2702d07))
+- **graph-io:** read Pajek's own color names and its border, label and line defaults ([#2493](https://github.com/graphty-org/graphty-monorepo/issues/2493))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.3.45 (2026-10-18)
 
 ### 🩹 Fixes

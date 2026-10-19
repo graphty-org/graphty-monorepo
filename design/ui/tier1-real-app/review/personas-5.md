@@ -14,17 +14,14 @@ concrete task that needs it. Paths are relative to the worktree root; element pa
 RunResult | RunId` exists so callers pass whatever they hold (types.ts:896-904), and
    `session.results.path(run)` already defaults to the shape's primary field
    (session/results/ResultsApi.ts:225-246). Item 5 takes bare `Path` strings and its example
-   hand-types `"results.pagerank.value"`. That literal is wrong in three ordinary cases:
-    - The run id carries the scope, with the visibility filter frozen in
-      (docs/guide/algorithms.md:234-240). PageRank run under a filter is a different id.
-    - `as:` names a second parameter setting (algorithms.md:239-240), and "Betweenness, sampled
-      500" is a different id from the exact run (tier1-design.md:634-636).
-    - The primary field is `value` only for metrics. It is `group` for a community, `level`,
-      `category`, `onPath`, `in` or `pairs` for the other shapes (session/results/types.ts:387-475).
-      Fix: `columns: readonly (RunRef | { run: RunRef; field?: string })[]` and
-      `sort: { run: RunRef; field?: string; descending?: boolean }`, keeping the raw path as the
-      advanced form. With that, the simple example needs no internal concept:
-      `nodePage({ columns: [run], sort: { run, descending: true }, limit: 10 })`.
+   hand-types `"results.pagerank.value"`. That literal is wrong in three ordinary cases: - The run id carries the scope, with the visibility filter frozen in
+   (docs/guide/algorithms.md:234-240). PageRank run under a filter is a different id. - `as:` names a second parameter setting (algorithms.md:239-240), and "Betweenness, sampled
+   500" is a different id from the exact run (tier1-design.md:634-636). - The primary field is `value` only for metrics. It is `group` for a community, `level`,
+   `category`, `onPath`, `in` or `pairs` for the other shapes (session/results/types.ts:387-475).
+   Fix: `columns: readonly (RunRef | { run: RunRef; field?: string })[]` and
+   `sort: { run: RunRef; field?: string; descending?: boolean }`, keeping the raw path as the
+   advanced form. With that, the simple example needs no internal concept:
+   `nodePage({ columns: [run], sort: { run, descending: true }, limit: 10 })`.
 
 2. **Item 5 does not say which result fields a node page can hold.** A run publishes node,
    edge and graph fields (`FieldDescriptor.kind`, catalog/types.ts:296-307). Item 5 never says what

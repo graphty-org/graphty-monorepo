@@ -862,3 +862,40 @@ Open:
 - The comparator cannot see setting ids on GML (ids must be integers; the id is in each element's `comment`, or an
   OGDF node's `template`), so captions are judged as nodes and every Cytoscape caption's text, which Cytoscape
   measures with Java's fonts, shows as a label offset of 6 to 9 px.
+
+## Specimen sheets: what graphty-element now draws, and the rows still open (rendering round 1, 2026-10-18)
+
+graphty-element now draws, each as a style option with a channel, and graph-io maps the files onto them: arrow caps
+`half-circle`, `open-half-circle`, `curve`, `triangle-tee`, `triangle-cross`, `circle-triangle`; caps part-way along
+the line (`arrowMiddleHead`, `arrowMiddleTail`: Cytoscape.js `mid-*-arrow-*`, vis-network `arrows.middle`); end
+captions on the line at a distance from their node and in the label's size (`arrowHead.textDistance`: Cytoscape.js
+`source-text-offset`, `target-text-offset`); a node's outer border (`outerBorder`: Cytoscape.js `outline-*`); a band
+under an edge's line (`line.outline`: Cytoscape.js `line-outline-*`, vis-network `background` under a smooth edge);
+and lines painted in a linear or radial gradient (`line.gradient`: Cytoscape.js `line-fill` and its stops). The
+rows these sheets still fail, and why each cannot pass yet:
+
+- The comparator does not see a stroked arc drawn as an arrowhead: vis-network `curve` and `inv_curve`
+  (`vis-network-specimen-arrows`: `arrow-to-curve`, `arrow-from-curve`, `arrow-middle-curve`, `arrow-to-inv-curve`,
+  `arrow-from-inv-curve`, `arrow-middle-inv-curve`) and Cytoscape's OPEN_HALF_CIRCLE
+  (`{xgmml,cx,cx2,cys}-specimen-arrows` and `-mappings-bypass-p11`, target and source `open-half-circle`). Each
+  program draws the arc as one stroked path; the association keeps an arc as an arrowhead only when both its ends
+  land on one node and it is under half that node's size, which these are not, so the oracle has no arrow there and
+  graphty's cap fails `edge.arrow` (oracle false, graphty true). Comparator work.
+- The comparator reads a band drawn under a line as a second edge: `cytoscapejs-specimen-edges-lines`
+  `line-outline-width-2` and `line-outline-color-red` (and vis-network's background under a curved edge). The
+  oracle's `#g0` is the band and `#g1` the line; graphty draws one edge with its outline, so `#g1` fails
+  `edge.present` and `#g0` `edge.color` / `edge.width`. Comparator work: a wider stroke under a line along the same
+  path is that edge's outline.
+- Cytoscape.js's `circle-triangle` (a dot with a triangle behind it) is shape class "other" on both sides, which
+  matches nothing (`cytoscapejs-specimen-arrows` source, target and mid-target, `-arrows-p2` mid-source); the
+  mid-source `triangle-tee` and `triangle-cross` read "other" on the oracle side. Comparator work: classes for the
+  compound arrows.
+- vis-network `image` arrows (`vis-network-specimen-arrows`: `arrow-to-image`, `arrow-from-image`,
+  `arrow-middle-image`, `arrow-image-size`) draw nothing in graphty: graphty-element has no image cap yet (a cap
+  textured with the file's image); its oracle images are unassociated strays. graphty-element work.
+- Cytoscape.js `source-text-margin-x/-y` and `target-text-margin-x/-y` (`cytoscapejs-specimen-edge-labels`): an end
+  caption has no shift of its own yet. The node label offsets (`text-margin-x/-y`) are the import work's
+  `label-anchor-offset`; the end captions should take the same option once it exists.
+- Cytoscape.js `outline-style: dashed` reads as dotted (its dash lengths, the same as the border's `dash-pattern`
+  gap), and `outline-style: double` erases a band a third of the BORDER's width (Cytoscape.js drawOutline), so its
+  "double" outline is nearly solid, as `border-style-double` already is in this SVG.

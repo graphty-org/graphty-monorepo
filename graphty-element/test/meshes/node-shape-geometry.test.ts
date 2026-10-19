@@ -46,6 +46,16 @@ function boxOf(points: readonly Point2[]): { width: number; height: number } {
 /** The figures, whose heads cannot be seen from their middles past their shoulders. */
 const FIGURES = new Set(["man", "woman"]);
 
+/** The polygons drawn with rounded corners, which stay inside their box rather than fill it. */
+const ROUNDED = new Set([
+    "round-triangle",
+    "round-diamond",
+    "round-pentagon",
+    "round-hexagon",
+    "round-octagon",
+    "round-polygon",
+]);
+
 /**
  * The area inside an outline (shoelace), positive when it runs counter-clockwise.
  * @param outline - The outline.
@@ -56,7 +66,7 @@ function areaOf(outline: readonly Point2[]): number {
 }
 
 describe("flat shape outlines", () => {
-    for (const shape of FLAT_NODE_SHAPES.filter((name) => !FIGURES.has(name))) {
+    for (const shape of FLAT_NODE_SHAPES.filter((name) => !FIGURES.has(name) && !ROUNDED.has(name))) {
         test(`${shape} fills its box and can be fanned from its centre`, () => {
             const outline = flatShapeOutline(shape, 4, 1);
             const box = boxOf(outline);
@@ -90,6 +100,57 @@ describe("flat shape outlines", () => {
             assert.approximately(covered, areaOf(outline), 1e-9);
         });
     }
+
+    for (const shape of ROUNDED) {
+        test(`${shape} keeps inside its box, its corners cut back by arcs of the corner radius`, () => {
+            const sharp = flatShapeOutline(shape.slice("round-".length), 40, 30, undefined, "0,1 1,-1 -1,-1");
+            const outline = flatShapeOutline(shape, 40, 30, undefined, "0,1 1,-1 -1,-1");
+            const box = boxOf(outline);
+
+            assert.isAbove(outline.length, sharp.length, `${shape} has more points than its corners`);
+            assert.isAtMost(box.width, 40 + 1e-9);
+            assert.isAtMost(box.height, 30 + 1e-9);
+            // no corner of the sharp polygon is on the rounded one: each is cut back
+            for (const [x, y] of sharp) {
+                const nearest = Math.min(...outline.map(([u, v]) => Math.hypot(u - x, v - y)));
+                assert.isAbove(nearest, 0.1, `${shape} corner ${String(x)},${String(y)} is rounded`);
+            }
+            assert.isAbove(areaOf(outline), 0);
+            assert.isBelow(areaOf(outline), areaOf(sharp));
+        });
+    }
+
+    test("a rounded corner is an arc of the radius tangent to both sides", () => {
+        // a 20-wide square's corner rounded by 2, halved: the arc's points are 1 from (4, 4)
+        const outline = flatShapeOutline("round-polygon", 20, 20, 2, "1,1 -1,1 -1,-1 1,-1").map(([x, y]): Point2 => [
+            x / 2,
+            y / 2,
+        ]);
+        const corner = outline.filter(([x, y]) => x > 3 + 1e-9 && y > 3 + 1e-9);
+        assert.isAbove(corner.length, 2);
+        for (const [x, y] of corner) {
+            assert.approximately(Math.hypot(x - 4, y - 4), 1, 1e-9);
+        }
+        // never more than a tenth of the shorter side, set or unset
+        assert.deepEqual(
+            flatShapeOutline("round-polygon", 20, 20, 9, "1,1 -1,1 -1,-1 1,-1"),
+            flatShapeOutline("round-polygon", 20, 20, undefined, "1,1 -1,1 -1,-1 1,-1"),
+        );
+        const auto = flatShapeOutline("round-polygon", 10, 20, undefined, "1,1 -1,1 -1,-1 1,-1");
+        // a radius of 1: the top right corner (5, 10) becomes an arc round (4, 9)
+        assert.approximately(Math.max(...auto.map(([x, y]) => x + y)), 4 + 9 + Math.SQRT2, 1e-6);
+    });
+
+    test("a barrel and a database fill their box but not its corners", () => {
+        for (const shape of ["barrel", "database"]) {
+            const outline = flatShapeOutline(shape, 40, 30);
+            assert.deepEqual(boxOf(outline), { width: 40, height: 30 }, shape);
+            const corner = Math.min(...outline.map(([x, y]) => Math.hypot(x - 20, y - 15)));
+            assert.isAbove(corner, 1, `${shape} cuts its corner`);
+            assert.isBelow(areaOf(outline), 40 * 30);
+            assert.isAbove(areaOf(outline), 0.85 * 40 * 30, `${shape} fills most of its box`);
+        }
+    });
 
     test("a polygon keeps its corners where they are around its centre, the farthest reaching its sides", () => {
         // clockwise and lopsided: read counter-clockwise, stretched about the centre and not re-centred
@@ -268,7 +329,8 @@ describe("node extents", () => {
         return { x: extendSize.x * 2, y: extendSize.y * 2, z: extendSize.z * 2, centre: center.asArray() };
     }
 
-    for (const shape of NodeShapes.options) {
+    // a rounded polygon keeps inside the box of its sharp twin, as Cytoscape.js draws it
+    for (const shape of NodeShapes.options.filter((name) => !ROUNDED.has(name))) {
         test(`${shape} at one size covers the same extent across the view as every other shape`, () => {
             const { x, y, centre } = extentOf(build({ type: shape, size: 2 }));
 

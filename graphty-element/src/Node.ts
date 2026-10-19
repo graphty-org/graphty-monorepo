@@ -27,6 +27,11 @@ import type { GroupBox } from "./managers/LayoutManager";
 import { bootstrapNodePaint, type NodePaint } from "./managers/StylePainter";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { labelFitExtent } from "./meshes/labelFit";
+import {
+    createNodeDecorations,
+    type NodeDecorationMetadata,
+    type NodeDecorationPiece,
+} from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
@@ -342,6 +347,9 @@ export class Node {
     /** The node's outer border (`outerBorder`), a child of its mesh like its border, or null when its style draws none. */
     private outerBorder: AbstractMesh | null = null;
 
+    /** What is drawn over the node's face (`pie`, `stripes`, `image`), children of its mesh like its border. */
+    private decorations: AbstractMesh[] = [];
+
     /** How far the border reaches past the outline, in the units positions are laid out in. */
     private borderWidth = 0;
 
@@ -500,6 +508,7 @@ export class Node {
         };
 
         this.syncBorder(fit.meshKey, fit.style);
+        this.syncDecorations(fit.meshKey, fit.style);
 
         // create label
         this.syncLabel(o, true);
@@ -630,6 +639,48 @@ export class Node {
             this.outerBorder.parent = this.mesh;
             this.outerBorder.position.setAll(0);
         }
+    }
+
+    /**
+     * Build what this node draws over its face (its pie, stripes and image) from its style, as
+     * children of its mesh, so they move, hide and are disposed with the node. Called after every
+     * new mesh: the old ones went with the old mesh.
+     * @param meshKey - The source mesh key the node is drawn under.
+     * @param style - The resolved style.
+     */
+    private syncDecorations(meshKey: string, style: NodeStyleConfig): void {
+        for (const old of this.decorations) {
+            if (!old.isDisposed()) {
+                old.dispose();
+            }
+        }
+
+        const { pieces, image } = createNodeDecorations(
+            this.context.getMeshCache(),
+            `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
+            style,
+            this.size,
+            this.mesh,
+            this.context.getScene(),
+        );
+        this.decorations = [pieces, image].filter((m): m is InstancedMesh => m !== null);
+        for (const mesh of this.decorations) {
+            mesh.parent = this.mesh;
+            mesh.position.setAll(0);
+        }
+    }
+
+    /**
+     * What this node draws over its face, for a reader of the drawing: each piece's kind and its
+     * box in the node mesh's own plane.
+     * @returns The pieces, the colored ones first.
+     * @internal
+     */
+    get decorationPieces(): readonly NodeDecorationPiece[] {
+        return this.decorations.flatMap((mesh) => {
+            const source = "sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh;
+            return (source.metadata as Partial<NodeDecorationMetadata> | null)?.nodePieces ?? [];
+        });
     }
 
     /**
@@ -1224,6 +1275,7 @@ export class Node {
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);
         this.syncBorder(fit.meshKey, fit.style);
+        this.syncDecorations(fit.meshKey, fit.style);
 
         // Parent to graph-root for XR gesture support
         const graphRoot = this.context.getScene().getTransformNodeByName("graph-root");

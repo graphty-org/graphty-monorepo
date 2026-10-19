@@ -638,6 +638,35 @@ export class NodeMesh {
         return mesh;
     }
 
+    /**
+     * The outline of a node's fill as it is drawn, with the fill's width and height: what is drawn
+     * over the node's face (`pie`, `stripes`, `image`) is cut to it and sized by it.
+     * @param createOptions - The node's shape and border.
+     * @param size - The node's size, when its shape gives none.
+     * @param fill - The node's own mesh, whose outline a solid's face is.
+     * @returns The outline, counter-clockwise, and the fill's width and height, in world units.
+     * @internal
+     */
+    static faceOf(
+        createOptions: NodeMeshCreateOptions,
+        size: number,
+        fill: AbstractMesh,
+    ): { outline: Point2[]; width: number; height: number } {
+        const shape = createOptions.shape ?? {};
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? size, MIN_NODE_SIZE));
+        const extents = this.fillExtents(sized, this.borderFit(shape, createOptions.border, sized).inset);
+        const width = extents.x ?? extents.across;
+        const height = extents.y ?? extents.across;
+        // a node with no body has its box for a face
+        const flat = shape.type !== undefined && isFlatShape(shape.type);
+        let outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
+        if (shape.type === "none") {
+            outline = flatShapeOutline("rectangle", width, height);
+        }
+
+        return { outline, width, height };
+    }
+
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
         const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
 

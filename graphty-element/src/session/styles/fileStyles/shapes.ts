@@ -22,8 +22,9 @@ export type FileStyleShapeTable = Readonly<Record<string, string>>;
 /**
  * The default shape table. Every 2D shape is drawn as the element's own flat shape of the same
  * name, exactly: `none` as a node with no body, which draws only its label, and Pajek's cross,
- * house, man and woman (`other:cross`, `other:house`, `other:man`, `other:woman`) as the element's
- * shapes of those names.
+ * house, man and woman (`other:cross`, `other:house`, `other:man`, `other:woman`), Cytoscape.js's
+ * rounded polygons and barrel (`other:round-triangle` ... `other:round-polygon`, `other:barrel`) and
+ * vis-network's database (`other:database`) as the element's shapes of those names.
  */
 export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     ellipse: "ellipse",
@@ -44,6 +45,17 @@ export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     "other:house": "house",
     "other:man": "man",
     "other:woman": "woman",
+    // Cytoscape.js's rounded polygons and barrel, and vis-network's database
+    "other:round-triangle": "round-triangle",
+    "other:round-diamond": "round-diamond",
+    "other:round-pentagon": "round-pentagon",
+    "other:round-hexagon": "round-hexagon",
+    "other:round-octagon": "round-octagon",
+    "other:round-polygon": "round-polygon",
+    "other:barrel": "barrel",
+    "other:database": "database",
+    // vis-network's icon node draws its icon's glyph and no body: drawn as a node with no body, its glyph left out
+    "other:icon": "none",
 });
 
 /** The element's line pattern for each line style of a file. */

@@ -248,6 +248,14 @@ const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.option
 export type NodeLabelFitValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["labelFit"]>;
 
 /** How an edge's gradient runs (`edge.gradientKind`): along the line, out from its middle, or none. */
+/** How a node's image is sized against the node. */
+export type NodeImageFitValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["fit"]>;
+/** Whether and which way a node's image is tiled. */
+export type NodeImageRepeatValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["repeat"]>;
+/** Whether a node's image is kept inside the node's outline. */
+export type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
+/** Which way a node's stripes follow one another. */
+export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["stripes"]>["direction"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 
 /** A line style a node border can be drawn in. */
@@ -329,6 +337,32 @@ export interface ChannelValues {
     "node.labelFitSquare": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
+    "node.image": string;
+    "node.imageFallback": string;
+    "node.imageFit": NodeImageFitValue;
+    "node.imageWidth": number;
+    "node.imageHeight": number;
+    "node.imagePixelSize": number;
+    "node.imagePositionX": number;
+    "node.imagePositionY": number;
+    "node.imageOffsetX": number;
+    "node.imageOffsetY": number;
+    "node.imageRepeat": NodeImageRepeatValue;
+    "node.imageClip": NodeImageClipValue;
+    "node.imageSmoothing": boolean;
+    "node.imageOpacity": number;
+    "node.pieColors": string;
+    "node.pieSizes": string;
+    "node.pieOpacities": string;
+    "node.pieRadius": number;
+    "node.pieHole": number;
+    "node.pieRotation": number;
+    "node.pieFitBox": boolean;
+    "node.stripeColors": string;
+    "node.stripeSizes": string;
+    "node.stripeOpacities": string;
+    "node.stripeDirection": NodeStripeDirectionValue;
+    "node.stripeSize": number;
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -554,6 +588,36 @@ const EDGE_OUTLINE_CAVEAT =
     "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline and " +
     "vis-network an edge background. Drawn only with a width above 0, and under solid lines: a dotted " +
     "or dashed line drawn as separate pieces has none.";
+
+const NODE_IMAGE_CAVEAT =
+    "A picture drawn over the node's face from `node.image`, its URL (a data: URL too). " +
+    '`node.imageFit` sizes it: "contain" keeps its proportions inside the node, "cover" over the whole ' +
+    'node, "fill" stretches it, "none" draws it at `node.imageWidth` x `node.imageHeight` or its own ' +
+    "pixels at `node.imagePixelSize` each. `node.imagePositionX` / `-Y` place it across the room left " +
+    "(0 to 1), `node.imageOffsetX` / `-Y` move it (y down), in the units of `node.size`. A node of " +
+    'shape "none" with an image is drawn as the image.';
+
+/** How a node's image is sized. */
+const NODE_IMAGE_FIT_VALUES: readonly NodeImageFitValue[] = ["contain", "cover", "fill", "none"];
+/** How a node's image is tiled. */
+const NODE_IMAGE_REPEAT_VALUES: readonly NodeImageRepeatValue[] = ["no-repeat", "repeat", "repeat-x", "repeat-y"];
+/** Whether a node's image is clipped to the node. */
+const NODE_IMAGE_CLIP_VALUES: readonly NodeImageClipValue[] = ["node", "none"];
+/** Which way a node's stripes run. */
+const NODE_STRIPE_DIRECTION_VALUES: readonly NodeStripeDirectionValue[] = ["down", "right"];
+
+const NODE_PIE_CAVEAT =
+    "A pie chart over the node's face: `node.pieColors` are CSS colors separated by spaces, one slice " +
+    "each, `node.pieSizes` each slice's share of the turn (fractions separated by spaces; a slice with " +
+    "none shares what is left), `node.pieOpacities` each one's opacity. The disc is `node.pieRadius` " +
+    "times half the node's shorter side (the ellipse filling the node with `node.pieFitBox`), " +
+    "`node.pieHole` cuts out that fraction of the radius, and the slices run clockwise from " +
+    "`node.pieRotation` degrees clockwise from 12 o'clock.";
+
+const NODE_STRIPES_CAVEAT =
+    "Bands of color over the node's face, inside its outline: `node.stripeColors`, `node.stripeSizes` " +
+    'and `node.stripeOpacities` as a pie\'s, following one another top to bottom ("down") or left to ' +
+    'right ("right", `node.stripeDirection`), over a box `node.stripeSize` times the node\'s.';
 
 const NODE_OUTER_BORDER_CAVEAT =
     "A second ring outside the node's border, `node.outerBorderOffset` beyond the border's outer edge " +
@@ -1395,6 +1459,320 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "outerBorder.offset",
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
+    },
+    "node.image": {
+        channel: "node.image",
+        target: "node",
+        plainName: "Node Image",
+        shortName: "Image",
+        group: "shape",
+        accepts: "text",
+        stylePath: "image.src",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageFallback": {
+        channel: "node.imageFallback",
+        target: "node",
+        plainName: "Node Image Fallback",
+        shortName: "Image fallback",
+        group: "shape",
+        accepts: "text",
+        stylePath: "image.fallback",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageFit": {
+        channel: "node.imageFit",
+        target: "node",
+        plainName: "Node Image Fit",
+        shortName: "Image fit",
+        group: "shape",
+        default: "contain",
+        accepts: "enum",
+        values: NODE_IMAGE_FIT_VALUES,
+        stylePath: "image.fit",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageWidth": {
+        channel: "node.imageWidth",
+        target: "node",
+        plainName: "Node Image Width",
+        shortName: "Image width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "image.width",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageHeight": {
+        channel: "node.imageHeight",
+        target: "node",
+        plainName: "Node Image Height",
+        shortName: "Image height",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "image.height",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imagePixelSize": {
+        channel: "node.imagePixelSize",
+        target: "node",
+        plainName: "Node Image Pixel Size",
+        shortName: "Image pixel size",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "image.pixelSize",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imagePositionX": {
+        channel: "node.imagePositionX",
+        target: "node",
+        plainName: "Node Image Position X",
+        shortName: "Image position x",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "image.positionX",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imagePositionY": {
+        channel: "node.imagePositionY",
+        target: "node",
+        plainName: "Node Image Position Y",
+        shortName: "Image position y",
+        group: "shape",
+        default: 0.5,
+        accepts: "number",
+        stylePath: "image.positionY",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageOffsetX": {
+        channel: "node.imageOffsetX",
+        target: "node",
+        plainName: "Node Image Offset X",
+        shortName: "Image offset x",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "image.offsetX",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageOffsetY": {
+        channel: "node.imageOffsetY",
+        target: "node",
+        plainName: "Node Image Offset Y",
+        shortName: "Image offset y",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "image.offsetY",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageRepeat": {
+        channel: "node.imageRepeat",
+        target: "node",
+        plainName: "Node Image Repeat",
+        shortName: "Image repeat",
+        group: "shape",
+        default: "no-repeat",
+        accepts: "enum",
+        values: NODE_IMAGE_REPEAT_VALUES,
+        stylePath: "image.repeat",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageClip": {
+        channel: "node.imageClip",
+        target: "node",
+        plainName: "Node Image Clip",
+        shortName: "Image clip",
+        group: "shape",
+        default: "node",
+        accepts: "enum",
+        values: NODE_IMAGE_CLIP_VALUES,
+        stylePath: "image.clip",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageSmoothing": {
+        channel: "node.imageSmoothing",
+        target: "node",
+        plainName: "Node Image Smoothing",
+        shortName: "Image smoothing",
+        group: "shape",
+        default: true,
+        accepts: "boolean",
+        stylePath: "image.smoothing",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.imageOpacity": {
+        channel: "node.imageOpacity",
+        target: "node",
+        plainName: "Node Image Opacity",
+        shortName: "Image opacity",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "image.opacity",
+        renderable: true,
+        caveat: NODE_IMAGE_CAVEAT,
+    },
+    "node.pieColors": {
+        channel: "node.pieColors",
+        target: "node",
+        plainName: "Node Pie Colors",
+        shortName: "Pie colors",
+        group: "shape",
+        accepts: "text",
+        stylePath: "pie.colors",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieSizes": {
+        channel: "node.pieSizes",
+        target: "node",
+        plainName: "Node Pie Sizes",
+        shortName: "Pie sizes",
+        group: "shape",
+        accepts: "text",
+        stylePath: "pie.sizes",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieOpacities": {
+        channel: "node.pieOpacities",
+        target: "node",
+        plainName: "Node Pie Opacities",
+        shortName: "Pie opacities",
+        group: "shape",
+        accepts: "text",
+        stylePath: "pie.opacities",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieRadius": {
+        channel: "node.pieRadius",
+        target: "node",
+        plainName: "Node Pie Radius",
+        shortName: "Pie radius",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "pie.radius",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieHole": {
+        channel: "node.pieHole",
+        target: "node",
+        plainName: "Node Pie Hole",
+        shortName: "Pie hole",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "pie.hole",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieRotation": {
+        channel: "node.pieRotation",
+        target: "node",
+        plainName: "Node Pie Rotation",
+        shortName: "Pie rotation",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        stylePath: "pie.rotation",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.pieFitBox": {
+        channel: "node.pieFitBox",
+        target: "node",
+        plainName: "Node Pie Fit Box",
+        shortName: "Pie fit box",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "pie.fitBox",
+        renderable: true,
+        caveat: NODE_PIE_CAVEAT,
+    },
+    "node.stripeColors": {
+        channel: "node.stripeColors",
+        target: "node",
+        plainName: "Node Stripe Colors",
+        shortName: "Stripe colors",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.colors",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeSizes": {
+        channel: "node.stripeSizes",
+        target: "node",
+        plainName: "Node Stripe Sizes",
+        shortName: "Stripe sizes",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.sizes",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeOpacities": {
+        channel: "node.stripeOpacities",
+        target: "node",
+        plainName: "Node Stripe Opacities",
+        shortName: "Stripe opacities",
+        group: "shape",
+        accepts: "text",
+        stylePath: "stripes.opacities",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeDirection": {
+        channel: "node.stripeDirection",
+        target: "node",
+        plainName: "Node Stripe Direction",
+        shortName: "Stripe direction",
+        group: "shape",
+        default: "down",
+        accepts: "enum",
+        values: NODE_STRIPE_DIRECTION_VALUES,
+        stylePath: "stripes.direction",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
+    },
+    "node.stripeSize": {
+        channel: "node.stripeSize",
+        target: "node",
+        plainName: "Node Stripe Size",
+        shortName: "Stripe size",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        stylePath: "stripes.size",
+        renderable: true,
+        caveat: NODE_STRIPES_CAVEAT,
     },
     "node.cornerRadius": {
         channel: "node.cornerRadius",

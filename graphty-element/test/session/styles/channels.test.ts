@@ -69,6 +69,32 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.image",
+    "node.imageFallback",
+    "node.imageFit",
+    "node.imageWidth",
+    "node.imageHeight",
+    "node.imagePixelSize",
+    "node.imagePositionX",
+    "node.imagePositionY",
+    "node.imageOffsetX",
+    "node.imageOffsetY",
+    "node.imageRepeat",
+    "node.imageClip",
+    "node.imageSmoothing",
+    "node.imageOpacity",
+    "node.pieColors",
+    "node.pieSizes",
+    "node.pieOpacities",
+    "node.pieRadius",
+    "node.pieHole",
+    "node.pieRotation",
+    "node.pieFitBox",
+    "node.stripeColors",
+    "node.stripeSizes",
+    "node.stripeOpacities",
+    "node.stripeDirection",
+    "node.stripeSize",
     "node.cornerRadius",
     "node.shapePoints",
     "node.labelFit",
@@ -168,8 +194,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into fifty-two node channels and sixty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 52);
+    it("splits into seventy-eight node channels and sixty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 78);
         assert.strictEqual(channelsFor("edge").length, 65);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -379,6 +405,19 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
         "node.shapePoints",
+        // Unset, a node draws no image, pie or stripes over its face; the sizes and opacities of slices and
+        // bands, and an image's width, height and pixel size, follow from the rest.
+        "node.image",
+        "node.imageFallback",
+        "node.imageWidth",
+        "node.imageHeight",
+        "node.imagePixelSize",
+        "node.pieColors",
+        "node.pieSizes",
+        "node.pieOpacities",
+        "node.stripeColors",
+        "node.stripeSizes",
+        "node.stripeOpacities",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.

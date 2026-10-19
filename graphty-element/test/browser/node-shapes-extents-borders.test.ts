@@ -457,7 +457,9 @@ describe("one extent for every shape (#2495)", () => {
         const projected = new Map<string, number>();
         const rasterised = new Map<string, number>();
 
-        for (const shape of NodeShapes.options) {
+        // a rounded polygon keeps inside its sharp twin's box, as Cytoscape.js draws it, so it is
+        // smaller across than the rest: test/meshes/node-shape-geometry.test.ts holds it to that box
+        for (const shape of NodeShapes.options.filter((name) => !/^round-(?!rectangle)/.test(name))) {
             const layer = await element.session.styles.add(layerFor(["probe"], { "node.shape": shape }));
             await operationQueueOf(element.graph).waitForCompletion();
             const red = pixelsOf(await frameOf(element), isTouchedByRed);

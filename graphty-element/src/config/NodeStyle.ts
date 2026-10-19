@@ -104,6 +104,18 @@ export const NodeShapes = z.enum([
     "man",
     "woman",
     "none",
+    // Polygons with rounded corners (Cytoscape.js round-*), a tenth of the shorter side round and
+    // never more than `shape.cornerRadius`; "round-polygon" rounds the corners of `shape.points`.
+    "round-triangle",
+    "round-diamond",
+    "round-pentagon",
+    "round-hexagon",
+    "round-octagon",
+    "round-polygon",
+    // A box with shallow curved corners (Cytoscape.js barrel), and a cylinder seen from the side
+    // (vis-network database, a flowchart's stored data).
+    "barrel",
+    "database",
 ]);
 
 /**
@@ -131,6 +143,14 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "man",
     "woman",
     "none",
+    "round-triangle",
+    "round-diamond",
+    "round-pentagon",
+    "round-hexagon",
+    "round-octagon",
+    "round-polygon",
+    "barrel",
+    "database",
 ];
 
 /** The line styles a node border is drawn in. @public */
@@ -186,6 +206,7 @@ export const NodeStyle = z.strictObject({
             drawOrder: z.number().min(0).max(100).optional(),
             // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
             // corners are a quarter of the shorter side; set, they are never larger than that.
+            // The round-* polygons' corners are a tenth of the shorter side, never larger than it.
             cornerRadius: z.number().nonnegative().optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
@@ -282,6 +303,73 @@ export const NodeStyle = z.strictObject({
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
+        })
+        .optional(),
+    /**
+     * A picture drawn over the node's face (Cytoscape.js `background-image`, vis-network's image
+     * nodes, yEd's image nodes, Cytoscape's image custom graphics). `src` is its URL (a `data:`
+     * URL too), and `fallback` the picture drawn when that one cannot be loaded. `fit` sizes it: "contain" (the default) keeps its proportions inside the node,
+     * "cover" keeps them over the whole node, "fill" stretches it to the node, "none" draws it at
+     * `width` x `height` (one of them keeps its proportions), or at its own pixels times
+     * `pixelSize` each. `positionX` / `positionY` place it across the room the node leaves (0 the
+     * left or top, 0.5 the middle, the default, 1 the right or bottom), `offsetX` / `offsetY` move
+     * it (y down); lengths are in the units of `shape.size`. `repeat` tiles it ("repeat",
+     * "repeat-x", "repeat-y"; "no-repeat" the default), `clip` "node" (the default) keeps it inside
+     * the node's outline and "none" lets it reach past, `smoothing` false draws its pixels as
+     * squares, and `opacity` is 0..1. A node with shape "none" and an image is drawn as the image.
+     */
+    image: z
+        .strictObject({
+            src: z.string().optional(),
+            fallback: z.string().optional(),
+            fit: z.enum(["contain", "cover", "fill", "none"]).optional(),
+            width: z.number().nonnegative().optional(),
+            height: z.number().nonnegative().optional(),
+            pixelSize: z.number().nonnegative().optional(),
+            positionX: z.number().optional(),
+            positionY: z.number().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
+            repeat: z.enum(["no-repeat", "repeat", "repeat-x", "repeat-y"]).optional(),
+            clip: z.enum(["node", "none"]).optional(),
+            smoothing: z.boolean().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * A pie chart drawn over the node's face (Cytoscape.js `pie-*`, Graphviz `style=wedged`,
+     * Cytoscape's pie and ring charts): `colors` are CSS colors separated by spaces, one slice
+     * each; `sizes` each slice's share of the turn as fractions separated by spaces (a slice with
+     * none shares what the others leave; the slices stop at a full turn); `opacities` each
+     * slice's, 0..1. The disc is `radius` (default 1) times half the node's shorter side, or the
+     * ellipse filling the node with `fitBox`; `hole` cuts a hole that fraction of the radius out
+     * of its middle (a ring); the slices run clockwise from `rotation` degrees clockwise from 12
+     * o'clock (default 0).
+     */
+    pie: z
+        .strictObject({
+            colors: z.string().optional(),
+            sizes: z.string().optional(),
+            opacities: z.string().optional(),
+            radius: z.number().nonnegative().optional(),
+            hole: z.number().min(0).max(1).optional(),
+            rotation: z.number().optional(),
+            fitBox: z.boolean().optional(),
+        })
+        .optional(),
+    /**
+     * Bands of color drawn over the node's face, inside its outline (Cytoscape.js `stripe-*`,
+     * Graphviz `style=striped`): `colors`, `sizes` and `opacities` as a pie's, the bands following
+     * one another top to bottom (`direction` "down", the default) or left to right ("right"),
+     * over a box `size` (default 1) times the node's, centred on it.
+     */
+    stripes: z
+        .strictObject({
+            colors: z.string().optional(),
+            sizes: z.string().optional(),
+            opacities: z.string().optional(),
+            direction: z.enum(["down", "right"]).optional(),
+            size: z.number().nonnegative().optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

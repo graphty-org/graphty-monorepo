@@ -272,6 +272,16 @@ export function polygonReach(points: readonly Point2[]): [number, number] {
     return [Math.max(...points.map(([x]) => Math.abs(x))), Math.max(...points.map(([, y]) => Math.abs(y)))];
 }
 
+/** The polygons drawn with rounded corners, by the name of their rounded shape. */
+const ROUNDED: Readonly<Record<string, string>> = {
+    "round-triangle": "triangle",
+    "round-diamond": "diamond",
+    "round-pentagon": "pentagon",
+    "round-hexagon": "hexagon",
+    "round-octagon": "octagon",
+    "round-polygon": "polygon",
+};
+
 /**
  * Whether a shape name is one of the flat outlines this module draws.
  * @param shape - A node shape name.
@@ -283,8 +293,115 @@ export function isFlatShape(shape: string): boolean {
         shape === "round-rectangle" ||
         shape === "none" ||
         shape === "polygon" ||
+        shape === "barrel" ||
+        shape === "database" ||
+        Object.hasOwn(ROUNDED, shape) ||
         Object.hasOwn(UNIT_OUTLINES, shape)
     );
+}
+
+/**
+ * A polygon with every corner rounded by a circular arc of one radius, the arc meeting both sides
+ * where they touch it (Cytoscape.js's round polygons, `getRoundCorner`): a corner whose sides are
+ * too short for the radius gets the largest arc that fits in half of each side.
+ * @param corners - The polygon, counter-clockwise.
+ * @param radius - The arc's radius.
+ * @returns The rounded outline, counter-clockwise.
+ */
+export function roundCorners(corners: readonly Point2[], radius: number): Point2[] {
+    if (!(radius > 0)) {
+        return [...corners];
+    }
+
+    const out: Point2[] = [];
+    corners.forEach((p, i) => {
+        const a = corners[(i + corners.length - 1) % corners.length];
+        const b = corners[(i + 1) % corners.length];
+        const l1 = Math.hypot(a[0] - p[0], a[1] - p[1]);
+        const l2 = Math.hypot(b[0] - p[0], b[1] - p[1]);
+        const u1: Point2 = [(a[0] - p[0]) / l1, (a[1] - p[1]) / l1];
+        const u2: Point2 = [(b[0] - p[0]) / l2, (b[1] - p[1]) / l2];
+        const angle = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
+        if (!(l1 > 0 && l2 > 0) || angle < 1e-6 || Math.PI - angle < 1e-6) {
+            out.push(p);
+            return;
+        }
+
+        const half = angle / 2;
+        const along = Math.min(radius / Math.tan(half), l1 / 2, l2 / 2);
+        const r = along * Math.tan(half);
+        const bisector = Math.hypot(u1[0] + u2[0], u1[1] + u2[1]);
+        const toCenter = r / Math.sin(half);
+        const c: Point2 = [
+            p[0] + ((u1[0] + u2[0]) / bisector) * toCenter,
+            p[1] + ((u1[1] + u2[1]) / bisector) * toCenter,
+        ];
+        const from = Math.atan2(p[1] + u1[1] * along - c[1], p[0] + u1[0] * along - c[0]);
+        let sweep = Math.atan2(p[1] + u2[1] * along - c[1], p[0] + u2[0] * along - c[0]) - from;
+        // the short way round: the arc turns by the corner's exterior angle, under half a turn
+        sweep -= 2 * Math.PI * Math.round(sweep / (2 * Math.PI));
+        for (let step = 0; step <= ARC_STEPS; step++) {
+            const t = from + (sweep * step) / ARC_STEPS;
+            out.push([c[0] + r * Math.cos(t), c[1] + r * Math.sin(t)]);
+        }
+    });
+
+    return out;
+}
+
+/**
+ * A barrel filling a box: a rectangle whose corners are cut back by a quarter of its width and a
+ * twentieth of its height with shallow curves (Cytoscape.js's `barrel`, `drawBarrelPath`).
+ * @param halfWidth - Half the box's width.
+ * @param halfHeight - Half its height.
+ * @returns The outline, counter-clockwise.
+ */
+function barrel(halfWidth: number, halfHeight: number): Point2[] {
+    // ponytail: Cytoscape.js caps the cut at 100 x 15 px; a barrel wider than 400 px cuts deeper here
+    const w = 0.5 * halfWidth;
+    const h = 0.1 * halfHeight;
+    const ctrl = 0.05 * w;
+    /**
+     * One corner's quadratic curve, from its side to its top or bottom.
+     * @param sx - Which side: 1 right, -1 left.
+     * @param sy - Which end: 1 top, -1 bottom.
+     * @returns The curve's points.
+     */
+    const corner = (sx: number, sy: number): Point2[] => {
+        const p0: Point2 = [sx * halfWidth, sy * (halfHeight - h)];
+        const p1: Point2 = [sx * (halfWidth - ctrl), sy * halfHeight];
+        const p2: Point2 = [sx * (halfWidth - w), sy * halfHeight];
+        return Array.from({ length: ARC_STEPS + 1 }, (_, i): Point2 => {
+            const t = i / ARC_STEPS;
+            const [k0, k1, k2] = [(1 - t) * (1 - t), 2 * t * (1 - t), t * t];
+            return [k0 * p0[0] + k1 * p1[0] + k2 * p2[0], k0 * p0[1] + k1 * p1[1] + k2 * p2[1]];
+        });
+    };
+    const flip = (points: Point2[]): Point2[] => [...points].reverse();
+
+    // counter-clockwise from the right side's bottom: up the right, along the top, down the left, along the bottom
+    return [...flip(corner(1, -1)), ...corner(1, 1), ...flip(corner(-1, 1)), ...corner(-1, -1)];
+}
+
+/**
+ * A cylinder seen from the side, filling a box: its sides straight, its top and bottom the near
+ * halves of ellipses a sixth of its height deep (vis-network's `database`, a flowchart's stored data).
+ * @param halfWidth - Half the box's width.
+ * @param halfHeight - Half its height.
+ * @returns The outline, counter-clockwise.
+ */
+function database(halfWidth: number, halfHeight: number): Point2[] {
+    // vis-network's `database`: the ellipse at each end is a third of the height tall
+    const cap = halfHeight / 3;
+    const steps = ARC_STEPS * 2;
+    const arc = (cy: number, from: number): Point2[] =>
+        Array.from({ length: steps + 1 }, (_, i): Point2 => {
+            const t = from + (Math.PI * i) / steps;
+            return [halfWidth * Math.cos(t), cy + cap * Math.sin(t)];
+        });
+
+    // the top's upper half (right to left), then the bottom's lower half (left to right)
+    return [...arc(halfHeight - cap, 0), ...arc(-halfHeight + cap, Math.PI)];
 }
 
 /**
@@ -326,6 +443,26 @@ export function flatShapeOutline(
 
     if (shape === "round-rectangle") {
         return roundRectangle(halfWidth, halfHeight, cornerRadius);
+    }
+
+    const sharp = ROUNDED[shape] as string | undefined;
+    if (sharp !== undefined) {
+        // a tenth of the shorter side, as Cytoscape.js rounds its polygons, never more than the
+        // corner radius (as a round-rectangle's corners are capped)
+        // ponytail: a radius set above a tenth is drawn at the tenth, where Cytoscape.js draws a set
+        // `corner-radius` as given; let a set radius pass when a file needs it
+        return roundCorners(
+            flatShapeOutline(sharp, width, height, undefined, points),
+            Math.min(Math.min(width, height) / 10, cornerRadius ?? Infinity),
+        );
+    }
+
+    if (shape === "barrel") {
+        return barrel(halfWidth, halfHeight);
+    }
+
+    if (shape === "database") {
+        return database(halfWidth, halfHeight);
     }
 
     // A node with no body still takes up its box, for its label and the edges that meet it.

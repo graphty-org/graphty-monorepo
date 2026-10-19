@@ -30,6 +30,7 @@ import type { Graph } from "../../src/Graph";
 import type { AnnotationMeshMetadata } from "../../src/meshes/AnnotationMeshes";
 import type { ArrowCap, ArrowCapBatch } from "../../src/meshes/ArrowCapBatch";
 import type { EdgeLineBatch } from "../../src/meshes/EdgeLineBatch";
+import type { NodeDecorationPiece } from "../../src/meshes/NodeDecorationMesh";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
@@ -191,6 +192,42 @@ interface NodeInternals {
     border: AbstractMesh | null;
     outerBorder: AbstractMesh | null;
     drawnStyle: NodeStyleConfig | null;
+    decorationPieces: readonly NodeDecorationPiece[];
+}
+
+/**
+ * What a node draws over its face (its pie slices, stripes and image), each piece's screen box.
+ * @param node - the node
+ * @param p - the projector
+ * @returns the pieces
+ */
+function readPieces(node: Node, p: Projector): { kind: "shape" | "image"; box: ScreenBox }[] {
+    const pieces = (node as unknown as NodeInternals).decorationPieces;
+    if (pieces.length === 0 || !node.mesh.isEnabled()) {
+        return [];
+    }
+    const world = node.mesh.computeWorldMatrix(true);
+    const z = 0;
+    return pieces.map((piece) => {
+        const { x0, y0, x1, y1 } = piece.box;
+        const corners = [
+            [x0, y0],
+            [x1, y0],
+            [x0, y1],
+            [x1, y1],
+        ].map(([x, y]) => p.point(Vector3.TransformCoordinates(new Vector3(x, y, z), world)));
+        return {
+            kind: piece.kind,
+            box: {
+                x0: Math.min(...corners.map((c) => c.x)),
+                x1: Math.max(...corners.map((c) => c.x)),
+                y0: Math.min(...corners.map((c) => c.y)),
+                y1: Math.max(...corners.map((c) => c.y)),
+                near: Math.min(...corners.map((c) => c.depth)),
+                far: Math.max(...corners.map((c) => c.depth)),
+            },
+        };
+    });
 }
 interface LabelInternals {
     actualDimensions: { width: number; height: number };
@@ -540,6 +577,8 @@ export interface DrawnNode {
     insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
+    /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
+    pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     label: DrawnLabel | null;
 }
 
@@ -704,10 +743,21 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
     const shown = (mesh.isVisible && source.visibility > 0) || border !== null;
+    const pieces = readPieces(node, p);
+    // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
+    // image nodes), or not at all, its label alone (vis-network's text nodes)
+    const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
+    const drawnBox = picture?.box ?? {
+        ...box,
+        x0: box.x0 - grow,
+        y0: box.y0 - grow,
+        x1: box.x1 + grow,
+        y1: box.y1 + grow,
+    };
     return {
-        x: center.x,
-        y: center.y,
-        box: { ...box, x0: box.x0 - grow, y0: box.y0 - grow, x1: box.x1 + grow, y1: box.y1 + grow },
+        x: picture === undefined ? center.x : (picture.box.x0 + picture.box.x1) / 2,
+        y: picture === undefined ? center.y : (picture.box.y0 + picture.box.y1) / 2,
+        box: drawnBox,
         meshName: source.name,
         shapeType: node.shapeType,
         polygon: (node as unknown as NodeInternals).drawnStyle?.shape?.points,
@@ -716,12 +766,18 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         gradient: base?.texture === true,
         ramp,
         instanceColor: buffer !== undefined,
-        visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
+        visible:
+            node.getRenderState() === "visible" &&
+            mesh.isEnabled() &&
+            shown &&
+            (faces || border !== null || picture !== undefined),
         shown: node.getRenderState() === "visible" && mesh.isEnabled(),
         ring: ring ?? null,
         insetPx: readInset(node, p),
         border,
         label: readLabel(node.label, p),
+        // the image of a node with no body is the node itself
+        pieces: pieces.filter((piece) => piece !== picture),
     };
 }
 
@@ -992,10 +1048,12 @@ export function readDrawn(graph: Graph): DrawnGraph {
     for (const [id, edge] of dm.edges) {
         edges.set(id, readEdge(edge, p));
     }
+    // what a node draws over its face is drawn beside the node's own shape, as a file annotation is
+    const pieces = [...nodes.values()].flatMap((n) => (n.shown ? n.pieces : []));
     return {
         nodes,
         edges,
-        annotations: readAnnotations(scene, p),
+        annotations: [...readAnnotations(scene, p), ...pieces],
         background: { hex: hex(scene.clearColor), alpha: scene.clearColor.a },
         width: p.width,
         height: p.height,

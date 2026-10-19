@@ -3364,6 +3364,8 @@ class Node_2 {
     // @internal
     get borderReach(): number;
     get data(): AdHocData<string | number>;
+    // @internal
+    get decorationPieces(): readonly NodeDecorationPiece[];
     dispose(): void;
     // (undocumented)
     dragging: boolean;
@@ -3594,6 +3596,14 @@ export const NodeShapes: z.ZodEnum<{
     house: "house";
     man: "man";
     woman: "woman";
+    "round-triangle": "round-triangle";
+    "round-diamond": "round-diamond";
+    "round-pentagon": "round-pentagon";
+    "round-hexagon": "round-hexagon";
+    "round-octagon": "round-octagon";
+    "round-polygon": "round-polygon";
+    barrel: "barrel";
+    database: "database";
 }>;
 
 // @public
@@ -3648,6 +3658,14 @@ export const NodeStyle: z.ZodObject<{
             house: "house";
             man: "man";
             woman: "woman";
+            "round-triangle": "round-triangle";
+            "round-diamond": "round-diamond";
+            "round-pentagon": "round-pentagon";
+            "round-hexagon": "round-hexagon";
+            "round-octagon": "round-octagon";
+            "round-polygon": "round-polygon";
+            barrel: "barrel";
+            database: "database";
         }>>;
         width: z.ZodOptional<z.ZodNumber>;
         height: z.ZodOptional<z.ZodNumber>;
@@ -3723,6 +3741,54 @@ export const NodeStyle: z.ZodObject<{
             double: "double";
         }>>;
         offset: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    image: z.ZodOptional<z.ZodObject<{
+        src: z.ZodOptional<z.ZodString>;
+        fallback: z.ZodOptional<z.ZodString>;
+        fit: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            fill: "fill";
+            contain: "contain";
+            cover: "cover";
+        }>>;
+        width: z.ZodOptional<z.ZodNumber>;
+        height: z.ZodOptional<z.ZodNumber>;
+        pixelSize: z.ZodOptional<z.ZodNumber>;
+        positionX: z.ZodOptional<z.ZodNumber>;
+        positionY: z.ZodOptional<z.ZodNumber>;
+        offsetX: z.ZodOptional<z.ZodNumber>;
+        offsetY: z.ZodOptional<z.ZodNumber>;
+        repeat: z.ZodOptional<z.ZodEnum<{
+            repeat: "repeat";
+            "no-repeat": "no-repeat";
+            "repeat-x": "repeat-x";
+            "repeat-y": "repeat-y";
+        }>>;
+        clip: z.ZodOptional<z.ZodEnum<{
+            none: "none";
+            node: "node";
+        }>>;
+        smoothing: z.ZodOptional<z.ZodBoolean>;
+        opacity: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strict>>;
+    pie: z.ZodOptional<z.ZodObject<{
+        colors: z.ZodOptional<z.ZodString>;
+        sizes: z.ZodOptional<z.ZodString>;
+        opacities: z.ZodOptional<z.ZodString>;
+        radius: z.ZodOptional<z.ZodNumber>;
+        hole: z.ZodOptional<z.ZodNumber>;
+        rotation: z.ZodOptional<z.ZodNumber>;
+        fitBox: z.ZodOptional<z.ZodBoolean>;
+    }, z.core.$strict>>;
+    stripes: z.ZodOptional<z.ZodObject<{
+        colors: z.ZodOptional<z.ZodString>;
+        sizes: z.ZodOptional<z.ZodString>;
+        opacities: z.ZodOptional<z.ZodString>;
+        direction: z.ZodOptional<z.ZodEnum<{
+            right: "right";
+            down: "down";
+        }>>;
+        size: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     label: z.ZodOptional<z.ZodPrefault<z.ZodObject<{
         enabled: z.ZodOptional<z.ZodDefault<z.ZodBoolean>>;

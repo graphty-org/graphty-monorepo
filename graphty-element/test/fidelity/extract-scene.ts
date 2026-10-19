@@ -70,6 +70,10 @@ const SHAPES: ReadonlyMap<string, ShapeClass> = new Map<string, ShapeClass>([
     ["octagon", "octagon"],
     ["star", "star"],
     ["parallelogram", "parallelogram"],
+    // a box with curved corners and a cylinder seen from the side read as rounded rectangles; a
+    // rounded polygon is a curved shape of no class
+    ["barrel", "roundrect"],
+    ["database", "roundrect"],
 ]);
 
 /** The node mesh names that are shapes; a mesh built under another name is read by its node's shape. */

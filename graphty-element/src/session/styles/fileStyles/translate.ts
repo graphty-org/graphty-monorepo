@@ -531,6 +531,38 @@ function channelPlans(
             ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
             ["shapePoints", [id("node.shapePoints")]],
+            // An image drawn at its own size draws each of its pixels one of the file's lengths across.
+            [
+                "image",
+                [
+                    id("node.image"),
+                    { channel: "node.imagePixelSize", convert: () => round(factors.node), identity: false },
+                ],
+            ],
+            ["imageFit", [id("node.imageFit")]],
+            ["imageFallback", [id("node.imageFallback")]],
+            ["imageWidth", [length("node.imageWidth")]],
+            ["imageHeight", [length("node.imageHeight")]],
+            ["imagePositionX", [id("node.imagePositionX")]],
+            ["imagePositionY", [id("node.imagePositionY")]],
+            ["imageOffsetX", [length("node.imageOffsetX")]],
+            ["imageOffsetY", [length("node.imageOffsetY")]],
+            ["imageRepeat", [id("node.imageRepeat")]],
+            ["imageClip", [id("node.imageClip")]],
+            ["imageSmoothing", [id("node.imageSmoothing")]],
+            ["imageOpacity", [id("node.imageOpacity")]],
+            ["pieColors", [id("node.pieColors")]],
+            ["pieSizes", [id("node.pieSizes")]],
+            ["pieOpacities", [id("node.pieOpacities")]],
+            ["pieRadius", [id("node.pieRadius")]],
+            ["pieHole", [id("node.pieHole")]],
+            ["pieRotation", [id("node.pieRotation")]],
+            ["pieFitBox", [id("node.pieFitBox")]],
+            ["stripeColors", [id("node.stripeColors")]],
+            ["stripeSizes", [id("node.stripeSizes")]],
+            ["stripeOpacities", [id("node.stripeOpacities")]],
+            ["stripeDirection", [id("node.stripeDirection")]],
+            ["stripeSize", [id("node.stripeSize")]],
             // Drawn in a pass of their own (`#extents`), only where some node's sides differ.
             ["width", [length("node.width")]],
             ["height", [length("node.height")]],
@@ -789,7 +821,7 @@ function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): numb
 
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["image"]),
+    node: new Set(),
     edge: new Set(["tooltip"]),
 };
 

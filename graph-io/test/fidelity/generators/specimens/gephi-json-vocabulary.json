@@ -39,7 +39,7 @@
         },
         "attributes": {
             "kind": "map<string,string>",
-            "from": "every column that is not a property and not weight; written as {} when there are none; not drawn"
+            "from": "every column that is not a property and not weight; written as {} when there are none; not drawn. An older build of the plugin also wrote the weight column, titled Weight (the corpus export gephi-worldcup.json.gz has \"Weight\": \"1.0\" on every edge)"
         }
     },
     "notWritten": {

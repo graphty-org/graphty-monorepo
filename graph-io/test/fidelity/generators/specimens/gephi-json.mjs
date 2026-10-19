@@ -183,6 +183,9 @@ const SHEETS = {
             s("edge-attr-size", "attributes.size", "8", { attributes: { size: "8" } }),
             s("edge-attr-type", "attributes.type", "arrow", { attributes: { type: "arrow" } }),
             s("edge-attr-hidden", "attributes.hidden", "true", { attributes: { hidden: "true" } }),
+            // the weight column: an older plugin build wrote it as "Weight" (the corpus's gephi-worldcup export);
+            // the edge's drawn width is its size key, never this column
+            s("edge-attr-weight", "attributes.Weight", "8.0", { attributes: { Weight: "8.0" } }),
         ],
     },
     "specimen-edge-labels": {

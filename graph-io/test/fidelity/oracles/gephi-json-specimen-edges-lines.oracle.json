@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-edges-lines.json",
-    "fileSha256": "b4255b27608c9663db981c7478f7811c89937a54dadd16b7f627c49f3449b16d",
-    "svgSha256": "37712763f8d00d1f04ea44fa1d83f751fd7f88138067460c56e1e9bf975e5420",
+    "fileSha256": "7e41c43b461b2d0674337c909c517cc19b9c1598e1affc0b354fa870ff2b66e6",
+    "svgSha256": "02692886c0743c9fe581cf0724a5cf203972c4cbeb9713c8ffc9f7ddb300d3eb",
     "date": "2026-10-19",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 84,
-        "edges": 29,
-        "labelsShown": 27
+        "nodes": 87,
+        "edges": 30,
+        "labelsShown": 28
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -215,6 +215,13 @@
                 "y": 804.98851859364,
                 "r": 6.758620826334783,
                 "label": "attributes.hidden=true"
+            },
+            {
+                "id": "cap-edge-attr-weight",
+                "x": 600,
+                "y": 804.98851859364,
+                "r": 6.758620826334783,
+                "label": "attributes.Weight=8.0"
             },
             {
                 "id": "anchor-nw",
@@ -614,6 +621,20 @@
                 "y": 766.3678275408415,
                 "r": 5.793103565429814,
                 "label": null
+            },
+            {
+                "id": "edge-attr-weight-s",
+                "x": 563.3103446713809,
+                "y": 766.3678275408415,
+                "r": 5.793103565429814,
+                "label": null
+            },
+            {
+                "id": "edge-attr-weight-t",
+                "x": 636.689655328619,
+                "y": 766.3678275408415,
+                "r": 5.793103565429814,
+                "label": null
             }
         ],
         "edges": [
@@ -817,6 +838,13 @@
                 "id": "edge-attr-hidden",
                 "source": "edge-attr-hidden-s",
                 "target": "edge-attr-hidden-t",
+                "color": "rgb(80,80,80)",
+                "size": 1.5
+            },
+            {
+                "id": "edge-attr-weight",
+                "source": "edge-attr-weight-s",
+                "target": "edge-attr-weight-t",
                 "color": "rgb(80,80,80)",
                 "size": 1.5
             }

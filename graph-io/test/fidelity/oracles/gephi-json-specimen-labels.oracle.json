@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-labels.json",
-    "fileSha256": "eef4fe4a13bb541f52d80b99a8e33df2dce8921baa6019995a98fbdf0117220e",
-    "svgSha256": "61808d7e6e74f7a6f3f2a03fea50be67a88d286bf9c46ae3390233c3da18852d",
-    "date": "2026-10-18",
+    "fileSha256": "2e47be1e1943342fa95f92b7d6bddd2215fe5ba4e57733001f4e823f5c86c8f7",
+    "svgSha256": "fc0ac153f007bd748b90a936a1d6e38af4823042c0708d07f831be0cfe77f7e6",
+    "date": "2026-10-19",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 32,
+        "nodes": 34,
         "edges": 0,
-        "labelsShown": 24
+        "labelsShown": 25
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -124,6 +124,13 @@
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
                 "label": "label=Small (size=4)"
+            },
+            {
+                "id": "cap-attr-forcelabel",
+                "x": 1032.551725979509,
+                "y": 524.5862095957172,
+                "r": 6.758620826334783,
+                "label": "attributes.forceLabel=true"
             },
             {
                 "id": "anchor-nw",
@@ -247,6 +254,13 @@
             {
                 "id": "label-small-node",
                 "x": 816.2758629897545,
+                "y": 485.96551854291863,
+                "r": 3.862069043619876,
+                "label": null
+            },
+            {
+                "id": "attr-forcelabel",
+                "x": 1032.551725979509,
                 "y": 485.96551854291863,
                 "r": 3.862069043619876,
                 "label": null

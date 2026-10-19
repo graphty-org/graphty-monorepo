@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-node-sizes-opacity.json",
-    "fileSha256": "d0f08af9d2654c398826fa8f31f1a175b053466b648d3e66d85afe126697643b",
-    "svgSha256": "b8de562cc97c7baa1d14734dbdda62c702fd2813b98563f84f9cf0481e95e0fb",
-    "date": "2026-10-18",
+    "fileSha256": "a136dd45749969aadda193eda7b83a1533487423c0e69a651730cd17b3a30262",
+    "svgSha256": "9ffdaea2950acee9c660444cee469e9c85b00b78b52b730dccf41aaad824c58c",
+    "date": "2026-10-19",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 36,
+        "nodes": 40,
         "edges": 0,
-        "labelsShown": 16
+        "labelsShown": 18
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -138,6 +138,20 @@
                 "y": 722.5172512413099,
                 "r": 6.758620826334783,
                 "label": "attributes.x=0"
+            },
+            {
+                "id": "cap-attr-hidden",
+                "x": 383.7241370102455,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.hidden=true"
+            },
+            {
+                "id": "cap-attr-zindex",
+                "x": 600,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.zIndex=-1"
             },
             {
                 "id": "anchor-nw",
@@ -275,6 +289,20 @@
             {
                 "id": "attr-x",
                 "x": 167.44827402049097,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "attr-hidden",
+                "x": 383.7241370102455,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "attr-zindex",
+                "x": 600,
                 "y": 683.8965601885113,
                 "r": 17.379310696289444,
                 "label": null

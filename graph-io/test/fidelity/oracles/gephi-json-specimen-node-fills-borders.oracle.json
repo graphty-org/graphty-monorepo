@@ -13,16 +13,16 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/gephi-json/specimen-node-fills-borders.json",
-    "fileSha256": "2631b85000d5bafcb6ff3977c30c355b42b8ea94fc23dd906d5e17d85368e097",
-    "svgSha256": "e775cca0f5d8c551fb0116f0c60b9c776a62700814d22b308cfd6e070312a4b0",
-    "date": "2026-10-18",
+    "fileSha256": "6ab41416062c5f068e458ba263d97f91d7a23b22f694d865cc488f5b1e4b7bb2",
+    "svgSha256": "0ba45f80facb476aae331e88b9d4e441142f829442ead94f79c1b3d5dd90f593",
+    "date": "2026-10-19",
     "standIn": false,
     "determinism": "Math.random seeded (mulberry32, seed 1) and Date.now stopped at 2026-01-01T00:00:00Z before the library loads; pinned fonts (visual-fonts/fonts.conf); nothing removed from the SVG",
     "png": "tools/rasterize.mjs (resvg-js 2.6.2, over white, fonts from visual-fonts/fonts)",
     "observed": {
-        "nodes": 36,
+        "nodes": 38,
         "edges": 0,
-        "labelsShown": 16
+        "labelsShown": 17
     },
     "drawn": {
         "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
@@ -138,6 +138,13 @@
                 "y": 722.5172512413099,
                 "r": 6.758620826334783,
                 "label": "attributes.color=rgb(255,0,0)"
+            },
+            {
+                "id": "cap-attr-type",
+                "x": 383.7241370102455,
+                "y": 722.5172512413099,
+                "r": 6.758620826334783,
+                "label": "attributes.type=square"
             },
             {
                 "id": "anchor-nw",
@@ -275,6 +282,13 @@
             {
                 "id": "attr-color",
                 "x": 167.44827402049097,
+                "y": 683.8965601885113,
+                "r": 17.379310696289444,
+                "label": null
+            },
+            {
+                "id": "attr-type",
+                "x": 383.7241370102455,
                 "y": 683.8965601885113,
                 "r": 17.379310696289444,
                 "label": null

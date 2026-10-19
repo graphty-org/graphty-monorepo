@@ -995,3 +995,35 @@ to 7, `cytoscapejs-specimen-node-shapes` from 7 failing elements to 2, the Cytos
   (flowchart card, cloud, delay, display, document, manual input, paper type, stored data; BPMN data object and data
   store) still draw rectangles; graphty-element needs those outlines, then graph-io maps the configurations, and
   much of what the stand-in classes "roundrect" is draw.io's own rounding.
+
+## Specimen sheets: Gephi JSON
+
+The Gephi JSON specimen sheets (`graph-io/test/fidelity/specimens/gephi-json/`, written by
+`generators/specimens/gephi-json.mjs` the way the Gephi JSON Exporter plugin writes a file) drawn by sigma.js 4.0.1
+with its default settings (`tools/web/web-oracle.mjs sigma`, a raster oracle): the plugin has no drawing of its own,
+and sigma.js is the program its files are made for. The plugin writes only a node's `label`, `x`, `y`, `size`,
+`color` and an edge's `label`, `size`, `color`, beside an `attributes` record of the Gephi columns, so node shapes,
+arrows, groups, images and mappings are absent.
+
+Fixed in graph-io (2026-10-18):
+
+- A Gephi JSON file with no edges (every node-only sheet) was read as NetworkX node-link: graphty drew its own
+  circle layout with default blue nodes. A document whose first node has `id` and an `attributes` record, and no
+  edges, is now Gephi's.
+- A Gephi column named like a key sigma.js draws (`attributes.color`, `.size`, `.label`, `.x`, `.y`) shared that
+  key's column: `attr-label` drew "Column" as the label of a node with none, `attr-color` drew red, and `attr-x`
+  moved its node and threw the frame of the whole sizes sheet. These columns are now `<key>#data`.
+
+Still open:
+
+- `specimen-labels` `label-small-node`, `attr-forcelabel`: sigma draws no label on a node whose rendered size is
+  under `labelRenderedSizeThreshold` (6 px); graphty draws "Small" and "Forced". graphty-element's
+  `node.labelMinScreenSize` hides a label by the size of its letters on screen, not by its node's, so graph-io has
+  nothing to map this to. graphty-element needs a label visibility channel keyed to the node's drawn size; the
+  same rule applies to the graphology sheets.
+- `specimen-node-sizes-opacity` `size-0`: sigma draws nothing; graphty draws a 0.014 px node, and the comparator
+  fails the width ratio against 0. Nothing visible differs: a comparator edge case (a ratio against a zero size
+  should judge a sub-pixel drawing as none).
+- `specimen-node-sizes-opacity` `size-0-5`, `size-1`: sigma's drawing of these is under 2 px, so the fill read off
+  its raster is the anti-aliased white (`#ffffff`, `#e3e3e3`), not the node's `#c8c8c8`. A comparator limit of
+  raster oracles on sub-pixel nodes, not an import difference.

@@ -127,6 +127,8 @@ const SHEETS = {
             ...COLORS.map(([hex]) => s(colorId(hex), "color", rgb(hex), { color: rgb(hex) })),
             // a Gephi column titled "color" lands in attributes: data, never the drawn color
             s("attr-color", "attributes.color", "rgb(255,0,0)", { attributes: { color: "rgb(255,0,0)" } }),
+            // a column titled "type" (common: a bipartite network's node kind) is sigma's node program key
+            s("attr-type", "attributes.type", "square", { attributes: { type: "square" } }),
         ],
     },
     "specimen-node-sizes-opacity": {
@@ -138,6 +140,8 @@ const SHEETS = {
             s("attr-size", "attributes.size", "30", { attributes: { size: "30" } }),
             s("attr-visibility", "attributes.visibility", "hidden", { attributes: { visibility: "hidden" } }),
             s("attr-x", "attributes.x", "0", { attributes: { x: "0", y: "0" } }),
+            s("attr-hidden", "attributes.hidden", "true", { attributes: { hidden: "true" } }),
+            s("attr-zindex", "attributes.zIndex", "-1", { attributes: { zIndex: "-1" } }),
         ],
     },
     "specimen-labels": {
@@ -158,6 +162,12 @@ const SHEETS = {
             // a Gephi column titled "label" (the exporter skips only the column whose id is label)
             s("attr-label", "attributes.label", "Column", { attributes: { label: "Column" } }),
             s("label-small-node", "label", "Small (size=4)", { label: "Small", size: 4 }),
+            // sigma's forceLabel key as a Gephi column: data, so the small node's label stays hidden
+            s("attr-forcelabel", "attributes.forceLabel", "true", {
+                label: "Forced",
+                size: 4,
+                attributes: { forceLabel: "true" },
+            }),
         ],
     },
     "specimen-edges-lines": {
@@ -171,6 +181,8 @@ const SHEETS = {
             // Gephi edge columns titled like a sigma display key land in attributes: data, never drawn
             s("edge-attr-color", "attributes.color", "rgb(255,0,0)", { attributes: { color: "rgb(255,0,0)" } }),
             s("edge-attr-size", "attributes.size", "8", { attributes: { size: "8" } }),
+            s("edge-attr-type", "attributes.type", "arrow", { attributes: { type: "arrow" } }),
+            s("edge-attr-hidden", "attributes.hidden", "true", { attributes: { hidden: "true" } }),
         ],
     },
     "specimen-edge-labels": {
@@ -183,6 +195,12 @@ const SHEETS = {
             s("edge-label-unicode", "label", UNI, { label: UNI }),
             s("edge-label-html-chars", "label", "a<b & c>d", { label: "a<b & c>d" }),
             s("edge-label-empty", "label", '""', { label: "" }),
+            s("edge-label-spaces", "label", "two  words", { label: "two  words" }),
+            s("edge-label-newline", "label", "two\\nlines", { label: "two\nlines" }),
+            s("edge-label-quotes", "label", 'say "hi"', { label: 'say "hi"' }),
+            s("edge-label-apostrophe", "label", "it's", { label: "it's" }),
+            // a Gephi edge column titled "label" (the exporter skips only the label property)
+            s("edge-attr-label", "attributes.label", "Column", { attributes: { label: "Column" } }),
         ],
     },
 };

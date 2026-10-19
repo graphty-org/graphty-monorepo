@@ -261,4 +261,23 @@ describe("a file that places some nodes and not others", () => {
         }
         assert.isTrue(at.get("4")?.every(Number.isFinite), "the unplaced node was placed by the layout");
     });
+
+    it("keeps the placed nodes of a file with no edges, where a ring would move them all", async () => {
+        const graph = await newGraph();
+        // no edges: the advice for the whole graph is a ring, which cannot hold nodes still
+        const text = ["*Vertices 4", '1 "a" 0.1 0.2', '2 "b" 0.4 0.3', '3 "c" 0.8 0.6', '4 "d"'];
+        await graph.loadFromFile(new File([text.join("\n")], "partial-edgeless.net"), { layout: "recommended" });
+        await settled(graph);
+        await graph.waitForSettled();
+
+        assert.deepEqual(graph.getLayoutScope(), { nodes: ["4"] }, "only the unplaced node is laid out");
+        const at = lane(graph);
+        const [ax, ay] = at.get("1") ?? [Number.NaN, Number.NaN];
+        const unit = ((at.get("2")?.[0] ?? Number.NaN) - ax) / (0.4 - 0.1);
+        assert.isTrue(Number.isFinite(unit) && unit > 0, "the placed nodes keep their spacing");
+        const [cx, cy] = at.get("3") ?? [Number.NaN, Number.NaN];
+        assert.closeTo(cx - ax, 0.7 * unit, 1e-4, "node 3, x");
+        assert.closeTo(cy - ay, -0.4 * unit, 1e-4, "node 3, y");
+        assert.isTrue(at.get("4")?.every(Number.isFinite), "the unplaced node was placed by the layout");
+    });
 });

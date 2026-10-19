@@ -264,6 +264,23 @@ export function outerRingOf(shapes: readonly Prim[]): Prim | null {
     return ring !== undefined && solid.some((p) => stroked(p) && !rings.includes(p)) ? ring : null;
 }
 
+/**
+ * The first piece of a node whose fill is drawn in pieces (Graphviz's striped and wedged styles): two or more fills of
+ * which none covers the box they make together. Its fill is the node's first color, as a program's own fill list names
+ * it, where the largest piece would be decided by the size of each piece's box (a wedge's box is not its area) or, for
+ * equal stripes, by rounding.
+ * @param shapes - the node's shapes
+ * @returns the first-drawn piece, or null when the node's fill is not in pieces
+ */
+function piecesFirst(shapes: readonly Prim[]): Prim | null {
+    const fills = shapes.filter((s) => s.fill !== null && s.kind !== "image" && area(s.box) > 0);
+    if (fills.length < 2) {
+        return null;
+    }
+    const whole = area(union(fills.map((s) => s.box)));
+    return fills.every((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
+}
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): PNode {
     const under = underlaysOf(drawn);
@@ -286,7 +303,7 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         : union(texts.map((t) => t.box));
     // a fill over no area paints nothing: Cytoscape draws a 1 x 1 anchor node with a 1 px border as a
     // shape of size 0, its round-capped outline a dot and its fill nowhere
-    const filled = sorted.find((s) => s.fill !== null && area(s.box) > 0);
+    const filled = piecesFirst(sorted) ?? sorted.find((s) => s.fill !== null && area(s.box) > 0);
     // of several outlines, the one centered on the body (a line of dots passing the node is not its outline)
     const at = body ?? all[0];
     const off = (s: Prim): number => (at ? Math.hypot(cx(s.box) - cx(at.box), cy(s.box) - cy(at.box)) : 0);

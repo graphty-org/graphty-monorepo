@@ -533,12 +533,20 @@ class Session implements ElementSession {
             }
 
             // A file that placed some nodes and not others: its placed nodes stay where it put
-            // them, and only the rest are laid out, when the advised layout can hold nodes still.
-            const partial = advice.layout.scoped ? (this.store.partialSeeds?.() ?? null) : null;
+            // them, and only the rest are laid out. An advised layout that cannot hold nodes still
+            // (a ring for a graph with no edges) would move every placed node, so the default
+            // force layout, which can, places the rest instead.
+            const partial = this.store.partialSeeds?.() ?? null;
             const following = new Set(groups.map((g) => g.group));
             const unplaced = (partial?.unseeded ?? []).filter((id) => !following.has(id));
-            const base = { id: advice.layout.id, engine: advice.layout.engine };
-            return partial === null || unplaced.length === 0 ? base : { ...base, unplaced, placed: partial.placed };
+            if (partial === null || unplaced.length === 0 || partial.placed.length === 0) {
+                return { id: advice.layout.id, engine: advice.layout.engine };
+            }
+
+            const base = advice.layout.scoped
+                ? { id: advice.layout.id, engine: advice.layout.engine }
+                : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
+            return { ...base, unplaced, placed: partial.placed };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
         this.project = projectOf(this, this.dispatcher, parts.canned, {

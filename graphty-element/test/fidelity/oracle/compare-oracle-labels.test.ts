@@ -641,6 +641,33 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.strictEqual(underlaysOf([big, box]).size, 0);
     });
 
+    it("reads a node filled in pieces by its first piece, not its largest box", () => {
+        // three stripes, the middle one a hair wider: Graphviz's striped red:green:blue, red first
+        const hint = { role: "node", id: "a", key: "a" } as const;
+        const stripes = [
+            prim({ points: rect(80, 80, 93.33, 120), fill: fill("#e41a1c"), hint }),
+            prim({ points: rect(93.33, 80, 106.68, 120), fill: fill("#4daf4a"), hint }),
+            prim({ points: rect(106.68, 80, 120, 120), fill: fill("#377eb8"), hint }),
+            prim({ points: rect(80, 80, 120, 120), stroke: stroke("#505050", 1), hint }),
+        ];
+        const prims = drawing((id) => (id === "a" ? stripes : [])).filter(
+            (p) => !(p.fill?.color === "#cccccc" && p.box.x0 < 90 && p.box.y0 < 90),
+        );
+        const a = associate(prims, 600, 400, guide).scene.nodes.find((n) => n.id === "a");
+        assert.deepEqual([a?.fill?.color, Math.round(a?.w ?? 0)], ["#e41a1c", 40]);
+        // a fill under a smaller one (a label box inside the node) is still the node's fill
+        index = 0;
+        const body = prim({ points: rect(80, 80, 120, 120), fill: fill("#cccccc") });
+        const box = prim({ points: rect(90, 95, 110, 105), fill: fill("#ffff00") });
+        const b = associate(
+            drawing((id) => (id === "a" ? [body, box] : [])),
+            600,
+            400,
+            guide,
+        ).scene.nodes.find((n) => n.id === "a");
+        assert.strictEqual(b?.fill?.color, "#cccccc");
+    });
+
     it("reads a ring drawn clear outside a node's border as its ring, not its outline or its size", () => {
         const border = stroke("#505050", 1);
         const outline = (x: number, y: number): Prim =>

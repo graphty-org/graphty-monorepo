@@ -217,7 +217,13 @@ function roundRectangle(halfWidth: number, halfHeight: number, maxRadius = Infin
         }
     });
 
-    return points;
+    // a radius of half a side leaves that side no straight run, so one corner's last point is the next one's
+    // first: a repeated point the fan and the ear clipper cannot triangulate (a pill drew half filled)
+    return points.filter(([x, y], i) => {
+        const [px, py] = points[(i + points.length - 1) % points.length];
+
+        return Math.hypot(x - px, y - py) > 1e-9 * Math.max(1, half);
+    });
 }
 
 /**

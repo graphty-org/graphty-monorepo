@@ -245,6 +245,22 @@ describe("flat shape outlines", () => {
         assert.approximately(topEnd(exact("round-rectangle", 30, 30, 14), 15), 15 - 14, 1e-9);
         // a radius past half the shorter side draws a pill, its ends half circles
         assert.approximately(topEnd(exact("round-rectangle", 4, 1, 5), 0.5), 2 - 0.5, 1e-9);
+        // a pill (and a circle, its square box's pill) repeats no point, so it is filled whole
+        for (const [w, h] of [
+            [30, 30],
+            [4, 1],
+            [1, 4],
+        ]) {
+            const pill = exact("round-rectangle", w, h, Math.min(w, h) / 2);
+            assert.isTrue(
+                pill.every(([x, y], i) => {
+                    const [px, py] = pill[(i + pill.length - 1) % pill.length];
+                    return Math.hypot(x - px, y - py) > 1e-9;
+                }),
+                `${String(w)} x ${String(h)}`,
+            );
+            assert.isTrue(fansFromOrigin(pill), `${String(w)} x ${String(h)} fans`);
+        }
         // a round triangle with a radius of 8 on a 30 px box rounds its corners at 8, not at the tenth's 3, as
         // Cytoscape.js's getRoundCorner does: its tips, cut back further, reach about 20 px across instead of 26
         const capped = boxOf(flatShapeOutline("round-triangle", 30, 30, 8));

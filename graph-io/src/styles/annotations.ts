@@ -125,6 +125,17 @@ export interface ArrowAnnotation extends AnnotationBase {
     readonly sourceColor: StyleColor;
     /** The arrowhead color at the end. */
     readonly targetColor: StyleColor;
+    /**
+     * How long the start's arrowhead is along the line, in the units of the points, size included; absent, the
+     * drawing program's own length for the line's width.
+     */
+    readonly sourceHeadLength?: number;
+    /** How wide the start's arrowhead is across the line, as `sourceHeadLength` says. */
+    readonly sourceHeadWidth?: number;
+    /** How long the end's arrowhead is along the line, as `sourceHeadLength` says. */
+    readonly targetHeadLength?: number;
+    /** How wide the end's arrowhead is across the line, as `sourceHeadLength` says. */
+    readonly targetHeadWidth?: number;
 }
 
 /**
@@ -208,6 +219,14 @@ const ARROW_ORDER: readonly StyleArrowShape[] = [
     "triangle",
     "tee",
 ];
+/**
+ * How long along its line each of Cytoscape's annotation arrowheads is drawn at size 1, by its `ArrowType` position,
+ * every one 10 wide whatever the line's width (measured on Cytoscape 3.10.5's SVG of `specimen-images-charts-p6`):
+ * the Closed, Concave, Diamond and Open Arrows 17, the Circle and the X 10, the Triangular Head 5, the T a bar across.
+ */
+const ARROW_LENGTHS: readonly number[] = [10, 17, 17, 17, 17, 0, 10, 5, 0];
+/** How wide across its line every Cytoscape annotation arrowhead is at size 1. */
+const ARROW_WIDTH = 10;
 const ARROW_NAMES: ReadonlyMap<string, StyleArrowShape> = new Map<string, StyleArrowShape>([
     ["circle", "circle"],
     ["closed arrow", "triangle"],
@@ -477,8 +496,32 @@ function arrowOf(
             targetSize: positive(f.get("targetSize")) ?? 1,
             sourceColor,
             targetColor,
+            ...heads("source", f.get("sourceType"), positive(f.get("sourceSize")) ?? 1),
+            ...heads("target", f.get("targetType"), positive(f.get("targetSize")) ?? 1),
         },
     ];
+}
+
+/**
+ * The length and width Cytoscape draws one end's arrowhead at: its type's length and 10 across, times its size.
+ * @param end - which end
+ * @param type - the end's saved `ArrowType`, a position or a name
+ * @param size - the end's saved size
+ * @returns the end's head length and width, none for an end without a head
+ */
+function heads(
+    end: "source" | "target",
+    type: string | undefined,
+    size: number,
+): Partial<Pick<ArrowAnnotation, "sourceHeadLength" | "sourceHeadWidth" | "targetHeadLength" | "targetHeadWidth">> {
+    const shape = arrowShape(type);
+    if (shape === "none") {
+        return {};
+    }
+    const n = num(type);
+    const k = n === null ? ARROW_ORDER.indexOf(shape) : n;
+    const length = ARROW_LENGTHS[k] ?? ARROW_LENGTHS[1];
+    return { [`${end}HeadLength`]: length * size, [`${end}HeadWidth`]: ARROW_WIDTH * size };
 }
 
 /** An annotation's box as the file writes it: top-left corner, y down. */

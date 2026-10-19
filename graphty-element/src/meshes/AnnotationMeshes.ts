@@ -235,7 +235,9 @@ function padOf(a: DrawnAnnotation): number {
         case "image":
             return a.borderWidth / 2 + 1;
         case "arrow":
-            return headLength(a, Math.max(a.sourceSize, a.targetSize)) + a.width;
+            return (
+                Math.max(...(["source", "target"] as const).flatMap((end) => Object.values(headSize(a, end)))) + a.width
+            );
         default:
             return 1;
     }
@@ -266,13 +268,17 @@ function measure(a: TextAnnotation): number {
 }
 
 /**
- * An arrowhead's length in file units.
+ * An arrowhead's length and width in file units: the file's, else as long and as wide as `8 + 2 x` the line's width.
  * @param a - The arrow.
- * @param size - The head's size factor.
- * @returns The length.
+ * @param end - Which end.
+ * @returns The length and the width.
  */
-function headLength(a: ArrowAnnotation, size: number): number {
-    return (8 + 2 * a.width) * size;
+function headSize(a: ArrowAnnotation, end: "source" | "target"): { length: number; width: number } {
+    const size = end === "source" ? a.sourceSize : a.targetSize;
+    const own = (8 + 2 * a.width) * size;
+    const length = end === "source" ? a.sourceHeadLength : a.targetHeadLength;
+    const width = end === "source" ? a.sourceHeadWidth : a.targetHeadWidth;
+    return { length: length ?? own, width: width ?? own };
 }
 
 /**
@@ -431,78 +437,88 @@ function paintArrow(ctx: CanvasRenderingContext2D, a: ArrowAnnotation): void {
     ctx.stroke();
     // a value saved before the heads had colors of their own holds none: the line's color
     ctx.strokeStyle = ctx.fillStyle = (a as { targetColor?: string }).targetColor ?? a.color;
-    paintHead(ctx, a, a.to, a.from, a.targetArrow, a.targetSize);
+    paintHead(ctx, a.to, a.from, a.targetArrow, headSize(a, "target"));
     ctx.strokeStyle = ctx.fillStyle = (a as { sourceColor?: string }).sourceColor ?? a.color;
-    paintHead(ctx, a, a.from, a.to, a.sourceArrow, a.sourceSize);
+    paintHead(ctx, a.from, a.to, a.sourceArrow, headSize(a, "source"));
 }
 
 /**
- * Paint one arrowhead.
+ * Paint one arrowhead, its point at the line's end: a filled shape, or the strokes of an open one, a cross or a bar.
  * @param ctx - The canvas context.
- * @param a - The arrow.
  * @param tip - Where the head points.
  * @param tail - The other end of the line.
  * @param shape - The head's shape.
- * @param size - The head's size factor.
+ * @param head - Its length along the line and its width across.
+ * @param head.length - The length.
+ * @param head.width - The width.
  */
 function paintHead(
     ctx: CanvasRenderingContext2D,
-    a: ArrowAnnotation,
     tip: AnnotationPoint,
     tail: AnnotationPoint,
     shape: ArrowAnnotation["targetArrow"],
-    size: number,
+    head: { length: number; width: number },
 ): void {
     if (shape === "none") {
         return;
     }
 
-    const len = headLength(a, size);
+    const { length: len, width } = head;
+    const half = width / 2;
     const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
     ctx.save();
     ctx.translate(tip.x, tip.y);
     ctx.rotate(angle);
     ctx.beginPath();
+    let stroked = shape.endsWith("-open");
     switch (shape) {
         case "circle":
         case "circle-open":
-            ctx.arc(-len / 2, 0, len / 2, 0, 2 * Math.PI);
+            ctx.ellipse(-len / 2, 0, len / 2, half, 0, 0, 2 * Math.PI);
             break;
         case "tee":
-            ctx.rect(-a.width, -len / 2, a.width, len);
+            // a bar across the line's end
+            ctx.moveTo(0, -half);
+            ctx.lineTo(0, half);
+            stroked = true;
             break;
         case "other:x":
-            // a cross centered on the line's end, drawn as two strokes
-            ctx.moveTo(-len / 2, -len / 2);
-            ctx.lineTo(len / 2, len / 2);
-            ctx.moveTo(-len / 2, len / 2);
-            ctx.lineTo(len / 2, -len / 2);
-            ctx.stroke();
-            ctx.restore();
-            return;
+            // a cross centered on the line's end
+            ctx.moveTo(-len / 2, -half);
+            ctx.lineTo(len / 2, half);
+            ctx.moveTo(-len / 2, half);
+            ctx.lineTo(len / 2, -half);
+            stroked = true;
+            break;
+        case "triangle-open":
+            // an open chevron: its two sides, no base
+            ctx.moveTo(-len, half);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(-len, -half);
+            break;
         case "diamond":
         case "diamond-open":
             ctx.moveTo(0, 0);
-            ctx.lineTo(-len / 2, len / 3);
+            ctx.lineTo(-len / 2, half);
             ctx.lineTo(-len, 0);
-            ctx.lineTo(-len / 2, -len / 3);
+            ctx.lineTo(-len / 2, -half);
             ctx.closePath();
             break;
         case "vee":
             ctx.moveTo(0, 0);
-            ctx.lineTo(-len, len / 2);
+            ctx.lineTo(-len, half);
             ctx.lineTo(-len * 0.7, 0);
-            ctx.lineTo(-len, -len / 2);
+            ctx.lineTo(-len, -half);
             ctx.closePath();
             break;
         default:
             ctx.moveTo(0, 0);
-            ctx.lineTo(-len, len / 2);
-            ctx.lineTo(-len, -len / 2);
+            ctx.lineTo(-len, half);
+            ctx.lineTo(-len, -half);
             ctx.closePath();
     }
 
-    if (shape.endsWith("-open")) {
+    if (stroked) {
         ctx.stroke();
     } else {
         ctx.fill();

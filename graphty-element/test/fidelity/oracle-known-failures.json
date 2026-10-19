@@ -20616,7 +20616,10 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "label.backgroundBox": ["n0::n0", "n0::n2", "n0::n3", "n1::n0", "n1::n1", "n2::n0", "n2::n1", "n3::n0", "n3::n1", "n4::n0"],
+            "label.backgroundBorder": ["n0::n0", "n0::n2", "n0::n3", "n1::n0", "n1::n1", "n2::n0", "n2::n1", "n3::n0", "n3::n1", "n4::n0"],
+            "label.background": ["n0::n0", "n0::n1", "n0::n10", "n0::n11", "n0::n12", "n0::n16", "n0::n19", "n0::n2", "n0::n20", "n0::n21", "n0::n22", "n0::n24", "n0::n3", "n0::n4", "n0::n9", "n1::n0", "n1::n1", "n2::n0", "n2::n1", "n3::n0", "n3::n1", "n4::n0"]
         },
         "graphml-galaxy-lcms-workflow@matched": {
             "node.present": [],
@@ -20669,7 +20672,10 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "label.backgroundBox": ["n0::n0", "n0::n2", "n0::n3", "n1::n0", "n1::n1", "n2::n0", "n2::n1", "n3::n0", "n3::n1", "n4::n0"],
+            "label.backgroundBorder": ["n0::n0", "n0::n2", "n0::n3", "n1::n0", "n1::n1", "n2::n0", "n2::n1", "n3::n0", "n3::n1", "n4::n0"],
+            "label.background": ["n0::n0", "n0::n1", "n0::n10", "n0::n11", "n0::n12", "n0::n16", "n0::n19", "n0::n2", "n0::n20", "n0::n21", "n0::n22", "n0::n24", "n0::n3", "n0::n4", "n0::n9", "n1::n0", "n1::n1", "n2::n0", "n2::n1", "n3::n0", "n3::n1", "n4::n0"]
         },
         "graphml-libcitygml-mapping": {
             "node.present": [],
@@ -21172,7 +21178,8 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "stray.extra": ["graphty:annotation-image#0", "graphty:annotation-image#1", "graphty:annotation-image#10", "graphty:annotation-image#11", "graphty:annotation-image#12", "graphty:annotation-image#13", "graphty:annotation-image#14", "graphty:annotation-image#2", "graphty:annotation-image#3", "graphty:annotation-image#4", "graphty:annotation-image#5", "graphty:annotation-image#6", "graphty:annotation-image#7", "graphty:annotation-image#8", "graphty:annotation-image#9"]
         },
         "graphml-stm32-func@matched": {
             "node.present": [],
@@ -21233,7 +21240,8 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "stray.extra": ["graphty:annotation-image#0", "graphty:annotation-image#1", "graphty:annotation-image#10", "graphty:annotation-image#11", "graphty:annotation-image#12", "graphty:annotation-image#13", "graphty:annotation-image#14", "graphty:annotation-image#2", "graphty:annotation-image#3", "graphty:annotation-image#4", "graphty:annotation-image#5", "graphty:annotation-image#6", "graphty:annotation-image#7", "graphty:annotation-image#8", "graphty:annotation-image#9"]
         },
         "graphml-synthetic-edges": {
             "node.present": [],
@@ -21396,7 +21404,10 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "label.backgroundBorder": ["label-corners-sw", "label-eight_pos-se", "label-sides-n", "label-sides-w"],
+            "label.background": ["label-corners-ne", "label-eight_pos-se", "label-sandwich-n", "label-sides-s", "label-sides-w"],
+            "stray.extra": ["graphty:annotation-image#0", "graphty:annotation-image#1"]
         },
         "graphml-synthetic-nodes@matched": {
             "node.present": [],
@@ -21449,7 +21460,10 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "label.backgroundBorder": ["label-corners-sw", "label-eight_pos-se", "label-sides-n", "label-sides-w"],
+            "label.background": ["label-corners-ne", "label-eight_pos-se", "label-sandwich-n", "label-sides-s", "label-sides-w"],
+            "stray.extra": ["graphty:annotation-image#0", "graphty:annotation-image#1"]
         },
         "graphml-yed-voctomix": {
             "node.present": [],
@@ -21505,7 +21519,9 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "label.backgroundBorder": ["edge:n2::n20->n2::n1#g0", "edge:n2::n20->n2::n13#g0", "edge:n2::n20->n2::n27#g0"],
+            "label.background": ["edge:n2::n20->n2::n1#g0", "edge:n2::n20->n2::n13#g0", "edge:n2::n20->n2::n27#g0"]
         },
         "graphml-yed-voctomix@matched": {
             "node.present": [],
@@ -21561,7 +21577,9 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "label.backgroundBorder": ["edge:n2::n20->n2::n1#g0", "edge:n2::n20->n2::n13#g0", "edge:n2::n20->n2::n27#g0"],
+            "label.background": ["edge:n2::n20->n2::n1#g0", "edge:n2::n20->n2::n13#g0", "edge:n2::n20->n2::n27#g0"]
         },
         "graphml-yfiles-html-ss13-tree": {
             "node.present": [],

@@ -1654,3 +1654,64 @@ Still open:
   carrying sigma's drawing settings (`renderEdgeLabels`, `edgeLabelAnchors`, `labelRenderedSizeThreshold`).
 - A node whose `x` or `y` is a string, even a numeric one ("100"), makes sigma throw while drawing; graph-io places
   no node of such a file (the column is text). No oracle can be drawn, so no sheet holds it.
+
+## Specimen sheets: yEd GraphML settings graph-io now reads (fix round 1, 2026-10-19)
+
+Judged against the draw.io stand-ins (yEd's license forbids automating it), on the `yed-graphml-specimen-*` sheets and
+the `graphml-*` corpus samples. Fixed:
+
+- Java's logical fonts. yEd is a Java program: a label in `Dialog` (yEd's default), `SansSerif`, `Serif`, `Monospaced`
+  or `DialogInput` is drawn in the face Java gives that font, and a font Java lacks in Dialog's. graph-io passed the
+  Java name to the browser, which knows none of them and drew every yEd label in its serif default. graph-io now reads
+  a yEd font as the Cytoscape reader does (`DejaVu Sans, sans-serif` for Dialog, `<name>, DejaVu Sans, sans-serif` for
+  a font Java may lack), yEd's default font is Dialog's face, and the yEd writer writes a Java face back as its logical
+  name. `label.family` 0 to 1 on cla-checker-graph (150 labels), galaxy-lcms-workflow, libcitygml-mapping,
+  magiclantern-architecture, open-archaeo, scala-collection-mutable, synthetic-edges and voctomix; synthetic-nodes
+  0.20 to 1, `labels` 0.89 to 1, `labels-p2` 0.97 to 1, `edge-labels` 0.93 to 1. GML written by yEd gets the same
+  default font; the GML reader's own `fontName` is not mapped yet (the GML format's row).
+- Label backgrounds and borders. A `y:NodeLabel` / `y:EdgeLabel` `backgroundColor` is read as `labelBackground` (none
+  where `hasBackgroundColor` is false), and `lineColor` as a one-pixel `labelBorderColor` / `labelBorderWidth` (none
+  where `hasLineColor` is false). The label border is new: graph-io's neutral styles gained `labelBorderColor` and
+  `labelBorderWidth`, and graphty-element the `node.labelBorder`, `node.labelBorderWidth`, `edge.labelBorder` and
+  `edge.labelBorderWidth` channels (the label style's border).
+- GenericNode configurations with a neutral shape (entity-relationship relationship as a diamond, BPMN conversation
+  as a hexagon) were fixed by rendering batch 2; `node.shape` passes on both now (`node-shapes-p2` 0.47 to 0.67,
+  `-p3` 0.60 to 0.92).
+
+Where graphty now draws what yEd draws and the stand-in does not (floors lowered with this reason in
+`oracle-floors.json`, elements added to the known failures):
+
+- draw.io draws no box and no line behind a plain yEd label: `label.background` and `label.backgroundBorder` fail on
+  the labels that set them (synthetic-nodes 5 and 4, voctomix's 3 edge labels, `labels` `background-color`,
+  `configuration-er-labels` and `line-color`, `edge-labels` `background-color` and `line-color`). On
+  galaxy-lcms-workflow draw.io paints the entity-relationship name label black (I29) where the file gives #A8AFC6; the
+  `#25537a` line it draws round that header is the entity's own outline (the label says `hasLineColor="false"`), the
+  big entity's header line that graphty does not draw yet (rendering batch 2's open rows).
+- A group header label's `backgroundColor` (`groups`, `groups-p2`): graphty draws it as a box round the words; yEd
+  draws it as a bar across the group (`autoSizePolicy="node_width"`), which the neutral label box cannot say yet, and
+  draw.io as a header path that is not read as the label's box.
+- `stray.extra` on stm32-func (15), synthetic-nodes (2) and `images-charts` (5): the `y:ImageNode` pictures graphty
+  draws, for which draw.io draws an empty box.
+- Raster regions fall by 0.01 to 0.04 (labels drawn in Dialog's sans-serif face with their boxes, where draw.io draws
+  its own face and no box).
+
+Not import defects (no change):
+
+- Label lines: the 73 labels drawn on two lines that the stand-in draws on one each have a newline in their text and
+  a stored label box two or more lines tall (box height over font size 2.3 to 2.8: cla-checker "CLINNEG\nOUTOFSCOPE",
+  stm32-func, voctomix, magiclantern "exec\r\nautoexec.bin", galaxy-lcms "HTML\nreport"), so yEd drew two lines.
+  draw.io's HTML labels draw a newline as a space.
+- Node label models. Three causes, none of them graph-io's reading of the model:
+    - graphty-element draws at most `labelLayers` distinct label positions per file (8 by default, 16 at most) and the
+      rest at the most common one; `labels-p2` holds 17, so `model-corners-ne` and `model-eight-pos-ne` are drawn in the
+      middle ([0, 0] against the stand-in's [35, -22]). Raising the default changes a default of graphty-element's file
+      styles, a breaking change: **owner decision**.
+    - yEd sets an outside label its model's distance (4 px by default) from the node; graphty draws it against the
+      node (`se`, `sw`: [29, 22] against [35, 30]). The neutral styles have no label distance or offset, and
+      graphty-element no offset from the label's anchor: both are needed (shared with Cytoscape.js `text-margin`,
+      `label-anchor-offset`).
+    - The rest of the anchor rows (an internal `c` label the stand-in puts at the node's bottom, smart labels it puts
+      at the left): draw.io ignores `SmartNodeLabelModel` and the internal model; yEd's stored label boxes put these
+      labels where graphty draws them.
+- Edge label models, arrow shapes and fill alpha (`#RRGGBBAA`): the stand-in cannot judge them (above); they wait for
+  the owner's yEd export.

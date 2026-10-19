@@ -1,3 +1,18 @@
+## 0.8.90 (2026-10-19)
+
+### 🩹 Fixes
+
+- **graphty:** split the entry chunk so the build fits the default heap ([#2606](https://github.com/graphty-org/graphty-monorepo/issues/2606))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.29.2
+- Updated graph-io to 0.3.46
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.89 (2026-10-18)
 
 ### 🚀 Features

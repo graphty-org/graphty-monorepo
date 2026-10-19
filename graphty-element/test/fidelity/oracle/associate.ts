@@ -543,6 +543,33 @@ function tipGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNo
 }
 
 /**
+ * How far a shape stops short of where its line leaves the node at one end, measured along the line there: 0 or
+ * less for a shape that reaches it.
+ * @param p - the shape
+ * @param e - the edge
+ * @param end - which end
+ * @param nodes - the drawn nodes
+ * @returns the distance
+ */
+function alongGap(p: Prim, e: PEdge, end: "source" | "target", nodes: readonly PNode[]): number {
+    const id = end === "source" ? e.source : e.target;
+    const q = drawnEnd(
+        e.points,
+        end,
+        nodes.find((n) => n.id === id),
+    );
+    const run = end === "source" ? e.points : [...e.points].reverse();
+    const far = run.at(-1) ?? q;
+    const len = Math.hypot(far[0] - q[0], far[1] - q[1]);
+    if (len < 1e-9) {
+        return 0;
+    }
+    // inward, from the end toward the line's other end
+    const [ux, uy] = [(far[0] - q[0]) / len, (far[1] - q[1]) / len];
+    return Math.min(...p.points.map((v) => (v[0] - q[0]) * ux + (v[1] - q[1]) * uy));
+}
+
+/**
  * The geometric edge end nearest a shape by a measure, within a reach.
  * @param edges - the edges; only geometric ones (`#g` ids) count
  * @param gap - the measure of an end
@@ -621,16 +648,29 @@ export function arrowheadEdge(
     }
     // Where lines run on under the nodes, many cross one outline: an arrowhead caps the line its tip touches
     // there; one whose tip touches none is judged as anywhere else, by its middle against the lines' ends.
-    // a shape nearer a line's middle than either end, as a cap drawn part-way along it is, is that cap
-    const placeOf = (e: PEdge, end: ArrowEnd): Pt => (end === "middle" ? pointAlong(e.points, 0.5) : endOf(e, end));
+    // An arrowhead at a line's end sits at that end, so a shape that close to any line's end is that end's arrow. Only
+    // a shape no end holds so closely, clear of its own line's ends and centered on the line at its middle (a cap
+    // drawn part-way along it), is that line's middle arrow: in a dense drawing another edge's arrowhead often lies
+    // across a long line's middle, and is that other edge's.
+    const reach = size * 1.5 + 3;
+    const from = (q: Pt): number => Math.hypot(c[0] - q[0], c[1] - q[1]);
+    const ends = nearestEnd(edges, (e, end) => from(endOf(e, end)), reach, ["source", "target"]);
+    const middleGap = (e: PEdge): number => {
+        const [a, b] = middleRun(e.points);
+        const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const across =
+            len > 0 ? Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / len : Infinity;
+        // an end's arrowhead reaches its line's end, or, where the line runs on to the node's center, its outline:
+        // measured along the line, as a crow's foot's tines reach the outline beside the line rather than on it
+        const touches = alongGap(p, e, "source", nodes) <= 3 || alongGap(p, e, "target", nodes) <= 3;
+        const clear = !touches && from(endOf(e, "source")) > size && from(endOf(e, "target")) > size;
+        return clear && across <= Math.max(1, 0.2 * size) ? from(pointAlong(e.points, 0.5)) : Number.POSITIVE_INFINITY;
+    };
+    const middle = nearestEnd(edges, (e) => middleGap(e), reach, ["middle"]);
+    const held = ends !== null && ends.d <= 0.75 * size + 2;
     const best =
         (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3, ["source", "target"]) : null) ??
-        nearestEnd(
-            edges,
-            (e, end) => Math.hypot(c[0] - placeOf(e, end)[0], c[1] - placeOf(e, end)[1]),
-            size * 1.5 + 3,
-            ["source", "target", "middle"],
-        );
+        (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
     // the nearest end decides; a shape longer than that edge's own line (beyond a few pixels) is
     // something else drawn near it
     return best === null || size > Math.max(pathLength(best.e.points), 12) ? null : { e: best.e, end: best.end };

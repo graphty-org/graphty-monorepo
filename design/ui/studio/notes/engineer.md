@@ -16,7 +16,27 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, keyboard stops and Escape) App and compact-mantine, no API change. A full section
+0. (2026-10-18, an unset line takes the value it shows) The equality checks lived in
+   compact-mantine, so the fix is there. `CompactColorInput.commitHex`: while unset, Enter on the
+   shown color or typing exactly it (`typedHere` ref, cleared on Escape and on a new shown value)
+   chooses it; Tab past an untouched box does not. Its name is "Node color, not set, drawn
+   #6366F1 indigo" (new optional label `colorDrawn`). `StyleSelect`: unset means Mantine holds
+   `null` and the default is the placeholder (same italic), so no option is checked and picking the
+   default fires (Mantine skips a pick equal to its value). The list still opens on the default:
+   the trigger carries `data-in-force`, and listbox.tsx's `inForce()` falls back to it wherever it
+   looked for the checked option (open walk, type-ahead start). `useNumberField` selects on focus,
+   however focus came (824 bug). App: ValuePicker "In use" = this line only, "Used elsewhere" =
+   other lines and layers; `fixedInForce` marks Fixed text. Tests: compact-mantine FieldStates
+   "an unset field takes the value it shows" (5; 4 fail on HEAD), graphty `UnsetLine.real-element`
+   (4), Labels "source list, opened again, marks the choice in force", Groups "number box just
+   added". Walk `design/ui/studio/tmp/r1-dry3-unset-line-takes-shown-value/` (w1 07-08 Enter sets
+   6366F1 and the key gains Color; w2 06 grid with no check, 07 Enter sets Icosphere, 10 typed
+   6366f1 sets it, 15 Fixed text lit on reopen; w3 11 Width 8 selected, 12 typing 24 gives 24).
+   Known red on HEAD too (36 real-element tests in 24 files: VaryByLayer 7, PropertyRows 3,
+   StylePanel 3, ColorBox "replaces its value", FocusAfterAdding "typed color", Groups "Shift+arrow",
+   ...; lists in `tmp/.../graphty-tests.log`); a HEAD-vs-mine run of those files differed only in
+   Sections "inside a binding" (it read the unset palette's `.value`; updated) and my new test.
+1. (2026-10-18, keyboard stops and Escape) App and compact-mantine, no API change. A full section
    "+" has `tabIndex -1` (Section.tsx; tooltip and description keep the reason). Escape in the
    inspector is kept from Clear selection only in a field (`FIELD` selector in useCommandKeys.ts:
    inputs, lists, check boxes, sliders); heading, tabs and buttons clear. Escape in the table grid
@@ -36,28 +56,27 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    0b. (2026-10-18, screen-reader names) "Run <analysis>", Load's region, the fold's why, group
    colors in a bound pill's name, InfoCircle hover tooltip: in full in
    `git show d714c8530:design/ui/studio/notes/engineer.md`, Top of mind 0.
-1. (2026-10-18, summaries and the Data place) True attribute summaries, Data place second lines,
+2. (2026-10-18, summaries and the Data place) True attribute summaries, Data place second lines,
    category and text glyphs, "Select only N nodes": in full in
    `git show 10800b21b:design/ui/studio/notes/engineer.md`, Top of mind 0.
    1b. (2026-10-18, focus after a style line; condition card keys) `useFocusKept` in PropertyRow keeps
    focus when a line's control is swapped; a card's remove is after its header in the DOM; text
    cards open their list only on typing or ArrowDown. In full, with tests and walks:
    `git show c768cdaaf:design/ui/studio/notes/engineer.md`, Top of mind 0-1.
-2. (2026-10-18, shape list typing; color picker) compact-mantine type-ahead clears the highlight on
+3. (2026-10-18, shape list typing; color picker) compact-mantine type-ahead clears the highlight on
    a run no option starts with; the picker's "color before this edit" swatch and `closeOnEnter`;
    `ValueField` swatches: in full in `git show bdd01700e:design/ui/studio/notes/engineer.md`, Top of
    mind 0-1. Known: 12 compact-mantine tests fail on that commit too (QuickActions FieldChooser
    axe and play, CompactColorInput swatches/onChangeEnd, select disabled trigger, Tree toggles).
-3. (2026-10-18, labels on the drawing) Names drawn across other nodes (app defaults "Move labels off
+4. (2026-10-18, labels on the drawing) Names drawn across other nodes (app defaults "Move labels off
    nodes and edges" on), labels beside the halo ring (`RichTextLabel.setRing`), declutter forcing
    world matrices: in full in `git show 273e236a4:design/ui/studio/notes/engineer.md`, Top of mind 1.
-4. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
+5. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
    it arrives (`useOverlayInset`), F keeps the angle (`keepAngle`); a hover ends on `pointerleave`
    of the engine's input element, event `selection:hover-changed`. In full in
    `git show fa270090e:design/ui/studio/notes/engineer.md`, Top of mind 1-2.
-5. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
-   two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
 6. Earlier 2026-10-18 entries (keys and focus, filter steps, layer panel words): `git show 28e989215:design/ui/studio/notes/engineer.md` and `6d312090c`.
+   (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column, two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
    Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
@@ -99,6 +118,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **An unset select holds no value; its default is the placeholder.** A check must
+  mean "set here", and Mantine will not fire a pick equal to its value, so holding the default made
+  the starting value impossible to choose. Reverses "the value beneath carries the same check".
+  Cost: code that read the unset input's `.value` reads "" (one graphty test); recorded for the
+  owner as not blocking.
+- (2026-10-18) **An own walk timer in StyleSelect fought the shared type-ahead.** Walking to the
+  default from `onDropdownOpen` raced Mantine's own open update (it runs after and resets the
+  store index, so Enter picked nothing while the cell looked lit) and, delayed past it, undid a
+  letter-typed open. One shared notion of "the option a list opens on" (`inForce`) fixed both.
 - (2026-10-18) **A dead stop leaves the Tab order; a dimmed command stays.** A full "+" adds
   nothing and its lines are their own stops; Undo with nothing to undo is still the command the
   reader looks for. Reverses the earlier "every + is a Tab stop" call (tests updated).
@@ -211,6 +239,15 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Mantine's Select calls `onDropdownOpen` BEFORE queuing its own
+  `updateSelectedOptionIndex` timer, so a timer set in `onDropdownOpen` runs first and is undone:
+  the cell stays lit (DOM attribute) while the store index is -1, and Enter does nothing. A
+  document listener's timer is queued after React's handlers, so it runs after Mantine's. Seen in
+  the walk (w1/12: Enter left the grid open), reproduced by a FieldStates test. WORKED once moved.
+- (2026-10-18) A layer added on nodes and edges is held as two layers with one name (edge part
+  `set: null`): find a layer's write by name AND the channel, not the first by name.
+- (2026-10-18) Selecting Les Miserables' node "0" (its gml id) opened nothing: the element keeps
+  other ids. Take ids from `session.data.nodes()`.
 - (2026-10-18) A tooltip test failed only in a full file run: `findByRole("tooltip")` waits 1 s by
   default, the theme's open delay is 1 s, so it raced. Give it the hang guard. WORKED.
 - (2026-10-18) Seen, not mine (fail on HEAD's sources too): KeysLeaveNothingOpen "Tab from a

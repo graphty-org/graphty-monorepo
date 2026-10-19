@@ -95,8 +95,8 @@ COVERED = set()
 
 class Sheet:
     def __init__(self, sid, about, project=False):
-        """project: a Pajek project file (.paj): the network, then a *Partition and a *Vector, one value per vertex
-        (a specimen's `part` / `vec`; every other vertex NEUTRAL_PART / NEUTRAL_VEC)."""
+        """project: a Pajek project file (.paj): the network, then a *Partition and two *Vector objects, one value
+        per vertex (a specimen's `part` / `vec` / `vec2`; every other vertex NEUTRAL_PART / NEUTRAL_VEC)."""
         self.id, self.about, self.project = sid, about, project
         self.ext = "paj" if project else "net"
         self.specimens = []
@@ -112,11 +112,12 @@ class Sheet:
         COVERED.update(cov)
 
     def node(self, sid, caption, shape="ellipse", params=(), label="", cov=(), raw=None, z="0.5", part=None,
-             vec=None):
+             vec=None, vec2=None):
         """A vertex specimen: neutral but for `params` (raw: the whole parameter text, written as is; z: the third
-        coordinate, None to write none; part / vec: its partition and vector values on a project sheet)."""
+        coordinate, None to write none; part / vec / vec2: its partition, first and second vector values on a
+        project sheet)."""
         self.add(sid, caption, "node", cov, shape=shape, params=list(params), label=label, raw=raw, z=z, part=part,
-                 vec=vec)
+                 vec=vec, vec2=vec2)
 
     def line(self, sid, caption, section="*Edges", params=(), value="1", loop=False, cov=(), pair=False, raw=None,
              label=None, ends="ellipse"):
@@ -133,9 +134,10 @@ class Sheet:
         cs = cells(len(self.specimens))
         verts, lines, names = [], [], {}
 
-        def vertex(name, label, x, y, shape, params, raw=None, z="0.5", part=None, vec=None):
+        def vertex(name, label, x, y, shape, params, raw=None, z="0.5", part=None, vec=None, vec2=None):
             verts.append((name, label, x, y, shape, params, raw, z,
-                          NEUTRAL_PART if part is None else part, NEUTRAL_VEC if vec is None else vec))
+                          NEUTRAL_PART if part is None else part, NEUTRAL_VEC if vec is None else vec,
+                          NEUTRAL_VEC if vec2 is None else vec2))
             names[str(len(verts))] = name
             return len(verts)
 
@@ -144,10 +146,11 @@ class Sheet:
             if spec["kind"] == "node":
                 if spec["id"] == "default":
                     vertex("default", spec["label"], c["x"], c["y"], None, [], raw="", part=spec["part"],
-                           vec=spec["vec"])
+                           vec=spec["vec"], vec2=spec["vec2"])
                 else:
                     vertex(spec["id"], spec["label"], c["x"], c["y"], spec["shape"],
-                           merge(NEUTRAL_V, spec["params"]), spec["raw"], spec["z"], spec["part"], spec["vec"])
+                           merge(NEUTRAL_V, spec["params"]), spec["raw"], spec["z"], spec["part"], spec["vec"],
+                           spec["vec2"])
             else:
                 s = vertex(f"{spec['id']}-s", "", c["source"]["x"], c["source"]["y"], spec["ends"], END_V)
                 t = s if spec["loop"] else vertex(f"{spec['id']}-t", "", c["target"]["x"], c["target"]["y"],
@@ -176,7 +179,7 @@ class Sheet:
         if self.project:
             out_lines.append(f"*Network {self.id}")
         out_lines.append(f"*Vertices {len(verts)}")
-        for i, (name, label, x, y, shape, params, raw, z, _, _) in enumerate(verts, 1):
+        for i, (name, label, x, y, shape, params, raw, z, _, _, _) in enumerate(verts, 1):
             row = f"{i} {quote(label)} {x / W:.6f} {y / H:.6f}" + (f" {z}" if z is not None else "")
             if raw is not None:
                 row += (" " + raw) if raw else ""
@@ -211,8 +214,8 @@ class Sheet:
                     row += "".join(f" {k} {v}" for k, v in params)
                 out_lines.append(row)
         if self.project:
-            for kind, at in (("Partition", 8), ("Vector", 9)):
-                out_lines += ["", f"*{kind} {self.id}", f"*Vertices {len(verts)}"] + [str(v[at]) for v in verts]
+            for kind, name, at in (("Partition", self.id, 8), ("Vector", self.id, 9), ("Vector", f"{self.id}-2", 10)):
+                out_lines += ["", f"*{kind} {name}", f"*Vertices {len(verts)}"] + [str(v[at]) for v in verts]
         with open(os.path.join(out, f"{self.id}.{self.ext}"), "w", encoding="ascii", newline="") as f:
             # LF: the repository stores .net text with LF line ends (eol=lf), and Pajek reads them
             f.write("\n".join(out_lines) + "\n")
@@ -506,8 +509,9 @@ page(s, {"Form8.withLabels1": ""}, "Options / Lines / Mark Lines / with Labels",
 page(s, {}, "Pajek's default: Mark Lines / No", variant=True)
 
 # ---------------------------------------------------------------- mappings: a project file's partition and vector
-s = Sheet("specimen-mappings-bypass", "a project file's *Partition (cluster -> color, Figure 20) and *Vector (size), "
-          "drawn by Draw > Network + First Partition + First Vector; a partition color over the vertex's own ic",
+s = Sheet("specimen-mappings-bypass", "a project file's *Partition (cluster -> color, Figure 20) and two *Vector "
+          "objects (size; width and height), drawn by Draw > Network + First Partition + First Vector (+ Second "
+          "Vector); a partition color over the vertex's own ic",
           project=True)
 s.node("default", "default")
 for k in range(40):
@@ -520,9 +524,16 @@ for v, vid in (("0.5", "0-5"), ("2", "2"), ("4", "4"), ("9", "9"), ("0", "0"), (
     s.node(f"vec-{vid}", f"vector={v}", vec=v, cov=["project.vector=number"])
 s.node("vec-4-box", "box vector=4", shape="box", vec="4")
 s.node("vec-4-x-fact-3", "x_fact=3 vector=4", params=[("x_fact", "3")], vec="4")
+# The second vector: Draw > ... + First Vector + Second Vector sizes a vertex's width by the first vector and its
+# height by the second, each value a plain factor (one vector alone scales by its square root). Every other vertex's
+# second value is NEUTRAL_VEC, so on the one-vector pages these specimens are neutral vertices.
+for v, vid in (("0.5", "0-5"), ("2", "2"), ("3", "3")):
+    s.node(f"vec2-{vid}", f"vector2={v}", vec2=v, cov=["project.vector2=number"])
+s.node("vec-2-vec2-3", "vector=2 vector2=3", vec="2", vec2="3")
 SHEETS.append(s)
 page(s, varies="Draw > Network + First Partition + First Vector", draw="1 1 0 0 0")
 page(s, varies="Draw > Network (no partition, no vector)", variant=True)
+page(s, varies="Draw > Network + First Partition + First Vector + Second Vector", variant=True, draw="1 1 2 0 0")
 
 # ---------------------------------------------------------------- coverage
 NOT_SWEPT = {

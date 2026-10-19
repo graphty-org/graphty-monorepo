@@ -188,6 +188,10 @@
             "source": "manual 4.10 p76 (Size: 'determined by one vector'): a project file's *Vector sizes its vertices under Draw > Network + First Vector",
             "values": ["number"]
         },
+        "vector2": {
+            "source": "manual 4.1 p69 (Draw > Network + First Vector + Second Vector, 'first for width second for height'): a project file's second *Vector sizes its vertices' height, the first their width",
+            "values": ["number"]
+        },
         "partitionOverIc": {
             "source": "manual 5.2 p84: 'If drawing using Partition is used, partition colors will overwrite the specified interior color'",
             "values": ["on"]

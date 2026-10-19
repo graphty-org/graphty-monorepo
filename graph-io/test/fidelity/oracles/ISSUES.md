@@ -794,7 +794,8 @@ from `generators/specimens/pajek-vocabulary.json`) drawn by Pajek 6.02's own SVG
 under one Draw window or export option per further page (`specimens/pajek/pages.json`; the `.oracle.json` names
 the option as `ini`). The edge-labels sheet's first page is drawn with Mark Lines / with Labels on, since Pajek
 draws no line label without it. The mappings sheet is a project file (`specimen-mappings-bypass.paj`) drawn
-with its partition and vector (Draw > Network + First Partition + First Vector), and again without them (`-p2`).
+with its partition and vector (Draw > Network + First Partition + First Vector), again without them (`-p2`), and
+with its second vector as the height (`-p3`).
 Groups, and images and charts, are absent from the format.
 
 A Pajek vertex is its number, on both sides of the comparison; `pages.json` `names` maps each vertex number to its
@@ -853,8 +854,11 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   vertex by its cluster with Figure 20's 40 partition colors (cluster 0 Cyan, 1 Yellow, 2 LimeGreen, 3 Red, ...),
   over the vertex's own `ic` (`part-3-over-ic`, as section 5.2 says); a cluster past 39 wraps (40 Cyan, 45 Pink,
   100 WildStrawberry) and -2 is drawn LimeGreen. First Vector scales a vertex by the square root of its value (4
-  doubles the radius), 0 hides it, and -1 draws it at its own size. Without them (`-p2`) the same file draws every
-  vertex as the file says. graph-io reads the partition and vector into the `partition` and `vector` node columns
+  doubles the radius), 0 hides it, and -1 draws it at its own size. With a second vector (Draw > Network + First
+  Partition + First Vector + Second Vector, `-p3`) each value is a plain factor, not a square root: the first scales
+  the width and the second the height (`vector=4` with a second value of 1 is four times as wide and as tall as
+  before; `vec2-*`, `vec-2-vec2-3`), times the vertex's own `x_fact` / `y_fact`. Without them (`-p2`) the same file
+  draws every vertex as the file says. graph-io reads the partition and vector into the `partition` and `vector` node columns
   but styles nothing from them, so graphty draws `-p2` for both pages; mapping them is the importer's open gap.
 - Coordinates: Pajek stretches the file's 0..1 coordinates to its Draw window one axis at a time (x * 1200, y * 900 on
   these sheets), while graph-io reads them at one scale on both axes, so graphty's drawing of every sheet is a

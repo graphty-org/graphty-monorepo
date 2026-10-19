@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Title: 1. specimen-mappings-bypass (112) -->
+<!-- Title: 1. specimen-mappings-bypass (120) -->
 <!-- Creator: Pajek 6.02: http://mrvar.fdv.uni-lj.si/pajek -->
 <!-- CreationDate: (the run's clock time, removed by tools/pajek.mjs) -->
 <svg xml:space="preserve" viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape">
-<title>1. specimen-mappings-bypass (112)</title>
+<title>1. specimen-mappings-bypass (120)</title>
 <g inkscape:groupmode="layer" id="PajekSig" inkscape:label="PajekSignature">
 <g transform="translate(3 882)">
 <g transform="scale(0.1)">
@@ -166,174 +166,194 @@
 <!-- Vertex:    54 -->
 <ellipse cx="432.00" cy="777.67" rx="30.00" ry="18.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    55 -->
-<ellipse cx="20.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<ellipse cx="544.00" cy="777.67" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    56 -->
-<ellipse cx="1180.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<ellipse cx="656.00" cy="777.67" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    57 -->
-<ellipse cx="20.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<ellipse cx="768.00" cy="777.67" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    58 -->
-<ellipse cx="1180.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<ellipse cx="880.00" cy="777.67" rx="18.00" ry="18.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
 <!-- Vertex:    59 -->
+<ellipse cx="20.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    60 -->
+<ellipse cx="1180.00" cy="20.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    61 -->
+<ellipse cx="20.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    62 -->
+<ellipse cx="1180.00" cy="880.00" rx="3.00" ry="3.00" style="fill:rgb(200,200,200);stroke:rgb(80,80,80);stroke-width:1.00;"/>
+<!-- Vertex:    63 -->
 <ellipse cx="96.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="96.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">default</text>
-<!-- Vertex:    60 -->
+<!-- Vertex:    64 -->
 <ellipse cx="208.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="208.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=0</text>
-<!-- Vertex:    61 -->
+<!-- Vertex:    65 -->
 <ellipse cx="320.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="320.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=1</text>
-<!-- Vertex:    62 -->
+<!-- Vertex:    66 -->
 <ellipse cx="432.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="432.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=2</text>
-<!-- Vertex:    63 -->
+<!-- Vertex:    67 -->
 <ellipse cx="544.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="544.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=3</text>
-<!-- Vertex:    64 -->
+<!-- Vertex:    68 -->
 <ellipse cx="656.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="656.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=4</text>
-<!-- Vertex:    65 -->
+<!-- Vertex:    69 -->
 <ellipse cx="768.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="768.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=5</text>
-<!-- Vertex:    66 -->
+<!-- Vertex:    70 -->
 <ellipse cx="880.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="880.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=6</text>
-<!-- Vertex:    67 -->
+<!-- Vertex:    71 -->
 <ellipse cx="992.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="992.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=7</text>
-<!-- Vertex:    68 -->
+<!-- Vertex:    72 -->
 <ellipse cx="1104.00" cy="134.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="1104.00" y="137.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=8</text>
-<!-- Vertex:    69 -->
+<!-- Vertex:    73 -->
 <ellipse cx="96.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="96.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=9</text>
-<!-- Vertex:    70 -->
+<!-- Vertex:    74 -->
 <ellipse cx="208.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="208.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=10</text>
-<!-- Vertex:    71 -->
+<!-- Vertex:    75 -->
 <ellipse cx="320.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="320.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=11</text>
-<!-- Vertex:    72 -->
+<!-- Vertex:    76 -->
 <ellipse cx="432.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="432.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=12</text>
-<!-- Vertex:    73 -->
+<!-- Vertex:    77 -->
 <ellipse cx="544.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="544.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=13</text>
-<!-- Vertex:    74 -->
+<!-- Vertex:    78 -->
 <ellipse cx="656.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="656.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=14</text>
-<!-- Vertex:    75 -->
+<!-- Vertex:    79 -->
 <ellipse cx="768.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="768.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=15</text>
-<!-- Vertex:    76 -->
+<!-- Vertex:    80 -->
 <ellipse cx="880.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="880.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=16</text>
-<!-- Vertex:    77 -->
+<!-- Vertex:    81 -->
 <ellipse cx="992.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="992.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=17</text>
-<!-- Vertex:    78 -->
+<!-- Vertex:    82 -->
 <ellipse cx="1104.00" cy="271.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="1104.00" y="274.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=18</text>
-<!-- Vertex:    79 -->
+<!-- Vertex:    83 -->
 <ellipse cx="96.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="96.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=19</text>
-<!-- Vertex:    80 -->
+<!-- Vertex:    84 -->
 <ellipse cx="208.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="208.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=20</text>
-<!-- Vertex:    81 -->
+<!-- Vertex:    85 -->
 <ellipse cx="320.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="320.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=21</text>
-<!-- Vertex:    82 -->
+<!-- Vertex:    86 -->
 <ellipse cx="432.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="432.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=22</text>
-<!-- Vertex:    83 -->
+<!-- Vertex:    87 -->
 <ellipse cx="544.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="544.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=23</text>
-<!-- Vertex:    84 -->
+<!-- Vertex:    88 -->
 <ellipse cx="656.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="656.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=24</text>
-<!-- Vertex:    85 -->
+<!-- Vertex:    89 -->
 <ellipse cx="768.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="768.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=25</text>
-<!-- Vertex:    86 -->
+<!-- Vertex:    90 -->
 <ellipse cx="880.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="880.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=26</text>
-<!-- Vertex:    87 -->
+<!-- Vertex:    91 -->
 <ellipse cx="992.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="992.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=27</text>
-<!-- Vertex:    88 -->
+<!-- Vertex:    92 -->
 <ellipse cx="1104.00" cy="407.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="1104.00" y="410.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=28</text>
-<!-- Vertex:    89 -->
+<!-- Vertex:    93 -->
 <ellipse cx="96.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="96.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=29</text>
-<!-- Vertex:    90 -->
+<!-- Vertex:    94 -->
 <ellipse cx="208.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="208.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=30</text>
-<!-- Vertex:    91 -->
+<!-- Vertex:    95 -->
 <ellipse cx="320.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="320.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=31</text>
-<!-- Vertex:    92 -->
+<!-- Vertex:    96 -->
 <ellipse cx="432.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="432.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=32</text>
-<!-- Vertex:    93 -->
+<!-- Vertex:    97 -->
 <ellipse cx="544.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="544.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=33</text>
-<!-- Vertex:    94 -->
+<!-- Vertex:    98 -->
 <ellipse cx="656.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="656.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=34</text>
-<!-- Vertex:    95 -->
+<!-- Vertex:    99 -->
 <ellipse cx="768.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="768.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=35</text>
-<!-- Vertex:    96 -->
+<!-- Vertex:   100 -->
 <ellipse cx="880.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="880.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=36</text>
-<!-- Vertex:    97 -->
+<!-- Vertex:   101 -->
 <ellipse cx="992.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="992.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=37</text>
-<!-- Vertex:    98 -->
+<!-- Vertex:   102 -->
 <ellipse cx="1104.00" cy="544.33" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="1104.00" y="547.33" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=38</text>
-<!-- Vertex:    99 -->
+<!-- Vertex:   103 -->
 <ellipse cx="96.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="96.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=39</text>
-<!-- Vertex:   100 -->
+<!-- Vertex:   104 -->
 <ellipse cx="208.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="208.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=40</text>
-<!-- Vertex:   101 -->
+<!-- Vertex:   105 -->
 <ellipse cx="320.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="320.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=45</text>
-<!-- Vertex:   102 -->
+<!-- Vertex:   106 -->
 <ellipse cx="432.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="432.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=100</text>
-<!-- Vertex:   103 -->
+<!-- Vertex:   107 -->
 <ellipse cx="544.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="544.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=-2</text>
-<!-- Vertex:   104 -->
+<!-- Vertex:   108 -->
 <ellipse cx="656.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="656.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">partition=3 ic=Black</text>
-<!-- Vertex:   105 -->
+<!-- Vertex:   109 -->
 <ellipse cx="768.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="768.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=0.5</text>
-<!-- Vertex:   106 -->
+<!-- Vertex:   110 -->
 <ellipse cx="880.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="880.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=2</text>
-<!-- Vertex:   107 -->
+<!-- Vertex:   111 -->
 <ellipse cx="992.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="992.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=4</text>
-<!-- Vertex:   108 -->
+<!-- Vertex:   112 -->
 <ellipse cx="1104.00" cy="681.00" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="1104.00" y="684.00" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=9</text>
-<!-- Vertex:   109 -->
+<!-- Vertex:   113 -->
 <ellipse cx="96.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="96.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=0</text>
-<!-- Vertex:   110 -->
+<!-- Vertex:   114 -->
 <ellipse cx="208.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="208.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=-1</text>
-<!-- Vertex:   111 -->
+<!-- Vertex:   115 -->
 <ellipse cx="320.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="320.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">box vector=4</text>
-<!-- Vertex:   112 -->
+<!-- Vertex:   116 -->
 <ellipse cx="432.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
 <text x="432.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">x_fact=3 vector=4</text>
+<!-- Vertex:   117 -->
+<ellipse cx="544.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="544.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector2=0.5</text>
+<!-- Vertex:   118 -->
+<ellipse cx="656.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="656.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector2=2</text>
+<!-- Vertex:   119 -->
+<ellipse cx="768.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="768.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector2=3</text>
+<!-- Vertex:   120 -->
+<ellipse cx="880.00" cy="817.67" rx="0.10" ry="0.10" style="fill:rgb(255,255,255);"/>
+<text x="880.00" y="820.67" style="font-family:Helvetica;font-weight: bold;font-size:9px;fill:rgb(0,0,0);text-anchor:middle;">vector=2 vector2=3</text>
 </g>         <!-- Layer Network -->
 </svg>

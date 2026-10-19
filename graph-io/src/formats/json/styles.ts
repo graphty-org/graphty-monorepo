@@ -703,6 +703,8 @@ interface VisLayer {
     useImageSize?: unknown;
     useBorderWithImage?: unknown;
     interpolation?: unknown;
+    imagePadding?: unknown;
+    coordinateOrigin?: unknown;
 }
 
 /**
@@ -768,10 +770,12 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
     set("heightMin", isJsonObject(o.heightConstraint) ? o.heightConstraint.minimum : o.heightConstraint);
     set("image", isJsonObject(o.image) ? o.image.unselected : o.image);
     set("brokenImage", o.brokenImage);
+    set("imagePadding", o.imagePadding);
     if (isJsonObject(o.shapeProperties)) {
         set("useImageSize", o.shapeProperties.useImageSize);
         set("useBorderWithImage", o.shapeProperties.useBorderWithImage);
         set("interpolation", o.shapeProperties.interpolation);
+        set("coordinateOrigin", o.shapeProperties.coordinateOrigin);
     }
 }
 
@@ -780,12 +784,18 @@ function visNodeLayer(o: Record<string, unknown>, set: SetLayer): void {
  * `CircleImageBase._resizeImage`): its picture, the broken image in its place when it has none, with its shorter
  * side across the node's `2 * size` square (or at its own pixels with `shapeProperties.useImageSize`); an `image`
  * node is the picture alone, reaching past that square, or over a box of its background with
- * `shapeProperties.useBorderWithImage`; a `circularImage` is cut to a circle and ringed by its border.
+ * `shapeProperties.useBorderWithImage`; a `circularImage` is cut to a circle and ringed by its border. Its
+ * `imagePadding` keeps the picture that far inside the node's box on each side, stretched to what is left
+ * (`_drawImageAtPosition`); the node's `opacity` fades the picture too; with `shapeProperties.coordinateOrigin`
+ * "top-left" an `image` node with no box of its own draws its picture with its top left corner at the node's position.
  * @param layer - the node's merged layer
  * @param shape - its vis-network shape
+ * @param box - the node's width and height, in the file's units
+ * @param box.width - its width
+ * @param box.height - its height
  * @returns the values, none for another shape or a node with no picture
  */
-function visImage(layer: VisLayer, shape: string): Row {
+function visImage(layer: VisLayer, shape: string, box: { width: number; height: number }): Row {
     const text = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
     const [own, broken] = [text(layer.image), text(layer.brokenImage)];
     const src = own ?? broken;
@@ -806,7 +816,39 @@ function visImage(layer: VisLayer, shape: string): Row {
     if (layer.interpolation === false) {
         row.imageSmoothing = false;
     }
+    const opacity = typeof layer.opacity === "number" && layer.opacity >= 0 && layer.opacity < 1 ? layer.opacity : null;
+    if (opacity !== null) {
+        row.imageOpacity = opacity;
+    }
+    const pad = visImagePadding(layer.imagePadding);
+    if (pad !== null && layer.useImageSize !== true) {
+        row.imageFit = "none";
+        row.imageWidth = Math.max(0, box.width - pad.left - pad.right);
+        row.imageHeight = Math.max(0, box.height - pad.top - pad.bottom);
+        row.imageOffsetX = (pad.left - pad.right) / 2;
+        row.imageOffsetY = (pad.top - pad.bottom) / 2;
+    }
+    if (layer.coordinateOrigin === "top-left" && row.shape === "none") {
+        row.imageOffsetX = box.width / 2 + (typeof row.imageOffsetX === "number" ? row.imageOffsetX : 0);
+        row.imageOffsetY = box.height / 2 + (typeof row.imageOffsetY === "number" ? row.imageOffsetY : 0);
+    }
     return row;
+}
+
+/**
+ * vis-network's `imagePadding`: one number for every side, or `{ top, right, bottom, left }` (each 0 unless given).
+ * @param raw - the option
+ * @returns the four sides, or null for no padding
+ */
+function visImagePadding(raw: unknown): { top: number; right: number; bottom: number; left: number } | null {
+    const side = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+    let pad: { top: number; right: number; bottom: number; left: number } | null = null;
+    if (typeof raw === "number") {
+        pad = { top: side(raw), right: side(raw), bottom: side(raw), left: side(raw) };
+    } else if (isJsonObject(raw)) {
+        pad = { top: side(raw.top), right: side(raw.right), bottom: side(raw.bottom), left: side(raw.left) };
+    }
+    return pad === null || pad.top + pad.right + pad.bottom + pad.left === 0 ? null : pad;
 }
 
 /**
@@ -1115,7 +1157,12 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             const radius = visRadius(merged, range, site);
             row.width = 2 * radius;
             row.height = 2 * radius;
-            Object.assign(row, visImage(merged, shape));
+            Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
+            // vis-network's triangleDown: its triangle turned over, a corner down
+            if (shape === "triangleDown") {
+                row.shape = "polygon";
+                row.shapePoints = "-1,1 0,-1 1,1";
+            }
         } else {
             Object.assign(row, visLabelFit(merged, shape));
         }
@@ -1454,6 +1501,7 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "heightConstraint",
         "image",
         "brokenImage",
+        "imagePadding",
         "shapeProperties",
     ],
     edge: [

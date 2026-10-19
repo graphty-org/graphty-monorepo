@@ -203,9 +203,35 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
             "parallelogram",
             "round-rectangle",
-            "other:com.yworks.flowchart.storeddata",
+            "polygon",
             "rectangle",
         ]);
+    });
+
+    it("draws the GenericNodes no neutral shape names as the outlines yEd draws, as polygons", async () => {
+        const generic = (id: string, conf: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.${conf}"><y:Geometry height="30" width="50" x="0" y="0"/></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${generic("a", "flowchart.card")}${generic("b", "flowchart.document")}${generic("c", "flowchart.dataBase")}${generic("d", "entityRelationship.relationship")}${generic("e", "bpmn.Conversation.withShadow")}${generic("f", "sbgn.Tag")}${generic("g", "flowchart.unknownThing")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "polygon",
+            "polygon",
+            "other:database",
+            "diamond",
+            "hexagon",
+            "polygon",
+            "other:com.yworks.flowchart.unknownthing",
+        ]);
+        const points = resolveStyles(styles, "node", "shapePoints", snapshot);
+        // a card: a box with its top left corner cut, y up
+        expect(points[0]).toBe("-1,-1 1,-1 1,1 -0.6,1 -1,0.6");
+        // a document: a box whose bottom is a wave, low on the left and high on the right
+        const doc1 = String(points[1])
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        const bottomAt = (x: number): number => doc1.find(([px]) => Math.abs(px - x) < 1e-9)?.[1] ?? Number.NaN;
+        expect(bottomAt(-0.5)).toBeLessThan(bottomAt(0.5));
+        expect(points.slice(2)).toEqual([null, null, null, "-1,1 -1,-1 0.6,-1 1,0 0.6,1", null]);
     });
 
     it("draws yEd's BPMN and entity-relationship GenericNodes as the shapes yEd draws", async () => {

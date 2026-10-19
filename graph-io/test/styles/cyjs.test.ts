@@ -480,7 +480,8 @@ describe("the cascade", () => {
         expect(node("image")).toBe("pic.png");
         // Cytoscape.js's default fit draws the picture at its own size
         expect(node("imageFit")).toBe("none");
-        expect(node("imageWidth")).toBe(20);
+        // repeated, it is tiled at its own size: Cytoscape.js's pattern ignores its width
+        expect(node("imageWidth")).toBeUndefined();
         expect(node("imagePositionX")).toBe(0);
         expect(node("imageOffsetY")).toBe(8);
         expect(node("imageRepeat")).toBe("repeat-x");

@@ -57,7 +57,7 @@ import type { LossNote } from "../../types.js";
 import { graphvizArrow, graphvizHasNoOutline, graphvizOutline, graphvizRouteBends } from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
-    flowchartShape,
+    configurationOutline,
     FONT_STYLES,
     type ValueColumns,
     valueColumns,
@@ -495,7 +495,11 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
-        put("shape", flowchartShape(g.customconfiguration));
+        const outline = configurationOutline(g.customconfiguration);
+        put("shape", outline?.shape ?? null);
+        if (outline?.points !== undefined) {
+            put("shapePoints", outline.points);
+        }
     }
 }
 

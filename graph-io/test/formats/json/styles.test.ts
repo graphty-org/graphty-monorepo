@@ -373,6 +373,41 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "width")[0]).toBe(20);
     });
 
+    it("keeps a vis.js picture inside its padding, at its top left corner and faded with its node; turns triangleDown over", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "image", image: "a.png", size: 10, imagePadding: 2 },
+                {
+                    id: "b",
+                    shape: "image",
+                    image: "b.png",
+                    size: 10,
+                    imagePadding: { top: 2, right: 10, bottom: 6 },
+                    shapeProperties: { useBorderWithImage: true },
+                },
+                {
+                    id: "c",
+                    shape: "image",
+                    image: "c.png",
+                    size: 10,
+                    shapeProperties: { coordinateOrigin: "top-left" },
+                },
+                { id: "d", shape: "image", image: "d.png", opacity: 0.4 },
+                { id: "e", shape: "triangleDown" },
+            ],
+            edges: [{ from: "a", to: "e" }],
+        });
+        expect(values(r, "node", "imageFit").slice(0, 2)).toEqual(["none", "none"]);
+        expect(values(r, "node", "imageWidth").slice(0, 2)).toEqual([16, 10]);
+        expect(values(r, "node", "imageHeight").slice(0, 2)).toEqual([16, 12]);
+        // offsets y down, from the node's center
+        expect(values(r, "node", "imageOffsetX").slice(0, 3)).toEqual([0, -5, 10]);
+        expect(values(r, "node", "imageOffsetY").slice(0, 3)).toEqual([0, -2, 10]);
+        expect(values(r, "node", "imageOpacity")).toEqual([null, null, null, 0.4, null]);
+        expect(values(r, "node", "shape")[4]).toBe("polygon");
+        expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
+    });
+
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
         const r = await load({
             nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],

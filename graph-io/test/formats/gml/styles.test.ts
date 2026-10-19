@@ -300,8 +300,12 @@ describe("GML styles: yEd's flowchart shapes", () => {
             "parallelogram",
             "round-rectangle",
             "ellipse",
-            null,
+            "polygon",
         ]);
+        // stored data: its outline, a left side bulging out and a right side bulging in
+        const [, , , stored] = resolveStyles(styles, "node", "shapePoints", snapshot);
+        expect(String(stored)).toContain("0.8,0");
+        expect(String(stored)).toContain("-1,0");
     });
 });
 

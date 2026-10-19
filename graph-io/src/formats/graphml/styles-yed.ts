@@ -244,32 +244,185 @@ function activeRealizer(proxy: unknown): Realizer | null {
     return all[Number.isInteger(active) && active >= 0 && active < all.length ? active : 0] ?? null;
 }
 
+/** A shape a yEd configuration draws: a neutral shape, with its corners where it is a `polygon`. */
+export interface YedOutline {
+    readonly shape: string;
+    /** The polygon's corners as neutral `shapePoints` (`x,y` fractions of the half sizes, y up). */
+    readonly points?: string;
+}
+
 /**
- * yEd's flowchart palette (`com.yworks.flowchart.<name>`), by name, to the shape each draws. Matched whole, before
- * the words below: "data" is a parallelogram, but "storedData" and "directData" are not.
+ * Points along an elliptical arc, as `x,y` text: center (cx, cy), radii (rx, ry), from angle `from` to `to` (radians,
+ * counter-clockwise, y up), both ends included.
+ * @param cx - center x
+ * @param cy - center y
+ * @param rx - x radius
+ * @param ry - y radius
+ * @param from - first angle
+ * @param to - last angle
+ * @param steps - segments
+ * @returns the points
  */
-const FLOWCHART_SHAPES: ReadonlyMap<string, string> = new Map([
-    ["process", "rectangle"],
-    ["decision", "diamond"],
-    ["terminator", "round-rectangle"],
-    ["start1", "ellipse"],
-    ["start2", "ellipse"],
-    ["data", "parallelogram"],
-    ["preparation", "hexagon"],
+function arcPoints(cx: number, cy: number, rx: number, ry: number, from: number, to: number, steps = 12): string[] {
+    return Array.from({ length: steps + 1 }, (_, i) => {
+        const t = from + ((to - from) * i) / steps;
+        return pointText(cx + rx * Math.cos(t), cy + ry * Math.sin(t));
+    });
+}
+
+/**
+ * Points along a wave y = y0 + amp * sin(pi * x), x from `x0` to `x1`.
+ * @param y0 - the wave's middle
+ * @param amp - its height
+ * @param x0 - first x
+ * @param x1 - last x
+ * @returns the points
+ */
+function wavePoints(y0: number, amp: number, x0: number, x1: number): string[] {
+    const steps = 16;
+    return Array.from({ length: steps + 1 }, (_, i) => {
+        const x = x0 + ((x1 - x0) * i) / steps;
+        return pointText(x, y0 + amp * Math.sin(Math.PI * x));
+    });
+}
+
+/**
+ * One corner as `x,y`, rounded to three decimals.
+ * @param x - x
+ * @param y - y
+ * @returns the text
+ */
+function pointText(x: number, y: number): string {
+    const r = (v: number): string => String(Math.round(v * 1000) / 1000 + 0);
+    return `${r(x)},${r(y)}`;
+}
+
+const HALF_PI = Math.PI / 2;
+
+/** A cloud: a circle of bumps, stretched to the box. */
+const CLOUD = Array.from({ length: 72 }, (_, i) => {
+    const t = (2 * Math.PI * i) / 72;
+    const r = 0.86 + 0.14 * Math.abs(Math.cos(4 * t));
+    return pointText(r * Math.cos(t), r * Math.sin(t));
+}).join(" ");
+
+/** A stadium: a box whose ends are half circles (a pill). */
+const STADIUM = [
+    ...arcPoints(0.5, 0, 0.5, 1, -HALF_PI, HALF_PI),
+    ...arcPoints(-0.5, 0, 0.5, 1, HALF_PI, 3 * HALF_PI),
+].join(" ");
+
+/**
+ * The shape each configuration of yEd's GenericNode palettes draws (flowchart, entity relationship, BPMN, SBGN), by
+ * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
+ * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
+ * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
+ * not drawn.
+ */
+const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+    ["flowchart.process", { shape: "rectangle" }],
+    ["flowchart.predefinedprocess", { shape: "rectangle" }],
+    ["flowchart.internalstorage", { shape: "rectangle" }],
+    ["flowchart.decision", { shape: "diamond" }],
+    ["flowchart.terminator", { shape: "round-rectangle" }],
+    ["flowchart.start1", { shape: "ellipse" }],
+    ["flowchart.start2", { shape: "ellipse" }],
+    ["flowchart.onpagereference", { shape: "ellipse" }],
+    ["flowchart.sequentialdata", { shape: "ellipse" }],
+    ["flowchart.data", { shape: "parallelogram" }],
+    ["flowchart.preparation", { shape: "hexagon" }],
+    ["flowchart.database", { shape: "other:database" }],
+    ["flowchart.looplimit", { shape: "polygon", points: "-1,-1 1,-1 1,0.5 0.8,1 -0.8,1 -1,0.5" }],
+    ["flowchart.looplimitend", { shape: "polygon", points: "-1,1 -1,-0.5 -0.8,-1 0.8,-1 1,-0.5 1,1" }],
+    ["flowchart.manualinput", { shape: "polygon", points: "-1,-1 1,-1 1,1 -1,0.4" }],
+    ["flowchart.card", { shape: "polygon", points: "-1,-1 1,-1 1,1 -0.6,1 -1,0.6" }],
+    ["flowchart.manualoperation", { shape: "polygon", points: "-1,1 -0.7,-1 0.7,-1 1,1" }],
+    ["flowchart.offpagereference", { shape: "polygon", points: "-1,1 -1,0 0,-1 1,0 1,1" }],
+    ["flowchart.usermessage", { shape: "polygon", points: "-1,1 -1,-1 0.6,-1 1,0 0.6,1" }],
+    ["flowchart.networkmessage", { shape: "polygon", points: "-1,1 -0.6,0 -1,-1 1,-1 1,1" }],
+    ["flowchart.document", { shape: "polygon", points: ["-1,1", ...wavePoints(-0.75, 0.2, -1, 1), "1,1"].join(" ") }],
+    [
+        "flowchart.papertype",
+        {
+            shape: "polygon",
+            points: [...wavePoints(-0.8, 0.2, -1, 1), ...wavePoints(0.8, 0.2, 1, -1)].join(" "),
+        },
+    ],
+    [
+        "flowchart.delay",
+        { shape: "polygon", points: ["-1,-1", ...arcPoints(0, 0, 1, 1, -HALF_PI, HALF_PI), "-1,1"].join(" ") },
+    ],
+    [
+        "flowchart.display",
+        {
+            shape: "polygon",
+            points: ["-1,0", "-0.6,-1", ...arcPoints(0.6, 0, 0.4, 1, -HALF_PI, HALF_PI), "-0.6,1"].join(" "),
+        },
+    ],
+    [
+        "flowchart.storeddata",
+        {
+            shape: "polygon",
+            points: [
+                ...arcPoints(1, 0, -0.2, 1, -HALF_PI, HALF_PI),
+                ...arcPoints(-0.8, 0, 0.2, 1, HALF_PI, 3 * HALF_PI),
+            ].join(" "),
+        },
+    ],
+    [
+        "flowchart.directdata",
+        {
+            shape: "polygon",
+            points: [
+                ...arcPoints(0.8, 0, 0.2, 1, -HALF_PI, HALF_PI),
+                ...arcPoints(-0.8, 0, 0.2, 1, HALF_PI, 3 * HALF_PI),
+            ].join(" "),
+        },
+    ],
+    ["flowchart.cloud", { shape: "polygon", points: CLOUD }],
+    ["entityrelationship.relationship", { shape: "diamond" }],
+    ["entityrelationship.attribute", { shape: "ellipse" }],
+    ["bpmn.conversation", { shape: "hexagon" }],
+    ["bpmn.artifact", { shape: "polygon", points: "-1,-1 1,-1 1,0.6 0.6,1 -1,1" }],
+    ["sbgn.unspecifiedentity", { shape: "ellipse" }],
+    ["sbgn.simplechemical", { shape: "ellipse" }],
+    ["sbgn.emptyset", { shape: "ellipse" }],
+    ["sbgn.operator", { shape: "ellipse" }],
+    ["sbgn.macromolecule", { shape: "round-rectangle" }],
+    ["sbgn.phenotype", { shape: "hexagon" }],
+    ["sbgn.process", { shape: "rectangle" }],
+    ["sbgn.submap", { shape: "rectangle" }],
+    ["sbgn.unitofinformation", { shape: "rectangle" }],
+    ["sbgn.statevariable", { shape: "polygon", points: STADIUM }],
+    ["sbgn.perturbingagent", { shape: "polygon", points: "-1,1 -0.7,0 -1,-1 1,-1 0.7,0 1,1" }],
+    ["sbgn.tag", { shape: "polygon", points: "-1,1 -1,-1 0.6,-1 1,0 0.6,1" }],
+    [
+        "sbgn.nucleicacidfeature",
+        {
+            shape: "polygon",
+            points: [
+                "-1,1",
+                ...arcPoints(-0.75, -0.6, 0.25, 0.4, Math.PI, 3 * HALF_PI, 6),
+                ...arcPoints(0.75, -0.6, 0.25, 0.4, 3 * HALF_PI, 2 * Math.PI, 6),
+                "1,1",
+            ].join(" "),
+        },
+    ],
 ]);
 
-const FLOWCHART_PREFIX = "com.yworks.flowchart.";
-
 /**
- * The shape a yEd flowchart configuration draws: a GraphML GenericNode's `configuration`, or a yEd GML node's
+ * The shape a yEd GenericNode configuration draws: a GraphML GenericNode's `configuration`, or a yEd GML node's
  * `customconfiguration`.
  * @param configuration - the configuration
- * @returns the neutral shape, or null for a configuration that is not one of the flowchart shapes known here
+ * @returns the shape, with its corners where it is a polygon, or null for a configuration not known here
  */
-export function flowchartShape(configuration: string): string | null {
-    return configuration.startsWith(FLOWCHART_PREFIX)
-        ? (FLOWCHART_SHAPES.get(configuration.slice(FLOWCHART_PREFIX.length)) ?? null)
-        : null;
+export function configurationOutline(configuration: string): YedOutline | null {
+    const key = configuration
+        .slice(0, MAX_STYLE_VALUE_LENGTH)
+        .toLowerCase()
+        .replace(/^com\.yworks\./, "")
+        .replace(/\.withshadow$/, "");
+    return YED_CONFIGURATIONS.get(key) ?? null;
 }
 
 /** GenericNode configurations, by a word they contain, to the shape they draw; the first match wins. */
@@ -507,9 +660,9 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     }
     if (real.type === "GenericNode") {
         const conf = treeAttr(real.r, "configuration") ?? "";
-        const flowchart = flowchartShape(conf);
-        if (flowchart !== null) {
-            return flowchart;
+        const known = configurationOutline(conf);
+        if (known !== null) {
+            return known.shape;
         }
         const lower = conf.slice(0, MAX_STYLE_VALUE_LENGTH).toLowerCase();
         for (const [word, value] of GENERIC_SHAPES) {
@@ -578,6 +731,11 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf): void {
     put("width", canonNumber(treeAttr(geometry, "width"), at("width")));
     put("height", canonNumber(treeAttr(geometry, "height"), at("height")));
     put("shape", realizerShape(real, at));
+    const points =
+        real.type === "GenericNode" ? configurationOutline(treeAttr(r, "configuration") ?? "")?.points : undefined;
+    if (points !== undefined) {
+        put("shapePoints", points);
+    }
     readLabels(treeChildren(r, "NodeLabel"), true, put, at, geometry);
 }
 

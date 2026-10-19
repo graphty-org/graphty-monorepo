@@ -186,8 +186,11 @@ export function combineFace(
             col("image")[i] = image;
             const fit = word("_bgFit", i) ?? "none";
             col("imageFit")[i] = ["none", "contain", "cover"].includes(fit) ? fit : "none";
-            const bw = length(word("_bgWidth", i), w);
-            const bh = length(word("_bgHeight", i), h);
+            // a repeated picture is tiled at its own size whatever its width and height say (Cytoscape.js 3.34
+            // `drawInscribedImage`: a canvas pattern of the picture as loaded)
+            const tiled = ["repeat", "repeat-x", "repeat-y"].includes(word("_bgRepeat", i) ?? "");
+            const bw = tiled ? null : length(word("_bgWidth", i), w);
+            const bh = tiled ? null : length(word("_bgHeight", i), h);
             if (bw !== null) {
                 col("imageWidth")[i] = bw;
             }

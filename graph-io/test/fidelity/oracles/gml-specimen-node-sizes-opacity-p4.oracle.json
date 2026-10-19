@@ -5,15 +5,15 @@
     "program": "OGDF (Open Graph Drawing Framework)",
     "version": "2025.10 (PyPI ogdf-wheel 2025.10, libOGDF.so)",
     "route": "ogdf",
-    "command": "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> (GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"DejaVu Sans\", every other setting OGDF's default)",
+    "command": "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> (GraphIO::drawSVG, SVGSettings margin 16.5, width 1200px, height 900px, font family \"Arial\" (OGDF's default), every other setting OGDF's default)",
     "standIn": false,
     "about": "OGDF writes these files (the sheet is OGDF's own readGML / writeGML of the generated sheet) and this is OGDF's own drawing of them. drawSVG draws every label in one font size (SVGSettings, 10 px) and ignores fill patterns.",
     "canvas": {
         "widthPx": 1200,
         "heightPx": 900
     },
-    "fonts": "the font family \"DejaVu Sans\" (the repository's pinned font) is written into the SVG; rasterize.mjs draws it with visual-fonts/",
+    "fonts": "OGDF's default font family \"Arial\" is written into the SVG; rasterize.mjs draws it with visual-fonts/ (Liberation Sans, Arial's metric twin)",
     "svgPostprocessing": "none: the SVG is OGDF's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/ogdf.mjs gml-specimen-node-sizes-opacity-p4 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gml-specimen-node-sizes-opacity-p4.svg"
 }

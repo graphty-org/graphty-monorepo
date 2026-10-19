@@ -26,6 +26,34 @@ const font = {
     sansSerifFamily: "DejaVu Sans",
     monospaceFamily: "DejaVu Sans Mono",
 };
+// fontconfig's metric aliases (visual-fonts/conf.d/30-metric-aliases.conf), which the browser reading the same SVG
+// applies and resvg does not: a family the pinned fonts lack is drawn in its metric twin, not the default face.
+const METRIC_TWIN = new Map([
+    ["arial", "Liberation Sans"],
+    ["helvetica", "Liberation Sans"],
+    ["arimo", "Liberation Sans"],
+    ["times new roman", "Liberation Serif"],
+    ["times", "Liberation Serif"],
+    ["tinos", "Liberation Serif"],
+    ["courier new", "Liberation Mono"],
+    ["courier", "Liberation Mono"],
+    ["cousine", "Liberation Mono"],
+]);
+
+/**
+ * A font-family list with each name the pinned fonts lack replaced by its metric twin.
+ * @param list - the family list as written
+ * @returns the list resvg is given
+ */
+function withTwins(list) {
+    return list
+        .split(",")
+        .map((name) => {
+            const bare = name.trim().replace(/^(['"]|&quot;)|(['"]|&quot;)$/g, "");
+            return METRIC_TWIN.get(bare.toLowerCase()) ?? name.trim();
+        })
+        .join(", ");
+}
 const MIME = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -37,7 +65,10 @@ for (const svg of process.argv.slice(2)) {
     // resvg 2.6.2 reads a CSS url() with a quoted reference (draw.io writes style="fill:
     // url(&quot;#g&quot;)") as no paint and draws it black; the unquoted form means the same in CSS.
     // Only the bytes handed to resvg change, never the oracle SVG.
-    const text = readFileSync(svg, "utf8").replace(/url\(&quot;(#[^&]*)&quot;\)/g, "url($1)");
+    const text = readFileSync(svg, "utf8")
+        .replace(/url\(&quot;(#[^&]*)&quot;\)/g, "url($1)")
+        .replace(/font-family="([^"]*)"/g, (_, list) => `font-family="${withTwins(list)}"`)
+        .replace(/font-family:\s*([^;"]*)/g, (_, list) => `font-family: ${withTwins(list)}`);
     // resvg-js loads no relative file: inline each relative <image> href that exists in the image directory.
     const imageDir = process.env.RASTER_IMAGE_DIR ?? dirname(svg);
     const inlined = text.replace(/(xlink:href|href)="([^":]+)"/g, (whole, attr, href) => {

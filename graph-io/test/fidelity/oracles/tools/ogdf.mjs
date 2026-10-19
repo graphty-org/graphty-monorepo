@@ -76,7 +76,9 @@ const { width, height } = layout.canvas;
 // the anchors' outer edges (and their 1 px outline) sit at the canvas edges: drawSVG's view box is the drawing's
 // bounding box plus the margin
 const margin = layout.anchors.nodes["anchor-nw"][0] - layout.anchors.size / 2 - 0.5;
-const font = layout.neutral.fontFamily;
+// drawSVG's own default font family (SVGSettings: "Arial"): a font is a setting of the drawing the file cannot carry,
+// so the oracle keeps OGDF's default, which rasterize.mjs draws in Arial's metric twin, Liberation Sans
+const font = "Arial";
 
 for (const [sheet, r] of Object.entries(routes)) {
     const id = `gml-${sheet}`;
@@ -96,14 +98,14 @@ for (const [sheet, r] of Object.entries(routes)) {
         command:
             "ogdf-gml rewrite <file> (GraphIO::readGML, GraphIO::writeGML); ogdf-gml draw <file> " +
             `(GraphIO::drawSVG, SVGSettings margin ${margin}, width ${width}px, height ${height}px, font family ` +
-            `"${font}", every other setting OGDF's default)`,
+            `"${font}" (OGDF's default), every other setting OGDF's default)`,
         standIn: false,
         about:
             "OGDF writes these files (the sheet is OGDF's own readGML / writeGML of the generated sheet) and this " +
             "is OGDF's own drawing of them. drawSVG draws every label in one font size (SVGSettings, 10 px) and " +
             "ignores fill patterns.",
         canvas: { widthPx: width, heightPx: height },
-        fonts: `the font family "${font}" (the repository's pinned font) is written into the SVG; rasterize.mjs draws it with visual-fonts/`,
+        fonts: `OGDF's default font family "${font}" is written into the SVG; rasterize.mjs draws it with visual-fonts/ (Liberation Sans, Arial's metric twin)`,
         svgPostprocessing: "none: the SVG is OGDF's output byte for byte",
         date: new Date().toISOString().slice(0, 10),
         regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, svg)}`,

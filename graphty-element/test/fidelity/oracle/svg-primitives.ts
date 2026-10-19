@@ -787,6 +787,12 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
             }
             const open = fill === null && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
             const points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
+            // a filled shape with no area and no stroke paints nothing (Gephi writes an arrowhead of arrow.size 0 as
+            // a polyline of three equal points)
+            const extent = boxOfPoints(points);
+            if (stroke === null && extent.x1 - extent.x0 === 0 && extent.y1 - extent.y0 === 0) {
+                continue;
+            }
             // a painted fill closes any outline (Gephi draws its arrowheads as filled polylines)
             const closed = isClosed(el, points) || fill !== null;
             const subpaths = fill !== null && stroke === null ? subpathsOf(el, m) : null;

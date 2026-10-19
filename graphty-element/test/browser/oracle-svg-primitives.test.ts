@@ -59,6 +59,14 @@ describe("the oracle SVG reader", () => {
         );
     });
 
+    it("reads a filled shape of no area as nothing, as Gephi's arrowhead of arrow.size 0 paints nothing", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <polyline fill="#c8c8c8" points="130.7,-61.3 130.7,-61.3 130.7,-61.3" transform="translate(0,100)"/>
+            <polyline fill="#c8c8c8" points="10,10 20,15 10,20"/>
+        </svg>`;
+        assert.lengthOf(readSvgPrimitives(svg).prims, 1);
+    });
+
     it("reads each positioned tspan line's own box, which a label's alignment is read off", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <text font-size="10px"><tspan x="20" y="20">a long line</tspan><tspan x="20" y="32">short</tspan></text>

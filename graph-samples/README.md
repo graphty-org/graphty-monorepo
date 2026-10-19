@@ -39,8 +39,10 @@ Every generator returns a `SampleGraph`:
 ### Any generator by name
 
 `GENERATOR_CATALOG` lists every generator as plain data: its name, a default plain name, one
-sentence, and its main parameters with defaults that build a readable graph of a few hundred nodes
-at most. `generateGraph(name, params)` runs one; a parameter left out takes its default.
+sentence, its main parameters with defaults that build a readable graph of a few hundred nodes
+at most, and a `thumbnail`: a picture of that default graph, named like a dataset's (below) and
+published beside the datasets' files. `generateGraph(name, params)` runs one; a parameter left out
+takes its default.
 
 ```ts
 import { GENERATOR_CATALOG } from "@graphty/graph-samples";
@@ -147,8 +149,10 @@ const mine = await fetchDataset("road-ny", { baseUrl: "https://my.cdn/graphs/" }
 the files), a `fetch` implementation and an abort signal. A failed download rejects with
 `fetching <url> failed: HTTP <status>`.
 
-Each small dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
-names a 480 x 300 WebP with a transparent background, published beside its file:
+Each dataset also has a picture of itself, for a gallery or a menu: its metadata's `thumbnail`
+names a 480 x 300 WebP with a transparent background, published beside its file. A large dataset's
+picture is drawn from a sample of it (a neighborhood of a hub, or for the road network a map of one
+area), since the whole graph is too big to lay out in so small a picture:
 
 ```ts
 import { DATASETS, DEFAULT_DATASET_BASE_URL } from "@graphty/graph-samples";
@@ -221,7 +225,8 @@ The small datasets are converted into the repository (`data/<name>.ts`, by
 (`scripts/pack-datasets.mjs`; `npm run datasets:pack` also rewrites their sizes and checksums in
 `src/datasets/packed.ts`). Its pictures are drawn by graphty-element with
 `node tools/render-sample-thumbnails.mjs` (from the monorepo root, after a build) into `thumbnails/`,
-committed, and copied beside each file by the same step. Neither `data/` nor `dist/data/` is
+committed, and copied beside each file by the same step, with the large datasets' and the
+generators' pictures (`generator-<name>.webp`). Neither `data/` nor `dist/data/` is
 published to npm.
 
 `npm run datasets:hosted` (`scripts/build-hosted.mjs`) downloads each large dataset's source,

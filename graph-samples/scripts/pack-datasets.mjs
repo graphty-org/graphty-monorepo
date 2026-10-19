@@ -9,7 +9,8 @@
  * Writes, offline and deterministically for a Node.js major version:
  *
  *   dist/data/v1/<name>.gsnp.gz   the snapshot's wire bytes (snapshot.toBytes()), gzipped
- *   dist/data/v1/<name>.webp      its picture, copied from thumbnails/ (tools/render-sample-thumbnails.mjs)
+ *   dist/data/v1/<name>.webp      its picture, copied from thumbnails/ (tools/render-sample-thumbnails.mjs), and
+ *                                 every other picture there: the large datasets' and the generators'
  *   dist/data/v1/index.json       these datasets' metadata, URL, size, checksum and picture
  *   src/datasets/packed.ts        (with --write) each file's size and SHA-256, for DATASETS (committed)
  *
@@ -73,6 +74,10 @@ for (const meta of metas) {
         copyFileSync(picture, path.join(outDir, thumbnail));
     }
     packed.push({ ...meta, bytes: gz.length, sha256: createHash("sha256").update(gz).digest("hex"), thumbnail });
+}
+// The pictures of the large datasets and the generators, served beside the small datasets' files.
+for (const file of readdirSync(path.join(packageRoot, "thumbnails"))) {
+    copyFileSync(path.join(packageRoot, "thumbnails", file), path.join(outDir, file));
 }
 const index = packed.map((meta) => ({ ...meta, url: BASE_URL + meta.name + ".gsnp.gz" }));
 // every non-ASCII character escaped, so the file stays plain ASCII

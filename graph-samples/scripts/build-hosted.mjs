@@ -13,6 +13,8 @@
  *
  *   public-data/v1/<name>.gsnp.gz   the snapshot's wire bytes (snapshot.toBytes()), gzipped (and a copy of
  *                                   each small dataset's file from dist/data/v1/)
+ *   public-data/v1/<name>.webp      every picture in thumbnails/ (tools/render-sample-thumbnails.mjs): the
+ *                                   datasets', named by their `thumbnail`, and the generators'
  *   public-data/v1/index.json       every dataset's metadata, URL, size and checksum, small ones first
  *   src/datasets/hosted.ts          the same metadata for the DATASETS catalogue (committed)
  *   src/datasets/hosted-names.ts    their names alone, in the same order, for DATASET_NAMES (committed)
@@ -25,7 +27,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync, gzipSync } from "node:zlib";
@@ -429,6 +431,10 @@ function copySmallDatasets() {
 async function main() {
     mkdirSync(outDir, { recursive: true });
     const small = copySmallDatasets();
+    const pictures = path.join(packageRoot, "thumbnails");
+    for (const file of readdirSync(pictures)) {
+        copyFileSync(path.join(pictures, file), path.join(outDir, file));
+    }
     const metas = [];
     for (const dataset of DATASETS) {
         const files = {};
@@ -466,6 +472,7 @@ async function main() {
             hosting: "remote",
             bytes: gz.length,
             sha256: createHash("sha256").update(gz).digest("hex"),
+            ...(existsSync(path.join(pictures, `${name}.webp`)) ? { thumbnail: `${name}.webp` } : {}),
         });
         console.log(`${name}: ${snapshot.nodeCount} nodes, ${snapshot.edgeCount} edges, ${gz.length} bytes`);
     }

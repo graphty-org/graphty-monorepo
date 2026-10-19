@@ -36,6 +36,13 @@ export interface GeneratorDescriptor {
     readonly description: string;
     /** Its main parameters; a random generator's last one is `seed`. */
     readonly params: readonly GeneratorParamDescriptor[];
+    /**
+     * A small picture of what it builds with its default parameters (a 480 x 300 WebP with a
+     * transparent background, drawn by graphty-element): its file name beside the datasets' files,
+     * so its address is the dataset base URL (`DEFAULT_DATASET_BASE_URL`) plus this name. Absent
+     * when it has none.
+     */
+    readonly thumbnail?: string;
 }
 
 /**
@@ -113,7 +120,8 @@ function gen(
     description: string,
     params: readonly GeneratorParamDescriptor[],
 ): GeneratorDescriptor {
-    return { name, plainName, description, params };
+    // drawn by tools/render-sample-thumbnails.mjs into thumbnails/, published beside the datasets
+    return { name, plainName, description, params, thumbnail: `generator-${name}.webp` };
 }
 
 /** Every generator, in alphabetical order of name. */

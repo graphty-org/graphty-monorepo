@@ -9,6 +9,7 @@ import { buildDataset } from "../../data/build.js";
 import { DATASETS } from "../../src/datasets/catalog.js";
 import { karate, karateMeta } from "../../src/datasets/karate/index.js";
 import { PACKED } from "../../src/datasets/packed.js";
+import { GENERATOR_CATALOG } from "../../src/generators/catalog.js";
 import { SOURCE_DATA } from "../helpers/datasets.js";
 
 const packageRoot = path.resolve(import.meta.dirname, "../..");
@@ -25,15 +26,40 @@ describe("every dataset", () => {
     });
 });
 
-describe("a small dataset's picture", () => {
-    it.each(Object.keys(PACKED))("%s has one, a WebP beside its file", (name) => {
-        expect(PACKED[name].thumbnail).toBe(`${name}.webp`);
-        const picture = readFileSync(path.join(packageRoot, "thumbnails", `${name}.webp`));
-        expect(picture.subarray(0, 4).toString("latin1")).toBe("RIFF");
-        expect(picture.subarray(8, 12).toString("latin1")).toBe("WEBP");
-        // tools/render-sample-thumbnails.mjs draws small pictures, not page-sized ones
-        expect(picture.length).toBeLessThan(80_000);
+/**
+ * Checks that a picture tools/render-sample-thumbnails.mjs drew is in thumbnails/: a small WebP.
+ * @param file - its file name
+ */
+function expectPicture(file: string): void {
+    const picture = readFileSync(path.join(packageRoot, "thumbnails", file));
+    expect(picture.subarray(0, 4).toString("latin1")).toBe("RIFF");
+    expect(picture.subarray(8, 12).toString("latin1")).toBe("WEBP");
+    // tools/render-sample-thumbnails.mjs draws small pictures, not page-sized ones
+    expect(picture.length).toBeLessThan(80_000);
+}
+
+describe("a dataset's picture", () => {
+    it.each(DATASETS.map((meta) => meta.name))("%s has one, a WebP beside its file", (name) => {
         expect(DATASETS.find((meta) => meta.name === name)?.thumbnail).toBe(`${name}.webp`);
+        expectPicture(`${name}.webp`);
+        if (name in PACKED) {
+            expect(PACKED[name].thumbnail).toBe(`${name}.webp`);
+        }
+    });
+});
+
+describe("a generator's picture", () => {
+    it.each(GENERATOR_CATALOG.map((generator) => generator.name))("%s has one, a WebP beside the datasets", (name) => {
+        expect(GENERATOR_CATALOG.find((generator) => generator.name === name)?.thumbnail).toBe(
+            `generator-${name}.webp`,
+        );
+        expectPicture(`generator-${name}.webp`);
+    });
+
+    it("is published with the datasets by the pack step", () => {
+        for (const { thumbnail } of GENERATOR_CATALOG) {
+            expect(existsSync(path.join(built, thumbnail ?? "")), thumbnail).toBe(true);
+        }
     });
 });
 

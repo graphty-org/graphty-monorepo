@@ -386,7 +386,7 @@ function readLabelAlign(
  * @param scheme - the object's color scheme
  * @param use - how Graphviz draws it
  * @param property - the color property
- * @param opacity - its opacity property, or null when the alpha is dropped
+ * @param opacity - its opacity property, or null when the alpha is dropped (an outline's is its borderOpacity)
  * @param put - receives the values
  * @param at - the sites
  * @returns the alpha, or null when the color is absent
@@ -394,7 +394,7 @@ function readLabelAlign(
 function readColor(
     raw: string | null,
     scheme: string | null,
-    use: "line" | "fill" | "edge",
+    use: "line" | "text" | "fill" | "edge",
     property: string,
     opacity: string | null,
     put: Put,
@@ -408,10 +408,13 @@ function readColor(
         return null;
     }
     put(property, c.color);
-    if (opacity !== null) {
+    if (property === "borderColor") {
+        // a transparent outline is no outline (the caller sets its width to 0); a part-transparent one is drawn so
+        put("borderOpacity", c.alpha > 0 && c.alpha < 1 ? c.alpha : null);
+    } else if (opacity !== null) {
         put(opacity, c.alpha);
-    } else if (c.alpha > 0 || property !== "borderColor") {
-        // a transparent outline is no outline (the caller sets its width to 0); any other alpha is dropped, noted
+    } else {
+        // any other alpha is dropped, noted
         colorOpacity(c, null, at(property), false);
     }
     return c.alpha;
@@ -471,7 +474,7 @@ function readCommon(
     if (tokens.includes("invis")) {
         put("visible", false);
     }
-    readColor(nonEmpty(get("fontcolor")), scheme, "line", "labelColor", null, put, at);
+    readColor(nonEmpty(get("fontcolor")), scheme, "text", "labelColor", null, put, at);
     const size = get("fontsize");
     put("labelSize", size === null ? null : canonNumber(size, at("labelSize")));
     const font = get("fontname");
@@ -522,11 +525,27 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
             put("labelPosition", clusterLabelPosition(get));
         }
     }
-    if (!cx.cluster) {
+    if (cx.cluster) {
+        readClusterBox(get, put);
+    } else {
         readSize(get, shape, n.point, put, at);
         if (!n.point) {
             readLabelFit(get, shape, label, shown, put);
         }
+    }
+}
+
+/**
+ * Reads a laid-out cluster's size from its `bb` ("llx,lly,urx,ury" in points), the box Graphviz draws round its
+ * members and its label; a cluster with no `bb` is drawn round its members.
+ * @param get - the cluster's attributes
+ * @param put - receives the values
+ */
+function readClusterBox(get: Attr, put: Put): void {
+    const parts = (get("bb") ?? "").split(",").map(Number);
+    if (parts.length === 4 && parts.every(Number.isFinite) && parts[2] >= parts[0] && parts[3] >= parts[1]) {
+        put("width", num6(parts[2] - parts[0]));
+        put("height", num6(parts[3] - parts[1]));
     }
 }
 
@@ -731,7 +750,8 @@ function readNodeOutline(n: NodeRead): void {
         const outline = cx.cluster ? (nonEmpty(get("pencolor")) ?? n.color) : n.color;
         const alpha = readColor(outline, n.scheme, "line", "borderColor", null, put, at);
         const width = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
-        if (alpha === 0) {
+        // peripheries=0 draws no outline, on a node and on a cluster alike
+        if (alpha === 0 || Number(nonEmpty(get("peripheries")) ?? "1") === 0) {
             put("borderWidth", 0);
         } else if (width !== null) {
             put("borderWidth", penWidth(width, get("penwidth") !== null, at("borderWidth")));

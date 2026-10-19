@@ -16,6 +16,9 @@
  *   leading blanks, is drawn as the SVG color, whatever the scheme: Graphviz's SVG output writes such a name as it is
  *   (`fill="gray"`, gvrender_resolve_color) and every SVG reader draws it as CSS does, so `gray` is #808080 there,
  *   not X11's #c0c0c0. The SVG drawing is the one we read Graphviz by.
+ * - An outline or font color list whose first entry is such a name is written whole (`stroke="red:blue"`: Graphviz
+ *   resolves the first entry in place and puts the `:` back), which no SVG reader can draw: an outline is not drawn
+ *   and a text is black, SVG's own default.
  * - A color list (`red:blue`, `red;0.3:blue`): an outline or a font color draws the text before the first `:` as one
  *   color, so `red:blue` is red and `red;0.3:blue` is black (`red;0.3` is not a color). A fill draws a gradient and
  *   an edge draws one line per color; both start with the first entry's color, its `;fraction` dropped. A value
@@ -28,7 +31,7 @@ import { BREWER_SCHEMES, CSS_COLORS, X11_COLORS } from "./color-tables.js";
  * How Graphviz draws a color value, which decides how a color list is read.
  * @category Styles
  */
-export type GraphvizColorUse = "line" | "fill" | "edge";
+export type GraphvizColorUse = "line" | "text" | "fill" | "edge";
 
 /**
  * A resolved Graphviz color, with how it was read.
@@ -167,7 +170,7 @@ function schemeColor(name: string, scheme: string): string | undefined {
  * Resolves a Graphviz color value the way Graphviz draws it for a use; an unknown color is black.
  * @param raw - the value, at most 256 characters
  * @param scheme - the object's `colorscheme`, or null
- * @param use - an outline or font color (`line`), a fill, or an edge's line color
+ * @param use - an outline color (`line`), a font color (`text`), a fill, or an edge's line color
  * @param svgNames - whether a bare SVG name is drawn as SVG's color, as Graphviz's SVG output draws it (false: as
  * every other Graphviz output draws it)
  * @returns the color and how it was read
@@ -182,9 +185,15 @@ export function graphvizColor(
     let text = raw.replace(/^[ \t\r\n]+/, "");
     let list: GraphvizColor["list"] = null;
     const colon = text.indexOf(":");
+    const pen = use === "line" || use === "text";
     if (colon >= 0) {
         text = text.slice(0, colon);
-        if (use !== "line") {
+        if (svgNames && pen && raw.startsWith(text) && CSS_COLORS.has(text.toLowerCase())) {
+            return use === "line"
+                ? { hex: "#fffffe", alpha: 0, unknown: false, list: null }
+                : { hex: "#000000", alpha: 1, unknown: false, list: null };
+        }
+        if (!pen) {
             const semi = text.indexOf(";");
             if (semi >= 0) {
                 text = text.slice(0, semi);

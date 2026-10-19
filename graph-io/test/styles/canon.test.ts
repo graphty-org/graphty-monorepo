@@ -142,9 +142,11 @@ describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
         ["/svg/gray", "graphviz", "#808080"],
         ["/nosuch/red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
         ["red;0.3", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
-        // A list as an outline or font color: the text before the first ":" is one color.
-        ["red:blue", "graphviz", "#ff0000"],
-        ["red:", "graphviz", "#ff0000"],
+        // A list as an outline or font color: the text before the first ":" is one color, except where it is a bare
+        // SVG name, which Graphviz's SVG writes with the whole list (stroke="red:blue"): no outline is drawn.
+        ["red:blue", "graphviz", "#fffffe", 0],
+        ["red:", "graphviz", "#fffffe", 0],
+        ["/x11/red:blue", "graphviz", "#ff0000"],
         [":red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
         ["red;0.3:blue", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],
         ["nosuch:blue", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"],

@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { GRAPHVIZ_DECORATED_BOXES, GRAPHVIZ_POLYGON_SHAPES } from "../../../src/formats/dot/drawing.js";
 import { DOT_STYLE_BLOCK_ATTRIBUTE } from "../../../src/formats/dot/index.js";
 import { createRegistry } from "../../../src/registry.js";
+import { CSS_COLORS } from "../../../src/styles/canon/color-tables.js";
 import {
     type ExtractedStyles,
     featuresOf,
@@ -168,7 +169,8 @@ describe("DOT styles: Graphviz's rules", () => {
         // a fill list is a gradient from its first color; an outline list "red;0.3:blue" is no color, drawn black
         expect(fill.get("e")).toBe("#ff0000");
         expect(border.get("e")).toBe("#000000");
-        expect(byId(styles, snapshot, "labelColor").get("e")).toBe("#008000");
+        // green:blue as a font color is written whole by Graphviz's SVG, which draws the text black
+        expect(byId(styles, snapshot, "labelColor").get("e")).toBe("#000000");
         expect(border.get("f")).toBe("#beaed4");
         expect(drawn(styles, snapshot, "edge", "color")[0]).toBe("#ff0000");
         expect(drawn(styles, snapshot, "edge", "opacity")[1]).toBe(0);
@@ -408,6 +410,38 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(drawn(styles, snapshot, "edge", "labelTextAlign")[0]).toBe("left");
     });
 
+    it("draws no outline for peripheries=0 or an outline list SVG cannot paint, and a black text for such a font color", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            p [shape=box, peripheries=0]; l [color="red:blue", fontcolor="red:blue"];
+            x [color="/x11/red:blue"]; s [color="red;0.3:blue"];
+            subgraph cluster_q { peripheries=0; label="Q"; q }
+            t [color="#ff000080"]; subgraph cluster_t { color="#0000ff88"; tt }
+        }`);
+        // a part-transparent outline is drawn so, on a node and on a cluster
+        const borderOpacity = byId(styles, snapshot, "borderOpacity");
+        expect([borderOpacity.get("t"), borderOpacity.get("cluster_t")]).toEqual([0.501961, 0.533333]);
+        const width = byId(styles, snapshot, "borderWidth");
+        const border = byId(styles, snapshot, "borderColor");
+        // Graphviz's SVG writes stroke="red:blue" for l, which no SVG reader paints; text fill="red:blue" draws black
+        expect(["p", "l", "cluster_q"].map((id) => width.get(id))).toEqual([0, 0, 0]);
+        expect(byId(styles, snapshot, "labelColor").get("l")).toBe("#000000");
+        // a list after a scheme prefix is resolved to its first color, and "red;0.3" is no color, drawn black
+        expect([border.get("x"), border.get("s")]).toEqual(["#ff0000", "#000000"]);
+        expect([width.get("x"), width.get("s")]).toEqual([1, 1]);
+    });
+
+    it("sizes a laid-out cluster by its bb, the box Graphviz draws round its members and label", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            bb="0,0,300,200";
+            subgraph cluster_a { bb="10,20,150,104"; a [pos="80,50"] }
+            subgraph cluster_b { b }
+        }`);
+        const [width, height] = ["width", "height"].map((p) => byId(styles, snapshot, p));
+        expect([width.get("cluster_a"), height.get("cluster_a")]).toEqual([140, 84]);
+        // with no bb, graphty draws the box round the members, whatever size the defaults give
+        expect(width.get("cluster_b")).not.toBe(140);
+    });
+
     it("reads a filled color list as a linear gradient from its first color to its second, at -gradientangle", async () => {
         const { snapshot, styles } = await load(`digraph {
             node [style=filled];
@@ -554,8 +588,10 @@ describe("DOT design rule 5: none and invis are transparent, a list is never its
             expect(opacity.get(id)).toBe(0);
             expect(borderWidth.get(id)).toBe(0);
         }
-        // a fill list is a gradient from its first color; an outline list draws the color before its first ":"
-        expect([fill.get("n4"), border.get("n4")]).toEqual(["#ff0000", "#ff0000"]);
+        // a fill list is a gradient from its first color; an outline list starting with a bare SVG name is written
+        // whole by Graphviz's SVG (stroke="red:blue"), which draws no outline, and its text black
+        expect([fill.get("n4"), borderWidth.get("n4")]).toEqual(["#ff0000", 0]);
+        expect(byId(styles, snapshot, "labelColor").get("n4")).toBe("#000000");
         // "red;0.3:blue" has no color before ":" that Graphviz knows, so the outline is black, not red
         expect([fill.get("n5"), border.get("n5")]).toEqual(["#ff0000", "#000000"]);
         expect(byId(styles, snapshot, "labelColor").get("n5")).toBe("#000000");
@@ -857,7 +893,7 @@ function compareWithGraphviz(
         );
     for (let i = 0; i < snapshot.nodeCount; i++) {
         const id = String(snapshot.ids.idOf(i));
-        const g = Object.hasOwn(gv.nodes, id) ? gv.nodes[id] : undefined;
+        let g = Object.hasOwn(gv.nodes, id) ? gv.nodes[id] : undefined;
         if (g === undefined || visible[i] === false) {
             continue;
         }
@@ -869,6 +905,20 @@ function compareWithGraphviz(
             fill: fillOpacity[i] === 0 ? null : fill[i],
             outline: borderWidth[i] === 0 && !thinnest ? null : border[i],
         };
+        // -Txdot draws an outline or font list's first color; Graphviz's SVG writes the list whole where that is a
+        // bare SVG name (stroke="red:blue"), which draws no outline and a black text
+        const cellOf = (name: string): string => {
+            const v = snapshot.nodes.has(name) ? snapshot.nodes.value(name, i) : null;
+            return typeof v === "string" ? v : "";
+        };
+        const svgList = (name: string): boolean =>
+            CSS_COLORS.has(/^([a-z]+):/i.exec(cellOf(name))?.[1].toLowerCase() ?? "");
+        if (svgList("color")) {
+            g = { ...g, outline: null };
+        }
+        if (svgList("fontcolor")) {
+            g = { ...g, labelColor: "#000000" };
+        }
         if (!sameColor(ours.fill, g.fill)) {
             out.push(`node ${id} fill: graphty ${String(ours.fill)}, Graphviz ${String(g.fill)}`);
         }

@@ -875,3 +875,52 @@ describe("arrowheads", () => {
         assert.isFalse(readHead({ fill: { ...fill("#000000"), ...faint }, stroke: stroke("#000000", 2) })?.filled);
     });
 });
+
+describe("a line a program stops at its arrowhead's base", () => {
+    it("reaches its node through the arrowhead, as Cytoscape desktop draws a long arrowhead on a short edge", () => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        // the line ends 25 px short of b's box, farther than an end reaches on its own; the arrowhead fills the gap
+        const prims = [
+            ...NODES.map(([, x, y]) => prim({ tag: "ellipse", points: disc(x, y, 20), fill: fill("#cccccc") })),
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [120, 100],
+                    [255, 100],
+                ],
+                stroke: stroke("#0000ff"),
+            }),
+            prim({
+                tag: "polygon",
+                points: [
+                    [255, 92],
+                    [280, 100],
+                    [255, 108],
+                    [255, 92],
+                ],
+                fill: fill("#0000ff"),
+            }),
+        ];
+        const o = associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow()] })])).scene;
+        assert.deepEqual(
+            o.edges.map((e) => [e.source, e.target, e.arrows.map((a) => a.end)]),
+            [["a", "b", ["target"]]],
+        );
+        assert.deepEqual(o.strays, []);
+    });
+});

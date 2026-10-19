@@ -1101,12 +1101,27 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
     };
-    // every node a path's end lands on, nearest first
-    const nodesAt = (p: Pt): { n: PNode; d: number }[] =>
-        nodeList
-            .map((n) => ({ n, d: toBox(p, nodeBox(n)) }))
-            .filter(({ n, d }) => d <= endReach(n))
-            .sort((x, y) => x.d - y.d);
+    // The small closed shapes no body took (arrowheads among them): a line a program stops at its arrowhead's base
+    // (Cytoscape desktop's) ends an arrowhead's length short of its node, so an end reaches as far as the shape it
+    // touches does.
+    const heads = free().filter((q) => q.kind === "shape" && Math.max(bw(q.box), bh(q.box)) <= 50);
+    const gap = (a: PBox, b: PBox): number =>
+        Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
+    // every node a path's end lands on, nearest first; through a shape it touches only where it lands on none itself
+    // (an end at a crowded node also touches the arrowheads of the edges beside it)
+    const nodesAt = (p: Pt): { n: PNode; d: number }[] => {
+        const at = (d: (n: PNode) => number): { n: PNode; d: number }[] =>
+            nodeList
+                .map((n) => ({ n, d: d(n) }))
+                .filter(({ n, d: x }) => x <= endReach(n))
+                .sort((x, y) => x.d - y.d);
+        const direct = at((n) => toBox(p, nodeBox(n)));
+        if (direct.length > 0) {
+            return direct;
+        }
+        const touched = heads.filter((h) => toBox(p, h.box) <= 2).map((h) => h.box);
+        return touched.length === 0 ? [] : at((n) => Math.min(...touched.map((b) => gap(b, nodeBox(n)))));
+    };
     // The edges graphty draws, by unordered pair, still to be found in the oracle. Where nodes overlap, a path's
     // end lands on several of them, and the nearest is often not the one the edge ends at (a small node drawn
     // over a big one's edge): the pair graphty also draws is the one the path stands for.

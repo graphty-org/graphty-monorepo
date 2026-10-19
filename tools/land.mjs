@@ -5,7 +5,8 @@
 //   node tools/land.mjs land <branch> [--dry-run]   merge <branch> into golden, gate it, push it
 //   node tools/land.mjs land <b1> <b2> ... [--dry-run]   land several branches in one gate run
 //   node tools/land.mjs revert <branch>             take a landed branch back out of golden
-//   node tools/land.mjs ship                        mark the golden pull request ready, with auto-merge
+//   node tools/land.mjs cut [<commit>]              point golden-cut at a known-good golden commit, open its pull request
+//   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview
 //
 // Golden is the local branch `golden` in the worktree <main checkout>/.worktrees/golden-local (made on
@@ -20,6 +21,13 @@
 // the standing draft pull request golden -> master is created if needed, its description lists the
 // landed branches and the issues their commits name, and tools/visual-preview.sh captures it in the
 // background for the review page.
+//
+// What ships is a cut, not golden's tip: `cut` points the branch golden-cut on GitHub at the newest
+// first-parent golden commit whose local screenshot preview finished with no unstable or failed images
+// (else the commit given, else it refuses), pushes it through the push queue from the worktree
+// <main checkout>/.worktrees/golden-cut, opens or refreshes the draft pull request golden-cut -> master
+// and starts its preview. The owner's approvals that ship are made on that pull request, and `ship`
+// marks it ready with auto-merge. The golden pull request stays open as an early look at golden's tip.
 //
 // Several branches land under the one lock and sync, each merged in order as its own "land: <branch>",
 // and pushed once. A branch that conflicts (or is already on golden) is skipped and the rest land; when
@@ -51,6 +59,10 @@ import { fileURLToPath } from "node:url";
 
 export const GOLDEN = "golden";
 export const PR_TITLE = "chore: land golden into master";
+export const CUT = "golden-cut";
+export const CUT_TITLE = "chore: ship a golden cut into master";
+const ACCEPT_SUBJECT = /: accept visual baselines for #\d+$/;
+const BROKEN = new Set(["failed", "unstable"]);
 const LAND_SUBJECT = /^land: (\S+)$/;
 // git 2.43+ names a revert of a revert "Reapply"; older versions nest the quotes.
 const REVERT_SUBJECT = /^Revert "land: (\S+)"$/;
@@ -359,13 +371,20 @@ export function issueRefs(text) {
     return refs;
 }
 
+const GOLDEN_INTRO = [
+    "This pull request is an early look at golden's tip and does not ship. What ships is the cut pull request",
+    `(branch \`${CUT}\`, made by \`node tools/land.mjs cut\`): approvals that ship are made there.`,
+    "",
+];
+
 /**
  * The golden pull request's description: each landed branch with its commits, the reverted ones, and
  * the issue references (or the line "No issue", which the Link PR Issue check accepts instead).
  * @param landed `landedBranches()`
+ * @param [intro] lines after the opening paragraph (the golden pull request's: it does not ship)
  * @returns the description, Markdown
  */
-export function prBody(landed) {
+export function prBody(landed, intro = GOLDEN_INTRO) {
     const active = landed.filter((e) => !e.reverted);
     const byBranch = new Map();
     for (const e of active) {
@@ -377,6 +396,7 @@ export function prBody(landed) {
         "Changes landed on `golden` with `node tools/land.mjs land <branch>`. Each passed the full pre-push gate",
         "before it was pushed. Design: `design/ci/golden-local.md`.",
         "",
+        ...intro,
     ];
     if (byBranch.size === 0) lines.push("Nothing is landed: every landing here was reverted.", "");
     for (const [branch, subjects] of byBranch) {
@@ -458,9 +478,9 @@ function installIfNeeded(ctx) {
     ctx.install(ctx);
     markInstalled(ctx);
 }
-function defaultInstall(ctx) {
-    const r = spawnSync("pnpm", ["install", "--frozen-lockfile"], { cwd: ctx.golden, env: ctx.env, stdio: "inherit" });
-    if (r.status !== 0) throw new Error("pnpm install --frozen-lockfile failed in the golden worktree");
+function defaultInstall(ctx, cwd = ctx.golden) {
+    const r = spawnSync("pnpm", ["install", "--frozen-lockfile"], { cwd, env: ctx.env, stdio: "inherit" });
+    if (r.status !== 0) throw new Error(`pnpm install --frozen-lockfile failed in ${cwd}`);
 }
 
 /**
@@ -528,15 +548,17 @@ const conflicted = (ctx) =>
 // ---------------------------------------------------------------- GitHub and the gate
 
 /**
- * Pushes golden through the push queue, which runs the full pre-push gate.
+ * Pushes through the push queue, which runs the full pre-push gate.
  * @param ctx the run's context
+ * @param [cwd] the worktree to push from (golden's)
+ * @param [refspec] what to push (golden to golden)
  * @returns `{ code, output }`
  */
-function defaultPush(ctx) {
+function defaultPush(ctx, cwd = ctx.golden, refspec = `${GOLDEN}:${GOLDEN}`) {
     // Measured from master: everything on golden that master does not have yet is this push's change.
     const env = { ...ctx.env, PUSH_BASE_REF: "origin/master" };
-    const child = spawn(join(ctx.golden, "tools/push-queue.sh"), ["git", "push", "origin", `${GOLDEN}:${GOLDEN}`], {
-        cwd: ctx.golden,
+    const child = spawn(join(cwd, "tools/push-queue.sh"), ["git", "push", "origin", refspec], {
+        cwd,
         env,
         stdio: ["ignore", "pipe", "pipe"],
     });
@@ -558,13 +580,14 @@ function defaultGh(ctx, args) {
 }
 
 /**
- * Starts tools/visual-preview.sh for the golden pull request, detached, unless the gate already
- * captured this head for it.
+ * Starts tools/visual-preview.sh for a pull request, detached, unless the gate already captured this
+ * head for it.
  * @param ctx the run's context
- * @param pr the golden pull request's number
+ * @param pr the pull request's number
+ * @param [cwd] the worktree holding its head (golden's)
  */
-function defaultPreview(ctx, pr) {
-    const head = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
+function defaultPreview(ctx, pr, cwd = ctx.golden) {
+    const head = git(ctx, cwd, ["rev-parse", "HEAD"]);
     const done = join(ctx.main, `tmp/visual-review/local/${pr}/status.json`);
     try {
         const s = JSON.parse(readFileSync(done, "utf8"));
@@ -577,8 +600,8 @@ function defaultPreview(ctx, pr) {
     }
     const log = join(ctx.main, `tmp/golden/preview-${pr}.log`);
     const fd = openSync(log, "w");
-    spawn("setsid", [join(ctx.golden, "tools/visual-preview.sh"), String(pr)], {
-        cwd: ctx.golden,
+    spawn("setsid", [join(cwd, "tools/visual-preview.sh"), String(pr)], {
+        cwd,
         env: ctx.env,
         detached: true,
         stdio: ["ignore", fd, fd],
@@ -588,22 +611,23 @@ function defaultPreview(ctx, pr) {
 }
 
 /**
- * The open golden -> master pull request, from GitHub (one call).
+ * The open golden -> master (or golden-cut -> master) pull request, from GitHub (one call).
  * @param ctx the run's context
- * @returns `{ number, isDraft, url }` or null
+ * @param [head] its branch (golden)
+ * @returns `{ number, isDraft, url, headRefOid }` or null
  */
-function goldenPr(ctx) {
+function goldenPr(ctx, head = GOLDEN) {
     const out = ctx.gh(ctx, [
         "pr",
         "list",
         "--head",
-        GOLDEN,
+        head,
         "--base",
         "master",
         "--state",
         "open",
         "--json",
-        "number,isDraft,url",
+        "number,isDraft,url,headRefOid",
     ]);
     try {
         return JSON.parse(out || "[]")[0] ?? null;
@@ -618,13 +642,28 @@ function goldenPr(ctx) {
  * @returns its number, or null when GitHub did not answer
  */
 function refreshPr(ctx) {
-    const body = prBody(landedBranches(ctx, ctx.golden));
-    const file = join(ctx.main, "tmp/golden/pr-body.md");
+    return upsertPr(ctx, GOLDEN, PR_TITLE, prBody(landedBranches(ctx, ctx.golden)));
+}
+
+/**
+ * Opens a draft pull request from `head` into master, or rewrites the open one's description (and,
+ * with `retitle`, its title).
+ * @param ctx the run's context
+ * @param head the branch
+ * @param title the title of a new pull request
+ * @param body the description
+ * @param [retitle] also set the title of an existing one
+ * @returns its number, or null when GitHub did not answer
+ */
+function upsertPr(ctx, head, title, body, retitle = false) {
+    const file = join(ctx.main, `tmp/golden/pr-body-${head}.md`);
+    mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, body);
-    const pr = goldenPr(ctx);
+    const pr = goldenPr(ctx, head);
     if (pr) {
         // gh pr edit fails on this repository while GitHub retires classic Projects; the REST call does not.
-        ctx.gh(ctx, ["api", "-X", "PATCH", `repos/{owner}/{repo}/pulls/${pr.number}`, "-F", `body=@${file}`]);
+        const fields = ["-F", `body=@${file}`, ...(retitle ? ["-f", `title=${title}`] : [])];
+        ctx.gh(ctx, ["api", "-X", "PATCH", `repos/{owner}/{repo}/pulls/${pr.number}`, ...fields]);
         return pr.number;
     }
     const url = ctx.gh(ctx, [
@@ -634,14 +673,14 @@ function refreshPr(ctx) {
         "--base",
         "master",
         "--head",
-        GOLDEN,
+        head,
         "--title",
-        PR_TITLE,
+        title,
         "--body-file",
         file,
     ]);
     const n = /\/pull\/(\d+)/.exec(url)?.[1];
-    if (n) console.log(`land: opened the golden pull request ${url}`);
+    if (n) console.log(`land: opened the ${head} pull request ${url}`);
     return n ? Number(n) : null;
 }
 
@@ -1005,23 +1044,19 @@ export async function revert(ctx, branch) {
 }
 
 /**
- * Offers golden to master: marks the pull request ready and turns on auto-merge, so CI runs on it
- * once and GitHub merges it when the required checks pass.
+ * Offers the cut to master: marks the cut pull request ready and turns on auto-merge, so CI runs on
+ * it once and GitHub merges it when the required checks pass. Refuses when the pull request's head
+ * moved since its last finished preview by anything but the owner's accept commits.
  * @param ctx the run's context
  * @returns the exit code
  */
 export async function ship(ctx) {
-    git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
+    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
     updateMainCheckout(ctx);
-    if (hasRef(ctx, ctx.golden, `origin/${GOLDEN}`).status !== 0) return fail("nothing is on GitHub's golden yet");
-    // Picks up the owner's accept commits; anything golden has that GitHub does not must land first.
-    git(ctx, ctx.golden, ["merge", "-q", "--ff-only", `origin/${GOLDEN}`], { ok: true });
-    const local = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
-    if (local !== git(ctx, ctx.golden, ["rev-parse", `origin/${GOLDEN}`])) {
-        return fail("local golden and origin/golden differ; land (or reset) first so GitHub has what ships");
-    }
-    const pr = goldenPr(ctx);
-    if (!pr) return fail("there is no open golden pull request; land something first");
+    const pr = goldenPr(ctx, CUT);
+    if (!pr) return fail(`there is no open ${CUT} pull request; make one with node tools/land.mjs cut`);
+    const moved = cutMoved(ctx, pr);
+    if (moved) return fail(`#${pr.number} ${moved}; run tools/visual-preview.sh ${pr.number} and ship after it`);
     ctx.gh(ctx, ["pr", "ready", String(pr.number)]);
     ctx.gh(ctx, ["pr", "merge", String(pr.number), "--auto", "--merge"]);
     console.log(
@@ -1029,8 +1064,165 @@ export async function ship(ctx) {
             "CI (ci.yml) now runs the affected suite on it once, on clean machines, and the visual gate checks\n" +
             "CI's screenshots against the owner's approvals. When All Checks Pass and Lint PR Title are green,\n" +
             "GitHub merges it into master with a merge commit. If CI fails, find the culprit from the failure,\n" +
-            "`node tools/land.mjs revert <branch>` it (or land a fix), and `gh pr ready --undo` while you do.",
+            "`node tools/land.mjs revert <branch>` it, cut again, and `gh pr ready --undo` while you do.",
     );
+    return 0;
+}
+
+/**
+ * Whether the cut pull request's head moved since its last finished preview: anything between the
+ * preview's head and the pull request's head other than the owner's accept commits.
+ * @param ctx the run's context
+ * @param pr the cut pull request (`number`, `headRefOid`)
+ * @returns what is wrong, or null when the preview is of this head
+ */
+function cutMoved(ctx, pr) {
+    const status = readJson(join(ctx.main, `tmp/visual-review/local/${pr.number}/status.json`));
+    if (status?.state !== "done" || !status.head) return "has no finished screenshot preview";
+    const head = pr.headRefOid;
+    if (status.head === head) return null;
+    if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", status.head, head], { ok: true }).status !== 0) {
+        return `moved from ${status.head.slice(0, 10)} (its preview) to ${head.slice(0, 10)}`;
+    }
+    const subjects = git(ctx, ctx.main, ["log", "--format=%s", `${status.head}..${head}`]).split("\n");
+    const other = subjects.filter((s) => s && !ACCEPT_SUBJECT.test(s));
+    return other.length ? `moved since its preview of ${status.head.slice(0, 10)}: ${other.join("; ")}` : null;
+}
+
+function readJson(file) {
+    try {
+        return JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Whether a finished local preview has no unstable or failed images: every project it captured has a
+ * complete results.json without them. A preview that captured nothing because of a conflict is not.
+ * @param dir the preview's directory (tmp/visual-review/local/<key>)
+ * @param status its status.json
+ * @returns true when it is stable
+ */
+export function stablePreview(dir, status) {
+    if (status?.state !== "done" || !status.head || /^nothing captured/.test(status.step ?? "")) return false;
+    return (status.projects ?? []).every((p) => {
+        const r = readJson(join(dir, p, "results.json"));
+        return r?.complete === true && !r.items.some((i) => BROKEN.has(i.status));
+    });
+}
+
+/**
+ * The newest first-parent golden commit master does not have whose local preview is stable.
+ * @param ctx the run's context
+ * @returns its sha, or null
+ */
+export function newestStableCut(ctx) {
+    const root = join(ctx.main, "tmp/visual-review/local");
+    const stable = new Set();
+    for (const name of existsSync(root) ? readdirSync(root) : []) {
+        const status = readJson(join(root, name, "status.json"));
+        if (stablePreview(join(root, name), status)) stable.add(status.head);
+    }
+    const line = git(ctx, ctx.main, ["rev-list", "--first-parent", `origin/master..origin/${GOLDEN}`]);
+    return line.split("\n").find((sha) => stable.has(sha)) ?? null;
+}
+
+/**
+ * Which commit to cut: the newest stable one, else the one given; it must be on origin/golden, and
+ * GitHub's golden-cut must not hold commits it lacks.
+ * @param ctx the run's context
+ * @param [given] the commit to fall back to
+ * @returns `{ sha }` or `{ error }`
+ */
+function pickCut(ctx, given) {
+    let sha = newestStableCut(ctx);
+    if (sha) console.log(`land: the newest golden commit with a stable preview is ${sha.slice(0, 10)}`);
+    else if (given) {
+        const r = hasRef(ctx, ctx.main, given);
+        if (r.status !== 0) return { error: `no commit ${given}` };
+        sha = r.stdout;
+        console.log(`land: no golden commit since master has a stable preview; cutting ${given}`);
+    } else {
+        return {
+            error:
+                "no golden commit since master has a finished screenshot preview without unstable or failed images.\n" +
+                "Give a known-good commit: node tools/land.mjs cut <commit>",
+        };
+    }
+    if (git(ctx, ctx.main, ["merge-base", "--is-ancestor", sha, `origin/${GOLDEN}`], { ok: true }).status !== 0) {
+        return { error: `${sha.slice(0, 10)} is not on origin/${GOLDEN}; a cut must be a golden commit` };
+    }
+    const remote = `origin/${CUT}`;
+    if (
+        hasRef(ctx, ctx.main, remote).status === 0 &&
+        git(ctx, ctx.main, ["merge-base", "--is-ancestor", remote, sha], { ok: true }).status !== 0
+    ) {
+        return {
+            error:
+                `${remote} has commits ${sha.slice(0, 10)} does not (the owner's approvals on the cut pull request?).\n` +
+                "Ship that cut first, or cut a golden commit that contains it.",
+        };
+    }
+    return { sha };
+}
+
+/**
+ * Puts the golden-cut worktree at `sha`: makes it with tools/worktree-new.sh, or moves the existing
+ * one, only when it is clean and on golden-cut. Installs when the lockfile changed.
+ * @param ctx the run's context
+ * @param sha the cut
+ * @returns null when done, else why not
+ */
+function cutWorktree(ctx, sha) {
+    if (!existsSync(ctx.cut)) ctx.addCutWorktree(ctx, sha);
+    const branch = git(ctx, ctx.cut, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
+    if (branch !== CUT) return `${ctx.cut} is on ${branch || "a detached HEAD"}, not ${CUT}; nothing was done`;
+    if (git(ctx, ctx.cut, ["status", "--porcelain", "--untracked-files=no"])) {
+        return `${ctx.cut} has uncommitted changes; nothing was done`;
+    }
+    const from = git(ctx, ctx.cut, ["rev-parse", "HEAD"]);
+    if (from === sha) return null;
+    git(ctx, ctx.cut, ["reset", "-q", "--hard", sha]);
+    if (git(ctx, ctx.cut, ["diff", "--quiet", from, sha, "--", "pnpm-lock.yaml"], { ok: true }).status !== 0) {
+        ctx.install(ctx, ctx.cut);
+    }
+    return null;
+}
+
+function defaultAddCutWorktree(ctx, sha) {
+    const r = spawnSync(join(dirname(fileURLToPath(import.meta.url)), "worktree-new.sh"), [CUT, sha, CUT], {
+        cwd: ctx.main,
+        env: ctx.env,
+        stdio: "inherit",
+    });
+    if (r.status !== 0) throw new Error("tools/worktree-new.sh could not make the golden-cut worktree");
+}
+
+/**
+ * Points golden-cut on GitHub at a known-good golden commit through the push queue, opens or
+ * refreshes the draft pull request golden-cut -> master, and starts its preview.
+ * @param ctx the run's context
+ * @param [given] the commit to cut when no golden commit has a stable preview
+ * @returns the exit code
+ */
+export async function cut(ctx, given) {
+    git(ctx, ctx.main, ["fetch", "-q", "origin"]);
+    if (hasRef(ctx, ctx.main, `origin/${GOLDEN}`).status !== 0) return fail("nothing is on GitHub's golden yet");
+    const picked = pickCut(ctx, given);
+    if (picked.error) return fail(picked.error);
+    const { sha } = picked;
+    const why = cutWorktree(ctx, sha);
+    if (why) return fail(why);
+    const { code, output } = await ctx.push(ctx, ctx.cut, `${sha}:refs/heads/${CUT}`);
+    if (code !== 0) return fail(`the push of ${sha.slice(0, 10)} to ${CUT} failed; log: ${gateLog(ctx, sha, output)}`);
+    const intro = [
+        `A cut of \`golden\` at ${sha.slice(0, 10)}: this is what ships. Approvals that ship are made here.`,
+        "",
+    ];
+    const pr = upsertPr(ctx, CUT, CUT_TITLE, prBody(landedBranches(ctx, ctx.main, "origin/master", sha), intro), true);
+    if (pr) ctx.preview(ctx, pr, ctx.cut);
+    console.log(`land: ${CUT} is ${sha.slice(0, 10)} on GitHub${pr ? `, pull request #${pr}` : ""}.`);
     return 0;
 }
 
@@ -1117,17 +1309,21 @@ export function context(cwd, overrides = {}) {
     return {
         main,
         golden: join(main, ".worktrees/golden-local"),
+        cut: join(main, `.worktrees/${CUT}`),
         lock: join(main, "tmp/golden/lock"),
+        cutLock: join(main, "tmp/golden/cut-lock"),
         push: defaultPush,
         gh: defaultGh,
         preview: defaultPreview,
         addWorktree: defaultAddWorktree,
+        addCutWorktree: defaultAddCutWorktree,
         install: defaultInstall,
         ...base,
     };
 }
 
-const USAGE = "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | ship | status";
+const USAGE =
+    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] | ship | status";
 
 /**
  * Runs one command under the lock.
@@ -1140,6 +1336,7 @@ export async function main(argv, ctx = context(process.cwd())) {
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
     if (command === "status") return status(ctx);
+    if (command === "cut") return cutLocked(ctx, branch);
     if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
     const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, ctx.lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
@@ -1161,6 +1358,16 @@ export async function main(argv, ctx = context(process.cwd())) {
         return await ship(ctx);
     } finally {
         cleanup(ctx);
+    }
+}
+
+// The cut under its own lock: its push runs the gate without holding up landings.
+async function cutLocked(ctx, given) {
+    const release = await acquireLock(ctx.cutLock, { command: "cut", branch: given ?? "" }, ctx.lockOptions);
+    try {
+        return await cut(ctx, given);
+    } finally {
+        release();
     }
 }
 

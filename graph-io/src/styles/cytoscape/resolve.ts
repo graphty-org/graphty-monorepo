@@ -23,6 +23,7 @@ import type {
     StyleWorkBudget,
 } from "../types.js";
 import { isStyleValue } from "../vocabulary.js";
+import { readCytoscapeCharts } from "./charts.js";
 import {
     arrowProportion,
     arrowSizeParser,
@@ -93,6 +94,11 @@ export interface CytoscapeResolveOptions {
     readonly defaults?: StyleTool | null;
     /** `resolveCytoscapeBypasses()` only: the edges' ends, as `CytoscapeElements.ends`. */
     readonly ends?: CytoscapeElements["ends"];
+    /**
+     * `resolveCytoscapeBypasses()` only: an element's value of an attribute column, as `CytoscapeElements.value`,
+     * for what is drawn from the element's data (a chart's values); without it no element has any.
+     */
+    readonly value?: CytoscapeElements["value"];
 }
 
 /** How closely desktop stacks the edges it fans, 0..1: its anchors are twice this times the node size apart. */
@@ -410,6 +416,23 @@ export function resolveCytoscape(
     }
     if (target === "node") {
         squashHexagons(out);
+        // the value as written: a chart is text, or an object in CX2; a size a number or its text
+        const raw: CytoscapeValueParser = (v) => {
+            if (typeof v === "string" || typeof v === "number") {
+                return String(v);
+            }
+            return typeof v === "object" && v !== null ? JSON.stringify(v) : null;
+        };
+        readCytoscapeCharts(
+            out,
+            n,
+            (slot, i) => {
+                const v = one(slot, raw, "pieColors", i);
+                return typeof v === "string" && v.startsWith("{") ? (JSON.parse(v) as unknown) : v;
+            },
+            (column, i) => elements.value(column, i),
+            s.dependencies.get("nodeCustomGraphicsSizeSync") !== false,
+        );
     }
     if (target === "edge" && s.dependencies.get("arrowColorMatchesEdge") === true && out.color !== undefined) {
         out.sourceArrowColor = out.color.slice();
@@ -701,7 +724,12 @@ export function resolveCytoscapeBypasses(
 ): Partial<Record<string, StyleColumn>> {
     const notes = options.notes ?? new StyleNotes();
     const style = emptyCytoscapeStyle();
-    const elements: CytoscapeElements = { count: maps.length, value: () => null, bypasses: maps, ends: options.ends };
+    const elements: CytoscapeElements = {
+        count: maps.length,
+        value: options.value ?? (() => null),
+        bypasses: maps,
+        ends: options.ends,
+    };
     const out = resolveCytoscape(target, style, elements, { notes, budget: options.budget });
     if (target === "node" && out.width === undefined) {
         const size = maps.map((m) => {

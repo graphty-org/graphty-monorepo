@@ -285,6 +285,10 @@ export interface NodeStyleValues {
     readonly pieRotation: number;
     /** Whether the pie fills the node's box as an ellipse rather than a circle (Graphviz's wedged ellipse). */
     readonly pieFitBox: boolean;
+    /** How far right of the node's center the pie's center is (a length; Cytoscape's chart positions). */
+    readonly pieOffsetX: number;
+    /** How far down from the node's center the pie's center is (a length). */
+    readonly pieOffsetY: number;
     /**
      * The colors of bands drawn over the node inside its outline, `#rrggbb` separated by spaces (Cytoscape.js
      * `stripe-N-background-color`, Graphviz `style=striped`).

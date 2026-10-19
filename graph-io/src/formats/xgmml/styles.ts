@@ -127,6 +127,7 @@ export function readXgmmlStyles(
             ? resolveCytoscapeBypasses(target, maps, {
                   notes,
                   budget: context.budget,
+                  value: (column, i) => (table.has(column) ? plainCell(table.value(column, i)) : null),
                   ...(target === "edge" ? { ends: edgeEnds(snapshot, out.node.values) } : {}),
               })
             : {};

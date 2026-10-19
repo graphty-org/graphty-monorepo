@@ -13,7 +13,14 @@ import { readAnnotations, readImageAnnotations } from "../annotations.js";
 import { StyleBudget } from "../budget.js";
 import { canonColor, colorOpacity } from "../canon/color.js";
 import { canonEnum, type StyleEnumKind } from "../canon/enums.js";
-import { canonBoolean, canonNumber, canonOpacity, DOT_POINTS_PER_INCH, styleLengthUnit } from "../canon/number.js";
+import {
+    canonBoolean,
+    canonNumber,
+    canonOpacity,
+    canonSigned,
+    DOT_POINTS_PER_INCH,
+    styleLengthUnit,
+} from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
 import { canonText } from "../canon/text.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -599,6 +606,8 @@ function canonValue(
                 site,
                 dialect === "graphviz" && (property === "width" || property === "height") ? DOT_POINTS_PER_INCH : 1,
             );
+        case "signed":
+            return canonSigned(raw, site);
         case "opacity":
             return canonOpacity(raw, dialect, site);
         case "boolean":

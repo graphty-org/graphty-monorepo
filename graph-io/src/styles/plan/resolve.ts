@@ -9,7 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { formatF32 } from "../../common/format.js";
 import { canonEnum } from "../canon/enums.js";
-import { canonBoolean, canonNumber, canonOpacity } from "../canon/number.js";
+import { canonBoolean, canonNumber, canonOpacity, canonSigned } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
 import { canonText } from "../canon/text.js";
 import { StyleNotes } from "../notes.js";
@@ -350,6 +350,8 @@ export function canonicalFor(target: StyleTarget, property: string): (raw: unkno
             return (raw) => (typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : null);
         case "number":
             return (raw) => canonNumber(raw, site);
+        case "signed":
+            return (raw) => canonSigned(raw, site);
         case "opacity":
             return (raw) => canonOpacity(raw, "css", site);
         case "boolean":

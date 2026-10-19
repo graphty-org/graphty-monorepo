@@ -18,7 +18,7 @@ Tool values are elements drawn with the writing program's default.
 | cx/fidelity/radiation-bibliography.cx.gz | ok | 188 | 207 | 5 | 6 | 502 | 9% | 9% | 0 | 376 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_NOT_CARRIED |
 | cx/fidelity/repro-locked-own-size.cx | ok | 12 | 12 | 5 | 2 | 22 | 82% | 82% | 0 | 252 | 0 |  |
 | cx/fidelity/repro-unplaced-boxes.cx | ok | 24 | 29 | 3 | 3 | 0 | - | - | 0 | 505 | 0 |  |
-| cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 4 | 4 | 239 | 100% | 94% | 0 | 128 | 0 | W_STYLE_NOT_CARRIED |
+| cx/fidelity/syn-bypass.cx | ok | 64 | 90 | 5 | 4 | 243 | 100% | 92% | 0 | 128 | 0 | W_STYLE_NOT_CARRIED |
 | cx/fidelity/syn-mappings.cx | ok | 96 | 140 | 11 | 12 | 1577 | 27% | 27% | 0 | 192 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED |
 | cx/generated/graphty-written-block-other-graph.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 225 | 0 | W_STYLE_BLOCK_IGNORED |
 | cx/generated/graphty-written-block-truncated.cx | ok | 75 | 108 | 8 | 3 | 102 | 8% | 8% | 0 | 225 | 0 | W_STYLE_BLOCK_IGNORED |
@@ -31,7 +31,7 @@ Tool values are elements drawn with the writing program's default.
 | cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 7 | 6 | 403 | 2% | 2% | 0 | 150 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 4 | 32 | 0% | 0% | 0 | 269 | 0 |  |
 | cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 4 | 9 | 748 | 12% | 12% | 0 | 294 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 4 | 5 | 282 | 98% | 98% | 0 | 128 | 0 | W_STYLE_NOT_CARRIED |
+| cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 5 | 5 | 286 | 98% | 97% | 0 | 128 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 11 | 11 | 1637 | 26% | 26% | 0 | 192 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/synthetic-lethal.cx2 | ok | 69 | 152 | 7 | 4 | 365 | 0% | 0% | 0 | 138 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/u2os-hierarchy.cx2 | ok | 82 | 84 | 5 | 2 | 134 | 0% | 0% | 0 | 248 | 0 | W_STYLE_NOT_CARRIED |
@@ -110,7 +110,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 660 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 9 | 350 | 17% | 17% | 0 | 60 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/luad-vest-v2.cys | ok | 26 | 25 | 6 | 5 | 13 | 0% | 0% | 0 | 52 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_OTHER_STYLES |
-| cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 4 | 4 | 218 | 100% | 95% | 0 | 126 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 5 | 4 | 222 | 100% | 94% | 0 | 126 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 11 | 12 | 1577 | 27% | 27% | 0 | 192 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/generated/graphty-written-block-other-graph.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 135 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 135 | 0 | W_STYLE_BLOCK_IGNORED |
@@ -455,7 +455,7 @@ Tool values are elements drawn with the writing program's default.
 | xgmml/fidelity/networkportal-nsoxphos.xgmml | ok | 69 | 88 | 7 | 4 | 196 | 11% | 11% | 0 | 678 | 0 |  |
 | xgmml/fidelity/pathguide-allpathwaysdb.xgmml | ok | 48 | 75 | 5 | 3 | 27 | 0% | 0% | 0 | 513 | 0 |  |
 | xgmml/fidelity/repro-name-only-labels.xgmml | ok | 14 | 13 | 6 | 2 | 9 | 0% | 0% | 0 | 162 | 0 |  |
-| xgmml/fidelity/syn-bypass.xgmml.gz | ok | 67 | 110 | 4 | 6 | 253 | 79% | 29% | 0 | 560 | 0 | W_STYLE_NOT_CARRIED |
+| xgmml/fidelity/syn-bypass.xgmml.gz | ok | 67 | 110 | 4 | 6 | 257 | 80% | 29% | 0 | 560 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/fidelity/syn-mappings.xgmml.gz | ok | 96 | 140 | 6 | 7 | 1577 | 56% | 0% | 6 | 192 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_RAMP_ROUNDED |
 | xgmml/fidelity/wp4271-cy3-export.xgmml.gz | ok | 158 | 90 | 7 | 7 | 505 | 49% | 10% | 0 | 316 | 0 | W_STYLE_NOT_CARRIED |
 | xgmml/generated/graphics-mix.xgmml | ok | 80 | 80 | 4 | 2 | 436 | 100% | 0% | 0 | 1400 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |

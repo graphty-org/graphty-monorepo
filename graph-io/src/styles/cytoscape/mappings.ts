@@ -660,6 +660,8 @@ export function cytoscapeStyleFromCx2(
     }
     style.node.dependencies.set("nodeSizeLocked", own(editor, "nodeSizeLocked") === true);
     style.edge.dependencies.set("arrowColorMatchesEdge", own(editor, "arrowColorMatchesEdge") === true);
+    // charts are fitted to their node unless the editor says otherwise
+    style.node.dependencies.set("nodeCustomGraphicsSizeSync", own(editor, "nodeCustomGraphicsSizeSync") !== false);
     for (const [target, key] of [
         ["node", "nodeMapping"],
         ["edge", "edgeMapping"],

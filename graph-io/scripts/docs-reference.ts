@@ -1286,6 +1286,7 @@ const KIND_TEXT: Readonly<Record<string, string>> = {
     color: "a color, `#rrggbb`",
     opacity: "a number from 0 (transparent) to 1",
     number: "a number",
+    signed: "a number, negative too",
     text: "text",
     boolean: "true or false",
 };

@@ -7,13 +7,15 @@
 import type { StyleTarget } from "./types.js";
 
 /**
- * The kinds of style value: a canonical `#rrggbb` color, a number (lengths and factors at least 0), an opacity
+ * The kinds of style value: a canonical `#rrggbb` color, a number (lengths and factors at least 0), a signed number
+ * (an offset, negative too), an opacity
  * (0..1), a text, a boolean, or a value of one of the enumerations in `STYLE_ENUMS`.
  * @category Styles
  */
 export type StyleValueKind =
     | "color"
     | "number"
+    | "signed"
     | "opacity"
     | "text"
     | "boolean"
@@ -97,6 +99,8 @@ export const STYLE_PROPERTIES: {
         ["pieHole", "number"],
         ["pieRotation", "number"],
         ["pieFitBox", "boolean"],
+        ["pieOffsetX", "signed"],
+        ["pieOffsetY", "signed"],
         ["stripeColors", "text"],
         ["stripeSizes", "text"],
         ["stripeOpacities", "text"],
@@ -250,6 +254,8 @@ export function isStyleValue(target: StyleTarget | "graph", property: string, va
             return typeof value === "string" && /^#[0-9a-f]{6}$/.test(value);
         case "number":
             return typeof value === "number" && Number.isFinite(value) && value >= 0;
+        case "signed":
+            return typeof value === "number" && Number.isFinite(value);
         case "opacity":
             return typeof value === "number" && value >= 0 && value <= 1;
         case "text":

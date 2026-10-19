@@ -1,8 +1,8 @@
 {
     "program": "sigma.js 4.0.1, graphology 0.26.0",
     "about": "Which specimen draws each entry of graphology-vocabulary.json and graphology.mjs's fixed lists (at most six named each), or why none does; written by graphology.mjs.",
-    "entries": 216,
-    "covered": 208,
+    "entries": 225,
+    "covered": 216,
     "sheets": [
         {
             "id": "specimen-node-shapes",
@@ -35,6 +35,14 @@
         {
             "id": "specimen-node-sizes-opacity",
             "specimens": 19
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p2",
+            "specimens": 3
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p3",
+            "specimens": 7
         },
         {
             "id": "specimen-labels",
@@ -314,6 +322,10 @@
             "specimen-node-sizes-opacity#color-alpha-half",
             "specimen-edges-lines-p2#edge-color-rgba-zero"
         ],
+        "position.syntax:number": ["specimen-node-shapes#shape-circle"],
+        "position.syntax:numeric-string": {
+            "notDrawn": "sigma throws on a node whose x or y is a string (\"could not find a valid position\"), numeric or not"
+        },
         "setting.renderLabels": {
             "notDrawn": "a sigma setting, not part of the file; off it hides every label, captions included, so no sheet is drawn under it"
         },
@@ -421,6 +433,13 @@
         "display.edge.visibility:hidden": ["specimen-edges-lines#edge-visibility-hidden"],
         "display.edge.opacity:number": ["specimen-edges-lines#edge-opacity-0-3"],
         "display.edge.path:curved": ["specimen-edges-lines#edge-path-curved"],
-        "display.edge.head:arrow": ["specimen-arrows#edge-head-arrow", "specimen-arrows-p2#edge-head-arrow"]
+        "display.edge.head:arrow": ["specimen-arrows#edge-head-arrow", "specimen-arrows-p2#edge-head-arrow"],
+        "foreign.node.z:number": ["specimen-node-sizes-opacity-p2#z-200", "specimen-node-sizes-opacity-p2#z-negative"],
+        "foreign.node.index:number": ["specimen-node-sizes-opacity-p3#index-3"],
+        "foreign.node.vx:number": ["specimen-node-sizes-opacity-p3#vx-1"],
+        "foreign.node.vy:number": ["specimen-node-sizes-opacity-p3#vy-1"],
+        "foreign.node.fx:number": ["specimen-node-sizes-opacity-p3#fx-100"],
+        "foreign.node.fy:number": ["specimen-node-sizes-opacity-p3#fy-100"],
+        "foreign.node.physics:boolean": ["specimen-node-sizes-opacity-p3#physics-false"]
     }
 }

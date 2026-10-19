@@ -365,6 +365,17 @@ describe("the JSON marker rule", () => {
         expect(at(vis.snapshot, vis.positions as FilePositions, "a")).toEqual([1, -2, 0]);
     });
 
+    it("a graphology file is y up whatever d3-force keys it carries, as sigma.js draws it", async () => {
+        const nodes = [
+            { key: "a", attributes: { x: 1, y: 2, vx: 0, index: 0 } },
+            { key: "b", attributes: { x: 3, y: 4, fy: 1 } },
+        ];
+        const { snapshot, positions } = await load(JSON.stringify({ options: { type: "mixed" }, nodes }), "json");
+        expect(positions?.source.yAxis).toBe("up");
+        expect(positions?.units).toBe("file");
+        expect(at(snapshot, positions as FilePositions, "a")).toEqual([1, 2, 0]);
+    });
+
     it("a d3 file with z is a 3D drawing, read y up", async () => {
         const nodes = [
             { id: "a", x: 1, y: 2, z: 3, vx: 0 },

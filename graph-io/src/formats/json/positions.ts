@@ -42,7 +42,10 @@ export function jsonPositions(snapshot: GraphSnapshot): ImporterPositions | null
     const z = numeric(snapshot.nodes.get("z"));
     // a z means a 3D drawing (3d-force-graph), drawn y up even with the d3 keys
     const dialect = jsonShapeOf(snapshot)?.dialect;
-    const down = z === null && (dialect === "vis" || Y_DOWN_MARKERS.some((name) => snapshot.nodes.get(name) !== null));
+    // sigma.js draws every graphology file y up: d3-force's keys in one do not make it a d3 drawing
+    // (graphology-specimen-node-sizes-opacity-p3)
+    const markers = dialect !== "graphology" && Y_DOWN_MARKERS.some((name) => snapshot.nodes.get(name) !== null);
+    const down = z === null && (dialect === "vis" || markers);
     return {
         x: x.meta.name,
         y: y.meta.name,

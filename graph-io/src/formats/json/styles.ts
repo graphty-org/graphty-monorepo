@@ -398,7 +398,10 @@ function readSigmaRow(
     // sigma.js draws no edge labels unless its `renderEdgeLabels` setting is on, and a graphology
     // document carries no settings: an edge's `label` is data, not something sigma draws.
     if (label !== null && target === "node") {
-        put("label", i, canonText(label(i), site("label")));
+        const text = canonText(label(i), site("label"));
+        // sigma draws a label with the canvas's fillText, which draws each ASCII whitespace as a space: one line
+        // (graphology-specimen-labels, label-multiline)
+        put("label", i, text === null ? null : text.replace(/[\t\n\f\r]/g, " "));
     }
 }
 

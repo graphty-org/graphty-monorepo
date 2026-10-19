@@ -1190,6 +1190,15 @@ Fixed in graph-io (2026-10-18):
   `edges-lines-p2`, are now drawn as sigma draws them.
 - `node-sizes-opacity` `size-negative`: sigma draws no node; graphty drew it 20 units wide (the default size). A
   negative size is now a node of size 0.
+- `node-sizes-opacity-p3` (2026-10-19): a graphology file whose nodes carry d3-force's simulation keys (`index`,
+  `vx`, `vy`, `fx`, `fy`) or vis-network's `physics` was read as drawn y down in pixels, so graphty drew the whole
+  sheet upside down and 0.3 times its size; sigma draws every graphology file y up from x and y. graph-io now reads
+  a graphology file's positions y up whatever other keys it carries. (`node-sizes-opacity-p2`: a node's `z`, which
+  sigma ignores, already draws as sigma does in graphty's 2D view.)
+- `labels` `label-multiline` (2026-10-19): sigma draws a label's newline (any ASCII whitespace: the canvas's text
+  preparation) as a space, on one line; graphty drew two lines. graph-io now hands graphty the label as sigma draws
+  it. The comparator did not see it: `label.text` folds whitespace, so a line break and a space compare equal. A
+  comparator blind spot on every format: a label's line count is not judged.
 
 Still open:
 
@@ -1217,3 +1226,9 @@ Still open:
   order (the file's order, later on top); the fix is in graphty-element's node draw order.
 - `node-sizes-opacity` `size-0`, `size-0-5`, `size-1`: as on the Gephi JSON sheets, a comparator limit on zero and
   sub-pixel nodes.
+- `edge-labels-p2`, `-p3`: sigma draws the edge labels under its `renderEdgeLabels` setting (and `edgeLabelAnchors`
+  "allNodes"), which is the application's and never in the file; graph-io cannot be told sigma's settings, so
+  graphty draws no edge label on these pages. Hidden today by the edge gap above. Needs a graph-io import option
+  carrying sigma's drawing settings (`renderEdgeLabels`, `edgeLabelAnchors`, `labelRenderedSizeThreshold`).
+- A node whose `x` or `y` is a string, even a numeric one ("100"), makes sigma throw while drawing; graph-io places
+  no node of such a file (the column is text). No oracle can be drawn, so no sheet holds it.

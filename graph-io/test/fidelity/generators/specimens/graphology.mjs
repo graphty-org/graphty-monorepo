@@ -113,6 +113,7 @@ const FIXED = {
     graphOptions: { type: ["mixed", "directed", "undirected"], multi: [true, false], allowSelfLoops: [true, false] },
     edgeKeys: ["undirected", "absent"],
     colorSyntaxes: ["name", "name-mixed-case", "transparent", "hex3", "hex6", "hex6-upper", "hex8", "rgb", "rgba"],
+    coordinateSyntaxes: ["number", "numeric-string"],
 };
 
 /** What sigma.js v3 read, which graphology files in the wild carry; sigma 4's DEFAULT_STYLES read none of it. */
@@ -147,6 +148,25 @@ const DISPLAY = {
         labelSize: ["number"],
     },
     edge: { visibility: ["hidden"], opacity: ["number"], path: ["curved"], head: ["arrow"] },
+};
+
+/**
+ * Keys other programs write into graphology files, which sigma 4 does not read: a 3D layout's `z`, d3-force's simulation
+ * keys (`index`, `vx`, `vy`, `fx`, `fy`) and vis-network's `physics`. sigma draws such a file from x and y alone, y up;
+ * the specimens show it (each key is on a page of its own kind, as one such key changes how a reader takes the whole
+ * file).
+ */
+const FOREIGN = {
+    doc: "https://d3js.org/d3-force/simulation#simulation_nodes and https://visjs.github.io/vis-network/docs/network/nodes.html",
+    node: {
+        z: ["number"],
+        index: ["number"],
+        vx: ["number"],
+        vy: ["number"],
+        fx: ["number"],
+        fy: ["number"],
+        physics: ["boolean"],
+    },
 };
 
 const live = liveVocabulary();
@@ -184,6 +204,7 @@ const ENTRIES = [
     ...live.edgeExtremities.map((x) => `edge.extremity:${x}`),
     ...live.colorNames.map((c) => `color.name:${c}`),
     ...FIXED.colorSyntaxes.map((c) => `color.syntax:${c}`),
+    ...FIXED.coordinateSyntaxes.map((c) => `position.syntax:${c}`),
     ...Object.keys(live.settings).map((s) => `setting.${s}`),
     ...Object.entries(FIXED.graphOptions).flatMap(([k, vs]) => vs.map((v) => `graph.${k}:${v}`)),
     ...FIXED.edgeKeys.map((k) => `edge.key:${k}`),
@@ -191,6 +212,7 @@ const ENTRIES = [
     ...Object.entries(LEGACY.edge).flatMap(([k, vs]) => vs.map((v) => `legacy.edge.${k}:${v}`)),
     ...Object.entries(DISPLAY.node).flatMap(([k, vs]) => vs.map((v) => `display.node.${k}:${v}`)),
     ...Object.entries(DISPLAY.edge).flatMap(([k, vs]) => vs.map((v) => `display.edge.${k}:${v}`)),
+    ...Object.entries(FOREIGN.node).flatMap(([k, vs]) => vs.map((v) => `foreign.node.${k}:${v}`)),
 ];
 
 const NOT_DRAWN = {
@@ -205,6 +227,8 @@ const NOT_DRAWN = {
     "setting.labelGridCellSize": "on every sheet; label-grid-larger / label-grid-smaller show the grid it sets",
     "graph.multi:false": "every sheet is multi so parallel edges can be drawn; a non-multi graph draws the same",
     "graph.allowSelfLoops:false": "every sheet allows self loops; disallowing them only rejects the file",
+    "position.syntax:numeric-string":
+        'sigma throws on a node whose x or y is a string ("could not find a valid position"), numeric or not',
 };
 
 // ------------------------------------------------------------------ specimens
@@ -259,7 +283,12 @@ const SHEETS = [
         id: "specimen-node-shapes",
         specimens: [
             node("default", "nothing", "set", {}, ["node.shape:circle"], {}),
-            node("shape-circle", "neutral", "circle", {}, ["node.shape:circle", "node.x", "node.y"]),
+            node("shape-circle", "neutral", "circle", {}, [
+                "node.shape:circle",
+                "node.x",
+                "node.y",
+                "position.syntax:number",
+            ]),
             ...LEGACY.node.type.map((t) => node(`type-${t}`, "type", t, { type: t }, [`legacy.node.type:${t}`])),
             node("shape-square", "shape", "square", { shape: "square" }, ["display.node.shape:square"]),
         ],
@@ -321,6 +350,29 @@ const SHEETS = [
                     g.addNode("zindex-0", { x: c.x + 8, y: c.y, ...NEUTRAL_NODE, color: "#1f77b4", zIndex: 0 });
                 },
             },
+        ],
+    },
+    {
+        // a z on any node makes some readers take the whole file as a 3D drawing; sigma draws x and y only
+        id: "specimen-node-sizes-opacity-p2",
+        specimens: [
+            node("default", "nothing", "set", {}, [], {}),
+            node("z-200", "z", 200, { z: 200 }, ["foreign.node.z:number"]),
+            node("z-negative", "z", -200, { z: -200 }, ["foreign.node.z:number"]),
+        ],
+    },
+    {
+        // d3-force's simulation keys (and vis-network's physics) on any node make some readers take the whole file
+        // as drawn y down in pixels; sigma draws every graphology file y up
+        id: "specimen-node-sizes-opacity-p3",
+        specimens: [
+            node("default", "nothing", "set", {}, [], {}),
+            node("index-3", "index", 3, { index: 3 }, ["foreign.node.index:number"]),
+            node("vx-1", "vx", 1, { vx: 1 }, ["foreign.node.vx:number"]),
+            node("vy-1", "vy", 1, { vy: 1 }, ["foreign.node.vy:number"]),
+            node("fx-100", "fx", 100, { fx: 100 }, ["foreign.node.fx:number"]),
+            node("fy-100", "fy", 100, { fy: 100 }, ["foreign.node.fy:number"]),
+            node("physics-false", "physics", false, { physics: false }, ["foreign.node.physics:boolean"]),
         ],
     },
     {
@@ -600,7 +652,9 @@ const QUIRKS = [
     "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, and so are sigma 4's own display-data names stored as attributes (visibility, shape, opacity, labelColor, labelSize; edge visibility, opacity, path, head), so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
     "every node competes in the label grid (one label per 100 px screen cell, the largest node's), labeled or not: an unlabeled node hides the label of a smaller node in its cell",
     "a node drawn smaller than 6 px shows no label (labelRenderedSizeThreshold)",
-    "a label's newline is drawn as a space (one line); leading and trailing spaces are kept",
+    "a label's newline (any ASCII whitespace: the canvas's text preparation) is drawn as a space, on one line; leading and trailing spaces are kept",
+    "a node whose x or y is a string, even a numeric one, makes sigma throw while drawing",
+    "a node's z (a 3D layout's), d3-force's simulation keys (index, vx, vy, fx, fy) and vis-network's physics are ignored: the file is drawn from x and y, y up",
     "a non-string label (a number or a boolean) or a non-string color (a number) makes sigma throw while drawing, so those specimens are not on the sheets",
     "colors: #rgb, #rrggbb, #rrggbbaa, rgb() and rgba() with integer channels, the 148 names of HTML_COLORS (any case) and transparent are read; rgb() with a space before ')', percent or decimal channels, hsl(), an unknown name and \"\" are drawn black; a 4-digit hex (#f80c) is read as #f80c00 (red)",
     "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw no node, but an edge of size 0 or below is drawn minEdgeThickness wide; a numeric string size is read as its number",

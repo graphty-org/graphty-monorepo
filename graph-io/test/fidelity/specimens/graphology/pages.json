@@ -50,6 +50,18 @@
             "specimens": 19
         },
         {
+            "id": "specimen-node-sizes-opacity-p2",
+            "file": "specimen-node-sizes-opacity-p2.json",
+            "settings": {},
+            "specimens": 3
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p3",
+            "file": "specimen-node-sizes-opacity-p3.json",
+            "settings": {},
+            "specimens": 7
+        },
+        {
             "id": "specimen-labels",
             "file": "specimen-labels.json",
             "settings": {},
@@ -123,7 +135,9 @@
         "sigma 4's default styles read only node x, y, size, color, label and edge size, color, label: node type, hidden, forceLabel, zIndex, highlighted, image and border attributes and edge type, hidden, forceLabel and zIndex (sigma v3's vocabulary) are ignored, and so are sigma 4's own display-data names stored as attributes (visibility, shape, opacity, labelColor, labelSize; edge visibility, opacity, path, head), so every node is a plain filled circle, hidden elements are drawn, z order is the order of the file, and no edge has an arrowhead or a curve, in a directed graph too",
         "every node competes in the label grid (one label per 100 px screen cell, the largest node's), labeled or not: an unlabeled node hides the label of a smaller node in its cell",
         "a node drawn smaller than 6 px shows no label (labelRenderedSizeThreshold)",
-        "a label's newline is drawn as a space (one line); leading and trailing spaces are kept",
+        "a label's newline (any ASCII whitespace: the canvas's text preparation) is drawn as a space, on one line; leading and trailing spaces are kept",
+        "a node whose x or y is a string, even a numeric one, makes sigma throw while drawing",
+        "a node's z (a 3D layout's), d3-force's simulation keys (index, vx, vy, fx, fy) and vis-network's physics are ignored: the file is drawn from x and y, y up",
         "a non-string label (a number or a boolean) or a non-string color (a number) makes sigma throw while drawing, so those specimens are not on the sheets",
         "colors: #rgb, #rrggbb, #rrggbbaa, rgb() and rgba() with integer channels, the 148 names of HTML_COLORS (any case) and transparent are read; rgb() with a space before ')', percent or decimal channels, hsl(), an unknown name and \"\" are drawn black; a 4-digit hex (#f80c) is read as #f80c00 (red)",
         "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw no node, but an edge of size 0 or below is drawn minEdgeThickness wide; a numeric string size is read as its number",

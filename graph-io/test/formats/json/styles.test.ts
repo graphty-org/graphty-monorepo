@@ -274,6 +274,15 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "labelOnTop")).toEqual([true, true]);
     });
 
+    it("draws a graphology label on one line, each newline or tab a space, as sigma.js's canvas text does", async () => {
+        const r = await load({
+            options: { type: "directed" },
+            nodes: [{ key: "a", attributes: { label: "Line one\nLine two\tend\r\n" } }],
+            edges: [],
+        });
+        expect(values(r, "node", "label")).toEqual(["Line one Line two end  "]);
+    });
+
     it("hides a vis-network label drawn under 4 screen pixels, as its drawThreshold does", async () => {
         const r = await load({ nodes: [{ id: "a", label: "A" }], edges: [{ from: "a", to: "a", label: "loop" }] });
         expect(values(r, "node", "labelMinScreenSize")).toEqual([4]);

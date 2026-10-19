@@ -534,6 +534,17 @@ the interactive preview is dragged. Every DependantColor mode (parent, darker, l
       vocabulary has no label outline opacity (graph-io), so the outline is drawn opaque.
     - `node.label.box.opacity` (`labels-p13`): Gephi strokes the label box (drawn as the label border, 0.08 of the
       node's size wide) at that opacity; the vocabulary has no label border opacity, so it is drawn opaque.
+    - The label box's size (`labels-p11`, `-p12`, `-p20`, `-p21`, label.backgroundBox): graphty-element's label
+      border box is about 1.9 times the font size tall where Gephi's is 1.3 (its text box with Gephi's padding);
+      the vocabulary has no label box padding to ask for Gephi's (graphty-element). The raster label and node-body
+      drops on those pages follow from it and are allowed until 2026-12-31.
+    - Seen in the same runs, not traced to this round: edge.curve on `hsk-chars` (0.145, floor 0.684),
+      `sigma-ediaspora` (0.872, floor 0.905), 31 non-loop edges of `graphology-rio` and 2 of `miserables` (27->25,
+      62->59: graphty bows 0.109 and 0.125 of the chord where Gephi bows 0.069 and 0.059), already at these values
+      in the first run of the round, after graphty-element's Bezier edge change (f926d5164); and raster.nodeBody on
+      `images-charts` (0.84, floor 0.95), `node-fills-borders-p5`, `-p6` (0.96, floor 0.97) and
+      `node-sizes-opacity` (0.72, floor 0.73), which every geometric row of those pages passes. Not allowed: the
+      floors stay until the mechanism is found.
     - `edge.radius` (`arrows-p4`): Gephi ends each edge that far short of its nodes; the vocabulary has no edge end
       gap (graph-io vocabulary, then graphty-element).
     - `node.label.overlapGridSize` (`labels-p16`): graphty-element tests label boxes, not Gephi's grid.

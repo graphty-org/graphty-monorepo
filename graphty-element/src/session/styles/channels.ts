@@ -59,6 +59,7 @@
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import {
     defaultNodeStyle,
     NodeBorderStyles,
@@ -282,6 +283,10 @@ export interface ChannelValues {
     "node.outline": ColorValue;
     "node.glow": ColorValue;
     "node.glowStrength": number;
+    "node.halo": boolean;
+    "node.haloColor": ColorValue;
+    "node.haloScale": number;
+    "node.haloOpacity": number;
     "node.wireframe": boolean;
     "node.flat": boolean;
     "node.unlit": boolean;
@@ -336,6 +341,7 @@ export type ColorChannel =
     | "node.color"
     | "node.outline"
     | "node.glow"
+    | "node.haloColor"
     | "node.labelColor"
     | "node.borderColor"
     | "edge.color"
@@ -413,6 +419,17 @@ export interface ChannelDescriptor {
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/**
+ * What the four halo channels draw, written once and read by each of them.
+ */
+const NODE_HALO_CAVEAT =
+    "The halo is the selection highlight -- the node's own shape, scaled about its center -- drawn " +
+    "on any node a layer picks. Any of its color, scale or opacity switches it on; `node.halo` " +
+    "alone switches it on in the selection's look, and false takes it off, even off a selected " +
+    "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
+    "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
+    "is its own source mesh; the scale is per node.";
 
 /**
  * Why an outline is a colour and nothing else, written once and read in two places.
@@ -891,6 +908,56 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         min: 0,
         stylePath: "effect.glow.strength",
         renderable: true,
+    },
+    "node.halo": {
+        channel: "node.halo",
+        target: "node",
+        plainName: "Node Halo",
+        shortName: "Halo",
+        group: "effects",
+        accepts: "boolean",
+        stylePath: "effect.halo.enabled",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
+    "node.haloColor": {
+        channel: "node.haloColor",
+        target: "node",
+        plainName: "Node Halo Color",
+        shortName: "Halo color",
+        group: "effects",
+        default: DEFAULT_SELECTION_STYLE.color,
+        accepts: "color",
+        stylePath: "effect.halo.color",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
+    "node.haloScale": {
+        channel: "node.haloScale",
+        target: "node",
+        plainName: "Node Halo Scale",
+        shortName: "Halo scale",
+        group: "effects",
+        default: DEFAULT_SELECTION_STYLE.scale,
+        accepts: "number",
+        min: 0,
+        stylePath: "effect.halo.scale",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
+    },
+    "node.haloOpacity": {
+        channel: "node.haloOpacity",
+        target: "node",
+        plainName: "Node Halo Opacity",
+        shortName: "Halo opacity",
+        group: "effects",
+        default: DEFAULT_SELECTION_STYLE.opacity,
+        accepts: "number",
+        min: 0,
+        max: 1,
+        stylePath: "effect.halo.opacity",
+        renderable: true,
+        caveat: NODE_HALO_CAVEAT,
     },
     "node.wireframe": {
         channel: "node.wireframe",

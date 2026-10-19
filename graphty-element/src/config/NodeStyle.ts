@@ -203,6 +203,18 @@ export const NodeStyle = z.strictObject({
                     color: ColorStyle.optional(),
                 })
                 .optional(),
+            // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any
+            // node a layer picks. Any of the look's fields switches it on; `enabled` alone switches
+            // it on with the selection's look, and `enabled: false` takes it off, even off a
+            // selected node. A field left unset is the selection style's.
+            halo: z
+                .strictObject({
+                    enabled: z.boolean().optional(),
+                    color: ColorStyle.optional(),
+                    scale: z.number().positive().optional(),
+                    opacity: z.number().min(0).max(1).optional(),
+                })
+                .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
             // Drawn in the node's own colour with no light or shade, as 2D draws every node.

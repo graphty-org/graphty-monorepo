@@ -16,95 +16,76 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, undo words and keys; commit 43f055cfe) No API change. compact-mantine `overlayBehavior.ts`: a
-   tooltip a press dismissed comes back when the press turns its trigger off (a MutationObserver
-   on the dismissed tooltip's trigger, `disabled`/`aria-disabled`/`data-disabled`), and a
-   pointer-down, Enter or Space on an off trigger does not dismiss its reason. App: `CommandButton`
-   aria-label = the tooltip name ("Undo changing node color on Everything"), `aria-keyshortcuts`
-   every key, a dimmed press clears `notice`; `useCommandKeys` lets Mod+Z/Y fire in a non-modal
-   panel (`HISTORY_OVERLAY` excludes `[aria-modal="false"]`); `WhichPicker` `useStepWriter`
-   merges a write into the last step only while the same typing box holds typing
-   (`hasPendingEdit`), so a Tab-committed "from" and a handle drag are two steps; filter step
-   words say `the filter step "..."`. Control+Y already redid (Mod+Y in `history.redo`). NOT done:
-   "Hide overlapping labels" as an undo step -- the element documents declutter as a view
-   preference undo leaves alone, so it is "for the owner". Tests
-   `frame/__tests__/UndoRedoWordsKeys.real-element` (4; 3 fail on the old app), compact-mantine
-   overlays.browser "a shown tooltip whose trigger the press turns off" (2, fail without). Walk
-   `design/ui/studio/tmp/r1-dry3-undo-redo-words-keys/` (w1 05 reason after click, 06 notice gone;
-   w2 04-05 keyboard Enter keeps the reason, 06 Control+Y; w3 09 Control+Z in "Color by kind";
-   w4 10 drag undone, 22 kept). Red on HEAD as well (not this change): StylePanel "declared code
-   column", "binds with the keyboard alone", "several selected share one row"; RowKinds 2;
-   KeysLeaveNothingOpen "Tab from a card's value"; FocusAndTabOrder "Tab out of the Vary by
-   list"; VaryByLayer 7; Groups "one undo step"; LayerPanelBehavior "other kind's tab".
-   0c. (2026-10-18, find box words) in full in `git show 78b2dfa2c:design/ui/studio/notes/engineer.md`, Top of mind 0.
-1. (2026-10-18, keyboard stops and Escape) A full "+" is no Tab stop; Escape in an inspector field
-   is the field's; Escape in the grid goes to Table; the caret tooltip opens below. In full in
-   `git show 78b2dfa2c:design/ui/studio/notes/engineer.md`, Top of mind 1.
-   0b. (2026-10-18, screen-reader names) "Run <analysis>", Load's region, the fold's why, group
-   colors in a bound pill's name, InfoCircle hover tooltip: in full in
-   `git show d714c8530:design/ui/studio/notes/engineer.md`, Top of mind 0.
-2. (2026-10-18, summaries and the Data place) True attribute summaries, Data place second lines,
-   category and text glyphs, "Select only N nodes": in full in
-   `git show 10800b21b:design/ui/studio/notes/engineer.md`, Top of mind 0.
-   1b. (2026-10-18, focus after a style line; condition card keys) `useFocusKept` in PropertyRow keeps
-   focus when a line's control is swapped; a card's remove is after its header in the DOM; text
-   cards open their list only on typing or ArrowDown. In full, with tests and walks:
-   `git show c768cdaaf:design/ui/studio/notes/engineer.md`, Top of mind 0-1.
-3. (2026-10-18, shape list typing; color picker) compact-mantine type-ahead clears the highlight on
-   a run no option starts with; the picker's "color before this edit" swatch and `closeOnEnter`;
-   `ValueField` swatches: in full in `git show bdd01700e:design/ui/studio/notes/engineer.md`, Top of
-   mind 0-1. Known: 12 compact-mantine tests fail on that commit too (QuickActions FieldChooser
-   axe and play, CompactColorInput swatches/onChangeEnd, select disabled trigger, Tree toggles).
-4. (2026-10-18, labels on the drawing) Names drawn across other nodes (app defaults "Move labels off
-   nodes and edges" on), labels beside the halo ring (`RichTextLabel.setRing`), declutter forcing
-   world matrices: in full in `git show 273e236a4:design/ui/studio/notes/engineer.md`, Top of mind 1.
-5. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
-   it arrives (`useOverlayInset`), F keeps the angle (`keepAngle`); a hover ends on `pointerleave`
-   of the engine's input element, event `selection:hover-changed`. In full in
-   `git show fa270090e:design/ui/studio/notes/engineer.md`, Top of mind 1-2.
-6. Earlier 2026-10-18 entries (keys and focus, filter steps, layer panel words): `git show 28e989215:design/ui/studio/notes/engineer.md` and `6d312090c`.
-   (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column, two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
-   Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
-   Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
-   `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+0. (2026-10-18, layer rows and the key agree with what a layer draws) graphty-element
+   `styles.groups` counted the whole graph (the prepared binding's `categoryCounts`) although
+   `ValueGroup.count` says "of the layer's elements": now counted over the layer's selector
+   (not for an `everything` layer), recorded as a fix under "decided by the team". App:
+   `rows.ts` `builtParts` (writing halves, else halves with a condition, else all) drives the row
+   count, `paintedTarget`, the kind glyph and the subtitle; `legendWords.ts` `heldRows` (in
+   `dataBlocks`) filters and orders a category block by `styles.groups` (count > 0, groups'
+   order = the Style table's), `keyBlocks` drops a category size block whose rows all paint one
+   size, `coveredLine` + `KeyNames.covers` (from `styles.counts(id).covers[channel]`, state layers
+   skipped, a run's layer named by `runName`) adds "1 node covered by s01" under a non-category
+   section, and the export image carries scope and covered notes on ramps. Tests
+   `canvas/__tests__/LayerRowAndKey.real-element` (5, all fail on HEAD), element
+   `group-editor` "counts each group among the layer's own elements" (fails on HEAD). Walks in
+   `design/ui/studio/tmp/r1-dry3-layer-row-and-key-agree/` (w1 12 row 0 "Node layer", 19 key
+   "board" only, 20 table 1/0/0; w2 13 row 51 "Edge layer"; w3 14 key order kept after red, 21
+   no width key at 8/8/8, 24 widths 8/24/8; w4 17 covered line). Not done: the bound pill's chits
+   still put a recolored group first (`ValueField`/pill, not the key). Red on HEAD too (not this
+   change): Groups "one undo step", graph-place tasks "click on a drawn name", BindingPopover "on
+   Louvain", inspector tasks T8, CanvasOverlays.real-element T8, RowKinds 2, CanvasOverlays.test
+   "Open a sample" (`data.source` mock), ExportDialog "saves the drawing" (two toasts),
+   Canvas.stories "Path Over Ranking".
+   0d. (2026-10-18, undo words and keys) in full in `git show e247f1900:design/ui/studio/notes/engineer.md`, Top of mind 0.
+1. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+   summaries and the Data place, focus after a style line, shape list typing and the color picker,
+   labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
+   of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
+2. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+3. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+4. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
-    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
-    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
-    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-    BoundValue for one layer and for several (owner 2026-10-16).
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
-    (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
-    run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
-    in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
-    `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
-    (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
-    option click can fail on `cm-pointer-still` (list opened under a still pointer): use
-    `--key ArrowUp --key Enter`. Compare drawings with PIL `ImageChops.difference(...).getbbox()`
-    on the canvas crop `(300,120,1195,835)` at 1440 x 900.
+5. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
+   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
+   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
+   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
+6. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+   name and shape; a changed default or a renamed or removed member goes "for the owner". A new
+   Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
+   `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
+7. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+   `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
+   round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
+   built: number card histogram for a run field, "lowest N", dashed chips at rest. One
+   BoundValue for one layer and for several (owner 2026-10-16).
+8. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+   expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
+   (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
+   run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
+   in the same stack (`writeRank` in `StylePainter.ts`).
+9. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+   `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
+   (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
+   option click can fail on `cm-pointer-still` (list opened under a still pointer): use
+   `--key ArrowUp --key Enter`. Compare drawings with PIL `ImageChops.difference(...).getbbox()`
+   on the canvas crop `(300,120,1195,835)` at 1440 x 900.
 
 ## Decisions and reasons
 
+- (2026-10-18) **The key reads which values a layer holds from `styles.groups`, fixed in the
+  element.** Its count claimed the layer's elements and gave the graph's; computing per-layer
+  counts in the app (or via `preview({ within })`) would have worked around a documented defect.
+  Display order and which rows to show stay the app's, so ordering the key like the table is app
+  code. **A row counts the half being built**: a condition with nothing set yet is what the reader
+  is making, so "Node and edge layer, 63" on a node card at 0 of 24 was false.
 - (2026-10-18) **The app names a rule's columns through the element, not by parsing.** The rule
   language is the element's; `renamePaths` already rewrote paths for `checkRule`'s suggestion, so
   exporting it was the smallest additive door. Structure values had no name fact anywhere (panels
@@ -245,6 +226,10 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Did not work: a one-size rule that compared `swatch.size` with no `size` set hid
+  every size ramp in a unit test (undefined === undefined); scoped to category blocks with a size.
+  A covered line named "Shortest route" (the element's layer name) where the key names the run as
+  the Analyze list does; naming a run's layer by `runName` fixed it.
 - (2026-10-18) Undo's reason after the press that dimmed it: WORKED by un-dismissing the same
   tooltip element when its trigger turns off. Not tried and rejected on reading: a `key` on the
   Tooltip to remount it, which remounts the button and drops keyboard focus to the page. The

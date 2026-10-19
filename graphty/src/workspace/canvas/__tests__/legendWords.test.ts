@@ -299,7 +299,7 @@ describe("the legend card's words", () => {
         const session = {
             runs: { get: () => run },
             visibility: { summary },
-            styles: { get: () => undefined },
+            styles: { get: () => undefined, counts: () => ({ covers: {} }) },
             sets: { get: () => undefined },
             catalog: { algorithms: () => [{ key: "pagerank", plainName: "PageRank" }] },
         } as unknown as GraphSession;
@@ -333,7 +333,7 @@ describe("the legend card's words", () => {
         };
         const session = {
             runs: { get: () => run },
-            styles: { get: () => undefined },
+            styles: { get: () => undefined, counts: () => ({ covers: {} }) },
             catalog: {
                 algorithms: () => [
                     { key: "shortest-path", plainName: "Shortest route", technicalName: "Shortest path" },
@@ -351,7 +351,7 @@ describe("the legend card's words", () => {
                 readableValues: () => [],
             },
             runs: { get: () => undefined },
-            styles: { get: () => ({ name: "Everything" }) },
+            styles: { get: () => ({ name: "Everything" }), counts: () => ({ covers: {} }) },
         } as unknown as GraphSession;
         const field = { path: "data.donations", plainName: "Donations", technicalName: "donations" };
         const size = block({ channel: "node.size", field });

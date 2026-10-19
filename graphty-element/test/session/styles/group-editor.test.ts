@@ -49,6 +49,30 @@ function painted(session: GraphSession, index: number, channel: "node.color" | "
 }
 
 describe("a group editor's element side", () => {
+    it("counts each group among the layer's own elements, not the whole graph's", async () => {
+        const session = createGraphSession();
+        const groups = SIZES.flatMap((size, group) => Array.from({ length: size }, () => group));
+        await session.data.addNodes(groups.map((group, at) => ({ id: `n${String(at)}`, group })));
+        // n0 is in group 0 and n4 in group 1: the layer holds one node of each.
+        const layer = await session.styles.add({
+            name: "Two",
+            target: "node",
+            selector: { match: "ids", nodes: ["n0", "n4"] },
+            encode: { "node.color": { by: "data.group", scale: "ordinal" } },
+        });
+        await session.styles.settled();
+        assert.deepStrictEqual(
+            session.styles.groups(layer.id, "data.group").map((group) => [group.value, group.count]),
+            [
+                [0, 1],
+                [1, 1],
+                [2, 0],
+                [3, 0],
+            ],
+        );
+        session.dispose();
+    });
+
     it("folds the small groups into Other in every channel, lists them last, and unfolds them", async () => {
         const { session, id } = await grouped();
         await session.styles.setFoldBelow(id, "data.group", 2);

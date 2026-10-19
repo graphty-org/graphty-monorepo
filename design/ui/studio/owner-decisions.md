@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a layer's groups count its own elements; the key and the layer rows say what a layer draws (graphty-element, graphty app)
+
+No API is added. `styles.groups(layer, path)` documents each group's `count` as "how many of the
+layer's elements carry it", but it returned the whole graph's count, read from the binding the
+repaint prepares over the whole graph (so its scale is the whole graph's). A layer that selects
+some elements now counts only those, as documented, and a value none of them carries counts 0; a
+layer that selects everything is unchanged. This corrects output to match the documented contract,
+so it is recorded here as a fix rather than a change of behavior. The Style tab's group table now
+shows a one-node layer's groups as 1, 0 and 0, not the column's counts.
+
+In the graphty app: the key lists a category's values in the order the layer's groups come (the
+Style tab table's order) and only those the layer's elements hold, so a one-node layer colored by a
+column keys its one value and a recolored group keeps its place; a size or width that is the same
+for every group is no key; a ramp whose elements a layer above paints in the same property says how
+many ("1 node covered by s01"), as a category's rows already said. A layer row counts, and names
+its kind by, the half the reader is building: the halves that set something, else the halves that
+carry a condition, else every half it is on.
+
 ## 2026-10-18 -- For the owner: should turning "Hide overlapping labels" on or off be an undo step?
 
 graphty-element documents label decluttering (`layoutBehavior.labels.declutter`, and the

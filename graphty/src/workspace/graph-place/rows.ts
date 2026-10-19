@@ -224,16 +224,44 @@ export function paintingParts(session: GraphSession, id: string): { node?: Layer
 }
 
 /**
- * What a layer row paints: nodes, edges or both, counting only the halves that write a property.
- * A row that writes nothing yet reads as the kinds it is on, so a new layer still says what it
- * will paint.
+ * The halves of a layer row the reader is building: those that write a property; with none, those
+ * narrowed by a condition (a new layer whose edge card is being filled is an edge layer before it
+ * sets anything); with neither, every half it is on, so a new layer still says what it will paint.
+ * @param session - the element's session.
+ * @param id - the row's id.
+ * @returns the halves' layer ids, empty for a row the stack does not hold.
+ */
+export function builtParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
+    const painting = paintingParts(session, id);
+    if (painting.node !== undefined || painting.edge !== undefined) {
+        return painting;
+    }
+    const parts = session.styles.parts(id);
+    const narrowed = (layer: LayerId | undefined): layer is LayerId =>
+        layer !== undefined && session.styles.get(layer)?.selector.match !== "everything";
+    const conditioned = {
+        ...(narrowed(parts?.node) ? { node: parts.node } : {}),
+        ...(narrowed(parts?.edge) ? { edge: parts.edge } : {}),
+    };
+    if (conditioned.node !== undefined || conditioned.edge !== undefined) {
+        return conditioned;
+    }
+    return {
+        ...(parts?.node === undefined ? {} : { node: parts.node }),
+        ...(parts?.edge === undefined ? {} : { edge: parts.edge }),
+    };
+}
+
+/**
+ * What a layer row paints: nodes, edges or both, counting the halves the reader is building
+ * (`builtParts`).
  * @param session - the element's session.
  * @param id - the row's id.
  * @returns the kinds, or undefined for a row the stack does not hold.
  */
 export function paintedTarget(session: GraphSession, id: string): RowTarget | undefined {
     const target = session.styles.parts(id)?.target;
-    const { node, edge } = paintingParts(session, id);
+    const { node, edge } = builtParts(session, id);
     if (target === undefined || (node === undefined && edge === undefined)) {
         return target;
     }

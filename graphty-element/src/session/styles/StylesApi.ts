@@ -4234,9 +4234,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return groupsOf(entry.layer, path, steadyEncodingOf(id), (at) =>
+            const groups = groupsOf(entry.layer, path, steadyEncodingOf(id), (at) =>
                 valueLabelsAt(dispatcher.state.valueLabels, at),
             );
+            if (groups.length === 0 || entry.layer.selector.match === "everything") {
+                return groups;
+            }
+            // The prepared binding reads the whole graph, so its scale is the whole graph's; a group's
+            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says.
+            const { selector } = require(id);
+            const { nodes, edges } = elementsOf(WHOLE_GRAPH);
+            const onNodes = entry.layer.target === "node";
+            const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
+            const held = new Map<string, number>();
+            for (const index of onNodes ? nodes : edges) {
+                if (selector.test === null || selector.test(index)) {
+                    const key = String(read(index, path));
+                    held.set(key, (held.get(key) ?? 0) + 1);
+                }
+            }
+            return groups.map((group) => Object.freeze({ ...group, count: held.get(String(group.value)) ?? 0 }));
         },
 
         setValueEntries(

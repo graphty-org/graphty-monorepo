@@ -18,6 +18,7 @@ import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
 import {
+    builtParts,
     count,
     findTreeRow,
     groupRowOf,
@@ -25,7 +26,6 @@ import {
     isHidden,
     layerCount,
     layerKindWords,
-    paintingParts,
     placeOf,
 } from "./rows";
 
@@ -50,9 +50,8 @@ interface Paints {
  * @returns the facts.
  */
 function paintsOf(session: GraphSession, row: StyleRow): Paints {
-    // Only the halves that write a property paint; a row that writes nothing yet counts what it is on.
-    const painting = paintingParts(session, row.id);
-    const parts = painting.node === undefined && painting.edge === undefined ? session.styles.parts(row.id) : painting;
+    // Only the halves the reader is building count: those that write, else those with a condition.
+    const parts = builtParts(session, row.id);
     const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
         layer === undefined ? undefined : session.styles.counts(layer);
     const node = read(parts?.node);

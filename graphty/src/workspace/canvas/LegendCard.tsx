@@ -334,7 +334,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             p="xs"
         >
             <Stack gap="xs">
-                {sections.map(({ title, block, entry, merged, scope }) => {
+                {sections.map(({ title, block, entry, merged, scope, covered }) => {
                     const continuous = block.kind === "sequential" || block.kind === "diverging";
                     return (
                         <fieldset
@@ -359,6 +359,11 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                             {scope === null ? null : (
                                 <Text size="xs" c="dimmed">
                                     {scope}
+                                </Text>
+                            )}
+                            {covered === null ? null : (
+                                <Text size="xs" c="dimmed">
+                                    {covered}
                                 </Text>
                             )}
                         </fieldset>

@@ -57,6 +57,9 @@ function standIn(facts: StandInFacts = {}): {
             encode,
             highlight,
             settled: () => Promise.resolve(),
+            // No layer above covers a block, and no layer lists its own groups.
+            counts: () => ({ covers: {} }),
+            groups: () => [],
         },
         catalog: { algorithms: () => [{ key: "pagerank", technicalName: "PageRank" }] },
         runs: {

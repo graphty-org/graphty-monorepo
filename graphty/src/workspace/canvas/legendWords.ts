@@ -103,7 +103,44 @@ function byRank(block: LegendBlock): LegendBlock {
  */
 export function dataBlocks(session: GraphSession): LegendBlock[] {
     // ponytail: only a top-level state selector counts; a rule tree that mixes a state in is still keyed.
-    return session.styles.legend().filter((block) => session.styles.get(block.layerId)?.selector.match !== "state");
+    return session.styles
+        .legend()
+        .filter((block) => session.styles.get(block.layerId)?.selector.match !== "state")
+        .map((block) => heldRows(session, block));
+}
+
+/**
+ * A category block's rows as its layer's own elements hold them, in the order the layer's groups
+ * come (`styles.groups`, largest first: the order the Style tab's table lists them). A value none
+ * of the layer's elements carries is no row, so a one-node layer bound to a column keys its one
+ * value and not every value of the column; and giving one group its own color does not move its
+ * row. The Other row stays last. A run's groups keep their rank order, and a block several layers
+ * share keeps the element's rows, which already list only what the layers meet.
+ * @param session - the session.
+ * @param block - the block.
+ * @returns the block, its rows those the layer holds.
+ */
+function heldRows(session: GraphSession, block: LegendBlock): LegendBlock {
+    const path = block.field?.path;
+    if (
+        block.kind !== "categorical" ||
+        path === undefined ||
+        (block.layers?.length ?? 1) > 1 ||
+        block.swatches.some((swatch) => swatch.rank !== undefined)
+    ) {
+        return block;
+    }
+    const held = session.styles.groups(block.layerId, path).filter((group) => group.count > 0);
+    if (held.length === 0) {
+        return block;
+    }
+    // ponytail: the element caps a block at 12 rows before this; a layer holding values past the
+    // twelfth keys fewer rows than it holds. Filter in the element if a layer ever needs them.
+    const place = new Map(held.map((group, at) => [String(group.value), at]));
+    const at = (swatch: LegendSwatch): number =>
+        swatch.role === "other" ? Infinity : (place.get(String(swatch.value)) ?? -1);
+    const swatches = block.swatches.filter((swatch) => at(swatch) !== -1).sort((a, b) => at(a) - at(b));
+    return { ...block, swatches };
 }
 
 /**
@@ -144,7 +181,14 @@ export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
         )
         .flatMap((block) => {
             const painted = paintedRows(block);
-            return painted.swatches.length === 0 && block.swatches.length > 0 ? [] : [byRank(painted)];
+            // Every value at one size or width is a size that does not vary, however it is bound.
+            const first = painted.swatches.at(0)?.size;
+            const oneSize =
+                isSizeBlock(block) &&
+                block.kind === "categorical" &&
+                first !== undefined &&
+                painted.swatches.every((swatch) => swatch.size === first);
+            return oneSize || (painted.swatches.length === 0 && block.swatches.length > 0) ? [] : [byRank(painted)];
         });
 }
 
@@ -336,6 +380,25 @@ export function coveredWords(layer: string): string {
 }
 
 /**
+ * The line under a section whose layer's elements a layer above paints in the same property, so
+ * the section's paint does not show on them: "3 nodes covered by Big donors". A category's rows say
+ * it row by row (`coveredWords`), so a category block gets no line.
+ * @param block - The block.
+ * @param covers - The layers above that paint the property on the block's elements, and on how many.
+ * @returns The line, or null when nothing covers it.
+ */
+export function coveredLine(
+    block: LegendBlock,
+    covers: readonly { readonly layer: string; readonly count: number }[],
+): string | null {
+    if (block.kind === "categorical" || covers.length === 0) {
+        return null;
+    }
+    const noun = block.channel.startsWith("edge.") ? "edge" : "node";
+    return covers.map(({ layer, count: n }) => `${count(n, noun)} ${coveredWords(layer)}`).join("; ");
+}
+
+/**
  * The line under a section whose layer selects some elements and not all (`block.scope`): which
  * layer and how many, "Picked: 3 of 24 nodes". The layer's name is left out where the title
  * already ends with it, and for a run's block, which the run's name in the title says.
@@ -361,6 +424,8 @@ interface KeyNames {
     readonly entry: (block: LegendBlock) => string;
     /** A layer's name, by id; absent, the id. */
     readonly layer?: (layerId: string) => string;
+    /** The layers above that paint a block's property on its elements, by name, and on how many. */
+    readonly covers?: (block: LegendBlock) => readonly { readonly layer: string; readonly count: number }[];
 }
 
 /**
@@ -375,6 +440,8 @@ interface KeySection {
     readonly merged: boolean;
     /** Which layer paints it and on how many, when that is some and not all (`scopeLine`). */
     readonly scope: string | null;
+    /** How many of its elements a layer above paints in the same property (`coveredLine`). */
+    readonly covered: string | null;
 }
 
 /**
@@ -503,7 +570,8 @@ export function keySections(blocks: readonly LegendBlock[], names: KeyNames): Ke
             !one && block.overflow === undefined && only !== undefined && swatchName(block, only, entry) === row;
         const title = one ? row : sectionTitle(block, row);
         const scope = scopeLine(block, title, names.layer?.(block.layerId) ?? block.layerId);
-        sections.push({ title, block, entry, merged: one || lone, scope });
+        const covered = coveredLine(block, names.covers?.(block) ?? []);
+        sections.push({ title, block, entry, merged: one || lone, scope, covered });
     }
     return sections;
 }
@@ -517,7 +585,7 @@ export function keySections(blocks: readonly LegendBlock[], names: KeyNames): Ke
  * @returns the sections, for `captureScreenshot({ legend })`.
  */
 export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): ScreenshotLegendSection[] {
-    return keySections(keyBlocks(blocks), names).map(({ title, block, entry, scope }) => {
+    return keySections(keyBlocks(blocks), names).map(({ title, block, entry, scope, covered }) => {
         if (block.kind === "sequential" || block.kind === "diverging") {
             const colors = block.swatches.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
             const first = block.swatches.at(0);
@@ -526,7 +594,12 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
                 min: first === undefined ? "" : swatchText(block, first),
                 max: last === undefined ? "" : swatchText(block, last),
             };
-            return { title, ramp: isSizeBlock(block) ? ramp : { ...ramp, colors } };
+            const rampNotes = [scope, covered].filter((note) => note !== null);
+            return {
+                title,
+                ramp: isSizeBlock(block) ? ramp : { ...ramp, colors },
+                ...(rampNotes.length === 0 ? {} : { note: rampNotes.join("; ") }),
+            };
         }
         const rows = block.swatches.map((swatch) => {
             const shown =
@@ -540,9 +613,11 @@ export function imageLegend(blocks: readonly LegendBlock[], names: KeyNames): Sc
                 ...(value === undefined ? {} : { value }),
             };
         });
-        const notes = [scope, block.overflow === undefined ? null : overflowLine(block.overflow.hidden)].filter(
-            (note) => note !== null,
-        );
+        const notes = [
+            scope,
+            covered,
+            block.overflow === undefined ? null : overflowLine(block.overflow.hidden),
+        ].filter((note) => note !== null);
         return { title, rows, ...(notes.length === 0 ? {} : { note: notes.join("; ") }) };
     });
 }
@@ -603,5 +678,22 @@ export function keyNames(session: GraphSession): KeyNames {
             return session.styles.get(block.layerId)?.name ?? rowName(session, block);
         },
         layer: (layerId) => session.styles.get(layerId)?.name ?? layerId,
+        covers: (block) => {
+            // The copies a block stands for, each covered where a layer above wins its property;
+            // a layer painting what the reader points at (Selected, Hovered) is no cover.
+            const shares = new Map<string, number>();
+            for (const id of block.layers ?? [block.layerId]) {
+                for (const { layerId, count: n } of session.styles.counts(id).covers[block.channel]?.layers ?? []) {
+                    const above = session.styles.get(layerId);
+                    if (above !== undefined && above.selector.match !== "state") {
+                        // A run's layer goes by the run's name, as the Analyze list names it.
+                        const run = above.source.by === "run" ? session.runs.get(above.source.runId) : undefined;
+                        const name = run === undefined ? above.name : runName(session, run);
+                        shares.set(name, (shares.get(name) ?? 0) + n);
+                    }
+                }
+            }
+            return [...shares].map(([layer, n]) => ({ layer, count: n }));
+        },
     };
 }

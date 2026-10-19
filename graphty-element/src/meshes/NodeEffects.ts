@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    Camera,
     Color3,
     type Color4,
     type EffectLayer,
@@ -10,6 +11,8 @@ import {
     Scene,
     StandardMaterial,
     type SubMesh,
+    TransformNode,
+    Vector3,
     VertexData,
 } from "@babylonjs/core";
 
@@ -25,10 +28,13 @@ const DEFAULT_OUTLINE_COLOR = "#FFFF00";
 /** The name every outline ring's source mesh and instances start with; the color follows. */
 const OUTLINE_RING_PREFIX = "graphty-node-outline-";
 
-/** The ring's inner radius, in node radii: a little inside the node's edge, so it overlaps it. */
+/**
+ * The ring's inner radius, in radii of the node's outline as the camera sees it: a little inside
+ * the node's edge, so it overlaps it.
+ */
 const OUTLINE_RING_INNER = 0.9;
 
-/** The ring's outer radius, in node radii. */
+/** The ring's outer radius, in radii of the node's outline as the camera sees it. */
 const OUTLINE_RING_OUTER = 1.35;
 
 /**
@@ -46,6 +52,9 @@ const OUTLINE_RING_DEPTH_OFFSET = 2;
 
 /** The smallest node radius a ring is sized for, so a node with no bounds yet still gets one. */
 const MIN_RING_RADIUS = 0.01;
+
+/** Scratch vector, so placing a ring every frame allocates nothing. */
+const TO_CAMERA = new Vector3();
 
 /**
  * Glow colour for a glowing mesh whose colour entry is missing from the selector's map. A style
@@ -121,19 +130,81 @@ export class NodeEffects {
         if (ring !== existing) {
             existing?.dispose();
             ring.isPickable = false;
-            ring.billboardMode = Mesh.BILLBOARDMODE_ALL;
             ring.parent = mesh;
-            ring.position.setAll(0);
+            const scene = mesh.getScene();
+            const observer = scene.onBeforeCameraRenderObservable.add((camera) => {
+                this.followCamera(ring, camera);
+            });
+            ring.onDisposeObservable.addOnce(() => {
+                scene.onBeforeCameraRenderObservable.remove(observer);
+            });
         }
 
         const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        ring.scaling.setAll(Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS));
+        ring.metadata = { outlineRadius: Math.max(extent.x, extent.y, extent.z, MIN_RING_RADIUS) };
+        const camera = mesh.getScene().activeCamera;
+        if (camera) {
+            this.followCamera(ring, camera);
+        }
+    }
+
+    /**
+     * Place a node's ring for one camera, before that camera draws: on the line from the node's
+     * centre to the camera, {@link OUTLINE_RING_LIFT} node radii toward it, and sized to the cone
+     * of sight lines that graze the node, so its inner edge lies on the node's visible edge.
+     *
+     * WHY EVERY FRAME. Under perspective a node's visible edge is where that cone meets it, and the
+     * cone depends on how far away and in which direction the camera is. The ring used to be a
+     * billboard turned with the camera's rotation, lifted along the view axis and sized once for a
+     * node straight ahead: for a node off to the side the lift carried the ring further out than
+     * the node, and as the graph turned a node toward the side of the view a gap opened between
+     * the node and its ring (`test/browser/node-outline-perspective.test.ts`). An orthographic
+     * camera has no cone: the ring is the node's own radius, lifted along the view axis, as before.
+     *
+     * Cost: a few vector operations per outlined node per camera, no scene search.
+     * @param ring - The node's ring, a child of the node's mesh.
+     * @param camera - The camera about to draw.
+     */
+    private static followCamera(ring: AbstractMesh, camera: Camera): void {
+        const node = ring.parent;
+        const radius = (ring.metadata as { outlineRadius?: number } | null)?.outlineRadius;
+        if (!(node instanceof AbstractMesh) || radius === undefined) {
+            return;
+        }
+
+        const { m } = node.computeWorldMatrix();
+        // The node's world scale; a node is scaled the same along every axis.
+        const scale = Math.hypot(m[0], m[1], m[2]) || 1;
+        const r = radius * scale;
+        const lift = OUTLINE_RING_LIFT * r;
+        const toCamera = TO_CAMERA;
+        let seen = r;
+
+        if (camera.mode === Camera.ORTHOGRAPHIC_CAMERA) {
+            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+            camera.getDirectionToRef(Vector3.Forward(camera.getScene().useRightHandedSystem), toCamera);
+            toCamera.scaleInPlace(-1);
+        } else {
+            // Turned toward the camera's POSITION, not its rotation, so the ring is square to the
+            // line of sight to this node wherever it is in the view.
+            ring.billboardMode = TransformNode.BILLBOARDMODE_ALL | TransformNode.BILLBOARDMODE_USE_POSITION;
+            camera.globalPosition.subtractToRef(node.getAbsolutePosition(), toCamera);
+            const distance = toCamera.length();
+            toCamera.scaleInPlace(1 / (distance || 1));
+            // The cone's radius at the ring's distance from the camera.
+            seen = (Math.max(distance - lift, 0) * r) / Math.sqrt(Math.max(distance * distance - r * r, r * r * 1e-6));
+        }
+
+        // The billboard keeps the parent's scale and position but not its rotation, so the
+        // position is a world direction in the parent's units.
+        toCamera.scaleToRef(lift / scale, ring.position);
+        ring.scaling.setAll(seen / scale);
     }
 
     /**
      * Build the source mesh of one outline color: a flat ring of inner radius
-     * {@link OUTLINE_RING_INNER} and outer radius {@link OUTLINE_RING_OUTER}, parallel to the XY plane
-     * and {@link OUTLINE_RING_LIFT} in front of it.
+     * {@link OUTLINE_RING_INNER} and outer radius {@link OUTLINE_RING_OUTER} in the XY plane;
+     * followCamera places and sizes it.
      * @param name - The mesh name, which is also its cache key.
      * @param color - The ring's color.
      * @param scene - The scene to build it in.
@@ -146,14 +217,13 @@ export class NodeEffects {
             const angle = (i / OUTLINE_RING_SEGMENTS) * Math.PI * 2;
             const x = Math.cos(angle);
             const y = Math.sin(angle);
-            // -z faces the camera: the ring is a billboard.
             positions.push(
                 x * OUTLINE_RING_INNER,
                 y * OUTLINE_RING_INNER,
-                -OUTLINE_RING_LIFT,
+                0,
                 x * OUTLINE_RING_OUTER,
                 y * OUTLINE_RING_OUTER,
-                -OUTLINE_RING_LIFT,
+                0,
             );
             if (i < OUTLINE_RING_SEGMENTS) {
                 const at = i * 2;
@@ -165,7 +235,8 @@ export class NodeEffects {
         const data = new VertexData();
         data.positions = positions;
         data.indices = indices;
-        data.normals = positions.map((_, i) => (i % 3 === 2 ? -1 : 0));
+        // +z faces the camera: the ring is a billboard turned toward the camera's position.
+        data.normals = positions.map((_, i) => (i % 3 === 2 ? 1 : 0));
         data.applyToMesh(source);
 
         const material = new StandardMaterial(`${name}-material`, scene);

@@ -832,6 +832,16 @@ function pickedCount(nodes: number, edges: number): string {
 }
 
 /**
+ * What a line just added on a selection with no layer yet says: the value shown is not set, and
+ * the first one picked makes the layer.
+ * @param property - the line's name, as drawn ("Size").
+ * @returns the words.
+ */
+export function firstValueWords(property: string): string {
+    return `Not set yet: the first ${property.toLowerCase()} you pick makes the layer`;
+}
+
+/**
  * What a selection's Style tab says before its layer exists: the first style set makes it.
  * @param nodes - how many nodes are selected.
  * @param edges - how many edges are selected.

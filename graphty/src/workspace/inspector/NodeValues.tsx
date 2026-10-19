@@ -602,7 +602,7 @@ function summaryRows(
         name: attribute.plainName,
         value: attributeSummary(
             attribute,
-            columns.find((column) => column.path === attribute.path)?.type,
+            columns.find((column) => column.kind === "node" && column.path === attribute.path),
             statistics.nodes,
         ),
     }));
@@ -616,7 +616,7 @@ function summaryRows(
         .map((column) => ({
             path: column.path,
             name: column.plainName,
-            value: attributeSummary({ count: 0 }, column.type, statistics.nodes),
+            value: attributeSummary({ count: 0 }, column, statistics.nodes),
         }));
     return [...carried, ...empty];
 }

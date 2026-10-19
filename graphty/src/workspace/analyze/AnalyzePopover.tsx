@@ -118,8 +118,14 @@ function nodeOptions(descriptor: AlgorithmDescriptor): string[] {
 function unavailable(session: GraphSession, descriptor: AlgorithmDescriptor): string | null {
     // The Path form picks its own ends, so it needs no selection.
     const needed = descriptor.key === PATH_ALGORITHM ? 0 : nodeOptions(descriptor).length;
-    if (needed > session.selection.nodes.length) {
+    const selected = session.selection.nodes.length;
+    if (needed > selected) {
         return needed === 1 ? "Select a node first" : `Select ${String(needed)} nodes first`;
+    }
+    // Its nodes come from the selection only when it holds exactly them: never the first few of a
+    // larger selection, which the reader did not choose.
+    if (needed > 0 && selected > needed) {
+        return `Select only ${needed === 1 ? "1 node" : `${String(needed)} nodes`}; ${String(selected)} are selected`;
     }
     const estimate = session.estimate({ op: "algo.run", algorithm: descriptor.key });
     return estimate.available ? null : runRefusalWords(estimate);
@@ -127,7 +133,7 @@ function unavailable(session: GraphSession, descriptor: AlgorithmDescriptor): st
 
 /**
  * The parameters to run with: what the reader set, plus the selected nodes for the options that
- * read them.
+ * read them, when the selection holds exactly that many.
  * @param session - the element's session.
  * @param descriptor - the algorithm.
  * @param set - the values the reader set.
@@ -139,9 +145,13 @@ function paramsFor(
     set: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
     const params: Record<string, unknown> = { ...set };
-    nodeOptions(descriptor).forEach((name, i) => {
-        params[name] = session.selection.nodes[i];
-    });
+    const names = nodeOptions(descriptor);
+    // Filled only from a selection of exactly as many nodes as the options read.
+    if (names.length === session.selection.nodes.length) {
+        names.forEach((name, i) => {
+            params[name] = session.selection.nodes[i];
+        });
+    }
     return params;
 }
 
@@ -555,6 +565,9 @@ function Essentials({
                         disabled={!estimate.available}
                         data-disabled={plan.current || undefined}
                         aria-disabled={plan.current || undefined}
+                        // A bare "Run" names no analysis to a reader who reached it by Tab; the
+                        // other labels already name it ("Update Degree layer").
+                        aria-label={plan.label === "Run" ? `Run ${words.name}` : undefined}
                         autoFocus
                     >
                         {plan.label}

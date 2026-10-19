@@ -26,6 +26,7 @@ import {
 
 const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
     category: <GLYPHS.category size={14} aria-hidden />,
+    text: <GLYPHS.text size={14} aria-hidden />,
     number: <GLYPHS.number size={14} aria-hidden />,
     ordinal: <GLYPHS.ordinal size={14} aria-hidden />,
     time: <GLYPHS.time size={14} aria-hidden />,
@@ -113,9 +114,9 @@ function attributeItem(row: AttributeRow): TreeNodeData {
                 <span>{TYPE_GLYPHS[row.glyph]}</span>
             </Tooltip>
         ),
-        // A partly filled column says so on a second line, as a source says its counts, so the name
-        // and "99% have a value" each show whole at any width.
-        ...(row.fill === null ? {} : { descriptionVisible: true }),
+        // Its type and how many have a value on a second line, as a source says its counts, so the
+        // name and "Number, 99% have a value" each show whole at any width.
+        descriptionVisible: true,
     };
 }
 

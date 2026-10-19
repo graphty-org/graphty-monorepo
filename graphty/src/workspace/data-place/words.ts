@@ -23,7 +23,7 @@ export interface SourceRow {
 }
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
-export type TypeGlyph = "category" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
+export type TypeGlyph = "category" | "text" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
 
 /** One Attributes row. */
 export interface AttributeRow {
@@ -38,7 +38,7 @@ export interface AttributeRow {
     readonly typeWord: string;
     /** "20%" when not every element has a value; null when all do. */
     readonly fill: string | null;
-    /** What a screen reader hears after the name: the type word, then the fill. */
+    /** The row's second line, which a screen reader hears after the name: the type word, then the fill. */
     readonly description: string;
 }
 
@@ -313,7 +313,7 @@ export function typeOf(
         return { glyph: "yes-no", typeWord: YES_NO_WORD };
     }
     if (readable === "text" && measurement !== undefined) {
-        return { glyph: "category", typeWord: TEXT_WORD };
+        return { glyph: "text", typeWord: TEXT_WORD };
     }
     switch (measurement) {
         case "categorical":
@@ -377,7 +377,8 @@ export function attributeRows(
                 label: `${a.name}, ${a.kind} attribute`,
                 ...type,
                 fill,
-                description: fill === null ? type.typeWord : `${type.typeWord}, ${fill} have a value`,
+                // Every row says its type and how many have a value: "Text, all have a value".
+                description: a.completeness <= 0 ? type.typeWord : `${type.typeWord}, ${fill ?? "all"} have a value`,
             };
         });
 }

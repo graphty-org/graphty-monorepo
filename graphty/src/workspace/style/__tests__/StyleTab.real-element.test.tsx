@@ -157,7 +157,7 @@ describe("labels from an attribute (task T10) on the real element", () => {
         const { session, element, store } = await openWithGraph();
         const [command] = registration.commands;
         const ctx = { session, element, workspace: store };
-        assert.equal(command.disabled?.(ctx), "Pick a node attribute first");
+        assert.equal(command.disabled?.(ctx), "Open a node attribute in Data > Attributes first");
         store.set({ inspected: { kind: "attribute", id: "data.name" } });
         assert.isNull(command.disabled?.(ctx) ?? null);
         await command.run(ctx);

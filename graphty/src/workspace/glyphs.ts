@@ -11,6 +11,7 @@ import {
     ArrowRightToLine,
     ArrowUpToLine,
     Blend,
+    Boxes,
     Calendar,
     CaseSensitive,
     ChartColumn,
@@ -129,7 +130,9 @@ export const GLYPHS = {
     // Analyses and value types.
     paths: Route,
     number: Hash,
-    category: CaseSensitive,
+    // Named groups (a category) and free text are two kinds of value, each its own icon.
+    category: Boxes,
+    text: CaseSensitive,
     ordinal: ListOrdered,
     time: Calendar,
     // A column of yes-or-no values.
@@ -213,12 +216,12 @@ export const KIND_GLYPHS: Readonly<Record<InspectedKindId, LucideIcon>> = {
 
 /**
  * The icon of each kind of value a list offers (Vary by, Add a condition), so one column wears one
- * icon in every list: a yes-or-no its toggle, a number its #, text and categories their Aa.
+ * icon in every list: a yes-or-no its toggle, a number its #, text its Aa, a category its boxes.
  */
 export const VALUE_GLYPHS: Readonly<Record<ReadableValueKind, LucideIcon>> = {
     number: GLYPHS.number,
     category: GLYPHS.category,
-    text: GLYPHS.category,
+    text: GLYPHS.text,
     "yes-no": GLYPHS.yesNo,
 };
 

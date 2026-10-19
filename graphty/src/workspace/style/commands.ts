@@ -32,7 +32,8 @@ export const registration = defineRegistration({
             label: "Add label line",
             group: "Graph tree",
             description: "Label every node with this attribute, on a new row on top",
-            disabled: (ctx) => (inspectedAttribute(ctx) === undefined ? "Pick a node attribute first" : null),
+            disabled: (ctx) =>
+                inspectedAttribute(ctx) === undefined ? "Open a node attribute in Data > Attributes first" : null,
             run: async (ctx) => {
                 const column = inspectedAttribute(ctx);
                 if (ctx.session === null || column === undefined) {

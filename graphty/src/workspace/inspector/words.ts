@@ -541,25 +541,35 @@ export function xrEntryFailureWords(mode: "vr" | "ar", code: GraphtyErrorCode | 
 }
 
 /**
- * One attribute of a selection in a few words: its mean, or every value it takes with how many
- * hold each ("staff (5), board (3)"). A column with neither (every value different) says how many
- * have a value, so every column has its row, a partly filled one and an empty one too.
+ * One attribute of a selection in a few words: a number's lowest to highest and its mean ("30 to
+ * 52, mean 41.67"), or every value it takes with how many hold each ("staff (5), board (3)"). A
+ * column with neither (every value different), and a column that holds the nodes' own ids, which
+ * are names and not amounts, say how many have a value, so every column has its row, a partly
+ * filled one and an empty one too.
  * @param attribute - the selection's statistics for the attribute.
- * @param type - the column's type (graphty-element's), so a yes-or-no reads Yes or No.
+ * @param column - the column as graphty-element describes it: its type, so a yes-or-no reads Yes or
+ * No, and whether it holds the node ids.
  * @param nodes - how many nodes are selected.
  * @returns the words.
  */
 export function attributeSummary(
-    attribute: Pick<SelectionAttributeStatistics, "count" | "mean" | "distribution">,
-    type: string | undefined,
+    attribute: Pick<SelectionAttributeStatistics, "count" | "mean" | "min" | "max" | "distribution">,
+    column: Readonly<{ type?: string; holdsNodeIds?: true; roles?: readonly string[] }> | undefined,
     nodes: number,
 ): string {
-    if (attribute.mean !== undefined) {
-        return `mean ${formatNumber(attribute.mean)}`;
+    const ids = column?.holdsNodeIds === true || column?.roles?.includes("key") === true;
+    if (!ids && attribute.mean !== undefined) {
+        const { min, max, mean } = attribute;
+        if (min === undefined || max === undefined) {
+            return `mean ${formatNumber(mean)}`;
+        }
+        return min === max ? formatNumber(min) : `${rangeWords(min, max)}, mean ${formatNumber(mean)}`;
     }
-    const values = attribute.distribution ?? [];
+    const values = ids ? [] : (attribute.distribution ?? []);
     if (values.some((entry) => entry.count > 1)) {
-        return values.map((entry) => `${valueWord(entry.value, type)} (${formatNumber(entry.count)})`).join(", ");
+        return values
+            .map((entry) => `${valueWord(entry.value, column?.type)} (${formatNumber(entry.count)})`)
+            .join(", ");
     }
     return `${formatNumber(attribute.count)} of ${formatNumber(nodes)} have a value`;
 }

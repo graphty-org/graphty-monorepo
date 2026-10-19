@@ -571,7 +571,20 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 from: made === undefined ? undefined : from(made),
                 ...(column === undefined
                     ? {}
-                    : { glyph: column.origin === "result" ? "result" : typeOf(column.measurement, column.type).glyph }),
+                    : {
+                          // The glyph the Data place's row draws: free text as text, not as groups.
+                          glyph:
+                              column.origin === "result"
+                                  ? "result"
+                                  : typeOf(
+                                        column.measurement,
+                                        column.type,
+                                        session.data
+                                            .readableValues()
+                                            .find((value) => value.on === column.kind && value.path === column.path)
+                                            ?.kind,
+                                    ).glyph,
+                      }),
             };
         }
     }

@@ -2,7 +2,7 @@ import "./table.css";
 
 import { type DataTableSort, MenuCheckItem, UiGlyph } from "@graphty/compact-mantine";
 import type { GraphSession, ScopeInput, SummaryGroup } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Menu, Pill, Tabs, Text } from "@mantine/core";
+import { ActionIcon, Button, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
@@ -106,6 +106,9 @@ function membersScope(session: GraphSession, run: string, group: SummaryGroup): 
     };
 }
 
+/** Why the Columns chooser has nothing to offer: the table has no column but the ones that always show. */
+const ONLY_KEYS_WORDS = "No other columns to show or hide";
+
 /** Props for the Columns chooser. */
 interface ColumnsMenuProps {
     choices: readonly TableColumnChoice[];
@@ -162,11 +165,30 @@ function ColumnSection({
  */
 function ColumnsMenu({ choices, hidden, onHiddenChange }: Readonly<ColumnsMenuProps>): React.JSX.Element {
     const shown = choices.filter((choice) => !hidden.includes(choice.id)).length;
+    const words = `Columns: ${String(shown)} of ${String(choices.length)}`;
+    // Only the key columns, which always show: nothing to choose, so no empty list opens. Drawn
+    // disabled but focusable, so hover and focus say why.
+    if (choices.every((choice) => choice.group === "key")) {
+        return (
+            <Tooltip label={ONLY_KEYS_WORDS}>
+                <Button
+                    variant="subtle"
+                    size="compact-xs"
+                    className="ws-table-columns"
+                    aria-disabled
+                    data-disabled
+                    aria-description={ONLY_KEYS_WORDS}
+                >
+                    <span className="ws-table-ellipsis">{words}</span>
+                </Button>
+            </Tooltip>
+        );
+    }
     return (
         <Menu closeOnItemClick={false} position="bottom-end">
             <Menu.Target>
                 <Button variant="subtle" size="compact-xs" className="ws-table-columns">
-                    <span className="ws-table-ellipsis">{`Columns: ${String(shown)} of ${String(choices.length)}`}</span>
+                    <span className="ws-table-ellipsis">{words}</span>
                 </Button>
             </Menu.Target>
             <Menu.Dropdown mah={320} style={{ overflowY: "auto" }}>

@@ -44,6 +44,7 @@ import {
     enumWords,
     failureWords,
     fieldName,
+    firstValueWords,
     hexOf,
     isPercent,
     LAYER_TOKEN,
@@ -824,6 +825,17 @@ export function Field({
                 </span>
             </div>
             {over === undefined ? null : <CoveredLine session={session} over={over} />}
+            {/* Just added on a selection with no layer yet: the value drawn is not set, and the
+                first one picked makes the layer. */}
+            {pending &&
+            own === undefined &&
+            ctx.many === undefined &&
+            ctx.layers.length === 0 &&
+            ctx.fresh !== undefined ? (
+                <Text size="xs" c="var(--cm-text-secondary)" className="ws-field-covered" data-first-value>
+                    {firstValueWords(word ?? channelWord(channel))}
+                </Text>
+            ) : null}
             {breakdown === "" ? null : (
                 <Text className="ws-field-covered ws-bulk-words" data-breakdown>
                     {breakdown}

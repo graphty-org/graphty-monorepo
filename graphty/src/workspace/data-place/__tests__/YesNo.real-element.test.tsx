@@ -71,8 +71,12 @@ describe("A yes-or-no column", () => {
         assert.equal(session.data.attributes().find((a) => a.path === "data.trained")?.type, "boolean");
 
         const row = await screen.findByRole("treeitem", { name: "trained, node attribute" });
-        // The row's type reaches a screen reader through its description, which names the icon's kind.
-        assert.equal(document.getElementById(row.getAttribute("aria-describedby") ?? "")?.textContent, "Yes or no");
+        // The row's type reaches a screen reader through its description, which names the icon's kind
+        // and how many have a value.
+        assert.equal(
+            document.getElementById(row.getAttribute("aria-describedby") ?? "")?.textContent,
+            "Yes or no, all have a value",
+        );
 
         row.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");

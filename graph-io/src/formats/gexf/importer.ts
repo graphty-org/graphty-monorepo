@@ -128,6 +128,13 @@ export interface GexfImportOptions extends CommonImportOptions {
      * @defaultValue true
      */
     viz?: boolean | undefined;
+    /**
+     * The Gephi Preview settings the file is drawn with, by Gephi's own property names and values as Gephi's
+     * Preview spells them (`{ "edge.curved": "false", "node.label.avoidOverlap": "false" }`): Gephi keeps them in its
+     * project, not in the GEXF, so a file's styles are Gephi's defaults unless they are given here. Read only when
+     * the file's styles are read; a property not given keeps Gephi's default.
+     */
+    gephiPreview?: Readonly<Record<string, string | number | boolean>> | undefined;
 }
 
 /**
@@ -641,6 +648,9 @@ class GexfReader implements XmlHandler {
     /** The text of graphty's `graphty.styles` block, read up to one character past the longest block read. */
     private styleBlock = "";
 
+    /** The `graphty.styles` block kept for the styles, or null. */
+    keptBlock: string | null = null;
+
     /** GEXF 1.0 only: nodes added for edges read before `<nodes>`, until their `<node>` declares them. */
     private readonly implicitNodes = new Map<number, NodeId>();
 
@@ -870,6 +880,7 @@ class GexfReader implements XmlHandler {
                 return;
             case Ctx.StyleBlock:
                 this.report.keepForStyles(this.styleBlock);
+                this.keptBlock = this.styleBlock;
                 this.styleBlock = "";
                 return;
             case Ctx.Graph:
@@ -3106,12 +3117,41 @@ function resolveGexfOptions(options: (GexfImportOptions & CommonImportOptions) |
 }
 
 /**
+ * The `gephiPreview` option, each value as text.
+ * @param options - the import options
+ * @returns the settings, or null when none are given
+ */
+function resolveGephiPreview(options: GexfImportOptions | undefined): Readonly<Record<string, string>> | null {
+    const preview = options?.gephiPreview;
+    if (preview === undefined) {
+        return null;
+    }
+    const bad = (found: unknown): never => {
+        throw new GraphFormatError("E_UNSUPPORTED", "option gephiPreview: not an object of Preview property values", {
+            option: "gephiPreview",
+            found,
+        });
+    };
+    if (typeof preview !== "object" || preview === null || Array.isArray(preview)) {
+        return bad(preview);
+    }
+    const out: Record<string, string> = {};
+    for (const [name, value] of Object.entries(preview)) {
+        if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+            return bad(value);
+        }
+        out[name] = String(value);
+    }
+    return out;
+}
+
+/**
  * The GEXF importer.
  * @category Built-in formats
  */
 export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
     format: GEXF_FORMAT,
-    options: Object.freeze(["viz"]),
+    options: Object.freeze(["viz", "gephiPreview"]),
     extensions: Object.freeze([".gexf"]),
     mimeTypes: Object.freeze(["application/gexf+xml", "application/xml", "text/xml"]),
     sniff: sniffGexf,
@@ -3157,6 +3197,10 @@ export const gexfImporter: GraphImporter<GexfImportOptions> = Object.freeze({
             throw err;
         }
         reader.finish();
+        const preview = resolveGephiPreview(options);
+        if (preview !== null) {
+            report.keepForStyles({ block: reader.keptBlock, gephiPreview: preview });
+        }
         // an abort raised during the last few elements (after the last periodic check) still rejects
         throwIfAborted(resolved.signal);
         return report.finish();

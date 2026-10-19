@@ -283,6 +283,104 @@ describe("GEXF styles: reading", () => {
     });
 });
 
+describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () => {
+    // each rule was measured on the Gephi Toolkit 0.11.3's SVG export of the GEXF specimen pages (pages.json)
+    const doc = `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="directed"><nodes>
+        <node id="a" label="a label of thirty-three chars ok!"><viz:color r="255" g="0" b="0" a="0.5"/><viz:size value="25"/></node>
+        <node id="b" label="b"><viz:color r="0" g="0" b="255"/><viz:size value="10"/></node>
+        <node id="c" label="c"><viz:color r="128" g="128" b="128"/><viz:size value="10"/></node></nodes><edges>
+        <edge source="a" target="b" weight="0.5" label="ab"><viz:color r="80" g="80" b="80" a="0.5"/></edge>
+        <edge source="b" target="c" weight="8"/><edge source="c" target="a" weight="1"/></edges></graph></gexf>`;
+    const loadWith = async (gephiPreview: Record<string, string>) => {
+        const result = await registry.importGraph(doc, { format: "gexf", styles: true, gephiPreview });
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        const { snapshot, styles } = result;
+        return (target: "node" | "edge", property: string) =>
+            resolveStyles(styles, target, property as never, snapshot);
+    };
+
+    it("draws Gephi's defaults when no setting is given", async () => {
+        const get = await loadWith({});
+        expect(get("node", "borderColor")).toEqual(["#7f0000", "#00007f", "#404040"]);
+        expect(get("node", "labelSize")).toEqual([15, 6, 6]);
+        expect(get("edge", "width")).toEqual([0.5, 8, 1]);
+        expect(get("edge", "curved")).toEqual([true, true, true]);
+        expect(get("edge", "label")).toEqual([null, null, null]);
+    });
+
+    it("draws the node border, opacity and labels as the settings say", async () => {
+        const border = await loadWith({
+            "node.border.fixed": "true",
+            "node.border.width": "4.0",
+            "node.border.color": "lighter",
+        });
+        expect(border("node", "borderWidth")).toEqual([4, 4, 4]);
+        expect(border("node", "borderColor")).toEqual(["#ff0000", "#0000ff", "#c0c0c0"]);
+        // a node drawn less than opaque has no border at all
+        const perNode = await loadWith({ "node.per.node.opacity": "true" });
+        expect(perNode("node", "fillOpacity")[0]).toBeCloseTo(0.5, 2);
+        expect(perNode("node", "borderWidth")).toEqual([0, 1.6, 1.6]);
+        const faded = await loadWith({ "node.opacity": "40.0" });
+        expect(faded("node", "fillOpacity")).toEqual([0.4, 0.4, 0.4]);
+        const labels = await loadWith({
+            "node.label.proportinalSize": "false",
+            "node.label.color": "parent",
+            "node.label.shorten": "true",
+            "node.label.outline.size": "4.0",
+            "node.label.outline.color": "darker",
+            "node.label.customFont": "true",
+            "node.label.font": "DejaVu Serif,bolditalic,24",
+            "node.label.avoidOverlap": "false",
+        });
+        expect(labels("node", "label")[0]).toBe("a label of thirty-three chars ...");
+        expect(labels("node", "labelSize")).toEqual([24, 24, 24]);
+        expect(labels("node", "labelColor")).toEqual(["#ff0000", "#0000ff", "#808080"]);
+        expect(labels("node", "labelOutlineWidth")).toEqual([3, 3, 3]);
+        expect(labels("node", "labelOutlineColor")).toEqual(["#7f0000", "#00007f", "#404040"]);
+        expect(labels("node", "labelFont")[0]).toBe("DejaVu Serif");
+        expect(labels("node", "labelWeight")[0]).toBe("bold");
+        expect(labels("node", "labelItalic")[0]).toBe(true);
+        expect(labels("node", "labelAvoidOverlap")).toEqual([false, false, false]);
+        const hidden = await loadWith({ "node.label.show": "false" });
+        expect(hidden("node", "label")).toEqual([null, null, null]);
+    });
+
+    it("draws the edges' color, opacity, thickness, curve, arrows and labels as the settings say", async () => {
+        const source = await loadWith({ "edge.color": "source", "edge.opacity": "40.0" });
+        expect(source("edge", "color")).toEqual(["#ff0000", "#0000ff", "#808080"]);
+        // a's alpha 0.5 (128 of 255) is the source's alpha, times 0.4
+        const opacity = source("edge", "opacity") as number[];
+        expect(opacity.map((v) => Math.round(v * 1000) / 1000)).toEqual([0.201, 0.4, 0.4]);
+        const original = await loadWith({ "edge.color": "original" });
+        expect(original("edge", "color")).toEqual(["#505050", "#000000", "#000000"]);
+        const custom = await loadWith({ "edge.color": "#ff0000", "edge.curved": "false" });
+        expect(custom("edge", "color")).toEqual(["#ff0000", "#ff0000", "#ff0000"]);
+        expect(custom("edge", "curved")).toEqual([false, false, false]);
+        expect((await loadWith({ "edge.use-weight": "false" }))("edge", "width")).toEqual([1, 1, 1]);
+        expect((await loadWith({ "edge.thickness": "3.0" }))("edge", "width")).toEqual([1.5, 24, 3]);
+        const rescaled = (await loadWith({ "edge.rescale-weight": "true" }))("edge", "width") as number[];
+        expect(rescaled.map((w) => Math.round(w * 1e4) / 1e4)).toEqual([0.4, 8, 0.9067]);
+        expect((await loadWith({ "edge.show": "false" }))("edge", "visible")).toEqual([false, false, false]);
+        expect((await loadWith({ "arrow.size": "0.0" }))("edge", "targetArrow")).toEqual(["none", "none", "none"]);
+        expect((await loadWith({ "arrow.size": "6.0" }))("edge", "arrowSize")).toEqual([2, 2, 2]);
+        const labels = await loadWith({ "edge.label.show": "true", "edge.label.color": "parent" });
+        expect(labels("edge", "label")).toEqual(["ab", null, null]);
+        expect(labels("edge", "labelSize")).toEqual([10, 10, 10]);
+        expect(labels("edge", "labelColor")[0]).toBe("#7f007f");
+    });
+
+    it("refuses a gephiPreview that is not an object of values", async () => {
+        await expect(
+            registry.importGraph(doc, {
+                format: "gexf",
+                gephiPreview: ["edge.curved"] as unknown as Record<string, string>,
+            }),
+        ).rejects.toThrow(/gephiPreview/);
+    });
+});
+
 describe("GEXF node pictures", () => {
     it("reads a uri as a picture only on an image shape, the one shape GEXF gives a uri", async () => {
         const { snapshot, styles } = await load(

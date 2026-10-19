@@ -29,6 +29,7 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { dependantColor, drawnLabels, edgeThickness, type GephiFont, GephiPreview } from "./preview.js";
 import { NODE_COLUMNS, TEMPORAL_COLUMNS, temporalTableName, VIZ_NAMESPACE } from "./schema.js";
 
 /** The column of a node's `label` attribute. */
@@ -327,11 +328,16 @@ interface GephiDrawnEdges {
  * - when the smallest weight drawn is 0 or less, every weight is raised by |smallest| + 1.
  * An undirected edge of a directed snapshot is two halves here; both take what its first half gets.
  * @param snapshot - the graph
+ * @param gexf - whether the file is a GEXF; another format keeps its own direction, with nothing merged or dropped
  * @returns per edge, what Gephi draws
  */
-function gephiEdges(snapshot: GraphSnapshot): GephiDrawnEdges {
+function gephiEdges(snapshot: GraphSnapshot, gexf: boolean): GephiDrawnEdges {
     const n = snapshot.edgeCount;
     const first = firstHalf(snapshot);
+    // another format Gephi draws: its own direction, nothing merged or dropped
+    if (!gexf) {
+        return otherFormatEdges(snapshot);
+    }
     const header = gexfDefaultEdgeType(snapshot);
     const dirCol = snapshot.edges.byRole("directed");
     const mutualCol = snapshot.edges.byRole("mutual");
@@ -384,6 +390,28 @@ function gephiEdges(snapshot: GraphSnapshot): GephiDrawnEdges {
         out.weight[e] = out.weight[f] + shift;
     }
     return out;
+}
+
+/**
+ * The edges of a format other than GEXF as Gephi draws them: each in its own direction, as thick as its weight (1
+ * for a weight of 0 or below, so the edge stays visible).
+ * @param snapshot - the graph
+ * @returns per edge, what Gephi draws
+ */
+function otherFormatEdges(snapshot: GraphSnapshot): GephiDrawnEdges {
+    const first = firstHalf(snapshot);
+    const weightOf = gephiWeight(snapshot);
+    const directed = new Array<boolean>(snapshot.edgeCount).fill(snapshot.directed);
+    const col = snapshot.directed ? snapshot.edges.byRole("directed") : null;
+    const weight: number[] = [];
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        if (col !== null) {
+            directed[e] = plainCell(col.value(e)) !== false;
+        }
+        const w = weightOf(first(e));
+        weight.push(w > 0 ? w : 1);
+    }
+    return { directed, hidden: directed.map(() => false), weight };
 }
 
 /**
@@ -520,15 +548,51 @@ function perElementDefault(
     });
 }
 
+/** What a GEXF drawing adds to gephiRules(): the file is a GEXF, drawn under these Preview settings. */
+export interface GephiDrawing {
+    /** The Preview settings, Gephi's defaults where none is given. */
+    readonly preview: GephiPreview;
+    /** Each edge's own viz color and its alpha, which `edge.color=original` draws. */
+    readonly original?: {
+        readonly color?: readonly (StyleValue | null)[];
+        readonly opacity?: readonly (StyleValue | null)[];
+    };
+    /** Each edge's label, drawn under `edge.label.show`. */
+    readonly edgeLabels?: readonly (StyleValue | null)[];
+}
+
+/**
+ * A tool rule that sets the same values on every element.
+ * @param out - the target's rules, changed in place
+ * @param target - nodes or edges
+ * @param id - the rule's id after `<target>.tool.`
+ * @param set - the values
+ */
+function everyElement(out: GephiTargetRules, target: StyleTarget, id: string, set: Record<string, StyleValue>): void {
+    if (Object.keys(set).length > 0) {
+        out.rules.push({
+            id: `${target}.tool.${id}`,
+            target,
+            role: "group",
+            origin: "tool",
+            where: { all: true },
+            set,
+        });
+    }
+}
+
 /**
  * The rules Gephi's preview defaults (DefaultPreset) make per element, as its SVG export draws every GEXF and GraphML
  * file: each node outlined in a darker shade of its fill, 0.08 of its width wide, with its label 0.3 of its width
  * tall; each edge in the mix of its two end nodes' colors and alphas, as thick as its weight, with an arrow at the
- * target of a directed edge. An element's own value is kept (a file graphty wrote states every one).
+ * target of a directed edge. An element's own value is kept (a file graphty wrote states every one). A GEXF drawing
+ * also merges and drops edges as Gephi's importer does (gephiEdges()) and follows the Preview settings it was drawn
+ * with.
  * @param snapshot - the graph
  * @param nodes - each node's fill, opacity and width
  * @param edges - each edge's own color and width
  * @param budget - the work budget
+ * @param gexf - the GEXF drawing, or undefined for another format Gephi draws
  * @returns the node and edge rules and the style columns they read
  */
 export function gephiRules(
@@ -536,75 +600,237 @@ export function gephiRules(
     nodes: GephiNodeValues,
     edges: GephiEdgeValues,
     budget: StyleReadContext["budget"],
+    gexf?: GephiDrawing,
 ): { readonly node: GephiTargetRules; readonly edge: GephiTargetRules } {
+    const preview = gexf?.preview ?? new GephiPreview();
     const node: GephiTargetRules = { rules: [], columns: new Map() };
     const edge: GephiTargetRules = { rules: [], columns: new Map() };
-    const drawn = gephiEdges(snapshot);
-    const { directed } = drawn;
-    if (directed.some(Boolean)) {
+    budget.spend("node", snapshot.nodeCount);
+    budget.spend("edge", snapshot.edgeCount);
+    const channels = Array.from({ length: snapshot.nodeCount }, (_, i) =>
+        nodeChannels(nodes.fill?.[i], nodes.fillOpacity?.[i]),
+    );
+    const labelSizes = nodeRules(node, snapshot, channels, nodes, preview);
+    edgeRules(edge, snapshot, channels, edges, gexf, preview);
+    nodeLabelRules(node, channels, labelSizes, preview);
+    return { node, edge };
+}
+
+/**
+ * A node's width, twice its Gephi size.
+ * @param nodes - the node values
+ * @param i - the node
+ * @returns the width
+ */
+function nodeWidth(nodes: GephiNodeValues, i: number): number {
+    const w = nodes.width?.[i];
+    return typeof w === "number" ? w : GEPHI_NODE_WIDTH;
+}
+
+/**
+ * The node rules: opacity, border and label size.
+ * @param node - the node rules, changed in place
+ * @param snapshot - the graph
+ * @param channels - each node's color channels
+ * @param nodes - the node values
+ * @param preview - the settings
+ * @returns each node's label size
+ */
+function nodeRules(
+    node: GephiTargetRules,
+    snapshot: GraphSnapshot,
+    channels: readonly number[][],
+    nodes: GephiNodeValues,
+    preview: GephiPreview,
+): number[] {
+    const nodeIndices = Array.from({ length: snapshot.nodeCount }, (_, i) => i);
+    // a node's alpha is drawn only under node.per.node.opacity, times node.opacity; a node not opaque has no border
+    const perNode = preview.on("node.per.node.opacity");
+    const alpha = channels.map((c) => ((perNode ? c[3] : 255) / 255) * (preview.num("node.opacity") / 100));
+    perElementDefault(
+        node,
+        "node",
+        ["fillOpacity", "preview-opacity"],
+        alpha.map((a) => (a < 1 ? a : null)),
+        "NODE_OPACITY",
+    );
+    // NodeRenderer: the border is DependantColor DARKER by default, half of each channel (+-1 from Gephi's float math)
+    const borderMode = preview.text("node.border.color");
+    perElementDefault(
+        node,
+        "node",
+        ["borderColor", "border-shade"],
+        channels.map((c) => hexOf(dependantColor(borderMode, c) ?? c.map((v) => Math.floor(v / 2)))),
+        "NODE_FILL_SHADE",
+    );
+    // A node of size s is a circle of radius 0.92 s with a 0.16 s border: 0.08 of its 2 s width, or node.border.width
+    // under node.border.fixed. Its label is the label font's size in proportion to the node's, round(size / 20 * s)
+    // (NODE_LABEL_PROPORTIONAL_SIZE; Arial 12 makes round(0.6 s)), never under 1.
+    const fixed = preview.on("node.border.fixed") ? preview.num("node.border.width") : null;
+    perElementDefault(
+        node,
+        "node",
+        ["borderWidth", "size-border"],
+        nodeIndices.map((i) => {
+            if (alpha[i] < 1) {
+                return 0;
+            }
+            return fixed ?? 0.08 * nodeWidth(nodes, i);
+        }),
+        "NODE_SIZE",
+    );
+    const font = preview.font("node");
+    const labelSizes = nodeIndices.map((i) =>
+        preview.on("node.label.proportinalSize")
+            ? Math.max(1, Math.round((font.size / 40) * nodeWidth(nodes, i)))
+            : font.size,
+    );
+    perElementDefault(node, "node", ["labelSize", "size-label"], labelSizes, "NODE_SIZE");
+    return labelSizes;
+}
+
+/**
+ * The node label rules the Preview settings make beyond the size: color, outline, font and overlap avoidance.
+ * @param node - the node rules, changed in place
+ * @param channels - each node's color channels
+ * @param sizes - each node's label size
+ * @param preview - the settings
+ */
+function nodeLabelRules(
+    node: GephiTargetRules,
+    channels: readonly number[][],
+    sizes: readonly number[],
+    preview: GephiPreview,
+): void {
+    const color = preview.text("node.label.color");
+    if (color !== "#000000" && color !== "original") {
+        perElementDefault(
+            node,
+            "node",
+            ["labelColor", "preview-label-color"],
+            channels.map((c) => hexOf(dependantColor(color, c) ?? [0, 0, 0])),
+            "NODE_LABEL_COLOR",
+        );
+    }
+    labelOutline(node, "node", channels, sizes, preview);
+    const font = preview.font("node");
+    everyElement(node, "node", "preview-label", {
+        ...fontValues(font, preview.on("node.label.customFont")),
+        ...(preview.on("node.label.avoidOverlap") ? {} : { labelAvoidOverlap: false }),
+    });
+}
+
+/**
+ * The label font values a custom font sets.
+ * @param font - the font
+ * @param custom - whether the font is custom
+ * @returns the values
+ */
+function fontValues(font: GephiFont, custom: boolean): Record<string, StyleValue> {
+    if (!custom) {
+        return {};
+    }
+    return {
+        labelFont: font.family,
+        ...(font.bold ? { labelWeight: "bold" } : {}),
+        ...(font.italic ? { labelItalic: true } : {}),
+    };
+}
+
+/**
+ * The label outline of `<target>.label.outline.size` and `.color`: a stroke size / 32 of the label's size wide, round
+ * each letter, in the color its mode derives from the element's color (`gexf-specimen-labels-p9`, `-p17` .. `-p19`).
+ * Its opacity (`.outline.opacity`) is not drawn: the style vocabulary has no label outline opacity.
+ * @param out - the rules, changed in place
+ * @param target - nodes or edges
+ * @param colors - each element's color channels
+ * @param sizes - each element's label size
+ * @param preview - the settings
+ */
+function labelOutline(
+    out: GephiTargetRules,
+    target: StyleTarget,
+    colors: readonly number[][],
+    sizes: readonly number[],
+    preview: GephiPreview,
+): void {
+    const size = preview.num(`${target}.label.outline.size`);
+    if (size <= 0) {
+        return;
+    }
+    const mode = preview.text(`${target}.label.outline.color`);
+    perElementDefault(
+        out,
+        target,
+        ["labelOutlineWidth", "preview-outline-width"],
+        sizes.map((s) => (size / 32) * s),
+        "LABEL_OUTLINE",
+    );
+    perElementDefault(
+        out,
+        target,
+        ["labelOutlineColor", "preview-outline-color"],
+        colors.map((c) => hexOf(dependantColor(mode, c) ?? [255, 255, 255])),
+        "LABEL_OUTLINE",
+    );
+}
+
+/**
+ * The edge rules: arrows, thickness, the edges not drawn, color and opacity, curves and labels.
+ * @param edge - the edge rules, changed in place
+ * @param snapshot - the graph
+ * @param channels - each node's color channels
+ * @param edges - each edge's own color and width
+ * @param gexf - the GEXF drawing, or undefined
+ * @param preview - the settings
+ */
+function edgeRules(
+    edge: GephiTargetRules,
+    snapshot: GraphSnapshot,
+    channels: readonly number[][],
+    edges: GephiEdgeValues,
+    gexf: GephiDrawing | undefined,
+    preview: GephiPreview,
+): void {
+    const drawn = gephiEdges(snapshot, gexf !== undefined);
+    const arrowSize = preview.num("arrow.size");
+    if (drawn.directed.some(Boolean) && arrowSize > 0) {
         edge.columns.set(
             DIRECTED_KEY,
-            directed.map((d) => (d ? true : null)),
+            drawn.directed.map((d) => (d ? true : null)),
         );
+        // arrow.size scales the arrowhead from its default 3 (gexf-specimen-arrows-p2); 0 draws none (-p3)
         edge.rules.push({
             id: "edge.tool.arrow",
             target: "edge",
             role: "group",
             origin: "tool",
             where: { has: { style: DIRECTED_KEY } },
-            set: { targetArrow: "triangle" },
+            set: { targetArrow: "triangle", ...(arrowSize === 3 ? {} : { arrowSize: arrowSize / 3 }) },
         });
     }
-    budget.spend("node", snapshot.nodeCount);
-    budget.spend("edge", snapshot.edgeCount);
-    const channels = Array.from({ length: snapshot.nodeCount }, (_, i) =>
-        nodeChannels(nodes.fill?.[i], nodes.fillOpacity?.[i]),
-    );
-    // NodeRenderer: the border is DependantColor DARKER, half of each channel (+-1 from Gephi's float math)
-    perElementDefault(
-        node,
-        "node",
-        ["borderColor", "border-shade"],
-        channels.map((c) => hexOf(c.map((v) => Math.floor(v / 2)))),
-        "NODE_FILL_SHADE",
-    );
-    // A node of size s is a circle of radius 0.92 s with a 0.16 s border: 0.08 of its 2 s width. Its label is
-    // Arial 12 in proportion to the size, round(0.6 s) (NODE_LABEL_PROPORTIONAL_SIZE), never under 1.
-    const width = (i: number): number => {
-        const w = nodes.width?.[i];
-        return typeof w === "number" ? w : GEPHI_NODE_WIDTH;
-    };
-    const nodeIndices = Array.from({ length: snapshot.nodeCount }, (_, i) => i);
-    perElementDefault(
-        node,
-        "node",
-        ["borderWidth", "size-border"],
-        nodeIndices.map((i) => 0.08 * width(i)),
-        "NODE_SIZE",
-    );
-    perElementDefault(
-        node,
-        "node",
-        ["labelSize", "size-label"],
-        nodeIndices.map((i) => Math.max(1, Math.round(0.3 * width(i)))),
-        "NODE_SIZE",
-    );
     // Gephi draws an edge as thick as its weight (gephiEdges(): merged and shifted); a width of its own is the file's
+    const hidden = preview.on("edge.show") ? drawn.hidden : drawn.hidden.map(() => true);
+    const thickness = edgeThickness(
+        drawn.weight,
+        hidden.map((h) => !h),
+        preview,
+    );
     perElementDefault(
         edge,
         "edge",
         WEIGHT_WIDTH,
         // Gephi's self-loop is 1.3 times as thick (measured: weight 1 draws 1.3, 3.25 draws 4.225)
         withoutOwn(edges.width, snapshot.edgeCount, (e) =>
-            snapshot.edgeSource(e) === snapshot.edgeTarget(e) ? SELF_LOOP_THICKNESS * drawn.weight[e] : drawn.weight[e],
+            snapshot.edgeSource(e) === snapshot.edgeTarget(e) ? SELF_LOOP_THICKNESS * thickness[e] : thickness[e],
         ),
         "EDGE_WEIGHT",
     );
     // the edges Gephi does not draw: one of another direction than the graph's, or one merged into a parallel edge
-    if (drawn.hidden.some(Boolean)) {
+    if (hidden.some(Boolean)) {
         edge.columns.set(
             HIDDEN_KEY,
-            drawn.hidden.map((h) => (h ? true : null)),
+            hidden.map((h) => (h ? true : null)),
         );
         edge.rules.push({
             id: "edge.tool.gephi-hidden",
@@ -615,28 +841,108 @@ export function gephiRules(
             set: { visible: false },
         });
     }
-    // EdgeColor MIXED: each channel, alpha too, the truncated mean of the two end nodes'. graphty-element cannot
-    // bind an edge's color to its nodes' drawn colors, so the mix is frozen here.
-    const mixed = (e: number): number[] => {
-        const s = channels[snapshot.edgeSource(e)];
-        const t = channels[snapshot.edgeTarget(e)];
-        return s.map((v, k) => Math.floor((v + t[k]) / 2));
-    };
+    const colors = edgeColors(snapshot, channels, gexf, preview);
     perElementDefault(
         edge,
         "edge",
         ["color", MIXED_COLOR_KEY],
-        withoutOwn(edges.color, snapshot.edgeCount, (e) => hexOf(mixed(e))),
+        withoutOwn(edges.color, snapshot.edgeCount, (e) => hexOf(colors[e])),
         "END_NODE_COLORS",
     );
     perElementDefault(
         edge,
         "edge",
         ["opacity", "end-opacity"],
-        withoutOwn(edges.color, snapshot.edgeCount, (e) => mixed(e)[3] / 255).map((v) => (v === 1 ? null : v)),
+        withoutOwn(edges.color, snapshot.edgeCount, (e) => colors[e][3] / 255).map((v) => (v === 1 ? null : v)),
         "END_NODE_COLORS",
     );
-    return { node, edge };
+    everyElement(edge, "edge", "preview-curve", preview.on("edge.curved") ? {} : { curved: false });
+    edgeLabelRules(edge, colors, gexf, preview);
+}
+
+/**
+ * Each edge's color and alpha (0..255) under `edge.color` and `edge.opacity`: MIXED (the default) is each channel,
+ * alpha too, the truncated mean of the two end nodes'; `source` and `target` are that node's; `original` is the edge's
+ * own viz color, black without one; `#rrggbb` is that color, opaque (`gexf-specimen-edges-lines-p3` .. `-p7`).
+ * graphty-element cannot bind an edge's color to its nodes' drawn colors, so the color is frozen here.
+ * @param snapshot - the graph
+ * @param channels - each node's color channels
+ * @param gexf - the GEXF drawing, or undefined
+ * @param preview - the settings
+ * @returns each edge's r, g, b and alpha
+ */
+function edgeColors(
+    snapshot: GraphSnapshot,
+    channels: readonly number[][],
+    gexf: GephiDrawing | undefined,
+    preview: GephiPreview,
+): number[][] {
+    const mode = preview.text("edge.color");
+    const factor = preview.num("edge.opacity") / 100;
+    const own = (e: number): number[] => {
+        const c = gexf?.original?.color?.[e];
+        const a = gexf?.original?.opacity?.[e];
+        return nodeChannels(typeof c === "string" ? c : GEPHI_NODE_FILL, typeof a === "number" ? a : null);
+    };
+    const custom = dependantColor(mode, [0, 0, 0]);
+    return Array.from({ length: snapshot.edgeCount }, (_, e) => {
+        const s = channels[snapshot.edgeSource(e)];
+        const t = channels[snapshot.edgeTarget(e)];
+        let c: number[];
+        if (mode === "source") {
+            c = [...s];
+        } else if (mode === "target") {
+            c = [...t];
+        } else if (mode === "original") {
+            c = own(e);
+        } else if (mode.startsWith("#") && custom !== null) {
+            c = [...custom, 255];
+        } else {
+            c = s.map((v, k) => Math.floor((v + t[k]) / 2));
+        }
+        return factor === 1 ? c : [c[0], c[1], c[2], c[3] * factor];
+    });
+}
+
+/**
+ * The edge label rules of `edge.label.show`: the font's size (not in proportion to anything), color, outline and
+ * font (`gexf-specimen-edge-labels-p2` .. `-p15`).
+ * @param edge - the edge rules, changed in place
+ * @param colors - each edge's color and alpha
+ * @param gexf - the GEXF drawing, or undefined
+ * @param preview - the settings
+ */
+function edgeLabelRules(
+    edge: GephiTargetRules,
+    colors: readonly number[][],
+    gexf: GephiDrawing | undefined,
+    preview: GephiPreview,
+): void {
+    if (gexf?.edgeLabels === undefined || !preview.on("edge.label.show")) {
+        return;
+    }
+    const font = preview.font("edge");
+    const color = preview.text("edge.label.color");
+    if (color !== "original") {
+        perElementDefault(
+            edge,
+            "edge",
+            ["labelColor", "preview-label-color"],
+            colors.map((c) => hexOf(dependantColor(color, c) ?? [0, 0, 0])),
+            "EDGE_LABEL_COLOR",
+        );
+    }
+    labelOutline(
+        edge,
+        "edge",
+        colors,
+        colors.map(() => font.size),
+        preview,
+    );
+    everyElement(edge, "edge", "preview-label", {
+        labelSize: font.size,
+        ...fontValues(font, preview.on("edge.label.customFont")),
+    });
 }
 
 /**
@@ -684,18 +990,30 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
     const notes = new StyleNotes();
     const node = vizValues(snapshot, "node", notes, context);
     const edge = vizValues(snapshot, "edge", notes, context);
-    const block = typeof context.kept === "string" ? context.kept : null;
+    const { block, preview } = keptOf(context.kept);
     const nodeOpacity = node.fillOpacity;
+    const original = { color: edge.color, opacity: edge.opacity };
     if (block === null) {
         withoutUndrawn(node, edge);
     } else {
         exactFromBlock(snapshot, block, node, edge);
+    }
+    const labels = drawnLabels(node.label, preview, "node");
+    if (labels === undefined) {
+        delete node.label;
+    } else {
+        node.label = labels;
+    }
+    const edgeLabels = drawnLabels(edgeLabelValues(snapshot), preview, "edge");
+    if (edgeLabels !== undefined) {
+        edge.label = edgeLabels;
     }
     const rules = gephiRules(
         snapshot,
         { fill: node.fill, fillOpacity: nodeOpacity, width: node.width },
         { color: edge.color, width: edge.width },
         context.budget,
+        { preview, original, edgeLabels },
     );
     return {
         canonical: true,
@@ -712,6 +1030,39 @@ export function gexfStyles(snapshot: GraphSnapshot, context: StyleReadContext): 
             edge: VIZ_COLUMNS.edge.filter((name) => vizColumn(snapshot, "edge", name) !== null),
         },
     };
+}
+
+/**
+ * What the import kept for the styles: the `graphty.styles` block, and the Preview settings of the `gephiPreview`
+ * option.
+ * @param kept - the kept value: the block's text, or `{ block, gephiPreview }`
+ * @returns the block (null without one) and the Preview settings
+ */
+function keptOf(kept: unknown): { readonly block: string | null; readonly preview: GephiPreview } {
+    if (typeof kept === "string") {
+        return { block: kept, preview: new GephiPreview() };
+    }
+    if (typeof kept === "object" && kept !== null) {
+        const { block, gephiPreview } = kept as { block?: unknown; gephiPreview?: Record<string, string> };
+        return { block: typeof block === "string" ? block : null, preview: new GephiPreview(gephiPreview) };
+    }
+    return { block: null, preview: new GephiPreview() };
+}
+
+/**
+ * Each edge's `label` attribute.
+ * @param snapshot - the graph
+ * @returns the labels, or undefined when no edge has one
+ */
+function edgeLabelValues(snapshot: GraphSnapshot): (StyleValue | null)[] | undefined {
+    const col = snapshot.edges.byRole("label");
+    if (col === null) {
+        return undefined;
+    }
+    return Array.from({ length: snapshot.edgeCount }, (_, e) => {
+        const v = plainCell(col.value(e));
+        return typeof v === "string" && v.length > 0 ? v : null;
+    });
 }
 
 /**

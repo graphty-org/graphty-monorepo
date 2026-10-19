@@ -237,7 +237,14 @@ proportion to its size, curved edges, an arrow at the target of directed edges, 
 the mix of its two nodes' colors (their alpha too), as thick as its weight. Gephi draws every node
 an opaque disc and every edge solid, so a node's alpha, any other `viz:shape`, and an edge's own
 `viz:color`, `viz:thickness` and `viz:shape` are not drawn. A file graphty wrote keeps every value
-it saved.
+it saved. Like Gephi, graph-io merges parallel edges of one kind into the first, as thick as their
+summed weight, leaves out an edge whose `type` is against the graph's `defaultedgetype`, and raises
+every weight by |smallest| + 1 when the smallest is 0 or below.
+
+Gephi keeps its Preview settings (edge color mode, curves, label font, borders, ...) in its project,
+not in the GEXF file. To draw a file as Gephi drew it under other settings, pass them with the
+`gephiPreview` option, by Gephi's own names: `{ styles: true, gephiPreview: { "edge.curved":
+"false", "edge.color": "source" } }`. A setting not given keeps Gephi's default.
 
 A save with styles writes the `viz` elements, and the rules for graphty as an element of graphty's
 own XML namespace inside `<meta>`, which Gephi skips. A shape GEXF does not have is written as the
@@ -267,6 +274,7 @@ These come on top of the [options every importer takes](../options.md#every-impo
 | [`viz`](#import-viz) | `boolean` | `true`  |
 
 - <a id="import-viz"></a>`viz`: Whether to read the visual attributes of Gephi's viz namespace (color, position, size, shape, thickness) into node and edge attributes; false skips them, with one `W_GEXF_VIZ_SKIPPED` warning. The color, size, shape and thickness columns are deprecated and leave the import result in the next major version: read a file's styles with `styles: true` instead. The position column stays.
+- <a id="import-gephipreview"></a>`gephiPreview`: The Gephi Preview settings the file is drawn with, by Gephi's own property names and values as Gephi's Preview spells them (`{ "edge.curved": "false", "node.label.avoidOverlap": "false" }`): Gephi keeps them in its project, not in the GEXF, so a file's styles are Gephi's defaults unless they are given here. Read only when the file's styles are read; a property not given keeps Gephi's default.
 
 ## Export options
 

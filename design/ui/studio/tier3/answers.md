@@ -85,6 +85,9 @@ frozen build ed4351b258 by the pilots in `rounds/r1d1/pilot/`, and on the frozen
 5bd16cda6e by the same pilots again, and on the frozen build 6dd0b00bd7 by the pilots in
 `rounds/r1d2/pilot/`: every value below held, and the run outputs repeated (Les Miserables'
 Louvain sizes not read again on 6dd0b00bd7, where T46 A was not walked; the run gave 6 groups).
+Read again on the frozen build e3c5bca8e6 by the pilots in `rounds/r1/pilot/` (T37 A to T51 B):
+every value held, Les Miserables' Louvain run gave 6 groups with Javert in Group 3 of 11, and
+the T49 looks repeated.
 
 | What                                                | Value                                                                                                                                                                                   |
 | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -117,26 +120,27 @@ Louvain sizes not read again on 6dd0b00bd7, where T46 A was not walked; the run 
 | lesmis-poster.graphty.json                          | Les Miserables with one layer "Poster": name contains "Mlle", node color `#FFA500` (orange), 3 characters                                                                               |
 | volunteers-thanks.graphty.json                      | volunteers with one layer "Thank-you cards": hours 30 to 52 and trained yes, node color `#008000` (green), 6 people                                                                     |
 
-## Success paths on build 6dd0b00bd7
+## Success paths on build e3c5bca8e6
 
-Every success path below was walked on the frozen build 6dd0b00bd7 by the round 1 pilots in
-`rounds/r1d2/pilot/<task><half>/` (`success/` or `pointer/`, `detours/`, `keyboard/`), by pointer,
-by detours and by keyboard. Not walked on this build, and owed before round 1: T46 A (all three
-ways: no browser slot was free; its lines below are from 5bd16cda6e and from T46 B), T37 A by
-keyboard and T43 B by keyboard (past the start screen). Steps are counted one thing a person does
+Every success path below was walked on the frozen build e3c5bca8e6 by the round 1 pilots in
+`rounds/r1/pilot/<task><half>/` (one folder per walk: pointer, detours, keyboard), by pointer,
+by detours and by keyboard. Not walked by keyboard on this build, and owed before round 1: T46 B
+(the walk stopped after the start screen's Tab stops) and T49 B (the same). Steps are counted one thing a person does
 each: a click, a typed entry with its Enter, one key, one option picked. "Open project or file"
 with the file chosen in the chooser is one step (the tool's `--upload` does both). Things every
 path meets on this build:
 
 - **A new layer's name box** opens with "Layer 1" selected. Enter, Escape or the next click all
-  keep the name, so it is no step of its own. A new layer reads "Node and edge layer", and its row
-  in the layer list counts nodes (77, 16) even while its Edge tab picks fewer ties. It becomes
-  "Node layer" only once a Fill color is committed with Enter, and "Edge layer" once a Width is
-  (the name stays "Layer 1"); the row's count follows then.
+  keep the name, so it is no step of its own. A new layer reads "Node and edge layer". It becomes
+  "Node layer" (its Edge tab "not styled") as soon as a node column is picked or a value ticked in
+  its Which nodes, and "Edge layer" as soon as a condition is added on its Edge tab; the row's
+  count follows at once (254, then 51 on T45 B; 8 on T45 A). The name stays "Layer 1".
 - **A new layer's "Which nodes"** ("Which edges" on the Edge tab) arrives collapsed, reading "All
-  24 nodes: add a condition to narrow". One click on that line (by keyboard, Enter on the button
-  "Which nodes, 24 of 24, All 24 nodes: add a condition to narrow") opens the attribute list at
-  once; it is the key's "Add a condition" step, and no separate button is pressed.
+  24 nodes: add a condition to narrow". A click on that line only expands the section, showing
+  "+ Add a condition" and Done; a second click, on "Add a condition", opens the attribute list.
+  The key counts both: "Which nodes" and "Add a condition" are two steps. By keyboard, Enter on
+  the button "Which nodes, 24 of 24 nodes, All 24 nodes: add a condition to narrow" puts focus on
+  "Add a condition", and Enter there opens the list. While the list is open it covers Done.
 - **Selecting a layer** (Everything, a folder, a group) opens its inspector already on the Style
   tab. Clicking Style is no step. A new layer always opens on the Node tab; an existing one on the
   tab last shown.
@@ -144,14 +148,22 @@ path meets on this build:
   lands on the inspector's heading "Graph, volunteers: 24 nodes, 63 edges" and the counts are
   announced; the layer list is 5 or 6 Shift+Tabs back (Analyze, the canvas "Graph drawing", the
   separator "Resize left panel", Graph settings, the Everything row), or 12 to 14 Tabs forward
-  through the inspector and the top bar. Going backwards later never returns to that heading. On
+  through the inspector and the top bar. Tab into the layer tree lands on Everything, its last
+  row, not its first (Hovered). F6 cycles the inspector, the canvas, the toolbar and the "Resize
+  left panel" separator; it never reaches the left panel's find box or tree, or the top bar. A
+  dimmed Undo or Redo is not a Tab stop (Tab goes from "Project: ..." to "Local only"); on hover
+  it shows the tooltip "Nothing to undo". Going backwards later never returns to that heading. On
   the read-the-file page, Load announces only "All 24 rows"; the sentence with the node and edge
   counts is outside that region. The start screen's Tab order wraps from "No thanks" to Main menu.
 - **The toolbar** is one Tab stop (Analyze); Layout, View, Legend, Table, Filters and Quick actions
   are reached with the arrow keys, and nothing says so. Filters switches the left panel to Data.
-- **A run** (Degree, Louvain) recolors at once and keeps the drawing's size and place; Louvain's
-  "Color: Louvain" key opens over the top left. After a run the analysis list holds the analysis
-  twice (under Recent and under its group).
+- **A run** (Degree, Louvain) recolors at once, and its key ("Color: Louvain") opens over the top
+  left; the drawing then shrinks and moves right, about 130 to 170 px (Valjean from 766,410 to
+  905,413). The same re-framing happens whenever the color key first appears after a committed
+  color or a size or color binding, and the drawing stays off center after Undo removes the key.
+  The analysis card's button is named "Run <analysis>" ("Run Degree", "Run Louvain"). After a run
+  the analysis list holds the analysis twice (under Recent and under its group). The analysis
+  filter's `most` highlights Degree first, with Most flow dimmed ("Select 2 nodes first").
 - **A selected node's inspector** opens on its Values tab, titled by the node's id (`v20`, `74`
   for Nebraska) with the name a row below. Its look is under Style > "Why this look"; the layer
   link there ("Open layer Poster") opens that layer on the tab last shown.
@@ -162,84 +174,97 @@ path meets on this build:
   Pattern, Pattern count, Curved); after its Color or Width (and after Size), focus is in the new
   box with its value selected. Typing a word (`blue` gives `0000FF`) or a hex and Enter works at
   once.
-- **Enter in a just-added color box** of a layer made by "+" > Layer moves focus to Fill "+",
-  which that Enter disables; its tooltip "Everything in node fill is set" covers the Fill heading,
-  and a screen reader hears "button Add to node fill disabled". On a layer made from a selection,
-  and on Everything, the same Enter keeps focus in the box. After a Line "+" > Color, Enter moves
-  the Color row above Width and focus to Line "+". Escape in a just-added box after typing removes
-  the whole line ("Edge width not added", "Node color not added"); in a set box it only discards
-  the edit.
+- **Enter in a just-added color box** keeps focus in the box with the new value selected
+  ("Node color, set here, blue", `0000FF`), on every kind of layer; Tab then goes to "Node color
+  by attribute". After a Line "+" > Color, Enter leaves the Color row below Width and focus in the
+  box. Escape in a just-added box removes the whole line ("Edge width not added", "Node color not
+  added"; a selection's just-added Size line too) and moves focus to the section's "+"; in a set
+  box it only discards the edit.
 - **An unset Color line** (Fill "+" on a new layer that will cover others, or Color added back
-  after its line was removed) shows `6366F1` in italics with the name "Node color, not set,
-  #6366F1, indigo". The italic value is not set: Enter, Tab, and typing `6366F1` and Enter all
-  leave it unset, and the drawing and the key do not change. Another color first, then `6366F1`
-  typed over it, sets it (2 steps more). Its picker shows another palette, with no `6366F1`.
+  after its line was removed) shows `6366F1` in italics with the name "Node color, not set, drawn
+  #6366F1 indigo". It takes the value it shows: Enter on it, or `6366F1` typed and Enter, sets
+  `6366F1` and repaints. Tab leaves it unset, and Escape removes the line.
 - **The color box's accessible name** reads "Node color, set here, indigo" for the starting
-  `6366F1` on Everything, "Node color, not set, #6366F1, indigo" on a just-added line (the edge's
-  "Edge color, not set, #A9A9A9, dark gray"), and names a typed color by a nearby name (`purple`
-  is "purple", "Node color now purple, on 6 nodes"). Grade a color on the hex in the style tree,
-  never on the spoken name.
-- **A color word the box cannot read** (`dark green`) gets a red message,
-  `"dark green" is not a color. Type a color name or a hex code such as 2E8B57.`, and the box
-  shrinks while it shows it.
+  `6366F1` on Everything, "Node color, not set, drawn #6366F1 indigo" on a just-added line (the
+  edge's "Edge color, not set, drawn #A9A9A9 dark gray"), and names a typed color by a nearby name
+  (`purple` is "purple", "Node color now purple, on 6 nodes"; Group 5's crimson `BE0032` is
+  "pink"). Grade a color on the hex in the style tree, never on the spoken name. A "Pick node
+  color" swatch button comes just before the box in Tab order.
+- **A color word with a space** (`dark green`) is read as that color (`006400`).
 - **Escape in a color box** after typing puts the old value back and keeps focus in the box, value
   selected ("Edit discarded; this stays 0000FF."). With nothing typed it does nothing.
 - **Control+Z with focus in a color box** undoes the last change at once ("Undid changing node
   color on Everything."); so does the Undo arrow (tooltip "Undo changing node color on Everything
-  Ctrl+Z"; the button's own name is only "Undo"). Undo is dimmed when a sample or file opens; an
-  extra Control+Z does nothing, and Enter on the dimmed button announces "Nothing to undo".
-  Control+Shift+Z redoes; Control+Y does nothing.
+  Ctrl+Z"; once enabled the button's name is "Undo changing node color on Everything"). Undo is
+  dimmed when a sample or file opens, and dimmed it is no Tab stop; an extra Control+Z does
+  nothing. Control+Shift+Z and Control+Y redo ("Redid changing node color on Everything."). With
+  focus in the find box, Control+Z undoes the box's typing, not a style change.
 - **Picking a column for a condition** ("Find an attribute": the file's columns under Data, then
   "Node id" under Structure; nothing is highlighted when the list opens, so the first ArrowDown
   highlights the first row) puts focus in the card's text box (text column; named "name: text to
   match") or its from box (number column; "hours from, number") with the value selected, so
   typing replaces it. Tab in the list closes it and picks nothing; only Enter or a click picks.
-  The match menu is named "<column>: how to match" ("phone: how to match", value "Contains"). A
-  category card lists "volunteer, 16 nodes" and so on; its "Remove role" button comes after the
-  values in Tab order though it is drawn at the card's top right (on a yes/no card, Tab from the
-  value goes to it). A text card's count follows typing, and typing opens a list of the matching
-  names under the box, over Match case and Done; Enter keeps the typed text even when a name in
-  the list is highlighted, Tab closes the list and goes to Match case, the first Escape closes the
-  list and the second the picker. A number card's count and the drawing change only on Enter or
-  Tab, and by keyboard no live region announces the new count. Enter in the text box or the from
-  box closes the picker as Done does. A card left with no value is dropped with a notice, also
-  after a click on the drawing ("Dropped the name condition: it was not finished").
+  The match menu is named "<column>: how to match" ("phone: how to match", value "Contains"; on a
+  yes/no card the same name is on the value select, Yes / No / Has a value / Has no value). A
+  category card lists "volunteer, 16 nodes" and so on; its "Remove role" button comes before the
+  values in Tab order, as drawn at the card's top, and Tab from the last value goes to "Add a
+  condition". By keyboard, Enter on a ticked value closes the card as Done does. A text card's
+  count follows typing (by keyboard each letter's count is announced: "30 of 331 nodes", "9 of
+  331 nodes", "8 of 331 nodes"), and typing opens a list of the matching names under the box, over
+  Match case and Done; ArrowDown on a name is announced "GAL1 selected", yet Enter keeps the typed
+  text, Tab closes the list and goes to Match case. In a text card one Escape closes the whole
+  picker and keeps the text (a rule matching no one stays: "phone contains missing, 0 nodes"); in
+  a number card the first Escape puts back the last good value and leaves the picker open. A
+  number card's count and the drawing change only on Enter or Tab; by keyboard Tab out of the from
+  box announces the count ("11 of 24 nodes"). Enter in the text box or the from box closes the
+  picker as Done does. After a text card's match kind is picked ("Starts with"), focus stays on
+  the match menu: typing reopens the menu and the letters are lost, so the text box needs a click
+  first. A card left with no value is dropped with a notice ("Dropped the name condition: it was
+  not finished", no Undo) after Enter, Escape in its empty box, or a click on the drawing, which
+  also deselects the layer; a click in either side panel leaves the picker open and drops nothing.
 - **Chips** carry the word: "role: board, staff, 8 nodes", "name contains Mme, 6 nodes", "hours 20
   to 52, 11 nodes". Each chip counts its own card over the whole file.
 - **The find box:** a word with no match gives 'No match for "most". To select by a value, type
-  a rule such as name == 'Napoleon'' (on a file, a number column of it: "hours > 27", "donations >
-  130000", "id > 57"); Enter there does nothing. A column name offers "Select the 15 nodes
-  (trained: yes)" or "(email: has a value)", and Enter selects them; the box keeps the typed text
-  (no `=` is added). A rule typed plain (`hours >= 20`) offers "Select the 11 nodes (hours 20 or
-  more)". A rule on a column that is not there, in the `=` form, gives a gray 'No column named
-  "degree". Did you mean: graphty.degree > 30', and Enter takes the suggestion; typed plain
-  (`degree > 30`) it maps to the suggestion with no message. Node rows are titled by id with the
-  name under them; a value row ("role is board (3)", "kind is company (6)") is in view and
-  selects every node with that value, and Shift+click on a second value row (or on node rows)
-  adds to the selection and keeps the list open (the typed text then stays in the box). Enter on a
-  list of nodes selects only the first and empties the box. Escape clears the text and keeps the
-  selection and focus; a second Escape moves focus to the drawing, and a third clears the
-  selection ("Selection cleared: 1 node"). The clear button ("Clear") empties the text and keeps
-  the selection. After the selection clears, a "Select by a value:" heading can stay under the
-  box with nothing below it.
+  a rule such as name == 'Napoleon'' (on a file, a number column of it: "hours >= 27", "donations
+    > = 130000"; on the karate club, which has only `id`, no hint); Enter there does nothing. A
+    > column name offers "Select the 15 nodes (trained: yes)" or "(email: has a value)", and Enter
+    > selects them; the box keeps the typed text (no `=` is added). A rule typed plain (`hours >= 20`)
+    > offers "Select the 11 nodes (hours 20 or more)". `=degree > 30` shows "Did you mean Degree?" and
+    > the option "Degree > 30, Select the 1 node" ("(Degree above 30)" after a Degree run; a screen
+    > reader hears "Did you mean Degree > 30?"); Enter selects that node and keeps `=degree > 30` in
+    > the box. Node rows are titled by id with the
+    > name under them; a value row ("role is board (3)", "kind is company (6)") is in view and
+    > selects every node with that value, and Shift+click on a second value row (or on node rows)
+    > adds to the selection, marks each picked row with a check and keeps the list open (the typed
+    > text then stays in the box); a plain click on a second value row replaces the selection. Enter on a
+    > list of nodes selects only the first and empties the box. Escape clears the text and keeps the
+    > selection and focus; a second Escape moves focus to the drawing, and a third clears the
+    > selection ("Selection cleared: 1 node"). The clear button ("Clear") empties the text and keeps
+    > the selection. After the selection clears, a "Select by a value:" heading can stay under the
+    > box with nothing below it.
 - **A layer made from a selection** (the selection's Style tab, then Fill "+" or Shape "+" > Size,
   or right-click > "New layer from selection") is not made until a value is committed: the Style
   tab first says "The first style you set makes a layer for the 8 selected nodes", and the line
-  sits there with no layer. Then it is named after the one node (`Valjean`, `v16`, `74`; "Made
+  sits there with no layer, its unset Size or Shape line saying "Not set yet: the first size you
+  pick makes the layer". "New layer from selection" itself shows no notice, leaves focus on the
+  drawing and may leave the inspector on Values. In such a layer "Style nodes" shows dimmed. Then it is named after the one node (`Valjean`, `v16`, `74`; "Made
   layer 74 for 1 node"), "8 nodes" ("Picked by hand: 8 nodes"; notice "Made a layer for the 8
   selected nodes"), or, from a find-box rule, after its rule ("hours 20 or more", "donations above
   10000", "email: has a value", "Rule: trained && !phone"). Its cards can be edited, and it
   renames itself to follow them ("Picked and name" while a hand-picked card and a rule card are
   both there; cards combine with AND).
-- **Hovering a node shows nothing**: no name, no tooltip, though the cursor becomes a hand. A
+- **Hovering a node shows nothing**: no name, no tooltip, though the cursor becomes a hand; only
+  the Hovered layer's count goes to 1. A
   node's name is read by clicking it or from the table. The key over the drawing ("Color: Poster")
   has no tooltip, does nothing when clicked and is not in the Tab order. On the drawing, the
   keyboard turns the camera (and `=` zooms) but reaches no node; a keyboard reader gets names
   from the table. The table opens with focus on its "Id" header; headers are buttons ("Degree,
-  sorted descending"), cells are named by their value only, arrows move inside the grid, and Tab
-  leaves it.
+  sorted descending"), cells are named by their value only, arrows move inside the grid, Tab
+  leaves it, and Escape moves focus to the toolbar's Table button. A third click on a header
+  returns to "In the order loaded"; sorting keeps the old scroll position.
 - **Control+O with a graph open** offers "Add to <graph>" with a warning that its edges would be
-  added again and "Replace <file>" as the main button; Cancel leaves the graph as it was. With a
+  added again ("the load makes 24 nodes and 118 edges"), and Cancel, "Replace <file>" (the main
+  button) and Load (which adds the file a second time); Cancel leaves the graph as it was. With a
   saved project, the same file reopens in place.
 - **The consent notice** left unanswered goes away once a graph opens. By keyboard it is the last
   stop on the start screen, after the four samples; Enter on "No thanks" moves focus to "Open
@@ -247,8 +272,8 @@ path meets on this build:
 
 ## T37. A first look
 
-- **Not run in round 1.** Walked on 6dd0b00bd7 by `rounds/r1d2/pilot/T37A/` (`pointer/`,
-  `detours/`; not by keyboard) and `T37B/` (`success/`, `detours/`, `keyboard/`).
+- **Not run in round 1.** Walked on e3c5bca8e6 by `rounds/r1/pilot/T37A/` (`v-pointer/`,
+  `v-detours/`, `v-keyboard/`) and `T37B/` (`r2-success/`, `r2-detours/`, `r2-keyboard/`).
 - **Success (S):** names 77 characters (A) or 34 members (B) and 254 (A) or 78 (B) ties, both read
   from the screen, and names Valjean (A) or member 34 (B) as the one with the most ties, read from
   the screen: a node's inspector showing a Degree equal to the Values tab's "Highest" (36 on A,
@@ -270,34 +295,44 @@ path meets on this build:
   Highest 36. B: Zachary's karate club, member 34, Degree 17.
 - **Run path (A, 6 steps):** 1. "No thanks". 2. Les Miserables. 3. Analyze. 4. Degree (a card with
   a Run button opens; "How many edges each node has: the most connected rank highest."; the button
-  is named only "Run"). 5. Run (every node colored by degree, a Degree layer added, and the
-  toolbar's Legend turns on). 6. Click the darkest node: Valjean, Degree 36, "#1 of 77". A node
+  is named "Run Degree"). 5. Run (every node colored by degree, a Degree layer added, the color
+  key 1 to 36 opens, the toolbar's Legend turns on, and the drawing moves right and shrinks). 6.
+  Click the darkest node: Valjean, Degree 36, "#1 of 77". By keyboard, Shift+A opens "Filter
+  analyses", ArrowDown highlights Degree, Enter focuses "Run Degree", and Enter announces "Degree
+  added, running", then "Degree finished" (no name), with focus back on Analyze; Enter with
+  nothing highlighted does nothing. A node
   selected before the run stays selected, and its inspector adds "Results: Degree 36, #1 of 77" by
   itself, so step 6 is then not needed. Or, for 6 to 7: Table, then the Degree header (sorts
   highest first, Valjean 36 on top). By keyboard (B): the table's headers are buttons ("Id",
   "Degree, sorted descending", live "Sorted by Degree, highest first"); ArrowDown reads gridcell
   "17" and ArrowLeft rowheader "34"; Enter selects it, "17, #1 of 34".
 - **Find-box route (an expert route that reaches the name):** `=degree > 30` (B `=degree > 16`)
-  gives a gray 'No column named "degree". Did you mean: graphty.degree > 30, Select the 1 node';
-  Enter selects Valjean, Degree 36 (B member 34, Degree 17). `degree > 30` typed without `=` offers
-  "graphty.degree > 30, Select the 1 node" with no message. After a Degree run (B) the suggestion
-  is `results.degree.value > 16`, and Enter rewrites the box to `=results.degree.value > 16`.
-  Graded by its length like any route. `degree` alone offers "graphty.degree, Select the 77
-  nodes" (B 34), and Enter selects every node and keeps `degree` in the box, which names no one.
+  shows "Did you mean Degree?" and the option "Degree > 30, Select the 1 node" (B "Degree > 16");
+  Enter selects Valjean, Degree 36 (B member 34, Degree 17), announces only "1 node selected", and
+  keeps the typed text in the box. After a Degree run the option adds "(Degree above 30)" (B
+  "(Degree above 16)"), and the box still keeps what was typed; the stale "Did you mean Degree?"
+  line can reappear under the unfocused box after a run, and is spoken again. Graded by its
+  length like any route. `degree` alone offers "Degree, Select the 77 nodes" (B 34), and Enter
+  selects every node and keeps `degree` in the box, which names no one.
 - **Routes that do not reach the name on this build:** hovering a node (shows nothing); a word in
   the find box (`most`: "No match", with the hint rule `name == 'Napoleon'` on A, which leads
   nowhere near degree); the table before a run (A: only Id and name, "Columns: 2 of 2"; B: only
-  Id, and "Columns: 1 of 1" opens an empty popover); the Data place (A: attributes id, name,
-  shared_chapters; B: only id; its selection summary reads "Degree 1 to 17" and "id mean 17.5");
-  the Values tab's "Highest" row and histogram (no name on click; the "About Degree" button
-  explains on hover); the biggest-looking sphere (in 3D a near node looks biggest: on B node 25,
-  Degree 3); on B the analysis filter's `ties` (lists HITS and clustering, no Degree; `connected`
-  lists Degree; `most` lists Most flow first, and Enter opens it with Source and Sink filled from
-  the current selection); Quick actions (`degree` and `most connected`: "No results"); PageRank
+  Id, and "Columns: 1 of 1" is dimmed with the tooltip "No other columns to show or hide"); the
+  Data place (A: attributes id, name, shared_chapters; B: only id; its selection summary reads
+  "Degree 1 to 17" and "id mean 17.5"); the filter step's Attribute list (Node id, name,
+  shared_chapters: no Degree); the Values tab's "Highest" row and histogram (no name on click;
+  hovering "About Degree" opens its tooltip and an explanation popover at once); the
+  biggest-looking sphere (in 3D a near node looks biggest: on B node 25, Degree 3); the analysis
+  filter's `ties` (A and B: HITS and the group analyses, no Degree; `connected` lists Degree;
+  `most` highlights Degree first and Enter opens its card, with Most flow dimmed); a right-click
+  on the central node (it selects Valjean and the inspector shows Degree 36: this reaches the
+  answer like a click); Quick actions (`degree` and `most connected`: "No results"); PageRank
   (its "Start here" badge) gives a score and a rank ("0.02108, #19 of 34"), not a count of ties.
 - **Keys in the find box after a rule selection:** the first Escape empties the box, the second
   moves focus to the drawing with the node still selected, the third clears the selection
-  ("Selection cleared: 1 node"). Tab from the box goes to its clear button.
+  ("Selection cleared: 1 node"). Tab from the box goes to its clear button. On B, Escape on a
+  node's inspector (focus on its "Degree 17" row) does not clear the selection and announces
+  nothing.
 - **Final screen:** the counts and the name on screen. The Degree layer the run adds recolors every
   node; it comes with the run and is not held against the participant.
 
@@ -313,19 +348,24 @@ path meets on this build:
   "role is staff (5)" adds to the selection (8 selected; the selection's summary reads role "staff
   (5), board (3)"); styling it makes one layer "8 nodes" ("Picked by hand: 8 nodes", notice "Made
   a layer for the 8 selected nodes"). Find-box node rows are titled by id (`v01`, `s01`), not name.
+  The table route is SD the same way: sorted on `role` (`kind`), a click on the first row and
+  Shift+click on the eighth (tenth) select them, and Style, Fill "+", blue makes "8 nodes" ("10
+  nodes"), "Picked by hand".
 - **The starting color** `6366F1` is a blue-violet; a screen reader calls it "indigo". A participant
   may still call everyone blue already, or doubt that `0000FF` beside it changed anything. Grade on
   the style tree and the last screen.
-- **Success path (A, 12 steps):** 1. "No thanks". 2. "Open project or file", volunteers.graphml. 3. Load (the read-the-file page shows "volunteers: 24 nodes, 63 edges"; then Values: Nodes 24,
+- **Success path (A, 13 steps):** 1. "No thanks". 2. "Open project or file", volunteers.graphml. 3. Load (the read-the-file page shows "volunteers: 24 nodes, 63 edges"; then Values: Nodes 24,
   Edges 63). 4. "+" beside Style layers ("Add a layer or a folder"; its menu is Layer, Folder,
   "Select layers...", Analyze..., and "Select layers..." checks layers, not nodes). 5. Layer. 6.
-  "Add a condition" (the collapsed Which nodes' line "add a condition to narrow"). 7. `role` (a
-  card "Is any of": "volunteer, 16 nodes", "staff, 5 nodes", "board, 3 nodes"). 8. Tick board. 9.
-  Tick staff ("8 of 24"; the drawing does not change yet). 10. Done. 11. Fill "+" (the Color
-  line, focus in its box). 12. Type `blue`, Enter (`0000FF`; focus then moves to the disabled
-  Fill "+").
+  Which nodes (the collapsed line "add a condition to narrow"; it only expands). 7. "Add a
+  condition". 8. `role` (a card "Is any of": "volunteer, 16 nodes", "staff, 5 nodes", "board, 3
+  nodes"). 9. Tick board (the subtitle becomes "Node layer"). 10. Tick staff ("8 of 24"; the
+  drawing does not change yet). 11. Done. 12. Fill "+" (the Color line, focus in its box). 13.
+  Type `blue`, Enter (`0000FF`; focus stays in the box; the key appears and the drawing jumps
+  right). By keyboard, after Layer focus stays in the tree, and Which nodes is 10 Tabs on.
 - **B:** the same with sources.graphml ("sources: 24 nodes, 59 edges"), `kind` (person 14,
-  company 6, agency 4), company and agency ("10 of 24").
+  company 6, agency 4), company and agency ("10 of 24"), 13 steps. Nodes are titled by id in the
+  inspector and the find box (`v23`, `s12`), the name only a row below.
 - **Dead ends on this build:** right-clicking a node offers no way to pick everyone like it;
   right-clicking a table cell does nothing; a column's "Options" offers only Move left and Move
   right; the inspector's value cannot be clicked. The Data place's attribute lists its values with
@@ -343,8 +383,11 @@ path meets on this build:
 - **Success (S):** every node drawn in the asked color (A: any dark green; B: any orange), the ties
   unchanged.
 - **Stacks that count:** the Everything layer's node color changed (S); a new layer with no
-  condition (S; "+", Layer, Fill "+", the color: 7 steps on A, and it adds "Color: Layer 1" to the
-  key); every node selected by hand and colored (SD: a selection, not the whole drawing).
+  condition (S; "No thanks", the sample, "+", Layer, Fill "+", the color and Enter: 6 steps on A
+  and B, and it adds "Color: Layer 1" to the key, the drawing jumping right and down as the key
+  appears); every node selected by hand and colored (SD: a selection, not the whole drawing; on
+  this build Control+A on the canvas selects nothing, and neither the canvas menu nor the find box
+  (`all`: No match) selects every node).
   Coloring one node from its own inspector (Fill "+") makes a one-node layer named after the node
   ("Javert", "Valjean"): not a success.
 - **Success path (A, 5 steps, the key steps of bar 4):** 1. "No thanks". 2. Les Miserables. 3.
@@ -352,15 +395,20 @@ path meets on this build:
   color, set here, indigo"; the first click selects its value). 5. Type `darkgreen` (or a hex),
   Enter (`006400`). The first styled graph is step 5. B: College football, `orange` gives
   `FFA500`. The Everything route adds nothing to the key. A node's Style > "Why this look" >
-  "Everything" opens Everything on its Color line.
+  "Everything" opens Everything on Style, Node, with focus on the heading "Everything"; the Color
+  line is neither focused nor marked. By keyboard, Everything is 8 Shift+Tabs from the graph
+  heading (or 12 Tabs), and Enter on its row leaves focus on the row: the color box is 19 to 20
+  Tabs on, through Graph settings, the separator, the canvas, the toolbar and the Shape section.
 - **Bar 4:** frozen at 12 steps as "twice the answer key's 6"; the key counts 5 on this build.
   The bar is not changed here (`criteria.md` change log).
 - **Likely false finish:** Graph settings, and the Graph inspector's Style tab (the sample opens on
   Values, one click away), offer only the canvas's Background color; typing the color there
   paints the background and leaves the nodes blue-violet. Its reset is a dash ("Reset Background
-  color to default").
+  color to default"); Control+Z undoes it with "Undid changing settings.".
 - **Detour on the Edge tab:** Everything > Edge > Line Color paints every tie (F unless removed;
-  "Remove edge color" takes it off, and Control+Z with focus in the box undoes it).
+  "Remove edge color" takes it off, and Control+Z with focus in the box undoes it). After "Remove
+  edge color" the Width line slides up under the pointer and its remove dash takes focus, so a
+  second click or Enter removes Width too.
 - **Final screen:** all 77 (A) or 115 (B) nodes in the color; `styles.json` shows Everything's (or
   the new layer's) `node.color`.
 
@@ -374,8 +422,11 @@ path meets on this build:
   (B: `GAL` "Nodes 8" and value rows "name is GAL10 (1)"); Enter selects only the first node and
   empties the box, and a click on a row selects that one node, so styling then makes a one-node
   layer ("MmeMagloire", B "YBR019C", "Picked by hand: 1 node"). Shift+click on rows adds to the
-  selection and keeps the list open (no row shows it is selected); styled, the 6 make the layer "6
-  nodes", "Picked by hand: 6 nodes" (SD). Adding a `name` contains card to a one-node layer gives
+  selection and keeps the list open (each picked row shows a check); clicking the inspector's
+  Style tab then clears the typed text; styled, the 6 make the layer "6 nodes", "Picked by hand: 6
+  nodes" (SD), and while still selected they keep a thick yellow ring that makes them read yellow
+  (graded on the tree). Right-click > "New layer from selection" on the six makes no layer until
+  Fill "+" and a color are set. Adding a `name` contains card to a one-node layer gives
   1 of 77 (AND) and renames it "Picked and name" as the text is typed; removing the hand-picked
   card gives 6 of 77 (8 of 331) and the name "name contains Mme" (SD). On B, removing that card
   puts focus in the next card's box and opens its list of names over Done, and a click on Done
@@ -383,19 +434,23 @@ path meets on this build:
   makes it match every node at once (no notice). The find list names nodes by id
   (`MmeMagloire`), the card's suggestions by name ("Mme Magloire").
 - **Filters detours:** a step on `name` offers Contains and a text box. After the attribute is
-  picked, focus stays in the Attribute box, so typing right away writes `nameMme` there; after a
-  click in the text box, `Mme` lists the six names and Enter adds "name contains Mme, 77 to 6
-  nodes" (B "name contains GAL, 331 to 8 nodes"), hiding the rest without reframing. It hides,
-  never colors: F. Control+Z undoes it ('Undid adding "name contains GAL".', which does not say it
-  was the filter step).
-- **Success path (A, 10 steps):** 1. "No thanks". 2. Les Miserables. 3. "+" beside Style layers. 4. Layer. 5. "Add a condition". 6. `name` (a Contains card, focus in "Type the text to match"). 7. Type `Mme` ("6 of 77"; a list of the six full names opens under the box, over Match case and
-  Done). 8. Enter (keeps `Mme` even if a name in the list is highlighted, and closes the picker as
-  Done does: "name contains Mme, 6 nodes"). 9. Fill "+" (the Color line, focus in its box; no key
-  yet). 10. Type `purple`, Enter (writes `800080`; the key "Color: Layer 1, 6 of 77 nodes"
-  appears, and focus moves to the disabled Fill "+").
+  picked, focus moves into the text box, so `Mme` typed right away lands there and lists the six
+  names; Enter adds "name contains Mme, 77 to 6 nodes" (B "name contains GAL, 331 to 8 nodes"),
+  hiding the rest without reframing. It hides, never colors: F. Control+Z undoes it ('Undid adding
+  the filter step "name contains Mme".'; undoing the step's switch reads 'Undid turning off the
+  filter step ...'). On B, Everything colored with the step on colors every node once the step is
+  off: F.
+- **Success path (A, 11 steps):** 1. "No thanks". 2. Les Miserables. 3. "+" beside Style layers. 4. Layer. 5. Which nodes (only expands). 6. "Add a condition". 7. `name` (a Contains card, focus in "Type the text to match"). 8. Type `Mme` ("6 of 77"; a list of the six full names opens under the box, over Match case and
+  Done). 9. Enter (keeps `Mme` even if a name in the list is highlighted, and closes the picker as
+  Done does: "name contains Mme, 6 nodes"). 10. Fill "+" (the Color line, focus in its box; no key
+  yet). 11. Type `purple`, Enter (writes `800080`; the key "Color: Layer 1, 6 of 77 nodes"
+  appears, the drawing jumps sideways and shrinks, and focus stays in the box, "Node color now
+  purple, on 6 nodes"). By keyboard the Style layers "+" is 14 Tabs from the graph heading, and
+  Which nodes 11 Tabs from the new layer's row.
 - **B** brings the file in first: "No thanks", "Open project or file" with yeast-galactose.graphml,
-  Load (3 steps, against A's 2), then as A from step 3 with `GAL` ("8 of 331"): 11 steps with
-  "Contains"; with "Starts with", 2 more (the match menu, then "Starts with"): 13. The 8 purple
+  Load (3 steps, against A's 2), then as A from step 3 with `GAL` ("8 of 331"): 12 steps with
+  "Contains"; with "Starts with", 3 more (the match menu, "Starts with", then a click in the text
+  box, because focus stays on the menu and typed letters reopen it): 15. The 8 purple
   dots are small dark dots in the middle of the drawing and two overlap, so counting the drawing
   gives 7: the count is read from "8 of 331".
 - **Final screen:** the picker's line reads "name contains Mme, 6 nodes" (B: "name starts with GAL,
@@ -420,46 +475,53 @@ path meets on this build:
 - **Where "Has no value" is:** only in a card's match menu (a text card's, and a yes/no card's,
   which offers Yes, No, Has a value and Has no value). The attribute list answers `missing` and
   `no value` with "Nothing found"; a text card with `missing` typed reads "0 of 24" and "phone
-  leaves none"; Filters' Is box lists only values; the find box answers `missing phone` with a
-  number rule ("hours > 27").
-- **Success path (A, 18 steps):** 1. "No thanks". 2. "Open project or file", volunteers.graphml. 3. Load. 4. "+". 5. Layer. 6. "Add a condition" (phone reads "70% have a value"). 7. `trained`
-  (the card starts on Yes: "15 of 24"). 8. "Add a condition". 9. `phone` (focus in its text box,
-  past the match menu: by keyboard one Shift+Tab back). 10. Its match menu ("phone: how to match",
-  value "Contains"). 11. "Has no value" ("4 of 24"). 12. Done. 13. Fill "+" (focus in the color
-  box). 14. Type `red`, Enter. 15-18. Click each of the four red dots and read the name row in the
+  leaves none"; the find box answers `missing phone` with a number rule ("hours >= 27", B
+  "donations >= 130000"). Filters' phone (email) step has a match menu with Has a value and Has no
+  value, and Add step hides the other 17 (B 15) instead of coloring the four: F (Undo restores).
+- **Success path (A, 19 steps):** 1. "No thanks". 2. "Open project or file", volunteers.graphml. 3. Load. 4. "+". 5. Layer. 6. Which nodes (only expands). 7. "Add a condition" (phone reads "70% have a value"). 8. `trained`
+  (the card starts on Yes: "15 of 24"). 9. "Add a condition". 10. `phone` (focus in its text box,
+  past the match menu: by keyboard one Shift+Tab back). 11. Its match menu ("phone: how to match",
+  value "Contains"). 12. "Has no value" ("4 of 24"). 13. Done. 14. Fill "+" (focus in the color
+  box). 15. Type `red`, Enter. 16-19. Click each of the four red dots and read the name row in the
   inspector. Or open the table and find the four by their trained and phone cells: the table does
   not mark which rows the layer paints, and a missing value is a blank cell there ("No value" in
   the inspector and to a screen reader). Sorted on phone, the blank rows come last; Enter on a row
   selects that node; by keyboard the table opens on its Id header, Tab leaves it, and Escape in
-  the grid does nothing. The selection's summary gives counts only ("phone 0 of 4 have a value",
+  the grid moves focus to Table. The selection's summary gives counts only ("phone 0 of 4 have a value",
   "name 4 of 4 have a value") and names no one. The inspector is titled by id (`v20`), the name a
-  row below. After step 14 focus is on the disabled Fill "+".
+  row below. After step 15 focus stays in the color box ("Node color, set here, red", `FF0000`).
+  By keyboard, the layer "+" is 13 Tabs from the graph heading, Which nodes 9 to 10 Tabs from the
+  new layer's row, and Enter on Which nodes with a card in it goes straight to the first card's
+  value. Escape in an empty new text card drops it at once, as Enter does.
 - **B:** the same with sources.graphml, `on_record` ("12") and `email` ("4 of 24"). The four are
-  s19 Tomas Varga, s17 Friends of the Waterfront, s11 Ines Moreau and s05 Della Whitfield.
+  s19 Tomas Varga, s17 Friends of the Waterfront, s11 Ines Moreau and s05 Della Whitfield, 19
+  steps. The find box's `=on_record && !email`, then right-click > "New layer from selection" and
+  Fill red, makes the layer "Rule: on_record && !email" (SD).
 - **Final screen:** four red dots; the picker reads "trained: yes, 15 nodes" and "phone: no value, 7
   nodes" (B: "on_record: yes, 12 nodes" and "email: no value, 9 nodes"), "4 of 24".
 
 ## T42. At or over a line
 
-- **Not run in round 1.** Walked on 6dd0b00bd7 by `rounds/r1d2/pilot/T42A/` and `T42B/`.
+- **Not run in round 1.** Walked on e3c5bca8e6 by `rounds/r1/pilot/T42A/` and `T42B/`.
 - **Success (S):** exactly the 11 (A) or 9 (B) drawn orange and the count said from the screen.
 - **Stacks that count:** a number card on `hours` (A) or `donations` (B) with its low end at 20
   (A) or 10,000 (B) and its high end at the maximum (52, 250,000) or above. The card's match menu
   offers Between, Highest, Has a value and Has no value; "at or over" is Between with the high end
   left at the maximum. "Highest" is a top-N count (it starts at 10, which picks one source too
-  many on B); after it is picked focus stays on the match list, and typing there reopens the list.
+  many on B); after it is picked focus goes to its count box with `10` selected.
   In its count box, 20 on A gives "top 20 by hours, 20 nodes", 20 of 24 (F unless the participant
   checked the line on screen; SD then); 10000 on B is refused, 'There are only 24 nodes. Type 24
   to keep all 24, or fewer...', and Escape puts back 10 ("top 10 by donations, 10 nodes"). The
   find box's `hours >= 20` ("Select the 11 nodes (hours 20 or more)") or `donations >= 10000`
   selects the same people, and the box keeps the typed text; a layer from that selection ("hours
   20 or more") is SD, and so is `donations > 10000` (9, layer "donations above 10000"). The
-  no-match hint teaches `>` only ("hours > 27", "donations > 130000"): `hours > 20` gives 10 and
-  misses the person at exactly 20 (F if left).
+  no-match hint teaches `>=` ("hours >= 27", "donations >= 130000"); `hours > 20` gives 10 and
+  misses the person at exactly 20 (F if left). The find box's selection rings are gold-yellow,
+  close to the asked orange: grade on the tree.
 - **The from box on this build:** it starts at the column's lowest value (A `2`, B `0`), with
   focus in it and the value selected, so typing replaces it. The count and the drawing do not
   follow typing: they change on Enter (which closes the picker as Done does) or Tab (which moves
-  to the "to" box); by keyboard no live region announces the new count. Escape in an edited box
+  to the "to" box, and by keyboard announces "11 of 24 nodes"). Escape in an edited box
   puts back the last good value and leaves the picker open; a second Escape closes it with focus
   on Which nodes. Dragging the low handle moves the line too (22 gives 10). One Control+Z can undo
   two card changes in a row (the typed 20 and a later drag both go back to 2 to 52).
@@ -470,17 +532,20 @@ path meets on this build:
   (300000), then Escape, goes back to the full range with "donations: what was typed was not a
   number the card takes, so it went back to 0 to 250000." The high end set instead gives 2 to 20,
   14 of 24 (A) or "donations 0 to 10000, 15 nodes" (B): F. Grade on the line the card ends with.
-- **Success path (A, 10 steps):** 1-3. File in ("No thanks", "Open project or file" with
-  volunteers.graphml, Load). 4. "+". 5. Layer ("All 24 nodes: add a condition to narrow"). 6. "Add
-  a condition". 7. `hours` (Between 2 to 52, focus in the from box, `2` selected). 8. Type `20`,
-  Enter ("11 of 24"; the picker closes, "hours 20 to 52, 11 nodes"). 9. Fill "+" (tooltip "Add to
-  node fill"; focus in the color box; no key, no Legend, the subtitle still "Node and edge
-  layer"). 10. Type `orange`, Enter (the key "Color: Layer 1" with "11 of 24 nodes" on a second
-  line, Legend on, "Node layer"; focus on the disabled Fill "+"). B: the same with `donations` and
-  `10000` ("9 of 24"), 10 steps.
+- **Success path (A, 11 steps):** 1-3. File in ("No thanks", "Open project or file" with
+  volunteers.graphml, Load). 4. "+". 5. Layer ("All 24 nodes: add a condition to narrow"). 6.
+  Which nodes (only expands). 7. "Add a condition". 8. `hours` (Between 2 to 52, focus in the from
+  box, `2` selected; the subtitle already "Node layer"). 9. Type `20`, Enter ("11 of 24"; the
+  picker closes, "hours 20 to 52, 11 nodes"). 10. Fill "+" (tooltip "Add to node fill"; focus in
+  the color box; no key, no Legend). 11. Type `orange`, Enter (the key "Color: Layer 1" with "11
+  of 24 nodes" on a second line, Legend on, the drawing jumping right; focus stays in the box,
+  `FFA500` selected; "Node color now orange, on 11 nodes"). B: the same with `donations` and
+  `10000` ("9 of 24"), 11 steps.
 - **Dead ends:** the Data place's attribute menu and right-click offer only Add label line, Filter
-  to... and Show in table; "Filter to..." with 20 hides the other 13 (F). A node's right-click
-  replaces the current selection with that node.
+  to... and Show in table; "Filter to..." with 20 and Enter adds the step at once, without Add
+  step, and hides the other 13 (F; its line reads "24 to 11 nodes"). A node's right-click replaces
+  the current selection with that node. On B, styling a find-box selection and pressing Tab out of
+  the color box makes the layer and moves focus to the Style tab.
 - **Final screen:** the picker reads "hours 20 to 52, 11 nodes" (B: "donations 10000 to 250000, 9
   nodes"); the key "Color: Layer 1", "11 of 24 nodes".
 
@@ -493,9 +558,10 @@ path meets on this build:
   attribute", a column picked) on Everything (S) or on a layer covering every node, such as the
   "hours: has a value" ("donations: has a value") layer the find box's `hours` (all 24 selected;
   the box keeps `hours`) and the selection's Shape "+" > Size make (SD). That Size line arrives at
-  1 with focus in its box but makes no layer until a value is committed with Enter or the size is
-  bound, and nothing says so; then the layer covers an earlier binding on Everything until it is
-  bound itself. Sizes typed by hand for a few people: F (the drawing does not follow the number). A
+  1 with focus in its box and the line "Not set yet: the first size you pick makes the layer"; it
+  makes no layer until a value is committed with Enter or the size is bound (notice "Made layer
+  hours: has a value for 24 nodes"), and Escape in it removes the line with focus on Shape "+";
+  then the layer covers an earlier binding on Everything until it is bound itself. Sizes typed by hand for a few people: F (the drawing does not follow the number). A
   size bound on a one-node or hand-picked layer covers only those nodes: F; the key over the
   drawing then adds a line naming them ("v09: 1 of 24 nodes") under "Size: hours". A fixed size on
   a hand-picked layer above the binding ("3 nodes" at 4) leaves the key reading only "Size:
@@ -505,19 +571,24 @@ path meets on this build:
 - **Success path (A, 7 steps):** 1-3. File in. 4. Everything (Style open; its Size line is already
   there at 1, Shape "+" is disabled, and the tab ends with "Edges: 4 styles / Edit edges"). 5. The
   link icon beside Size (tooltip and accessible name "Node size by attribute"; a popover with the
-  same title opens with nothing highlighted, listing "Fixed size", the number columns, and "Does
-  not fit: 5 attributes, Show why"; a screen reader hears that row as option "5 attributes,
-  hidden"). 6. `hours` (the popover closes by itself; the Size box then shows a chip "hours" with
-  "From 1 to 3", a key "Size: hours" with a wedge from 2 to 52 appears over the drawing, and the
-  status says "Node size varies by hours, on 24 nodes"). 7. Click the biggest dot: the inspector
-  shows Hannah Weiss, hours 52 (B: Harlan Development, donations 250,000). By keyboard (A), Enter
-  on the Size chip opens the dialog "Size by hours", and Escape returns to the chip. Not walked by
-  keyboard on B.
+  same title opens with nothing highlighted, listing "Fixed size", a "Data" heading over the
+  number columns, and "Does not fit: 5 attributes, Show why"; a screen reader hears that row as
+  option "5 attributes, hidden, holds text, not groups or amounts (3), holds groups, not amounts
+  (2), Show why", and the headings are not exposed). 6. `hours` (the popover closes by itself;
+  the Size box then shows a chip "hours" with "From 1 to 3", a key "Size: hours" with a wedge from
+  2 to 52 appears over the drawing and the drawing re-frames to the right, and a screen reader
+  hears "Node size varies by hours, on 24 nodes", which nothing on screen shows). 7. Click the
+  biggest dot: the inspector, titled by id (`v09`), shows Hannah Weiss, hours 52 (B: Harlan
+  Development, donations 250,000). By keyboard, Enter on the Size chip opens the dialog "Size by
+  hours" (focus on the dialog itself), and Escape returns to the chip; in the dialog the box
+  labeled "Combine" is named "How size meets the layers beneath" and exposes no value. The size
+  link's name "Stop varying node size by data" differs from its tooltip.
 - **Reading "the most" on this build:** on A, in 3D a dot's size also depends on its distance from
   the camera, and v09 (52) and v02 (48) draw about the same size, so the biggest is not clear at a
   glance; with all 24 selected, the selection rings grow with each dot too (v24, 38 hours, looks
   as big as v09). On B it is plain (250,000 against 90,000 next; the big blue dot near the camera
-  is s15 Zoning Board, 0). The table sorted on the hours (donations) header puts the answer first
+  is s15 Zoning Board, 0). On the drawing the keyboard reaches no dot. With "Values to" lowered to
+  100,000 and "Clamp outliers" off, 250,000 and 90,000 draw about the same size. The table sorted on the hours (donations) header puts the answer first
   (Table, then the header: 2 more steps); the Data place's "Show in table" opens it unsorted, and
   its attribute summary shows "Highest 52" with no name and no size action. Making every dot bigger
   by hand can push a dot under the inspector's edge (the drawing is not re-framed). The
@@ -531,11 +602,10 @@ path meets on this build:
 - **Success (S):** every node carries its name as a label (A: `name`, or `id`, which holds the
   name with its spaces dropped, `MlleVaubois`, both accepted; B: `name`, not `id`), and Cosette
   (A) or Lucy Grant (B) is readable on the last screenshot at the participant's own framing.
-- **Labels hidden by overlap:** after the column is picked the screen reads "77 labels, 7 hidden"
-  (B: "24 labels, 1 hidden"); N follows the zoom and the label size (A: 6, 4, then 2 hidden over 10
-  wheel turns toward Cosette, and 18 at size 96 at that zoom, Cosette's own name among them; B: 1,
-  then 4, then 1 while zooming toward Lucy Grant, never 0, and 2 at size 96, Diego Ruiz beside her
-  among them). Nothing shows which names are hidden. The app leaves out labels that would overlap,
+- **Labels hidden by overlap:** after the column is picked the screen reads "77 labels, 0 hidden"
+  (B: "24 labels, 0 hidden"), although labels in the dense middle visibly touch. On A the count
+  stays 0 over 5 wheel turns toward Cosette and reads "5 hidden" at size 96, with Cosette
+  readable; on B it stays 0 over 6 turns and at size 96. Nothing shows which names are hidden. The app leaves out labels that would overlap,
   and "Show all labels" draws them all, over each other; even with "Hide overlapping labels" on,
   some names are drawn over others, and the selection ring covers the top of a selected node's
   name. "Every node carries its name" is judged on the style tree (`node.label` by `data.name`
@@ -546,19 +616,24 @@ path meets on this build:
   Text "+" ("Add to node text"; a menu of Label and Tooltip). 5. Label (the column picker opens by
   itself with nothing highlighted: Find an attribute, Fixed text, then Data (`name`), then
   Structure ("Node id"; once picked the source box reads "id"); the first ArrowDown highlights
-  Fixed text; reopened from "Fixed text" it marks no current choice). 6. `name` (live "Node label
-  added", "77 labels, 7 hidden"). 7. Zoom in with the wheel (it zooms toward the pointer; several turns)
-  until Cosette reads (10 turns on the pilot walk). Label settings (the gear) has a Size (48,
-  "Size in: Scene units"): typing 96 and Enter doubles every label and keeps focus; Escape after
-  typing reverts; Tab goes to "Reset Size to default"; Escape closes the popover onto the gear. By keyboard: `/` or Control+F to the find box, `Cosette`, Enter
+  Fixed text; reopened from "Fixed text" it shows Fixed text highlighted). 6. `name` (live "Node
+  label added", spoken only; "77 labels, 0 hidden"). 7. Zoom in with the wheel (it zooms toward
+  the pointer; several turns) until Cosette reads (5 turns on the pilot walk). Label settings (the
+  gear, tooltip "Label settings", spoken "Node label settings") has a Size (48, "Size in: Scene
+  units"): typing 96 and Enter doubles every label and keeps focus; Escape after typing reverts;
+  Tab goes to "Reset Size to default" (drawn as a bare minus); Escape on a committed value closes
+  the popover onto the gear. With a label in place, Text "+" offers Label look, Label size, Label
+  position and Tooltip; Label size adds "Size 48" with focus in the box. By keyboard: `/` or Control+F to the find box, `Cosette`, Enter
   (Cosette selected, focus out of the box), then `f` (Frame selection); a clicked find box
   behaves the same. `=` zooms the view when the drawing itself has focus, and does nothing
   elsewhere.
 - **B:** brings the file in first (3 steps against A's 2), then as A: 8 steps, or 9 with "Show all
   labels". The keyboard route the same with `Lucy Grant` (the find row reads "v16 name: Lucy
-  Grant"; the inspector heading is "v16"). By keyboard, Everything is about 17 Tabs from the graph
-  heading and Text "+" 18 more; the toolbar's other tools are on the arrow keys. Escape on a node's
-  heading does not clear the selection. `f` frames the selection and can turn the view.
+  Grant"; the inspector heading is "v16"). By keyboard, Everything is reached from the graph
+  heading by Tab, F6 three times and three Tabs (A: about 22 Tabs to Text "+" in all), and Text
+  "+" is 17 Tabs after Everything (4 to Analyze, 13 more); the toolbar's other tools are on the
+  arrow keys. Escape on a node's heading does not clear the selection. `f` frames the selection,
+  can turn the view, and is not announced.
 - **Detours that do not succeed:** the Graph inspector's Style tab has a Labels section with
   overlap options only ("Hide overlapping labels", "Move labels off nodes and edges"); a selected
   node's own Text "+" makes a one-node layer (named "Cosette", B "v16"; "Made layer Cosette for 1
@@ -566,10 +641,13 @@ path meets on this build:
   node (recovered by picking the name column from the "Label source: Fixed text" button); Escape
   in a new Label line's picker removes the line ("Label not added: no value was picked"; for
   Fixed text with nothing typed, "no words were typed"). With a one-node layer labeling by name,
-  Everything's picker lists `name` under "In use" though its own line shows Fixed text. Turning
-  "Hide overlapping labels" off cannot be undone (Undo stays "Nothing to undo"). Quick actions:
-  `names` gives "No results"; `label` offers only a dimmed "Add label line: Pick a node attribute
-  first".
+  Everything's picker lists `name` under "Used elsewhere" though its own line shows Fixed text.
+  Turning "Hide overlapping labels" off cannot be undone (Undo stays "Nothing to undo"), and "Show
+  all labels" is not on the undo stack. Quick actions: `names` gives "No results"; `label` offers
+  a dimmed "Add label line - Open a node attribute in Data > Attributes first". With a node
+  attribute open in Data > Attributes, that "Add label line" works: a new layer "name" ("name: has
+  a value, 77 nodes"), Look Card, Size 72, every node labeled: a success by the usual rule (S or SD
+  by its length and wrong turns).
 - **Not a new finding:** the label drawn small at the default framing; the font with no fallback;
   ties drawn across label text.
 
@@ -594,69 +672,77 @@ path meets on this build:
   layer, under every other layer." (B: 254) with no Add a condition, so no condition can be added
   there. Its Color's link icon colors every tie by `kind` (B: its "Edge width by attribute" offers
   `shared_chapters`, which would vary every tie's width: F), and Escape closes the list onto the
-  link. The family row's "Set properties for family" > Width opens a box with the caret after 8,
-  not the value selected, so typing 24 gives 824 (no upper limit); once one group has a width, the
-  key "Edge width: kind" lists every group at 8. Control+Z does nothing while focus is inside the
-  "Color by kind" popover. The other ties keep their new colors until "Remove edge color" on
-  Everything (F unless the other ties end as they started).
+  link. The family row's "Set properties for family" > Width opens a box with `8` selected, so
+  typing 24 gives 24; once one group has a width, the key "Edge width: kind" lists every group at 8. Control+Z inside the "Color by kind" popover undoes ("Undid changing edge color on
+  Everything."). The other ties keep their new colors until "Remove edge color" on Everything,
+  which removes the whole base Color line (F unless the other ties end as they started). The family
+  row's actions also offer "New layer for family", which makes a correct `kind: family` layer
+  carrying the group's width; with red set there and Everything's edge color removed, the route
+  ends on the 8 (SD), though Everything keeps a width-by-kind override and the key still shows
+  "Edge width: kind". The family swatch shows the tooltip "family" and does nothing on click.
 - **Width on this build:** a width typed over the default 8 (20, 24) draws only a little thicker at
   the default framing (selected ties draw far thicker, and a blue band covers their color, until
   the selection clears). Graded on `edge.width` above 8. The subtitle changes to "Edge layer" and
-  the layer row's count from the node count (16, B 77) to the ties' (8, B 51) only once a width is
-  typed and committed; the name stays.
-- **Success path (A, 16 steps):** 1-3. File in (neighbors.csv). 4. "+". 5. Layer. 6. Edge tab (a
-  new layer always opens on Node). 7. "Add a condition" (the collapsed Which edges' line "All 30
-  edges: add a condition to narrow"; years_known, close, kind). 8. `kind`. 9. Tick family ("8 of
-  30"). 10. Done ("kind: family, 8 edges"). 11. Line "+" (a menu: Color, Width, Pattern, Pattern
-  count, Curved). 12. Width (focus in its box, 8 selected). 13. Type a width over 8, Enter. 14.
-  Line "+". 15. Color (focus in "Edge color, not set, #A9A9A9, dark gray", `A9A9A9` selected). 16.
-  Type `red`, Enter (the key "Edge color: Layer 1, 8 of 30 edges" appears; the Color row moves
-  above Width and focus goes to Line "+"). By keyboard, Enter on a ticked value does nothing; Done
-  is four Tabs on, past "Remove kind"; Escape in the just-added Width box after typing removes the
-  line ("Edge width not added").
-- **B (15 steps):** 1. "No thanks". 2. Les Miserables. 3. "+". 4. Layer. 5. Edge tab. 6. "Add a
-  condition". 7. `shared_chapters` (Between 1 to 31, focus in the from box with `1` selected). 8.
-  Type `5`, Tab ("51 of 254"). 9. Done ("shared_chapters 5 to 31, 51 edges"). 10. Line "+". 11.
-  Width. 12. Type `24`, Enter. 13. Line "+". 14. Color. 15. Type `blue`, Enter (the key "Edge
-  color: Layer 1, 51 of 254 edges"). Escape in the width box restores 24 and keeps focus; Tab goes
-  to "Edge width by attribute"; Escape in the color box after typing gives "Edit discarded; this
-  stays 0000FF."; "Pick edge color" ignores Escape.
+  the layer row's count from the node count (16, B 77) to the ties' (8, B 51) as soon as the edge
+  condition is added and its value ticked or typed; the name stays. On A, Tab after a typed width
+  commits it but keeps focus in the box with the value selected; a second Tab moves on.
+- **Success path (A, 17 steps):** 1-3. File in (neighbors.csv). 4. "+". 5. Layer. 6. Edge tab (a
+  new layer always opens on Node). 7. Which edges (the collapsed line "All 30 edges: add a
+  condition to narrow"; only expands). 8. "Add a condition" (years_known, close, kind). 9. `kind`. 10. Tick family ("8 of 30"). 11. Done ("kind: family, 8 edges"). 12. Line "+" (a menu: Color,
+  Width, Pattern, Pattern count, Curved). 13. Width (focus in its box, 8 selected). 14. Type a
+  width over 8, Enter. 15. Line "+". 16. Color (focus in "Edge color, not set, drawn #A9A9A9 dark
+  gray", `A9A9A9` selected). 17. Type `red`, Enter (the key "Edge color: Layer 1, 8 of 30 edges"
+  appears; the Color row stays below Width and focus stays in the box). By keyboard, Enter on a
+  ticked value closes the card as Done does; Escape in the just-added Width box after typing
+  removes the line ("Edge width not added"); Escape in a committed width box restores the value
+  with nothing spoken, while the color box says "Edit discarded; this stays FF0000.".
+- **B (16 steps):** 1. "No thanks". 2. Les Miserables. 3. "+". 4. Layer. 5. Edge tab. 6. Which
+  edges (only expands; on the B keyboard walk one Enter on Which edges opened the list). 7. "Add a condition". 8.
+  `shared_chapters` (Between 1 to 31, focus in the from box with `1` selected). 9. Type `5`, Tab
+  ("51 of 254"). 10. Done ("shared_chapters 5 to 31, 51 edges"). 11. Line "+". 12. Width. 13. Type
+  `24`, Enter. 14. Line "+". 15. Color. 16. Type `blue`, Enter (the key "Edge color: Layer 1, 51
+  of 254 edges"; focus stays in the box, `0000FF` selected, the Color row below Width). Escape in
+  the width box restores 24 and keeps focus; Tab goes to "Edge width by attribute"; Escape in the
+  color box after typing gives "Edit discarded; this stays 0000FF." (spoken only); "Pick edge
+  color" ignores Escape. By keyboard, Escape in the from box with `5` typed puts back `1`.
 - **Detour to watch:** conditions added on the Node tab do not pick the layer's ties; an edge
   column typed in the Node tab's list offers the action "Add kind on the Edge tab" ("Add
-  shared_chapters on the Edge tab", cut off with a scrollbar), and Enter takes it: the Edge tab
-  opens with the card added. Fill "+" there adds a Color line at `6366F1` at once, and a color
+  shared_chapters on the Edge tab", in full), and Enter takes it: the Edge tab opens with the card
+  added; going back to the Node tab before a value is ticked drops that card ("Dropped the kind
+  condition: it was not finished"). Fill "+" there adds a Color line at `6366F1` at once, and a color
   typed in it paints every person (F); Control+Z with focus in the box undoes the color, and a
-  second Control+Z removes the whole new layer. A right-click on a tie selects it and offers Select
+  second Control+Z removes the whole new layer. A layer with only an edge condition reads "Edge
+  layer"; one node look then flips it to "Node layer" with "Edge not styled". A right-click on a tie selects it and offers Select
   endpoints, Frame selection, New layer from selection and Add note; Escape closes the menu and the
-  tie stays selected. The Data place's tie attribute offers only "Filter to..." and "Show in
+  tie stays selected; "New layer from selection" on one family tie never reaches the other 7. The Data place's tie attribute offers only "Filter to..." and "Show in
   table" (a filter hides ties: F).
 - **Final screen:** thick red (blue) ties; `styles.json` shows the edge part's selector and
   `edge.width`, `edge.color`; no `node.` value on the new layer.
 
 ## T46. One cluster in red
 
-- **Walked on 6dd0b00bd7 by `rounds/r1d2/pilot/T46B/` only.** T46 A was not walked on this build
-  (no browser slot was free); its A lines are from 5bd16cda6e and B's walk, and A is owed all three
-  ways before round 1.
-- **Success (S):** a Louvain run's clusters drawn in their colors, the cluster holding Javert (A)
+- **Walked on e3c5bca8e6 by `rounds/r1/pilot/T46A/`** (`f-pointer/`, `f-detours/`,
+  `f-keyboard/`) **and `T46B/`** (`w3-pointer/`, `w3-detours/`; B's keyboard walk stopped after the
+  start screen and is owed).
+- **Success (S):** a community run's clusters drawn in their colors, the cluster holding Javert (A)
   or Nebraska (B) bright red, every other cluster keeping its own distinct color, and its size said
-  from the screen (A: 11, read on 5bd16cda6e; B: 12, read again on 6dd0b00bd7). The prompt does
-  not name Louvain, and the analysis filter's `cluster` also lists Leiden, Label propagation,
-  Markov, Spectral and Hierarchical: how a run of another of these is graded is left to the
-  Director (`criteria.md` log).
+  from the screen (A: 11; B: 12; both read again on e3c5bca8e6). Which methods count: "Rules
+  settled before round 1" above.
 - **Stacks that count:** the group's own layer in the run's folder with its color changed (S); the
   folder's "Color from each layer" table with that group's swatch set (S; its picker takes `red`
   and the drawing changes at once, with "Color: 1 changed" and Undo; the picker covers much of the
-  drawing and stays open after Enter; Escape twice leaves focus on the folder's Color field; clicking
-  the folder's name selects it and does not expand it); a
+  drawing and closes on Enter, leaving the table open; Escape twice leaves focus on the folder's
+  Color field; clicking the folder's name selects it and does not expand it; the folder's swatch
+  strip names a group on hover and does nothing on click); a
   new layer above whose condition picks that cluster (S); a layer of a hand selection (SD). The
-  table lists the groups and their counts but not which one holds Javert (Nebraska).
+  table lists the groups and their counts but not which one holds Javert (Nebraska), and shows
+  "Source: <<Layer>>" beside "Change source".
 - **Shorter routes on this build:** a node's Memberships button (accessible name "Louvain Group
   3", B "Louvain Group 4", drawn as two columns) opens the group's own layer, expands the folder and
   marks the row in Style layers: red there paints that group (S). By pointer no focus ring shows on
-  the Color field; by keyboard focus falls to the "Resize inspector" separator, and the color box
-  is 6 Shift+Tabs back. A node's Style > "Why this look" > "Open layer Louvain / Group 4" opens the
-  same layer (S).
+  the Color field and the button looks like plain text (default cursor, no tooltip); by keyboard
+  focus lands on the group's heading ("Group 3"). A node's Style > "Why this look" > "Open layer
+  Louvain / Group 4" opens the same layer (S).
 - **Traps on this build:** the folder's chain icon (accessible name "Give all 6 layers one node
   color", tooltip "One value for all: use orange for all 6 layers"; B "Give all 10 layers one node
   color", "use yellow", then "Color: 9 changed") paints every group one color, a color already
@@ -667,11 +753,18 @@ path meets on this build:
   and Enter makes a one-node layer ("Javert", B "74"; "Made layer 74 for 1 node") and adds "Color:
   74" to the key: one node, not the cluster (F if left). Group 5's crimson `BE0032` (B) sits next
   to the new red on the drawing and in the key. On B, `cluster` in the
-  analysis filter highlights Clustering coefficient (a ranking) first, and Enter opens it; Louvain
-  is second, with no "Start here" badge under that filter.
-- **Success path (A, 12 steps; walked on B):** 1. "No thanks". 2. Les Miserables. 3. Analyze. 4.
+  analysis filter highlights Clustering coefficient (a ranking) first, and Enter opens it; its run
+  paints an orange 0.1111 to 0.6667 scale (F); Louvain is second, with no "Start here" badge under
+  that filter; Tab there with an option highlighted closes the popover and takes nothing. On A,
+  `circles` and `community` give "No analysis matches", `together` lists only Edge betweenness,
+  and `group` lists Louvain, the other community methods, Girvan-Newman and Connected components.
+  A one-node layer from a node's Style is named by id on B ("74"), and the key then scrolls ("3
+  more below"). The Data place does not list the run's groups. Quick actions answers `Javert`,
+  `color` and `louvain` with "No results".
+- **Success path (A, 12 steps; walked on A and B):** 1. "No thanks". 2. Les Miserables. 3. Analyze. 4.
   Type `louvain`. 5. Enter. 6. Run (a "Louvain" folder of Group 1 to 6 appears and a "Color:
-  Louvain" key opens over the top left; the drawing keeps its size and place). 7. Click the find
+  Louvain" key opens over the top left; the drawing moves right and shrinks, about x 520-1015 to
+  x 690-1120). 7. Click the find
   box. 8. Type `Javert`, Enter (the inspector, titled by the id; Values, Memberships: Louvain Group
   3). 9. The Louvain folder's expand caret (the small chevron left of the folder icon, default
   cursor, tooltip "Expand Louvain" over the folder's name; the folder row need not be clicked
@@ -682,7 +775,9 @@ path meets on this build:
   teams, starting color `A1CAF1` (10 groups; palette "Nineteen contrasting colors": Group 1
   yellow, 3 orange, 5 crimson, 9 dark blue, 10 salmon). The answer shows on the Group 4 row, as
   "12 of 115" and as "Louvain: Group 4, 12 nodes". By keyboard the folder row reads "Louvain, folder, 10 layers"; ArrowRight expands
-  it. Groups 3 and 4 on A both hold 11, so a count read off the wrong row still reads 11.
+  it. Groups 3 and 4 on A both hold 11, so a count read off the wrong row still reads 11. By
+  keyboard (A), Analyze is 18 Tabs from the opened graph, the layer tree is entered at Everything,
+  and the opened group layer's color box is 14 Tabs on.
 - **Final screen:** Group 3 (B: 4) red, the others in their colors; the answer 11 (B: 12).
 
 ## T47. Every cluster at once, colors kept
@@ -703,29 +798,36 @@ path meets on this build:
   hidden under the selection glow: not a success.
 - **Success path (A, 11 steps):** 1. "No thanks". 2. Les Miserables. 3. Analyze. 4. `louvain`. 5.
   Enter. 6. Run (six groups in a Louvain folder; a color key opens over the top left; the drawing
-  keeps its size and place). 7. The Louvain folder (Style shows "6 layers in Louvain. Layers added later
+  moves right and is drawn slightly smaller). 7. The Louvain folder (Style shows "6 layers in Louvain. Layers added later
   are not changed."; the Color line shows the purple "Layer" token with the groups' swatches, and
   Which nodes reads "Louvain: <<Layer>>", drawn with guillemets). 8. Shape "+" (a menu of Shape
   and Size). 9. Shape (the Shape line is added, showing "Icosphere" in italics; by keyboard focus
   is on it, by pointer no focus ring shows; a screen reader hears "Node shape added: pick a value
   for every layer", which nothing on screen shows). 10. Open the list (visible label "Shape",
   accessible name "Node shape, default Icosphere" until a value is picked, then "Node shape,
-  Box"; Enter also opens it; the list shows a check on Icosphere though no value is set). 11. Box ("Shape: 6 changed", Undo; the key gains "Shape: Louvain, Box").
+  Box"; Enter also opens it; on the unset line Icosphere is drawn highlighted, with no check; a
+  check shows only on a value that is set). 11. Box ("Shape: 6 changed", Undo; the key gains "Shape: Louvain, Box").
   Or by keys at step 10: type `box` (Box highlighted; the box still shows "Icosphere" while
   typing), Enter. B: the same on College football: "10 layers in Louvain", "Shape: 10 changed";
   the key then scrolls ("3 more below"), hiding Groups 8 to 10. By keyboard, Tab into the layer
-  tree lands on Everything (the bottom row); ArrowUp reaches the folder.
+  tree lands on Everything (the bottom row); ArrowUp reaches the folder; from the opened graph,
+  Analyze is 18 to 20 Tabs away, and on B Enter in the Louvain card's Resolution box runs it.
 - **The shape list:** the first click on Box took on every pilot walk. Escape closes the list and
-  keeps the value and focus; Tab closes it and moves focus to "Node shape by attribute". Typing the
-  prompt's own word `cube` highlights Cylinder, and Enter applies cylinders ("Shape: 6 changed"),
-  which head-on look like squares: F (`node.shape` is not `box`). Quick actions finds nothing for
-  `shape` or `cube`, and the find box answers `cube` with "No match".
-- **Undo past the run, then Redo,** brings the folder back with every group matching 0 nodes (no
-  colors, no key) while its header says "77 of 77 nodes"; running Louvain again offers "Update
-  Louvain layer", which changes nothing. Recovery is undoing past the run and running it afresh.
-  A session caught here is graded on where it ends; the trap is a build defect, not a wrong turn.
-- **A group layer's own Shape "+" > Shape** adds an italic, unset "Icosphere" line; nothing changes
-  and nothing is added to the key until a value is picked, and "-" removes the line.
+  keeps the value and focus; Tab closes it and moves focus to "Node shape by attribute" (whose
+  tooltip then covers the "Shape: 6 changed" line). Typing the prompt's own word `cube` highlights
+  nothing and shows no message (only "cube" at the grid's foot), and Enter does nothing; the reader
+  must find Box. ArrowRight at a row's end does not wrap to the next row. Quick actions finds
+  nothing for `shape` or `cube`, and the find box answers `cube` with "No match".
+- **Undo past the run, then Redo,** brings back the folder with every group, its count and color
+  and the key; Box then applies normally, and a run after undoing offers plain Louvain.
+- **Undo of a shape set on the folder or on several layers** turns the drawing back to balls while
+  the open inspector still shows "Box" as set (spoken "default Icosphere" with value Box); picking
+  Box again does nothing until another shape is picked first. A session caught here is graded on
+  where it ends; the trap is a build defect, not a wrong turn.
+- **A group layer's own Shape "+" > Shape** adds an italic, unset "Icosphere" line, with no "Not
+  set yet" hint; nothing changes and nothing is added to the key until a value is picked, and "-"
+  removes the line. The folder's Color field opens "Color from each layer", with nothing about
+  shape; on B one Escape closes that table onto the field.
 - **Route: around** gives no "changed" line and no shape entry in the key; the folder route adds a
   "Shape: Louvain" entry with a "Box" row to the key.
 - **Final screen:** cubes in six (A) or ten (B) colors; `styles.json` shows each group layer with
@@ -747,16 +849,20 @@ path meets on this build:
   together (S, `Route: several`) or on each layer (S, `Route: one by one`; after one layer the key
   reads "21 of 24 nodes", B "20 of 24"); a new layer above that paints the others back to
   `#6366F1` (SD, `Route: cover`: it covers, it does not pick). Fill "+" there adds an unset line
-  showing `6366F1` in italics that paints nothing; Enter, or `6366F1` typed and Enter, leaves it
-  unset; another color first and then `6366F1` typed over it sets it, 2 steps more. Made while one
-  cluster layer is selected, the new layer lands inside the Louvain folder, where it still covers;
-  on a new layer with no conditions the picker opens with the attribute list already open, so a
-  click on "Add a condition" closes it and a second click is needed. A single cluster layer's
-  Which nodes reads "8 of 24" without "nodes".
-- **Not graded by the key yet (for the Director, `criteria.md` log):** a Filters step "on_record
-  is Yes", then Louvain run while it is on (clusters worked out on the 12 shown only; the key
-  reads "Color: Louvain on 12 nodes"), then the step turned off. It ends on the target look and
-  the count 12, but the clusters are not the whole file's, and no `Route:` value fits.
+  showing `6366F1` in italics that paints nothing until Enter, which sets it and repaints the
+  others (typing another color and then `6366F1` over it also sets it). Made while one cluster
+  layer or the folder is selected, the new layer lands inside the Louvain folder, where it still
+  covers; on a new layer with no conditions Which nodes opens with the attribute list closed, and
+  one click on "Add a condition" opens it. A single cluster layer's Which nodes reads "8 of 24
+  nodes". The cover route never shows the answer: the key reads "Color: Layer 1, 9 of 24 nodes"
+  (B 12) and the group rows carry no count, so 15 must be worked out; the cover layer's row has no
+  swatch.
+- **A Filters step "on_record is Yes", then the run while it is on, then the step turned off:**
+  `Route: around` ("Rules settled before round 1"). While the step is on the key reads "Color:
+  Louvain" with "12 of 24 nodes"; "Color: Louvain on 12 nodes" shows once the step is off. Turning
+  the step off, or undoing it, does not re-frame the drawing, and a cluster stays cut off at the
+  canvas's right edge. After a run started from the Data panel the left panel stays on Data, so
+  the folder is out of sight until the Graph rail button is pressed.
 - **False finishes on this build:** a Filters step "trained is Yes" ("on_record is Yes") left on
   keeps 15 (12) of 24 and hides the others instead of leaving them in the starting color: the right
   count with the wrong look (F). Removing the folder's Louvain card ("Remove Louvain from every
@@ -765,19 +871,28 @@ path meets on this build:
   Which nodes: "Everything styles all 24 nodes: it is the base layer, under every other layer."
   Clicking a group in the color key does nothing. The Filters button switches the left panel from
   Style layers to Data. The find box's clear button and Escape empty the text but keep the 15 (12)
-  selected, and their rings stay on the drawing through later steps.
+  selected, and their rings stay on the drawing through later steps; Escape with focus in a layer's
+  inspector clears that selection, with no Undo. The find box's `not trained` finds nothing.
 - **Success path (A, 12 steps):** 1-3. File in. 4. Analyze. 5. `louvain`. 6. Enter. 7. Run (3
   clusters; the inspector stays on the Graph; a "Color: Louvain" key with Group 1 to 3 opens over
-  the drawing, and a screen reader hears "Louvain finished: 3 groups, each a layer in the Louvain
+  the drawing, which moves about 130 px right and is redrawn smaller, and a screen reader hears
+  "Louvain finished: 3 groups, each a layer in the Louvain
   folder of Style layers"). 8. The Louvain folder ("3 layers in Louvain. Layers added later are
   not changed."; "Which nodes ... 24 of 24 nodes", chip "Louvain: <<Layer>>"). 9. Which nodes
   (a collapsed line; the click opens the picker; its card reads "<<Layer>> 3 layers"). 10. "Add a condition" (its results
   list the run as "Louvain (already a condition)"). 11. `trained` (the card starts on Yes: "15 of
   24 nodes"; the drawing changes at once, and the key adds "15 of 24 nodes"). 12. Done (chips
   "Louvain: <<Layer>>" and "trained: yes, 15 nodes"). B: the same with `on_record` ("12 of 24
-  nodes", "on_record: yes, 12 nodes"). No node moves when the card is added. By keyboard, Enter in
-  Louvain's Resolution box runs the analysis at once and returns focus to Analyze; Tab from the
-  card's value goes to "Remove trained" (drawn above it) before "Add a condition" and Done.
+  nodes", "on_record: yes, 12 nodes"). No node moves when the card is added. A new layer's
+  attribute list also lists a "Community size 8 to 8" entry under Results. The answer also shows
+  on Everything's Fill line: "Covered by Group 1, Group 2 and Group 3 on 15 of 24". By keyboard,
+  Enter on Louvain in the analysis list puts focus on "Run Louvain" (Enter in the Resolution box,
+  when reached, runs the analysis at once); "Remove trained" comes before the card's value
+  (Shift+Tab), and Tab from the value goes to "Add a condition"; from the folder row, Which nodes
+  is 10 Tabs on; Which nodes is named "Louvain: each layer's own value" while the screen shows
+  "Louvain: <<Layer>>". The "Select layers..." route (the `several` route) works; its checkboxes
+  have no accessible name, and the folder's own checkbox shows partly checked with all three
+  layers checked.
 - **Final screen:** 15 (B: 12) dots in cluster colors, 9 (B: 12) in the starting color. The color
   key still lists every group.
 
@@ -793,36 +908,43 @@ path meets on this build:
   `revision`. Undo and reopening the sample give the start's look exactly (`14bbda5e594c` on A and
   B; all red `030d9c64dd57`, all yellow `c05072721f31`). The picker's first swatch ("indigo
   6366F1"), typing `6366F1` back over a set color, and deleting one's own layer give a tree that
-  matches the start in every value but its revision (`54ae8c137668`). Until the tool
-  strips it, graders compare `styles.json` with `styles-start.json` with `revision` ignored and
-  grade on that.
+  matches the start in every value but its revision (`54ae8c137668`). From an empty start,
+  `styles-start.json` and the `start` field of `styles.json` are null (no graph is open yet), so
+  the start is the first line of `styles-steps.jsonl` with `graph: true`; the grade is by its
+  `colors` ("Rules settled before round 1").
 - **Routes:** the Undo arrow (tooltip "Undo changing node color on Everything Ctrl+Z"), or
   Control+Z, which works with focus still in the color box: S. After the one undo Undo is dimmed
-  (no tooltip on hover; by keyboard focus stays on it, and a second Enter announces "Nothing to
-  undo"), and an extra press does nothing. Typing the old color back (`6366F1`) or the picker's
-  first swatch ("indigo 6366F1"): S when the tree matches, values compared as above; a near color
-  (`blue` gives `0000FF`, also with Tab; `purple` `800080`) is F. The picker marks the color it was
-  opened on as "the starting color" ("blue 0000FF, the starting color" once blue was typed), which
-  is not the color the sample opened with: picking it is F. Enter in the picker's hex box applies
-  the color and leaves the picker open. Removing the Color line with its minus ("Remove node
-  color"; focus then jumps to Effects' "+") and adding it again is S only if the line is then set
-  to `6366F1`: Fill "+" brings it back unset, with `6366F1` in italics; Enter, Tab and `6366F1`
-  typed and Enter leave it unset, Escape removes the line again, and its picker shows a palette
-  with no `6366F1` (first swatch "blue 5B8FF9", a near color: F). Removing the line alone
+  (hover shows "Nothing to undo"; dimmed it is no Tab stop), and an extra press does nothing.
+  Control+Z with focus in the find box undoes the typing there, not the color. Typing the old
+  color back (`6366F1`) or the picker's first swatch ("indigo 6366F1", `54ae8c137668`): S, the
+  drawing matching; a near color (`blue` gives `0000FF`, also typed over the hex in the picker;
+  `purple` `800080`) is F. The picker marks the color it was opened on as "<name> <hex>, the color
+  before this edit" ("yellow FFFF00, the color before this edit" once yellow was set), which is
+  not the color the sample opened with: picking it is F. Enter in the picker's hex box applies
+  the color and closes the picker; Escape there discards a typed value; a click into the hex box
+  puts the caret after the value, so typed text becomes `FF0000blue`, and Enter then closes the
+  picker silently with nothing changed. Removing the Color line with its minus ("Remove node
+  color"; focus then jumps to Effects' "+") and adding it again is S when the line is then set to
+  `6366F1`: Fill "+" brings it back unset, with `6366F1` in italics; Enter on it, or `6366F1` typed
+  and Enter, sets it (`54ae8c137668`); Tab leaves it unset, and Escape removes the line again. Removing the line alone
   draws the default blue-violet, so the screen looks as it opened, while the tree holds no color
-  (`15c2d32ec164`): F under the definition above (and a false done if the participant says it is
-  done), though the screen cannot show the difference; logged for the Director in `criteria.md`.
-  Reopening the sample (Main menu > Open sample, then the dialog "Discard unsaved changes?" and its
-  button "Discard"; it clears the undo history): S. Removing a layer the participant made: S when
+  (`15c2d32ec164`): graded by the drawing, which matches ("Rules settled before round 1"), and
+  recorded as a finding about the design.
+  Reopening the sample (Main menu > Open sample, the open sample marked "Open now", then the
+  dialog "Discard unsaved changes?" and its button "Discard"; it clears the undo history): S. So is
+  Main menu > Back to start > Discard, then the sample from the start screen. Removing a layer the participant made: S when
   the look matches. Hiding Everything blanks the whole drawing. The Main menu, Layer actions and
   the canvas's right-click menu hold no undo.
 - **Success path (A, 5 + 1 steps):** 1. "No thanks". 2. Les Miserables. 3. Everything (Style
   open). 4. Click the color box ("Node color, set here, indigo"; selects the hex; no picker opens). 5. Type `red`, Enter (focus stays in the box). `--end` gives the follow-up. 6. The Undo arrow, or
   Control+Z (one key, focus still in the box): the color reads `6366F1` again ("Undid changing
-  node color on Everything."). Control+Shift+Z redoes; Control+Y does nothing. B: Zachary's karate
-  club, `yellow` (`FFFF00`). By keyboard the Undo button is 27 Shift+Tabs back from the color box
-  (A and B), and its name is only "Undo"; Control+Z is the quick route. Reopening the sample:
-  Main menu > Open sample, the open sample marked with a check and "Open now".
+  node color on Everything."). Control+Shift+Z and Control+Y redo. B: Zachary's karate club,
+  `yellow` (`FFFF00`). By keyboard (A; B's keyboard walk is owed) the sample is 6 Tabs from the
+  start, Everything 14 Tabs on, the color box 19 more, and the Undo button 25 Shift+Tabs back from
+  the color box, named "Undo changing node color on Everything"; Control+Z is the quick route.
+  The picker's close button, Hex format list, eyedropper and sliders are not Tab stops; Tab past
+  the last swatch closes the picker onto the color box. Hiding Everything with its eye ("Turn this
+  layer off") blanks the drawing, ties included.
 - **Final screen:** blue-violet dots; Everything's `node.color` is `#6366F1`.
 
 ## T50. What a colleague's color picks out
@@ -846,19 +968,31 @@ path meets on this build:
   collapsed line, or in its spoken name, says both must hold, and "Nodes that pass every
   condition" shows only once it is opened); opened, the hours card shows the match menu "Between"
   and two boxes, 30 and 52. Its Values tab: "Matched nodes 6", "Node color on 6 of 6 nodes",
-  members v02, v05, v09, v16, v17, v21.
+  members v02, v05, v09, v16, v17, v21. The rule as the screen states it, "hours 30 to 52" (or
+  "between 30 and 52") and trained, is the layer's rule (52 is the file's highest), so it is read
+  as the key's "30 or more hours and finished training": S.
 - **Another route:** a colored node's Style > "Why this look" > "Open layer Poster" opens the
-  layer on the tab last shown (usually Style, with the rule). Opening the rule (a click on the
-  chip) puts focus in its first box and, on A, opens a list of the three names under it, over
-  Match case, Add a condition and Done; the first Escape closes the list and the second the card,
-  and Enter, Escape and Done all leave the rule unchanged. ArrowDown and Enter on a name in that
-  list rewrites the rule (`Mlle Baptistine`, 1 of 77): a change to the colleague's project, which
-  `changes.changed` shows; Control+Z undoes it, though the open card shows the old text until
-  Escape. Grade the reading; a rule left rewritten is recorded as a wrong turn.
+  layer on the tab last shown (usually Style, with the rule); that node's own Style tab shows Fill
+  with "+" and no Color line. Opening the rule (a click on the chip) opens the card with its
+  suggestion list closed and focus in its first box; the first Escape closes the card, and Enter,
+  Escape and Done all leave the rule unchanged. On A, one ArrowDown opens the list of the three
+  names with nothing highlighted (Enter then changes nothing); a second ArrowDown and Enter
+  rewrites the rule (`Mlle Baptistine`, 1 of 77): a change to the colleague's project, which
+  `changes.changed` shows; Control+Z undoes it, and the open card shows the restored text at once.
+  Grade the reading; a rule left rewritten is recorded as a wrong turn. On B, Enter in the from
+  box closes the card with focus on Which nodes; the trained value select opens Yes / No / Has a
+  value / Has no value over Add a condition and Done.
   Right-click > "Select what it paints" on the layer selects its nodes, but the selection names
-  none of them (on B its summary gives hours only as "mean 41.67"). Everything's Color line on B
-  reads "Covered by Thank-you cards on 6 of 24", the layer's name a link to it. Members on the
-  Values tab are listed by id; Enter on one selects it, and Escape on its heading does nothing.
+  none of them. On B its summary reads "hours 31 to 52, mean 41.67", "trained Yes (6)" and "role
+  staff (4), volunteer (2)": the selection's range, not the layer's rule. How a reading of "31 or
+  more hours and trained" taken from that summary alone is graded is left to the Director
+  (`criteria.md` log). Everything's Color line on B
+  reads "Covered by Thank-you cards on 6 of 24", the layer's name a link to it (A: "Covered by
+  Poster on 3 of 77"). Members on the Values tab are listed by id; Enter or a click on one selects
+  it and replaces the layer's inspector with the node's (titled by id), and Escape there clears
+  the selection and leaves focus on the Graph heading with the layer closed. The find box answers
+  `orange` and `green` with "No match"; the table has no color column and cannot show only the
+  selection.
 - **Final screen:** the layer's Style with its conditions shown; nothing changed
   (`changes.changed` empty).
 
@@ -882,31 +1016,64 @@ path meets on this build:
   Load. 4. Everything (Style open). 5. The link icon beside Color (tooltip "Node color by
   attribute"; a popover with the same title opens with nothing highlighted, listing the file's
   columns under Data -- name, role, hours, trained, phone -- and "Node id" under Structure). 6.
-  `role` (three colors; the drawing does not move; the key over the drawing reads "Color: role"
-  with volunteer, staff and board; three small squares appear under the Color line; a screen
+  `role` (three colors; the key over the drawing opens, reading "Color: role" with volunteer,
+  staff and board, and the drawing shrinks and moves right to clear it; three small squares
+  appear under the Color line, a square's tooltip sitting over the square to its left; a screen
   reader hears "Node color varies by role, on 24 nodes", which is not shown on screen). The board's color is read from the key, from a
   square's tooltip (hovering one shows its value, "board"), or from the "Color by role" dialog the
-  Color line opens (palette shown as "Eight distinct colors"; Escape returns focus to the box).
+  Color line opens (palette shown as "Eight distinct colors"; Escape returns focus to the Color
+  line). After the binding the Color line is a button named "Node color: role, 3 groups, Eight
+  distinct colors: volunteer orange, staff blue, board green", which already speaks the answer.
   The link icon is then named "Stop varying node color by data": clicking it again removes the
-  binding (by keyboard it is one Shift+Tab from the box, with no confirmation). In the attribute
-  list, Tab closes it and picks nothing; the squares are not Tab stops, so by keyboard the colors
-  are read in the dialog ("board, green, 3 nodes") or from the key.
-- **Reference values (6dd0b00bd7, the same as ed4351b258):** A: volunteer orange, staff sky blue
+  binding (by keyboard it is one Tab after the Color line, with no confirmation; Shift+Tab from
+  the line goes to "Pick node color"). In the attribute list, Tab closes it and picks nothing; the
+  squares are not Tab stops, so by keyboard the colors are read in the dialog ("company , 6
+  nodes"), from the Color line's name, or from the key. In the dialog each row's Hide and actions
+  buttons are Tab stops after the grid; Escape on a row's actions button does nothing, and Escape
+  from its Hide button closes the dialog onto the Color line. By keyboard, Everything's Color line
+  is 5 Shift+Tabs to the tree and then 19 Tabs from the opened graph.
+- **Reference values (e3c5bca8e6, the same as 6dd0b00bd7 and ed4351b258):** A: volunteer orange, staff sky blue
   (the screen reader says "blue"), board green (`#009E73`; the screen reader says "green"). B:
   person orange, company sky blue (`#56B4E9`; the screen reader says "blue"), agency green
   (`#009E73`, "green"). B's key reads "Color: kind". The key shows three lines in three distinct
   colors on both. Accept green or teal on A; sky blue, light blue or blue on B.
 - **Detours on this build:** a color typed on Everything makes every node one color with no key
   line; the find box's "role is board (3)" selects the 3 (rows by id), and styling them makes the
-  hand-picked layer above (its name and key line, "3 nodes", never say board; after Enter on its
-  color focus stays in the box, while on a "+" > Layer layer it moves to the disabled Fill "+");
-  a node's own Style tab bound to `role` makes a one-node layer whose key still lists all three
-  colors ("v23: 1 of 24 nodes"): F; the Data place's attribute (its menu and "Attribute actions": Add label
-  line, Filter to..., Show in table) and a node's right-click menu offer no color by value.
+  hand-picked layer above (its name and key line, "3 nodes", never say board, and a color typed
+  on Everything first has no key line at all; after Enter on its color focus stays in the box, as
+  on every layer); a node's own Style tab bound to `role` makes a one-node layer ("v12") whose key
+  lists only its node's value, while its Color line's three squares and spoken name still list
+  all three: F; three hand-made layers with a category card each (S once all three are made; after
+  two, the third value stays indigo with no key line: F); the Data place's attribute (its menu
+  and "Attribute actions": Add label line, Filter to..., Show in table), a node's right-click
+  menu and Analyze (`color`: "No analysis matches") offer no color by value.
 - **Final screen:** three colors on the drawing; `styles.json` shows a `node.color` binding
   reading `data.role` (or `data.kind`), palette okabe-ito.
 
 ## Change log
+
+- 2026-10-19 (round 1 pilots on e3c5bca8e6): the success paths and their notes match the frozen
+  build e3c5bca8e6 as the pilots in `rounds/r1/pilot/` saw it. A new layer's collapsed Which
+  nodes (Which edges) only expands on its first click, so "Add a condition" is a step of its own:
+  T38 13 steps, T40 A 11, T40 B 12 (15 with Starts with, which also needs a click in the text box
+  because focus stays on the match menu), T41 19, T42 11 on both halves, T45 A 17 and B 16; T39's
+  new-layer route is 6. The subtitle and the row's count follow a condition as soon as it is
+  added. Enter in a just-added color box keeps focus in the box on every layer, and after Line "+"
+
+    > Color the Color row stays below Width. An unset line takes the value it shows (T48's cover is
+    > no longer 2 steps longer; T49's remove-and-re-add ends S with Enter). Runs and the first key
+    > re-frame the drawing (it moves right and shrinks). The find box answers `=degree` with "Did you
+    > mean Degree?" and keeps the typed text; its no-match hints teach `>=`; picked rows show a check.
+    > The analysis card's button is "Run Degree", and `most` highlights Degree. A dimmed Undo is no Tab
+    > stop, shows "Nothing to undo" on hover, and Control+Y redoes. T43's selection Size line says
+    > "Not set yet"; T44's hidden count starts at 0 on both halves and Quick actions' "Add label line"
+    > works once an attribute is open in Data; T45's "New layer for family" route reaches the 8 (SD);
+    > T46 A is now walked; T47's `cube` highlights nothing (no Cylinder false finish), and Redo after
+    > undoing the run brings the groups back; T48's filtered run is graded `Route: around`, as already
+    > settled; T49's picker Enter closes the picker and its swatch reads "the color before this edit";
+    > T50's opened card keeps its list closed and B's "hours 30 to 52" reading is S; T51's link icon is
+    > one Tab after the Color line. Owed: T46 B and T49 B by keyboard. No success definition's target
+    > changed and no bar changed.
 
 - 2026-10-18 (round 1 pilots on 6dd0b00bd7): the success paths and their notes match the frozen
   build 6dd0b00bd7 as the pilots in `rounds/r1d2/pilot/` saw it. Every chip now ends in "nodes"

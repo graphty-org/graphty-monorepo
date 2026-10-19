@@ -10,66 +10,51 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-19, fourth read, build 1fa51e2b0b) Round 1 has NOT started. 1fa51e2b0b's app code is
-  identical to 52cb47a85a (the commits between touch only design/). The fifth dry-run pass on
-  1fa51e2b0b stopped at 23:51 on 2026-10-18 after 33 walks: complete (pointer, keyboard,
-  detours) only T37 A/B, T38 A/B, T39 B, T40 A/B, T41 A; T39 A lacks keyboard and detours, T41 B
-  keyboard; T43 to T51 (core T47, T48) have none; 9 walks went to T37 and T42, which round 1 does
-  not run. No pass-5 triage, no backlog.md, no rounds/r1/bars yet, and answers.md holds no
-  per-method reference values for the non-Louvain community analyses that preflight 5 requires.
-  Eight changes proposed (below, 2026-10-19 decision). New defect on T40 B's success path:
-  typing GAL right after picking "Starts with" reopens the match menu and the letters land
-  nowhere; "Add a condition" needs two clicks the first time.
-- (2026-10-18, third read) Seven of eight changes taken into the refrozen criteria (exit test,
-  bar 4 at 10, any community analysis, T48 B filtered = around, T44 A `id`, T49 by the drawing,
-  repro-or-measurement confirmation). Not taken: T51 B to neighbors.csv; recorded as a limit
-  (volunteers and sources share one schema under T38, T41, T43, T48, T51).
-- (2026-10-18) No prompt echoes a 52cb47a85a fix's words ("Not set yet: the first ... you pick
-  makes the layer", "Undid ...", "the color before this edit", "Kinds"); the at-rest walk does
-  not see notices or the "Not set yet" line, so the wording check cannot prove it.
-- (2026-10-18, round 1 pilots on 6dd0b00bd7) answers.md matches build 6dd0b00bd7. Owed before
-  round 1: T46 A all three ways (never started: no browser slot), T37 A by keyboard, T43 B by
-  keyboard past the start screen. T45 B now walked: 15 steps. New Director question: T46's prompt
-  does not name Louvain; how is a Leiden or other clustering run graded?
-- (2026-10-18) Cross-task facts on 6dd0b00bd7: chips end in "nodes"; Fill "+" opens no key until
-  Enter; Enter in a new layer's new color box lands focus on the disabled Fill "+" (a selection
-  layer keeps it in the box) -- the likeliest confirmed severity-3 candidate across T38-T51; an
-  unset line's italic 6366F1 cannot be set to 6366F1 (T48 cover, T49 re-add); keyboard lands on
-  the inspector heading; find box keeps the typed text; runs keep the drawing; selection layers
-  appear only when a value is committed; screen reader names 6366F1 "indigo", 800080 "purple".
-- (2026-10-18) Severity-3 candidates to watch in round 1: T47 `cube` typed in the shape list
-  picks Cylinder; T50 A's opened rule rewrites itself on ArrowDown+Enter; T46 Memberships drops
-  keyboard focus on the resize separator.
-- (2026-10-17) T46's Memberships button and "Why this look" now open the right group layer:
-  question 3's trap (the folder's color) is still there, but the shorter routes bypass the folder
-  -- read T46 Token lines knowing the folder may never be visited.
-- (2026-10-17) Wording check on tier 3 prompts: 32 prompts vs 23 screens (tmp/style-study/bars3),
-  0 shared words. It only sees walked screens at rest: a popover nobody walks is never checked.
-  No literal echo found in source either ("Each layer's own value" is a code comment; the UI says
-  "from each layer").
-- (2026-10-17, review applied to the first-use styling study) Round 1 is 13 tasks: T37 and T42
-  out, T51 in at 2, T48 core at 6 (core: T39, T40, T47, T48). score.mjs: a task under 4 sessions
-  does not hold bar 1; T47 holds only when half its successes carry `Route:` folder/several/one by
-  one; bar 4 stops at every node in ONE new color (`colors` per screenshot), never = Infinity.
-  Still owed at preflight: what the from box does with `10,000` and `$10,000`; T51's step count
-  and the key's three colors; T42 at 4 in round 2.
+- (2026-10-19, build e3c5bca8e6) answers.md matches e3c5bca8e6 as the round 1 pilots saw it
+  (rounds/r1/pilot/, T37 A to T51 B). Owed before round 1: T46 B and T49 B by keyboard (both
+  stopped after the start screen; T49 B's g-keys session may still hold a slot). Most halves'
+  report.md was never written (the harness refuses subagent report files): the pilot output is
+  the only record; T40 B's and T45 A's report.md describe older builds.
+- (2026-10-19) Every path that adds a condition is one step longer: the collapsed Which nodes
+  line only expands. T38 13, T40 A 11, B 12 (15 with Starts with), T41 19, T42 11, T45 A 17, B 16;
+  T39's new-layer route 6. Bar 4 (T39, Everything route, 5) is unaffected.
+- (2026-10-19) Cross-task facts on e3c5bca8e6: Enter in a just-added color box keeps focus there
+  (the 6dd0b00bd7 "disabled Fill +" severity-3 candidate is gone); an unset line takes its shown
+  value on Enter (T48 cover and T49 re-add no longer 2 steps longer); every run and first key
+  re-frame the drawing (shrinks, moves right ~130-170 px) and it stays off center after Undo --
+  the likeliest confirmed defect across T37-T51; dimmed Undo is no Tab stop (against decided.md);
+  the tree is entered at Everything (against decided.md); F6 never reaches the left panel's
+  content or the top bar.
+- (2026-10-19) Severity-3 watch for round 1: T40 B "Starts with" leaves focus on the match menu
+  and the letters are lost; T47 shape list gives no sign when `cube` matches nothing (the
+  Cylinder false finish is gone); T47 Undo of a folder shape leaves the inspector showing Box;
+  nodes titled by id everywhere (T38, T41, T43, T46, T50, T51).
+- (2026-10-19) Left to the Director: T50 B's "31 or more" read from the selection summary
+  ("hours 31 to 52") instead of the card. Graded "hours 30 to 52 and trained" from the card as S.
+- (2026-10-19, fourth read) Eight criteria changes proposed and taken into the refrozen criteria
+  (own-run grading for non-repeating methods, bar 2 T49 carve-out, bar 6 typing after a match
+  kind, docs-only commits do not refreeze, round-1 halves only, spoken.json, kept "draw", card
+  type by domain count). Preflight 5's per-method reference values are still owed.
+- (2026-10-18) Seven of eight third-read changes taken; not taken: T51 B to neighbors.csv
+  (volunteers and sources share one schema under T38, T41, T43, T48, T51: a recorded limit).
+- (2026-10-18) No prompt echoes a fix's words ("Not set yet", "Undid ...", "the color before this
+  edit"); the at-rest walk does not see notices -- spoken.json now carries them.
+- (2026-10-17) T46's Memberships button and "Why this look" open the right group layer, so the
+  folder (question 3's trap) may never be visited: read T46 Token lines knowing that.
+- (2026-10-17) Round 1 is 13 tasks: T37, T42, T44 out; core T39, T40, T47, T48. score.mjs: under
+  4 sessions a task does not hold bar 1; T47 holds only when half its successes carry `Route:`
+  folder/several; bar 4 stops at every node in ONE new color.
 - (2026-10-17) Tier 3 is FIRST USE + STYLING: 56 sessions, 9 first-time personas, every start
-  `empty` (Sam `empty --keys`). Before round 1: fix the two axe serious hits and the focus defects
-  in tier3/pilot-materials/README.md, re-record bar 8 limits on the frozen build, run Louvain twice.
-- (2026-10-17) Study data traps: football names have no spaces ("Florida State" finds nothing);
-  Les Mis nodes have only id and name; persona files can carry team-only sections into briefings;
-  brief every planned row and read one briefing per persona before calling a first move unprompted.
-- (2026-10-16) Bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`: a bulk field whose layers
-  differ draws the purple <<Layer>> token, "N layers", chits up to 6 or 5 and "+N". Study
-  questions: token misread as a column; chit clicks attempted; whether "+N" reads as more groups.
+  `empty` (Sam `empty --keys`).
+- (2026-10-17) Study data traps: football names have no spaces; Les Mis nodes have only id and
+  name; brief every planned row and read one briefing per persona before calling a first move
+  unprompted.
 - (2026-10-13) "Unset" vs "cover" is the core risk of the layer model: tasks need each in reader
-  words, scoring which control is used first. Do not let a Figma-fluent persona stand in for the
-  population; grep histories for "Figma" before claiming transfer.
+  words. Do not let a Figma-fluent persona stand in for the population.
 - Expert counts are not user evidence; severities are walkthrough judgments. Rerun on the frozen
   build, not the dev server, before reporting "fixed".
 - (tier 2 lessons) Step counts must match the key's counting; histories, setups, prompt words and
-  the tool's own text all steer behavior -- grep all four before "unprompted"; a tool refusal is
-  not reader confusion; read leak-check and bars MISS lines, not only verdicts.
+  the tool's own text all steer behavior -- grep all four before "unprompted".
 
 ## Priorities and values
 
@@ -105,6 +90,16 @@ logged). Their reasons, in short:
 
 ## Decisions and reasons
 
+- **2026-10-19 (pilots on e3c5bca8e6 into the key):** Patched answers.md bullet by bullet from 30
+  pilot outputs (most report.md files never written). Rewrote the shared "every path meets" block
+  where the build changed (Which nodes expand click, Enter focus, unset line, re-framing, find box,
+  Undo). Kept every target. Wrote T50 B's "hours 30 to 52 and trained", read from the card, as S
+  because it is the stored rule and 52 is the file's maximum; left the selection-summary reading
+  ("31 to 52") to the Director because it is not the layer's rule. Moved T48's filtered run and
+  T49's removed line to the settled rules already at the top of the key, instead of leaving stale
+  "for the Director" text. Did not count pilot step numbers that split "type, Enter" into two
+  (T42 B said 12; the key's counting gives 11).
+
 - **2026-10-19 (fourth read of the criteria, build 1fa51e2b0b):** Proposed, not applied (the
   Director freezes): (1) a method whose two frozen-build runs differ is graded against the
   participant's own run (target count read from their `styles.json`), not a fixed number --
@@ -128,36 +123,13 @@ logged). Their reasons, in short:
   kinds for T51 B because every other brought file with a category is a node table with the
   volunteers/sources schema or has no ties; it also puts coloring by category on the Edge tab.
   Chose Ruth for it (on neither T45 nor T51) and Grace to Ruth's T49 B (not on T49 A).
-- **2026-10-18 (pilots on 6dd0b00bd7 into the key):** Patched answers.md with asserted bullet
-  replacements (a helper that swaps one `- **label` bullet inside one section) instead of a full
-  rewrite: 25 reports, most changes local. Rewrote the common block whole. Kept every target;
-  graded new routes by existing rules (T40 find-box Shift+click to six: SD; T47 `cube` giving
-  Cylinder: F by the tree; T49 remove-and-re-add: S only if it ends set; T50 rule rewritten by a
-  suggestion: graded on the reading, recorded as a wrong turn). Left T46's non-Louvain run to the
-  Director. Wrote T46 A's path as 12 from B's walk, flagged unwalked, rather than wait.
-- **2026-10-18 (pilots on 5bd16cda6e into the key):** Rewrote the success-path body again from
-  the 26 pilot reports rather than patching. Graded new working routes by the existing rules
-  (T37's find-box rule by its length; T41's find-box routes SD; T40/T45's selection layers that
-  end on the right set SD) instead of adding grades. Left T48 B's filter-then-run route ungraded
-  and logged it: it changes what "the clusters" are, which is the Director's call. Kept T45 B's
-  ed4351b258 path, flagged as unwalked, rather than guessing a new count. Changed one tasks.md
-  detour line (card dropped now has a notice); no prompt was wrong.
-- **2026-10-17 (pilots on ed4351b258 into the key):** Rewrote answers.md from the reference
-  values down rather than patching (30 pilot reports touched every section). Kept every success
-  target; where a pilot found a shorter real route (T37 Degree in the inspector, T46 Memberships
-  and "Why this look") the key lists it, since the grading rule already gives S to "a route as
-  short". Accepted T48's chip count on the one-by-one route too (it is whole-file, so it still
-  equals the answer). Kept T49 "remove the line alone" as F because the definition is the tree,
-  and logged the screen/tree split for the Director instead of re-grading it. Changed tasks.md's
-  T40/T50 detour line only (stale focus claim); prompts were right. Added the volunteers' and
-  sources' Louvain outputs (3 groups) as reference values, read from the T48 pilots.
-- **2026-10-17 (pilot findings into the key):** Counted one click per step everywhere (the old key
-  grouped "Fill +, Color" and "Layer, Enter"), so the participant and key counts agree. Judged T44
-  on the style tree when labels are hidden by overlap (the app's declutter, not the participant's
-  omission). Accepted T48's chip count (equals the answer when every node is in a cluster; a
-  grader cannot tell the readings apart). T37's Degree layer from the run is not held against the
-  participant. Left tasks.md's prompts unchanged: no prompt was wrong, only the key. Did not edit
-  bar 4 or measure.mjs: bars are the Director's, the tool is shared; both logged.
+- **2026-10-17 to 10-18 (pilots on ed4351b258, 5bd16cda6e, 6dd0b00bd7 into the key, folded):**
+  Rewrote or patched answers.md per frozen build from the pilot reports; kept every success target;
+  graded new routes by existing rules ("a route as short" is S; selection routes that end right are
+  SD; T49 graded by the drawing once settled); counted one click per step for key and participant;
+  judged T44 on the style tree; accepted T48's whole-file chip count; changed only tasks.md's
+  detour lines, never a prompt, when the key was wrong; left route-redefining cases (T46 other
+  methods, T48 B filtered run) to the Director until settled.
 - **2026-10-17 (second read of the tier 3 criteria):** Proposed, not applied, because the
   criteria belong to the Director to freeze and other roles review in parallel. Chose Maren <-> Ruth
   for the bar 4 swap because it keeps every persona's count and no persona on both halves (Ruth is
@@ -186,6 +158,11 @@ logged). Their reasons, in short:
   section plus scoped edits per build; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-19 (e3c5bca8e6 pilots into the key) -- Worked: grepping the key for stale phrases
+  ("disabled Fill", "size and place", "Control+Y does", the old build id) after the edits, which
+  caught a missed T51 reference line. Did not work: trusting one pilot's keyboard claim when two
+  disagree (T45 B "one Enter opens the list" vs T40 A's two); the key now names whose walk.
 
 - 2026-10-19 (fourth read) -- Worked: `grep buildStamp` over every `session.json` per task half
   to see which walks ran on the frozen build (folder names alone mix builds); `git log

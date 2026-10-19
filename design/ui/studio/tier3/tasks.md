@@ -292,7 +292,8 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   selected); "Use the selected nodes".
 - **T41, T48:** the yes/no card left on its default; "has no value" looked for in the add menu
   instead of the card's own menu; an unfinished card left without a value and the picker closed
-  (it is dropped, with a notice after Enter, a click in the panel or a click on the drawing);
+  (it is dropped, with a notice, after Enter, Escape in its empty box or a click on the drawing; a
+  click in either side panel leaves the picker open);
   Escape inside the picker.
 - **T42:** the number typed into the slider's high end; "Highest" chosen instead of a range; the
   number typed as written in the prompt (`10,000`, `$10,000`) into the from box.
@@ -319,6 +320,10 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-19 (pilots on build e3c5bca8e6): the T41/T48 detour line says what drops an unfinished
+  card on this build (Enter, Escape in its empty box, a click on the drawing) and that a click in
+  a side panel does not. No prompt was wrong.
 
 - 2026-10-19 (fourth review, before the freeze): T50 asks what "made the project color them"
   orange or green, not "draw them": its route reads "Why this look", where every unset color

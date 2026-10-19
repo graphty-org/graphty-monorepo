@@ -321,6 +321,20 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-19 (round 1 pilots on e3c5bca8e6): `answers.md` and the T41/T48 detour line of
+  `tasks.md` now match the frozen build as the pilots in `rounds/r1/pilot/` saw it (the
+  `answers.md` change log lists what changed). No bar changed. Bar 4's frozen counts stand; the
+  key's step counts rose by one on every task whose path adds a condition, because the collapsed
+  Which nodes line only expands on its first click.
+    - Left to the Director: T50 B, a reader who answers "31 or more hours and trained" from the
+      "Select what it paints" summary (it reads "hours 31 to 52", "trained Yes (6)") has read the
+      selection, not the layer's rule. The key grades "hours 30 to 52 and trained", read from the
+      card, as S (52 is the file's highest); how the summary reading is graded is open.
+    - Owed before round 1: T46 B and T49 B by keyboard (both walks stopped after the start
+      screen). Most halves' `rounds/r1/pilot/<half>/report.md` was not written by the walk agents
+      (the harness refused the write); T40 B's still describes build 1fa51e2b0b and T45 A's build
+      58556989e8.
+
 - 2026-10-19 (round 1 build refrozen): the study build is now e3c5bca8e6, in
   `.study-builds/tier3-r1-e3c5bca8e6`. It replaces build 1fa51e2b0b
   (`.study-builds/tier3-r1-1fa51e2b0b`). Its diff of graphty, graphty-element, compact-mantine and

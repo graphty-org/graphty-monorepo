@@ -366,8 +366,22 @@ def yed_node_shapes():
                           '<y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML>'))
                 use(YED, "umlAttribute", *[x.split("=")[0] for x in ua.split()])
             p.add("uml-note", "UMLNoteNode", lambda c, w: w.shape("uml-note", c["x"], c["y"], 56, 36, realizer="UMLNoteNode"))
+            for sid, prop, val in [("sbgn-style-radius-20", "com.yworks.sbgn.style.radius", "20.0"),
+                                   ("sbgn-style-inverse-true", "com.yworks.sbgn.style.inverse", "true")]:
+                p.add(sid, f"{prop[len('com.yworks.sbgn.'):]}={val} (macromolecule)",
+                      lambda c, w, sid=sid, prop=prop, val=val: w.shape(
+                          sid, c["x"], c["y"], 56, 36, realizer="GenericNode", conf="com.yworks.sbgn.macromolecule",
+                          extra=style_props(**{prop: val})))
     yed_bpmn_properties()
     return s
+
+
+def style_props(**props):
+    """y:StyleProperties holding style properties of yed-vocabulary.json's styleProperties table (name: value)."""
+    table = VOCAB[YED]["styleProperties"]
+    use(YED, "styleProperty", *props)
+    return "<y:StyleProperties>" + "".join(f'<y:Property class="{table[n]}" name="{n}" value="{v}"/>'
+                                          for n, v in props.items()) + "</y:StyleProperties>"
 
 
 def bpmn_props(**props):
@@ -387,10 +401,12 @@ def yed_bpmn_properties():
     icon colors. Captions drop the value's kind prefix (EVENT_TYPE_, GATEWAY_TYPE_, ...)."""
     table = {k: [v["value"] for v in b["values"]] for k, b in VOCAB[YED]["bpmnStyleProperties"].items()}
     conf = {"EVENT": "com.yworks.bpmn.Event", "GATEWAY": "com.yworks.bpmn.Gateway", "ARTIFACT": "com.yworks.bpmn.Artifact",
-            "ACTIVITY": "com.yworks.bpmn.Activity"}
-    size = {"EVENT": (36, 36), "GATEWAY": (40, 40), "ARTIFACT": (36, 44), "ACTIVITY": (56, 36)}
+            "ACTIVITY": "com.yworks.bpmn.Activity", "CONVERSATION": "com.yworks.bpmn.Conversation"}
+    size = {"EVENT": (36, 36), "GATEWAY": (40, 40), "ARTIFACT": (36, 44), "ACTIVITY": (56, 36), "CONVERSATION": (40, 36)}
     p4 = Sheet(YED, "specimen-node-shapes-p4", "GenericNode BPMN events: com.yworks.bpmn.type, characteristic and icon colors", columns=4)
     p5 = Sheet(YED, "specimen-node-shapes-p5", "GenericNode BPMN gateways, tasks and artifacts: com.yworks.bpmn.type, taskType, dataObjectType", columns=4)
+    p6 = Sheet(YED, "specimen-node-shapes-p6", "GenericNode BPMN activities and conversations: com.yworks.bpmn.type, activityType, marker1 to marker4", columns=4)
+    page_of = {"EVENT": p4, "GATEWAY": p5, "ARTIFACT": p5, "ACTIVITY": p6, "CONVERSATION": p6}
 
     def node(page, sid, cap, kind, **props):
         page.add(sid, cap, lambda c, w: w.shape(sid, c["x"], c["y"], *size[kind], realizer="GenericNode", conf=conf[kind],
@@ -399,15 +415,17 @@ def yed_bpmn_properties():
     def short(v):
         return v.split("_TYPE_", 1)[-1].replace("EVENT_CHARACTERISTIC_", "").replace("EXCLUSIVE", "EXCL")
 
-    for page, kind in [(p4, "EVENT"), (p5, "GATEWAY")]:
+    for page, kind in [(p4, "EVENT"), (p5, "GATEWAY"), (p6, "ACTIVITY")]:
         page.add("default", f"{conf[kind].rsplit('.', 1)[1]}=no StyleProperties", lambda c, w, kind=kind: w.shape(
             "default", c["x"], c["y"], *size[kind], realizer="GenericNode", conf=conf[kind]))
     for t in table["com.yworks.bpmn.type"]:
         kind = t.split("_", 1)[0]
+        if kind not in page_of:
+            continue  # connections: edges-lines; pools: groups-p2; CHOREOGRAPHY_TYPE: YED_NOT_DRAWN
         extra = {"characteristic": "EVENT_CHARACTERISTIC_START"} if kind == "EVENT" else {}
         if t == "ARTIFACT_TYPE_DATA_OBJECT":
             extra = {"dataObjectType": "DATA_OBJECT_TYPE_PLAIN"}
-        node(p4 if kind == "EVENT" else p5, "bpmn-" + t.lower().replace("_", "-"), f"type={short(t)}", kind, type=t, **extra)
+        node(page_of[kind], "bpmn-" + t.lower().replace("_", "-"), f"type={short(t)}", kind, type=t, **extra)
     for ch in table["com.yworks.bpmn.characteristic"][1:]:
         node(p4, "bpmn-" + ch.lower().replace("_", "-"), f"char={short(ch)}", "EVENT",
              type="EVENT_TYPE_PLAIN", characteristic=ch)
@@ -419,6 +437,14 @@ def yed_bpmn_properties():
     for dt in table["com.yworks.bpmn.dataObjectType"][1:]:
         node(p5, "bpmn-" + dt.lower().replace("_", "-"), f"dataObjectType={short(dt)}", "ARTIFACT",
              type="ARTIFACT_TYPE_DATA_OBJECT", dataObjectType=dt)
+    for at in table["com.yworks.bpmn.activityType"]:
+        node(p6, "bpmn-" + at.lower().replace("_", "-"), f"activityType={short(at)}", "ACTIVITY", activityType=at)
+    for mk in table["com.yworks.bpmn.marker1"]:
+        node(p6, "bpmn-marker1-" + mk[len("BPMN_MARKER_"):].lower().replace("_", "-"),
+             f"marker1={mk[len('BPMN_MARKER_'):]}", "ACTIVITY", marker1=mk)
+    node(p6, "bpmn-markers-1-to-4", "marker1..4=LOOP,PARALLEL,COMPENSATION,AD_HOC", "ACTIVITY",
+         marker1="BPMN_MARKER_LOOP", marker2="BPMN_MARKER_PARALLEL", marker3="BPMN_MARKER_COMPENSATION",
+         marker4="BPMN_MARKER_AD_HOC")
 
 
 def yed_fills_borders():
@@ -612,6 +638,13 @@ def yed_edges_lines():
         "generic-framed", c, realizer="GenericEdge", conf="com.yworks.edge.framed", width=6,
         extra='<y:StyleProperties><y:Property class="java.awt.Color" name="FramedEdgePainter.fillColor" value="#FFCC00"/></y:StyleProperties>'))
     use(YED, "edgeConfiguration", "com.yworks.edge.framed")
+    # the BPMN palette's connections: a GenericEdge whose com.yworks.bpmn.type names the connection type
+    for t in [v["value"] for v in VOCAB[YED]["bpmnStyleProperties"]["com.yworks.bpmn.type"]["values"]
+              if v["value"].startswith("CONNECTION_TYPE_")]:
+        sid = "bpmn-" + t.lower().replace("_", "-")
+        s.add(sid, f"bpmn.type={t[len('CONNECTION_TYPE_'):]}", lambda c, w, sid=sid, t=t: w.straight(
+            sid, c, realizer="GenericEdge", conf="com.yworks.bpmn.Connection", extra=bpmn_props(type=t)))
+    use(YED, "edgeConfiguration", "com.yworks.bpmn.Connection")
     s.add("ports-offset", "Path sx=0 sy=-4 tx=0 ty=4", lambda c, w: w.straight(
         "ports-offset", c, ports=(0.0, -4.0, 0.0, 4.0)))
     s.add("reversed-path-rendering", "reversedPathRendering=true", lambda c, w: w.straight(
@@ -790,7 +823,8 @@ def yed_groups():
                '<y:Fill color="#ECF5FF" color2="#0042F440" transparent="false"/><y:BorderStyle hasColor="false" type="line" width="1.0"/>'
                f'{ylabel("Pool", tw, th, model="internal", pos="t")}'
                '<y:StyleProperties><y:Property class="java.awt.Color" name="yed.table.lane.color.main" value="#C0C0C0"/>'
-               + "".join(f'<y:Property class="java.awt.Color" name="{k}" value="{v}"/>' for k, v in (props or {}).items())
+               + "".join(f'<y:Property class="{v[0] if isinstance(v, tuple) else "java.awt.Color"}" name="{k}" '
+                         f'value="{v[1] if isinstance(v, tuple) else v}"/>' for k, v in (props or {}).items())
                + '</y:StyleProperties>'
                f'<y:State autoResize="true" closed="false" closedHeight="80.0" closedWidth="100.0"/>'
                f'<y:Table autoResizeTable="true" defaultColumnWidth="{fnum(tw)}" defaultMinimumColumnWidth="30.0" defaultMinimumRowHeight="20.0" defaultRowHeight="{fnum(rows)}">'
@@ -802,6 +836,8 @@ def yed_groups():
                '</y:Rows></y:Table></y:TableNode>')
         w.nodes.append(w.raw_node(sid, xml, inner=[], folder="group"))
         use(YED, "styleProperty", "yed.table.lane.color.main", *(props or {}))
+        if (props or {}).get("com.yworks.bpmn.type"):
+            use(YED, "bpmnProperty", f"com.yworks.bpmn.type={props['com.yworks.bpmn.type'][1]}")
         use(YED, "realizer", "TableNode")
         use(YED, "tableAttribute", "autoResizeTable", "defaultColumnWidth", "defaultMinimumColumnWidth",
             "defaultRowHeight", "defaultMinimumRowHeight")
@@ -813,6 +849,22 @@ def yed_groups():
                            ("table-header-color-alternating", "yed.table.header.color.alternating", "#99CCFF")]:
         s.add(sid, f"{prop[len('yed.table.'):]}={col}", lambda c, w, sid=sid, prop=prop, col=col: table(c, w, sid, {prop: col}))
     use(YED, "groupAttribute", "closed", "innerGraphDisplayEnabled")
+
+    t2 = Sheet(YED, "specimen-groups-p2", "TableNode lane style, section color and header height; BPMN pools (com.yworks.bpmn.type POOL_TYPE_*)",
+               columns=4, caption_dy=62)
+    t2.add("table-node", "TableNode 1 column 2 rows", table)
+    sp = VOCAB[YED]["styleProperties"]
+    for sid, prop, val in [("table-lane-style-rows", "yed.table.lane.style", "LANE_STYLE_ROWS"),
+                           ("table-lane-style-columns", "yed.table.lane.style", "LANE_STYLE_COLUMNS"),
+                           ("table-section-color", "yed.table.section.color", "#99CC99"),
+                           ("table-header-height-40", "yed.table.header.height", "40.0")]:
+        t2.add(sid, f"{prop[len('yed.table.'):]}={val}", lambda c, w, sid=sid, prop=prop, val=val: table(
+            c, w, sid, {prop: (sp[prop], val)}))
+    bt = VOCAB[YED]["bpmnStyleProperties"]["com.yworks.bpmn.type"]
+    for t in [v["value"] for v in bt["values"] if v["value"].startswith("POOL_TYPE_")]:
+        sid = "bpmn-" + t.lower().replace("_", "-")
+        t2.add(sid, f"bpmn.type={t[len('POOL_TYPE_'):]}", lambda c, w, sid=sid, t=t: table(
+            c, w, sid, {"com.yworks.bpmn.type": (bt["class"], t)}))
     return s
 
 
@@ -1005,14 +1057,15 @@ class YjsWriter:
     def end(self, nid, p):
         self.shape(nid, p["x"], p["y"], END, END, shape="ELLIPSE")
 
-    def edge(self, eid, s, t, bends=(), style=None, labels=""):
+    def edge(self, eid, s, t, bends=(), style=None, labels="", ports=None):
         lab = f'\t\t\t<data key="d11">\n\t\t\t\t<x:List>{labels}</x:List>\n\t\t\t</data>\n' if labels else ""
         geo = ""
         if bends:
             geo = ('\t\t\t<data key="d12">\n\t\t\t\t<x:List>'
                    + "".join(f'<y:Bend Location="{num(x)},{num(y)}"/>' for x, y in bends) + "</x:List>\n\t\t\t</data>\n")
         sty = f'\t\t\t<data key="d13">\n\t\t\t\t{style}\n\t\t\t</data>\n' if style is not None else ""
-        self.edges.append(f"\t\t<edge id={quoteattr(eid)} source={quoteattr(s)} target={quoteattr(t)}>\n{lab}{geo}{sty}\t\t</edge>\n")
+        pa = f" sourceport={quoteattr(ports[0])} targetport={quoteattr(ports[1])}" if ports else ""
+        self.edges.append(f"\t\t<edge id={quoteattr(eid)} source={quoteattr(s)} target={quoteattr(t)}{pa}>\n{lab}{geo}{sty}\t\t</edge>\n")
 
     def straight(self, eid, c, bends=(), style=None, labels=""):
         self.end(f"{eid}-s", c["source"])
@@ -1625,6 +1678,14 @@ YJS2_HEAD = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 """
 
 # 2.6 label models, defined once in SharedData as the corpus' 2.x files define them
+YJS2_EXTRA_NS = [("bpmn", "http://www.yworks.com/xml/yfiles-bpmn/2.0"),
+                 ("uml", "http://www.yworks.com/yFilesHTML/demos/UMLDemoStyle/1.0"),
+                 ("GraphvizNodeStyle", "http://www.yworks.com/yFilesHTML/graphviz-node-style/1.0"),
+                 ("sys", "http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0")]
+YJS2_EXTRA_KEYS = [
+    ("d8", '\t<key id="d8" for="node" attr.name="NodeViewState" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/folding/1.1/NodeViewState"/>'),
+    ("d17", '\t<key id="d17" for="port" attr.name="PortStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/PortStyle"/>'),
+]
 YJS2_MODELS = {
     "interior": '<y:InteriorLabelModel x:Key="m-interior"/>',
     "exterior": '<y:ExteriorLabelModel x:Key="m-exterior" Insets="5"/>',
@@ -1691,7 +1752,14 @@ class Yjs2Writer(YjsWriter):
     def document(self):
         shared = "".join(f"\t\t\t{v}\n" for _, v in sorted(self.shared.items()))
         head = YJS2_HEAD.format(generator=GENERATOR, sid=self.sheet.id, about=escape(self.sheet.about), shared=shared)
-        return head + "".join(self.nodes) + "".join(self.edges) + "\t</graph>\n</graphml>\n"
+        body = "".join(self.nodes) + "".join(self.edges)
+        # the palettes' own namespaces and the view-state and port-style keys, declared only by a sheet that uses them
+        ns = "".join(f' xmlns:{p}="{u}"' for p, u in YJS2_EXTRA_NS if f"<{p}:" in body)
+        head = head.replace(' xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0"',
+                            ns + ' xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0"', 1)
+        keys = "".join(k + "\n" for kid, k in YJS2_EXTRA_KEYS if f'key="{kid}"' in body)
+        head = head.replace('\t<key id="d11" ', keys + '\t<key id="d11" ', 1)
+        return head + body + "\t</graph>\n</graphml>\n"
 
 
 def arrow2(prop, typ="DEFAULT", **kw):
@@ -1896,9 +1964,304 @@ def yjs2_arrows():
 
 
 # --------------------------------------------------------------------------------------------------------------
+# yEd Live palettes in their own namespaces (BPMN, UML, Graphviz, colored icons), markup labels, composite and group
+# label models, ports, folder state and the 2.6 edge label models: what yEd Live files in the corpus use and the
+# yFiles for HTML 2.6 BPMN demo (bpmn-view.ts, yEd Live's BPMN palette) defines.
+
+BPMN = VOCAB[YJS]["bpmn"]
+BPMN_SIZE = {"ActivityNodeStyle": (60, 40), "EventNodeStyle": (30, 30), "GatewayNodeStyle": (34, 34),
+             "ConversationNodeStyle": (36, 32), "DataObjectNodeStyle": (26, 34), "DataStoreNodeStyle": (34, 30),
+             "AnnotationNodeStyle": (40, 30), "ChoreographyNodeStyle": (70, 50), "GroupNodeStyle": (90, 56),
+             "PoolNodeStyle": (100, 60)}
+# caption spellings: a long property or value shortened so the caption fits its cell
+BPMN_CAP = {"triggerEventType": "trigger", "triggerEventCharacteristic": "triggerChar", "loopCharacteristic": "loop",
+            "characteristic": "char", "initiatingMessage": "initMessage", "responseMessage": "respMessage",
+            "initiatingAtTop": "initAtTop", "initiatingColor": "initColor", "responseColor": "respColor",
+            "messageOutline": "msgOutline", "multipleInstance": "multiInstance"}
+BPMN_RED = "#FFFF0000"
+
+
+BPMN_CAP_CLASS = {"ActivityNodeStyle": "", "EventNodeStyle": "Ev", "GatewayNodeStyle": "Gw", "ConversationNodeStyle": "Conv",
+                  "DataObjectNodeStyle": "DataObj", "DataStoreNodeStyle": "Store", "AnnotationNodeStyle": "Annot",
+                  "ChoreographyNodeStyle": "Chor", "GroupNodeStyle": "Group", "PoolNodeStyle": "Pool",
+                  "EventPortStyle": "Port", "BpmnEdgeStyle": "", "AnnotationLabelStyle": "Annot",
+                  "MessageLabelStyle": "Msg"}
+
+
+def bpmn_cap(cls, prop, value):
+    v = (str(value).replace("INTERRUPTING", "INT").replace("EXCLUSIVE", "EXCL").replace("CALLING_", "CALL_")
+         .replace("CONVERSATION", "CONV").replace("SUB_PROCESS", "SUBPROC"))
+    tag = BPMN_CAP_CLASS[cls]
+    return f"{tag + ' ' if tag else ''}{BPMN_CAP.get(prop, prop)}={v}"
+
+
+def kebab(name):
+    """camelCase or UPPER_CASE as a setting id: triggerEventType -> trigger-event-type, SUB_PROCESS -> sub-process."""
+    if name.upper() == name:
+        return name.lower().replace("_", "-")
+    return re.sub(r"([A-Z])", lambda m: "-" + m.group(1).lower(), name).lstrip("-").replace("_", "-").lower()
+
+
+def bpmn_specimens(cls):
+    """Every stored property of a BPMN style, one specimen each: every value of an enumeration, a boolean's
+    non-default value, a fill in red, insets 10, numbers 20; background and outline neutral where not the subject."""
+    props = BPMN["styles"][cls]
+    out = []
+    for prop, ty in props.items():
+        if f"{cls}.{prop}" in YJS_BPMN_NOT_DRAWN:
+            continue
+        if ty in BPMN["enums"]:
+            vals = BPMN["enums"][ty]
+        elif ty == "boolean":
+            vals = ["false" if BPMN["booleanDefaults"].get(cls, {}).get(prop) == "true" else "true"]
+        elif ty.startswith("Fill"):
+            vals = [BPMN_RED]
+        elif ty == "Insets":
+            vals = ["10"]
+        elif ty == "number":
+            vals = ["20"] if prop == "smoothing" else ["8"]
+        elif ty == "Size":
+            vals = ["20,20"]
+        else:
+            raise SystemExit(f"bpmn {cls}.{prop}: no specimen value for type {ty}")
+        for v in vals:
+            a = {}
+            for neutral, col in [("background", argb(NEU["fill"])), ("outline", argb(NEU["border"]))]:
+                if neutral in props and neutral != prop and cls != "BpmnEdgeStyle":
+                    a[neutral] = col
+            if cls == "BpmnEdgeStyle" and prop != "color":
+                a["color"] = argb(NEU["edgeColor"])
+            if cls == "BpmnEdgeStyle" and prop == "innerColor":
+                a["type"] = "CONVERSATION"  # the only edge type with an inner line
+            a[prop] = v
+            sid = f"bpmn-{kebab(cls.replace('NodeStyle', '').replace('Style', ''))}-{kebab(prop)}" + (
+                f"-{kebab(v)}" if ty in BPMN["enums"] else "")
+            use(YJS, f"bpmn:{cls}", prop)
+            if ty in BPMN["enums"]:
+                use(YJS, f"bpmn:{cls}.{prop}", v)
+            out.append((sid, bpmn_cap(cls, prop, v), f"<bpmn:{cls} {attrs(a)}/>"))
+    return out
+
+
+def bpmn_node_page(sid, about, classes, columns=None):
+    s = Sheet(YJS, sid, about, columns=columns, writer=Yjs2Writer)
+    first = classes[0]
+    s.add("default", f"{first.replace('NodeStyle', '')}=nothing set", lambda c, w: w.shape("default", c["x"], c["y"], *BPMN_SIZE[first],
+                                                                    style=f"<bpmn:{first}/>"))
+    for cls in classes:
+        for spid, cap, style in bpmn_specimens(cls):
+            s.add(spid, cap, lambda c, w, spid=spid, style=style, cls=cls: w.shape(
+                spid, c["x"], c["y"], *BPMN_SIZE[cls], style=style))
+    return s
+
+
+def port_xml(name, ratio, style=None):
+    sty = f'\t\t\t\t<data key="d17">\n\t\t\t\t\t{style}\n\t\t\t\t</data>\n' if style else ""
+    return (f'\t\t\t<port name="{name}">\n\t\t\t\t<data key="d16">\n\t\t\t\t\t<y:FreeNodePortLocationModelParameter '
+            f'Ratio="{ratio}"/>\n\t\t\t\t</data>\n{sty}\t\t\t</port>\n')
+
+
+def ported(w, eid, c, sratio, tratio, style):
+    """An edge from a port of its source node to a port of its target node (end nodes 24 x 24)."""
+    for end, p, ratio in [("s", c["source"], sratio), ("t", c["target"], tratio)]:
+        w.nodes.append(w.node_xml(f"{eid}-{end}", p["x"], p["y"], 24, 24, f'<yjs:ShapeNodeStyle shape="ELLIPSE" '
+                                  f'fill="{argb(NEU["fill"])}" stroke="{argb(NEU["border"])}"/>',
+                                  extra_data=port_xml("p0", ratio)))
+    w.edge(eid, f"{eid}-s", f"{eid}-t", style=style, ports=("p0", "p0"))
+
+
+def yjs_bpmn():
+    bpmn_node_page("specimen-node-shapes-p4", "yEd Live's BPMN palette (bpmn:ActivityNodeStyle): activity and task types, trigger events, loop, sub-state, markers, fills",
+                   ["ActivityNodeStyle"])
+    bpmn_node_page("specimen-node-shapes-p5", "yEd Live's BPMN palette: EventNodeStyle, GatewayNodeStyle, ConversationNodeStyle, DataObjectNodeStyle, DataStoreNodeStyle, AnnotationNodeStyle",
+                   ["EventNodeStyle", "GatewayNodeStyle", "ConversationNodeStyle", "DataObjectNodeStyle",
+                    "DataStoreNodeStyle", "AnnotationNodeStyle"])
+    p6 = bpmn_node_page("specimen-node-shapes-p6", "yEd Live's BPMN palette: ChoreographyNodeStyle, GroupNodeStyle; boundary events (EventPortStyle on a port)",
+                        ["ChoreographyNodeStyle", "GroupNodeStyle"])
+    activity = f'<bpmn:ActivityNodeStyle background="{argb(NEU["fill"])}" outline="{argb(NEU["border"])}"/>'
+    for spid, cap, style in bpmn_specimens("EventPortStyle"):
+        p6.add(spid, cap, lambda c, w, spid=spid, style=style: w.nodes.append(w.node_xml(
+            spid, c["x"], c["y"], *BPMN_SIZE["ActivityNodeStyle"], activity, extra_data=port_xml("p0", "0.25,1", style))))
+
+    e = Sheet(YJS, "specimen-edges-lines-p3", "yEd Live's BPMN palette edges (bpmn:BpmnEdgeStyle): every edge type, color, inner color, smoothing; edges at node ports (2.6)", writer=Yjs2Writer)
+    e.add("default", "BpmnEdgeStyle=nothing set", lambda c, w: w.straight("default", c, style="<bpmn:BpmnEdgeStyle/>"))
+    for spid, cap, style in bpmn_specimens("BpmnEdgeStyle"):
+        bends = (lambda c: [(c["x"] - 20, c["y"] - 30), (c["x"] + 20, c["y"] - 30)]) if "smoothing" in spid else (lambda c: ())
+        e.add(spid, cap, lambda c, w, spid=spid, style=style, bends=bends: w.straight(spid, c, bends=bends(c), style=style))
+    for spid, cap, sr, tr in [("v2-port-top-bottom", "ports Ratio 0.5,0 to 0.5,1", "0.5,0", "0.5,1"),
+                              ("v2-port-corners", "ports Ratio 1,1 to 0,0", "1,1", "0,0")]:
+        e.add(spid, cap, lambda c, w, spid=spid, sr=sr, tr=tr: ported(w, spid, c, sr, tr, poly2()))
+
+
+def uml_model(stereotype="", constraint="", attributes_open="true", operations_open="true"):
+    return ("<uml:UMLNodeStyle.model>"
+            f'<uml:UMLClassModel {attrs({"stereotype": stereotype, "constraint": constraint, "className": "Cls", "attributesOpen": attributes_open, "operationsOpen": operations_open})}>'
+            '<uml:UMLClassModel.attributes><x:Array Type="sys:Object"><sys:String>a: int</sys:String></x:Array>'
+            '</uml:UMLClassModel.attributes><uml:UMLClassModel.operations><x:Array Type="sys:Object">'
+            "<sys:String>m()</sys:String></x:Array></uml:UMLClassModel.operations></uml:UMLClassModel></uml:UMLNodeStyle.model>")
+
+
+ICON_URI = "data:image/svg+xml;charset=utf-8," + "".join(
+    ch if ch.isalnum() or ch in "-_.~" else "%" + format(ord(ch), "02X") for ch in SVG_ICON)
+
+
+def yjs_palette_nodes():
+    s = Sheet(YJS, "specimen-node-shapes-p7", "yEd Live palette node styles in their own namespaces: GraphvizNodeStyle, uml:UMLNodeStyle, icon-style:ColoredIconNodeStyle (2.6); a stroke thickness written as sys:Double",
+              columns=6, writer=Yjs2Writer)
+    s.add("default", "GraphvizNodeStyle=nothing set", lambda c, w: w.shape("default", c["x"], c["y"],
+                                                                         style="<GraphvizNodeStyle:GraphvizNodeStyle/>"))
+    for shp in ["ellipse", "rectangle"]:  # the shapes yEd Live writes in the corpus
+        s.add(f"graphviz-shape-{shp}", f"GraphvizNodeStyle shape={shp}", lambda c, w, shp=shp: w.shape(
+            f"graphviz-shape-{shp}", c["x"], c["y"], 56, 36, style=f'<GraphvizNodeStyle:GraphvizNodeStyle shape="{shp}"/>'))
+    neutral = {"fill": argb(NEU["fill"]), "highlightFill": argb(NEU["fill"])}
+    for sid, cap, a, m in [("uml-class", "UMLNodeStyle", {}, {}),
+                           ("uml-fill", "UMLNodeStyle fill=#FF607D8B", {"fill": "#FF607D8B"}, {}),
+                           ("uml-highlight-fill", "highlightFill=#FFA3F1BB", {"highlightFill": "#FFA3F1BB"}, {}),
+                           ("uml-stereotype", "UMLClassModel stereotype=entity", {}, {"stereotype": "entity"}),
+                           ("uml-constraint", "UMLClassModel constraint=abstract", {}, {"constraint": "abstract"}),
+                           ("uml-attributes-open-false", "attributesOpen=false", {}, {"attributes_open": "false"}),
+                           ("uml-operations-open-false", "operationsOpen=false", {}, {"operations_open": "false"})]:
+        s.add(sid, cap, lambda c, w, sid=sid, a=a, m=m: w.shape(sid, c["x"], c["y"], 90, 70, style=(
+            f"<uml:UMLNodeStyle {attrs({**neutral, **a})}>{uml_model(**m)}</uml:UMLNodeStyle>")))
+    for col in ["Black", "Red"]:
+        s.add(f"colored-icon-{col.lower()}", f"ColoredIconNodeStyle color={col}", lambda c, w, col=col: w.shape(
+            f"colored-icon-{col.lower()}", c["x"], c["y"], 40, 40, style=(
+                f'<icon-style:ColoredIconNodeStyle color="{col}" clipMode="{{x:Null}}"><icon-style:ColoredIconNodeStyle.image>'
+                f"{escape(ICON_URI)}</icon-style:ColoredIconNodeStyle.image></icon-style:ColoredIconNodeStyle>")))
+    s.add("stroke-thickness-sys-double", "Stroke.thickness sys:Double 3", lambda c, w: w.shape(
+        "stroke-thickness-sys-double", c["x"], c["y"], style=(
+            f'<yjs:ShapeNodeStyle shape="ELLIPSE" fill="{argb(NEU["fill"])}"><yjs:ShapeNodeStyle.stroke>'
+            f'<yjs:Stroke fill="{argb(NEU["border"])}"><yjs:Stroke.thickness><sys:Double>3</sys:Double></yjs:Stroke.thickness>'
+            "</yjs:Stroke></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>")))
+
+
+MARKUP = [("markup-plain", "MarkupLabelStyle plain text", "Label"),
+          ("markup-bold", "Text=<b>Bold</b>", "<b>Bold</b>"),
+          ("markup-italic", "Text=<i>Ital</i>", "<i>Ital</i>"),
+          ("markup-underline", "Text=<u>Und</u>", "<u>Und</u>"),
+          ("markup-heading", "Text=<h2>H2</h2>", "<h2>H2</h2>"),
+          ("markup-span-color", "Text=<span style=color:red>", '<span style="color:#ff0000">Red</span>'),
+          ("markup-line-break", "Text=One<br/>Two", "One<br/>Two")]
+
+
+def markup_style2(**kw):
+    a = {"textFill": argb(NEU["labelColor"]), "horizontalTextAlignment": "CENTER", "verticalTextAlignment": "CENTER", **kw}
+    return (f"<y:Label.Style><yjs:MarkupLabelStyle {attrs(a)}><yjs:MarkupLabelStyle.font><yjs:Font fontFamily="
+            f'"{FONT}" fontSize="{num(NEU["fontSize"])}"/></yjs:MarkupLabelStyle.font></yjs:MarkupLabelStyle></y:Label.Style>')
+
+
+def yjs2_labels_more():
+    s = Sheet(YJS, "specimen-labels-p5", "yFiles for HTML 2.6 MarkupLabelStyle (markup text), CompositeLabelModel; yEd Live's BPMN label styles AnnotationLabelStyle and MessageLabelStyle",
+              caption_dy=54, writer=Yjs2Writer)
+    W, H = 60.0, 30.0
+    s.add("default", "Label=text only (2.6)", lambda c, w: w.shape("default", c["x"], c["y"], W, H, shape="RECTANGLE",
+                                                                  labels="<y:Label><y:Label.Text>Label</y:Label.Text></y:Label>"))
+    for sid, cap, text in MARKUP:
+        s.add("v2-" + sid, cap, lambda c, w, sid=sid, text=text: w.shape("v2-" + sid, c["x"], c["y"], W, H, shape="RECTANGLE",
+                                                                         labels=w.label(text, style=markup_style2())))
+    s.add("v2-markup-wrapping", "Markup wrapping=CHARACTER_ELLIPSIS", lambda c, w: w.shape(
+        "v2-markup-wrapping", c["x"], c["y"], W, H, shape="RECTANGLE", labels=w.label(
+            "<b>A long</b> label text", style=markup_style2(wrapping="CHARACTER_ELLIPSIS", textWrappingShape="LABEL_SHAPE",
+                                                            maximumSize="56,26"))))
+    s.add("v2-model-composite", "CompositeLabelModel Exterior North", lambda c, w: (
+        w.model("exterior"),
+        w.shape("v2-model-composite", c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label("Lbl", param=(
+            "<y:Label.LayoutParameter><y:CompositeLabelModelParameter><y:CompositeLabelModelParameter.Parameter>"
+            '<y:ExteriorLabelModelParameter Position="North" Model="{y:GraphMLReference m-exterior}"/>'
+            "</y:CompositeLabelModelParameter.Parameter><y:CompositeLabelModelParameter.Model><y:CompositeLabelModel>"
+            '<y:CompositeLabelModel.LabelModels><y:GraphMLReference ResourceKey="m-exterior"/><y:InteriorLabelModel/>'
+            "<y:FreeNodeLabelModel/></y:CompositeLabelModel.LabelModels></y:CompositeLabelModel>"
+            "</y:CompositeLabelModelParameter.Model></y:CompositeLabelModelParameter></y:Label.LayoutParameter>")))))
+    for cls in ["AnnotationLabelStyle", "MessageLabelStyle"]:
+        for spid, cap, style in bpmn_specimens(cls):
+            s.add(spid, cap, lambda c, w, spid=spid, style=style: w.shape(spid, c["x"], c["y"], W, H, shape="RECTANGLE",
+                                                                         labels=w.label("Note", style=f"<y:Label.Style>{style}</y:Label.Style>")))
+
+    g = Sheet(YJS, "specimen-groups-p4", "yFiles for HTML 2.6 groups: GroupNodeLabelModel (PlaceOnTab), a collapsed group's FolderNodeState",
+              columns=4, caption_dy=52, writer=Yjs2Writer)
+    gstyle = (f'<yjs:GroupNodeStyle tabFill="{argb(NEU["fill"])}" contentAreaFill="#FFFFFFFF">'
+              f'{stroke2(owner="GroupNodeStyle")}</yjs:GroupNodeStyle>')
+
+    def group(sid, label="", extra=""):
+        def fn(c, w):
+            inner = [w.shape(f"{sid}-m0", c["x"], c["y"] + 10, 20, 20, into=[])]
+            w.nodes.append(w.node_xml(sid, c["x"], c["y"], 150, 80, gstyle, labels=label, inner=inner, extra_data=extra))
+        return fn
+
+    def glabel(place):
+        a = f' PlaceOnTab="{place}"' if place is not None else ""
+        return ("<y:Label><y:Label.Text>Group</y:Label.Text><y:Label.LayoutParameter>"
+                f"<y:GroupNodeLabelModelParameter{a}><y:GroupNodeLabelModelParameter.Model><y:GroupNodeLabelModel/>"
+                f"</y:GroupNodeLabelModelParameter.Model></y:GroupNodeLabelModelParameter></y:Label.LayoutParameter>{label_style2()}</y:Label>")
+
+    g.add("default", "GroupNodeStyle (2.6), no label", group("default"))
+    g.add("v2-group-label-model", "GroupNodeLabelModel", lambda c, w: group("v2-group-label-model", glabel(None))(c, w))
+    g.add("v2-group-label-place-on-tab-false", "GroupNodeLabelModel PlaceOnTab=false",
+          lambda c, w: group("v2-group-label-place-on-tab-false", glabel("false"))(c, w))
+    g.add("v2-group-folder-state", "Expanded=false, FolderNodeState 60x40", lambda c, w: group(
+        "v2-group-folder-state", extra=('\t\t\t<data key="d1">false</data>\n\t\t\t<data key="d8">\n\t\t\t\t<y:ViewState>'
+                                        f'<y:FolderNodeState x:Key="c|view" Layout="{num(c["x"] - 30)},{num(c["y"] - 20)},60,40"/>'
+                                        "</y:ViewState>\n\t\t\t</data>\n"))(c, w))
+
+    el = Sheet(YJS, "specimen-edge-labels-p2", "yFiles for HTML 2.6 edge labels: SmartEdgeLabelModel (Distance, segment, from target), FreeEdgeLabelModel (Ratio, Distance, Angle), autoFlip",
+               writer=Yjs2Writer)
+    el.add("default", "Label=text only (2.6)", lambda c, w: w.straight("default", c, labels="<y:Label><y:Label.Text>Lbl</y:Label.Text></y:Label>"))
+    models = {"smart": '<y:SmartEdgeLabelModel x:Key="m-smart"/>', "free": '<y:FreeEdgeLabelModel x:Key="m-free"/>'}
+    for sid, cap, kind, a, style in [
+            ("v2-smart-distance-0", "Smart Distance=0", "smart", {"Distance": "0"}, None),
+            ("v2-smart-distance-12", "Smart Distance=12", "smart", {"Distance": "12"}, None),
+            ("v2-smart-distance-minus-12", "Smart Distance=-12", "smart", {"Distance": "-12"}, None),
+            ("v2-smart-segment-ratio", "Smart SegmentRatio=0.2", "smart", {"SegmentIndex": "0", "SegmentRatio": "0.2", "Distance": "0"}, None),
+            ("v2-smart-from-target", "Smart Location=FromTarget 0.2", "smart", {"Location": "FromTarget", "SegmentRatio": "0.2", "Distance": "0"}, None),
+            ("v2-free-ratio-distance", "Free Ratio=0.5 Distance=15", "free", {"Ratio": "0.5", "Distance": "15"}, None),
+            ("v2-free-angle", "Free Distance=15 Angle=0.785", "free", {"Ratio": "0.5", "Distance": "15", "Angle": "0.785"}, None),
+            ("v2-auto-flip-false", "DefaultLabelStyle autoFlip=false", "smart", {"Distance": "0"}, label_style2(autoFlip="false"))]:
+        def fn(c, w, sid=sid, kind=kind, a=a, style=style):
+            w.shared[f"m-{kind}"] = models[kind]
+            tag = {"smart": "SmartEdgeLabelModelParameter", "free": "FreeEdgeLabelModelParameter"}[kind]
+            param = (f'<y:Label.LayoutParameter><y:{tag} Model="{{y:GraphMLReference m-{kind}}}" {attrs(a)}/>'
+                     "</y:Label.LayoutParameter>")
+            w.straight(sid, c, labels=w.label("Lbl", param=param, style=style))
+        el.add(sid, cap, fn)
+
+
+def yjs_more_v3():
+    """yFiles for HTML 3 additions on existing pages: markup labels and the composite label model (labels-p2), a
+    SharedData color as a fill (node-fills-borders), edges at node ports (edges-lines)."""
+    lp2 = next(x for x in SHEETS if x.fmt == YJS and x.id == "specimen-labels-p2")
+    for sid, cap, text in MARKUP:
+        lp2.add(sid, cap, lambda c, w, sid=sid, text=text: w.shape(sid, c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label(
+            text, param="", style=(f'<y:Label.Style><yjs:MarkupLabelStyle {attrs({"textFill": argb(NEU["labelColor"]), "horizontalTextAlignment": "CENTER", "verticalTextAlignment": "CENTER"})}>'
+                                   f'{yjs_font(owner="MarkupLabelStyle")}</yjs:MarkupLabelStyle></y:Label.Style>'))))
+    composite = ('<yx:CompositeLabelModel x:Key="m-composite"><yx:CompositeLabelModel.Models>'
+                 '<yx:CompositeLabelModelModelPair Model="{y:GraphMLReference m-exterior}"/>'
+                 '<yx:CompositeLabelModelModelPair Model="{y:GraphMLReference m-interior}"/>'
+                 '<yx:CompositeLabelModelModelPair Model="{x:Static yx:FreeNodeLabelModel.Instance}"/>'
+                 "</yx:CompositeLabelModel.Models></yx:CompositeLabelModel>")
+    lp2.add("model-composite", "CompositeLabelModel exterior Top", lambda c, w: (
+        w.model("exterior"), w.model("interior"), w.shared.__setitem__("m-composite", composite),
+        w.shape("model-composite", c["x"], c["y"], 40, 26, shape="RECTANGLE", labels=w.label("Lbl", param=(
+            '<y:Label.LayoutParameter><yx:CompositeLabelModelParameter Model="{y:GraphMLReference m-composite}">'
+            '<yx:CompositeLabelModelParameter.Parameter><yx:ExteriorNodeLabelModelParameter Position="Top" '
+            'Model="{y:GraphMLReference m-exterior}"/></yx:CompositeLabelModelParameter.Parameter>'
+            "</yx:CompositeLabelModelParameter></y:Label.LayoutParameter>")))))
+    fb = next(x for x in SHEETS if x.fmt == YJS and x.id == "specimen-node-fills-borders")
+    fb.add("fill-shared-color", "fill={SharedData yjs:Color #FFFF0000}", lambda c, w: (
+        w.shared.__setitem__("c-red", '<yjs:Color x:Key="c-red" value="#FFFF0000"/>'),
+        w.shape("fill-shared-color", c["x"], c["y"], shape="RECTANGLE", fill="{y:GraphMLReference c-red}")))
+    ed = next(x for x in SHEETS if x.fmt == YJS and x.id == "specimen-edges-lines")
+    for spid, cap, sr, tr in [("port-top-bottom", "ports Ratio 0.5,0 to 0.5,1", "0.5,0", "0.5,1"),
+                              ("port-corners", "ports Ratio 1,1 to 0,0", "1,1", "0,0")]:
+        ed.add(spid, cap, lambda c, w, spid=spid, sr=sr, tr=tr: ported(w, spid, c, sr, tr, poly()))
+
+
+# --------------------------------------------------------------------------------------------------------------
 # The vocabulary check: every value is on a sheet or listed here with the reason it is not drawn.
 
 YED_NOT_DRAWN = {
+    "bpmnValues": {
+        "CHOREOGRAPHY_TYPE": "no configuration id for a choreography node is known: no corpus file, palette list or importer names one, and a guessed id would draw as an unknown GenericNode",
+    },
     "nodeLabelPosition": {},
     "edgeLabelPosition": {},
     "attributes": {
@@ -1964,7 +2327,22 @@ YJS2_NOT_DRAWN = {
     "renderer": "the yFiles renderer object: code, not stored in GraphML",
     "enlargementAbsolute": "a static rendering hint for label enlargement on zoom, not stored per label",
     "enlargementRelative": "a static rendering hint for label enlargement on zoom, not stored per label",
-    "autoFlip": "flips an edge label that would be upside down; node labels never are (the 2.6 edge labels are not swept)",
+}
+
+
+YJS_BPMN_NOT_DRAWN = {
+    "BpmnNodeStyle": "the base class of the BPMN node styles, not written itself",
+    "BpmnNodeStyle.minimumSize": "an editing constraint on resizing",
+    "AlternatingLeafStripeStyle": "the stripe style of a pool's table (rows and columns of a TableNodeStyle): yEd Live's pools are drawn with their default table",
+    "PoolNodeStyle": "a pool always carries its table (a TableNodeStyle with rows, columns and stripe styles), whose markup no yEd Live file in the corpus shows; draw.io's importer fails on a pool written without one (Cannot read properties of undefined (reading 'table'))",
+    "ChoreographyNodeStyle.textPlacement": "where the choreography's own task name sits, a label model parameter: the default is drawn",
+    "AnnotationLabelStyle.delegateStyle": "the icon label style the annotation draws through, set by the style itself",
+}
+# yEd Live corpus elements (any namespace) on no sheet, with the reason
+YJS_CORPUS_NOT_DRAWN = {
+    "y:Json": "an application's own data (a layout setting, an item type), not a style",
+    "y:FoldingEdgeState": "an edge's style and ports while one of its ends is inside a collapsed group: the sheets' collapsed groups have no edges into them",
+    "y:Port": "a port inside a folding view state (FoldingEdgeState.SourcePort): ports themselves are drawn through their location parameter",
 }
 
 
@@ -1988,7 +2366,10 @@ def check():
             need(YED, f"{kind} {v}", v in got(YED, kind))
     for name, b in yv["bpmnStyleProperties"].items():
         for v in [x["value"] for x in b["values"]] or [None]:
-            need(YED, f"bpmnProperty {name}={v}", (f"{name}={v}" if v else name) in got(YED, "bpmnProperty"))
+            need(YED, f"bpmnProperty {name}={v}", (f"{name}={v}" if v else name) in got(YED, "bpmnProperty"),
+                 v in YED_NOT_DRAWN["bpmnValues"])
+    for name in yv["styleProperties"]:
+        need(YED, f"styleProperty {name}", name in got(YED, "styleProperty"))
     seen = yv["observedInCorpus"]
     for kind, vals in [("configuration", [c for c in seen["configurations"] if "." not in c]),
                        ("labelConfiguration", seen["labelConfigurations"]),
@@ -2064,6 +2445,20 @@ def check():
             need(YJS, f"2.6 property {typ}.{prop}", re.search(rf"<y:{typ}\b[^>]*\b{name}=", v2_text) is not None)
     for v in DASH2:
         need(YJS, f"2.6 DashStyle {v}", f'dashStyle="{v}"' in v2_text)
+    for cls, props in VOCAB[YJS]["bpmn"]["styles"].items():
+        for prop, ty in props.items():
+            if ty in VOCAB[YJS]["bpmn"]["enums"]:
+                for v in VOCAB[YJS]["bpmn"]["enums"][ty]:
+                    need(YJS, f"bpmn {cls}.{prop}={v}", v in got(YJS, f"bpmn:{cls}.{prop}"),
+                         cls in YJS_BPMN_NOT_DRAWN or f"{cls}.{prop}" in YJS_BPMN_NOT_DRAWN)
+            else:
+                need(YJS, f"bpmn {cls}.{prop}", prop in got(YJS, f"bpmn:{cls}"),
+                     cls in YJS_BPMN_NOT_DRAWN or f"{cls}.{prop}" in YJS_BPMN_NOT_DRAWN)
+    all_text = "".join(open(os.path.join(OUT, YJS, f"{sh.id}.graphml"), encoding="utf-8").read()
+                       for sh in SHEETS if sh.fmt == YJS)
+    for el in VOCAB[YJS]["observedInCorpus"]["prefixedElements"]:
+        need(YJS, f"corpus element {el}", re.search(rf"<{re.escape(el)}\b", all_text) is not None,
+             el in YJS_CORPUS_NOT_DRAWN)
     if missing:
         raise SystemExit("vocabulary values on no sheet and not listed as not drawn:\n  " + "\n  ".join(missing))
     return tally
@@ -2073,7 +2468,7 @@ if __name__ == "__main__":
     for fn in (yed_node_shapes, yed_fills_borders, yed_sizes_opacity, yed_labels, yed_edges_lines, yed_arrows,
                yed_edge_labels, yed_groups, yed_images, yjs_node_shapes, yjs_fills_borders, yjs_sizes_opacity,
                yjs_labels, yjs_edges_lines, yjs_arrows, yjs_edge_labels, yjs_groups, yjs_images, yjs_mappings,
-               yjs2_node_styles, yjs2_labels, yjs2_arrows):
+               yjs2_node_styles, yjs2_labels, yjs2_arrows, yjs_bpmn, yjs_palette_nodes, yjs2_labels_more, yjs_more_v3):
         fn()
     for sh in SHEETS:
         sh.write()

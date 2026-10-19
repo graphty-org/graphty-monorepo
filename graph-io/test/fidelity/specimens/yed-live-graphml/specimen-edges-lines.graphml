@@ -59,7 +59,7 @@
 		</node>
 		<node id="default-s">
 			<data key="d5">
-				<y:RectD X="137" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="137" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -67,7 +67,7 @@
 		</node>
 		<node id="default-t">
 			<data key="d5">
-				<y:RectD X="213" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="213" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -78,7 +78,7 @@
 				<x:List><y:Label Text="EdgeStyle=nothing set"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="119.41" Y="109.4" Width="121.18" Height="15.7"/>
+				<y:RectD X="119.41" Y="103.706" Width="121.18" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -86,7 +86,7 @@
 		</node>
 		<node id="color-ff0000-s">
 			<data key="d5">
-				<y:RectD X="417" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="417" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -94,7 +94,7 @@
 		</node>
 		<node id="color-ff0000-t">
 			<data key="d5">
-				<y:RectD X="493" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="493" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -105,7 +105,7 @@
 				<x:List><y:Label Text="stroke fill=#FFFF0000"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="399.41" Y="109.4" Width="121.18" Height="15.7"/>
+				<y:RectD X="399.41" Y="103.706" Width="121.18" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -113,7 +113,7 @@
 		</node>
 		<node id="color-0000ff-s">
 			<data key="d5">
-				<y:RectD X="697" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="697" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -121,7 +121,7 @@
 		</node>
 		<node id="color-0000ff-t">
 			<data key="d5">
-				<y:RectD X="773" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="773" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -132,7 +132,7 @@
 				<x:List><y:Label Text="stroke fill=#FF0000FF"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="679.41" Y="109.4" Width="121.18" Height="15.7"/>
+				<y:RectD X="679.41" Y="103.706" Width="121.18" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -140,7 +140,7 @@
 		</node>
 		<node id="color-00aa00-s">
 			<data key="d5">
-				<y:RectD X="977" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="977" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -148,7 +148,7 @@
 		</node>
 		<node id="color-00aa00-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="72.25" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="66.556" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -159,7 +159,7 @@
 				<x:List><y:Label Text="stroke fill=#FF00AA00"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="959.41" Y="109.4" Width="121.18" Height="15.7"/>
+				<y:RectD X="959.41" Y="103.706" Width="121.18" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -167,7 +167,7 @@
 		</node>
 		<node id="color-alpha-80-s">
 			<data key="d5">
-				<y:RectD X="137" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="137" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -175,7 +175,7 @@
 		</node>
 		<node id="color-alpha-80-t">
 			<data key="d5">
-				<y:RectD X="213" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="213" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -186,7 +186,7 @@
 				<x:List><y:Label Text="stroke fill=#80000000 thickness=4"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="85.93" Y="211.9" Width="188.14" Height="15.7"/>
+				<y:RectD X="85.93" Y="194.817" Width="188.14" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -194,7 +194,7 @@
 		</node>
 		<node id="width-0-5-s">
 			<data key="d5">
-				<y:RectD X="417" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="417" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -202,7 +202,7 @@
 		</node>
 		<node id="width-0-5-t">
 			<data key="d5">
-				<y:RectD X="493" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="493" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -213,7 +213,7 @@
 				<x:List><y:Label Text="thickness=0.5"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="421.73" Y="211.9" Width="76.54" Height="15.7"/>
+				<y:RectD X="421.73" Y="194.817" Width="76.54" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -221,7 +221,7 @@
 		</node>
 		<node id="width-1-s">
 			<data key="d5">
-				<y:RectD X="697" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="697" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -229,7 +229,7 @@
 		</node>
 		<node id="width-1-t">
 			<data key="d5">
-				<y:RectD X="773" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="773" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -240,7 +240,7 @@
 				<x:List><y:Label Text="thickness=1"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="707.31" Y="211.9" Width="65.38" Height="15.7"/>
+				<y:RectD X="707.31" Y="194.817" Width="65.38" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -248,7 +248,7 @@
 		</node>
 		<node id="width-2-s">
 			<data key="d5">
-				<y:RectD X="977" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="977" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -256,7 +256,7 @@
 		</node>
 		<node id="width-2-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="174.75" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="157.667" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -267,7 +267,7 @@
 				<x:List><y:Label Text="thickness=2"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="987.31" Y="211.9" Width="65.38" Height="15.7"/>
+				<y:RectD X="987.31" Y="194.817" Width="65.38" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -275,7 +275,7 @@
 		</node>
 		<node id="width-3-s">
 			<data key="d5">
-				<y:RectD X="137" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="137" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -283,7 +283,7 @@
 		</node>
 		<node id="width-3-t">
 			<data key="d5">
-				<y:RectD X="213" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="213" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -294,7 +294,7 @@
 				<x:List><y:Label Text="thickness=3"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="147.31" Y="314.4" Width="65.38" Height="15.7"/>
+				<y:RectD X="147.31" Y="285.928" Width="65.38" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -302,7 +302,7 @@
 		</node>
 		<node id="width-5-s">
 			<data key="d5">
-				<y:RectD X="417" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="417" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -310,7 +310,7 @@
 		</node>
 		<node id="width-5-t">
 			<data key="d5">
-				<y:RectD X="493" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="493" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -321,7 +321,7 @@
 				<x:List><y:Label Text="thickness=5"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="427.31" Y="314.4" Width="65.38" Height="15.7"/>
+				<y:RectD X="427.31" Y="285.928" Width="65.38" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -329,7 +329,7 @@
 		</node>
 		<node id="width-8-s">
 			<data key="d5">
-				<y:RectD X="697" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="697" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -337,7 +337,7 @@
 		</node>
 		<node id="width-8-t">
 			<data key="d5">
-				<y:RectD X="773" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="773" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -348,7 +348,7 @@
 				<x:List><y:Label Text="thickness=8"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="707.31" Y="314.4" Width="65.38" Height="15.7"/>
+				<y:RectD X="707.31" Y="285.928" Width="65.38" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -356,7 +356,7 @@
 		</node>
 		<node id="dash-solid-s">
 			<data key="d5">
-				<y:RectD X="977" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="977" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -364,7 +364,7 @@
 		</node>
 		<node id="dash-solid-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="277.25" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="248.778" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -375,7 +375,7 @@
 				<x:List><y:Label Text="dashStyle=SOLID"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="976.15" Y="314.4" Width="87.7" Height="15.7"/>
+				<y:RectD X="976.15" Y="285.928" Width="87.7" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -383,7 +383,7 @@
 		</node>
 		<node id="dash-dash-s">
 			<data key="d5">
-				<y:RectD X="137" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="137" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -391,7 +391,7 @@
 		</node>
 		<node id="dash-dash-t">
 			<data key="d5">
-				<y:RectD X="213" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="213" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -402,7 +402,7 @@
 				<x:List><y:Label Text="dashStyle=DASH"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="138.94" Y="416.9" Width="82.12" Height="15.7"/>
+				<y:RectD X="138.94" Y="377.039" Width="82.12" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -410,7 +410,7 @@
 		</node>
 		<node id="dash-dot-s">
 			<data key="d5">
-				<y:RectD X="417" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="417" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -418,7 +418,7 @@
 		</node>
 		<node id="dash-dot-t">
 			<data key="d5">
-				<y:RectD X="493" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="493" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -429,7 +429,7 @@
 				<x:List><y:Label Text="dashStyle=DOT"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="421.73" Y="416.9" Width="76.54" Height="15.7"/>
+				<y:RectD X="421.73" Y="377.039" Width="76.54" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -437,7 +437,7 @@
 		</node>
 		<node id="dash-dash-dot-s">
 			<data key="d5">
-				<y:RectD X="697" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="697" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -445,7 +445,7 @@
 		</node>
 		<node id="dash-dash-dot-t">
 			<data key="d5">
-				<y:RectD X="773" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="773" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -456,7 +456,7 @@
 				<x:List><y:Label Text="dashStyle=DASH_DOT"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="687.78" Y="416.9" Width="104.44" Height="15.7"/>
+				<y:RectD X="687.78" Y="377.039" Width="104.44" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -464,7 +464,7 @@
 		</node>
 		<node id="dash-dash-dot-dot-s">
 			<data key="d5">
-				<y:RectD X="977" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="977" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -472,7 +472,7 @@
 		</node>
 		<node id="dash-dash-dot-dot-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="379.75" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="339.889" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -483,7 +483,7 @@
 				<x:List><y:Label Text="dashStyle=DASH_DOT_DOT"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="956.62" Y="416.9" Width="126.76" Height="15.7"/>
+				<y:RectD X="956.62" Y="377.039" Width="126.76" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -491,7 +491,7 @@
 		</node>
 		<node id="line-cap-flat-s">
 			<data key="d5">
-				<y:RectD X="137" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="137" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -499,7 +499,7 @@
 		</node>
 		<node id="line-cap-flat-t">
 			<data key="d5">
-				<y:RectD X="213" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="213" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -510,7 +510,7 @@
 				<x:List><y:Label Text="lineCap=FLAT (DASH 4)"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="119.41" Y="519.4" Width="121.18" Height="15.7"/>
+				<y:RectD X="119.41" Y="468.15" Width="121.18" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -518,7 +518,7 @@
 		</node>
 		<node id="line-cap-round-s">
 			<data key="d5">
-				<y:RectD X="417" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="417" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -526,7 +526,7 @@
 		</node>
 		<node id="line-cap-round-t">
 			<data key="d5">
-				<y:RectD X="493" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="493" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -537,7 +537,7 @@
 				<x:List><y:Label Text="lineCap=ROUND (DASH 4)"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="396.62" Y="519.4" Width="126.76" Height="15.7"/>
+				<y:RectD X="396.62" Y="468.15" Width="126.76" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -545,7 +545,7 @@
 		</node>
 		<node id="line-cap-square-s">
 			<data key="d5">
-				<y:RectD X="697" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="697" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -553,7 +553,7 @@
 		</node>
 		<node id="line-cap-square-t">
 			<data key="d5">
-				<y:RectD X="773" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="773" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -564,7 +564,7 @@
 				<x:List><y:Label Text="lineCap=SQUARE (DASH 4)"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="673.83" Y="519.4" Width="132.34" Height="15.7"/>
+				<y:RectD X="673.83" Y="468.15" Width="132.34" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -572,7 +572,7 @@
 		</node>
 		<node id="stroke-null-s">
 			<data key="d5">
-				<y:RectD X="977" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="977" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -580,7 +580,7 @@
 		</node>
 		<node id="stroke-null-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="482.25" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="431" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -591,7 +591,7 @@
 				<x:List><y:Label Text="stroke={x:Null}"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="976.15" Y="519.4" Width="87.7" Height="15.7"/>
+				<y:RectD X="976.15" Y="468.15" Width="87.7" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -599,7 +599,7 @@
 		</node>
 		<node id="bends-one-s">
 			<data key="d5">
-				<y:RectD X="137" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="137" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -607,7 +607,7 @@
 		</node>
 		<node id="bends-one-t">
 			<data key="d5">
-				<y:RectD X="213" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="213" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -618,7 +618,7 @@
 				<x:List><y:Label Text="1 bend"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="161.26" Y="621.9" Width="37.48" Height="15.7"/>
+				<y:RectD X="161.26" Y="559.261" Width="37.48" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -626,7 +626,7 @@
 		</node>
 		<node id="bends-two-s">
 			<data key="d5">
-				<y:RectD X="417" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="417" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -634,7 +634,7 @@
 		</node>
 		<node id="bends-two-t">
 			<data key="d5">
-				<y:RectD X="493" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="493" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -645,7 +645,7 @@
 				<x:List><y:Label Text="2 bends"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="438.47" Y="621.9" Width="43.06" Height="15.7"/>
+				<y:RectD X="438.47" Y="559.261" Width="43.06" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -653,7 +653,7 @@
 		</node>
 		<node id="smoothing-length-5-s">
 			<data key="d5">
-				<y:RectD X="697" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="697" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -661,7 +661,7 @@
 		</node>
 		<node id="smoothing-length-5-t">
 			<data key="d5">
-				<y:RectD X="773" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="773" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -672,7 +672,7 @@
 				<x:List><y:Label Text="smoothingLength=5"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="690.57" Y="621.9" Width="98.86" Height="15.7"/>
+				<y:RectD X="690.57" Y="559.261" Width="98.86" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -680,7 +680,7 @@
 		</node>
 		<node id="smoothing-length-20-s">
 			<data key="d5">
-				<y:RectD X="977" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="977" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -688,7 +688,7 @@
 		</node>
 		<node id="smoothing-length-20-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="584.75" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="522.111" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -699,7 +699,7 @@
 				<x:List><y:Label Text="smoothingLength=20"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="967.78" Y="621.9" Width="104.44" Height="15.7"/>
+				<y:RectD X="967.78" Y="559.261" Width="104.44" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -707,7 +707,7 @@
 		</node>
 		<node id="bezier-s">
 			<data key="d5">
-				<y:RectD X="137" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="137" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -715,7 +715,7 @@
 		</node>
 		<node id="bezier-t">
 			<data key="d5">
-				<y:RectD X="213" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="213" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -726,7 +726,7 @@
 				<x:List><y:Label Text="BezierEdgeStyle 2 control points"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="88.72" Y="724.4" Width="182.56" Height="15.7"/>
+				<y:RectD X="88.72" Y="650.372" Width="182.56" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -734,7 +734,7 @@
 		</node>
 		<node id="bezier-five-s">
 			<data key="d5">
-				<y:RectD X="417" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="417" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -742,7 +742,7 @@
 		</node>
 		<node id="bezier-five-t">
 			<data key="d5">
-				<y:RectD X="493" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="493" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -753,7 +753,7 @@
 				<x:List><y:Label Text="BezierEdgeStyle 5 control points"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="368.72" Y="724.4" Width="182.56" Height="15.7"/>
+				<y:RectD X="368.72" Y="650.372" Width="182.56" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -761,7 +761,7 @@
 		</node>
 		<node id="arc-height-20-s">
 			<data key="d5">
-				<y:RectD X="697" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="697" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -769,7 +769,7 @@
 		</node>
 		<node id="arc-height-20-t">
 			<data key="d5">
-				<y:RectD X="773" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="773" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -780,7 +780,7 @@
 				<x:List><y:Label Text="ArcEdgeStyle height=20"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="676.62" Y="724.4" Width="126.76" Height="15.7"/>
+				<y:RectD X="676.62" Y="650.372" Width="126.76" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -788,7 +788,7 @@
 		</node>
 		<node id="arc-height-minus-20-s">
 			<data key="d5">
-				<y:RectD X="977" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="977" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -796,7 +796,7 @@
 		</node>
 		<node id="arc-height-minus-20-t">
 			<data key="d5">
-				<y:RectD X="1053" Y="687.25" Width="10" Height="10"/>
+				<y:RectD X="1053" Y="613.222" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -807,7 +807,7 @@
 				<x:List><y:Label Text="ArcEdgeStyle height=-20"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="953.83" Y="724.4" Width="132.34" Height="15.7"/>
+				<y:RectD X="953.83" Y="650.372" Width="132.34" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -815,7 +815,7 @@
 		</node>
 		<node id="arc-fixed-height-false-s">
 			<data key="d5">
-				<y:RectD X="137" Y="789.75" Width="10" Height="10"/>
+				<y:RectD X="137" Y="704.333" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -823,7 +823,7 @@
 		</node>
 		<node id="arc-fixed-height-false-t">
 			<data key="d5">
-				<y:RectD X="213" Y="789.75" Width="10" Height="10"/>
+				<y:RectD X="213" Y="704.333" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -834,7 +834,7 @@
 				<x:List><y:Label Text="ArcEdgeStyle fixedHeight=false height=0.5"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="63.61" Y="826.9" Width="232.78" Height="15.7"/>
+				<y:RectD X="63.61" Y="741.483" Width="232.78" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -842,7 +842,7 @@
 		</node>
 		<node id="loop-n">
 			<data key="d5">
-				<y:RectD X="448" Y="782.75" Width="24" Height="24"/>
+				<y:RectD X="448" Y="697.333" Width="24" Height="24"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -853,7 +853,7 @@
 				<x:List><y:Label Text="self loop (2 bends)"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="404.99" Y="826.9" Width="110.02" Height="15.7"/>
+				<y:RectD X="404.99" Y="741.483" Width="110.02" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -861,7 +861,7 @@
 		</node>
 		<node id="parallel-s">
 			<data key="d5">
-				<y:RectD X="697" Y="789.75" Width="10" Height="10"/>
+				<y:RectD X="697" Y="704.333" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -869,7 +869,7 @@
 		</node>
 		<node id="parallel-t">
 			<data key="d5">
-				<y:RectD X="773" Y="789.75" Width="10" Height="10"/>
+				<y:RectD X="773" Y="704.333" Width="10" Height="10"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8"><yjs:ShapeNodeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1"/></yjs:ShapeNodeStyle.stroke></yjs:ShapeNodeStyle>
@@ -880,7 +880,81 @@
 				<x:List><y:Label Text="two parallel edges"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
 			</data>
 			<data key="d5">
-				<y:RectD X="687.78" Y="826.9" Width="104.44" Height="15.7"/>
+				<y:RectD X="687.78" Y="741.483" Width="104.44" Height="15.7"/>
+			</data>
+			<data key="d7">
+				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
+			</data>
+		</node>
+		<node id="port-top-bottom-s">
+			<data key="d5">
+				<y:RectD X="970" Y="697.333" Width="24" Height="24"/>
+			</data>
+			<data key="d7">
+				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8" stroke="#FF505050"/>
+			</data>
+			<port name="p0">
+				<data key="d16">
+					<y:FreeNodePortLocationModelParameter Ratio="0.5,0"/>
+				</data>
+			</port>
+		</node>
+		<node id="port-top-bottom-t">
+			<data key="d5">
+				<y:RectD X="1046" Y="697.333" Width="24" Height="24"/>
+			</data>
+			<data key="d7">
+				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8" stroke="#FF505050"/>
+			</data>
+			<port name="p0">
+				<data key="d16">
+					<y:FreeNodePortLocationModelParameter Ratio="0.5,1"/>
+				</data>
+			</port>
+		</node>
+		<node id="cap-port-top-bottom">
+			<data key="d4">
+				<x:List><y:Label Text="ports Ratio 0.5,0 to 0.5,1"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
+			</data>
+			<data key="d5">
+				<y:RectD X="945.46" Y="741.483" Width="149.08" Height="15.7"/>
+			</data>
+			<data key="d7">
+				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
+			</data>
+		</node>
+		<node id="port-corners-s">
+			<data key="d5">
+				<y:RectD X="130" Y="788.444" Width="24" Height="24"/>
+			</data>
+			<data key="d7">
+				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8" stroke="#FF505050"/>
+			</data>
+			<port name="p0">
+				<data key="d16">
+					<y:FreeNodePortLocationModelParameter Ratio="1,1"/>
+				</data>
+			</port>
+		</node>
+		<node id="port-corners-t">
+			<data key="d5">
+				<y:RectD X="206" Y="788.444" Width="24" Height="24"/>
+			</data>
+			<data key="d7">
+				<yjs:ShapeNodeStyle shape="ELLIPSE" fill="#FFC8C8C8" stroke="#FF505050"/>
+			</data>
+			<port name="p0">
+				<data key="d16">
+					<y:FreeNodePortLocationModelParameter Ratio="0,0"/>
+				</data>
+			</port>
+		</node>
+		<node id="cap-port-corners">
+			<data key="d4">
+				<x:List><y:Label Text="ports Ratio 1,1 to 0,0"><y:Label.LayoutParameter><yx:InteriorNodeLabelModelParameter Position="Center" Model="{y:GraphMLReference m-interior}"/></y:Label.LayoutParameter><y:Label.Style><yjs:LabelStyle textFill="#FF000000" horizontalTextAlignment="CENTER" verticalTextAlignment="CENTER"><yjs:LabelStyle.font><yjs:Font fontFamily="DejaVu Sans" fontSize="9"/></yjs:LabelStyle.font></yjs:LabelStyle></y:Label.Style></y:Label></x:List>
+			</data>
+			<data key="d5">
+				<y:RectD X="116.62" Y="832.594" Width="126.76" Height="15.7"/>
 			</data>
 			<data key="d7">
 				<yjs:ShapeNodeStyle shape="RECTANGLE" fill="#00FFFFFF" stroke="#00FFFFFF"/>
@@ -988,7 +1062,7 @@
 		</edge>
 		<edge id="bends-one" source="bends-one-s" target="bends-one-t">
 			<data key="d12">
-				<x:List><y:Bend Location="180,559.75"/></x:List>
+				<x:List><y:Bend Location="180,497.111"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
@@ -996,7 +1070,7 @@
 		</edge>
 		<edge id="bends-two" source="bends-two-s" target="bends-two-t">
 			<data key="d12">
-				<x:List><y:Bend Location="440,559.75"/><y:Bend Location="480,619.75"/></x:List>
+				<x:List><y:Bend Location="440,497.111"/><y:Bend Location="480,557.111"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
@@ -1004,7 +1078,7 @@
 		</edge>
 		<edge id="smoothing-length-5" source="smoothing-length-5-s" target="smoothing-length-5-t">
 			<data key="d12">
-				<x:List><y:Bend Location="720,559.75"/><y:Bend Location="760,559.75"/></x:List>
+				<x:List><y:Bend Location="720,497.111"/><y:Bend Location="760,497.111"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle smoothingLength="5"><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
@@ -1012,7 +1086,7 @@
 		</edge>
 		<edge id="smoothing-length-20" source="smoothing-length-20-s" target="smoothing-length-20-t">
 			<data key="d12">
-				<x:List><y:Bend Location="1000,559.75"/><y:Bend Location="1040,559.75"/></x:List>
+				<x:List><y:Bend Location="1000,497.111"/><y:Bend Location="1040,497.111"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle smoothingLength="20"><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
@@ -1020,7 +1094,7 @@
 		</edge>
 		<edge id="bezier" source="bezier-s" target="bezier-t">
 			<data key="d12">
-				<x:List><y:Bend Location="160,657.25"/><y:Bend Location="200,727.25"/></x:List>
+				<x:List><y:Bend Location="160,583.222"/><y:Bend Location="200,653.222"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:BezierEdgeStyle ><yjs:BezierEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:BezierEdgeStyle.stroke><yjs:BezierEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:BezierEdgeStyle.sourceArrow><yjs:BezierEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:BezierEdgeStyle.targetArrow></yjs:BezierEdgeStyle>
@@ -1028,7 +1102,7 @@
 		</edge>
 		<edge id="bezier-five" source="bezier-five-s" target="bezier-five-t">
 			<data key="d12">
-				<x:List><y:Bend Location="435,662.25"/><y:Bend Location="450,662.25"/><y:Bend Location="460,692.25"/><y:Bend Location="470,722.25"/><y:Bend Location="485,722.25"/></x:List>
+				<x:List><y:Bend Location="435,588.222"/><y:Bend Location="450,588.222"/><y:Bend Location="460,618.222"/><y:Bend Location="470,648.222"/><y:Bend Location="485,648.222"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:BezierEdgeStyle ><yjs:BezierEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:BezierEdgeStyle.stroke><yjs:BezierEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:BezierEdgeStyle.sourceArrow><yjs:BezierEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:BezierEdgeStyle.targetArrow></yjs:BezierEdgeStyle>
@@ -1051,7 +1125,7 @@
 		</edge>
 		<edge id="loop" source="loop-n" target="loop-n">
 			<data key="d12">
-				<x:List><y:Bend Location="452,760.75"/><y:Bend Location="468,760.75"/></x:List>
+				<x:List><y:Bend Location="452,675.333"/><y:Bend Location="468,675.333"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
@@ -1059,7 +1133,7 @@
 		</edge>
 		<edge id="parallel-a" source="parallel-s" target="parallel-t">
 			<data key="d12">
-				<x:List><y:Bend Location="740,780.75"/></x:List>
+				<x:List><y:Bend Location="740,695.333"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FFFF0000" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
@@ -1067,10 +1141,20 @@
 		</edge>
 		<edge id="parallel-b" source="parallel-s" target="parallel-t">
 			<data key="d12">
-				<x:List><y:Bend Location="740,808.75"/></x:List>
+				<x:List><y:Bend Location="740,723.333"/></x:List>
 			</data>
 			<data key="d13">
 				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF0000FF" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
+			</data>
+		</edge>
+		<edge id="port-top-bottom" source="port-top-bottom-s" target="port-top-bottom-t" sourceport="p0" targetport="p0">
+			<data key="d13">
+				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
+			</data>
+		</edge>
+		<edge id="port-corners" source="port-corners-s" target="port-corners-t" sourceport="p0" targetport="p0">
+			<data key="d13">
+				<yjs:PolylineEdgeStyle ><yjs:PolylineEdgeStyle.stroke><yjs:Stroke fill="#FF505050" thickness="1.5"/></yjs:PolylineEdgeStyle.stroke><yjs:PolylineEdgeStyle.sourceArrow><yjs:Arrow type="NONE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.sourceArrow><yjs:PolylineEdgeStyle.targetArrow><yjs:Arrow type="TRIANGLE" fill="#FF505050" stroke="#FF505050"/></yjs:PolylineEdgeStyle.targetArrow></yjs:PolylineEdgeStyle>
 			</data>
 		</edge>
 	</graph>

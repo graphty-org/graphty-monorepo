@@ -1,7 +1,7 @@
 {
     "sample": "yed-live-graphml-specimen-node-fills-borders",
     "file": "graph-io/test/fidelity/specimens/yed-live-graphml/specimen-node-fills-borders.graphml",
-    "sha256": "b9fa83044d5530763d97f403f70c9f28bfeda223a0f7f49f942a52b153037d4f",
+    "sha256": "353063581b388f328164c47e724eac41e85708093ba599901e56c5e6ea3e2fbe",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
@@ -16,6 +16,6 @@
     "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "determinism": "Math.random seeded (mulberry32, seed 1) before draw.io loads: draw.io names the SVG root and its gradients from it",
     "svgPostprocessing": "none: the SVG is draw.io's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/drawio.mjs yed-live-graphml-specimen-node-fills-borders && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/yed-live-graphml-specimen-node-fills-borders.svg"
 }

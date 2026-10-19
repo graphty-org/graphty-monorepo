@@ -1,7 +1,7 @@
 {
     "sample": "yed-live-graphml-specimen-labels-p2",
     "file": "graph-io/test/fidelity/specimens/yed-live-graphml/specimen-labels-p2.graphml",
-    "sha256": "a6ab9f0d12f9351bd4bddd9bbb1630fdbf11cb16d2d6b596cdbf83c1e128d643",
+    "sha256": "b4bc9eef62d3f8e5d5c6d4b3a10643d523cf44a8f44ac916d5b3b6517ec44856",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
@@ -16,6 +16,6 @@
     "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "determinism": "Math.random seeded (mulberry32, seed 1) before draw.io loads: draw.io names the SVG root and its gradients from it",
     "svgPostprocessing": "none: the SVG is draw.io's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/drawio.mjs yed-live-graphml-specimen-labels-p2 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/yed-live-graphml-specimen-labels-p2.svg"
 }

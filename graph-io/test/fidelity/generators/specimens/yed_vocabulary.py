@@ -18,6 +18,10 @@ Sources:
     GENERIC_CONFIGURATIONS below                                  yEd's GenericNode palette ids (no schema lists them)
     BPMN_PROPERTIES below                                         the BPMN palette's style properties (no yWorks
                                                                   document lists them): corpus and draw.io's importer
+    https://docs.yworks.com/ybpmn/doc/api/com/yworks/yfiles/bpmn/view/<Enum>.html
+                                                                  the yFiles BPMN extension yEd's BPMN palette is built
+                                                                  on: every value of its type, activity type, marker,
+                                                                  task type, data object type and event characteristic
   yEd Live GraphML (yFiles for HTML 3, the library yEd Live is built on):
     https://docs.yworks.com/yfiles-html/api/<Type>.html           every enumeration (ShapeNodeShape, ArrowType, ...)
                                                                   and the GraphML-visible properties of every style
@@ -25,11 +29,15 @@ Sources:
     https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html       the 2.6 enumerations and style properties
     yfiles-for-html-demos v2.6 .../flowchart/style/FlowchartStyle.ts
                                                                   FlowchartNodeType: yEd Live's flowchart palette
+    yfiles-for-html-demos v2.6 .../showcase/bpmn/bpmn-view.ts     yEd Live's BPMN palette (the bpmn: namespace, in
+                                                                  2.x and 3.0 files alike): every style's stored
+                                                                  properties and every enumeration
 
 yed.py reads the JSON and fails when a value in it is neither on a specimen sheet nor listed with the reason it is
 not, so a new yEd or yFiles release (a new shape, arrow or label model) shows up as a missing specimen.
 """
 import gzip
+from html import unescape
 import json
 import os
 import re
@@ -46,6 +54,18 @@ HTMLDOC = "https://docs.yworks.com/yfiles-html/api/{}.html"
 HTML2DOC = "https://docs.yworks.com/yfiles-html-2.6/api/{}.html"
 FLOWCHART_STYLE = ("https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/flowchart/"
                    "style/FlowchartStyle.ts")
+BPMN_VIEW = "https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/bpmn/bpmn-view.ts"
+# A bpmn-view.ts style property typed number: the enumeration it takes (per style, then for every style), or a number.
+BPMN_VIEW_ENUM = {
+    ("ChoreographyNodeStyle", "type"): "ChoreographyType", ("BpmnEdgeStyle", "type"): "EdgeType",
+    ("DataObjectNodeStyle", "type"): "DataObjectType", ("ConversationNodeStyle", "type"): "ConversationType",
+    ("EventNodeStyle", "type"): "EventType", ("GatewayNodeStyle", "type"): "GatewayType", ("EventPortStyle", "type"): "EventType",
+    "activityType": "ActivityType", "taskType": "TaskType", "triggerEventType": "EventType",
+    "triggerEventCharacteristic": "EventCharacteristic", "characteristic": "EventCharacteristic",
+    "loopCharacteristic": "LoopCharacteristic", "subState": "SubState",
+}
+BPMN_VIEW_NUMBERS = {("BpmnEdgeStyle", "smoothing"), ("AnnotationLabelStyle", "insets")}
+YBPMN = "https://docs.yworks.com/ybpmn/doc/api/com/yworks/yfiles/bpmn/view/{}.html"
 XS = "{http://www.w3.org/2001/XMLSchema}"
 
 # yFiles for HTML enumerations whose members are values a GraphML file stores.
@@ -101,6 +121,32 @@ BPMN_PROPERTIES = {
     "com.yworks.bpmn.icon.fill": ("java.awt.Color", []),
     "com.yworks.bpmn.icon.fill2": ("java.awt.Color", []),
     "com.yworks.bpmn.icon.line.color": ("java.awt.Color", []),
+    # no corpus file writes these: the class is the yFiles BPMN enum's (same package as TaskTypeEnum), the values its
+    # constants with the prefix yEd writes (draw.io's importer reads activity_type_transaction and bpmn_marker_loop)
+    "com.yworks.bpmn.activityType": ("com.yworks.yfiles.bpmn.view.ActivityTypeEnum", []),
+    "com.yworks.bpmn.marker1": ("com.yworks.yfiles.bpmn.view.MarkerTypeEnum", []),
+    "com.yworks.bpmn.marker2": ("com.yworks.yfiles.bpmn.view.MarkerTypeEnum", []),
+    "com.yworks.bpmn.marker3": ("com.yworks.yfiles.bpmn.view.MarkerTypeEnum", []),
+    "com.yworks.bpmn.marker4": ("com.yworks.yfiles.bpmn.view.MarkerTypeEnum", []),
+}
+# Each property's full value list, from the yFiles BPMN javadoc: (enum page, prefix yEd writes before a constant).
+# The values above must all be among them; a constant the javadoc adds shows up as a missing specimen.
+BPMN_ENUMS = {
+    "com.yworks.bpmn.type": ("BpmnTypeEnum", ""),
+    "com.yworks.bpmn.characteristic": ("EventCharEnum", ""),
+    "com.yworks.bpmn.taskType": ("TaskTypeEnum", "TASK_TYPE_"),
+    "com.yworks.bpmn.dataObjectType": ("DataObjectTypeEnum", "DATA_OBJECT_TYPE_"),
+    "com.yworks.bpmn.activityType": ("ActivityTypeEnum", "ACTIVITY_TYPE_"),
+    "com.yworks.bpmn.marker1": ("MarkerTypeEnum", "BPMN_MARKER_"),
+}
+# Other style properties yEd's palettes write that no corpus file shows, with their Java class: draw.io 32.4.1's
+# mxGraphMlCodec reads them (SBGN corner radius and clone marker, the table lane style, section color and header height).
+STYLE_PROPERTIES = {
+    "com.yworks.sbgn.style.radius": "java.lang.Double",
+    "com.yworks.sbgn.style.inverse": "java.lang.Boolean",
+    "yed.table.lane.style": "java.lang.String",
+    "yed.table.section.color": "java.awt.Color",
+    "yed.table.header.height": "java.lang.Double",
 }
 
 # yEd's GenericNode palette ids, which no schema lists: yEd's Flowchart, BPMN, Entity Relationship, SBGN and
@@ -212,13 +258,51 @@ def html2_members(text):
     return out
 
 
+def ybpmn_fields(text):
+    """A yFiles BPMN javadoc enum page's constants (its field summary)."""
+    return sorted(set(re.findall(r"static\s+\S+\s+([A-Z][A-Z0-9_]+)", unescape(re.sub(r"<[^>]+>", " ", text)))))
+
+
+def bpmn_view(text):
+    """yEd Live's BPMN palette from bpmn-view.ts: its enumerations, and each exported *Style class's stored
+    properties (a public getter with a setter) with their type, an enumeration's name for a number."""
+    enums = {}
+    for m in re.finditer(r"export const (\w+) = \(Enum as any\)\('\w+', \{(.*?)\n\}\)", text, re.S):
+        body = re.sub(r"/\*.*?\*/", "", m.group(2), flags=re.S)
+        enums[m.group(1)] = re.findall(r"^\s*([A-Z][A-Z0-9_]*)\s*:", body, re.M)
+    starts = [(m.start(), m.group(1)) for m in re.finditer(r"^export class (\w+Style) extends", text, re.M)]
+    ends = [m.start() for m in re.finditer(r"^export ", text, re.M)]
+    styles, defaults = {}, {}
+    for s, name in starts:
+        e = min([x for x in ends if x > s] + [len(text)])
+        body = text[s:e]
+        sets = set(re.findall(r"^  set (\w+)\(", body, re.M))
+        props = {}
+        for g, ty in re.findall(r"^  get (\w+)\(\): ([^{]+?) \{", body, re.M):
+            if g not in sets:
+                continue
+            ty = ty.strip()
+            if ty == "number" and (name, g) not in BPMN_VIEW_NUMBERS:
+                ty = BPMN_VIEW_ENUM.get((name, g)) or BPMN_VIEW_ENUM[g]
+                if ty not in enums:
+                    raise SystemExit(f"bpmn-view.ts: {name}.{g} names enumeration {ty}, which it does not define")
+            props[g] = ty
+            d = re.search(rf"^  private _{g}(?:: boolean)? = (true|false)$", body, re.M)
+            if ty == "boolean" and d:
+                defaults.setdefault(name, {})[g] = d.group(1)
+        styles[name] = props
+    if not enums or not styles:
+        raise SystemExit("bpmn-view.ts: no enumerations or styles read")
+    return {"enums": enums, "styles": styles, "booleanDefaults": defaults}
+
+
 def flowchart_types(text):
     """The FlowchartNodeType values of yFiles for HTML 2.6's flowchart demo style (yEd Live's flowchart palette)."""
     block = re.search(r"export enum FlowchartNodeType \{(.*?)\}", text, re.S)
     return re.findall(r"=\s*'([A-Za-z0-9]+)'", block.group(1)) if block else []
 
 
-def corpus_files(marker):
+def corpus_files(marker, also=None):
     for dp, _, fs in os.walk(CORPUS):
         for f in sorted(fs):
             if not (f.endswith(".graphml") or f.endswith(".graphml.gz")):
@@ -226,7 +310,7 @@ def corpus_files(marker):
             p = os.path.join(dp, f)
             b = open(p, "rb").read()
             t = (gzip.decompress(b) if f.endswith(".gz") else b).decode("utf8", "replace")
-            if marker in t[:600]:
+            if marker in t[:600] or also is not None and also in t[:2000]:
                 yield os.path.relpath(p, REPO), t
 
 
@@ -263,12 +347,17 @@ def observed_yed():
 
 
 def observed_yfiles_html():
-    found = {"styles": set(), "elements": set()}
+    found = {"styles": set(), "elements": set(), "prefixedElements": set()}
     files = []
-    for rel, t in corpus_files("Created by yFiles for HTML"):
+    # yFiles for HTML files: the writer's comment, or (a file saved without it) a yjs namespace on the root
+    for rel, t in corpus_files("Created by yFiles for HTML", 'xmlns:yjs="'):
+        if "/generated/" in rel:
+            continue  # graph-io's own synthetic test files, not a program's output
         files.append(rel)
         found["styles"].update(re.findall(r"<yjs:(\w+Style)\b", t))
         found["elements"].update(re.findall(r"<(?:y|yx|yjs):(\w+)\b", t))
+        # every element in every namespace, prefix kept: yEd Live's palette styles live in their own namespaces
+        found["prefixedElements"].update(f"{p}:{n}" for p, n in re.findall(r"<([A-Za-z][\w-]*):([A-Za-z]\w*)\b", t))
     return {k: sorted(v) for k, v in found.items()}, files
 
 
@@ -302,6 +391,16 @@ def main():
             html["FontWeight"] = {"field": re.findall(r"&#39;([a-z]+)&#39;", union.group(1)) if union else []}
     html2 = {cls: html2_members(fetch(HTML2DOC.format(cls), cache)) for cls in HTML2_ENUMS + HTML2_TYPES}
     flow = flowchart_types(fetch(FLOWCHART_STYLE, cache))
+    bpmn_html = bpmn_view(fetch(BPMN_VIEW, cache))
+    for name, (enum, prefix) in BPMN_ENUMS.items():
+        consts = [prefix + c for c in ybpmn_fields(fetch(YBPMN.format(enum), cache))]
+        if not consts:
+            raise SystemExit(f"no constants read from {YBPMN.format(enum)}")
+        listed = BPMN_PROPERTIES[name][1]
+        stray = [v for v in listed if v not in consts]
+        if stray:
+            raise SystemExit(f"{name}: values the yFiles BPMN javadoc does not list: {stray}")
+        listed.extend(v for v in consts if v not in listed)
     bpmn = {name: {"class": cls, "values": [{"value": v, "spelling": "observed" if v in seen["bpmnValues"] else "inferred"}
                                             for v in vals]}
             for name, (cls, vals) in BPMN_PROPERTIES.items()}
@@ -314,6 +413,7 @@ def main():
             "javadoc": [JAVADOC.format("ShapeNodeRealizer"), JAVADOC.format("Arrow")],
             "yfilesHtml2": HTML2DOC.format("<Type>"),
             "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
+            "ybpmn": YBPMN.format("<Enum>"),
             "yfilesHtml": HTMLDOC.format("<Type>"),
             "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'",
         },
@@ -328,6 +428,7 @@ def main():
             "edgeLabelPositions": EDGE_LABEL_POSITIONS,
             "genericConfigurations": configurations,
             "bpmnStyleProperties": bpmn,
+            "styleProperties": STYLE_PROPERTIES,
             "observedInCorpus": seen,
             "corpusFiles": len(yed_files),
         },
@@ -335,6 +436,7 @@ def main():
             "types": html,
             "yfilesHtml2": {"types": html2, "flowchartNodeTypes": flow, "source": HTML2DOC.format("<Type>"),
                             "flowchartSource": FLOWCHART_STYLE},
+            "bpmn": {"source": BPMN_VIEW, "namespace": "http://www.yworks.com/xml/yfiles-bpmn/2.0", **bpmn_html},
             "observedInCorpus": html_seen,
             "corpusFiles": len(html_files),
         },

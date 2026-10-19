@@ -8,6 +8,7 @@
         ],
         "yfilesHtml2": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
         "bpmn": "the yEd BPMN palette's style properties: yEd-written corpus files and draw.io 32.4.1's mxGraphMlCodec",
+        "ybpmn": "https://docs.yworks.com/ybpmn/doc/api/com/yworks/yfiles/bpmn/view/<Enum>.html",
         "yfilesHtml": "https://docs.yworks.com/yfiles-html/api/<Type>.html",
         "corpus": "graph-io/test/corpus: files whose header says 'Created by yEd' / 'Created by yFiles for HTML'"
     },
@@ -845,6 +846,118 @@
                     {
                         "value": "ARTIFACT_TYPE_REQUEST_MESSAGE",
                         "spelling": "observed"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_STATELESS_TASK_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_SUBPROCESS_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_MULTIPLE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK_PLAIN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CHOREOGRAPHY_TYPE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_ASSOCIATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_BIDIRECTED_ASSOCIATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_CONDITIONAL_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_CONVERSATION_LINK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_DEFAULT_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_DIRECTED_ASSOCIATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_FORKED_CONVERSATION_LINK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_MESSAGE_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONNECTION_TYPE_SEQUENCE_FLOW",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "CONVERSATION_TYPE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_COLUMN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_EMPTY",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_LANE",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "POOL_TYPE_LANE_AND_COLUMN",
+                        "spelling": "inferred"
                     }
                 ]
             },
@@ -950,7 +1063,80 @@
             "com.yworks.bpmn.icon.line.color": {
                 "class": "java.awt.Color",
                 "values": []
+            },
+            "com.yworks.bpmn.activityType": {
+                "class": "com.yworks.yfiles.bpmn.view.ActivityTypeEnum",
+                "values": [
+                    {
+                        "value": "ACTIVITY_TYPE_CALL_ACTIVITY",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_EVENT_SUB_PROCESS",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TASK",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "ACTIVITY_TYPE_TRANSACTION",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.marker1": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": [
+                    {
+                        "value": "BPMN_MARKER_AD_HOC",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_CLOSED",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_COMPENSATION",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_LOOP",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_OPEN",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_PARALLEL",
+                        "spelling": "inferred"
+                    },
+                    {
+                        "value": "BPMN_MARKER_SEQUENTIAL",
+                        "spelling": "inferred"
+                    }
+                ]
+            },
+            "com.yworks.bpmn.marker2": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": []
+            },
+            "com.yworks.bpmn.marker3": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": []
+            },
+            "com.yworks.bpmn.marker4": {
+                "class": "com.yworks.yfiles.bpmn.view.MarkerTypeEnum",
+                "values": []
             }
+        },
+        "styleProperties": {
+            "com.yworks.sbgn.style.radius": "java.lang.Double",
+            "com.yworks.sbgn.style.inverse": "java.lang.Boolean",
+            "yed.table.lane.style": "java.lang.String",
+            "yed.table.section.color": "java.awt.Color",
+            "yed.table.header.height": "java.lang.Double"
         },
         "observedInCorpus": {
             "realizers": [
@@ -1819,6 +2005,222 @@
             "source": "https://docs.yworks.com/yfiles-html-2.6/api/<Type>.html",
             "flowchartSource": "https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/flowchart/style/FlowchartStyle.ts"
         },
+        "bpmn": {
+            "source": "https://raw.githubusercontent.com/yWorks/yfiles-for-html-demos/v2.6/demos/showcase/bpmn/bpmn-view.ts",
+            "namespace": "http://www.yworks.com/xml/yfiles-bpmn/2.0",
+            "enums": {
+                "SubState": ["NONE", "EXPANDED", "COLLAPSED", "DYNAMIC"],
+                "GatewayType": [
+                    "EXCLUSIVE_WITHOUT_MARKER",
+                    "EXCLUSIVE_WITH_MARKER",
+                    "INCLUSIVE",
+                    "PARALLEL",
+                    "COMPLEX",
+                    "EVENT_BASED",
+                    "EXCLUSIVE_EVENT_BASED",
+                    "PARALLEL_EVENT_BASED"
+                ],
+                "EventType": [
+                    "PLAIN",
+                    "MESSAGE",
+                    "TIMER",
+                    "ESCALATION",
+                    "CONDITIONAL",
+                    "LINK",
+                    "ERROR",
+                    "CANCEL",
+                    "COMPENSATION",
+                    "SIGNAL",
+                    "MULTIPLE",
+                    "PARALLEL_MULTIPLE",
+                    "TERMINATE"
+                ],
+                "ActivityType": ["TASK", "SUB_PROCESS", "TRANSACTION", "EVENT_SUB_PROCESS", "CALL_ACTIVITY"],
+                "LoopCharacteristic": ["NONE", "LOOP", "PARALLEL", "SEQUENTIAL"],
+                "TaskType": [
+                    "ABSTRACT",
+                    "SEND",
+                    "RECEIVE",
+                    "USER",
+                    "MANUAL",
+                    "BUSINESS_RULE",
+                    "SERVICE",
+                    "SCRIPT",
+                    "EVENT_TRIGGERED"
+                ],
+                "ConversationType": [
+                    "CONVERSATION",
+                    "SUB_CONVERSATION",
+                    "CALLING_GLOBAL_CONVERSATION",
+                    "CALLING_COLLABORATION"
+                ],
+                "EdgeType": [
+                    "SEQUENCE_FLOW",
+                    "DEFAULT_FLOW",
+                    "CONDITIONAL_FLOW",
+                    "MESSAGE_FLOW",
+                    "ASSOCIATION",
+                    "DIRECTED_ASSOCIATION",
+                    "BIDIRECTED_ASSOCIATION",
+                    "CONVERSATION"
+                ],
+                "ChoreographyType": ["TASK", "CALL"],
+                "EventCharacteristic": [
+                    "START",
+                    "SUB_PROCESS_INTERRUPTING",
+                    "SUB_PROCESS_NON_INTERRUPTING",
+                    "CATCHING",
+                    "BOUNDARY_INTERRUPTING",
+                    "BOUNDARY_NON_INTERRUPTING",
+                    "THROWING",
+                    "END"
+                ],
+                "DataObjectType": ["NONE", "INPUT", "OUTPUT"]
+            },
+            "styles": {
+                "BpmnNodeStyle": {
+                    "minimumSize": "Size"
+                },
+                "ChoreographyNodeStyle": {
+                    "type": "ChoreographyType",
+                    "loopCharacteristic": "LoopCharacteristic",
+                    "subState": "SubState",
+                    "initiatingMessage": "boolean",
+                    "responseMessage": "boolean",
+                    "initiatingAtTop": "boolean",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill",
+                    "initiatingColor": "Fill",
+                    "responseColor": "Fill",
+                    "messageOutline": "Fill",
+                    "insets": "Insets",
+                    "textPlacement": "ILabelModelParameter | null"
+                },
+                "BpmnEdgeStyle": {
+                    "type": "EdgeType",
+                    "color": "Fill | null",
+                    "innerColor": "Fill | null",
+                    "smoothing": "number"
+                },
+                "ActivityNodeStyle": {
+                    "activityType": "ActivityType",
+                    "taskType": "TaskType",
+                    "triggerEventType": "EventType",
+                    "triggerEventCharacteristic": "EventCharacteristic",
+                    "loopCharacteristic": "LoopCharacteristic",
+                    "subState": "SubState",
+                    "adHoc": "boolean",
+                    "compensation": "boolean",
+                    "insets": "Insets",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill",
+                    "eventOutline": "Fill | null"
+                },
+                "AlternatingLeafStripeStyle": {
+                    "evenLeafDescriptor": "StripeDescriptor",
+                    "parentDescriptor": "StripeDescriptor",
+                    "oddLeafDescriptor": "StripeDescriptor",
+                    "backgroundFill": "Fill | null",
+                    "stroke": "Stroke | null",
+                    "insetFill": "Fill | null",
+                    "insets": "Insets"
+                },
+                "AnnotationNodeStyle": {
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "left": "boolean"
+                },
+                "AnnotationLabelStyle": {
+                    "insets": "number",
+                    "delegateStyle": "ConnectedIconLabelStyle",
+                    "background": "Fill",
+                    "outline": "Fill"
+                },
+                "PoolNodeStyle": {
+                    "multipleInstance": "boolean",
+                    "iconColor": "Fill",
+                    "tableNodeStyle": "TableNodeStyle"
+                },
+                "MessageLabelStyle": {
+                    "isInitiating": "boolean",
+                    "outline": "Fill | null",
+                    "initiatingColor": "Fill",
+                    "responseColor": "Fill"
+                },
+                "DataStoreNodeStyle": {
+                    "background": "Fill",
+                    "outline": "Fill"
+                },
+                "DataObjectNodeStyle": {
+                    "collection": "boolean",
+                    "type": "DataObjectType",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill"
+                },
+                "ConversationNodeStyle": {
+                    "type": "ConversationType",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill"
+                },
+                "EventNodeStyle": {
+                    "type": "EventType",
+                    "characteristic": "EventCharacteristic",
+                    "background": "Fill",
+                    "outline": "Fill | null",
+                    "iconColor": "Fill"
+                },
+                "GroupNodeStyle": {
+                    "insets": "Insets",
+                    "background": "Fill | null",
+                    "outline": "Fill | null"
+                },
+                "GatewayNodeStyle": {
+                    "type": "GatewayType",
+                    "background": "Fill",
+                    "outline": "Fill",
+                    "iconColor": "Fill"
+                },
+                "EventPortStyle": {
+                    "type": "EventType",
+                    "characteristic": "EventCharacteristic",
+                    "renderSize": "Size",
+                    "background": "Fill",
+                    "outline": "Fill | null",
+                    "iconColor": "Fill",
+                    "checked": "boolean"
+                }
+            },
+            "booleanDefaults": {
+                "ChoreographyNodeStyle": {
+                    "initiatingMessage": "false",
+                    "responseMessage": "false",
+                    "initiatingAtTop": "true"
+                },
+                "ActivityNodeStyle": {
+                    "adHoc": "false",
+                    "compensation": "false"
+                },
+                "AnnotationNodeStyle": {
+                    "left": "false"
+                },
+                "PoolNodeStyle": {
+                    "multipleInstance": "false"
+                },
+                "MessageLabelStyle": {
+                    "isInitiating": "true"
+                },
+                "DataObjectNodeStyle": {
+                    "collection": "false"
+                },
+                "EventPortStyle": {
+                    "checked": "false"
+                }
+            }
+        },
         "observedInCorpus": {
             "styles": [
                 "DashStyle",
@@ -1840,6 +2242,7 @@
                 "CssFill",
                 "DashStyle",
                 "DefaultLabelStyle",
+                "ExteriorLabelModel",
                 "ExteriorNodeLabelModel",
                 "ExteriorNodeLabelModelParameter",
                 "FolderNodeState",
@@ -1847,6 +2250,7 @@
                 "Font",
                 "FreeEdgeLabelModel",
                 "FreeEdgeLabelModelParameter",
+                "FreeNodeLabelModel",
                 "FreeNodeLabelModelParameter",
                 "FreeNodePortLocationModelParameter",
                 "GradientStop",
@@ -1854,6 +2258,8 @@
                 "GroupNodeLabelModel",
                 "GroupNodeLabelModelParameter",
                 "GroupNodeStyle",
+                "InteriorLabelModel",
+                "InteriorLabelModelParameter",
                 "InteriorNodeLabelModel",
                 "InteriorNodeLabelModelParameter",
                 "Json",
@@ -1873,8 +2279,70 @@
                 "SolidColorFill",
                 "Stroke",
                 "ViewState"
+            ],
+            "prefixedElements": [
+                "GraphvizNodeStyle:GraphvizNodeStyle",
+                "bpmn:AnnotationLabelStyle",
+                "bpmn:BpmnEdgeStyle",
+                "demostyle:FlowchartNodeStyle",
+                "icon-style:ColoredIconNodeStyle",
+                "sys:Double",
+                "sys:String",
+                "uml:UMLClassModel",
+                "uml:UMLNodeStyle",
+                "x:Array",
+                "x:List",
+                "x:Static",
+                "y:Bend",
+                "y:CompositeLabelModel",
+                "y:CompositeLabelModelParameter",
+                "y:ExteriorLabelModel",
+                "y:FolderNodeState",
+                "y:FoldingEdgeState",
+                "y:FreeEdgeLabelModel",
+                "y:FreeEdgeLabelModelParameter",
+                "y:FreeNodeLabelModel",
+                "y:FreeNodePortLocationModelParameter",
+                "y:GraphMLReference",
+                "y:GroupNodeLabelModel",
+                "y:GroupNodeLabelModelParameter",
+                "y:InteriorLabelModel",
+                "y:InteriorLabelModelParameter",
+                "y:Json",
+                "y:Label",
+                "y:Port",
+                "y:RatioAnchoredLabelModelParameter",
+                "y:RectD",
+                "y:SharedData",
+                "y:SmartEdgeLabelModel",
+                "y:SmartEdgeLabelModelParameter",
+                "y:ViewState",
+                "yjs:Arrow",
+                "yjs:Color",
+                "yjs:CssFill",
+                "yjs:DashStyle",
+                "yjs:DefaultLabelStyle",
+                "yjs:Font",
+                "yjs:GradientStop",
+                "yjs:GroupNodeStyle",
+                "yjs:LabelStyle",
+                "yjs:LinearGradient",
+                "yjs:MarkupLabelStyle",
+                "yjs:PolylineEdgeStyle",
+                "yjs:RectangleNodeStyle",
+                "yjs:ShapeNodeStyle",
+                "yjs:SolidColorFill",
+                "yjs:Stroke",
+                "yx:CompositeLabelModel",
+                "yx:CompositeLabelModelModelPair",
+                "yx:CompositeLabelModelParameter",
+                "yx:ExteriorNodeLabelModel",
+                "yx:ExteriorNodeLabelModelParameter",
+                "yx:FreeNodeLabelModelParameter",
+                "yx:InteriorNodeLabelModel",
+                "yx:InteriorNodeLabelModelParameter"
             ]
         },
-        "corpusFiles": 6
+        "corpusFiles": 7
     }
 }

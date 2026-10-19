@@ -1,7 +1,7 @@
 {
     "sample": "yed-live-graphml-specimen-edges-lines",
     "file": "graph-io/test/fidelity/specimens/yed-live-graphml/specimen-edges-lines.graphml",
-    "sha256": "d2f38d9e2e3389976fbb475ef2c8e4959307a76eb28d8f56396e5e9090041e83",
+    "sha256": "12f46369445ba1061a53813f87c2d4d39c5034dd9f487b9c96cfe48f0d7b43a1",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
@@ -16,6 +16,6 @@
     "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "determinism": "Math.random seeded (mulberry32, seed 1) before draw.io loads: draw.io names the SVG root and its gradients from it",
     "svgPostprocessing": "none: the SVG is draw.io's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/drawio.mjs yed-live-graphml-specimen-edges-lines && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/yed-live-graphml-specimen-edges-lines.svg"
 }

@@ -1,7 +1,7 @@
 {
     "sample": "yed-graphml-specimen-node-shapes-p3",
     "file": "graph-io/test/fidelity/specimens/yed-graphml/specimen-node-shapes-p3.graphml",
-    "sha256": "13878e23104cff795dd737d65fb77709b99e36f950f9a0d547806ee61241b8a7",
+    "sha256": "da5ac309a858d9b044020ff8501f37506f97d920cb6581f078101574d296a71d",
     "program": "draw.io (jgraph/drawio)",
     "version": "32.4.1",
     "command": "export3.html (the draw.io desktop CLI's export page): new mxGraphMlCodec().decode(<file>) (draw.io's File > Import), then render({ xml, format: 'svg', w: 1200, h: 900, border: 0, theme: 'light' }) and the page's get-svg-data handler (graph.getSvg), as `drawio -x -f svg --width 1200 --height 900` does, with draw.io's light theme",
@@ -16,6 +16,6 @@
     "fonts": "Chromium with FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "determinism": "Math.random seeded (mulberry32, seed 1) before draw.io loads: draw.io names the SVG root and its gradients from it",
     "svgPostprocessing": "none: the SVG is draw.io's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/drawio.mjs yed-graphml-specimen-node-shapes-p3 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/yed-graphml-specimen-node-shapes-p3.svg"
 }

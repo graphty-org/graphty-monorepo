@@ -37,302 +37,322 @@
     </node>
     <node id="default">
       <data key="d6">
-        <y:GenericNode><y:Geometry height="36.0" width="36.0" x="134.0" y="76.333"/></y:GenericNode>
+        <y:GenericNode><y:Geometry height="36.0" width="36.0" x="134.0" y="66.571"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-default">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="132.34" x="85.83" y="126.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="132.34" x="0.0" y="0.0" xml:space="preserve">GenericNode=nothing set</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="132.34" x="85.83" y="116.721"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="132.34" x="0.0" y="0.0" xml:space="preserve">GenericNode=nothing set</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-activity">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Activity"><y:Geometry height="36.0" width="56.0" x="348.0" y="76.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Activity"><y:Geometry height="36.0" width="56.0" x="348.0" y="66.571"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-activity">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="312.62" y="126.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=Activity</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="312.62" y="116.721"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=Activity</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-activity-withshadow">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Activity.withShadow"><y:Geometry height="36.0" width="56.0" x="572.0" y="76.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Activity.withShadow"><y:Geometry height="36.0" width="56.0" x="572.0" y="66.571"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-activity-withshadow">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="188.14" x="505.93" y="126.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="188.14" x="0.0" y="0.0" xml:space="preserve">configuration=Activity.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="188.14" x="505.93" y="116.721"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="188.14" x="0.0" y="0.0" xml:space="preserve">configuration=Activity.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-event">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Event"><y:Geometry height="36.0" width="56.0" x="796.0" y="76.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Event"><y:Geometry height="36.0" width="56.0" x="796.0" y="66.571"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-event">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="110.02" x="768.99" y="126.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="110.02" x="0.0" y="0.0" xml:space="preserve">configuration=Event</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="110.02" x="768.99" y="116.721"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="110.02" x="0.0" y="0.0" xml:space="preserve">configuration=Event</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-event-withshadow">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Event.withShadow"><y:Geometry height="36.0" width="56.0" x="1020.0" y="76.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Event.withShadow"><y:Geometry height="36.0" width="56.0" x="1020.0" y="66.571"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-event-withshadow">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="171.4" x="962.3" y="126.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="171.4" x="0.0" y="0.0" xml:space="preserve">configuration=Event.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="171.4" x="962.3" y="116.721"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="171.4" x="0.0" y="0.0" xml:space="preserve">configuration=Event.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-gateway">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Gateway"><y:Geometry height="36.0" width="56.0" x="124.0" y="213.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Gateway"><y:Geometry height="36.0" width="56.0" x="124.0" y="183.714"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-gateway">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="121.18" x="91.41" y="263.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="121.18" x="0.0" y="0.0" xml:space="preserve">configuration=Gateway</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="121.18" x="91.41" y="233.864"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="121.18" x="0.0" y="0.0" xml:space="preserve">configuration=Gateway</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-gateway-withshadow">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Gateway.withShadow"><y:Geometry height="36.0" width="56.0" x="348.0" y="213.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Gateway.withShadow"><y:Geometry height="36.0" width="56.0" x="348.0" y="183.714"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-gateway-withshadow">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="182.56" x="284.72" y="263.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="182.56" x="0.0" y="0.0" xml:space="preserve">configuration=Gateway.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="182.56" x="284.72" y="233.864"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="182.56" x="0.0" y="0.0" xml:space="preserve">configuration=Gateway.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-conversation">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Conversation"><y:Geometry height="36.0" width="56.0" x="572.0" y="213.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Conversation"><y:Geometry height="36.0" width="56.0" x="572.0" y="183.714"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-conversation">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="149.08" x="525.46" y="263.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="149.08" x="0.0" y="0.0" xml:space="preserve">configuration=Conversation</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="149.08" x="525.46" y="233.864"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="149.08" x="0.0" y="0.0" xml:space="preserve">configuration=Conversation</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-conversation-withshadow">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Conversation.withShadow"><y:Geometry height="36.0" width="56.0" x="796.0" y="213.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Conversation.withShadow"><y:Geometry height="36.0" width="56.0" x="796.0" y="183.714"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-conversation-withshadow">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="210.46" x="718.77" y="263.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="210.46" x="0.0" y="0.0" xml:space="preserve">configuration=Conversation.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="210.46" x="718.77" y="233.864"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="210.46" x="0.0" y="0.0" xml:space="preserve">configuration=Conversation.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-artifact">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Artifact"><y:Geometry height="36.0" width="56.0" x="1020.0" y="213.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Artifact"><y:Geometry height="36.0" width="56.0" x="1020.0" y="183.714"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-artifact">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="984.62" y="263.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=Artifact</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="984.62" y="233.864"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=Artifact</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-bpmn-artifact-withshadow">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="36.0" width="56.0" x="124.0" y="349.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="36.0" width="56.0" x="124.0" y="300.857"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-bpmn-artifact-withshadow">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="188.14" x="57.93" y="399.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="188.14" x="0.0" y="0.0" xml:space="preserve">configuration=Artifact.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="188.14" x="57.93" y="351.007"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="188.14" x="0.0" y="0.0" xml:space="preserve">configuration=Artifact.withShadow</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-unspecifiedentity">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.unspecifiedEntity"><y:Geometry height="36.0" width="56.0" x="348.0" y="349.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.unspecifiedEntity"><y:Geometry height="36.0" width="56.0" x="348.0" y="300.857"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-unspecifiedentity">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="176.98" x="287.51" y="399.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="176.98" x="0.0" y="0.0" xml:space="preserve">configuration=unspecifiedEntity</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="176.98" x="287.51" y="351.007"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="176.98" x="0.0" y="0.0" xml:space="preserve">configuration=unspecifiedEntity</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-simplechemical">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.simpleChemical"><y:Geometry height="36.0" width="56.0" x="572.0" y="349.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.simpleChemical"><y:Geometry height="36.0" width="56.0" x="572.0" y="300.857"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-simplechemical">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="160.24" x="519.88" y="399.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="160.24" x="0.0" y="0.0" xml:space="preserve">configuration=simpleChemical</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="160.24" x="519.88" y="351.007"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="160.24" x="0.0" y="0.0" xml:space="preserve">configuration=simpleChemical</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-macromolecule">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.macromolecule"><y:Geometry height="36.0" width="56.0" x="796.0" y="349.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.macromolecule"><y:Geometry height="36.0" width="56.0" x="796.0" y="300.857"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-macromolecule">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="154.66" x="746.67" y="399.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="154.66" x="0.0" y="0.0" xml:space="preserve">configuration=macromolecule</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="154.66" x="746.67" y="351.007"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="154.66" x="0.0" y="0.0" xml:space="preserve">configuration=macromolecule</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-nucleicacidfeature">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.nucleicAcidFeature"><y:Geometry height="36.0" width="56.0" x="1020.0" y="349.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.nucleicAcidFeature"><y:Geometry height="36.0" width="56.0" x="1020.0" y="300.857"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-nucleicacidfeature">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="182.56" x="956.72" y="399.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="182.56" x="0.0" y="0.0" xml:space="preserve">configuration=nucleicAcidFeature</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="182.56" x="956.72" y="351.007"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="182.56" x="0.0" y="0.0" xml:space="preserve">configuration=nucleicAcidFeature</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-perturbingagent">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.perturbingAgent"><y:Geometry height="36.0" width="56.0" x="124.0" y="486.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.perturbingAgent"><y:Geometry height="36.0" width="56.0" x="124.0" y="418.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-perturbingagent">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="165.82" x="69.09" y="536.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="165.82" x="0.0" y="0.0" xml:space="preserve">configuration=perturbingAgent</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="165.82" x="69.09" y="468.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="165.82" x="0.0" y="0.0" xml:space="preserve">configuration=perturbingAgent</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-phenotype">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.phenotype"><y:Geometry height="36.0" width="56.0" x="348.0" y="486.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.phenotype"><y:Geometry height="36.0" width="56.0" x="348.0" y="418.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-phenotype">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="132.34" x="309.83" y="536.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="132.34" x="0.0" y="0.0" xml:space="preserve">configuration=phenotype</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="132.34" x="309.83" y="468.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="132.34" x="0.0" y="0.0" xml:space="preserve">configuration=phenotype</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-emptyset">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.emptySet"><y:Geometry height="36.0" width="56.0" x="572.0" y="486.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.emptySet"><y:Geometry height="36.0" width="56.0" x="572.0" y="418.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-emptyset">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="536.62" y="536.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=emptySet</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="536.62" y="468.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=emptySet</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-submap">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.submap"><y:Geometry height="36.0" width="56.0" x="796.0" y="486.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.submap"><y:Geometry height="36.0" width="56.0" x="796.0" y="418.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-submap">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="115.6" x="766.2" y="536.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="115.6" x="0.0" y="0.0" xml:space="preserve">configuration=submap</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="115.6" x="766.2" y="468.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="115.6" x="0.0" y="0.0" xml:space="preserve">configuration=submap</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-unitofinformation">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.unitOfInformation"><y:Geometry height="36.0" width="56.0" x="1020.0" y="486.333"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.unitOfInformation"><y:Geometry height="36.0" width="56.0" x="1020.0" y="418.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-unitofinformation">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="176.98" x="959.51" y="536.483"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="176.98" x="0.0" y="0.0" xml:space="preserve">configuration=unitOfInformation</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="176.98" x="959.51" y="468.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="176.98" x="0.0" y="0.0" xml:space="preserve">configuration=unitOfInformation</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-statevariable">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.stateVariable"><y:Geometry height="36.0" width="56.0" x="124.0" y="623.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.stateVariable"><y:Geometry height="36.0" width="56.0" x="124.0" y="535.143"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-statevariable">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="154.66" x="74.67" y="673.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="154.66" x="0.0" y="0.0" xml:space="preserve">configuration=stateVariable</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="154.66" x="74.67" y="585.293"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="154.66" x="0.0" y="0.0" xml:space="preserve">configuration=stateVariable</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-tag">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.tag"><y:Geometry height="36.0" width="56.0" x="348.0" y="623.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.tag"><y:Geometry height="36.0" width="56.0" x="348.0" y="535.143"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-tag">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="98.86" x="326.57" y="673.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="98.86" x="0.0" y="0.0" xml:space="preserve">configuration=tag</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="98.86" x="326.57" y="585.293"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="98.86" x="0.0" y="0.0" xml:space="preserve">configuration=tag</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-process">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.process"><y:Geometry height="36.0" width="56.0" x="572.0" y="623.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.process"><y:Geometry height="36.0" width="56.0" x="572.0" y="535.143"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-process">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="121.18" x="539.41" y="673.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="121.18" x="0.0" y="0.0" xml:space="preserve">configuration=process</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="121.18" x="539.41" y="585.293"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="121.18" x="0.0" y="0.0" xml:space="preserve">configuration=process</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="generic-sbgn-operator">
       <data key="d6">
-        <y:GenericNode configuration="com.yworks.sbgn.operator"><y:Geometry height="36.0" width="56.0" x="796.0" y="623.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
+        <y:GenericNode configuration="com.yworks.sbgn.operator"><y:Geometry height="36.0" width="56.0" x="796.0" y="535.143"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:GenericNode>
       </data>
     </node>
     <node id="cap-generic-sbgn-operator">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="760.62" y="673.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=operator</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="126.76" x="760.62" y="585.293"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="126.76" x="0.0" y="0.0" xml:space="preserve">configuration=operator</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="uml-class">
       <data key="d6">
-        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="1010.0" y="613.0"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="false" stereotype="" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
+        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="1010.0" y="525.143"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="false" stereotype="" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
       </data>
     </node>
     <node id="cap-uml-class">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="70.96" x="1012.52" y="673.15"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="70.96" x="0.0" y="0.0" xml:space="preserve">UMLClassNode</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="70.96" x="1012.52" y="585.293"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="70.96" x="0.0" y="0.0" xml:space="preserve">UMLClassNode</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="uml-use3deffect-false">
       <data key="d6">
-        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="114.0" y="749.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="false" stereotype="" use3DEffect="false"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
+        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="114.0" y="642.286"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="false" stereotype="" use3DEffect="false"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
       </data>
     </node>
     <node id="cap-uml-use3deffect-false">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="98.86" x="102.57" y="809.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="98.86" x="0.0" y="0.0" xml:space="preserve">use3DEffect=false</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="98.86" x="102.57" y="702.436"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="98.86" x="0.0" y="0.0" xml:space="preserve">use3DEffect=false</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="uml-stereotype">
       <data key="d6">
-        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="338.0" y="749.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="false" stereotype="entity" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
+        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="338.0" y="642.286"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="false" stereotype="entity" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
       </data>
     </node>
     <node id="cap-uml-stereotype">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="98.86" x="326.57" y="809.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="98.86" x="0.0" y="0.0" xml:space="preserve">stereotype=entity</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="98.86" x="326.57" y="702.436"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="98.86" x="0.0" y="0.0" xml:space="preserve">stereotype=entity</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="uml-constraint">
       <data key="d6">
-        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="562.0" y="749.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="abstract" omitDetails="false" stereotype="" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
+        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="562.0" y="642.286"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="abstract" omitDetails="false" stereotype="" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
       </data>
     </node>
     <node id="cap-uml-constraint">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="110.02" x="544.99" y="809.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="110.02" x="0.0" y="0.0" xml:space="preserve">constraint=abstract</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="110.02" x="544.99" y="702.436"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="110.02" x="0.0" y="0.0" xml:space="preserve">constraint=abstract</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="uml-omitdetails">
       <data key="d6">
-        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="786.0" y="749.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="true" stereotype="" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
+        <y:UMLClassNode><y:Geometry height="56.0" width="76.0" x="786.0" y="642.286"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="10" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="17.0" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="t" textColor="#000000" verticalTextPosition="bottom" visible="true" width="22.6" x="26.7" y="4.0" xml:space="preserve">Cls</y:NodeLabel><y:UML clipContent="true" constraint="" omitDetails="true" stereotype="" use3DEffect="true"><y:AttributeLabel xml:space="preserve">-a: int</y:AttributeLabel><y:MethodLabel xml:space="preserve">+m()</y:MethodLabel></y:UML></y:UMLClassNode>
       </data>
     </node>
     <node id="cap-uml-omitdetails">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="93.28" x="777.36" y="809.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="93.28" x="0.0" y="0.0" xml:space="preserve">omitDetails=true</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="93.28" x="777.36" y="702.436"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="93.28" x="0.0" y="0.0" xml:space="preserve">omitDetails=true</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
     <node id="uml-note">
       <data key="d6">
-        <y:UMLNoteNode><y:Geometry height="36.0" width="56.0" x="1020.0" y="759.667"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:UMLNoteNode>
+        <y:UMLNoteNode><y:Geometry height="36.0" width="56.0" x="1020.0" y="652.286"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/></y:UMLNoteNode>
       </data>
     </node>
     <node id="cap-uml-note">
       <data key="d6">
-        <y:ShapeNode><y:Geometry height="15.7" width="65.38" x="1015.31" y="809.817"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="65.38" x="0.0" y="0.0" xml:space="preserve">UMLNoteNode</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+        <y:ShapeNode><y:Geometry height="15.7" width="65.38" x="1015.31" y="702.436"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="65.38" x="0.0" y="0.0" xml:space="preserve">UMLNoteNode</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="sbgn-style-radius-20">
+      <data key="d6">
+        <y:GenericNode configuration="com.yworks.sbgn.macromolecule"><y:Geometry height="36.0" width="56.0" x="124.0" y="769.429"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:StyleProperties><y:Property class="java.lang.Double" name="com.yworks.sbgn.style.radius" value="20.0"/></y:StyleProperties></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-sbgn-style-radius-20">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="188.14" x="57.93" y="819.579"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="188.14" x="0.0" y="0.0" xml:space="preserve">style.radius=20.0 (macromolecule)</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
+      </data>
+    </node>
+    <node id="sbgn-style-inverse-true">
+      <data key="d6">
+        <y:GenericNode configuration="com.yworks.sbgn.macromolecule"><y:Geometry height="36.0" width="56.0" x="348.0" y="769.429"/><y:Fill color="#c8c8c8" transparent="false"/><y:BorderStyle color="#505050" raised="false" type="line" width="1.0"/><y:StyleProperties><y:Property class="java.lang.Boolean" name="com.yworks.sbgn.style.inverse" value="true"/></y:StyleProperties></y:GenericNode>
+      </data>
+    </node>
+    <node id="cap-sbgn-style-inverse-true">
+      <data key="d6">
+        <y:ShapeNode><y:Geometry height="15.7" width="193.72" x="279.14" y="819.579"/><y:Fill hasColor="false" transparent="false"/><y:BorderStyle hasColor="false" raised="false" type="line" width="1.0"/><y:NodeLabel alignment="center" autoSizePolicy="content" fontFamily="DejaVu Sans" fontSize="9" fontStyle="plain" hasBackgroundColor="false" hasLineColor="false" height="15.7" horizontalTextPosition="center" iconTextGap="4" modelName="internal" modelPosition="c" textColor="#000000" verticalTextPosition="bottom" visible="true" width="193.72" x="0.0" y="0.0" xml:space="preserve">style.inverse=true (macromolecule)</y:NodeLabel><y:Shape type="rectangle"/></y:ShapeNode>
       </data>
     </node>
   </graph>

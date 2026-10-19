@@ -255,4 +255,60 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.lengthOf(groupOf(null, 1), 0);
         assert.lengthOf(groupOf("#eeeeee", 0), 0);
     });
+
+    it("reads the label of a group it draws with no fill and no outline as free text, as a program's unboxed cluster", () => {
+        const label = {
+            text: "Q",
+            box: { x0: 40, y0: 30, x1: 60, y1: 44 },
+            fontPx: 14,
+            color: "#000000",
+            enabled: true,
+            onTop: false,
+            family: "Times",
+            weight: 400,
+            style: "normal",
+            rotation: 0,
+            textBox: null,
+            opacity: 1,
+            lineCount: 1,
+            align: "middle",
+            outline: null,
+            background: null,
+        } as unknown as NonNullable<DrawnNode["label"]>;
+        const scene = {
+            nodes: [
+                {
+                    id: "p",
+                    x: 50,
+                    y: 50,
+                    w: 40,
+                    h: 40,
+                    shape: "rectangle",
+                    fill: null,
+                    fillOpacity: 1,
+                    border: { color: null, width: 0, style: "solid" },
+                    label: { text: "Q", visible: true },
+                    visible: true,
+                },
+            ],
+            edges: [],
+            groups: [{ id: "p", bbox: { x: 30, y: 30, w: 40, h: 40 }, fill: null, label: "Q", members: ["a"] }],
+            annotations: [],
+            gaps: [],
+        } as unknown as Scene;
+        const drawn: DrawnGraph = {
+            nodes: new Map([["p", { insetPx: 0, label, gradient: false, ramp: null } as unknown as DrawnNode]]),
+            edges: new Map(),
+            annotations: [],
+            background: { hex: "#ffffff", alpha: 1 },
+            width: 200,
+            height: 100,
+        };
+        const p = drawnPrimitives(scene, drawn);
+        assert.lengthOf(p.groups, 0);
+        assert.deepEqual(
+            p.texts.map((t) => t.content),
+            ["Q"],
+        );
+    });
 });

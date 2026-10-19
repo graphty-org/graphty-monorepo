@@ -414,6 +414,12 @@ For 2D layouts, also set the view mode:
 <graphty-element layout="d3" view-mode="2d"></graphty-element>
 ```
 
+The layout follows the view mode when `dim` is not set. In 3D mode a `dim: 2` is kept, so a 3D
+view can show a flat layout. In 2D mode the layout is always computed in 2D: a `dim: 3` is
+replaced by `dim: 2`, and a `layout-warning` event with code `W_DIMENSION_OVERRIDDEN` reports it,
+with the options as given in `params.requested` and the values used in `params.used`. Switching
+back to 3D builds the layout with the `dim` it was given again.
+
 ## Edge weights
 
 Two layouts read edge weights: `kamada-kawai` and `forceatlas2`. Both are on by default on a graph

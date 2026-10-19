@@ -306,7 +306,7 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
         timeSlider,
         welcome,
     } = props;
-    const { breakpoint, shellWidth } = useShell();
+    const { shellWidth } = useShell();
     const canvasRef = useRef<HTMLDivElement>(null);
     const rect = useCanvasRect(canvasRef, shellWidth);
     const empty = stateAxis === "empty";
@@ -394,149 +394,212 @@ export function CanvasRegion<TRow extends object = Record<string, unknown>>(
                     />
                 </div>
 
-                {empty ? (
-                    <WelcomeState
-                        onOpenFile={welcome?.onOpenFile ?? noop}
-                        onPasteOrOpenFromUrl={welcome?.onPasteOrOpenFromUrl ?? noop}
-                        onFilesDropped={welcome?.onFilesDropped}
-                        error={welcome?.error}
-                    >
-                        {welcome?.children}
-                    </WelcomeState>
-                ) : null}
+                {empty ? <CanvasWelcome welcome={welcome} /> : null}
 
                 {empty ? null : (
-                    <CanvasOverlayLayer reflowed={layout.reflowed}>
-                        {/* 2. The top-centre column: Graph / Table, the Insights strip, the
-                        filter status strip directly under it. */}
-                        <div
-                            style={{
-                                position: "absolute",
-                                top: INSIGHTS_STRIP_TOP,
-                                left: "50%",
-                                transform: "translateX(-50%)",
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                gap: CANVAS_SPACE.MD,
-                                maxWidth: "100%",
-                                zIndex: CANVAS_TOOLBAR_Z_INDEX,
-                            }}
-                        >
-                            {docks.drawerOpen ? (
-                                <GraphTableSegment
-                                    value={docks.drawerMaximised ? "table" : "graph"}
-                                    onChange={drawer?.onSurfaceChange ?? noop}
-                                />
-                            ) : null}
-
-                            {overlays.insightsStrip && insights !== undefined ? (
-                                <InsightsStrip
-                                    cards={insights.cards}
-                                    variant={breakpoint === "narrow" ? "chips" : "cards"}
-                                    onDismiss={insights.onDismiss}
-                                    onDismissCard={insights.onDismissCard}
-                                />
-                            ) : null}
-
-                            {filterStatus === undefined ? null : (
-                                <FilterStatusStrip
-                                    chips={filterStatus.chips}
-                                    note={filterStatus.note}
-                                    onOpenExplore={filterStatus.onOpenExplore}
-                                    controls={filterStatus.controls}
-                                />
-                            )}
-                        </div>
-
-                        {/* 3. The minimap, bottom left on the shared baseline. */}
-                        {minimap === undefined ? null : (
-                            <Minimap
-                                visible={layout.minimapDrawn}
-                                raised={layout.reflowed}
-                                bottom={layout.overlayBottom ?? OVERLAY_INSET}
-                                nodeCount={minimap.nodeCount}
-                                points={minimap.points}
-                                density={minimap.density}
-                                viewport={minimap.viewport}
-                                onScrub={minimap.onScrub}
-                            />
-                        )}
-
-                        {/* 4. The legend, bottom right on the same baseline. */}
-                        <Legend
-                            visible={layout.legendDrawn}
-                            raised={layout.reflowed}
-                            compact={layout.legendCompact}
-                            channels={channels}
-                            bottom={layout.overlayBottom ?? OVERLAY_INSET}
-                            maxHeight={layout.legendMaxHeight}
-                        />
-
-                        {/* 5. The docks and the slider, under the baseline overlays. A dock
-                        is a region of its own (6.11): a pop-out opened from the drawer
-                        counts against the drawer, not against the canvas. */}
-                        {drawer === undefined ? null : (
-                            <PopoutRegion id="drawer">
-                                <DataTableDrawer<TRow>
-                                    open={docks.drawerOpen}
-                                    height={docks.drawerHeight}
-                                    maximised={docks.drawerMaximised}
-                                    canvasHeight={rect.height}
-                                    tab={drawer.tab}
-                                    onTabChange={drawer.onTabChange}
-                                    rows={drawer.rows}
-                                    rowCount={drawer.rowCount}
-                                    rowOffset={drawer.rowOffset}
-                                    onRangeChange={drawer.onRangeChange}
-                                    sorting={drawer.sorting}
-                                    onSortingChange={drawer.onSortingChange}
-                                    columns={drawer.columns}
-                                    getRowId={drawer.getRowId}
-                                    showLabel={drawer.showLabel}
-                                    showCount={drawer.showCount}
-                                    showTotal={drawer.showTotal}
-                                    onOpenShowMenu={drawer.onOpenShowMenu}
-                                    onHeightChange={drawer.onHeightChange}
-                                    onClose={drawer.onClose}
-                                    selectedIds={drawer.selectedIds}
-                                    onSelectionChange={drawer.onSelectionChange}
-                                />
-                            </PopoutRegion>
-                        )}
-
-                        {layout.timeSliderBottom === null || timeSlider === undefined ? null : (
-                            <TimeSlider
-                                bottom={layout.timeSliderBottom}
-                                playing={timeSlider.playing}
-                                stepLabel={timeSlider.stepLabel}
-                                viewingLabel={timeSlider.viewingLabel}
-                                byLabel={timeSlider.byLabel}
-                                onStepBack={timeSlider.onStepBack}
-                                onPlay={timeSlider.onPlay}
-                                onPause={timeSlider.onPause}
-                                onStepForward={timeSlider.onStepForward}
-                                onOpenSettings={timeSlider.onOpenSettings}
-                                settingsOpen={timeSlider.settingsOpen}
-                                density={timeSlider.density}
-                                window={timeSlider.window}
-                            />
-                        )}
-
-                        {/* 6. The pop-out and the canvas toolbar, last in DOM order. The
-                        toolbar owns its own offset -- the shell passes it
-                        `canvasToolbarBottomOffset`, whose null means "not drawn", which
-                        is the state a drawer maximised to the full canvas height
-                        produces -- so the region draws its children unconditionally and
-                        publishes the decision as `data-toolbar-drawn` instead of
-                        withholding a pop-out along with the bar. */}
-                        <div data-canvas-overlay="extras" style={{ display: "contents" }}>
-                            {children}
-                        </div>
-                    </CanvasOverlayLayer>
+                    <CanvasOverlayStack<TRow>
+                        layout={layout}
+                        canvasHeight={rect.height}
+                        channels={channels}
+                        docks={docks}
+                        drawer={drawer}
+                        filterStatus={filterStatus}
+                        insights={insights}
+                        minimap={minimap}
+                        overlays={overlays}
+                        timeSlider={timeSlider}
+                    >
+                        {children}
+                    </CanvasOverlayStack>
                 )}
             </div>
         </CanvasBottomStackContext.Provider>
+    );
+}
+
+/**
+ * Welcome, drawn over the graph in the Empty state.
+ * @param props - Welcome's two routes in, if the shell supplied them.
+ * @param props.welcome - the routes and the block's content
+ * @returns the Welcome block.
+ */
+function CanvasWelcome(props: { readonly welcome?: CanvasWelcomeConfig }): React.JSX.Element {
+    const { welcome } = props;
+    return (
+        <WelcomeState
+            onOpenFile={welcome?.onOpenFile ?? noop}
+            onPasteOrOpenFromUrl={welcome?.onPasteOrOpenFromUrl ?? noop}
+            onFilesDropped={welcome?.onFilesDropped}
+            error={welcome?.error}
+        >
+            {welcome?.children}
+        </WelcomeState>
+    );
+}
+
+/** What {@link CanvasOverlayStack} draws: the region's props plus the computed bottom stack. */
+interface CanvasOverlayStackProps<TRow extends object> extends Pick<
+    CanvasRegionOwnProps<TRow>,
+    "children" | "docks" | "drawer" | "filterStatus" | "insights" | "minimap" | "overlays" | "timeSlider"
+> {
+    /** The bottom stack computed from the canvas rect. */
+    readonly layout: ReturnType<typeof canvasBottomStack>;
+    /** The canvas element's measured height. */
+    readonly canvasHeight: number;
+    /** The legend's encoded channels. */
+    readonly channels: readonly LegendChannel[];
+}
+
+/**
+ * The overlay stack drawn over a loaded graph, in the DOM order section 2 fixes.
+ * @param props - the region's overlay content and the computed bottom stack.
+ * @returns the overlay layer.
+ */
+function CanvasOverlayStack<TRow extends object>(props: CanvasOverlayStackProps<TRow>): React.JSX.Element {
+    const {
+        canvasHeight,
+        channels,
+        children,
+        docks,
+        drawer,
+        filterStatus,
+        insights,
+        layout,
+        minimap,
+        overlays,
+        timeSlider,
+    } = props;
+    const { breakpoint } = useShell();
+
+    return (
+        <CanvasOverlayLayer reflowed={layout.reflowed}>
+            {/* 2. The top-centre column: Graph / Table, the Insights strip, the
+                    filter status strip directly under it. */}
+            <div
+                style={{
+                    position: "absolute",
+                    top: INSIGHTS_STRIP_TOP,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: CANVAS_SPACE.MD,
+                    maxWidth: "100%",
+                    zIndex: CANVAS_TOOLBAR_Z_INDEX,
+                }}
+            >
+                {docks.drawerOpen ? (
+                    <GraphTableSegment
+                        value={docks.drawerMaximised ? "table" : "graph"}
+                        onChange={drawer?.onSurfaceChange ?? noop}
+                    />
+                ) : null}
+
+                {overlays.insightsStrip && insights !== undefined ? (
+                    <InsightsStrip
+                        cards={insights.cards}
+                        variant={breakpoint === "narrow" ? "chips" : "cards"}
+                        onDismiss={insights.onDismiss}
+                        onDismissCard={insights.onDismissCard}
+                    />
+                ) : null}
+
+                {filterStatus === undefined ? null : (
+                    <FilterStatusStrip
+                        chips={filterStatus.chips}
+                        note={filterStatus.note}
+                        onOpenExplore={filterStatus.onOpenExplore}
+                        controls={filterStatus.controls}
+                    />
+                )}
+            </div>
+
+            {/* 3. The minimap, bottom left on the shared baseline. */}
+            {minimap === undefined ? null : (
+                <Minimap
+                    visible={layout.minimapDrawn}
+                    raised={layout.reflowed}
+                    bottom={layout.overlayBottom ?? OVERLAY_INSET}
+                    nodeCount={minimap.nodeCount}
+                    points={minimap.points}
+                    density={minimap.density}
+                    viewport={minimap.viewport}
+                    onScrub={minimap.onScrub}
+                />
+            )}
+
+            {/* 4. The legend, bottom right on the same baseline. */}
+            <Legend
+                visible={layout.legendDrawn}
+                raised={layout.reflowed}
+                compact={layout.legendCompact}
+                channels={channels}
+                bottom={layout.overlayBottom ?? OVERLAY_INSET}
+                maxHeight={layout.legendMaxHeight}
+            />
+
+            {/* 5. The docks and the slider, under the baseline overlays. A dock
+                    is a region of its own (6.11): a pop-out opened from the drawer
+                    counts against the drawer, not against the canvas. */}
+            {drawer === undefined ? null : (
+                <PopoutRegion id="drawer">
+                    <DataTableDrawer<TRow>
+                        open={docks.drawerOpen}
+                        height={docks.drawerHeight}
+                        maximised={docks.drawerMaximised}
+                        canvasHeight={canvasHeight}
+                        tab={drawer.tab}
+                        onTabChange={drawer.onTabChange}
+                        rows={drawer.rows}
+                        rowCount={drawer.rowCount}
+                        rowOffset={drawer.rowOffset}
+                        onRangeChange={drawer.onRangeChange}
+                        sorting={drawer.sorting}
+                        onSortingChange={drawer.onSortingChange}
+                        columns={drawer.columns}
+                        getRowId={drawer.getRowId}
+                        showLabel={drawer.showLabel}
+                        showCount={drawer.showCount}
+                        showTotal={drawer.showTotal}
+                        onOpenShowMenu={drawer.onOpenShowMenu}
+                        onHeightChange={drawer.onHeightChange}
+                        onClose={drawer.onClose}
+                        selectedIds={drawer.selectedIds}
+                        onSelectionChange={drawer.onSelectionChange}
+                    />
+                </PopoutRegion>
+            )}
+
+            {layout.timeSliderBottom === null || timeSlider === undefined ? null : (
+                <TimeSlider
+                    bottom={layout.timeSliderBottom}
+                    playing={timeSlider.playing}
+                    stepLabel={timeSlider.stepLabel}
+                    viewingLabel={timeSlider.viewingLabel}
+                    byLabel={timeSlider.byLabel}
+                    onStepBack={timeSlider.onStepBack}
+                    onPlay={timeSlider.onPlay}
+                    onPause={timeSlider.onPause}
+                    onStepForward={timeSlider.onStepForward}
+                    onOpenSettings={timeSlider.onOpenSettings}
+                    settingsOpen={timeSlider.settingsOpen}
+                    density={timeSlider.density}
+                    window={timeSlider.window}
+                />
+            )}
+
+            {/* 6. The pop-out and the canvas toolbar, last in DOM order. The
+                    toolbar owns its own offset -- the shell passes it
+                    `canvasToolbarBottomOffset`, whose null means "not drawn", which
+                    is the state a drawer maximised to the full canvas height
+                    produces -- so the region draws its children unconditionally and
+                    publishes the decision as `data-toolbar-drawn` instead of
+                    withholding a pop-out along with the bar. */}
+            <div data-canvas-overlay="extras" style={{ display: "contents" }}>
+                {children}
+            </div>
+        </CanvasOverlayLayer>
     );
 }
 

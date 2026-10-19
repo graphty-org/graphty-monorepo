@@ -77,24 +77,27 @@ before(() => {
         env,
         gh: (_ctx, args) => {
             gh.push(args);
-            if (args[1] === "list")
-                return JSON.stringify(gh.open ? [{ number: 7, isDraft: true, url: "u/pull/7" }] : []);
+            const cut = args.includes("golden-cut");
+            if (args[1] === "list") {
+                const pr = cut ? gh.cut : gh.open && { number: 7, isDraft: true, url: "u/pull/7" };
+                return JSON.stringify(pr ? [pr] : []);
+            }
             if (args[1] === "create") {
                 gh.body = readFileSync(args[args.indexOf("--body-file") + 1], "utf8");
-                return "https://github.com/o/r/pull/7";
+                return `https://github.com/o/r/pull/${cut ? 9 : 7}`;
             }
             if (isEdit(args)) gh.body = readFileSync(args.find((a) => a.startsWith("body=@")).slice(6), "utf8");
             return "";
         },
-        push: async (c) => {
+        push: async (c, cwd = c.golden, refspec = "golden:golden") => {
             pushes++;
             const during = duringPush;
             duringPush = null;
             during?.();
             const result = typeof pushResult === "function" ? pushResult(c) : pushResult;
             if (result !== 0) return { code: result, output: "gate failed: tmp/push-gate-logs/x.log" };
-            const r = spawnSync("git", ["push", "-q", "origin", "golden:golden"], {
-                cwd: c.golden,
+            const r = spawnSync("git", ["push", "-q", "origin", refspec], {
+                cwd,
                 env,
                 encoding: "utf8",
             });
@@ -102,6 +105,7 @@ before(() => {
         },
         preview: (_ctx, pr) => previews.push(pr),
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
+        addCutWorktree: (c, sha) => git(c.main, "worktree", "add", "-q", "-b", "golden-cut", c.cut, sha),
         install: (c) => {
             installed = readFileSync(join(c.golden, "pnpm-lock.yaml"), "utf8");
             installs.push(installed.trim());
@@ -372,32 +376,6 @@ describe("the pull request description", () => {
     });
 });
 
-describe("ship", () => {
-    it("marks the golden pull request ready with auto-merge when GitHub has what golden has", async () => {
-        gh.open = true;
-        const r = await run("ship");
-        assert.equal(r.code, 0, r.out);
-        assert.deepEqual(
-            gh.filter((a) => a[1] !== "list"),
-            [
-                ["pr", "ready", "7"],
-                ["pr", "merge", "7", "--auto", "--merge"],
-            ],
-        );
-    });
-
-    it("refuses while local golden has commits GitHub does not", async () => {
-        write(golden, "e.txt", "local\n");
-        git(golden, "add", ".");
-        git(golden, "commit", "-q", "-m", "chore: local only");
-        gh.open = true;
-        const r = await run("ship");
-        assert.equal(r.code, 1);
-        assert.match(r.out, /differ/);
-        assert.equal(gh.length, 0);
-    });
-});
-
 describe("landing several branches", () => {
     const landSubjects = (n) => git(golden, "log", "--first-parent", `-${n}`, "--format=%s").split("\n");
     // The gate refuses any golden that holds bad.txt.
@@ -481,6 +459,95 @@ describe("landing several branches", () => {
         assert.equal(head(), before);
         assert.match(r.out, /multi\/g\s+conflict\n\s+multi\/h\s+gate failure/);
         assert.equal(gh.length, 0);
+    });
+});
+
+describe("cuts", () => {
+    const remote = (ref) =>
+        spawnSync("git", ["rev-parse", "-q", "--verify", ref], {
+            cwd: join(dir, "origin.git"),
+            env,
+            encoding: "utf8",
+        }).stdout.trim();
+    const firstParents = () => {
+        git(repo, "fetch", "-q", "origin");
+        return git(repo, "rev-list", "--first-parent", "origin/master..origin/golden").split("\n");
+    };
+    // A finished local preview of `head` under tmp/visual-review/local/<key>, one project with these statuses.
+    const preview = (key, head, statuses, state = "done") => {
+        const d = join(repo, "tmp/visual-review/local", String(key));
+        mkdirSync(join(d, "graphty"), { recursive: true });
+        write(d, "status.json", JSON.stringify({ state, head, projects: ["graphty"] }));
+        const items = statuses.map((status, i) => ({ file: `s${i}.png`, status }));
+        write(join(d, "graphty"), "results.json", JSON.stringify({ complete: true, items }));
+    };
+
+    it("refuses when no golden commit has a stable preview and no commit is given", async () => {
+        const r = await run("cut");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /no golden commit since master has a finished screenshot preview/);
+        assert.equal(pushes, 0);
+    });
+
+    it("refuses a commit that is not on origin/golden", async () => {
+        const r = await run("cut", git(repo, "rev-parse", "multi/x"));
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /is not on origin\/golden/);
+        assert.equal(pushes, 0);
+        assert.equal(gh.length, 0);
+    });
+
+    it("cuts the newest golden commit whose preview has no unstable or failed images, and opens its pull request", async () => {
+        const line = firstParents();
+        preview("101", line[0], ["changed", "unstable"]);
+        preview("commit-x", line[1], ["unchanged", "changed"]);
+        preview("102", line[2], ["unchanged"]);
+        const r = await run("cut");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(remote("refs/heads/golden-cut"), line[1]);
+        assert.equal(git(ctx.cut, "rev-parse", "HEAD"), line[1]);
+        const create = gh.find((a) => a[1] === "create");
+        assert.ok(create.includes("--draft") && create.includes("chore: ship a golden cut into master"));
+        assert.match(gh.body, /A cut of `golden` at .*Approvals that ship are made here/);
+        assert.deepEqual(previews, [9]);
+    });
+
+    it("moves the cut worktree to a newer stable commit and refreshes the open pull request", async () => {
+        const line = firstParents();
+        preview("101", line[0], ["unchanged"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: line[1] };
+        const r = await run("cut");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(remote("refs/heads/golden-cut"), line[0]);
+        const edit = gh.find((a) => isEdit(a));
+        assert.ok(edit.includes("title=chore: ship a golden cut into master"));
+        assert.deepEqual(previews, [9]);
+    });
+
+    it("ship marks the cut pull request ready with auto-merge when its preview is of its head", async () => {
+        const head = remote("refs/heads/golden-cut");
+        preview("9", head, ["changed"]);
+        gh.open = true;
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: head };
+        const r = await run("ship");
+        assert.equal(r.code, 0, r.out);
+        assert.deepEqual(
+            gh.filter((a) => a[1] !== "list"),
+            [
+                ["pr", "ready", "9"],
+                ["pr", "merge", "9", "--auto", "--merge"],
+            ],
+        );
+    });
+
+    it("ship refuses when the cut pull request moved since its preview", async () => {
+        const line = firstParents();
+        preview("9", line[1], ["changed"]);
+        gh.cut = { number: 9, isDraft: true, url: "u/pull/9", headRefOid: line[0] };
+        const r = await run("ship");
+        assert.equal(r.code, 1, r.out);
+        assert.match(r.out, /#9 moved since its preview/);
+        assert.equal(gh.filter((a) => a[1] !== "list").length, 0);
     });
 });
 

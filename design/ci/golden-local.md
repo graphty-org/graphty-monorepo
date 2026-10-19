@@ -308,8 +308,9 @@ branch and lands again.
 node tools/land.mjs ship
 ```
 
-Run after the owner says the golden review is finished. It marks the golden pull request ready and
-turns on GitHub auto-merge with a merge commit. Then:
+Since 2026-10-19 this ships the cut pull request, not the golden one (section 4.14). Run after the
+owner says the review is finished. It marks the pull request ready and turns on GitHub auto-merge
+with a merge commit. Then:
 
 - `ci.yml` runs the affected suite once on the golden pull request, as the double check that the
   code works on a clean machine (section 4.7). The visual gate checks CI's captures against the
@@ -461,6 +462,23 @@ proves wrong, the session handles it and then corrects the skill -- a new "Known
 or a fixed step -- on a branch that lands like any change. A rule both skills need goes in the
 shared file. A situation that keeps needing the same manual work becomes an issue for a tool fix,
 not a longer routine.
+
+### 4.14 Cuts: what ships
+
+The owner's decision of 2026-10-19: golden must never block shipping. `node tools/land.mjs cut`
+points the branch `golden-cut` at the newest first-parent golden commit whose local screenshot
+preview finished with no unstable or failed images (or a commit given when none qualifies), opens
+or refreshes one draft pull request `golden-cut` into master and starts its preview; the owner's
+approvals that ship are made on that pull request, and `ship` marks it ready with auto-merge (it
+refuses when the pull request's head moved since its preview by anything but accept commits). The
+golden pull request stays open as an early look at golden's tip, and landings go on while a cut is
+reviewed or in CI.
+
+**Revert first.** A landed change that breaks golden -- unstable or failed screenshots in golden's
+preview, a gate failure it caused, or CI failing on a cut because of it -- gets one pipeline round
+to be fixed; then the round runs `node tools/land.mjs revert <branch>`, and the branch lands again
+once its fix is committed. The round records when it first saw the break in a `broke golden` marker
+on GitHub, so the grace is measured from GitHub state, not a session's memory.
 
 ## 5. Retired and kept
 

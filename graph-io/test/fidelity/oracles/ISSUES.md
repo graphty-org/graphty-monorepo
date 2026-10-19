@@ -455,6 +455,10 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
       node with a `timestamp`, `timestamps` or a timestamped `<spell>` is drawn, and of several timestamped
       `viz:color` / `viz:size` values the one listed last in the file is drawn (`color-timestamped-last-earlier`,
       blue @4 then red @1, is red). graph-io matches it.
+    - GEXF 1.2draft's open interval bounds (`startopen` / `endopen` on a node, an edge and a `<spell>`) are reported
+      as deprecated and drawn static the same way (`gexf-specimen-node-sizes-opacity-p6`), and so is GEXF 1.3's
+      `mode="slice"` with a graph `timestamp`: a node and an edge whose interval lies outside the slice are drawn
+      (`gexf-specimen-node-sizes-opacity-p7`). graph-io matches both.
 - Gephi's own rules (facts the importer must copy):
     - A node with no `viz:size` is size 10 (20 across); `viz:size value="0"` is also drawn as size 10.
     - A node with no `viz:color` is black. A node with no `viz:position` is placed at (0, 0) with autoscale off.
@@ -486,6 +490,9 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
     - Shorten (`node.label.shorten`, `edge.label.shorten`) cuts a label only when it has at least max-char + 3
       characters, to its first max-char characters and "..." (`label-long`, 33 characters, is cut at the default 30).
     - A label is 0.6 x its node's size high (proportional size, the default).
+    - A node's border is 0.08 x its size wide (0.16 x the radius / 2, `SizeUtils.getBorderWidth`) unless
+      `node.border.fixed` is on; `node.border.width` is read only then (`gexf-specimen-node-fills-borders-p2`, `-p3`
+      set both; `-p7` sets fixed alone, width 1).
 - Not drawable: `<viz:color hex="..." a="...">` (hex with an alpha attribute) and r/g/b with a channel missing make
   Gephi's GEXF importer throw ("Color parameter outside of expected range: Green") and open nothing, so no sheet
   holds them (`gexf-gephi-vocabulary.json`, `notCovered`).
@@ -495,7 +502,9 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
 - Gephi's Preview values that never reach the SVG, so no page sets them: `background-color` (the SVG export draws
   no background), `margin` (pads the canvas only), and the code-only `edge.arc-curveness` / `edge.bezier-curveness`;
   `node.scale.factor`, `edge.scale.factor`, `node.label.scale` and `edge.label.scale` are overwritten by
-  `refreshPreview` from the Overview. Every DependantColor mode (parent, darker, lighter, custom) of the border,
+  `refreshPreview` from the Overview. `directed` is set by `refreshPreview` from the graph, `visibility-ratio` is an
+export-time option that drops a share of the nodes (1.0 keeps all), and `canvas.moving` only skips labels while
+the interactive preview is dragged. Every DependantColor mode (parent, darker, lighter, custom) of the border,
   label outline and label box colors, and every Font style, has its own page.
 - The Preview settings are Gephi's, not the file's: a GEXF file cannot carry them, so a page other than a
   category's first is drawn by graphty-element exactly like the first until graph-io can be told the Preview

@@ -71,11 +71,13 @@ const VERSIONS = {
 };
 /**
  * A time interval's attributes.
- * @param t - { start?, end? }
+ * @param t - { start?, end?, startopen?, endopen? (1.2draft open bounds), timestamp?, timestamps? }
  * @returns the attribute text, starting with a space when non-empty
  */
 const span = (t) =>
-    ["start", "end", "timestamp", "timestamps"].map((k) => (t[k] === undefined ? "" : ` ${k}="${t[k]}"`)).join("");
+    ["start", "end", "startopen", "endopen", "timestamp", "timestamps"]
+        .map((k) => (t[k] === undefined ? "" : ` ${k}="${t[k]}"`))
+        .join("");
 /**
  * One viz:color element.
  * @param c - [r,g,b,a?] | { hex, a? }, with an optional time interval as c.start / c.end on the object form
@@ -98,14 +100,16 @@ const vizColor = (c, t = {}) =>
  * @param defaultedgetype - the graph's default edge type
  * @param about - the sheet's description, written into <meta>
  * @param [opts] - { version: a VERSIONS key (default 1.3), dynamic: true for mode="dynamic" timeformat="double",
- *   timestamps: true for timerepresentation="timestamp", attributes: <attributes> element lines }
+ *   timestamps: true for timerepresentation="timestamp", slice: a time for mode="slice" with that graph timestamp,
+ *   attributes: <attributes> element lines }
  * @returns the file's text
  */
 function gexf(nodes, edges, defaultedgetype, about, opts = {}) {
     const v = VERSIONS[opts.version ?? "1.3"];
-    const mode = opts.dynamic
-        ? `mode="dynamic" timeformat="double"${opts.timestamps ? ' timerepresentation="timestamp"' : ""}`
-        : 'mode="static"';
+    let mode = 'mode="static"';
+    if (opts.dynamic)
+        mode = `mode="dynamic" timeformat="double"${opts.timestamps ? ' timerepresentation="timestamp"' : ""}`;
+    if (opts.slice !== undefined) mode = `mode="slice" timeformat="double" timestamp="${opts.slice}"`;
     const L = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         `<gexf xmlns="${v.ns}" xmlns:viz="${v.viz}" version="${v.version}">`,
@@ -161,7 +165,18 @@ function gexf(nodes, edges, defaultedgetype, about, opts = {}) {
     L.push("    </nodes>", "    <edges>");
     for (const e of edges) {
         const attrs = [`id="${esc(e.id)}"`, `source="${esc(e.source)}"`, `target="${esc(e.target)}"`];
-        for (const k of ["type", "kind", "label", "weight", "start", "end", "timestamp", "timestamps"])
+        for (const k of [
+            "type",
+            "kind",
+            "label",
+            "weight",
+            "start",
+            "end",
+            "startopen",
+            "endopen",
+            "timestamp",
+            "timestamps",
+        ])
             if (e[k] !== undefined) attrs.push(`${k}="${esc(e[k])}"`);
         const viz = [];
         if (e.attvalues) {
@@ -835,6 +850,84 @@ SHEETS["specimen-node-sizes-opacity-timestamps"] = {
     })(),
 };
 
+/**
+ * GEXF 1.2draft's open interval bounds (`startopen` / `endopen` on a node, an edge and a spell), which Gephi 0.11.3
+ * reports as deprecated and still draws: every element is drawn, as in a closed-interval dynamic graph.
+ */
+SHEETS["specimen-node-sizes-opacity-gexf12-open"] = {
+    about: "A dynamic GEXF 1.2draft (mode=dynamic, timeformat=double) whose nodes, spell and edge have open interval bounds (startopen / endopen).",
+    varies: "GEXF 1.2draft open interval bounds (startopen, endopen)",
+    defaultedgetype: "undirected",
+    version: "1.2draft",
+    dynamic: true,
+    ...(() => {
+        const sheet = nodeSheet(
+            [
+                { id: "default", prop: "interval", value: "none" },
+                { id: "node-startopen", prop: "startopen-end", value: "1-2", node: { startopen: 1, end: 2 } },
+                { id: "node-endopen", prop: "start-endopen", value: "1-2", node: { start: 1, endopen: 2 } },
+                {
+                    id: "node-spell-open",
+                    prop: "spell startopen-endopen",
+                    value: "1-2",
+                    node: { spells: [{ startopen: 1, endopen: 2 }] },
+                },
+            ],
+            undefined,
+            5,
+        );
+        const c = cells(5)[4];
+        sheet.nodes.push(
+            endNode("edge-startopen-s", c.source),
+            endNode("edge-startopen-t", c.target),
+            captionNode("edge-startopen", c.x, captionY(c, END_SIZE), caption("edge startopen-end", "1-2")),
+        );
+        sheet.edges.push({
+            id: "edge-startopen",
+            source: "edge-startopen-s",
+            target: "edge-startopen-t",
+            startopen: 1,
+            end: 2,
+            ...NEUTRAL_EDGE_VIZ,
+        });
+        return sheet;
+    })(),
+};
+
+/** GEXF 1.3's mode="slice": one time slice of a graph (the graph's timestamp), with element intervals outside it. */
+SHEETS["specimen-node-sizes-opacity-slice"] = {
+    about: "A GEXF 1.3 slice (mode=slice, timeformat=double, graph timestamp 3): a node and an edge whose intervals lie outside the slice, and one inside it.",
+    varies: "mode=slice (graph timestamp 3)",
+    defaultedgetype: "undirected",
+    slice: 3,
+    ...(() => {
+        const sheet = nodeSheet(
+            [
+                { id: "default", prop: "interval", value: "none" },
+                { id: "node-in-slice", prop: "start-end", value: "2-4", node: { start: 2, end: 4 } },
+                { id: "node-outside-slice", prop: "start-end", value: "5-6", node: { start: 5, end: 6 } },
+            ],
+            undefined,
+            4,
+        );
+        const c = cells(4)[3];
+        sheet.nodes.push(
+            endNode("edge-outside-slice-s", c.source),
+            endNode("edge-outside-slice-t", c.target),
+            captionNode("edge-outside-slice", c.x, captionY(c, END_SIZE), caption("edge start-end", "5-6")),
+        );
+        sheet.edges.push({
+            id: "edge-outside-slice",
+            source: "edge-outside-slice-s",
+            target: "edge-outside-slice-t",
+            start: 5,
+            end: 6,
+            ...NEUTRAL_EDGE_VIZ,
+        });
+        return sheet;
+    })(),
+};
+
 // ------------------------------------------------------------------ the pages: each file under each Preview setting
 
 /** The Preview every page starts from: Gephi's defaults with node labels shown and label overlap avoidance off. */
@@ -845,8 +938,9 @@ const PAGES = {
     "specimen-node-shapes": [{}, { "node.per.node.opacity": "true" }],
     "specimen-node-fills-borders": [
         {},
-        { "node.border.width": "0.0" },
-        { "node.border.width": "4.0" },
+        // the width is read only with node.border.fixed (SizeUtils.getBorderWidth); otherwise it is 0.08 x the node's size
+        { "node.border.fixed": "true", "node.border.width": "0.0" },
+        { "node.border.fixed": "true", "node.border.width": "4.0" },
         { "node.border.color": "#ff0000" },
         { "node.border.color": "parent" },
         { "node.border.color": "lighter" },
@@ -947,10 +1041,14 @@ const PAGES = {
     "specimen-edges-lines-gexf12": [{}],
     "specimen-edges-lines-dynamic-weight": [{}],
     "specimen-node-sizes-opacity-timestamps": [{}],
+    "specimen-node-sizes-opacity-gexf12-open": [{}],
+    "specimen-node-sizes-opacity-slice": [{}],
 };
 
 /** Preview properties no page sets, and why. */
 const NOT_PAGED = {
+    "node.border.width":
+        "drawn with node.border.fixed (its only effect: unfixed, the border is 0.08 x the node's size)",
     "node.label.max-char": "drawn with node.label.shorten (its only effect)",
     "edge.label.max-char": "drawn with edge.label.shorten (its only effect)",
     "edge.rescale-weight.min": "drawn with edge.rescale-weight (its only effect)",
@@ -983,6 +1081,7 @@ for (const [key, sheet] of Object.entries(SHEETS)) {
             version: sheet.version,
             dynamic: sheet.dynamic,
             timestamps: sheet.timestamps,
+            slice: sheet.slice,
             attributes: sheet.attributes,
         }),
     );
@@ -1075,6 +1174,8 @@ vocab.notCovered = {
         "not drawn into the SVG: Gephi's SVG export has no background, and margin only pads the canvas, which the comparator fits on the anchors",
     "Preview simple values edge.arc-curveness and edge.bezier-curveness":
         "not in Gephi's Preview settings (no UI; code only); node.scale.factor, edge.scale.factor, node.label.scale and edge.label.scale are set by refreshPreview from the Overview, not by the user",
+    "Preview simple values directed, visibility-ratio and canvas.moving":
+        "not style settings: refreshPreview sets directed from the graph, visibility-ratio is an export-time option that drops a share of the nodes (1.0 keeps all), and canvas.moving only skips labels while the interactive preview is dragged",
 };
 vocab.schema["dynamics (mode=dynamic, start/end, spells, timed viz values)"] = Object.keys(SHEETS)
     .filter((k) => SHEETS[k].dynamic)
@@ -1086,6 +1187,13 @@ vocab.schema["timerepresentation=timestamp (timestamp, timestamps, timestamped v
     .flatMap((k) => specimenIds(k).map((id) => `${k}#${id}`))
     .filter((s) => !/#(cap-|anchor-)/.test(s));
 vocab.schema["dynamic edge weight (attvalue start/end)"] = covering(/^weight-timed/);
+vocab.schema["1.2draft open interval bounds (startopen, endopen)"] = covering(
+    /^(node|edge)-(startopen|endopen|spell-open)$/,
+);
+vocab.schema["mode=slice (graph timestamp)"] = Object.keys(SHEETS)
+    .filter((k) => SHEETS[k].slice !== undefined)
+    .flatMap((k) => specimenIds(k).map((id) => `${k}#${id}`))
+    .filter((s) => !/#(cap-|anchor-)/.test(s));
 vocab.schema["GEXF version (namespaces)"] = Object.fromEntries(
     Object.keys(VERSIONS).map((ver) => [ver, Object.keys(SHEETS).filter((k) => (SHEETS[k].version ?? "1.3") === ver)]),
 );

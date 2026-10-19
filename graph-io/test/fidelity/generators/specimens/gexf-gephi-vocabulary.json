@@ -342,7 +342,14 @@
             "specimen-node-sizes-opacity-timestamps#size-timestamped",
             "specimen-node-sizes-opacity-timestamps#edge-timestamps-s",
             "specimen-node-sizes-opacity-timestamps#edge-timestamps-t",
-            "specimen-node-sizes-opacity-timestamps#edge-timestamps"
+            "specimen-node-sizes-opacity-timestamps#edge-timestamps",
+            "specimen-node-sizes-opacity-gexf12-open#default",
+            "specimen-node-sizes-opacity-gexf12-open#node-startopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-endopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-spell-open",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen-s",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen-t",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen"
         ],
         "node parents": ["specimen-groups#group-parents"],
         "timerepresentation=timestamp (timestamp, timestamps, timestamped viz values)": [
@@ -368,6 +375,20 @@
             "specimen-edges-lines-dynamic-weight#weight-timed-last-earlier",
             "specimen-edges-lines-dynamic-weight#weight-timed-one"
         ],
+        "1.2draft open interval bounds (startopen, endopen)": [
+            "specimen-node-sizes-opacity-gexf12-open#node-startopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-endopen",
+            "specimen-node-sizes-opacity-gexf12-open#node-spell-open",
+            "specimen-node-sizes-opacity-gexf12-open#edge-startopen"
+        ],
+        "mode=slice (graph timestamp)": [
+            "specimen-node-sizes-opacity-slice#default",
+            "specimen-node-sizes-opacity-slice#node-in-slice",
+            "specimen-node-sizes-opacity-slice#node-outside-slice",
+            "specimen-node-sizes-opacity-slice#edge-outside-slice-s",
+            "specimen-node-sizes-opacity-slice#edge-outside-slice-t",
+            "specimen-node-sizes-opacity-slice#edge-outside-slice"
+        ],
         "GEXF version (namespaces)": {
             "1.3": [
                 "specimen-node-shapes",
@@ -384,9 +405,14 @@
                 "specimen-images-charts",
                 "specimen-node-sizes-opacity-dynamic",
                 "specimen-edges-lines-dynamic-weight",
-                "specimen-node-sizes-opacity-timestamps"
+                "specimen-node-sizes-opacity-timestamps",
+                "specimen-node-sizes-opacity-slice"
             ],
-            "1.2draft": ["specimen-node-fills-borders-gexf12", "specimen-edges-lines-gexf12"],
+            "1.2draft": [
+                "specimen-node-fills-borders-gexf12",
+                "specimen-edges-lines-gexf12",
+                "specimen-node-sizes-opacity-gexf12-open"
+            ],
             "1.1draft": ["specimen-node-fills-borders-gexf11"]
         }
     },
@@ -456,12 +482,17 @@
         "node.border.fixed": {
             "type": "Boolean",
             "default": "false",
-            "pages": ["specimen-node-fills-borders-p7"]
+            "pages": [
+                "specimen-node-fills-borders-p2",
+                "specimen-node-fills-borders-p3",
+                "specimen-node-fills-borders-p7"
+            ]
         },
         "node.border.width": {
             "type": "Float",
             "default": "1.0",
-            "pages": ["specimen-node-fills-borders-p2", "specimen-node-fills-borders-p3"]
+            "pages": ["specimen-node-fills-borders-p2", "specimen-node-fills-borders-p3"],
+            "note": "drawn with node.border.fixed (its only effect: unfixed, the border is 0.08 x the node's size)"
         },
         "node.border.color": {
             "type": "DependantColor",
@@ -679,6 +710,7 @@
         "viz:color hex with a": "Gephi 0.11.3's GEXF importer throws on <viz:color hex=... a=...> (\"Color parameter outside of expected range: Green\") and opens nothing, so no sheet holding it has an oracle",
         "viz:color r/g/b with a channel missing": "schema-valid but Gephi throws the same way; left out for the same reason",
         "Preview simple values background-color and margin": "not drawn into the SVG: Gephi's SVG export has no background, and margin only pads the canvas, which the comparator fits on the anchors",
-        "Preview simple values edge.arc-curveness and edge.bezier-curveness": "not in Gephi's Preview settings (no UI; code only); node.scale.factor, edge.scale.factor, node.label.scale and edge.label.scale are set by refreshPreview from the Overview, not by the user"
+        "Preview simple values edge.arc-curveness and edge.bezier-curveness": "not in Gephi's Preview settings (no UI; code only); node.scale.factor, edge.scale.factor, node.label.scale and edge.label.scale are set by refreshPreview from the Overview, not by the user",
+        "Preview simple values directed, visibility-ratio and canvas.moving": "not style settings: refreshPreview sets directed from the graph, visibility-ratio is an export-time option that drops a share of the nodes (1.0 keeps all), and canvas.moving only skips labels while the interactive preview is dragged"
     }
 }

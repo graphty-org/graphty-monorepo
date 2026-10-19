@@ -35,9 +35,10 @@
             "preview": {
                 "node.label.show": "true",
                 "node.label.avoidOverlap": "false",
+                "node.border.fixed": "true",
                 "node.border.width": "0.0"
             },
-            "varies": "node.border.width=0.0"
+            "varies": "node.border.fixed=true node.border.width=0.0"
         },
         {
             "id": "specimen-node-fills-borders-p3",
@@ -45,9 +46,10 @@
             "preview": {
                 "node.label.show": "true",
                 "node.label.avoidOverlap": "false",
+                "node.border.fixed": "true",
                 "node.border.width": "4.0"
             },
-            "varies": "node.border.width=4.0"
+            "varies": "node.border.fixed=true node.border.width=4.0"
         },
         {
             "id": "specimen-node-fills-borders-p4",
@@ -821,6 +823,24 @@
                 "node.label.avoidOverlap": "false"
             },
             "varies": "timerepresentation=timestamp: timestamps and timestamped viz values"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p6",
+            "file": "specimen-node-sizes-opacity-gexf12-open.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.2draft open interval bounds (startopen, endopen)"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p7",
+            "file": "specimen-node-sizes-opacity-slice.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "mode=slice (graph timestamp 3)"
         }
     ]
 }

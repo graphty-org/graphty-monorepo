@@ -30,11 +30,11 @@ export const NodeFillsBorders: StoryObj = {
 };
 export const NodeFillsBordersP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-fills-borders-p2", FILES),
-    name: "node-fills-borders-p2 (node.border.width=0.0)",
+    name: "node-fills-borders-p2 (node.border.fixed=true node.border.width=0.0)",
 };
 export const NodeFillsBordersP3: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-fills-borders-p3", FILES),
-    name: "node-fills-borders-p3 (node.border.width=4.0)",
+    name: "node-fills-borders-p3 (node.border.fixed=true node.border.width=4.0)",
 };
 export const NodeFillsBordersP4: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-fills-borders-p4", FILES),
@@ -79,6 +79,14 @@ export const NodeSizesOpacityP4: StoryObj = {
 export const NodeSizesOpacityP5: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p5", FILES),
     name: "node-sizes-opacity-p5 (timerepresentation=timestamp: timestamps and timestamped viz values)",
+};
+export const NodeSizesOpacityP6: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p6", FILES),
+    name: "node-sizes-opacity-p6 (GEXF 1.2draft open interval bounds (startopen, endopen))",
+};
+export const NodeSizesOpacityP7: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p7", FILES),
+    name: "node-sizes-opacity-p7 (mode=slice (graph timestamp 3))",
 };
 export const Labels: StoryObj = { ...specimenStory(FORMAT, "specimen-labels", FILES), name: "labels" };
 export const LabelsP2: StoryObj = {

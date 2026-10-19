@@ -16,7 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, condition card keys) In `WhichPicker.tsx`: a card's remove button is now drawn
+0. (2026-10-18, focus after a style line) Enter in a new Color box sent focus to the section's
+   disabled "+": not a tab redraw, but the line's CONTROL being swapped in place. A line "+" added
+   draws `ValueField`; once written it draws `CompactColorInput` (another component), so the box
+   that held focus left the page and the focus guard's `rescue` (frame/focus.ts) handed focus to
+   the previous control, the "+". A layer made from a selection kept focus only because its tab
+   remounts and `useFocusLine` re-asks. Fix once, in `Field`: `useFocusKept` (PropertyRow.tsx)
+   remembers the line's control that had focus and, when it is gone and focus is on the page,
+   focuses the line's new control (`lineTarget`, now exported from useFocusLine.ts). The same
+   hook fixes Undo putting a binding's pill back where a color box was. Section draws lines "+"
+   added in the order added (Color stays below Width once written). Memberships' entry focuses the
+   inspector title in a frame callback. compact-mantine `tooltipPlacement.ts`: headings' words are
+   obstacles, the trigger's own heading (a heading in the same parent) weighted x10, so a section
+   "+"'s tooltip opens above or below rather than over its own title. Tests:
+   `FocusAfterWriting.real-element` (7; 5 failed before the change; the Remove cases already
+   passed: the pilot's Effects "+" was the pointer's hover, not focus) and overlays.browser "opens
+   off its own section's heading". Walk `design/ui/studio/tmp/r1-dry3-style-line-focus/w1` (07
+   box kept, 09 tooltip above Visibility, 16 Color under Width, 20 Shift+Tab proves focus was on
+   Fill "+", 21 Undo in the box, 28-29 Group 1's heading then its next control).
+1. (2026-10-18, condition card keys) In `WhichPicker.tsx`: a card's remove button is now drawn
    right after its header in the DOM (still absolutely placed in the corner), so Tab goes remove,
    match, values, Add a condition, Done. A text card's Autocomplete has `openOnFocus={false}` and
    catches ArrowDown in `onKeyDownCapture` on a closed list (stopPropagation at the root's capture
@@ -26,82 +44,68 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    last write landed; `useStepWriter` now has `busy()` and a `landed` callback) and, when a layer
    holds another selector with no write on its way, redraws the cards from the layers. A row with
    no card opens on Add a condition (the auto-opened list made one press close it). Letters typed
-   + Tab take the highlighted attribute. `data-enter-done` on value check boxes. NumberCard
-   focuses its first number box after Highest or Between; a filter step focuses its card's value
-   after an attribute is picked (`Filters.tsx`). Words: card header "3 nodes", one layer's head
-   "8 of 24 nodes", the open cards' "Which nodes" is a heading naming the group, and the count
-   is announced from `WhichPicker` (which outlives the cards, so Enter in a number box still says
-   it). compact-mantine: new `focusWithRing(el)` (sets `data-cm-modality="keyboard"`, focuses),
-   because a select trigger hides its ring after a pointer press and Chromium ignores
-   `focus({focusVisible})` (probed: buttons and check boxes never ring, a read-only input always
-   matches `:focus-visible`). Tests: `ConditionCardKeys.real-element` (6, all fail on the old
-   picker; the Undo case must change the rule by a list pick, since typed text is taken back by
-   the box's own undo) and FilterStepCard "picking an attribute hands focus to its value". Walks
-   `tmp/r1-dry3-condition-card-keys/w1` (05 no list, 06 list with nothing lit, 07 Enter closed,
-   rule kept; 12 Undo shows Mlle; 14 Shift+Tab reaches Remove) and `w2` (09 Add, no list; 12
-   "don"+Tab; 15 Highest focuses the box; 22 Enter on a ticked value; 25-26 filter focus).
-0b. (2026-10-18, shape list typing) A select type-ahead run that matches nothing highlights nothing
-   and uses up Enter (`ensureListboxKeyboard`, compact-mantine `listbox.tsx`): in full in
-   `git show bdd01700e:design/ui/studio/notes/engineer.md`, Top of mind 0.
-1. (2026-10-18, color picker) Three defects in compact-mantine's picker, one in the app:
-   (a) the swatch the picker opened on was named "the starting color", but after a second edit it
-   is not the color the drawing started with: now "the color before this edit"; (b) the opening
-   color was a swatch only when the consumer's set held it: `ColorPickerPanel` now puts it first
-   at opening when the set lacks it (stable for the same field, since it is computed once at
-   mount); (c) Enter in the picker's value box committed but left the pop-out open: new
-   `closeOnEnter` prop (default false; `CompactColorInput` sets it; the gradient editor does
-   not), which calls the enclosing popout's `close` -- and must `preventDefault()` the Enter, or
-   the keypress lands on the trigger that `close` just focused and opens it again. App: an unset
-   color row (`ValueField`) got compact-mantine's default palette while a set one got the
-   document's colors, so the same line showed two sets; `ValueField` takes `swatches` and
-   PropertyRow passes `ctx.documentColors` on both paths (`coverage.ts` count 13 -> 14). Tests:
-   `CompactColorInput.browser` "picker swatches and Enter" (same set twice, unset line holds
-   6366F1, no "starting", Enter closes with focus on the trigger). Walk
-   `design/ui/studio/tmp/r1-dry3-color-picker-swatches/w1` (04 Enter closed; 07 tooltip "blue
-   0000FF, the color before this edit"; 10 set and 15 unset show the same five swatches).
-2. (2026-10-18, labels on the drawing) Names drawn across other nodes (app defaults "Move labels off
+    - Tab take the highlighted attribute. `data-enter-done` on value check boxes. NumberCard
+      focuses its first number box after Highest or Between; a filter step focuses its card's value
+      after an attribute is picked (`Filters.tsx`). Words: card header "3 nodes", one layer's head
+      "8 of 24 nodes", the open cards' "Which nodes" is a heading naming the group, and the count
+      is announced from `WhichPicker` (which outlives the cards, so Enter in a number box still says
+      it). compact-mantine: new `focusWithRing(el)` (sets `data-cm-modality="keyboard"`, focuses),
+      because a select trigger hides its ring after a pointer press and Chromium ignores
+      `focus({focusVisible})` (probed: buttons and check boxes never ring, a read-only input always
+      matches `:focus-visible`). Tests: `ConditionCardKeys.real-element` (6, all fail on the old
+      picker; the Undo case must change the rule by a list pick, since typed text is taken back by
+      the box's own undo) and FilterStepCard "picking an attribute hands focus to its value". Walks
+      `tmp/r1-dry3-condition-card-keys/w1` (05 no list, 06 list with nothing lit, 07 Enter closed,
+      rule kept; 12 Undo shows Mlle; 14 Shift+Tab reaches Remove) and `w2` (09 Add, no list; 12
+      "don"+Tab; 15 Highest focuses the box; 22 Enter on a ticked value; 25-26 filter focus).
+2. (2026-10-18, shape list typing; color picker) compact-mantine type-ahead clears the highlight on
+   a run no option starts with; the picker's "color before this edit" swatch and `closeOnEnter`;
+   `ValueField` swatches: in full in `git show bdd01700e:design/ui/studio/notes/engineer.md`, Top of
+   mind 0-1. Known: 12 compact-mantine tests fail on that commit too (QuickActions FieldChooser
+   axe and play, CompactColorInput swatches/onChangeEnd, select disabled trigger, Tree toggles).
+3. (2026-10-18, labels on the drawing) Names drawn across other nodes (app defaults "Move labels off
    nodes and edges" on), labels beside the halo ring (`RichTextLabel.setRing`), declutter forcing
    world matrices: in full in `git show 273e236a4:design/ui/studio/notes/engineer.md`, Top of mind 1.
-3. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
+4. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
    it arrives (`useOverlayInset`), F keeps the angle (`keepAngle`); a hover ends on `pointerleave`
    of the engine's input element, event `selection:hover-changed`. In full in
    `git show fa270090e:design/ui/studio/notes/engineer.md`, Top of mind 1-2.
-4. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
+5. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
    two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
-5. Earlier 2026-10-18 entries (keys and focus, filter steps, layer panel words): `git show 28e989215:design/ui/studio/notes/engineer.md` and `6d312090c`.
-6. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+6. Earlier 2026-10-18 entries (keys and focus, filter steps, layer panel words): `git show 28e989215:design/ui/studio/notes/engineer.md` and `6d312090c`.
+7. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -110,38 +114,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
-- (2026-10-18) **Names off nodes is the app's default, not a wider element declutter.** The
-  element already offers the choice (`avoidNodesAndEdges`, which with declutter hides a label with
-  no place clear of labels and nodes); making `declutter` count nodes would change what an existing
-  option does (breaking). Cost: labels move to one of 8 places round their node, and a pass
-  projects every node and edge (about 5 ms at 1,000 nodes, only while labels are in view).
-- (2026-10-18) **The label clears the ring the way it clears the node,** not by a bigger gap for
-  every label: an unselected label keeps its place; a selected one moves up by the ring's extra
-  radius, and back when deselected. `setRing` is on the unexported `RichTextLabel`, so no API change.
-- (2026-10-18) **Forcing the world matrix in the declutter pass,** not adding position checks to
-  `labelsChanged`: the check already saw the move; the pass measured with Babylon's per-render-id
-  cache. A position check on the label plane would also re-run the pass every frame for a
-  bouncing label.
+- (2026-10-18) **Focus is kept by the line, not by `useFocusLine`.** The tab was never redrawn
+  (the walk and a DOM identity check showed the tab, section and line elements unchanged); only
+  the control inside the line was replaced. Making every control one component across waiting,
+  set and bound would be a large rewrite; a line that takes focus back whenever its own focused
+  control leaves the page covers every swap (first value, Undo to a binding, any later one) in
+  one place. It acts only when focus fell to the page, so a caller that placed focus wins.
+- (2026-10-18) **A tooltip avoids its own section's title by weighting, not by a new default
+  side.** In a column of section headers every side covers something (the neighbor's "+" above
+  and below, the window edge right, the title left), so the least-covered side won and that was
+  the title. Headings now count by their words, and the trigger's own heading ten times, so a
+  neighbor's "+" is covered before the title the reader is reading. Shared, so every "+" at a
+  section's end gets it.
+- (2026-10-18) Labels on the drawing (names off nodes as the app's default, the label clearing the
+  ring, the declutter pass forcing world matrices): in full in
+  `git show bdd01700e:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
 
-- (2026-10-18) **The key's room is reserved only while the key has entries, and its arrival frames
-  once.** Reserving it up front cost every open a third of the canvas (three pilots read it as an
-  off-center drawing); framing once when a key first covers a node costs one move at the moment the
-  reader asked for color, and never when they placed the camera (the owner's original report was a
-  key reframing a reader's zoom, which still holds). The rule lives in `useOverlayInset`, so any
-  overlay arriving over a node gets it, not only the key.
-- (2026-10-18) **Frame selection keeps the angle by passing `keepAngle`, not by a new element
-  default.** Changing what `fitToGraph` with a scope does would be breaking; the option exists and
-  keeping the angle is the app's choice. `zoomToSelection` (the find box) only moves the target, so
-  it never turned the view.
-- (2026-10-18) **The hover ends on the canvas's `pointerleave`, registered only while hovered.**
-  Each node has its own handler, so a listener per node would put tens of thousands on one canvas;
-  one listener exists at a time, added on hover start, removed when the hover ends. `contextmenu`
-  is not a leave: a right-click keeps the pointer on the node (the walk shows Hovered 1 with the
-  menu open) and moving onto the menu fires `pointerleave`.
-- (2026-10-18) **A new event, not a wider `selection:changed`.** `selection:changed` is a
-  membership delta (added, removed, counts); a hover carries none, and every existing listener
-  (inspector, table, toolbar) would re-render on each hover. `selection:hover-changed` reaches only
-  the hosts that show a hover.
+- (2026-10-18) The key's room and its one framing, Frame selection keeping the angle, the hover
+  ending on `pointerleave`, `selection:hover-changed`: in full in
+  `git show bdd01700e:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
 - (2026-10-18) **The find example is "name == 'value'", not contains.** The rule subset refuses
   function calls (`function-not-supported`), so `contains(name, 'x')` would be an example that
   fails when typed; equality with a whole sample value of 20 characters or fewer runs. Adding
@@ -221,6 +212,16 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Seen, not mine, with others' uncommitted edits in the worktree: 15 style
+  real-element tests (ColorBox, PropertyRows 3, OneLineRows, RowKinds 2, StylePanel 3, Groups,
+  LayerPanelWords, BindingPopover Louvain, BulkPilot 2) fail with my focus change switched off too.
+  Older "seen, not mine" lists: `git show bdd01700e:design/ui/studio/notes/engineer.md`.
+- (2026-10-18) Worked: a document `focusin` listener logging `new Error().stack` in a failing test
+  names who moved focus (here `rescue` in frame/focus.ts), faster than reading the hooks.
+- (2026-10-18) Seen, not mine: an edge Width of 3 drew the edges dashed in the walk
+  (`r1-dry3-style-line-focus/w1/13.png`); `ConditionCardKeys.real-element` imports a
+  `LayerSelector` the element does not export, which stops `tsc` (another agent's file), so the
+  walk build used `vite build` alone.
 - (2026-10-18) Closing a pop-out from an input's Enter keydown: the close focuses the trigger
   first, and without `preventDefault()` the same Enter activates that button and reopens the
   pop-out. The test caught it (panel still in the document). WORKED after preventDefault.
@@ -234,19 +235,11 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   (`design/ui/studio/tmp/r1-dry3-labels-on-drawing/probe.mjs`, run through `with-browser.sh`,
   REAL_DIST, SIZE=96) reproduced the pilot picture exactly and gave counts and passes per step.
   WORKED; faster than a real.mjs walk for a mechanism.
-- (2026-10-18) Seen, not mine (fail at HEAD sources too): element `label-drawn-over-edges`
-  "draws a selected node's label over its selection ring" (both; no gold on the node's row), app
-  `StyleTab.real-element` "a Label entry picked from Text's + binds the label and states the
-  counts" (times out at 15 s).
-
 - (2026-10-18) Measuring the pilot screenshot first found the mechanism at once: the karate
   drawing's center sat at x 905 = 297 + (L + 903) / 2, so L = 313, the key room plus gap, on a
   canvas with no key. Measure the offset against the inset before suspecting the layout or the
   element's framing. In real-element tests the toolbar's bottom inset makes `viewInsets` never
   `{}`: wait on `left ?? top`, not on a non-empty object.
-- (2026-10-18) Seen, not mine: graphty `Toolbar.stories` After Louvain, View Flyout 2D/3D (they
-  press "View", the button is named "View, 3D" now); CanvasOverlays "lists every sample"
-  (`session.data.source` missing from the stand-in); tasks "Deleted Louvain" found twice.
 - (2026-10-18) `real.mjs --hover-at` on build 6d312090c showed Hovered 0 over Valjean while my own
   Playwright walk read `session.selection.hovered === "Valjean"`: the element hovered, the app's
   count was stale. Check the session before blaming the element. An app test that hovers a node
@@ -256,8 +249,6 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   (walk s3/10.png). `name == 'Acciaiuoli'` selects the one node (s4/08.png).
 - (2026-10-18) GraphPlace.test renders the place with no panel height, so a list sized to its room
   never scrolled: the test now renders it in a 600 px panel, as the workspace does.
-- (2026-10-18) Seen, not mine: inspector `tasks.real-element` T8, `FocusAfterAdding` (two) and
-  compact-mantine figma tree "toggles x 188" fail with or without the find box change.
 - (2026-10-18) Done on a new empty layer and Remove node color already land on the Which row and
   Fill "+" in the current source (tests and the s1/s2 walk); the frozen build's misses came from
   the picker staying open while other rows were edited, which closing on focus leave now prevents.

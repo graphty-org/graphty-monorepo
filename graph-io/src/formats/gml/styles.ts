@@ -54,6 +54,7 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { graphvizArrow, graphvizHasNoOutline, graphvizOutline, graphvizRouteBends } from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
     flowchartShape,
@@ -67,13 +68,14 @@ import {
     yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
+import { writtenByGv2gml } from "./positions.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
 /** A GML record as the importer keeps it (a json cell). */
 type Rec = Record<string, unknown>;
 
 /** The key vocabulary a file's graphics are read with. */
-type Vocabulary = "yed" | "cytoscape" | "ogdf" | "graphlet";
+type Vocabulary = "yed" | "cytoscape" | "ogdf" | "graphlet" | "graphviz";
 
 /** Who wrote a GML file, as far as its styles go. */
 interface GmlWriter {
@@ -89,6 +91,8 @@ interface GmlWriter {
     readonly units: "px" | "relative";
     /** Whether it draws the `label` key of an element that has graphics (the GML draft does; yEd and Gephi do not). */
     readonly labelKey: boolean;
+    /** Whether the graph is directed, where its edges' arrows depend on it (gv2gml's). */
+    readonly directed?: boolean;
 }
 
 /** The writers recognized by their `Creator` text, first match wins. */
@@ -137,6 +141,19 @@ const UNKNOWN_WRITER: GmlWriter = {
     tool: null,
     vocabulary: "graphlet",
     spelling: "css",
+    units: "px",
+    labelKey: true,
+};
+
+/**
+ * Graphviz's gv2gml (no `Creator`; `version 2` inside the graph): Graphviz's attribute values (shape names, colors,
+ * arrow names, sizes in points, y up) under GML keys, with Graphviz's defaults beneath.
+ */
+const GV2GML_WRITER: GmlWriter = {
+    dialect: "graphviz",
+    tool: "graphviz",
+    vocabulary: "graphviz",
+    spelling: "graphviz",
     units: "px",
     labelKey: true,
 };
@@ -225,7 +242,7 @@ function writerOf(snapshot: GraphSnapshot): GmlWriter {
     ) {
         return WRITERS[0][1];
     }
-    return UNKNOWN_WRITER;
+    return creator.trim() === "" && writtenByGv2gml(snapshot) ? GV2GML_WRITER : UNKNOWN_WRITER;
 }
 
 // ============================================================ reading
@@ -443,6 +460,10 @@ function readOgdfShape(raw: string, writer: GmlWriter, put: Put, at: At): void {
  */
 function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     const v = writer.vocabulary;
+    if (v === "graphviz") {
+        readGv2gmlNode(g, writer, put, at);
+        return;
+    }
     readNodeFill(g, writer, put, at);
     readNodeOutline(g, writer, put, at);
     put(
@@ -475,6 +496,53 @@ function readNodeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         put("shape", flowchartShape(g.customconfiguration));
+    }
+}
+
+/**
+ * Reads one node's `graphics` record as Graphviz's gv2gml writes it (cmd/tools/gv2gml.c emitNodeAttrs): `fill` is the
+ * node's `fillcolor` (or its `color`), drawn only where `hasFill 1` says `style=filled`; `outline` its pen color,
+ * `width` its pen width, `w` and `H` its size in points, `type` its Graphviz shape, `visible 0` its `style=invis`.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const shape = typeof g.type === "string" ? g.type.trim().toLowerCase() : "";
+    if (Number(g.hasFill) === 1 || shape === "point") {
+        // filled: the opacity is stated even when opaque, over Graphviz's default of no fill
+        const c = canonColor(g.fill ?? "black", writer.spelling, at("fill"), { use: "fill" });
+        put("fill", c?.color ?? null);
+        put("fillOpacity", c?.alpha ?? null);
+    } else if (g.fill !== undefined) {
+        // Graphviz draws an unfilled node's inside see-through (the tool default), whatever its color
+        noteAt(at("fill"), STYLE_ISSUE.UNFILLED, sampleOf(g.fill));
+    }
+    if (graphvizHasNoOutline(shape)) {
+        put("borderWidth", 0);
+    } else {
+        readColor(g.outline, "borderColor", null, writer, put, at);
+        put("borderWidth", g.width === undefined ? null : canonNumber(g.width, at("borderWidth")));
+    }
+    put("borderStyle", strokeStyle(g.outlineStyle, "borderStyle", writer, at("borderStyle")));
+    put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
+    // gv2gml writes the height as H (gv2gml.c emitReal("H", ...)); h where a later edit spelled it as GML does
+    const h = first(g, "H", "h");
+    put("height", h === undefined ? null : canonNumber(h, at("height")));
+    if (Number(g.visible) === 0 && g.visible !== undefined) {
+        put("visible", false);
+    }
+    const outline = graphvizOutline(shape);
+    if (shape === "polygon") {
+        // ponytail: Graphviz's polygon is a box unless its sides, skew or distortion say otherwise; gv2gml copies
+        // those as node keys beside graphics, which this record does not see. Read them when a file has them.
+        put("shape", "rectangle");
+    } else if (outline !== undefined) {
+        put("shape", "polygon");
+        put("shapePoints", outline);
+    } else if (g.type !== undefined) {
+        put("shape", canonEnum("shape", g.type, "graphviz", at("shape")));
     }
 }
 
@@ -544,6 +612,10 @@ function outlineWidthOf(g: Rec, v: GmlWriter["vocabulary"]): unknown {
  */
 function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     const v = writer.vocabulary;
+    if (v === "graphviz") {
+        readGv2gmlEdge(g, writer, put, at);
+        return;
+    }
     readColor(g.fill, "color", "opacity", writer, put, at);
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
     put("width", width === undefined ? null : canonNumber(width, at("width")));
@@ -580,6 +652,69 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     }
 }
 
+/** gv2gml's `arrow`, from Graphviz's `dir`: `first` is `dir=forward` (the head's arrow), `last` is `dir=back`. */
+const GV2GML_DIRECTIONS: ReadonlyMap<string, readonly [boolean, boolean]> = new Map([
+    ["first", [false, true]],
+    ["last", [true, false]],
+    ["both", [true, true]],
+    ["none", [false, false]],
+]);
+
+/**
+ * Reads one edge's `graphics` record as Graphviz's gv2gml writes it (gv2gml.c emitEdgeAttrs): `fill` its color,
+ * `width` its pen width (2 for `style=bold`), `style` its dashes, `visible 0` its `style=invis`, `targetArrow` and
+ * `sourceArrow` its `arrowhead` and `arrowtail`, and `arrow` its `dir`. With none of the arrow keys an edge of a
+ * directed graph has Graphviz's default arrowhead, and one of an undirected graph none.
+ * @param g - the record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    readColor(g.fill, "color", "opacity", writer, put, at);
+    put("width", g.width === undefined ? null : canonNumber(g.width, at("width")));
+    put("lineStyle", strokeStyle(g.style, "lineStyle", writer, at("lineStyle")));
+    if (Number(g.visible) === 0 && g.visible !== undefined) {
+        put("visible", false);
+    }
+    const ends = gv2gmlArrowEnds(g, writer.directed === true);
+    if (ends === null) {
+        return;
+    }
+    for (const [end, raw, on] of [
+        ["target", g.targetArrow, ends[1]],
+        ["source", g.sourceArrow, ends[0]],
+    ] as const) {
+        const name = typeof raw === "string" ? raw : "normal";
+        put(
+            `${end}Arrow`,
+            on ? canonEnum("arrow", graphvizArrow(name)?.name ?? name, "graphviz", at(`${end}Arrow`)) : "none",
+        );
+        if (on && graphvizArrow(name)?.side === true) {
+            put(`${end}ArrowWidth`, 0.5);
+        }
+    }
+}
+
+/**
+ * Which ends of a gv2gml edge Graphviz draws an arrow at, as its `dir` says (forward in a directed graph when the
+ * record names no arrow), or null for an undirected graph's edge that names none.
+ * @param g - the edge's `graphics` record
+ * @param directed - whether the graph is directed (its `dir` defaults to forward)
+ * @returns [source, target], or null
+ */
+function gv2gmlArrowEnds(g: Rec, directed: boolean): readonly [boolean, boolean] | null {
+    if (g.arrow === undefined && g.targetArrow === undefined && g.sourceArrow === undefined) {
+        // Graphviz's dir is forward in a digraph and its arrowhead normal: gv2gml writes neither when unset
+        return directed ? [false, true] : null;
+    }
+    let dir = directed ? "first" : "none";
+    if (typeof g.arrow === "string") {
+        dir = g.arrow.trim().toLowerCase();
+    }
+    return GV2GML_DIRECTIONS.get(dir) ?? null;
+}
+
 /**
  * Reads whether yEd draws an edge curved: `smoothBends` rounds the bends of its `Line`, whose points run from the
  * source through the bends to the target, so a line of two points (or none) stays straight.
@@ -612,12 +747,16 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
         noteAt(at("label"), STYLE_ISSUE.EXTRA_LABELS, `${String(extra + 1)} labels`);
     }
     if (lg.text !== undefined) {
-        put("label", canonText(lg.text, at("label")));
+        put(
+            "label",
+            writer.vocabulary === "graphviz" ? graphvizText(lg.text, at("label")) : canonText(lg.text, at("label")),
+        );
     }
     // the GML draft's `fill` is the text color; yEd's is the label's background box, its `color` the text color
     const yedLabel = writer.vocabulary === "yed" || YED_LABEL_KEYS.some((k) => Object.hasOwn(lg, k));
-    if (lg.color !== undefined) {
-        readColor(lg.color, "labelColor", null, writer, put, at);
+    if (lg.color !== undefined || lg.fontColor !== undefined) {
+        // gv2gml writes a label's fontcolor as fontColor (as color with -y)
+        readColor(lg.color ?? lg.fontColor, "labelColor", null, writer, put, at);
     } else if (lg.fill !== undefined && !yedLabel) {
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
@@ -633,6 +772,18 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
         }
         put("labelPosition", known ?? null);
     }
+}
+
+/**
+ * A label's text as Graphviz draws it: gv2gml copies a DOT label as written, so its line breaks are still the escapes
+ * `\n`, `\l` and `\r` (centered, left and right lines, drawn here as plain line breaks).
+ * @param raw - the text
+ * @param at - the site
+ * @returns the text
+ */
+function graphvizText(raw: unknown, at: CanonSite): string | null {
+    const text = canonText(raw, at);
+    return text === null ? null : text.replaceAll(/\\[nlr]/g, "\n").replace(/\n$/, "");
 }
 
 /**
@@ -690,7 +841,10 @@ function readElement(
     const drawn =
         writer.vocabulary === "cytoscape" ? target === "node" : writer.labelKey && (isRec(g) || lg !== undefined);
     if (!text && drawn && label !== null && label !== undefined) {
-        put("label", canonText(label, at("label")));
+        put(
+            "label",
+            writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
+        );
     }
 }
 
@@ -802,6 +956,41 @@ function readLineRoute(
 }
 
 /**
+ * A gv2gml edge's route: its `Line` is the edge's Graphviz `pos`, the B-spline's `3n + 1` control points from the tail
+ * to the head (y up), with the arrow tips Graphviz keeps apart (`s,` and `e,`) written as plain first and last points;
+ * the points beyond `3n + 1` are those tips (the source's first when there are two or it has the arrow). A route on
+ * the line between the centers is the straight edge it looks like and gives no bends.
+ * @param snapshot - the graph
+ * @param g - the edge's `graphics` value
+ * @param e - the edge's row
+ * @param put - receives the values
+ */
+function readGv2gmlRoute(
+    snapshot: GraphSnapshot,
+    g: unknown,
+    e: number,
+    put: (property: string, value: string) => void,
+): void {
+    const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
+    const list = isRec(raw) ? [raw] : raw;
+    if (!Array.isArray(list) || !isRec(g)) {
+        return;
+    }
+    let points = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    const tips = (points.length - 1) % 3;
+    const sourceTip = tips === 2 || (tips === 1 && gv2gmlArrowEnds(g, snapshot.directed)?.[0] === true);
+    points = points.slice(sourceTip ? 1 : 0, points.length - (tips === 2 || (tips === 1 && !sourceTip) ? 1 : 0));
+    const bends = graphvizRouteBends(
+        centerOf(snapshot, snapshot.edgeSource(e)),
+        centerOf(snapshot, snapshot.edgeTarget(e)),
+        [points],
+    );
+    if (bends !== null) {
+        put("bends", bends);
+    }
+}
+
+/**
  * Every element's values, read with a writer's vocabulary.
  * @param snapshot - the graph
  * @param writer - the writer
@@ -840,7 +1029,12 @@ function readValues(
                 },
                 at,
             );
-            if (target === "edge") {
+            if (target === "edge" && writer.vocabulary === "graphviz") {
+                readGv2gmlRoute(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
+                    found = true;
+                    out.put(i, property, value);
+                });
+            } else if (target === "edge") {
                 readLineRoute(
                     snapshot,
                     cellOf(table, "graphics", i),
@@ -929,7 +1123,7 @@ function styleColumns(table: GraphSnapshot["nodes"]): string[] {
  */
 export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null {
     const notes = new StyleNotes();
-    const writer = writerOf(snapshot);
+    const writer = { ...writerOf(snapshot), directed: snapshot.directed };
     const values = readValues(snapshot, writer, notes, context);
     const blockText = graphText(snapshot, GML_STYLE_BLOCK_KEY);
     const block = blockText === null ? null : blockWithValues(snapshot, blockText);

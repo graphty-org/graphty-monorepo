@@ -743,6 +743,25 @@ const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map([
     ...[...GRAPHVIZ_DECORATED_BOXES].map(([name, corners]) => [name, cornersText(corners)] as const),
 ]);
 
+/**
+ * The corners of a Graphviz shape graphty draws as a polygon (`house`, `cylinder`, `note` ...), as a `shapePoints`
+ * value, or undefined for a shape graphty draws by name.
+ * @param shape - the shape name, lowercase
+ * @returns the corners, or undefined
+ */
+export function graphvizOutline(shape: string): string | undefined {
+    return NAMED_OUTLINES.get(shape);
+}
+
+/**
+ * Whether Graphviz draws a shape with no outline (`plain`, `plaintext`, `none`).
+ * @param shape - the shape name, lowercase
+ * @returns true for a shape with no outline
+ */
+export function graphvizHasNoOutline(shape: string): boolean {
+    return NO_OUTLINE.has(shape);
+}
+
 /** The shape name of each outline in `NAMED_OUTLINES`, so a written node keeps its Graphviz shape. */
 const OUTLINE_NAMES: ReadonlyMap<string, string> = new Map([...NAMED_OUTLINES].map(([name, text]) => [text, name]));
 
@@ -905,16 +924,35 @@ function splineBends(snapshot: GraphSnapshot, e: number, pos: string | null): st
         return null;
     }
     // ponytail: the splines of a concentrated edge (";"-separated) are joined end to end
-    const points: BendPoint[] = [];
-    for (const spline of pos.split(";")) {
-        const controls = spline
+    const splines = pos.split(";").map((spline) =>
+        spline
             .trim()
             .split(/\s+/)
             .filter((t) => !/^[es],/.test(t))
             .map((t): BendPoint => {
                 const [x, y] = t.split(",").map(Number);
                 return [x, y];
-            });
+            }),
+    );
+    return graphvizRouteBends(source, target, splines);
+}
+
+/**
+ * The bends of a route Graphviz laid: B-splines of `3n + 1` control points each (y up), flattened into bends between
+ * the two nodes' centers. Null for a route on the line between the centers, which is the straight edge it looks like,
+ * or for control points that are not a spline. Also reads the `Line` of a GML file Graphviz's gv2gml wrote.
+ * @param source - the source node's center
+ * @param target - the target node's center
+ * @param splines - the control points of each spline, joined end to end
+ * @returns the `bends` value, or null
+ */
+export function graphvizRouteBends(
+    source: BendPoint,
+    target: BendPoint,
+    splines: readonly (readonly BendPoint[])[],
+): string | null {
+    const points: BendPoint[] = [];
+    for (const controls of splines) {
         const flat = flattenCubic(controls);
         if (flat === null || flat.some(([x, y]) => !Number.isFinite(x) || !Number.isFinite(y))) {
             return null;
@@ -999,7 +1037,7 @@ const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", 
  * @param raw - the arrow name
  * @returns the shape's own name and its side, or null for a name outside the grammar (a synonym such as `empty`)
  */
-function graphvizArrow(raw: string): { readonly name: string; readonly side: boolean } | null {
+export function graphvizArrow(raw: string): { readonly name: string; readonly side: boolean } | null {
     let rest = raw.trim().toLowerCase();
     while (rest.length > 0) {
         const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);

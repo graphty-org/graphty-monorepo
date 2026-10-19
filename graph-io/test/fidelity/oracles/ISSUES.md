@@ -979,6 +979,16 @@ importer must match:
   All read so since 2026-10-18.
 - A node border's dash-dot is drawn dash-dot by graphty-element since 2026-10-18 (it was drawn as plain dashes);
   OGDF and Cytoscape desktop both draw it.
+- Graphviz writes GML too: its `gv2gml` (Graphviz 14.1.2) is a sixth vocabulary, with no `Creator` line and
+  `version 2` first in the graph. Its sheets (`node-shapes-p6`, `-p7`, `node-fills-borders-p6`, `node-sizes-opacity-p6`,
+  `labels-p7`, `labels-p8` written with `gv2gml -y`, `edges-lines-p6`, `arrows-p7`, `arrows-p8`, `edge-labels-p5`) are
+  converted by gv2gml from DOT files in `specimens/gml/graphviz/`, and Graphviz's own drawing of those DOT files is the
+  oracle: no stand-in. gv2gml writes Graphviz's values under GML keys: coordinates in points with y up, the height as
+  `H` (not `h`), `fill` drawn only with `hasFill 1` (`style=filled`), `visible 0` for `style=invis`, the label color
+  as `LabelGraphics fontColor`, Graphviz's shape, color and arrow names, the edge's `pos` spline as `Line` (arrow tips
+  as plain points), and `dir` as `arrow` with `first` meaning forward (the head's arrow), the reverse of the GML
+  draft's. graph-io read none of that before 2026-10-19 (every drawing mirrored, every height, invisible node and label
+  color lost, every unfilled node filled); it reads all of it since, with Graphviz's defaults beneath.
 
 Open:
 
@@ -1007,6 +1017,17 @@ Open:
   limit, not an import defect: dropping the edge would lose data the file holds. Gephi reads the edge's `fill` and
   `label` (`gml-specimen-edges-lines-p5` `fill-ff0000`, `gml-specimen-edge-labels-p4`) but its Preview's defaults
   draw neither (MIXED edge colors, no edge labels), and graphty matches that.
+- The gv2gml sheets show the same graphty-element gaps as the DOT sheets, for the same Graphviz values (the DOT
+  sheets' rows of `oracle-known-failures.json` list them by setting id): the peripheries of `doublecircle`,
+  `doubleoctagon`, `tripleoctagon` and `insulator` (`gml-specimen-node-shapes-p6` / `-p7` node.ring and the outer
+  size), the synthetic-biology glyphs and `cylinder` (`-p7`: `promoter`, `terminator`, `utr`, `primersite`,
+  `restrictionsite`, `fivepoverhang`, `threepoverhang`, `noverhang`, `assembly`, `signature`, `rnastab`, `ribosite`,
+  `proteasesite`, `proteinstab`, drawn as plain ellipses), the one-sided arrows `l` / `r` (drawn whole and half as wide,
+  not as a half), the open `o` box, inv and half arrows (drawn filled), the `curve` and `icurve` arrows, and the edge
+  label's own place (`lp`, which gv2gml copies as a plain key: `gml-specimen-edge-labels-p5` `font-size-20`,
+  `font-name-dejavu-serif`). graph-io has no free edge-label position to carry `lp` in, as for OGDF's node label
+  offset above. A node's `pencolor`, which gv2gml also writes as `outline`, is a cluster's alone and Graphviz ignores it
+  on a node; the sheets set a node's outline by its `color`, which is what Graphviz draws.
 - The comparator cannot see setting ids on GML (ids must be integers; the id is in each element's `comment`, or an
   OGDF node's `template`), so captions are judged as nodes and every Cytoscape caption's text, which Cytoscape
   measures with Java's fonts, shows as a label offset of 6 to 9 px.

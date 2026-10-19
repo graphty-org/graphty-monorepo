@@ -24,15 +24,30 @@ export function gmlPositions(snapshot: GraphSnapshot): ImporterPositions | null 
     }
     // Gephi writes its Creator line inside the graph
     const inGraph = snapshot.graph.has("Creator") ? snapshot.graph.value("Creator", 0) : null;
-    const tool = toolOf(snapshot.meta.creator ?? (typeof inGraph === "string" ? inGraph : null));
+    const gv2gml = writtenByGv2gml(snapshot);
+    const tool = gv2gml ? "graphviz" : toolOf(snapshot.meta.creator ?? (typeof inGraph === "string" ? inGraph : null));
     return {
         units: "px",
         // a z that is the same on every node collapses to 2D
         sourceDims: 3,
-        yAxis: tool === "gephi" || tool === "tulip" ? "up" : "down",
+        // gv2gml writes Graphviz's own coordinates, y up
+        yAxis: tool === "gephi" || tool === "tulip" || gv2gml ? "up" : "down",
         tool,
         medianNodeSize: graphicsMedian(snapshot, tool === "gephi"),
     };
+}
+
+/**
+ * Whether Graphviz's gv2gml wrote a GML file: no `Creator` line, and the `version 2` it writes first in the graph
+ * (cmd/tools/gv2gml.c gv_to_gml).
+ * @param snapshot - the graph the GML importer read
+ * @returns true for gv2gml's GML
+ */
+export function writtenByGv2gml(snapshot: GraphSnapshot): boolean {
+    if ((snapshot.meta.creator ?? null) !== null || snapshot.graph.has("Creator") || !snapshot.graph.has("version")) {
+        return false;
+    }
+    return Number(snapshot.graph.value("version", 0)) === 2;
 }
 
 /**
@@ -46,11 +61,12 @@ function graphicsMedian(snapshot: GraphSnapshot, gephi: boolean): number | null 
     const sizes: number[] = [];
     for (let row = 0; graphics !== null && row < graphics.length; row++) {
         const g = graphics.isSet(row) ? graphics.value(row) : undefined;
-        const { w, h } = typeof g === "object" && g !== null ? (g as Record<string, unknown>) : {};
+        const { w, h, H } = typeof g === "object" && g !== null ? (g as Record<string, unknown>) : {};
         if (gephi && typeof w === "number") {
             sizes.push(2 * w);
-        } else if (typeof w === "number" && typeof h === "number") {
-            sizes.push((w + h) / 2);
+        } else if (typeof w === "number" && typeof (h ?? H) === "number") {
+            // gv2gml writes the height as H
+            sizes.push((w + Number(h ?? H)) / 2);
         }
     }
     return median(sizes);

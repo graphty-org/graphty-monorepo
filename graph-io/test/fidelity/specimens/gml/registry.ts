@@ -13,7 +13,9 @@
  * node-fills-borders-p4, node-sizes-opacity-p4, labels-p5, edges-lines-p4, arrows-p5, edge-labels-p3 and groups-p2
  * are OGDF's keys, written and drawn by OGDF itself (`oracles/tools/ogdf.mjs`); node-fills-borders-p5,
  * node-sizes-opacity-p5, labels-p6, edges-lines-p5, arrows-p6 and edge-labels-p4 are Gephi's keys, drawn by Gephi itself
- * (`oracles/tools/gephi.mjs`).
+ * (`oracles/tools/gephi.mjs`); node-shapes-p6 / p7, node-fills-borders-p6, node-sizes-opacity-p6, labels-p7 / p8 (p8
+ * written by `gv2gml -y`), edges-lines-p6, arrows-p7 / p8 and edge-labels-p5 are written by Graphviz's gv2gml from the
+ * DOT files in `graphviz/`, which Graphviz itself draws (`oracles/tools/graphviz.mjs`, `../../generators/specimens/gml_graphviz.py`).
  */
 import { type SpecimenFormat } from "../sheets.js";
 
@@ -28,37 +30,47 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-node-shapes-p3", file: "specimen-node-shapes-p3.gml" },
         { id: "specimen-node-shapes-p4", file: "specimen-node-shapes-p4.gml" },
         { id: "specimen-node-shapes-p5", file: "specimen-node-shapes-p5.gml" },
+        { id: "specimen-node-shapes-p6", file: "specimen-node-shapes-p6.gml" },
+        { id: "specimen-node-shapes-p7", file: "specimen-node-shapes-p7.gml" },
         { id: "specimen-node-fills-borders", file: "specimen-node-fills-borders.gml" },
         { id: "specimen-node-fills-borders-p2", file: "specimen-node-fills-borders-p2.gml" },
         { id: "specimen-node-fills-borders-p3", file: "specimen-node-fills-borders-p3.gml" },
         { id: "specimen-node-fills-borders-p4", file: "specimen-node-fills-borders-p4.gml" },
         { id: "specimen-node-fills-borders-p5", file: "specimen-node-fills-borders-p5.gml" },
+        { id: "specimen-node-fills-borders-p6", file: "specimen-node-fills-borders-p6.gml" },
         { id: "specimen-node-sizes-opacity", file: "specimen-node-sizes-opacity.gml" },
         { id: "specimen-node-sizes-opacity-p2", file: "specimen-node-sizes-opacity-p2.gml" },
         { id: "specimen-node-sizes-opacity-p3", file: "specimen-node-sizes-opacity-p3.gml" },
         { id: "specimen-node-sizes-opacity-p4", file: "specimen-node-sizes-opacity-p4.gml" },
         { id: "specimen-node-sizes-opacity-p5", file: "specimen-node-sizes-opacity-p5.gml" },
+        { id: "specimen-node-sizes-opacity-p6", file: "specimen-node-sizes-opacity-p6.gml" },
         { id: "specimen-labels", file: "specimen-labels.gml" },
         { id: "specimen-labels-p2", file: "specimen-labels-p2.gml" },
         { id: "specimen-labels-p3", file: "specimen-labels-p3.gml" },
         { id: "specimen-labels-p4", file: "specimen-labels-p4.gml" },
         { id: "specimen-labels-p5", file: "specimen-labels-p5.gml" },
         { id: "specimen-labels-p6", file: "specimen-labels-p6.gml" },
+        { id: "specimen-labels-p7", file: "specimen-labels-p7.gml" },
+        { id: "specimen-labels-p8", file: "specimen-labels-p8.gml" },
         { id: "specimen-edges-lines", file: "specimen-edges-lines.gml" },
         { id: "specimen-edges-lines-p2", file: "specimen-edges-lines-p2.gml" },
         { id: "specimen-edges-lines-p3", file: "specimen-edges-lines-p3.gml" },
         { id: "specimen-edges-lines-p4", file: "specimen-edges-lines-p4.gml" },
         { id: "specimen-edges-lines-p5", file: "specimen-edges-lines-p5.gml" },
+        { id: "specimen-edges-lines-p6", file: "specimen-edges-lines-p6.gml" },
         { id: "specimen-arrows", file: "specimen-arrows.gml" },
         { id: "specimen-arrows-p2", file: "specimen-arrows-p2.gml" },
         { id: "specimen-arrows-p3", file: "specimen-arrows-p3.gml" },
         { id: "specimen-arrows-p4", file: "specimen-arrows-p4.gml" },
         { id: "specimen-arrows-p5", file: "specimen-arrows-p5.gml" },
         { id: "specimen-arrows-p6", file: "specimen-arrows-p6.gml" },
+        { id: "specimen-arrows-p7", file: "specimen-arrows-p7.gml" },
+        { id: "specimen-arrows-p8", file: "specimen-arrows-p8.gml" },
         { id: "specimen-edge-labels", file: "specimen-edge-labels.gml" },
         { id: "specimen-edge-labels-p2", file: "specimen-edge-labels-p2.gml" },
         { id: "specimen-edge-labels-p3", file: "specimen-edge-labels-p3.gml" },
         { id: "specimen-edge-labels-p4", file: "specimen-edge-labels-p4.gml" },
+        { id: "specimen-edge-labels-p5", file: "specimen-edge-labels-p5.gml" },
         { id: "specimen-groups", file: "specimen-groups.gml" },
         { id: "specimen-groups-p2", file: "specimen-groups-p2.gml" },
         { id: "specimen-images-charts", file: "specimen-images-charts.gml" },

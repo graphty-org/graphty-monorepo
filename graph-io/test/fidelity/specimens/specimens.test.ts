@@ -57,7 +57,10 @@ describe("specimen registries", () => {
             if (file.endsWith(".cys")) {
                 return;
             }
-            const text = (file.endsWith(".gz") ? gunzipSync(bytes) : bytes).toString("utf8");
+            // a numeric character reference spells a character as some writers escape it (gv2gml writes - as &#45;)
+            const text = (file.endsWith(".gz") ? gunzipSync(bytes) : bytes)
+                .toString("utf8")
+                .replaceAll(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)));
             expect(ANCHORS.filter((a) => !text.includes(a))).toEqual([]);
         },
     );

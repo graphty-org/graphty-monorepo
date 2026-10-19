@@ -1,5 +1,5 @@
 {
-    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG) or gephi (Gephi's own Preview).",
+    "about": "Which stand-in program draws each GML sheet's oracle (written by graph-io/test/fidelity/generators/specimens/gml.py): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv (gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG), gephi (Gephi's own Preview) or graphviz (Graphviz's own drawing of the DOT file its gv2gml converted to the sheet).",
     "sheets": {
         "specimen-node-shapes": {
             "route": "cytoscape-gml",
@@ -273,6 +273,76 @@
             "directed": true,
             "specimens": 5,
             "about": "a directed Gephi graph: an arrow on every edge"
+        },
+        "specimen-node-shapes-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 32,
+            "about": "Graphviz shapes, as gv2gml writes them in type"
+        },
+        "specimen-node-shapes-p7": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 31,
+            "about": "Graphviz shapes, as gv2gml writes them in type"
+        },
+        "specimen-node-fills-borders-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 17,
+            "about": "fill (filled or not), outline, width and outlineStyle"
+        },
+        "specimen-node-sizes-opacity-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 9,
+            "about": "w and H (gv2gml's height key), visible and alpha"
+        },
+        "specimen-labels-p7": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 14,
+            "about": "node label text and LabelGraphics"
+        },
+        "specimen-labels-p8": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 14,
+            "about": "node label text and LabelGraphics (gv2gml -y)"
+        },
+        "specimen-edges-lines-p6": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 13,
+            "about": "edge fill, width and style"
+        },
+        "specimen-arrows-p7": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": true,
+            "specimens": 48,
+            "about": "targetArrow (arrowhead) with arrow first (dir=forward)"
+        },
+        "specimen-arrows-p8": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": true,
+            "specimens": 52,
+            "about": "sourceArrow (arrowtail) with arrow last (dir=back), and arrow"
+        },
+        "specimen-edge-labels-p5": {
+            "route": "graphviz",
+            "flavor": "graphviz",
+            "directed": false,
+            "specimens": 7,
+            "about": "edge label text and LabelGraphics"
         }
     }
 }

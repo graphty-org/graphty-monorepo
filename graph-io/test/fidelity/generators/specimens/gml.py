@@ -8,7 +8,7 @@ enumerations and files for yEd's keys, Cytoscape's GML reader for Cytoscape 2.x'
 sheet or named in NOT_SWEPT with the reason; the script fails otherwise. Sheet rules:
 graph-io/test/fidelity/specimens/README.md.
 
-Five vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML
+Six vocabularies, never mixed in one file: a "graphlet" sheet has no Creator line and only the keys of the GML
 draft and Tk; a "yed" sheet has yEd's Creator "yFiles" line and yEd's keys, written the way yEd writes them (reals for
 x, y, w and h, integers for fontSize and outlineWidth, label beside LabelGraphics text); a "cytoscape" sheet has
 Creator "Cytoscape" and the keys Cytoscape 2.x's GML writer wrote (outline_width, its shape names, its numbered
@@ -16,7 +16,8 @@ arrows); an "ogdf" sheet has OGDF's Creator line and OGDF's keys (lineWidth, sti
 holding the bends only, clusters under rootcluster). An ogdf sheet is then read and written again by OGDF itself
 (oracles/tools/ogdf.mjs --rewrite), so the committed file is OGDF's own writing. A "gephi" sheet is written the way
 Gephi's GML exporter writes (Creator "Gephi" inside the graph, graphics x, y, z, w, h, d and fill, edges with an id
-and a value), and Gephi itself draws it (oracles/tools/gephi.mjs).
+and a value), and Gephi itself draws it (oracles/tools/gephi.mjs). A "graphviz" sheet is written by Graphviz's gv2gml
+from a DOT file, which Graphviz draws as the oracle (gml_graphviz.py says how).
 
 Ids: GML ids are integers (the draft; Cytoscape's GML reader and gml2gv reject any other id), so every element's
 setting id is written in its `comment` key (an ogdf sheet's node: its `template` key, the one string OGDF keeps per
@@ -42,6 +43,9 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 from sheet_layout import ANCHORS, LAYOUT, cells  # noqa: E402
+
+sys.path.insert(0, HERE)
+import gml_graphviz  # noqa: E402
 
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "../../specimens/gml")
 VOCAB = json.load(open(os.path.join(HERE, "gml-vocabulary.json"), encoding="ascii"))
@@ -1081,6 +1085,8 @@ def main():
     gephi_sheets()
     write_images()
     check()
+    # gv2gml's sheets: Graphviz writes the GML from a DOT file and draws that DOT file as the oracle
+    SHEETS.extend(gml_graphviz.sheets(OUT))
     for s in SHEETS:
         if len(s.items) > LAYOUT["maxSpecimens"]:
             raise SystemExit(f"{s.id}: {len(s.items)} specimens")
@@ -1089,7 +1095,8 @@ def main():
     with open(os.path.join(OUT, "oracle-routes.json"), "w", encoding="ascii", newline="\n") as f:
         json.dump({"about": "Which stand-in program draws each GML sheet's oracle (written by "
                             f"{GENERATOR}): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv "
-                            "(gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG) or gephi (Gephi's own Preview).", "sheets": routes}, f,
+                            "(gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG), gephi (Gephi's own Preview) or graphviz (Graphviz's "
+                            "own drawing of the DOT file its gv2gml converted to the sheet).", "sheets": routes}, f,
                   indent=2)
         f.write("\n")
     total = sum(len(s.items) for s in SHEETS)

@@ -175,6 +175,37 @@ for (const [sheet, { route }] of Object.entries(gmlRoutes).sort()) {
     });
 }
 
+// The GML specimen sheets Graphviz itself wrote (route "graphviz"): gv2gml converted the laid-out DOT file
+// ../../specimens/gml/graphviz/<sheet>.gv (generators/specimens/gml_graphviz.py), so Graphviz's drawing of that DOT
+// file is the program's own drawing of the GML sheet. No stand-in.
+for (const [sheet, { route }] of Object.entries(gmlRoutes).sort()) {
+    const id = `gml-${sheet}`;
+    if (route !== "graphviz" || (wanted.size && !wanted.has(id))) continue;
+    const r = spawnSync(
+        join(bin, "neato"),
+        ["-n2", "-Tsvg", `-Gsize=${SIZE}`, join(GML_SPECIMENS, "graphviz", `${sheet}.gv`)],
+        {
+            env,
+            maxBuffer: 1 << 28,
+        },
+    );
+    // a label larger than its fixed-size node is drawn anyway: the label specimens show it
+    const warnings = r.stderr
+        .toString()
+        .split("\n")
+        .filter((l) => l.trim() !== "");
+    if (r.status !== 0 || warnings.some((l) => !l.includes("size too small for label"))) {
+        throw new Error(`${id}: neato exited ${r.status}: ${warnings.join(" | ")}`);
+    }
+    write(id, `fidelity/specimens/gml/${sheet}.gml`, r.stdout, {
+        engine: "neato -n2",
+        command: `neato -n2 -Tsvg -Gsize="${SIZE}" graphviz/<sheet>.gv (the DOT file gv2gml converted to the sheet)`,
+        standIn: false,
+        source: `graph-io/test/fidelity/specimens/gml/graphviz/${sheet}.gv`,
+        warnings,
+    });
+}
+
 for (const name of readdirSync(SPECIMENS)
     .filter((f) => f.endsWith(".gv"))
     .sort()) {

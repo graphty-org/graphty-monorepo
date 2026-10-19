@@ -178,6 +178,51 @@ describe("GML styles: who wrote the file", () => {
         expect(edge$("sourcePort")[0]).toBeNull();
     });
 
+    it("reads what Graphviz's gv2gml writes: H, hasFill, visible, fontColor, Graphviz names, y up, dir as arrow", async () => {
+        // gv2gml 14.1.2's own output for a three-node digraph (cmd/tools/gv2gml.c), trimmed of its pass-through keys
+        const node = (id: number, x: number, g: string, label = ""): string =>
+            `node [ id ${String(id)} name "${String(id)}" ${label} graphics [ x ${String(x)} y 100 w 54 H 36 ${g} ] ]`;
+        const { snapshot, styles } = await load(
+            [
+                "graph [ version 2 directed 1",
+                node(0, 27, 'hasFill 1 type "box" fill "orange" outline "blue" width 2 outlineStyle "dashed"'),
+                node(
+                    1,
+                    127,
+                    'type "house" fill "red" outline "red"',
+                    'label "a" LabelGraphics [ text "a\\nb" fontColor "green" ]',
+                ),
+                node(2, 227, 'visible 0 hasFill 1 type "point" fill "#ff000080"'),
+                'edge [ id 1 source 0 target 1 graphics [ Line [ point [ x 54 y 100 ] point [ x 70 y 100 ] point [ x 80 y 100 ] point [ x 90 y 100 ] point [ x 100 y 100 ] ] fill "red" targetArrow "odiamond" arrow "first" ] ]',
+                'edge [ id 2 source 1 target 2 graphics [ sourceArrow "inv" style "dotted" arrow "last" ] ]',
+                "edge [ id 3 source 0 target 2 graphics [ visible 0 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(styles.styles.source).toEqual({ format: "gml", dialect: "graphviz", tool: "graphviz" });
+        expect(gmlPositions(snapshot)?.yAxis).toBe("up");
+        type Property = Parameters<typeof resolveStyles>[2];
+        const node$ = (p: Property): readonly unknown[] => resolveStyles(styles, "node", p, snapshot);
+        const edge$ = (p: Property): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        expect(node$("height")).toEqual([36, 36, 36]);
+        // filled only where hasFill says style=filled (a point always): Graphviz's unfilled node is see-through
+        expect(node$("fill")[0]).toBe("#ffa500");
+        expect(node$("fillOpacity")).toEqual([1, 0, 0.501961]);
+        expect(node$("borderColor")[0]).toBe("#0000ff");
+        expect(node$("borderStyle")[0]).toBe("dashed");
+        expect(node$("shape")).toEqual(["rectangle", "polygon", "ellipse"]);
+        expect(node$("visible")[2]).toBe(false);
+        expect(node$("labelColor")[1]).toBe("#00ff00");
+        expect(node$("label")[1]).toBe("a\nb");
+        // arrow "first" is gv2gml's dir=forward (the head's arrow), "last" dir=back
+        expect(edge$("targetArrow")).toEqual(["diamond-open", "none", "triangle"]);
+        expect(edge$("sourceArrow")).toEqual(["none", "inverted", "none"]);
+        expect(edge$("lineStyle")[1]).toBe("dotted");
+        expect(edge$("visible")[2]).toBe(false);
+        // a straight spline is the straight edge it looks like
+        expect(edge$("bends")[0]).toBeNull();
+    });
+
     it("reads Cytoscape's GML as Cytoscape does: its shape names alone, and a node without a label named by its id", async () => {
         const { snapshot, styles } = await load(
             [

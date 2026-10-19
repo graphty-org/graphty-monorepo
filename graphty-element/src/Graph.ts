@@ -136,7 +136,7 @@ import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js"
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import type { DataMutation } from "./session/commands/data";
+import { addsRows, type DataMutation } from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -722,9 +722,9 @@ export class Graph implements GraphContext {
                     // A run of queued adds starts the list once, from the last of them: each
                     // earlier start would run over a graph still arriving and freeze a snapshot
                     // for nothing.
-                    // ponytail: a queued removal behind the adds also defers the start, and no
-                    // removal starts the list, so adds followed at once by a removal run nothing.
-                    if (dispatcherOf(this.session).graphWritesWaiting) {
+                    // Only a queued command that adds rows defers it, since only such a command
+                    // starts the list again; any other write queued behind does not.
+                    if (dispatcherOf(this.session).commandWaiting(addsRows)) {
                         return;
                     }
 

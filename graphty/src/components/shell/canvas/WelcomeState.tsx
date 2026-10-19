@@ -259,7 +259,7 @@ export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
                                     style={{
                                         fontSize: CANVAS_TYPE.SMALL,
                                         lineHeight: CANVAS_LEADING.DENSE,
-                                        color: PANEL_INK.DANGER,
+                                        color: PANEL_INK.DANGER_TEXT,
                                         textAlign: "center",
                                     }}
                                 >

@@ -576,6 +576,8 @@ interface Group {
     readonly jobs: Set<Job>;
     /** A deferred member's transaction step, which it merges into when that step is still on top. */
     readonly after: string | null;
+    /** Labelled by its transaction, whose only work it is: its member starting does not rename it. */
+    named?: true;
     /** Set on a transaction's group. Open until `fn` settles; aborted when it rolled back. */
     readonly tx: { status: "open" | "closed" | "aborted"; readonly controller: AbortController } | null;
     /** Sealed or rolled back. */
@@ -1890,7 +1892,7 @@ export class Dispatcher {
         if (job.inline) {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
-        } else if (group.tx === null && group.after === null) {
+        } else if (group.tx === null && group.after === null && group.named === undefined) {
             group.label = definition.undo.label(command, state);
             group.fact = definition.undo.fact(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
@@ -2072,22 +2074,34 @@ export class Dispatcher {
     private sealTransaction(group: Group): void {
         const runs = [...group.jobs];
         group.jobs.clear();
-        const stepId = this.seal(group);
+        const recorded = this.seal(group);
+        // A transaction that wrote nothing before its runs went on still continues the step it
+        // was told to (`after`): its runs join that step, not one of their own beside it.
+        const stepId = recorded ?? group.after;
         for (const done of group.executed.splice(0)) {
             this.events.executed?.(done);
         }
         for (const job of runs) {
             const deferred = this.group(
-                {
-                    label: job.definition.undo.label(job.command, this.store.state),
-                    fact: job.definition.undo.fact(job.command, this.store.state),
-                },
+                // A run that is all the transaction did is the transaction's step, under its label.
+                recorded === null
+                    ? { label: group.label, fact: group.fact }
+                    : {
+                          label: job.definition.undo.label(job.command, this.store.state),
+                          fact: job.definition.undo.fact(job.command, this.store.state),
+                      },
                 null,
-                {},
+                // Recorded as its own step when the transaction's is no longer on top: it is
+                // still the transaction's work, by the same hand.
+                group.provenance,
                 stepId,
                 job.seq,
                 null,
             );
+            if (recorded === null) {
+                deferred.named = true;
+            }
+
             job.group = deferred;
             deferred.jobs.add(job);
             for (const key of job.keys) {
@@ -2380,13 +2394,22 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get graphWritesWaiting(): boolean {
+        return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Whether a dispatched, unfinished command matches.
+     * @param match - Tests one command.
+     * @returns True while one does.
+     */
+    commandWaiting(match: (command: CommandLike) => boolean): boolean {
+        return this.waiting((job) => match(job.command));
+    }
+
+    private waiting(match: (job: Job) => boolean): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
-                if (
-                    job.status !== "done" &&
-                    job.status !== "cancelled" &&
-                    job.keys.some((key) => sliceOf(key) === "graph")
-                ) {
+                if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
                     return true;
                 }
             }

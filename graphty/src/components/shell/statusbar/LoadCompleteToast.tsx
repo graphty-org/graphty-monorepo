@@ -93,7 +93,7 @@ export function LoadCompleteToast({ completion }: LoadCompleteToastProps): React
         >
             <Group align="flex-start" gap={STATUS_BAR_GEOMETRY.GROUP_GAP} wrap="nowrap">
                 <Text
-                    c={failed ? PANEL_INK.DANGER : PANEL_INK.VALUE}
+                    c={failed ? PANEL_INK.DANGER_TEXT : PANEL_INK.VALUE}
                     fz={STATUS_BAR_GEOMETRY.FONT_SIZE}
                     lh={STATUS_BAR_GEOMETRY.LINE_HEIGHT}
                 >

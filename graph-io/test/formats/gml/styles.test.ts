@@ -91,7 +91,7 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[0]).toBe(snapshot.nodes.value("label", 0));
     });
 
-    it("reads Gephi's file with its unquoted Creator: Gephi's defaults and the source node's color on edges", async () => {
+    it("reads Gephi's file with its unquoted Creator: Gephi's defaults and the mixed node colors on edges", async () => {
         const { snapshot, styles } = await load(file("gephi-unquoted-creator.gml"));
         expect(snapshot.graph.value("Creator", 0)).toBe("Gephi");
         expect(styles.styles.source.tool).toBe("gephi");
@@ -100,11 +100,19 @@ describe("GML styles: who wrote the file", () => {
         const arrows = resolveStyles(styles, "edge", "targetArrow", snapshot);
         for (let e = 0; e < snapshot.edgeCount; e++) {
             const own = e % 5 === 0;
-            expect(colors[e]).toBe(own ? "#808080" : fills[snapshot.edgeSource(e)]);
+            const mixed = (shift: number): number =>
+                Math.floor(
+                    ((Number.parseInt(String(fills[snapshot.edgeSource(e)]).slice(1), 16) >> shift) & 255) / 2 +
+                        ((Number.parseInt(String(fills[snapshot.edgeTarget(e)]).slice(1), 16) >> shift) & 255) / 2,
+                );
+            const hex = `#${[16, 8, 0].map((s) => mixed(s).toString(16).padStart(2, "0")).join("")}`;
+            expect(colors[e]).toBe(own ? "#808080" : hex);
             expect(arrows[e]).toBe("triangle");
         }
-        // Gephi hides labels: no label rule, although the nodes have a label key
-        expect(resolveStyles(styles, "node", "label", snapshot).every((v) => v === null)).toBe(true);
+        // labels are shown from the label key, as graph-io shows a GEXF's (formats/gexf/styles.ts)
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(
+            Array.from({ length: snapshot.nodeCount }, (_, i) => snapshot.nodes.value("label", i)),
+        );
     });
 
     it("reads OGDF's keys with OGDF's defaults and its backslash-escaped quotes", async () => {

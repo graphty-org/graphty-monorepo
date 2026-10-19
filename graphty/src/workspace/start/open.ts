@@ -57,14 +57,16 @@ const DATASET_BASE = import.meta.env.DEV
     : undefined;
 
 /**
- * The address of the picture graph-samples publishes of a dataset, beside its file.
- * @param dataset - the dataset's metadata, from graph-samples' catalog.
- * @returns the address, or undefined when the dataset has no picture.
+ * The address of the picture graph-samples publishes of a dataset or a generator, beside the
+ * datasets' files.
+ * @param entry - the dataset's metadata or the generator's descriptor, from graph-samples' catalog.
+ * @param entry.thumbnail - the picture's file name, when it has one.
+ * @returns the address, or undefined when it has no picture.
  */
-export function pictureOf(dataset: DatasetMeta): string | undefined {
-    return dataset.thumbnail === undefined
+export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
+    return entry.thumbnail === undefined
         ? undefined
-        : new URL(dataset.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
+        : new URL(entry.thumbnail, DATASET_BASE ?? DEFAULT_DATASET_BASE_URL).href;
 }
 
 /**

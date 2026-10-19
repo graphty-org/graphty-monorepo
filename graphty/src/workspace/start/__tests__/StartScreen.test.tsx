@@ -71,20 +71,34 @@ describe("the start screen", () => {
         assert.lengthOf(names, 22);
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
-        // Each shows the picture graph-samples publishes of its graph, and the picture loads.
-        // The large ones, which have no picture, show a plain stand-in.
+        // Each shows the picture graph-samples publishes of its graph, the large ones and every
+        // generator too, and the picture loads: no tile shows the plain stand-in.
         const pictures = samples.map((button) => button.querySelector<HTMLImageElement>("img.ws-land-sample-pic"));
-        for (const [i, picture] of pictures.slice(0, 16).entries()) {
-            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z-]+\.webp$/, names[i] ?? "");
+        for (const [i, picture] of pictures.entries()) {
+            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/[a-z0-9-]+\.webp$/, names[i] ?? "");
         }
-        for (const button of samples.slice(16)) {
-            assert.isNotNull(button.querySelector(".ws-land-sample-none"), button.getAttribute("aria-label") ?? "");
+        const generators = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
+            name: /^Generate a graph: /,
+        });
+        assert.isAbove(generators.length, 50);
+        for (const button of generators) {
+            const picture = button.querySelector<HTMLImageElement>("img.ws-land-sample-pic");
+            assert.match(picture?.src ?? "", /\/data\/graph-samples\/v1\/generator-[a-z0-9-]+\.webp$/);
         }
-        const first = pictures[0];
-        assert.isNotNull(first);
-        first.loading = "eager";
-        await first.decode();
-        assert.equal(first.naturalWidth, 480);
+        assert.isNull(document.querySelector(".ws-land-sample-none"), "no stand-in picture");
+        // A small dataset's, a large dataset's and a generator's picture each load.
+        const loaded = [
+            pictures[0],
+            pictures.at(-1),
+            generators[0]?.querySelector<HTMLImageElement>("img.ws-land-sample-pic"),
+        ];
+        for (const picture of loaded) {
+            assert.isNotNull(picture);
+            assert.isDefined(picture);
+            picture.loading = "eager";
+            await picture.decode();
+            assert.equal(picture.naturalWidth, 480, picture.src);
+        }
     });
 
     it("narrows the sample library to what the search box names", async () => {

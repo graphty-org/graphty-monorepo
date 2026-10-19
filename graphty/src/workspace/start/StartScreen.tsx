@@ -261,7 +261,7 @@ function sampleTiles(
                     ? "nothing to set"
                     : generator.params.map((param) => param.plainName).join(", "),
             sentence: generator.description,
-            picture: undefined,
+            picture: pictureOf(generator),
             note: undefined,
             words: `${generator.plainName} ${generator.name} ${GENERATED} ${generator.description}`.toLowerCase(),
             open: ({ configure }: LibraryActions) => {
@@ -442,7 +442,7 @@ function Headset(): React.JSX.Element {
 }
 
 /**
- * A dataset tile's picture, or a plain stand-in where graph-samples publishes none.
+ * A tile's picture, or a plain stand-in where graph-samples publishes none.
  * @param props - Component props
  * @param props.picture - The picture's address, or undefined
  * @returns The picture
@@ -473,7 +473,7 @@ function LibraryTile({
     const generated = tile.field === GENERATED;
     return (
         <UnstyledButton className="ws-land-sample" aria-label={label} title={tile.sentence} onClick={onClick}>
-            {generated ? null : <TilePicture picture={tile.picture} />}
+            <TilePicture picture={tile.picture} />
             <span className="ws-land-sample-tag">
                 {generated ? <Shuffle size={11} aria-hidden /> : null}
                 {tile.field}

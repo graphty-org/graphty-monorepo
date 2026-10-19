@@ -910,7 +910,7 @@ html.ws-land-page #root {
     font-size: 13px;
 }
 
-/* A dataset graph-samples publishes no picture of: a plain stand-in of the same size. */
+/* A sample graph-samples publishes no picture of: a plain stand-in of the same size. */
 .ws-land-sample-none {
     display: grid;
     place-items: center;

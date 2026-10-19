@@ -1228,6 +1228,88 @@ to 7, `cytoscapejs-specimen-node-shapes` from 7 failing elements to 2, the Cytos
   store) still draw rectangles; graphty-element needs those outlines, then graph-io maps the configurations, and
   much of what the stand-in classes "roundrect" is draw.io's own rounding.
 
+## Specimen sheets: corner radii, glyphs, yEd outlines and pictures graphty-element now draws (fix round 1, rendering batch 2, 2026-10-19)
+
+graphty-element now draws, each as a style option with channels, and graph-io maps the files onto them:
+`shape.exactCornerRadius` (a radius a file gives drawn as given, up to half the shorter side, where the element's
+own default caps it at a quarter, or a tenth on a rounded polygon: Cytoscape.js `corner-radius`, vis-network
+`borderRadius`); a database node's rim (the near half of its top ellipse, in its border's color); and `glyph` (a
+character or short text over the node, centered: vis-network icon nodes, `icon.code` in `icon.face`). graph-io now
+reads yEd's GenericNode configurations as the outline yEd draws (a neutral shape where one names it, else a polygon:
+flowchart card, loop limits, manual input and operation, document, paper tape, delay, display, stored and direct
+data, cloud, page and message arrows; entity-relationship relationship; BPMN conversation; SBGN shapes), yEd
+`y:ImageNode` and `y:SVGNode` pictures from the graph's `y:Resources`, vis-network `imagePadding`,
+`shapeProperties.coordinateOrigin` and a node's `opacity` on its picture, vis-network `triangleDown` (an upright
+triangle before), and Cytoscape.js's repeated background images at their own size. A file whose nodes are sized by
+their labels alone (vis-network's default ellipses and boxes) is now scaled by its labels, not its edges, which drew
+it 3.3 times too large: `json-vis-unix`, `-world` and `-transparency` were 3.2, 3.1 and 2.8 times the oracle's node
+size against its spacing, and now pass `node.sizeToSpacing`, `node.sizeToExtent` and `edge.arrowToSpacing` on every
+node and arrow (0 of 41, 48 and 50 before).
+
+Rows still open, each with what stops it:
+
+- Arrows: Cytoscape.js `target-arrow-fill: hollow` on a square now draws the open box (fixed earlier this round);
+  `cytoscapejs-specimen-arrows-p2` judges every arrow fill as passing. Its remaining rows are the route and curve of
+  segments, taxi, loop and unbundled-bezier edges (`edge-curve-styles`, another batch), the haystack arrow and the
+  mid-arrow compound shapes.
+- `cytoscapejs-specimen-node-shapes`: Cytoscape.js's `bottom-round-rectangle` (rounded bottom corners only),
+  `concave-hexagon` (sides bent in), the fatter `star` and `cut-rectangle` with a set `corner-radius` are still drawn
+  as the nearest neutral shape (round-rectangle, hexagon, star, octagon). The comparator passes them (same class),
+  the drawings differ. graph-io work: polygons with `shapePoints` as for the other Cytoscape.js polygons. The
+  reader classes graphty's `polygon` as `other` whatever its corners, so `shape-polygon` (Cytoscape.js's default
+  square) fails `node.shape` against the oracle's `rect`: comparator work.
+- `corner-radius-8-round-triangle` and vis-network `border-radius-12`: drawn with the radius given now; the
+  reader reports graphty's node at its nominal size and classes it by the shape's name (`roundrect` for a pill),
+  so `node.width` / `node.shape` still fail there. Comparator work: measure graphty's drawn outline.
+- Cytoscape.js images: `background-image` with two layers draws only the first (graphty-element draws one picture
+  per node); `background-width-relative-to`, `background-height-relative-to` and `background-image-containment`
+  follow the node's `padding`, which graph-io does not read (`node-size-to-label`). `background-clip: none` draws
+  graphty's border under the picture where Cytoscape.js draws it over. The oracle fills the whole node for
+  `background-repeat: repeat-x` and `repeat-y` where Cytoscape.js's canvas pattern repeats one way only: svgcanvas,
+  the oracle route's canvas, writes every pattern as repeating both ways (oracle limit); graphty draws the band.
+  The oracle draws `background-image-smoothing: no` smoothed (svgcanvas drops `imageSmoothingEnabled`).
+- Graphviz `style=striped` and `wedged` (`dot-synth-nodes` `n_striped`, `n_wedged`): drawn, bands and wedges in
+  Graphviz's order and turn. `node.fill` still fails because each side reports a different piece as the node's fill
+  (the oracle its middle stripe or largest wedge, graphty its first): comparator work. `green` is drawn as X11's
+  #00ff00 where Graphviz's SVG writes the name, which every SVG reader draws #008000 (`program-color-parsing`).
+- vis-network icon nodes draw their glyph now; the oracle reads a glyph as a text with no node, graphty's reader as
+  a node with a picture, so `node.extra` (icon specimens) and `stray.present` stay. vis-network `text` nodes with
+  no body: marking such a node not drawn in the reader moves every vis-network caption out of the raster regions
+  (raster floors fall on 14 sheets, measured this round), so it is left to the comparator. Comparator work: read a
+  glyph as text on both sides, and a bodiless node as its label.
+- vis-network `database`: its rim is drawn now; the comparator reads the oracle's cylinder with no stroke
+  (`node.stroke` o=None) and graphty's sized-to-label database is the `node-size-to-label` gap.
+- vis-network `interpolation: true`: the oracle draws the upscaled checker crisp (the oracle route's rasterizer),
+  graphty smooths it as a canvas would. `broken-image-none` (a picture that cannot load and no `brokenImage`): the
+  oracle draws a picture, vis-network draws nothing; oracle limit, to recheck in a browser.
+- yEd (`yed-graphml-specimen-node-shapes-p2` .. `-p6`, draw.io stand-in): the BPMN artifact (its `type` picks a data
+  object, data store, message, ...), the SBGN nucleic acid feature and perturbing agent are left as boxes, which
+  draw.io draws too, until yEd's own export shows them. The lines some shapes draw inside (predefined process,
+  internal storage, direct data's rim, the big entity's header) are not drawn.
+- yEd `y:ImageNode` (`yed-graphml-specimen-images-charts`): graphty draws the PNG yEd draws; draw.io, the stand-in,
+  draws an empty box, so this sheet's stand-in raster floors (`raster.nodeBody`, `raster.nodeOutline`) fall until
+  the owner's yEd export replaces the stand-in. Whether yEd paints an image or SVG node's own fill and border under
+  the picture is not known from the stand-in; graphty keeps them under it (they are covered where the picture is
+  opaque).
+- Layouts of files without positions (`unpositioned-layout-scale`): graphty lays such a file out with its own
+  force layout (the vis-network samples now pass) and draws the file's lengths at one scale chosen from the file (median node, else median label,
+  else median edge). The program lays it out its own way: vis-network's physics (`springLength` 95 px), Gephi's
+  toolkit at random positions (`gexf-hsk-chars`, nodes 2.9 times the oracle's against the spacing), Cytoscape's
+  default layout on load (`cx-radiation-bibliography`, `cx-repro-unplaced-boxes`: graphty's nodes 0.15 times the
+  oracle's against its spacing, Cytoscape's boxes overlap). A node's size against the spacing is the program's
+  layout choice, not a style the file carries; matching it needs graph-io to state each program's layout spacing
+  and the element to lay a file out at it. Not done in this round.
+- `json-vis-siblings` (vis-network, no positions, `size: "30,30"`, which vis-network ignores, so its nodes size
+  by their labels): drawn at the label scale now, its nodes pass `node.sizeToSpacing` on 59 of 83. Its 55 extra
+  nodes and 153 extra edges (an import defect, not classified yet) remain, and with this scale the comparator
+  fits graphty's layout to the oracle's as a related one (residual 0.008), so it judges positions, routes and
+  arrows it did not judge before: 12 of its floors fall (`edge.present` 0.32 to 0.20, `node.extra` 0.73 to 0.42).
+  The floors stand; the sample waits on its extra elements.
+- The vis-network sheets' `raster.label` moves by 0.01 to 0.02 between two runs of the same code (this round:
+  `vis-network-specimen-images-charts` 0.87 then 0.88, `-edges-lines-p2` 0.91 then 0.90, `-groups-p2` 0.90 then
+  0.88, sheets whose nodes all have a size, which nothing in this round changed): comparator work, find what in
+  the label raster is not deterministic.
+
 ## Specimen sheets: Gephi JSON
 
 The Gephi JSON specimen sheets (`graph-io/test/fidelity/specimens/gephi-json/`, written by

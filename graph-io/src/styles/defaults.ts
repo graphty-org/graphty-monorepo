@@ -190,6 +190,12 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
  * Cytoscape desktop draws a node's outline its size less its border's width across and strokes the border along it,
  * so the border's outer edge is the node's size: a 40 x 40 HEXAGON with a border of 1 is a 39-wide path.
  */
+/** Cytoscape desktop draws a curved edge through its handles, and the loops it adds itself, through their midpoints. */
+const CYTOSCAPE_BEND_CURVE = v(
+    "midpoints",
+    "cytoscape-impl ding-presentation-impl GraphGraphics.java computeCubicPolyEdgePath (cubic pieces between the handles' midpoints, controls pulled toward each handle by CURVE_ELLIPTICAL)",
+);
+
 const CYTOSCAPE_BORDER_INSIDE = v<"inside">(
     "inside",
     `${MEASURED}cx2-repro-shared-interaction, cys-luad-vest-v2, cx2-synthetic-lethal), Cytoscape 3.10.5`,
@@ -268,6 +274,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(10, `${CY} 439`),
                     // EDGE_CURVED is true there, but it only rounds an edge's bends: an edge without bends is straight
                     curved: v(false, `${CY} 422`),
+                    bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CY} 335`) },
                 derived: [{ kind: "labelFromColumn", column: "name", source: `${CY} 406-408` }],
@@ -310,6 +317,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CYL} 408`),
                     labelItalic: v(false, `${CYL} 408`),
                     labelSize: v(10, `${CYL} 416`),
+                    bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CYL} 667`) },
                 derived: [],
@@ -554,6 +562,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     fanned: v(
                         false,
                         `${GEPHI} EdgeRenderer.java (each curved edge bows left of its own direction, siblings ignored); Gephi Toolkit 0.11.3 SVG export`,
+                    ),
+                    arcRadius: v(
+                        1 / 1.2,
+                        `${GEPHI} EdgeRenderer.java (CurvedEdgeRenderer: an arc through both node centers of radius length / ARC_CURVENESS, default 1.2)`,
                     ),
                 },
                 graph: { background: v("#ffffff", `${GEPHI} VizConfig.java line 111`) },

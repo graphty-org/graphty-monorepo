@@ -132,7 +132,7 @@ describe("GML styles: who wrote the file", () => {
         for (let i = 0; i < snapshot.nodeCount; i++) {
             const kind = String(snapshot.nodes.value("label", i)).split(" ")[0];
             expect(shapes[i]).toBe(
-                { protein: "ellipse", gene: "rectangle", compound: "diamond", drug: "hexagon" }[kind],
+                { protein: "ellipse", gene: "rectangle", compound: "diamond", drug: "polygon" }[kind],
             );
             expect(borders[i]).toBe(kind === "drug" ? "dashed" : "solid");
         }
@@ -165,8 +165,11 @@ describe("GML styles: who wrote the file", () => {
         expect(node$("borderColor")[0]).toBe("#0000ff");
         expect(node$("borderStyle")).toEqual(["dash-dot", "solid", "dashed"]);
         expect(node$("borderWidth").slice(0, 2)).toEqual([3, 0]);
-        expect(node$("shape")).toEqual(["round-rectangle", "polygon", "hexagon"]);
+        // OGDF's triangles and hexagons are regular, their corners on the ellipse of the box: drawn where they say
+        expect(node$("shape")).toEqual(["round-rectangle", "polygon", "polygon"]);
         expect(node$("shapePoints")[1]).toBe("0,-1 0.866,0.5 -0.866,0.5");
+        expect(node$("shapePoints")[2]).toBe("1,0 0.5,0.866 -0.5,0.866 -1,0 -0.5,-0.866 0.5,-0.866");
+        expect(node$("shapePointsStretch")).toEqual([null, false, false]);
         expect(node$("labelSize")[0]).toBe(10);
         expect(edge$("lineStyle")[0]).toBe("dotted");
         expect(edge$("visible")).toEqual([null, false]);

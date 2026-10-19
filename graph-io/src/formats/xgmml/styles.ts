@@ -283,16 +283,23 @@ export function exactFromBlock(
         // Desktop fans the curved edges between the same two nodes by the nodes' size, as the file is read
         const ends =
             target === "edge"
-                ? { ends: edgeEnds(snapshot, { width: block("node", "width"), height: block("node", "height") }) }
+                ? {
+                      ends: edgeEnds(snapshot, {
+                          width: block("node", "width"),
+                          height: block("node", "height"),
+                          borderWidth: block("node", "borderWidth"),
+                      }),
+                  }
                 : {};
         const readBack = resolveCytoscapeBypasses(target, written, { notes: new StyleNotes(), ...ends });
         return {
             values,
             properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
             readBack: (i) => (property) => readBack[property]?.[i] ?? null,
-            // a fan spacing or a curve only desktop's fanning gives (graphty wrote none: EDGE_CURVED defaults to
-            // true there) is graphty's own default again
-            take: (property, wanted) => wanted !== null || property === "fanSpacing" || property === "curved",
+            // a fan spacing, a curve or a loop's handles only desktop's fanning and looping give (graphty wrote none:
+            // EDGE_CURVED defaults to true there) is graphty's own default again
+            take: (property, wanted) =>
+                wanted !== null || property === "fanSpacing" || property === "curved" || property === "bends",
         };
     });
 }

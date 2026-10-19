@@ -190,6 +190,12 @@ export interface NodeStyleValues {
      * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach.
      */
     readonly shapePoints: string;
+    /**
+     * Whether a `polygon` node's corners are stretched about its center until the farthest on each axis reach its
+     * sides (true, the default), or drawn exactly where `shapePoints` puts them (false: OGDF's regular polygons
+     * inside the ellipse of the node's box).
+     */
+    readonly shapePointsStretch: boolean;
     /** The border's line style. */
     readonly borderStyle: StyleBorderStyle;
     /** Where the border sits against the node's width and height. */
@@ -405,6 +411,17 @@ export interface EdgeStyleValues {
      * as its own curve, bowing to the left of its direction whatever its siblings are (false, as Gephi draws them).
      */
     readonly fanned: boolean;
+    /**
+     * How a curved edge is drawn through its bends: `"corners"`, straight through each bend with its corner rounded,
+     * or `"midpoints"`, one smooth curve using the bends as control points, from the middle of each segment to the
+     * next and leaving each end along its first and last segments (Cytoscape desktop).
+     */
+    readonly bendCurve: string;
+    /**
+     * A curved edge drawn as an arc of the circle through both node centers, whose radius is this many times the
+     * distance between them (Gephi: the distance over its arc curveness 1.2).
+     */
+    readonly arcRadius: number;
     /**
      * Where the edge leaves its source node, when not at its center: `x,y` relative to the node's center as fractions
      * of its half width and half height, y up (`"1,0"` is the middle of its right side, `"0,1"` of its top), so the

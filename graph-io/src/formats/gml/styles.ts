@@ -284,19 +284,27 @@ const OGDF_SHAPES: ReadonlyMap<string, string> = new Map([
 /**
  * OGDF's shapes that GraphIO::drawSVG draws as polygons no named shape matches, with their corners as `shapePoints`
  * (fractions of the half width and height, y up), measured in its drawing of
- * graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p5.gml: the triangles and the pentagon are regular,
- * inside the ellipse of the node's box (their base above the box's bottom); the trapezes and parallelograms fill the
- * box, their short side half its width. (Its hexagon and octagon are regular too, and drawn as the named shapes.)
+ * graph-io/test/fidelity/specimens/gml/specimen-node-shapes-p5.gml: the triangles, the pentagon, the hexagon and the
+ * octagon are regular, their corners on the ellipse of the node's box (so they are drawn where the points say, not
+ * stretched to the box: `OGDF_REGULAR`); the trapezes and parallelograms fill the box, their short side half its width.
  */
 const OGDF_POLYGONS: ReadonlyMap<string, string> = new Map([
     ["triangle", "0,1 0.866,-0.5 -0.866,-0.5"],
     ["invtriangle", "0,-1 0.866,0.5 -0.866,0.5"],
     ["pentagon", "0,1 0.951,0.309 0.588,-0.809 -0.588,-0.809 -0.951,0.309"],
+    ["hexagon", "1,0 0.5,0.866 -0.5,0.866 -1,0 -0.5,-0.866 0.5,-0.866"],
+    [
+        "octagon",
+        "0.924,0.383 0.383,0.924 -0.383,0.924 -0.924,0.383 -0.924,-0.383 -0.383,-0.924 0.383,-0.924 0.924,-0.383",
+    ],
     ["trapeze", "-1,-1 1,-1 0.5,1 -0.5,1"],
     ["invtrapeze", "-1,1 1,1 0.5,-1 -0.5,-1"],
     ["parallelogram", "-1,-1 0.5,-1 1,1 -0.5,1"],
     ["invparallelogram", "-1,1 0.5,1 1,-1 -0.5,-1"],
 ]);
+
+/** OGDF's regular polygons, whose corners lie on the ellipse of the node's box rather than reaching its sides. */
+const OGDF_REGULAR: ReadonlySet<string> = new Set(["triangle", "invtriangle", "pentagon", "hexagon", "octagon"]);
 
 /** Keys only yEd writes in a label record: its `fill` is the label's background, not the text color. */
 const YED_LABEL_KEYS: readonly string[] = [
@@ -418,6 +426,9 @@ function readOgdfShape(raw: string, writer: GmlWriter, put: Put, at: At): void {
     if (points !== undefined) {
         put("shape", "polygon");
         put("shapePoints", points);
+        if (OGDF_REGULAR.has(name)) {
+            put("shapePointsStretch", false);
+        }
         return;
     }
     put("shape", canonEnum("shape", OGDF_SHAPES.get(name) ?? raw, writer.spelling, at("shape")));

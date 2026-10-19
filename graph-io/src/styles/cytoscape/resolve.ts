@@ -68,12 +68,14 @@ export interface CytoscapeElements {
      * Edges only: each edge's source and target node index, in the order Cytoscape created the edges. With them,
      * the edges Cytoscape desktop fans apart (parallel edges without bends) are marked curved; with `nodeSize` too
      * (each node's larger drawn side, by node index, as `fanNodeSizes()` reads it), they are given the `fanSpacing`
-     * desktop spaces them by.
+     * desktop spaces them by. With `nodeBox` (each node's width, height and border width, by node index), each
+     * self-loop without bends is given the two handles desktop draws it round.
      */
     readonly ends?: {
         readonly source: ArrayLike<number>;
         readonly target: ArrayLike<number>;
         readonly nodeSize?: ArrayLike<number | null>;
+        readonly nodeBox?: ArrayLike<readonly [width: number, height: number, border: number] | null>;
     };
 }
 
@@ -121,8 +123,12 @@ export function edgeEnds(
         const sides = [nodes.width?.[i], nodes.height?.[i]].filter((v): v is number => typeof v === "number");
         return sides.length === 0 ? null : Math.max(...sides);
     });
+    const nodeBox = Array.from({ length: snapshot.nodeCount }, (_, i) => {
+        const [w, h, b] = [nodes.width?.[i], nodes.height?.[i], nodes.borderWidth?.[i]];
+        return typeof w === "number" && typeof h === "number" ? ([w, h, typeof b === "number" ? b : 0] as const) : null;
+    });
     const { src, dst } = snapshot.edgeList();
-    return { source: src, target: dst, nodeSize };
+    return { source: src, target: dst, nodeSize, nodeBox };
 }
 
 /** Locked node sizes with no `NODE_SIZE` anywhere draw at Cytoscape's lexicon default. */
@@ -459,7 +465,9 @@ export function resolveCytoscape(
             out.bends = bends;
         }
         // before the tool's defaults: an edge the style leaves unset is curved as Cytoscape's EDGE_CURVED default is
+        const curvedAsSet = out.curved?.slice();
         straightenBendless(out, one, n, elements.ends);
+        loopHandles(out, one, curvedAsSet, elements.ends);
         arrowProportions(out, column);
     }
     fillToolDefaults(target, out, n, options.defaults ?? null);
@@ -586,6 +594,58 @@ function straightenBendless(
         const density = Math.min(1, typeof read === "number" ? read : EDGE_STACKING_DENSITY_DEFAULT);
         return size * density;
     });
+}
+
+/**
+ * Gives each self-loop without bends of its own the two handles Cytoscape desktop draws it round
+ * (`DEdgeDetails.getAnchors`): one left of the node's center and one above it, each `(i + 3) / 2` of the node's
+ * size times twice `EDGE_STACKING_DENSITY` away, where the size is the larger side of the node with its border
+ * (its extents in desktop's spatial index) and `i` counts the node's earlier loops without bends, newest first as
+ * desktop walks them. A loop is curved through them unless `EDGE_CURVED` says false. Measured on Cytoscape
+ * 3.10.5's SVG of the edges-lines specimen sheet (within 0.3 px of its loops).
+ * @param out - the values per property, changed in place
+ * @param one - reads one visual property of one element
+ * @param curvedAsSet - each edge's `curved` as the style set it, before bendless edges were straightened
+ * @param ends - each edge's source and target node index, in creation order, and each node's box, when known
+ */
+function loopHandles(
+    out: Partial<Record<string, StyleColumn>>,
+    one: Resolver["one"],
+    curvedAsSet: readonly (StyleValue | null)[] | undefined,
+    ends: CytoscapeElements["ends"],
+): void {
+    const box = ends?.nodeBox;
+    if (ends === undefined || box === undefined) {
+        return;
+    }
+    const bends = out.bends?.slice() ?? new Array<StyleValue | null>(ends.source.length).fill(null);
+    const curved = out.curved?.slice() ?? new Array<StyleValue | null>(ends.source.length).fill(null);
+    const earlier = new Map<number, number>();
+    const fraction = (v: number): string => String(Math.round(v * 1e4) / 1e4 || 0);
+    let changed = false;
+    for (let i = ends.source.length - 1; i >= 0; i--) {
+        const node = ends.source[i];
+        const b = box[node];
+        if (node !== ends.target[i] || bends[i] !== null) {
+            continue;
+        }
+        const rank = earlier.get(node) ?? 0;
+        earlier.set(node, rank + 1);
+        if (b === null || b === undefined || b[0] <= 0 || b[1] <= 0) {
+            continue;
+        }
+        const read = one(EDGE_STACKING_DENSITY_VP, sizeParser, "fanSpacing", i);
+        const density = Math.min(1, typeof read === "number" ? read : EDGE_STACKING_DENSITY_DEFAULT);
+        const reach = (((rank + 3) * (Math.max(b[0], b[1]) + b[2])) / 2) * 2 * density;
+        // as `x,y` fractions of the node's half width and half height, y up: left of the center, then above it
+        bends[i] = `${fraction(-reach / (b[0] / 2))},0 0,${fraction(reach / (b[1] / 2))}`;
+        curved[i] = curvedAsSet?.[i] !== false;
+        changed = true;
+    }
+    if (changed) {
+        out.bends = bends;
+        out.curved = curved;
+    }
 }
 
 /** An edge's bend handles. */

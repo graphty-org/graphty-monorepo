@@ -34,7 +34,8 @@
             "labelWeight": "normal",
             "labelItalic": false,
             "labelSize": 10,
-            "curved": false
+            "curved": false,
+            "bendCurve": "midpoints"
         },
         "graph": {
             "background": "#ffffff"
@@ -76,7 +77,8 @@
             "labelFont": "sans-serif",
             "labelWeight": "normal",
             "labelItalic": false,
-            "labelSize": 10
+            "labelSize": 10,
+            "bendCurve": "midpoints"
         },
         "graph": {
             "background": "#ffffff"
@@ -242,7 +244,8 @@
             "sourceArrow": "none",
             "targetArrow": "none",
             "curved": true,
-            "fanned": false
+            "fanned": false,
+            "arcRadius": 0.8333333333333334
         },
         "graph": {
             "background": "#ffffff"

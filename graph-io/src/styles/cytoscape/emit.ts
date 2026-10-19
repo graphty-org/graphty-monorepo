@@ -590,15 +590,23 @@ function targetEmit(
     };
 }
 
+/** The properties Cytoscape draws one way only, with that way: what is drawn so needs nothing written. */
+const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
+    // it measures each word with a space after it when it wraps a label
+    ["labelWrapTrailingSpace", true],
+    // it curves an edge through its bends' midpoints
+    ["bendCurve", "midpoints"],
+]);
+
 /**
- * Whether every element's value of a property is how Cytoscape draws it anyway, so there is nothing to write: it
- * measures each word with a space after it when it wraps a label.
+ * Whether every element's value of a property is how Cytoscape draws it anyway, so there is nothing to write.
  * @param p - the property
  * @param values - each element's value
  * @returns true when nothing is lost by not writing it
  */
 function drawnSo(p: string, values: readonly (StyleValue | null)[]): boolean {
-    return p === "labelWrapTrailingSpace" && values.every((v) => v === null || v === true);
+    const way = DRAWN_SO.get(p);
+    return way !== undefined && values.every((v) => v === null || v === way);
 }
 
 /**
@@ -1288,7 +1296,7 @@ export function cytoscapeWritableProperties(target: StyleTarget, dialect: Cytosc
     return [
         ...WRITERS[dialect][target].keys(),
         ...FONT_PROPS,
-        ...(target === "node" ? [BORDER_POSITION, "labelWrapTrailingSpace"] : []),
+        ...(target === "node" ? [BORDER_POSITION, "labelWrapTrailingSpace"] : ["bendCurve"]),
     ];
 }
 

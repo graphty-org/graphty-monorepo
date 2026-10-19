@@ -53,6 +53,10 @@
         {
             "id": "specimen-mappings-bypass",
             "specimens": 60
+        },
+        {
+            "id": "specimen-mappings-bypass-p2",
+            "specimens": 37
         }
     ],
     "propertiesCovered": 262,
@@ -393,7 +397,8 @@
             "specimens": [
                 "specimen-labels-p2#color-red",
                 "specimen-labels-p2#text-outline-width-2",
-                "specimen-edge-labels#color-red"
+                "specimen-edge-labels#color-red",
+                "specimen-mappings-bypass-p2#color-named"
             ]
         },
         "text-outline-color": {
@@ -974,7 +979,8 @@
                 "specimen-node-fills-borders#border-position-center",
                 "specimen-node-fills-borders#border-position-inside",
                 "specimen-node-fills-borders#border-position-outside",
-                "specimen-groups#group-border-color-red"
+                "specimen-groups#group-border-color-red",
+                "specimen-mappings-bypass-p2#border-color-hex"
             ]
         },
         "border-opacity": {
@@ -1855,14 +1861,18 @@
                 "specimen-edges-lines#control-point-distances",
                 "specimen-edges-lines#control-point-weights",
                 "specimen-arrows-p2#arrow-on-unbundled-bezier",
-                "specimen-edge-labels#label-on-unbundled-bezier"
+                "specimen-edge-labels#label-on-unbundled-bezier",
+                "specimen-mappings-bypass-p2#control-point-distance",
+                "specimen-mappings-bypass-p2#control-point-weight"
             ]
         },
         "control-point-weights": {
             "specimens": [
                 "specimen-edges-lines#control-point-distances",
                 "specimen-edges-lines#control-point-weights",
-                "specimen-arrows-p2#arrow-on-unbundled-bezier"
+                "specimen-arrows-p2#arrow-on-unbundled-bezier",
+                "specimen-mappings-bypass-p2#control-point-distance",
+                "specimen-mappings-bypass-p2#control-point-weight"
             ]
         },
         "segment-distances": {
@@ -1881,14 +1891,16 @@
                 "specimen-edges-lines#segment-weights",
                 "specimen-edges-lines#segment-radii-12",
                 "specimen-edges-lines#radius-type-arc-radius",
-                "specimen-edges-lines#radius-type-influence-radius"
+                "specimen-edges-lines#radius-type-influence-radius",
+                "specimen-mappings-bypass-p2#segment-distance"
             ]
         },
         "segment-radii": {
             "specimens": [
                 "specimen-edges-lines#segment-radii-12",
                 "specimen-edges-lines#radius-type-arc-radius",
-                "specimen-edges-lines#radius-type-influence-radius"
+                "specimen-edges-lines#radius-type-influence-radius",
+                "specimen-mappings-bypass-p2#segment-radius"
             ]
         },
         "radius-type": {
@@ -2113,7 +2125,10 @@
             "specimens": ["specimen-arrows-p2#mid-source-arrow-color-red"]
         },
         "target-arrow-color": {
-            "specimens": ["specimen-arrows-p2#target-arrow-color-red"]
+            "specimens": [
+                "specimen-arrows-p2#target-arrow-color-red",
+                "specimen-mappings-bypass-p2#target-arrow-color-named"
+            ]
         },
         "mid-target-arrow-color": {
             "specimens": ["specimen-arrows-p2#mid-target-arrow-color-red"]

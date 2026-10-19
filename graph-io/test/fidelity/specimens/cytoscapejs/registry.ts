@@ -4,7 +4,8 @@
  * written by Cytoscape.js 3.34.3 itself, built by `../../generators/specimens/cytoscapejs.mjs` from Cytoscape.js's own
  * style property table (`cytoscapejs-vocabulary.json` beside it; `cytoscapejs-coverage.json` says which specimen
  * draws each property and value), and drawn by `../../oracles/tools/web/web-oracle.mjs cyjs` (preset layout at the
- * stored positions). Pages: labels-p2, edges-lines-p2 and arrows-p2 continue their category.
+ * stored positions). Pages: labels-p2, edges-lines-p2 and arrows-p2 continue their category; mappings-bypass-p2 holds how
+ * a value is spelled (color syntaxes, property aliases, camelCase names, units), its rules written as authored.
  */
 import { type SpecimenFormat } from "../sheets.js";
 
@@ -27,6 +28,7 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-groups", file: "specimen-groups.json" },
         { id: "specimen-images-charts", file: "specimen-images-charts.json" },
         { id: "specimen-mappings-bypass", file: "specimen-mappings-bypass.json" },
+        { id: "specimen-mappings-bypass-p2", file: "specimen-mappings-bypass-p2.json" },
     ],
     absent: {},
     pending: [],

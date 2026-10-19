@@ -648,6 +648,20 @@ property and enumerated value. What Cytoscape.js does, which the importer must m
   `FilledArrowRenderer.POLYGON_ARROWS`); the comparator does not flag that box's fill (`edge.arrowFill` passes
   `target-arrow-fill-hollow-square`), a blind spot for the comparator work. The other shapes (vee, tee, chevron,
   the compound arrows) stay filled when hollow.
+- How a value is spelled (`cytoscapejs-specimen-mappings-bypass-p2`, and the color specimens of
+  `cytoscapejs-specimen-node-fills-borders`): cy.json() respells every color as `rgb(r,g,b)`, every alias as the
+  property it points to and drops a value it refuses, so these rules are written into the sheet as authored, the
+  way hand-written files and Cytoscape desktop's style export carry them. Every color syntax matches: upper-case and
+  short hex, names in any case, `rgb()` in percentages, `rgba()` with its alpha ignored, `hsl()` with its hue
+  wrapped (-60, 420); and refused, so drawn at the rule beneath: mixed percentages, a channel above 255,
+  `rebeccapurple`, 8-digit hex, `hsl()` without percentages and `rgb( 44 , 160 , 44 )` (a space after the
+  parenthesis). camelCase names in a stylesheet (`backgroundColor`) are read. Cytoscape.js's eleven aliases are
+  read as their properties (only `content` was before). OPEN: an alias of a property graph-io does not carry fails
+  exactly where that property fails on the other sheets: `padding-left` / `-right` / `-top` / `-bottom` (as
+  `padding-6`), `control-point-distance` / `-weight`, `segment-distance` / `-weight` / `-radius` (as their plural
+  forms on `cytoscapejs-specimen-edges-lines`, which graph-io's property table does not read), and
+  `edge-text-rotation` and `text-rotation: 0.5rad` (as `text-rotation-30deg`); the gradient written in mixed color
+  syntaxes fails as every `background-fill` gradient on `cytoscapejs-specimen-node-fills-borders` does.
 
 Where the oracle SVG and Chromium's own screen differ (each checked against `ORACLE_SCREENSHOT_DIR` captures):
 

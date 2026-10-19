@@ -2202,19 +2202,19 @@
         {
             "selector": "#background-color-red",
             "style": {
-                "background-color": "rgb(255,0,0)"
+                "background-color": "red"
             }
         },
         {
             "selector": "#background-color-0a0",
             "style": {
-                "background-color": "rgb(0,170,0)"
+                "background-color": "#0a0"
             }
         },
         {
             "selector": "#background-color-1f77b4",
             "style": {
-                "background-color": "rgb(31,119,180)"
+                "background-color": "#1f77b4"
             }
         },
         {
@@ -2226,25 +2226,25 @@
         {
             "selector": "#background-color-rgba-148-103-189-0-5",
             "style": {
-                "background-color": "rgb(148,103,189)"
+                "background-color": "rgba(148,103,189,0.5)"
             }
         },
         {
             "selector": "#background-color-hsl-120-60pct-40pct",
             "style": {
-                "background-color": "rgb(41,163,41)"
+                "background-color": "hsl(120,60%,40%)"
             }
         },
         {
             "selector": "#background-color-hsla-300-70pct-50pct-0-6",
             "style": {
-                "background-color": "rgb(217,38,217)"
+                "background-color": "hsla(300,70%,50%,0.6)"
             }
         },
         {
             "selector": "#background-color-transparent",
             "style": {
-                "background-color": "rgb(0,0,0)"
+                "background-color": "transparent"
             }
         },
         {

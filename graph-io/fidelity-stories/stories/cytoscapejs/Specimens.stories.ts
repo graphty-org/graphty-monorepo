@@ -53,3 +53,7 @@ export const MappingsBypass: StoryObj = {
     ...specimenStory(FORMAT, "specimen-mappings-bypass", FILES),
     name: "mappings-bypass",
 };
+export const MappingsBypassP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-mappings-bypass-p2", FILES),
+    name: "mappings-bypass-p2",
+};

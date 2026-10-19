@@ -13,7 +13,7 @@
     },
     "browser": "Playwright Chromium 143.0.7499.4, headless, SwiftShader WebGL",
     "file": "test/fidelity/specimens/cytoscapejs/specimen-node-fills-borders.json",
-    "fileSha256": "efb40c033f86db9d059961a1fc3dd6d2ecb50cff14762deb6e2046db66272bd5",
+    "fileSha256": "c7b74b08d717dac194359913617836e66c5fbc3140071eb7c60f88806f101c47",
     "svgSha256": "0f7f3fe7cb6551d718f428feef2fbe068632b6766edd6bc73bb04b1f7da67446",
     "date": "2026-10-18",
     "standIn": false,

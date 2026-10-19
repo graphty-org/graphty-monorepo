@@ -14,7 +14,11 @@
 // Each sheet is built in a headless Cytoscape.js instance (elements at fixed positions, the sheet's stylesheet) and
 // saved with cy.json(), so the file is what Cytoscape.js writes, compound (parent) positions included. Element style
 // bypasses (the `style` key of an element definition, which cy.json() does not write back) are added to the saved
-// elements afterwards, on the mappings-bypass sheet only. Each specimen is one stylesheet rule `#<id> { ... }`:
+// elements afterwards, on the mappings-bypass sheets only. cy.json() also writes every rule in Cytoscape.js's own
+// spelling (every color as rgb(r,g,b), an alias under the property it points to, an invalid value dropped), so a
+// specimen about how a value is SPELLED (`raw`: hex, named and hsl colors, aliases, camelCase names, values
+// Cytoscape.js refuses) has its rule written back as authored, the way hand-written files and Cytoscape desktop's
+// style export carry it. Each specimen is one stylesheet rule `#<id> { ... }`:
 // the setting, plus the prerequisite it needs to show at all (a dash offset needs a dashed line), named in the caption.
 import { execFileSync } from "node:child_process";
 import console from "node:console";
@@ -300,6 +304,7 @@ function place(specs) {
     const edges = [];
     const rules = [];
     const bypass = {};
+    const raw = {};
     const n = (id, x, y, cls = "", extra = {}) =>
         nodes.push({ group: "nodes", data: { id, ...extra.data }, position: { x, y }, classes: cls, ...extra.el });
     for (const a of ANCHORS) n(a.id, a.x, a.y, "anchor");
@@ -307,7 +312,10 @@ function place(specs) {
         const s = specs[i];
         const extra = Array.from({ length: (s.parallel ?? 1) - 1 }, (_, k) => `#${s.id}-${k + 2}`);
         const sel = [`#${s.id}`, ...extra].join(", ");
-        if (s.style && Object.keys(s.style).length) rules.push({ selector: sel, style: s.style });
+        if (s.style && Object.keys(s.style).length) {
+            rules.push({ selector: sel, style: s.style });
+            if (s.raw) raw[sel] = s.style;
+        }
         if (s.rules) rules.push(...s.rules);
         if (s.bypass) bypass[s.id] = s.bypass;
         n(`cap-${s.id}`, c.caption.x, c.caption.y, "cap", { data: { label: captionOf(s) } });
@@ -363,12 +371,28 @@ function place(specs) {
                 edges.push({ group: "edges", data: { id: `${s.id}-e`, source: s.id, target: `${s.id}-o1` } });
         }
     });
-    return { elements: [...nodes, ...edges], rules, bypass };
+    return { elements: [...nodes, ...edges], rules, bypass, raw };
 }
 
 // ------------------------------------------------------------------ the sheets
 
 const vocab = Object.fromEntries(vocabulary.properties.map((p) => [p.name, p]));
+/** Cytoscape.js's property aliases (cy.style().properties entries with pointsTo), read from the live table. */
+const ALIASES = Object.fromEntries(
+    cytoscape({ headless: true, styleEnabled: true })
+        .style()
+        .properties.filter((p) => p.alias)
+        .map((p) => [p.name, p.pointsTo.name]),
+);
+/**
+ * The property a written name sets: camelCase in dash form, an alias as the property it points to.
+ * @param name - the name as written
+ * @returns the property name
+ */
+function canonicalName(name) {
+    const dashed = name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+    return ALIASES[dashed] ?? dashed;
+}
 const E = (name) => vocab[name].enums;
 const slug = (v) =>
     String(v)
@@ -431,7 +455,7 @@ const SHEETS = {
             "hsl(120,60%,40%)",
             "hsla(300,70%,50%,0.6)",
             "transparent",
-        ].map((c) => node(`background-color-${slug(c)}`, { "background-color": c })),
+        ].map((c) => node(`background-color-${slug(c)}`, { "background-color": c }, { raw: true })),
         node("background-opacity-0-5", { "background-opacity": 0.5 }),
         node("background-opacity-0", { "background-opacity": 0 }),
         node("background-blacken-0-5", { "background-blacken": 0.5 }),
@@ -1536,6 +1560,84 @@ const SHEETS = {
             },
         ),
     ],
+    // How a value is spelled: the color syntaxes Cytoscape.js's color2tuple reads or refuses, its property aliases
+    // (cy.style().properties entries with pointsTo), camelCase names and angle units. Every rule is written as
+    // authored (`raw`), since cy.json() would respell it.
+    "specimen-mappings-bypass-p2": [
+        ...[
+            ["uppercase-hex", "#1F77B4"],
+            ["uppercase-short-hex", "#F80"],
+            ["named-steelblue", "steelblue"],
+            ["named-mixed-case", "SteelBlue"],
+            ["rgb-percent", "rgb(100%,50%,0%)"],
+            ["rgb-spaces", "rgb( 44 , 160 , 44 )"],
+            ["rgba-alpha-0", "rgba(31,119,180,0)"],
+            ["hsl-negative-hue", "hsl(-60,70%,50%)"],
+            ["hsl-hue-420", "hsl(420,70%,50%)"],
+            ["invalid-rgb-mixed-percent", "rgb(100%,127,0)"],
+            ["invalid-rgb-300", "rgb(300,0,0)"],
+            ["invalid-rebeccapurple", "rebeccapurple"],
+            ["invalid-8-digit-hex", "#1f77b4cc"],
+            ["invalid-hsl-no-percent", "hsl(120,60,40)"],
+            ["invalid-word", "notacolor"],
+        ].map(([id, c]) =>
+            node(`background-color-${id}`, { "background-color": c }, { raw: true, cap: `background-color=${c}` }),
+        ),
+        node("border-color-hex", { "border-color": "#D62728", "border-width": 3 }, { raw: true }),
+        node("color-named", { color: "crimson", label: "Label" }, { raw: true }),
+        node(
+            "gradient-stop-colors-mixed-syntax",
+            { "background-fill": "linear-gradient", "background-gradient-stop-colors": "#e41a1c gold rgb(55,126,184)" },
+            { raw: true, key: "background-gradient-stop-colors" },
+        ),
+        edge("line-color-hex", { "line-color": "#D62728", width: 3 }, { raw: true }),
+        edge(
+            "target-arrow-color-named",
+            { "target-arrow-color": "crimson", "target-arrow-shape": "triangle" },
+            { raw: true },
+        ),
+        node("background-color-camel-case", { backgroundColor: "#1f77b4" }, { raw: true }),
+        node("border-width-camel-case", { borderWidth: 5 }, { raw: true }),
+        node("width-number", { width: 20 }, { raw: true, cap: "width=20 (a JSON number)" }),
+        node("width-px-string", { width: "20px" }, { raw: true }),
+        node("text-rotation-0-5rad", { "text-rotation": "0.5rad", label: "Label" }, { raw: true }),
+        node("content", { content: "Label" }, { raw: true }),
+        edge("content-edge", { content: "Label" }, { raw: true, cap: "content=Label (edge)" }),
+        ...["padding-left", "padding-right", "padding-top", "padding-bottom"].map((a) =>
+            node(a, { [a]: 12 }, { raw: true }),
+        ),
+        edge(
+            "control-point-distance",
+            { "control-point-distance": 24, "control-point-weight": 0.5, "curve-style": "unbundled-bezier" },
+            { raw: true },
+        ),
+        edge(
+            "control-point-weight",
+            { "control-point-weight": 0.2, "control-point-distances": 24, "curve-style": "unbundled-bezier" },
+            { raw: true },
+        ),
+        edge(
+            "segment-distance",
+            { "segment-distance": 24, "segment-weights": 0.5, "curve-style": "segments" },
+            { raw: true },
+        ),
+        edge(
+            "segment-weight",
+            { "segment-weight": 0.2, "segment-distances": 24, "curve-style": "segments" },
+            { raw: true },
+        ),
+        edge(
+            "segment-radius",
+            {
+                "segment-radius": 12,
+                "segment-distances": "24 -24",
+                "segment-weights": "0.3 0.7",
+                "curve-style": "round-segments",
+            },
+            { raw: true },
+        ),
+        edge("edge-text-rotation", { "edge-text-rotation": "30deg", label: "Label" }, { raw: true }),
+    ],
 };
 /** Three pie slices 30% 50% 20%. */
 function pie3() {
@@ -1586,7 +1688,7 @@ for (const [category, specs] of Object.entries(SHEETS)) {
             if (!ID.test(s.id) || seen.has(s.id)) throw new Error(`${sheet}: bad or repeated specimen id ${s.id}`);
             seen.add(s.id);
         }
-        const { elements, rules, bypass } = place(list);
+        const { elements, rules, bypass, raw } = place(list);
         const cy = cytoscape({
             headless: true,
             styleEnabled: true,
@@ -1596,6 +1698,11 @@ for (const [category, specs] of Object.entries(SHEETS)) {
         });
         const json = cy.json();
         cy.destroy();
+        // a `raw` specimen's rule as authored: in place when cy.json() kept the rule, else appended (a rule whose
+        // every value Cytoscape.js refused is not written at all); its selector is unique, so its place is free
+        const keep = new Set(Object.keys(raw));
+        json.style = json.style.map((r) => (keep.delete(r.selector) ? { ...r, style: raw[r.selector] } : r));
+        for (const sel of keep) json.style.push({ selector: sel, style: raw[sel] });
         const doc = {
             elements: {
                 nodes: json.elements.nodes.map((n) => (bypass[n.data.id] ? { ...n, style: bypass[n.data.id] } : n)),
@@ -1617,7 +1724,8 @@ for (const [category, specs] of Object.entries(SHEETS)) {
         for (const s of list) {
             const sets = [s.style, s.bypass, ...(s.rules ?? []).map((r) => r.style)].filter(Boolean);
             for (const st of sets) {
-                for (const [k, v] of Object.entries(st)) {
+                for (const [k0, v] of Object.entries(st)) {
+                    const k = canonicalName(k0);
                     const at = `${sheet}#${s.id}`;
                     const p = (coverage[k] ??= { specimens: new Set(), values: {} });
                     p.specimens.add(at);

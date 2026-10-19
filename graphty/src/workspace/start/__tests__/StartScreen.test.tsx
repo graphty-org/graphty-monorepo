@@ -67,8 +67,9 @@ describe("the start screen", () => {
             "Open the College football sample",
             "Open the Florentine families sample",
         ]);
-        // Then graph-samples' other datasets, the large ones too, without a second copy of the four.
-        assert.lengthOf(names, 22);
+        // Then graph-samples' other datasets, the large ones too, without a second copy of the four,
+        // and without the three past graphty-element's ceilings (road-ny, com-dblp, ogbn-arxiv).
+        assert.lengthOf(names, 19);
         assert.include(names, "Open the Doubtful Sound dolphins sample");
         assert.equal(new Set(names).size, names.length, "no sample twice");
         // Each shows the picture graph-samples publishes of its graph, the large ones and every
@@ -127,7 +128,7 @@ describe("the start screen", () => {
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 22);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 19);
     });
 
     it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {

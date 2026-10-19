@@ -2062,17 +2062,17 @@ function combineLineOpacity(
 /** Where each `background-gradient-direction` runs, in the neutral `fillGradientAngle` degrees. */
 const GRADIENT_ANGLES: ReadonlyMap<string, number> = new Map([
     ["to-bottom", 90],
-    ["to-top", -90],
+    ["to-top", 270],
     ["to-left", 180],
     ["to-right", 0],
     ["to-bottom-right", 45],
     ["to-right-bottom", 45],
     ["to-bottom-left", 135],
     ["to-left-bottom", 135],
-    ["to-top-right", -45],
-    ["to-right-top", -45],
-    ["to-top-left", -135],
-    ["to-left-top", -135],
+    ["to-top-right", 315],
+    ["to-right-top", 315],
+    ["to-top-left", 225],
+    ["to-left-top", 225],
 ]);
 
 /**

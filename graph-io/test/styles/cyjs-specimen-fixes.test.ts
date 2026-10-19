@@ -124,7 +124,7 @@ describe("Cytoscape.js nodes", () => {
                 "background-gradient-stop-colors": stops,
                 "background-gradient-direction": "to-top-left",
             }).angle,
-        ).toBe(-135);
+        ).toBe(225);
         expect(at({ "background-fill": "solid", "background-gradient-stop-colors": stops }).to).toBeUndefined();
     });
 });

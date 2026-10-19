@@ -1,5 +1,7 @@
 # CI/CD, testing and release plan for the graphty monorepo
 
+> PARTLY SUPERSEDED 2026-10-18 by design/ci/golden-local.md: do not follow its pull request, merge queue and Mergify sections; sections 10 and 11 (the release train and the ad hoc release) are current.
+
 Status: adopted by the owner on 2026-10-04, as written, with two choices made explicit: the
 visual-review gate accepts a merge-queue batch (section 6), and releases go out on a release
 train (section 10), plus an ad hoc release for anything that cannot wait for the next train (section 11).

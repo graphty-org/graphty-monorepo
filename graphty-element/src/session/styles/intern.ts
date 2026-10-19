@@ -115,6 +115,13 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // ponytail: quantize the strength in the key (or evict source meshes left with no instances)
     // if a continuous glow encoding ever shows up in a profile.
     "node.glowStrength": "mesh",
+    // The highlight is the selection halo: an overlay beside the node's mesh, keyed by the node's
+    // shape and the halo's own look, so it never mints a node source mesh. `Node.syncHalo` reads
+    // it on every paint, which is what lets a hover layer turn it on and off without a rebuild.
+    "node.halo": "content",
+    "node.haloColor": "content",
+    "node.haloScale": "content",
+    "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.style": "mesh",
     "edge.patternCount": "mesh",

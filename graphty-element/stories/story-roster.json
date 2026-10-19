@@ -214,6 +214,7 @@
         "Styles/Node::Color",
         "Styles/Node::Default",
         "Styles/Node::Flat",
+        "Styles/Node::Halo",
         "Styles/Node::Label",
         "Styles/Node::Opacity",
         "Styles/Node::Shape",

@@ -119,6 +119,25 @@ with no undo step: pointing is view state. `session.selection.hovered` reads the
 and `session.selection.hover(id)` sets it, for a page that draws its own pointer or a test. Pointing
 at a node selects nothing.
 
+To mark the node under the pointer the way a selected node is marked, give it a halo: the
+selection highlight, drawn around the node in the node's own shape, so it stays on the node from
+any angle.
+
+```ts
+await session.styles.add({
+    name: "Halo on the pointed-at node",
+    target: "node",
+    selector: { match: "hover", orSelected: true },
+    set: { "node.halo": true },
+});
+```
+
+`node.halo` alone draws the selection's look (`selectionStyle`); `node.haloColor`,
+`node.haloScale` and `node.haloOpacity` change it for the nodes the layer picks, and writing any of
+them switches the halo on. A selected node a layer gives a halo shows one halo: each value the
+layer sets wins and the selection style gives the rest. `node.halo: false` takes the halo off a
+node, even a selected one. Unset, a node has a halo only while it is selected, as before.
+
 ### The top N
 
 `{ match: "top", path, n }` paints the `n` highest elements by one field a run published, such as
@@ -246,6 +265,10 @@ A channel is one visual property with one name. These are all of them:
 | `node.outline`      | a colour                                                                   |
 | `node.glow`         | a colour                                                                   |
 | `node.glowStrength` | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow           |
+| `node.halo`         | true or false: the selection highlight around the node, in its own shape   |
+| `node.haloColor`    | a colour; the selection highlight's when unset (gold)                      |
+| `node.haloScale`    | above 0: how many times the node's size the halo is drawn at (1.45)        |
+| `node.haloOpacity`  | 0 to 1 (0.4)                                                               |
 | `node.wireframe`    | true or false                                                              |
 | `node.flat`         | true or false: one normal per face, so a sphere looks faceted (3D)         |
 | `node.unlit`        | true or false: drawn in its own color with no light, as a flat dot (3D)    |

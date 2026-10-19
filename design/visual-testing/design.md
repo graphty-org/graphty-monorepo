@@ -1,5 +1,7 @@
 # Visual review: design, roadmap and plan
 
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
 Date: 2026-09-27
 
 This is the design for the system that replaces Chromatic in the graphty monorepo. Chromatic

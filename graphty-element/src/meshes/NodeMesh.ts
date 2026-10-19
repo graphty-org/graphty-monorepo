@@ -606,6 +606,85 @@ export class NodeMesh {
     }
 
     /**
+     * Build a node's underlay or overlay (Cytoscape.js `underlay-*`, `overlay-*`) and hand back an
+     * instance of it, or null when the node has none: a filled shape `padding` beyond the node's box
+     * on every side, drawn just behind the node's back (underlay) or just before its front (overlay),
+     * cached under the node's style key as its outer border is.
+     * @param cache - The mesh cache the node's own mesh came from.
+     * @param options - The node's mesh options.
+     * @param shape - The node's shape block.
+     * @param halo - The underlay or overlay.
+     * @param kind - Which of the two.
+     * @param fill - The node's own mesh, whose outline and depth it follows.
+     * @param scene - The scene.
+     * @returns The instance, or null.
+     */
+    static createHalo(
+        cache: MeshCache,
+        options: NodeMeshOptions,
+        shape: NodeStyleConfig["shape"],
+        halo: NodeStyleConfig["underlay"],
+        kind: "underlay" | "overlay",
+        fill: AbstractMesh,
+        scene?: Scene,
+    ): InstancedMesh | null {
+        const opacity = halo?.opacity ?? 0;
+        if (shape?.type === undefined || opacity <= 0) {
+            return null;
+        }
+
+        const perSize = this.extentPerSize(shape);
+        const pad = (halo?.padding ?? 0) * perSize;
+        const sized = this.extentsOf(shape, Math.max(shape.size ?? options.size, MIN_NODE_SIZE));
+        const flat = isFlatShape(shape.type);
+        const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
+            const own = halo?.shape;
+            const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
+            const outline =
+                own !== undefined && isFlatShape(own)
+                    ? flatShapeOutline(
+                          own,
+                          (sized.x ?? sized.across) + 2 * pad,
+                          (sized.y ?? sized.across) + 2 * pad,
+                          corner,
+                      )
+                    : offsetOutline(flat ? this.flatOutline(shape, sized) : this.solidOutline(fill), pad);
+            fill.computeWorldMatrix(true);
+            const box = fill.getBoundingInfo().boundingBox;
+            const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);
+            // drawn as a ring from the middle out, so it fills the whole shape
+            const mesh = ringSlab(
+                `node-${kind}`,
+                [{ inner: outline.map((): Point2 => [0, 0]), outer: outline, closed: true }],
+                depth,
+                scene,
+            );
+            // just behind the node's back, or just before its front (2D looks along +z)
+            const gap = depth * 0.01;
+            const at = kind === "underlay" ? box.maximum.z + gap + depth / 2 : box.minimum.z - gap - depth / 2;
+            const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+            if (positions !== null) {
+                for (let z = 2; z < positions.length; z += 3) {
+                    positions[z] += at;
+                }
+                mesh.setVerticesData(VertexBuffer.PositionKind, positions);
+                mesh.refreshBoundingInfo();
+            }
+            mesh.material = this.createBorderMaterial(halo?.color ?? "#000000", opacity, scene);
+
+            return mesh;
+        });
+
+        instance.sourceMesh.isPickable = false;
+        instance.isPickable = false;
+        if (!flat && !options.is2D) {
+            instance.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+        }
+
+        return instance;
+    }
+
+    /**
      * The border of a group drawn over its members' box: a ring built at the box's own width and
      * height, so its line is the style's width however far the box is stretched. Not cached, since
      * every box has its own size; the caller gives it the cached border's material.

@@ -69,6 +69,16 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.underlayColor",
+    "node.underlayOpacity",
+    "node.underlayPadding",
+    "node.underlayShape",
+    "node.underlayCornerRadius",
+    "node.overlayColor",
+    "node.overlayOpacity",
+    "node.overlayPadding",
+    "node.overlayShape",
+    "node.overlayCornerRadius",
     "node.image",
     "node.imageFallback",
     "node.imageFit",
@@ -112,6 +122,12 @@ const DECLARED = [
     "edge.outlineColor",
     "edge.outlineWidth",
     "edge.outlineOpacity",
+    "edge.underlayColor",
+    "edge.underlayOpacity",
+    "edge.underlayPadding",
+    "edge.overlayColor",
+    "edge.overlayOpacity",
+    "edge.overlayPadding",
     "edge.gradientColors",
     "edge.gradientStops",
     "edge.gradientKind",
@@ -203,9 +219,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into eighty-one node channels and seventy-one edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 81);
-        assert.strictEqual(channelsFor("edge").length, 71);
+    it("splits into ninety-one node channels and seventy-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 91);
+        assert.strictEqual(channelsFor("edge").length, 77);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -432,6 +448,11 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
         "edge.patternCount",
+        // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
+        "node.underlayShape",
+        "node.underlayCornerRadius",
+        "node.overlayShape",
+        "node.overlayCornerRadius",
         // Unset, an image cap has no picture and draws nothing.
         "edge.arrowHeadImage",
         "edge.arrowTailImage",
@@ -567,7 +588,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the fourteen that carry a colour, and the type says the same fourteen", () => {
+    it("are the eighteen that carry a colour, and the type says the same eighteen", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -575,9 +596,13 @@ describe("colour channels", () => {
             "node.glow",
             "node.borderColor",
             "node.outerBorderColor",
+            "node.underlayColor",
+            "node.overlayColor",
             "node.gradientColor",
             "edge.color",
             "edge.outlineColor",
+            "edge.underlayColor",
+            "edge.overlayColor",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
             "edge.arrowMiddleHeadColor",

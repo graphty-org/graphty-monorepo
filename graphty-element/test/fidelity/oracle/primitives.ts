@@ -193,7 +193,19 @@ export interface PNode {
  * line, half a disc with its flat side across the tip ("half-circle", or its round side alone). "other" matches nothing.
  */
 export type ArrowShape =
-    "triangle" | "inverted" | "vee" | "crow" | "diamond" | "circle" | "box" | "tee" | "half" | "half-circle" | "other";
+    | "triangle"
+    | "inverted"
+    | "vee"
+    | "crow"
+    | "diamond"
+    | "circle"
+    | "box"
+    | "tee"
+    | "half"
+    | "half-circle"
+    // a picture drawn as the arrowhead (vis-network's image arrows)
+    | "image"
+    | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
 export type ArrowEnd = "source" | "target" | "middle";

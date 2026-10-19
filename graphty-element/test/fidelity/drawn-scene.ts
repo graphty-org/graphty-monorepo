@@ -183,6 +183,7 @@ interface EdgeInternals {
     lineSlots: number[];
     outlineBatch: EdgeLineBatch | null;
     outlineSlots: number[];
+    haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
     drawnStyle: { line?: { bezier?: boolean; gradient?: { kind?: string } } } | null;
 }
@@ -958,11 +959,16 @@ function elementDashes(elements: readonly ArrowCap[], p: Projector): number[] | 
  * @returns its color, opacity and whole width in pixels, or null for none
  */
 function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"] {
-    const batch = internal.outlineBatch;
-    if (batch === null || batch.disposed || internal.outlineSlots.length === 0 || !batch.mesh.isEnabled()) {
+    // the band drawn under the line: its outline, else its underlay (Cytoscape.js draws both as a wider stroke beneath)
+    const underlay = internal.haloBands.find((band) => band.kind === "underlay");
+    const [batch, slots] =
+        internal.outlineBatch === null
+            ? [underlay?.batch ?? null, underlay?.slots ?? []]
+            : [internal.outlineBatch, internal.outlineSlots];
+    if (batch === null || batch.disposed || slots.length === 0 || !batch.mesh.isEnabled()) {
         return null;
     }
-    const [a, b] = batch.endsOf(internal.outlineSlots[0]);
+    const [a, b] = batch.endsOf(slots[0]);
     const mid = a.add(b).scale(0.5);
     const m = materialColor(batch.mesh.material);
     const meta = batch.mesh.metadata as { lineOpacity?: number; joinedLine?: boolean } | null;

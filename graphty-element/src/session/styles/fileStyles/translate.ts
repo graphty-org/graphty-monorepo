@@ -512,6 +512,7 @@ function channelPlans(
     };
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
+        const nearShapes = new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from));
         return new Map<string, readonly ChannelPlan[]>([
             ["fill", [id("node.color")]],
             ["fillGradient", [id("node.gradientColor")]],
@@ -576,18 +577,19 @@ function channelPlans(
             ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
             ["outerBorderStyle", [table("node.outerBorderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["outerBorderOffset", [length("node.outerBorderOffset")]],
+            ["underlayColor", [id("node.underlayColor")]],
+            ["underlayOpacity", [id("node.underlayOpacity")]],
+            ["underlayPadding", [length("node.underlayPadding")]],
+            ["underlayShape", [table("node.underlayShape", shapeTable, nearShapes)]],
+            ["underlayCornerRadius", [length("node.underlayCornerRadius")]],
+            ["overlayColor", [id("node.overlayColor")]],
+            ["overlayOpacity", [id("node.overlayOpacity")]],
+            ["overlayPadding", [length("node.overlayPadding")]],
+            ["overlayShape", [table("node.overlayShape", shapeTable, nearShapes)]],
+            ["overlayCornerRadius", [length("node.overlayCornerRadius")]],
             ["label", [id("node.label")]],
             ["tooltip", [id("node.tooltip")]],
-            [
-                "shape",
-                [
-                    table(
-                        "node.shape",
-                        shapeTable,
-                        new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from)),
-                    ),
-                ],
-            ],
+            ["shape", [table("node.shape", shapeTable, nearShapes)]],
             ["labelColor", [label("labelColor")]],
             ["labelSize", labelSize("node.labelSize", "node.labelLetterSize")],
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
@@ -625,6 +627,14 @@ function channelPlans(
         ["outlineWidth", [length("edge.outlineWidth")]],
         ["outlineColor", [id("edge.outlineColor")]],
         ["outlineOpacity", [id("edge.outlineOpacity")]],
+        ["underlayColor", [id("edge.underlayColor")]],
+        ["underlayOpacity", [id("edge.underlayOpacity")]],
+        // in the line's own width units, as its width is
+        ["underlayPadding", [length("edge.underlayPadding")]],
+        ["overlayColor", [id("edge.overlayColor")]],
+        ["overlayOpacity", [id("edge.overlayOpacity")]],
+        // in the line's own width units, as its width is
+        ["overlayPadding", [length("edge.overlayPadding")]],
         ["gradientColors", [id("edge.gradientColors")]],
         ["gradientStops", [id("edge.gradientStops")]],
         ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],

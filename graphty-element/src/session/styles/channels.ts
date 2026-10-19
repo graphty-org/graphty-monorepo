@@ -332,6 +332,16 @@ export interface ChannelValues {
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
     "node.cornerRadius": number;
+    "node.underlayColor": ColorValue;
+    "node.underlayOpacity": number;
+    "node.underlayPadding": number;
+    "node.underlayShape": NodeShapeValue;
+    "node.underlayCornerRadius": number;
+    "node.overlayColor": ColorValue;
+    "node.overlayOpacity": number;
+    "node.overlayPadding": number;
+    "node.overlayShape": NodeShapeValue;
+    "node.overlayCornerRadius": number;
     "node.shapePoints": string;
     "node.shapeStretchPoints": boolean;
     "node.labelFit": NodeLabelFitValue;
@@ -374,6 +384,12 @@ export interface ChannelValues {
     "edge.outlineColor": ColorValue;
     "edge.outlineWidth": number;
     "edge.outlineOpacity": number;
+    "edge.underlayColor": ColorValue;
+    "edge.underlayOpacity": number;
+    "edge.underlayPadding": number;
+    "edge.overlayColor": ColorValue;
+    "edge.overlayOpacity": number;
+    "edge.overlayPadding": number;
     "edge.gradientColors": string;
     "edge.gradientStops": string;
     "edge.gradientKind": EdgeGradientKindValue;
@@ -456,12 +472,16 @@ export type ColorChannel =
     | "node.borderColor"
     | "node.gradientColor"
     | "node.outerBorderColor"
+    | "node.underlayColor"
+    | "node.overlayColor"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
     | "edge.arrowMiddleHeadColor"
     | "edge.arrowMiddleTailColor"
     | "edge.outlineColor"
+    | "edge.underlayColor"
+    | "edge.overlayColor"
     | "edge.labelColor";
 
 /** What a repaint reads for one channel. */
@@ -1101,6 +1121,77 @@ function labelPaddingChannel(axis: "X" | "Y", sides: string): ChannelDescriptor 
     };
 }
 
+/** A node's or an edge's underlay (drawn beneath it) or overlay (drawn over it). */
+type HaloKind = "underlay" | "overlay";
+
+/** The channels of a node's underlay or overlay: `node.underlayColor` and so on. */
+type NodeHaloChannel<K extends HaloKind> = `node.${K}${"Color" | "Opacity" | "Padding" | "Shape" | "CornerRadius"}`;
+
+/** The channels of an edge's underlay or overlay: `edge.underlayColor` and so on. */
+type EdgeHaloChannel<K extends HaloKind> = `edge.${K}${"Color" | "Opacity" | "Padding"}`;
+
+/**
+ * The channels of an underlay (a filled band or shape drawn beneath a node or an edge, Cytoscape.js
+ * `underlay-*`) or an overlay (the same drawn over it, `overlay-*`): its color, its opacity, how far
+ * it reaches past the element, and for a node its shape and corner radius.
+ * @param target - Nodes or edges.
+ * @param kind - Beneath or over.
+ * @returns The channels, in table order.
+ */
+function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescriptor[] {
+    const Kind = kind === "underlay" ? "Underlay" : "Overlay";
+    const where = kind === "underlay" ? "beneath" : "over";
+    const at = target === "node" ? kind : `line.${kind}`;
+    const caveat =
+        target === "node"
+            ? `A filled shape drawn ${where} the node, \`node.${kind}Padding\` beyond its box on every side ` +
+              `(in the units of \`node.size\`), as Cytoscape.js draws its ${kind}. Drawn only with an ` +
+              "opacity above 0; unset, its shape is the node's own."
+            : `A band drawn ${where} the edge's line along its whole length, twice \`edge.${kind}Padding\` ` +
+              `wide (in the line's width units) whatever the line's own width, as Cytoscape.js draws its ` +
+              `${kind}. Drawn only with an opacity above 0.`;
+    const row = (suffix: string, rest: Partial<ChannelDescriptor>): ChannelDescriptor =>
+        ({
+            channel: `${target}.${kind}${suffix}` as Channel,
+            target,
+            plainName: `${target === "node" ? "Node" : "Edge"} ${Kind} ${suffix.replace(/([a-z])([A-Z])/g, "$1 $2")}`,
+            shortName: `${Kind} ${suffix.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}`,
+            group: target === "node" ? "shape" : "line",
+            stylePath: `${at}.${suffix.charAt(0).toLowerCase()}${suffix.slice(1)}`,
+            renderable: true,
+            caveat,
+            ...rest,
+        }) as ChannelDescriptor;
+    const rows = [
+        row("Color", { default: "#000000", accepts: "color" }),
+        row("Opacity", { default: 0, accepts: "number", min: 0, max: 1 }),
+        row("Padding", { default: 0, accepts: "number", min: 0 }),
+    ];
+    if (target === "node") {
+        rows.push(
+            row("Shape", { accepts: "enum", values: NODE_SHAPE_VALUES }),
+            row("CornerRadius", { accepts: "number", min: 0 }),
+        );
+    }
+    return rows;
+}
+
+/**
+ * The halo channels keyed by name, for the table.
+ * @param target - Nodes or edges.
+ * @param kind - Beneath or over.
+ * @returns The descriptors by channel.
+ */
+function haloRows<K extends HaloKind>(
+    target: "node" | "edge",
+    kind: K,
+): Record<NodeHaloChannel<K> | EdgeHaloChannel<K>, ChannelDescriptor> {
+    return Object.fromEntries(haloChannels(target, kind).map((row) => [row.channel, row])) as Record<
+        NodeHaloChannel<K> | EdgeHaloChannel<K>,
+        ChannelDescriptor
+    >;
+}
+
 /**
  * Every channel as declared, before the defaults the element's default styles state are read in.
  *
@@ -1484,6 +1575,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_OUTER_BORDER_CAVEAT,
     },
+    ...haloRows("node", "underlay"),
+    ...haloRows("node", "overlay"),
     "node.image": {
         channel: "node.image",
         target: "node",
@@ -2008,6 +2101,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: EDGE_OUTLINE_CAVEAT,
     },
+    ...haloRows("edge", "underlay"),
+    ...haloRows("edge", "overlay"),
     "edge.gradientColors": {
         channel: "edge.gradientColors",
         target: "edge",

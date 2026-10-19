@@ -152,6 +152,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     // a triangle with a bar behind it reads as the triangle
     "triangle-tee": "triangle",
     "triangle-cross": "triangle",
+    // a picture standing on the line
+    image: "image",
 };
 
 /** Where along its edge each of graphty's caps sits. */
@@ -326,7 +328,8 @@ export function drawnPrimitives(
                 // is: a mid tail points back along it
                 const named = arrowShapeNamed(c.name);
                 const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
-                const look = { filled: !open, color: c.color, shape };
+                // a picture's colors are its own, not the cap's
+                const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
                 return c.outline === null
                     ? { end, length: c.sizePx, width: c.sizePx, ...look }
                     : measureArrow(c.outline, d.points, end, look);

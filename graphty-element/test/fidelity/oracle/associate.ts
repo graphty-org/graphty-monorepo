@@ -698,6 +698,26 @@ function capsAcross(stroke: readonly Pt[], e: PEdge, end: "source" | "target"): 
 }
 
 /**
+ * Whether a box's middle lies on an edge's line where an arrowhead at one end would sit: within a sixth of the box's
+ * smaller side (and a pixel or two) of the line through that end's last run.
+ * @param box - the box
+ * @param e - the edge
+ * @param end - which end, or the middle
+ * @returns true when it is centered on the line
+ */
+function centeredOnLine(box: PBox, e: PEdge, end: ArrowEnd): boolean {
+    const pts = end === "source" ? [...e.points].reverse() : e.points;
+    const [a, b] = end === "middle" ? middleRun(pts) : [pts.at(-2) ?? pts[0], pts.at(-1) ?? pts[0]];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 1e-9) {
+        return false;
+    }
+    const c: Pt = [cx(box), cy(box)];
+    const across = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / len;
+    return across <= Math.max(2, Math.min(bw(box), bh(box)) / 6);
+}
+
+/**
  * The geometric edge end a closed shape caps as an arrowhead, or null when it caps none. An
  * arrowhead sits at the end (its box within reach of the end point), is small beside its edge
  * (no longer than the line it ends, where the line is over a few pixels long) and holds no node: a group box or an annotation drawn near an
@@ -1181,14 +1201,32 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     // near an edge's end), which the labels take below
     const wordsDrawn = free().flatMap((p) => (p.text === null ? [] : [p.text]));
     for (const p of free()) {
-        if (p.kind !== "shape" || wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))) {
+        const picture = p.kind === "image";
+        if ((p.kind !== "shape" && !picture) || wordsDrawn.some((t) => t.sizePx > 0 && backsText(p, t))) {
             continue;
         }
         const best = arrowheadEdge(p, withPieces, nodeList, centerLines);
-        if (best === null) {
+        // a picture is an arrowhead only centered on its line, as vis-network stands one there; a picture beside an
+        // edge's end (an annotation's, a node's offset graphic) is not
+        if (best === null || (picture && !centeredOnLine(p.box, best.e, best.end))) {
             continue;
         }
         take(p);
+        // a picture at an edge's end is its arrowhead (vis-network's image arrows), measured by its box, its colors
+        // its own
+        if (picture) {
+            const { x0, y0, x1, y1 } = p.box;
+            const corners: Pt[] = [
+                [x0, y0],
+                [x1, y0],
+                [x1, y1],
+                [x0, y1],
+            ];
+            best.e.arrows.push(
+                measureArrow(corners, best.e.points, best.end, { filled: true, color: null, shape: "image" }),
+            );
+            continue;
+        }
         // A cap no wider than the line itself (Cytoscape draws a line-wide dot for arrow shape
         // NONE) shows nothing beyond the line: it is part of the line, not an arrowhead.
         if (Math.max(bw(p.box), bh(p.box)) > lineCapSize(best.e)) {

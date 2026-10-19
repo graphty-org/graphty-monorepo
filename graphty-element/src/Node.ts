@@ -346,6 +346,9 @@ export class Node {
 
     /** The node's outer border (`outerBorder`), a child of its mesh like its border, or null when its style draws none. */
     private outerBorder: AbstractMesh | null = null;
+    /** The filled shapes drawn beneath (`underlay`) and over (`overlay`) the node, children of its mesh, or null. */
+    private underlay: AbstractMesh | null = null;
+    private overlay: AbstractMesh | null = null;
 
     /** What is drawn over the node's face (`pie`, `stripes`, `image`), children of its mesh like its border. */
     private decorations: AbstractMesh[] = [];
@@ -639,6 +642,29 @@ export class Node {
             this.outerBorder.parent = this.mesh;
             this.outerBorder.position.setAll(0);
         }
+
+        for (const kind of ["underlay", "overlay"] as const) {
+            const old = this[kind];
+            if (old !== null && !old.isDisposed()) {
+                old.dispose();
+            }
+
+            const halo = NodeMesh.createHalo(
+                this.context.getMeshCache(),
+                { styleId: key, is2D: this.context.is2D(), size: this.size },
+                style.shape,
+                style[kind],
+                kind,
+                this.mesh,
+                this.context.getScene(),
+            );
+            if (halo !== null) {
+                halo.parent = this.mesh;
+                halo.position.setAll(0);
+            }
+
+            this[kind] = halo;
+        }
     }
 
     /**
@@ -898,6 +924,10 @@ export class Node {
         // is left off a group until the ring is rebuilt at the box's size as the border is
         this.outerBorder?.dispose();
         this.outerBorder = null;
+        this.underlay?.dispose();
+        this.underlay = null;
+        this.overlay?.dispose();
+        this.overlay = null;
 
         this.label?.reattach();
     }

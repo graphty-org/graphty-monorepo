@@ -294,6 +294,9 @@ export class Edge {
     /** This edge's slots in {@link Edge.outlineBatch}, one per piece of its line. */
     private outlineSlots: number[] = [];
 
+    /** The bands drawn beneath (`line.underlay`) and over (`line.overlay`) this edge's line, with their slots. */
+    private haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[] = [];
+
     /**
      * The pieces a line painted in a gradient (`line.gradient`) is drawn as, source end first:
      * each a slot in the batch of its color, drawn over the line.
@@ -1104,6 +1107,14 @@ export class Edge {
             this.outlineSlots = [];
         }
 
+        for (const { batch, slots } of this.haloBands) {
+            for (const slot of slots) {
+                batch.release(slot);
+            }
+        }
+
+        this.haloBands = [];
+
         if (this.lineBatch) {
             for (const slot of this.lineSlots) {
                 this.lineBatch.release(slot);
@@ -1460,6 +1471,12 @@ export class Edge {
         if (this.outlineBatch) {
             for (const slot of this.outlineSlots) {
                 this.outlineBatch.setDrawn(slot, drawn);
+            }
+        }
+
+        for (const { batch, slots } of this.haloBands) {
+            for (const slot of slots) {
+                batch.setDrawn(slot, drawn);
             }
         }
 
@@ -1903,6 +1920,7 @@ export class Edge {
      * @param style - The style the line is drawn from.
      */
     private createOutline(meshKey: string, style: EdgeStyleConfig): void {
+        this.createHaloBands(meshKey, style);
         const outline = style.line?.outline;
         const extra = outline?.width ?? 0;
         const opacity = outline?.opacity ?? 1;
@@ -1938,24 +1956,71 @@ export class Edge {
      * @param flat - The line's points, flat x, y, z.
      */
     private placeOutline(flat: readonly number[]): void {
-        const batch = this.outlineBatch;
-        if (batch === null) {
-            return;
+        for (const { batch, slots } of this.haloBands) {
+            Edge.placeBand(batch, slots, flat);
         }
 
+        if (this.outlineBatch !== null) {
+            Edge.placeBand(this.outlineBatch, this.outlineSlots, flat);
+        }
+    }
+
+    /**
+     * Lay one band along a line's points, one slot per piece, growing or shrinking its run of slots.
+     * @param batch - The band's batch.
+     * @param slots - Its slots, changed in place.
+     * @param flat - The line's points, flat x, y, z.
+     */
+    private static placeBand(batch: EdgeLineBatch, slots: number[], flat: readonly number[]): void {
         const segments = flat.length / 3 - 1;
-        while (this.outlineSlots.length < segments) {
-            this.outlineSlots.push(batch.acquire());
+        while (slots.length < segments) {
+            slots.push(batch.acquire());
         }
 
-        while (this.outlineSlots.length > Math.max(1, segments)) {
-            const slot = this.outlineSlots.pop();
+        while (slots.length > Math.max(1, segments)) {
+            const slot = slots.pop();
             if (slot !== undefined) {
                 batch.release(slot);
             }
         }
 
-        batch.placeRun(this.outlineSlots, flat);
+        batch.placeRun(slots, flat);
+    }
+
+    /**
+     * Build the bands drawn beneath (`line.underlay`) and over (`line.overlay`) this edge's line:
+     * Cytoscape.js's underlay and overlay, each twice its padding wide whatever the line's width, a
+     * hair behind or before the line in 2D.
+     * @param meshKey - The source mesh key the edge is drawn under.
+     * @param style - The style the line is drawn from.
+     */
+    private createHaloBands(meshKey: string, style: EdgeStyleConfig): void {
+        for (const kind of ["underlay", "overlay"] as const) {
+            const halo = style.line?.[kind];
+            const opacity = halo?.opacity ?? 0;
+            const width = 2 * (halo?.padding ?? 0);
+            if (opacity <= 0 || width <= 0 || this.lineBatch === null) {
+                continue;
+            }
+
+            const batch = EdgeMesh.lineBatch(
+                this.context.getMeshCache(),
+                { styleId: `${meshKey}-${kind}`, width, color: halo?.color ?? "#000000" },
+                { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
+                this.context.getScene(),
+                this.srcNode === this.dstNode,
+            );
+            if (batch === null) {
+                continue;
+            }
+
+            // ponytail: in 3D a band and the line are drawn at the same depth, so either may show where they overlap
+            if (this.context.is2D()) {
+                batch.mesh.position.z = kind === "underlay" ? OUTLINE_BEHIND : -OUTLINE_BEHIND;
+            }
+
+            this.haloBands.push({ kind, batch, slots: [batch.acquire()] });
+        }
     }
 
     /**

@@ -226,3 +226,79 @@ describe("the half arrow's other side and the open box", () => {
         assert.include(edge.arrowTailCap?.name ?? "", "open-box");
     });
 });
+
+describe("a node's underlay and overlay", () => {
+    test("are filled shapes padded past the node, the underlay behind it and the overlay before it", async () => {
+        await oneEdge(
+            {},
+            {
+                "node.underlayOpacity": 0.5,
+                "node.underlayColor": "#00ff00",
+                "node.underlayPadding": 0.5,
+                "node.overlayOpacity": 0.25,
+                "node.overlayColor": "#0000ff",
+                "node.overlayPadding": 0.25,
+                "node.overlayShape": "round-rectangle",
+            },
+        );
+        assert(graph);
+        const node = graph.getDataManager().nodes.get("A");
+        assert(node);
+        const parts = node as unknown as {
+            mesh: AbstractMesh;
+            underlay: AbstractMesh | null;
+            overlay: AbstractMesh | null;
+        };
+        assert(parts.underlay && parts.overlay, "the node draws both");
+        const box = (m: AbstractMesh): { reach: number; front: number; back: number } => {
+            m.computeWorldMatrix(true);
+            const b = m.getBoundingInfo().boundingBox;
+            return { reach: b.maximumWorld.x - b.centerWorld.x, front: b.minimumWorld.z, back: b.maximumWorld.z };
+        };
+        const fill = box(parts.mesh);
+        const under = box(parts.underlay);
+        const over = box(parts.overlay);
+        // past the node by their padding, the underlay the farther
+        assert.isAbove(over.reach, fill.reach);
+        assert.isAbove(under.reach, over.reach);
+        // 2D looks along +z: the underlay behind the node's back, the overlay before its front
+        assert.isAbove(under.front, fill.back);
+        assert.isBelow(over.back, fill.front);
+        const paint = (m: AbstractMesh): StandardMaterial =>
+            (m as unknown as { sourceMesh: Mesh }).sourceMesh.material as StandardMaterial;
+        assert.strictEqual(paint(parts.underlay).emissiveColor.toHexString().toLowerCase(), "#00ff00");
+        assert.strictEqual(paint(parts.underlay).alpha, 0.5);
+        assert.strictEqual(paint(parts.overlay).emissiveColor.toHexString().toLowerCase(), "#0000ff");
+    });
+
+    test("draws none without an opacity", async () => {
+        await oneEdge({}, { "node.underlayColor": "#00ff00", "node.underlayPadding": 0.5 });
+        assert(graph);
+        const node = graph.getDataManager().nodes.get("A");
+        assert.isNull((node as unknown as { underlay: AbstractMesh | null }).underlay);
+    });
+});
+
+describe("an edge's underlay and overlay", () => {
+    test("are bands twice their padding wide, whatever the line's width, beneath and over the line", async () => {
+        const edge = await oneEdge({
+            "edge.width": 0.5,
+            "edge.underlayOpacity": 0.5,
+            "edge.underlayColor": "#00ff00",
+            "edge.underlayPadding": 2,
+            "edge.overlayOpacity": 0.5,
+            "edge.overlayColor": "#0000ff",
+            "edge.overlayPadding": 1,
+        });
+        const bands = (edge as unknown as { haloBands: { kind: string; batch: EdgeLineBatch }[] }).haloBands;
+        const under = bands.find((b) => b.kind === "underlay");
+        const over = bands.find((b) => b.kind === "overlay");
+        assert(under && over, "both bands are drawn");
+        assert.strictEqual(lookOf(under.batch).color, "#00ff00");
+        assert.strictEqual(lookOf(over.batch).color, "#0000ff");
+        assert.closeTo(lookOf(under.batch).width / lookOf(over.batch).width, 2, 1e-6);
+        // the underlay behind the line, the overlay before it
+        assert.isAbove(under.batch.mesh.position.z, 0);
+        assert.isBelow(over.batch.mesh.position.z, 0);
+    });
+});

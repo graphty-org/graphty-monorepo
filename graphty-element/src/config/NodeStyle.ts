@@ -312,6 +312,32 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     /**
+     * A filled shape drawn behind the node (Cytoscape.js `underlay-*`): `padding` beyond the node's
+     * box on every side, in the units of `shape.size`, in `color` at `opacity`, as `shape` (unset,
+     * the node's own) with `cornerRadius` for a rounded one. No opacity, or 0, draws none.
+     */
+    underlay: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            padding: z.number().nonnegative().optional(),
+            shape: NodeShapes.optional(),
+            cornerRadius: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /**
+     * The same filled shape drawn over the node, its face and border (Cytoscape.js `overlay-*`).
+     */
+    overlay: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            padding: z.number().nonnegative().optional(),
+            shape: NodeShapes.optional(),
+            cornerRadius: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /**
      * A picture drawn over the node's face (Cytoscape.js `background-image`, vis-network's image
      * nodes, yEd's image nodes, Cytoscape's image custom graphics). `src` is its URL (a `data:`
      * URL too), and `fallback` the picture drawn when that one cannot be loaded. `fit` sizes it: "contain" (the default) keeps its proportions inside the node,

@@ -150,6 +150,26 @@ const LineStyle = z.strictObject({
         })
         .optional(),
     /**
+     * A band drawn beneath the line along its whole length, `padding` either side of the line's
+     * middle (in the line's width units) whatever the line's own width, in `color` at `opacity`
+     * (Cytoscape.js `underlay-*`). No opacity, or 0, draws none.
+     */
+    underlay: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            padding: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /** The same band drawn over the line (Cytoscape.js `overlay-*`). */
+    overlay: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            padding: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /**
      * A gradient the line is painted in, over its `color` (Cytoscape.js `line-fill` with
      * `line-gradient-stop-colors` and `-positions`): `colors` are CSS colors separated by spaces,
      * `stops` where each sits as fractions from 0 to 1 separated by spaces (unset, or not one per

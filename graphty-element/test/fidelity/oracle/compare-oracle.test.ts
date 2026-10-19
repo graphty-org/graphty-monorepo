@@ -480,6 +480,28 @@ describe("oracle comparison", () => {
         assert.deepEqual(a.scene.strays, []);
     });
 
+    it("takes a picture at an edge's end as its arrowhead (vis-network's image arrows), its colors its own", () => {
+        const prims = oraclePrims({ named: false });
+        // a 10 x 10 picture standing on the b - c line where it meets c
+        prims.push(
+            prim({
+                tag: "image",
+                kind: "image",
+                points: [],
+                fill: null,
+                box: { x0: 198, y0: 220, x1: 208, y1: 230 },
+            }),
+        );
+        const a = associate(prims, 400, 300, graphtyScene());
+        const bc = a.scene.edges.find((e) => e.source === "b" && e.target === "c");
+        assert(bc);
+        assert.deepEqual(
+            bc.arrows.map((x) => [x.end, x.shape, x.filled, x.color]),
+            [["target", "image", true, null]],
+        );
+        assert.deepEqual(a.scene.strays, []);
+    });
+
     it("takes a box holding nodes near an edge's end as a group, not as an arrowhead", () => {
         const prims = oraclePrims({ named: false });
         prims.push(

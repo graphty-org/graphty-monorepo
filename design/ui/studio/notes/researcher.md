@@ -40,17 +40,9 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 - (2026-10-18) Severity-3 candidates to watch in round 1: T47 `cube` typed in the shape list
   picks Cylinder; T50 A's opened rule rewrites itself on ArrowDown+Enter; T46 Memberships drops
   keyboard focus on the resize separator.
-- (2026-10-17, round 1 pilots on ed4351b258) answers.md matches the refrozen build. The
-  58556989e8 deciders are fixed (T50 layer opens with its rule; T42 inline error, no crash).
-  Three grading calls left to the Director in criteria.md's log: T37's 3-step Degree-vs-Highest
-  route, T44 A's `id` (spaces dropped) still accepted, T49's "remove the line" that looks done
-  but fails by the tree. Bar 4 still "twice the key's 6" against a key of 5.
 - (2026-10-17) T46's Memberships button and "Why this look" now open the right group layer:
   question 3's trap (the folder's color) is still there, but the shorter routes bypass the folder
   -- read T46 Token lines knowing the folder may never be visited.
-- (2026-10-17, second read) All eight of that read's changes were taken into the frozen criteria
-  (Sam out of bar 4, T47 cubes on both halves, `Token:` on T46, T48 routed, typing-lands check,
-  audit checklist, popovers in the walk, per-n thresholds).
 - (2026-10-17) Wording check on tier 3 prompts: 32 prompts vs 23 screens (tmp/style-study/bars3),
   0 shared words. It only sees walked screens at rest: a popover nobody walks is never checked.
   No literal echo found in source either ("Each layer's own value" is a code comment; the UI says
@@ -67,8 +59,6 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 - (2026-10-17) Study data traps: football names have no spaces ("Florida State" finds nothing);
   Les Mis nodes have only id and name; persona files can carry team-only sections into briefings;
   brief every planned row and read one briefing per persona before calling a first move unprompted.
-- (2026-10-17) Two copies of design-studio.js differ (main checkout and studio worktree): launch
-  the one meant. The study tool is tier-aware; plant-test any new tier wiring before a pilot.
 - (2026-10-16) Bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`: a bulk field whose layers
   differ draws the purple <<Layer>> token, "N layers", chits up to 6 or 5 and "+N". Study
   questions: token misread as a column; chit clicks attempted; whether "+N" reads as more groups.

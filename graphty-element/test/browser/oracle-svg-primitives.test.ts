@@ -7,6 +7,8 @@
  */
 import { assert, describe, it } from "vitest";
 
+import { associate } from "../fidelity/oracle/associate";
+import type { PScene } from "../fidelity/oracle/primitives";
 import { readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
 
 describe("the oracle SVG reader", () => {
@@ -95,5 +97,47 @@ describe("the oracle SVG reader", () => {
         const [band] = readSvgPrimitives(svg).prims;
         assert.strictEqual(band.subpaths?.length, 2);
         assert.isAbove(band.subpaths?.[0].length ?? 0, 15);
+    });
+
+    it("reads Gephi's self-loop and its parallel edges of two kinds as edges of their own", () => {
+        // as Gephi Toolkit 0.11.3 writes them (gexf-specimen-edges-lines): an edge names its two end nodes in its
+        // class, a self-loop its one node, and two edges of different kinds between one pair share one name
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200">
+            <g id="edges">
+                <path fill="none" class="id_s" d="M 54,47 A 2.6,2.6 0 1,1 57,50" stroke="#c8c8c8" stroke-width="2"/>
+                <path fill="none" class="id_a id_b" d="M 100,100 A 60,60 0,0 1,200,100" stroke="#c8c8c8" stroke-width="1.5"/>
+                <path fill="none" class="id_a id_b" d="M 100,100 A 60,60 0,0 1,200,100" stroke="#c8c8c8" stroke-width="1.5"/>
+            </g>
+            <g id="arrows">
+                <polyline fill="#000000" class="id_a id_b" points="200,100 190,96 190,104" stroke="none"/>
+                <polyline fill="#000000" class="id_a id_b" points="200,100 190,96 190,104" stroke="none"/>
+            </g>
+            <g id="nodes">
+                <circle class="id_s" cx="50" cy="50" r="5" fill="#646464"/>
+                <circle class="id_a" cx="100" cy="100" r="5" fill="#646464"/>
+                <circle class="id_b" cx="200" cy="100" r="5" fill="#646464"/>
+            </g>
+        </svg>`;
+        const guide: PScene = {
+            side: "graphty",
+            width: 400,
+            height: 200,
+            background: null,
+            nodes: [],
+            edges: [],
+            groups: [],
+            texts: [],
+            strays: [],
+        };
+        const { scene } = associate(readSvgPrimitives(svg).prims, 400, 200, guide);
+        assert.deepEqual(scene.nodes.map((n) => n.id).sort(), ["a", "b", "s"]);
+        assert.deepEqual(
+            scene.edges.map((e) => [e.id, e.arrows.length]),
+            [
+                ["a->b#0", 1],
+                ["a->b#1", 1],
+                ["s->s#0", 0],
+            ],
+        );
     });
 });

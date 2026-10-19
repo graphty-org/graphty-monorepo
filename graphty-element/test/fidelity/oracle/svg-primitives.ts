@@ -392,6 +392,11 @@ function hintOf(el: Element): Prim["hint"] {
     // Gephi: class="id_<node>" on a node's circle and label, "id_<source> id_<target>" on an edge
     const ids = [...el.classList].filter((c) => c.startsWith("id_")).map((c) => c.slice(3));
     if (ids.length === 1) {
+        // a self-loop names its one node: in Gephi's edge and arrow groups it is an edge, not the node
+        if (el.closest("g#edges, g#arrows") !== null) {
+            const key = `${ids[0]}->${ids[0]}`;
+            return { role: "edge", id: key, key, ends: [ids[0], ids[0]] };
+        }
         return { role: "node", id: ids[0], key: ids[0] };
     }
     if (ids.length === 2) {

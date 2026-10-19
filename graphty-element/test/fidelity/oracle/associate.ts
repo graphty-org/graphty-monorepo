@@ -523,6 +523,35 @@ function endsOfTitle(title: string, known: ReadonlySet<string>): [string, string
     return first;
 }
 
+/**
+ * One markup-named edge's primitives split into the edges they draw. Gephi names an edge by its two end nodes only
+ * (`class="id_<source> id_<target>"`), so two parallel edges it keeps apart (edges of different kinds) share one name:
+ * each draws its own line, and its own arrowhead after it. Gephi draws an edge as one path, so several paths under
+ * one Gephi name are several edges, each with the arrowhead of its place; anything else stays one edge.
+ * @param ps - the primitives the markup names one edge
+ * @returns the primitives of each edge
+ */
+function parallelEdges(ps: readonly Prim[]): Prim[][] {
+    // Gephi's name: its two ends and nothing else (Pajek's names carry the line's place after an "@")
+    const hint = ps[0]?.hint;
+    const gephi = hint?.ends !== undefined && hint.key === hint.id;
+    const lines = gephi ? ps.filter((p) => p.kind === "path") : [];
+    if (lines.length < 2) {
+        return [[...ps]];
+    }
+    const heads = ps.filter((p) => p.kind === "shape");
+    const rest = ps.filter((p) => p.kind !== "path" && p.kind !== "shape");
+    return lines.map((line, i) => {
+        let own: Prim[] = [];
+        if (heads.length === lines.length) {
+            own = [heads[i]];
+        } else if (i === 0) {
+            own = heads;
+        }
+        return [line, ...own, ...(i === 0 ? rest : [])];
+    });
+}
+
 const longestPath = (prims: readonly Prim[]): Prim | undefined =>
     [...prims]
         .filter((p) => p.kind === "path" || (p.closed && p.fill === null))
@@ -868,34 +897,41 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             const hint = ps[0]?.hint;
             const raw = hint?.ends ?? endsOfTitle(hint?.id ?? id, knownIds);
             const ends: [string, string] | null = raw === null ? null : [resolveId(raw[0]), resolveId(raw[1])];
-            const line = longestPath(ps);
-            if (ends === null || line === undefined) {
+            if (ends === null) {
                 continue;
             }
-            ps.forEach(take);
-            const pairId = `${ends[0]}->${ends[1]}`;
-            const k = edgeCount.get(pairId) ?? 0;
-            edgeCount.set(pairId, k + 1);
-            const heads = ps.filter((p) => p !== line && p.kind === "shape");
-            let { points } = line;
-            const arrows = heads.map((h) => {
-                const c: Pt = [cx(h.box), cy(h.box)];
-                const a = line.points[0];
-                const b = line.points.at(-1) ?? a;
-                const end =
-                    Math.hypot(c[0] - a[0], c[1] - a[1]) < Math.hypot(c[0] - b[0], c[1] - b[1]) ? "source" : "target";
-                points = extendToTip(points, h.points, end);
-                return arrowFrom(h, line.points, end, canvas);
-            });
-            edges.push({
-                id: `${pairId}#${String(k)}`,
-                source: ends[0],
-                target: ends[1],
-                points,
-                stroke: line.stroke,
-                arrows,
-                label: mergeTexts(ps.flatMap((p) => (p.text ? [p.text] : []))),
-            });
+            for (const part of parallelEdges(ps)) {
+                const line = longestPath(part);
+                if (line === undefined) {
+                    continue;
+                }
+                part.forEach(take);
+                const pairId = `${ends[0]}->${ends[1]}`;
+                const k = edgeCount.get(pairId) ?? 0;
+                edgeCount.set(pairId, k + 1);
+                const heads = part.filter((p) => p !== line && p.kind === "shape");
+                let { points } = line;
+                const arrows = heads.map((h) => {
+                    const c: Pt = [cx(h.box), cy(h.box)];
+                    const a = line.points[0];
+                    const b = line.points.at(-1) ?? a;
+                    const end =
+                        Math.hypot(c[0] - a[0], c[1] - a[1]) < Math.hypot(c[0] - b[0], c[1] - b[1])
+                            ? "source"
+                            : "target";
+                    points = extendToTip(points, h.points, end);
+                    return arrowFrom(h, line.points, end, canvas);
+                });
+                edges.push({
+                    id: `${pairId}#${String(k)}`,
+                    source: ends[0],
+                    target: ends[1],
+                    points,
+                    stroke: line.stroke,
+                    arrows,
+                    label: mergeTexts(part.flatMap((p) => (p.text ? [p.text] : []))),
+                });
+            }
         } else if (role === "group") {
             const box = [...ps].filter((p) => p.kind === "shape").sort((a, b) => area(b.box) - area(a.box))[0];
             if (box === undefined) {

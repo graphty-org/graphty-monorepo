@@ -259,6 +259,16 @@ export function nodeActionManagerOf(scene: Scene): ActionManager {
                 }
             }),
         );
+        manager.registerAction(
+            new ExecuteCodeAction({ trigger: ActionManager.OnPickTrigger }, (event?: ActionEvent) => {
+                const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
+                const node = metadata?.graphNode;
+                const graph = node?.parentGraph as (Graph & { fetchNodes?: unknown; fetchEdges?: unknown }) | undefined;
+                if (node && !node.isDisposed() && (!graph?.fetchNodes || !graph.fetchEdges)) {
+                    expandFromSource(node, "click");
+                }
+            }),
+        );
         nodeActionManagers.set(scene, manager);
     }
 
@@ -277,10 +287,12 @@ function expandNode(node: GraphNode): void {
 
     const { fetchNodes, fetchEdges } = graph;
 
-    // No fetchers means no on-demand expansion, which is the default and is not
-    // an error: a graph that holds everything it is ever going to hold has
-    // nothing to expand.
+    // No fetchers: the node's own network source expands it, when the consumer
+    // switched that on (`behavior.expand.trigger`). Neither is the default, and
+    // neither is an error: a graph that holds everything it is ever going to
+    // hold has nothing to expand.
     if (!fetchNodes || !fetchEdges) {
+        expandFromSource(node, "double-click");
         return;
     }
 
@@ -327,6 +339,24 @@ function expandNode(node: GraphNode): void {
         .catch((error: unknown) => {
             console.error("[graphty] Expanding a node failed:", error);
         });
+}
+
+/**
+ * Expand a node from the network source that loaded it, when `behavior.expand.trigger` names
+ * the gesture that just happened. A failure is published as `source:expand-failed`, so nothing
+ * more is done with it here.
+ * @param node - the node
+ * @param gesture - what the reader did
+ */
+function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
+    const context: GraphContext = node.parentGraph;
+    const { trigger, ...options } = context.getStyles().config.behavior.expand;
+    const session = context.getSession?.();
+    if (trigger !== gesture || session === undefined) {
+        return;
+    }
+
+    session.data.expand([node.id], options).catch(() => undefined);
 }
 
 // Click detection thresholds

@@ -592,3 +592,9 @@ export type FilterDirection = SelectionDirection;
  * operation. Removed in the major version that ships the project file.
  */
 export type SetOp = SelectionOp;
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export * from "./src/session/sources/public";

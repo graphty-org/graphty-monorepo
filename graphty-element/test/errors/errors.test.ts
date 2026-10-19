@@ -19,6 +19,24 @@ import * as errors from "../../src/errors/index";
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
+    // the network sources (design/graph-io/network-sources-design.md section 8), experimental
+    "E_SOURCE_BLOCKED",
+    "E_SOURCE_AUTH",
+    "E_SOURCE_FORBIDDEN",
+    "E_SOURCE_NOT_FOUND",
+    "E_SOURCE_QUOTA",
+    "E_SOURCE_TIMEOUT",
+    "E_SOURCE_QUERY",
+    "E_SOURCE_NOT_A_GRAPH",
+    "E_SOURCE_RESPONSE",
+    "E_SOURCE_REDIRECT",
+    "E_SOURCE_RUNTIME",
+    "E_SOURCE_PARAM",
+    "E_SOURCE_LIMIT",
+    "E_SOURCE_UNKNOWN",
+    "E_SOURCE_UNSUPPORTED",
+    "E_SOURCE_INVALID",
+    "E_CREDENTIAL_NOT_STORABLE",
     "E_BAD_COMMAND",
     "E_BAD_QUERY",
     "E_BAD_LAYER",
@@ -171,6 +189,24 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
+        case "E_SOURCE_BLOCKED":
+        case "E_SOURCE_AUTH":
+        case "E_SOURCE_FORBIDDEN":
+        case "E_SOURCE_NOT_FOUND":
+        case "E_SOURCE_QUOTA":
+        case "E_SOURCE_TIMEOUT":
+        case "E_SOURCE_QUERY":
+        case "E_SOURCE_NOT_A_GRAPH":
+        case "E_SOURCE_RESPONSE":
+        case "E_SOURCE_REDIRECT":
+        case "E_SOURCE_RUNTIME":
+        case "E_SOURCE_PARAM":
+        case "E_SOURCE_LIMIT":
+        case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_UNSUPPORTED":
+        case "E_SOURCE_INVALID":
+        case "E_CREDENTIAL_NOT_STORABLE":
+            return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
         default: {

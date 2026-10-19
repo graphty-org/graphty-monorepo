@@ -67,10 +67,12 @@ const config: KnipConfig = {
         // graph-io package (src/index.ts re-exports every per-format subpath barrel; src/styles/index.ts is
         // the format-independent @graphty/graph-io/styles entry and src/positions/index.ts the ./positions one)
         "graph-io": {
+            // the network source subpaths are published entries of their own (@graphty/graph-io/sources/<name>)
             entry: [
                 "src/index.ts!",
                 "src/styles/index.ts!",
                 "src/positions/index.ts!",
+                "src/sources/*/index.ts!",
                 // the unpublished barrel of the whole style engine, for graph-io's own tests and scripts
                 "src/styles/internal.ts",
                 "test/**/*.test.ts",
@@ -82,6 +84,10 @@ const config: KnipConfig = {
                 "scripts/**/*.{ts,js,mjs}",
             ],
             project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js,mjs}"],
+            // `neo4j-driver` is an optional peer (and a devDependency), loaded by `await import()` only for
+            // the Cypher source's Bolt transport. `lint:knip:prod` runs --strict and would report it as
+            // unlisted; the default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["neo4j-driver"] : [],
         },
 
         // cytoscape-extensions package (@graphty/cytoscape-extensions): Cytoscape.js extensions over the graphty packages
@@ -210,6 +216,7 @@ const config: KnipConfig = {
                           "ai.ts!",
                           "catalog.ts!",
                           "commands.ts!",
+                          "credentials.ts!",
                           "extend.ts!",
                           "format.ts!",
                           "logging.ts!",

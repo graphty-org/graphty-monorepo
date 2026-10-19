@@ -347,6 +347,8 @@ export class Ingest<K extends KnownEdge> {
 
     /** What the load in progress does with a node record repeating an id an earlier one gave. */
     private duplicateIds: NonNullable<DataImportCommand["duplicateIds"]> = "first";
+    /** For a merge: whether a node already in the graph takes the incoming attributes. */
+    private updateExisting = false;
 
     /** The graph held nodes when the load in progress began, so its edges can name them. */
     private loadBeganWithNodes = false;
@@ -478,6 +480,7 @@ export class Ingest<K extends KnownEdge> {
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
         this.duplicateIds = command.duplicateIds ?? "first";
+        this.updateExisting = command.mode === "merge" && command.existing === "update";
         // A replacing load is measured against an empty graph, which is what it leaves. Set before
         // the graph is counted, so a measured merge matches its edges against the graph it counts
         // as there, as the real merge does (#935).
@@ -497,6 +500,7 @@ export class Ingest<K extends KnownEdge> {
         } finally {
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";
+            this.updateExisting = false;
             this.measure = null;
         }
     }
@@ -566,6 +570,10 @@ export class Ingest<K extends KnownEdge> {
             }
 
             if (this.hasNode(nodeId)) {
+                if (this.updateExisting && this.host.hasNode(nodeId)) {
+                    writer.setAttributes("node", nodeId, frozenRecord(node));
+                }
+
                 continue;
             }
 
@@ -1345,20 +1353,7 @@ export class Ingest<K extends KnownEdge> {
             }
         } catch (error) {
             end(failedEnd(error, signal));
-            // Same rule one level out: a coded failure is the answer, not something to re-word.
-            if (isGraphtyError(error) || signal?.aborted === true) {
-                throw error;
-            }
-
-            // Re-throw if already a processed error
-            if (error instanceof Error && error.message.includes("Failed to load data")) {
-                throw error;
-            }
-
-            // Otherwise wrap and throw
-            throw new Error(
-                `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
-            );
+            throw initFailure(error, type, signal);
         } finally {
             store.closeLoad();
             // Whatever happened, this load is over: the next one probes for itself and counts into
@@ -1486,6 +1481,31 @@ export class Ingest<K extends KnownEdge> {
 const EMPTY = { nodes: new Set<NodeIdType>(), edges: 0 } as const;
 
 /**
+ * What a load that failed before or around its read throws: a coded or cancelled failure
+ * unchanged, a read failure already worded, anything else wrapped.
+ * @param error - what was thrown
+ * @param type - the source type
+ * @param signal - fires when the load is cancelled
+ * @returns the error to throw
+ */
+function initFailure(error: unknown, type: string, signal: AbortSignal | undefined): unknown {
+    // Same rule one level out: a coded failure is the answer, not something to re-word.
+    if (isGraphtyError(error) || signal?.aborted === true) {
+        return error;
+    }
+
+    // Re-throw if already a processed error
+    if (error instanceof Error && error.message.includes("Failed to load data")) {
+        return error;
+    }
+
+    // Otherwise wrap and throw
+    return new Error(
+        `Error initializing data source '${type}': ${error instanceof Error ? error.message : String(error)}`,
+    );
+}
+
+/**
  * Where an edge record names its endpoints and weight: a draft's own names, else the names the caller passed the
  * source. The CSV source reads its own `edgeSource` / `edgeTarget` columns and hands every edge over as `source` /
  * `target`, so reading those names again would find nothing.
@@ -1502,6 +1522,7 @@ function endpointOverridesOf(type: string, opts: object, held: HeldRows | undefi
         ...(typeof source === "string" ? { source } : {}),
         ...(typeof target === "string" ? { target } : {}),
         ...(held?.weight === undefined ? {} : { weight: held.weight }),
+        ...(held?.repeated === undefined ? {} : { repeated: held.repeated }),
     };
 }
 

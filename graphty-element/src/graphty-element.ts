@@ -1,4 +1,5 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
+import { registry as sourceRegistry, SOURCE_FORMAT_PREFIX } from "@graphty/graph-io";
 import { css, LitElement } from "lit";
 import { property } from "lit/decorators.js";
 
@@ -28,7 +29,10 @@ import type {
 } from "./config";
 import { type AlgorithmOnLoad, parseAlgorithmsOnLoad, REPEATED_EDGE_POLICIES } from "./config/DataConfig";
 import type { PartialXRConfig } from "./config/xr-config-schema";
+import { CredentialStore } from "./credentials/CredentialStore";
+import { DataSource } from "./data/DataSource";
 import type { ExportGraphOptions, ExportResult } from "./data/export";
+import { ensureGraphSamplesSource } from "./data/graphSamplesSource";
 import {
     type GraphtyForwardedEventMap,
     isDomForwardableEvent,
@@ -64,6 +68,9 @@ import {
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import type { ProgressChange } from "./session/shared";
+import { attachCredentials } from "./session/sources/credentialLookup";
+import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
+import type { SourceExpanded, SourceExpandFailed, SourceExpandStart, SourceLoadOptions } from "./session/sources/types";
 import type { DefaultPalettes } from "./session/styles";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { ProjectConfigPatch, SessionEventMap, TransactionScope } from "./session/types";
@@ -136,6 +143,8 @@ export class Graphty extends LitElement {
     #unwatchVisibility: (() => void) | null = null;
     #unwatchHistory: (() => void) | null = null;
     #unwatchProjectStatus: (() => void) | null = null;
+    /** Unsubscribes the three network-source expansion mirrors. */
+    #unwatchSource: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
@@ -201,6 +210,67 @@ export class Graphty extends LitElement {
      */
     get session(): GraphSession {
         return this.#graph.getSession();
+    }
+
+    /** Backing field of {@link credentials}; made on first use. */
+    #credentials: CredentialStore | null = null;
+
+    /**
+     * The credentials this element remembers for the reader: AI provider keys (`credentials.ai`)
+     * and network-source credentials, keyed by source and origin. A source load, a waiting load of
+     * an opened project and a probe that are given no credential look here, by the origin about to
+     * be contacted. Remembered only in memory unless the AI key manager's persistence is on.
+     * Experimental.
+     * @returns The store.
+     * @example
+     * ```ts
+     * import { credentials } from "@graphty/graphty-element";
+     * await element.credentials.remember({ source: "neo4j", endpoint }, credentials.basic("neo4j", password));
+     * await element.session.data.import({ source: "neo4j", config: { query } }, { endpoint });
+     * ```
+     */
+    get credentials(): CredentialStore {
+        this.#credentials ??= new CredentialStore(Graph.createApiKeyManager());
+        return this.#credentials;
+    }
+
+    /**
+     * Load a graph from a network source (`sourceDescriptors()` in `./catalog` lists them), as one
+     * undoable step: the source is read with the credential, which is never recorded, and the rows
+     * are handed to the graph. The same as `session.data.import({ source, config: params }, options)`.
+     * Experimental.
+     * @param source - The source id.
+     * @param params - The source's params.
+     * @param options - The endpoint, the credential, caps, `mode` and the other load choices.
+     * @returns The load's key in `session.data.loads()`.
+     * @example
+     * ```ts
+     * await element.loadFromSource("ndex", { uuid: "86719f5b-1439-11f0-9806-005056ae3c32" });
+     * ```
+     */
+    async loadFromSource(
+        source: string,
+        params: Readonly<Record<string, unknown>>,
+        options: SourceLoadOptions = {},
+    ): Promise<{ key: string }> {
+        const { data } = this.session;
+        await data.import({ source, config: params }, options);
+        return { key: data.loads().at(-1)?.key ?? "" };
+    }
+
+    /**
+     * The network source a `data-source` value names, or null for a data source: `source:<id>`
+     * always names a source; a bare name is a source only when no data source has it.
+     * @param type - The `data-source` value.
+     * @returns The source id, or null.
+     */
+    static #sourceIdOf(type: string): string | null {
+        if (type.startsWith(SOURCE_FORMAT_PREFIX)) {
+            return type.slice(SOURCE_FORMAT_PREFIX.length);
+        }
+
+        ensureGraphSamplesSource();
+        return !DataSource.getRegisteredTypes().includes(type) && sourceRegistry.hasSource(type) ? type : null;
     }
 
     /**
@@ -304,6 +374,28 @@ export class Graphty extends LitElement {
      */
     setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void {
         this.session.styles.setDefaultPalettes(palettes, options);
+    }
+
+    /**
+     * Mirror the session's click-to-expand events onto the DOM under their `graphty-source-*` names.
+     * @param session - The session to watch.
+     * @param session.on - Its event subscription.
+     * @returns Unsubscribes all three.
+     */
+    #mirrorSourceEvents(session: { on: GraphSession["on"] }): () => void {
+        const events = Object.keys(SOURCE_EVENT_DOM_NAMES) as (keyof typeof SOURCE_EVENT_DOM_NAMES)[];
+        const offs = events.map((event) =>
+            session.on(event, (detail) => {
+                this.dispatchEvent(
+                    new CustomEvent(SOURCE_EVENT_DOM_NAMES[event], { detail, bubbles: true, composed: true }),
+                );
+            }),
+        );
+        return () => {
+            for (const off of offs) {
+                off();
+            }
+        };
     }
 
     /**
@@ -547,6 +639,10 @@ export class Graphty extends LitElement {
                 new CustomEvent("graphty-project-status", { detail: change, bubbles: true, composed: true }),
             );
         });
+        // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
+        this.#unwatchSource ??= this.#mirrorSourceEvents(session);
+        // A source load given no credential asks this element's store, by source and origin.
+        attachCredentials(session.data, (source, origin) => this.credentials.lookup(source, origin));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
             if (reason === "undo" || reason === "redo" || reason === "restore") {
                 this.#loadedPair = undefined;
@@ -761,6 +857,8 @@ export class Graphty extends LitElement {
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
         this.#unwatchProjectStatus = null;
+        this.#unwatchSource?.();
+        this.#unwatchSource = null;
         this.#unwatchNotes?.();
         this.#unwatchNotes = null;
         this.#unwatchProgress?.();
@@ -1266,7 +1364,8 @@ export class Graphty extends LitElement {
      * data sources for more information.
      * @returns Data source configuration object or undefined if not set
      */
-    @property({ attribute: "data-source-config" })
+    // `type: Object`: the attribute holds JSON (`data-source-config='{"team":"core"}'`), parsed once.
+    @property({ attribute: "data-source-config", type: Object })
     get dataSourceConfig(): Record<string, unknown> | undefined {
         const { config } = this.#source();
         // Reported without the inline text or the file: the graph keeps where it came from, not
@@ -1414,6 +1513,22 @@ export class Graphty extends LitElement {
 
             const pair = { type, config };
             this.#loadedPair = pair;
+            const sourceId = Graphty.#sourceIdOf(type);
+            if (sourceId !== null) {
+                // A network source: read with the element's remembered credential, outside the
+                // command, like session.data.import, so redo never fetches.
+                return this.session.data.import({ source: sourceId, config }).then(
+                    () => undefined,
+                    (error: unknown) => {
+                        if (this.#loadedPair === pair) {
+                            this.#loadedPair = undefined;
+                        }
+
+                        this.#reportLoadFailure(error);
+                    },
+                );
+            }
+
             return loadSourcePair(this.#graph, type, config, {
                 coalesce: ELEMENT_SOURCE,
                 setup,
@@ -4931,6 +5046,9 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
+        "graphty-source-expanded": CustomEvent<SourceExpanded>;
+        "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
         "graphty-autosave-status": CustomEvent<AutosaveStatus>;
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;
@@ -4952,6 +5070,9 @@ declare global {
         "graphty-node-drag-start": CustomEvent<NodeEventDetail>;
         "graphty-node-drag-end": CustomEvent<NodeEventDetail>;
         "graphty-label-change": CustomEvent<NodeLabelCounts>;
+        "graphty-source-expand-start": CustomEvent<SourceExpandStart>;
+        "graphty-source-expanded": CustomEvent<SourceExpanded>;
+        "graphty-source-expand-failed": CustomEvent<SourceExpandFailed>;
         "graphty-autosave-status": CustomEvent<AutosaveStatus>;
         "graphty-autosave-restored": CustomEvent<AutosaveRestored>;
         "graphty-autosave-available": CustomEvent<AutosaveAvailable>;

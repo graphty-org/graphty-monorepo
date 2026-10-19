@@ -119,6 +119,12 @@ function createMinimalStyles(): Styles {
                 fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
                 fitBounds: "box",
             },
+            expand: {
+                trigger: "none",
+                depth: 1,
+                direction: "both",
+                layout: "continue",
+            },
         },
         data: {
             knownFields: {

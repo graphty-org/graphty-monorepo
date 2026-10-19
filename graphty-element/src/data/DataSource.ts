@@ -4,8 +4,10 @@ import {
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
+    type GraphSource,
     type ImportReport,
     ImportReportBuilder,
+    loadFromSource,
     readText,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
@@ -20,14 +22,17 @@ import type { FormatDescriptor } from "../catalog/types";
 import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
+import { toGraphtyError } from "../session/sources/errors";
 import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
 import { filePositionsOf } from "./filePositions.js";
 import {
+    aggregateErrors,
     columnsMapping,
     emptyLoad,
     importWhole,
     readerImport,
+    sourceGraph,
     toRecords,
     withoutStyleSlots,
 } from "./graph-io-import.js";
@@ -275,6 +280,34 @@ export interface ImporterSourceOptions<Opts> {
      */
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
 }
+
+/**
+ * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
+ * load options (`endpoint`, `credential`, `limits`, `retry`, `cursor`, `fetch`, `idPrefix`)
+ * side by side in one config. Experimental.
+ */
+export type SourceDataSourceClass = (new (
+    config: BaseDataSourceConfig & Readonly<Record<string, unknown>>,
+) => DataSource) & {
+    readonly type: string;
+};
+
+/** The config keys of a source reader that are load options, never the source's params. */
+const SOURCE_OPTION_KEYS: ReadonlySet<string> = new Set([
+    "endpoint",
+    "credential",
+    "limits",
+    "retry",
+    "cursor",
+    "fetch",
+    "idPrefix",
+    "userAgent",
+    "allowInsecure",
+    "signal",
+]);
+
+/** The config keys every reader takes, which are neither params nor load options. */
+const READER_KEYS: ReadonlySet<string> = new Set(["chunkSize", "errorLimit"]);
 
 /** The registrable reader {@link DataSource.fromImporter} returns. */
 export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
@@ -1049,6 +1082,62 @@ export abstract class DataSource {
                         : columnsMapping(snapshot),
                     this,
                 );
+                yield* this.chunkData(nodes, edges);
+            }
+        };
+    }
+
+    /**
+     * Make a reader from a network source (`defineSource` from `./extend`, or the id of one
+     * `registerSource` registered): its params and the load options arrive together in the
+     * reader's config, the load runs through graph-io's guarded fetch, and a failure is a
+     * `GraphtyError` carrying the source's code (`E_SOURCE_AUTH`, `E_SOURCE_BLOCKED`, ...) and
+     * its params as details. Experimental.
+     * @param source - the source, or a registered source's id
+     * @returns a `DataSource` subclass whose `type` is the source's id
+     * @example
+     * ```ts
+     * const People = DataSource.fromSource(people);
+     * const reader = new People({ team: "core", endpoint: "https://example.com" });
+     * ```
+     */
+    static fromSource<P>(source: GraphSource<P> | string): SourceDataSourceClass {
+        const id = typeof source === "string" ? source : source.id;
+        return class SourceDataSource extends DataSource {
+            static override readonly type: string = id;
+
+            readonly #config: BaseDataSourceConfig & Readonly<Record<string, unknown>>;
+
+            constructor(config: BaseDataSourceConfig & Readonly<Record<string, unknown>>) {
+                super(config.errorLimit ?? 100, config.chunkSize);
+                this.#config = config;
+            }
+
+            protected getConfig(): BaseDataSourceConfig {
+                return this.#config;
+            }
+
+            async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+                const params: Record<string, unknown> = {};
+                const options: Record<string, unknown> = {};
+                for (const [key, value] of Object.entries(this.#config)) {
+                    if (SOURCE_OPTION_KEYS.has(key)) {
+                        options[key] = value;
+                    } else if (!READER_KEYS.has(key)) {
+                        params[key] = value;
+                    }
+                }
+                let loaded: Awaited<ReturnType<typeof loadFromSource>>;
+                try {
+                    loaded = await loadFromSource(source as string | GraphSource, params, options); // NOSONAR(S4325): picks the overload; tsc refuses the call without it
+                } catch (error) {
+                    throw toGraphtyError(error);
+                }
+                aggregateErrors(loaded.report, this.errorAggregator);
+                const { snapshot } = loaded;
+                // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
+                // arrives once a paged source is big enough for that to matter
+                const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }
         };

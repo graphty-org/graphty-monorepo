@@ -100,6 +100,21 @@ describe("reading a Cytoscape style as Cytoscape draws it", () => {
         expect(got.targetArrowColor).toEqual(["#404040", "#404040"]);
     });
 
+    it("draws an unmapped line in EDGE_UNSELECTED_PAINT's default, not the stroke's, under arrowColorMatchesEdge", () => {
+        // specimen-mappings-bypass.cx: no EDGE_UNSELECTED_PAINT, a #505050 stroke default and a passthrough of the
+        // stroke; Cytoscape 3.10.5 draws the mapped edge in its mapped color and every other one #404040
+        const style = emptyCytoscapeStyle();
+        style.edge.defaults.set("EDGE_STROKE_UNSELECTED_PAINT", "#505050");
+        style.edge.mappings.set("EDGE_STROKE_UNSELECTED_PAINT", { kind: "passthrough", column: "c", type: "string" });
+        style.edge.dependencies.set("arrowColorMatchesEdge", true);
+        const got = resolveCytoscape("edge", style, {
+            count: 2,
+            value: (column, i) => (column === "c" && i === 0 ? "#D62728" : undefined),
+        });
+        expect(got.color).toEqual(["#d62728", "#404040"]);
+        expect(got.targetArrowColor).toEqual(["#d62728", "#404040"]);
+    });
+
     it("reads EDGE_BEND handles as bends along and across the line, y up", () => {
         const style = emptyCytoscapeStyle();
         const got = resolveCytoscape(

@@ -547,7 +547,23 @@ function textOf(
         opacity: r3(color.alpha * Number(cs.fillOpacity || "1") * opacity),
         lines: lineBoxes.length >= 2 ? lineBoxes : [box],
         outline: textOutlineOf(cs, opacity, scale),
+        blank: blankEnds(el, cs),
     };
+}
+
+/**
+ * Whether a text draws blanks before or after its words: only where its white space is kept (`xml:space="preserve"`,
+ * which Graphviz writes on every text), else SVG drops them.
+ * @param el - the text element
+ * @param cs - its computed style
+ * @returns the blanks at each end
+ */
+function blankEnds(el: SVGTextElement, cs: CSSStyleDeclaration): { before: boolean; after: boolean } {
+    const kept =
+        el.getAttributeNS("http://www.w3.org/XML/1998/namespace", "space") === "preserve" ||
+        cs.whiteSpace.startsWith("pre");
+    const raw = el.textContent ?? "";
+    return { before: kept && /^\s/.test(raw), after: kept && /\s$/.test(raw) };
 }
 
 function geometryPoints(el: SVGGeometryElement, m: DOMMatrix, samples: number): Pt[] {

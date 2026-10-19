@@ -112,6 +112,11 @@ export interface PText {
     background?: PLabelBox | null;
     /** graphty's side only, on a free text: the id of the label-only node whose label it is. */
     owner?: string;
+    /**
+     * The oracle's side only: blanks the text keeps before or after its words (an SVG text with
+     * `xml:space="preserve"`), which part it from a run of the same line drawn beside it.
+     */
+    blank?: { before: boolean; after: boolean };
 }
 
 /** A box drawn behind a label's words (Cytoscape.js `text-background-*`, `text-border-*`; graphty's label plane). */

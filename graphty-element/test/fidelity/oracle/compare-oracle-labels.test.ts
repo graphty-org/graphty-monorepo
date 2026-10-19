@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, outerRingOf, underlaysOf } from "./associate";
+import { associate, mergeTexts, outerRingOf, underlaysOf } from "./associate";
 import {
     browserFace,
     browserFontClass,
@@ -259,6 +259,31 @@ describe("label checks", () => {
             ),
             { "label.backgroundBorder": ["a"] },
         );
+    });
+});
+
+describe("a label's lines drawn as separate texts", () => {
+    it("reads font runs side by side on one baseline as one line, and lines one under another as lines", () => {
+        // Graphviz's SVG of <FONT>big red</FONT><BR/><FONT FACE="Courier">mono</FONT> <U>u</U> x<SUP>2</SUP>:
+        // one text per font run, a space as a gap, the superscript raised a little and smaller
+        const merged = mergeTexts([
+            text("big red", 100, 80, {}, 50, 20),
+            text("mono", 80, 100, {}, 24),
+            text("u", 100, 100, {}, 6),
+            text("x", 110, 100, {}, 6),
+            text("2", 115, 97, {}, 4, 7),
+        ]);
+        assert.strictEqual(merged?.content, "big red\nmono u x2");
+        // a blank the program kept at the start of a run parts it from the run before, however close
+        const kept = mergeTexts([
+            text("s", 100, 100, {}, 6),
+            text("x", 106, 100, { blank: { before: true, after: false } }, 6),
+        ]);
+        assert.strictEqual(kept?.content, "s x");
+        assert.strictEqual(merged?.lines?.length, 2);
+        // a line under another, or a text far to its side, stays apart
+        assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 100, 112)])?.content, "a\nb");
+        assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 160, 100)])?.lines?.length, 2);
     });
 });
 

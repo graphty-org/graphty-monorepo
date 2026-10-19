@@ -319,6 +319,48 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
 }
 
 /**
+ * Runs of one line drawn as separate text elements side by side, joined into the line they make: Graphviz writes each
+ * font change of an HTML-like label as its own `<text>` on the same baseline (`<FONT>`, `<U>`, a `<SUP>` raised a
+ * little), so "mono u s x2" is five texts and one line. A run is a text starting where the one before it on the line
+ * ends (within half its font size) whose middle lies within that one's height; a space is put between two runs
+ * apart by more than a sixth of the font size, or where either keeps a blank at that side.
+ * @param texts - the texts
+ * @returns the texts with each line's runs joined, left to right
+ */
+function joinRuns(texts: readonly PText[]): PText[] {
+    const out: PText[] = [];
+    for (const t of [...texts].sort((a, b) => a.box.x0 - b.box.x0)) {
+        const size = (p: PText): number => Math.max(p.sizePx, 1);
+        const before = out.find(
+            (a) =>
+                (a.lines?.length ?? 1) < 2 &&
+                (t.lines?.length ?? 1) < 2 &&
+                t.box.x0 - a.box.x1 >= -0.2 * size(a) &&
+                t.box.x0 - a.box.x1 <= 0.5 * size(a) &&
+                cy(t.box) >= a.box.y0 &&
+                cy(t.box) <= a.box.y1 &&
+                cy(a.box) >= t.box.y0 &&
+                cy(a.box) <= t.box.y1,
+        );
+        if (before === undefined) {
+            out.push(t);
+            continue;
+        }
+        const apart =
+            t.box.x0 - before.box.x1 > size(before) / 6 || before.blank?.after === true || t.blank?.before === true;
+        const box = union([before.box, t.box]);
+        out[out.indexOf(before)] = {
+            ...before,
+            content: norm(`${before.content}${apart ? " " : ""}${t.content}`),
+            box,
+            lines: [box],
+            blank: { before: before.blank?.before ?? false, after: t.blank?.after ?? false },
+        };
+    }
+    return out;
+}
+
+/**
  * Lines of one label, drawn as separate text elements, as one text.
  * @param texts - the lines
  * @returns the label, or null when there are none
@@ -327,7 +369,7 @@ export function mergeTexts(texts: readonly PText[]): PText | null {
     if (texts.length === 0) {
         return null;
     }
-    const lines = [...texts].sort(byText);
+    const lines = joinRuns(texts).sort(byText);
     const first = lines[0];
     const box = union(lines.map((t) => t.box));
     return {

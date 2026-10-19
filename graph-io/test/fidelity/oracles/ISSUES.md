@@ -407,17 +407,18 @@ Still open, each judged against Pajek's drawing:
 
 - pajek-iliad: the file stores no positions and Pajek places the vertices on a circle; graphty runs
   its own layout (node position 0/311). A layout choice, as for DOT.
-- Arrowheads: Pajek draws an arrow 5 x its `s` long and 2 x `s` wide, `s` carried like the other line
-  parameters (football arrow length 49/118, synth-lines 3/25, graphstream-b 0/192); graph-io does
-  not read `s`.
+- FIXED (2026-10-19) Arrowheads: Pajek draws an arrow 6 x its `s` long (tip to back corners) and 5 x `s` wide,
+  `s` carried like the other line parameters; graph-io reads `s` as the arrow size and the Pajek tool arrowhead
+  draws it so (football arrow length 49/118 -> 118/118, graphstream-b 0/192 -> 193/193).
 - Bidirected arcs and loops: Pajek draws the two arcs of a mutual pair as curves and a loop as a
   Bezier loop (synth-lines edge route 54/88, c 122/125, graphstream-b 23/193 routes).
 - Line labels: Pajek's default drawing hides them; graphty draws them (synth-lines label 0/28).
 - Label placement at a small `lr`: graphty's label positions are eight sides, Pajek's a point at
   `lr` and `lphi` with the text starting there (kdorola offset 0/127 at `lr 11`, 1crn 0/314 with
   large vertices).
-- Pajek quirks graph-io does not copy: `c 0.700 0.700 0.700` (three fractions) is drawn as the
-  default color (1crn edge color 0/337; graph-io reads it as gray); an `empty` vertex's label is
+- FIXED (2026-10-19): `c 0.700 0.700 0.700` (three fractions) is no color to Pajek; graph-io now reads it so
+  (1crn edge color 0/337 -> 337/337), and `s_size` is not read as a size (synth-vertices width 48/80 -> 52/80).
+- Pajek quirks graph-io does not copy: an `empty` vertex's label is
   drawn white at size 1, so it is hidden (synth-vertices); `cross` is drawn as an ellipse in the
   SVG export; a vertex line's first parameter is read as a shape by its first letter when the line
   names no shape (`bw 2` draws a box), `Triangle` (capital T) is not a shape, and a line that starts its parameters with `s_size` without a shape has them all ignored; an `empty` vertex draws no body, which graphty still sizes (synth-vertices width 48/80).
@@ -1065,10 +1066,11 @@ with its partition and vector (Draw > Network + First Partition + First Vector),
 with its second vector as the height (`-p3`).
 Groups, and images and charts, are absent from the format.
 
-A Pajek vertex is its number, on both sides of the comparison; `pages.json` `names` maps each vertex number to its
-setting id (`anchor-*`, `cap-*`, `<edge id>-s` / `-t`). Until the comparator reads that map it cannot tell the
-anchors or captions from the specimens, so it frames on every pair and judges the caption vertices (a 0.2 px white
-dot with a centered label) like any other vertex.
+A Pajek vertex is its number in the file; `pages.json` `names` maps each vertex number to its setting id
+(`anchor-*`, `cap-*`, `<edge id>-s` / `-t`). FIXED (2026-10-19): the comparison names every vertex by that map on
+both sides once the oracle is associated (`specimenNames` in `oracle-library.ts`), so the frame is fitted on the four
+anchors, the captions are left out and a failure names its setting. Each page is loaded with the `pajekDraw` it was
+drawn with (the Draw window's 1200 x 900, the page's `ini`, the partition and vectors of its DRAW macro).
 
 What Pajek 6.02's SVG export does with the vocabulary, which the importer must match:
 
@@ -1125,12 +1127,35 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   Partition + First Vector + Second Vector, `-p3`) each value is a plain factor, not a square root: the first scales
   the width and the second the height (`vector=4` with a second value of 1 is four times as wide and as tall as
   before; `vec2-*`, `vec-2-vec2-3`), times the vertex's own `x_fact` / `y_fact`. Without them (`-p2`) the same file
-  draws every vertex as the file says. graph-io reads the partition and vector into the `partition` and `vector` node columns
-  but styles nothing from them, so graphty draws `-p2` for both pages; mapping them is the importer's open gap.
+  draws every vertex as the file says. FIXED (2026-10-19): graph-io's `pajekDraw` option takes `partition`,
+  `vector` and `vector2` and draws them by these rules (`formats/pajek/draw.ts`); node fill, width and height pass on
+  all three pages.
 - Coordinates: Pajek stretches the file's 0..1 coordinates to its Draw window one axis at a time (x * 1200, y * 900 on
-  these sheets), while graph-io reads them at one scale on both axes, so graphty's drawing of every sheet is a
-  square where Pajek's is 4:3, and the comparator, which cannot yet tell the anchors from the specimens by vertex
-  number, fits neither (`specimen-mappings-bypass`: all 112 positions miss).
+  these sheets). FIXED (2026-10-19): `pajekDraw` `width` / `height` set the position column's `pxPerUnit` and
+  `pxPerUnitY`; without the option a file keeps the 500 x 500 square of Pajek's EPS export, which the corpus oracles
+  are drawn in. Every position on every page now passes (all 112 missed on `specimen-mappings-bypass` before).
+- Draw window options FIXED (2026-10-19) through `pajekDraw.ini`: Mark Vertices Using Numbers / No Labels / No Labels
+  no Arrows (`labels-p2`, `labels-p3`, `arrows-p2`), Size of Vertices (`node-sizes-opacity-p2`), SVG Opacity of
+  Vertices (fill at the opacity, border at its square: `-p3`), SVG Opacity of Lines, Straight Lines (`edges-lines-p4`)
+  and Lines as Gradient of End Vertices, arrowheads in their end vertex's fill (`edges-lines-p5`). Also read now: a
+  line's `s` (an arrowhead 6 x `s` long and 5 x `s` wide, carried like `c` and `w`; football and graphstream-b arrow
+  length 49/118 and 0/192 -> all), a label's `la` below 360 as its rotation, `s_size` not at all (as Pajek draws), and
+  a color written as numbers (`c 0.700 0.700 0.700`, `c 0.7 0.2 0.2`) as no color, the line keeping its carried or
+  default one (`pajek-1crn` edge color 0/337 before; `c-three-fractions`).
+- Still open after the fix round:
+    - Label placement (`lr`, `lphi`): Pajek starts the text at the point `lr` from the center at angle `lphi`,
+      left-aligned on its baseline (`lr 0` centers it); graph-io can say only one of eight sides. It needs a label
+      placed by a point and anchored at its start, which the shared label offset work (`labelOffsetX` / `Y` with the
+      label's own-size shift `labelShiftX` / `Y`, in progress for Cytoscape and OGDF) gives: center + offset
+      (lr cos lphi, -lr sin lphi) + a shift of half the label's width. Label offset / anchor on `labels`, `labels-p2`
+      and every corpus sample (1,136 labels) wait on it.
+    - `la` 360 and above turns the label toward the layout's middle: not read.
+    - Bezier routes (`k1`, `a1`, ...), mutual pairs and loops: graphty draws them otherwise (`edges-lines-p2`, `-p4`,
+      `-p5` edge route 0.72, curve 0.78; graphstream-b's mutual arcs, route 0/193, whose raster.edge fell 0.86 -> 0.85
+      once the arrowheads were drawn at Pajek's size over the mismatched curves).
+    - `x_fact 0 y_fact 0` draws nothing; graphty draws a 2 px dot (`x-fact-0`).
+    - Label text encoding (pajek-iliad): Pajek 6.02 reads the UTF-8 file as Windows-1252 and draws the two
+      characters of each UTF-8 byte pair; graph-io decodes it right. The program's limit, not an import gap.
 
 ## Specimen sheets: Cytoscape desktop (XGMML, CX, CX2, sessions)
 

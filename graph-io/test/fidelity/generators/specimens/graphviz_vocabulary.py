@@ -99,9 +99,12 @@ def main():
     splines = sorted(set(re.findall(r"splines=(\w+|\"\")", plain(p["splines"]))))
     compass = re.findall(r'"(\w+)"', between(plain(p["portPos"]), "it must have the form", ". This modifies"))
     colors = plain(p["colors"])
-    x11 = between(colors, "The X11 color scheme ", " SVG color scheme").split()
+    x11 = between(colors, "The X11 color scheme ", " The SVG color scheme").split()
     svg = between(colors, "SVG color scheme ", " Brewer color schemes").split()
-    brewer = {m.group(1): int(m.group(2)) for m in re.finditer(r"([a-z]+?(\d+)) color scheme", colors)}
+    # A Brewer scheme is a name (which may end in a digit: dark2, pastel1, set3) and a size of 3 to 12: dark23 is
+    # dark2 with 3 colors, set312 is set3 with 12.
+    brewer = {m.group(1) + m.group(2): int(m.group(2))
+              for m in re.finditer(r"\b([a-z]+\d?)(1[0-2]|[3-9]) color scheme", colors)}
     vocab = {
         "about": "Graphviz's documented style vocabulary, read from graphviz.org by graphviz_vocabulary.py; "
                  "graphviz.py builds the DOT specimen sheets from it and checks that every entry is drawn or "

@@ -1226,9 +1226,10 @@ HTML_NOT_DRAWN = {"HREF", "ID", "TARGET", "TITLE", "TOOLTIP"}
 HTML_STYLE_UNDOCUMENTED = ("dashed", "dotted", "solid", "invis", "invisible")
 NOT_SWEPT = {
     "x11 color names": "every X11 name is a lookup in Graphviz's color table; 10 representative names (numbered, "
-                       "gray/grey, case) are drawn, the table itself belongs in a unit test against the vocabulary",
-    "svg color names": "4 names whose SVG and X11 values differ are drawn",
-    "brewer schemes": "3 of 265 schemes are drawn; each is a fixed color table",
+                       "gray/grey, case) are drawn, and all 679 are checked against Graphviz's own colors "
+                       "(graphviz_colors.py, graph-io/test/formats/dot/color-names.test.ts)",
+    "svg color names": "4 names whose SVG and X11 values differ are drawn; all 147 are checked as the X11 names are",
+    "brewer schemes": "3 of 265 schemes are drawn; all 1,689 colors of the 265 are checked as the X11 names are",
     "arrow combinations": "3,111,696 multi-shape arrows exist; 8 representative 2- to 4-shape combinations are drawn",
 }
 

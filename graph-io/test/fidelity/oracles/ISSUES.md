@@ -999,6 +999,10 @@ defects, open:
   (an unknown value warns "Illegal value ... for STYLE"; these do not). graphty draws none of the borders and
   sizes the tables wrongly (`node.width`, `node.height`, `node.stroke`, `label.text`), and draws the text of an
   invisible table, which Graphviz hides (`label.present`).
+- X11 color names graph-io does not know (`graph-io/test/formats/dot/color-names.test.ts`, its `OPEN` list):
+  Graphviz 14.1.2 draws `webgray` and `webgrey` #808080, `webgreen` #008000, `webmaroon` #800000, `webpurple`
+  #800080, `x11gray` and `x11grey` #bebebe, `x11green` #00ff00, `x11maroon` #b03060 and `x11purple` #a020f0;
+  graph-io's X11 table, measured on Graphviz 2.43, lacks all ten, so it reads them as unknown and draws them black.
 - Revealed by the unit fix on specimens that existed before: `arrowsize=0` (`dot-specimen-arrows-p2`): Graphviz
   still draws a head, graphty none (`edge.arrow`); the `curve`, `lcurve` and `rcurve` tails draw an arrow in graphty
   where the oracle shows none (`edge.arrow`), and every curve tail is routed differently (`edge.route`); the half
@@ -1014,8 +1018,10 @@ Not drawn on any sheet, with the reason (`NOT_DRAWN` and `NOT_SWEPT` in the gene
 attributes draw nothing at pinned positions (layout-engine parameters; output metadata such as URL, tooltip, id and
 class; layers; page, size, dpi, viewport and the other whole-drawing placements; font and image search paths;
 charset; bitmap, xdot and 3D output settings; write-only layout results), the HTML-like HREF, ID, TARGET, TITLE and
-TOOLTIP, and the full color tables (10 of 680 X11 names, 4 of 147 SVG names, 3 of 265 Brewer schemes) and
-multi-shape arrows (8 of 3,111,696), whose lookup belongs in unit tests.
+TOOLTIP, and multi-shape arrows (8 of 3,111,696), whose lookup belongs in unit tests. The sheets draw 10 of
+Graphviz's 679 X11 color names, 4 of its 147 SVG names and 3 of its 265 Brewer schemes; every one of the 2,515 colors
+is checked against the color Graphviz 14.1.2 draws for it (`generators/specimens/graphviz-colors.json`, measured by
+`graphviz_colors.py`; `graph-io/test/formats/dot/color-names.test.ts`).
 
 ## Specimen sheets: what graphty-element now draws, and the rows still open (rendering round 1, 2026-10-18)
 

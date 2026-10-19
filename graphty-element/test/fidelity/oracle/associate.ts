@@ -219,10 +219,57 @@ export function underlaysOf(shapes: readonly Prim[]): Set<Prim> {
     return out;
 }
 
+/**
+ * The ring a node's drawing holds clear outside its border (Cytoscape.js's `outline-*`, Graphviz's `peripheries`): an
+ * unfilled, stroked shape centered on the node whose stroke starts at or past the outer edge of the node's own outline
+ * -- its fill, else its innermost outline. A ring is told apart only beside a border of the node's own: a single
+ * outline drawn outside the fill (a border positioned outside) is the node's border.
+ * @param shapes - the node's shapes, its underlays left out
+ * @returns the outermost such ring, or null
+ */
+export function outerRingOf(shapes: readonly Prim[]): Prim | null {
+    const solid = shapes.filter((p) => p.kind !== "image" && p.tag !== PAINTED_OUTLINE && area(p.box) > 0);
+    const byArea = (a: Prim, b: Prim): number => area(a.box) - area(b.box) || a.index - b.index;
+    const stroked = (p: Prim): boolean => p.stroke !== null && Number.isFinite(p.stroke.width) && p.stroke.width > 0;
+    // the node's own outline: the box its fills cover together (a striped or wedged node's pieces), else its innermost
+    // outline
+    const fills = solid.filter((p) => p.fill !== null);
+    const inner = solid.filter(stroked).sort(byArea)[0];
+    const ref: PBox | undefined = fills.length > 0 ? union(fills.map((p) => p.box)) : inner?.box;
+    if (ref === undefined) {
+        return null;
+    }
+    const half = (b: PBox): number => Math.min(bw(b), bh(b)) / 2;
+    // how far out the outline reaches: its half size, and half of any stroke drawn on it
+    const sameBox = (p: Prim): boolean =>
+        Math.max(
+            Math.abs(p.box.x0 - ref.x0),
+            Math.abs(p.box.y0 - ref.y0),
+            Math.abs(p.box.x1 - ref.x1),
+            Math.abs(p.box.y1 - ref.y1),
+        ) <= 0.5;
+    const edge =
+        half(ref) +
+        Math.max(0, ...solid.filter((p) => stroked(p) && sameBox(p)).map((p) => (p.stroke?.width ?? 0) / 2));
+    const near = Math.max(1, 0.1 * half(ref));
+    const rings = solid.filter(
+        (p) =>
+            !sameBox(p) &&
+            p.fill === null &&
+            stroked(p) &&
+            Math.hypot(cx(p.box) - cx(ref), cy(p.box) - cy(ref)) <= near &&
+            half(p.box) - (p.stroke?.width ?? 0) / 2 >= edge - 0.25,
+    );
+    const ring = rings.sort(byArea).at(-1);
+    return ring !== undefined && solid.some((p) => stroked(p) && !rings.includes(p)) ? ring : null;
+}
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): PNode {
     const under = underlaysOf(drawn);
-    const shapes = drawn.filter((p) => !under.has(p));
+    const ringPrim = outerRingOf(drawn.filter((p) => !under.has(p)));
+    // a ring outside the border is neither the node's size nor its outline: judged on its own
+    const shapes = drawn.filter((p) => !under.has(p) && p !== ringPrim);
     const all = [...shapes].sort((a, b) => area(b.box) - area(a.box) || a.index - b.index);
     // an outline drawn as a fill of its own (`outlinePaintedAsFill`) reaching far past the rest of the node (Cytoscape's
     // zigzag spikes past a small node) is its line, not its extent
@@ -256,6 +303,17 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
         shape: outline && area(outline.box) > 0 ? shapeOf(outline) : null,
         fill: filled?.fill ?? null,
         stroke: stroked?.stroke ?? null,
+        ring:
+            ringPrim === null || ringPrim.stroke === null
+                ? null
+                : {
+                      ...ringPrim.stroke,
+                      // its outer edge out from the node's box, along the axis it reaches farther on
+                      reach: Math.max(
+                          (bw(ringPrim.box) + ringPrim.stroke.width - bw(box)) / 2,
+                          (bh(ringPrim.box) + ringPrim.stroke.width - bh(box)) / 2,
+                      ),
+                  },
         label: mergeTexts(texts),
     };
 }

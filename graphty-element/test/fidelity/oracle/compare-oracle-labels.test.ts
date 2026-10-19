@@ -7,7 +7,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, underlaysOf } from "./associate";
+import { associate, outerRingOf, underlaysOf } from "./associate";
 import {
     browserFace,
     browserFontClass,
@@ -134,6 +134,20 @@ describe("label checks", () => {
             ["Dialog", "Wingbat, monospace", "Verdana", "SansSerif", "'DejaVu Serif'"].map(browserFontClass),
             ["serif", "monospace", "sans-serif", "serif", "serif"],
         );
+    });
+
+    it("reads a full font name a program writes as a family (DejaVu Sans Bold) as the face it names", () => {
+        assert.deepEqual(["DejaVu Sans Bold", "DejaVu Serif Italic", "DejaVu Sans Light"].map(programFace), [
+            "dejavu sans",
+            "dejavu serif",
+            "dejavu sans light",
+        ]);
+        assert.strictEqual(programFontClass("Liberation Mono Bold Italic"), "monospace");
+        // a browser resolves no such name: graphty's label asking for one is drawn in the default face
+        assert.strictEqual(browserFace("DejaVu Sans Bold"), "liberation serif");
+        assert.deepEqual(labelPair({ family: "DejaVu Serif" }, { family: "DejaVu Sans Bold" }), {
+            "label.family": ["a"],
+        });
     });
 
     it("fails a pinned face the program names drawn in another face of its class", () => {
@@ -400,6 +414,63 @@ describe("group checks", () => {
         });
         assert.deepEqual(compareOracle("t", o, g).failures["group.present"], ["g1"]);
     });
+
+    it("judges a group box graphty draws as an annotation by every side, as it judges its own boxes", () => {
+        const annotation = (box: PBox): PScene["strays"][number] => ({
+            index: 0,
+            tag: "annotation-shape",
+            kind: "shape",
+            box,
+            fill: null,
+            stroke: null,
+            text: null,
+        });
+        const o = scene("oracle", { groups: [group(BOX)] });
+        assert.deepEqual(compareOracle("t", o, scene("graphty", { strays: [annotation(BOX)] })).failures, {});
+        // a tenth too wide on one side: an overlap of 0.9, which an overlap of 0.8 alone passes
+        const wide = compareOracle("t", o, scene("graphty", { strays: [annotation({ ...BOX, x1: 368 })] }));
+        assert.deepEqual(wide.failures, { "group.box": ["g1"] });
+    });
+});
+
+describe("a node's outline and the ring outside it", () => {
+    const ring = (over: Partial<NonNullable<PNode["ring"]>> = {}): NonNullable<PNode["ring"]> => ({
+        ...stroke("#999999", 3),
+        reach: 4,
+        ...over,
+    });
+    /** Node a, the same on both sides but for `g` on graphty's. */
+    const nodePair = (o: Partial<PNode>, g: Partial<PNode>): Record<string, string[]> => {
+        const with_ = (side: PScene["side"], over: Partial<PNode>): PScene => {
+            const s = scene(side);
+            s.nodes[0] = { ...s.nodes[0], ...over };
+            return s;
+        };
+        return failures(with_("oracle", o), with_("graphty", { ...o, ...g }));
+    };
+    const border = stroke("#505050", 1);
+
+    it("fails a node outline drawn opaque where the program's is see-through", () => {
+        assert.deepEqual(nodePair({ stroke: border }, {}), {});
+        assert.deepEqual(nodePair({ stroke: { ...border, opacity: 0.3 } }, { stroke: border }), {
+            "node.stroke": ["a"],
+        });
+    });
+
+    it("judges a ring outside the outline on its own: there or not, its color, opacity, width, line and reach", () => {
+        assert.deepEqual(nodePair({ stroke: border, ring: ring() }, {}), {});
+        assert.deepEqual(nodePair({ stroke: border, ring: ring() }, { ring: null }), { "node.ring": ["a"] });
+        assert.deepEqual(nodePair({ stroke: border }, { ring: ring() }), { "node.ring": ["a"] });
+        for (const over of [
+            { opacity: 0.3 },
+            { color: "#ff0000" },
+            { width: 6 },
+            { dashClass: "dotted" as const },
+            { reach: 10 },
+        ]) {
+            assert.deepEqual(nodePair({ stroke: border, ring: ring() }, { ring: ring(over) }), { "node.ring": ["a"] });
+        }
+    });
 });
 
 describe("what the association reads as a label's own and a node's own", () => {
@@ -543,5 +614,34 @@ describe("what the association reads as a label's own and a node's own", () => {
         // a see-through node under a see-through box of its own size is the node
         const box = prim({ points: rect(78, 78, 122, 122), fill: fill("#ffffcc", 0.6) });
         assert.strictEqual(underlaysOf([big, box]).size, 0);
+    });
+
+    it("reads a ring drawn clear outside a node's border as its ring, not its outline or its size", () => {
+        const border = stroke("#505050", 1);
+        const outline = (x: number, y: number): Prim =>
+            prim({ tag: "ellipse", points: circle(x, y, 22), stroke: stroke("#999999", 3) });
+        const prims = drawing((id, x, y) => (id === "a" ? [outline(x, y)] : [])).map((p) =>
+            p.fill?.color === "#cccccc" && p.box.x0 < 90 && p.box.y0 < 90 ? { ...p, stroke: border } : p,
+        );
+        const { scene: o } = associate(prims, 600, 400, guide);
+        const a = o.nodes.find((n) => n.id === "a");
+        assert.deepEqual(
+            [a?.stroke?.color, Math.round(a?.w ?? 0), a?.ring?.color, a?.ring?.width, Math.round(a?.ring?.reach ?? 0)],
+            ["#505050", 40, "#999999", 3, 4],
+        );
+        // without a border of the node's own, a single outline outside the fill is its border
+        index = 0;
+        const body = prim({ tag: "ellipse", points: circle(100, 100, 20), fill: fill("#cccccc") });
+        const far = outline(100, 100);
+        assert.isNull(outerRingOf([body, far]));
+        assert.strictEqual(outerRingOf([{ ...body, stroke: border }, far]), far);
+        // nor is the outline drawn round a node's fill in pieces (a striped node): it rings the pieces together
+        const halves = [
+            prim({ points: rect(80, 80, 100, 120), fill: fill("#ff0000"), stroke: stroke("#000000", 1) }),
+            prim({ points: rect(100, 80, 120, 120), fill: fill("#0000ff"), stroke: stroke("#000000", 1) }),
+        ];
+        assert.isNull(outerRingOf([...halves, prim({ points: rect(80, 80, 120, 120), stroke: stroke("#000000", 1) })]));
+        // nor is a border drawn over the fill's edge a ring
+        assert.isNull(outerRingOf([body, prim({ points: circle(100, 100, 20), stroke: stroke("#999999", 3) })]));
     });
 });

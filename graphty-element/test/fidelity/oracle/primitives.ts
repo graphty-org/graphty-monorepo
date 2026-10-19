@@ -172,6 +172,12 @@ export interface PNode {
     fill: PFill | null;
     /** The outline, or null for none. */
     stroke: PStroke | null;
+    /**
+     * A second ring drawn clear of the outline, outside it (Cytoscape.js's `outline-*`, Graphviz's `peripheries`):
+     * neither the node's size nor its border. `reach` is how far its outer edge lies out from the node's box, in the
+     * side's pixels. Absent or null for none.
+     */
+    ring?: (PStroke & { reach: number }) | null;
     label: PText | null;
     /**
      * graphty's side only: whether its border was drawn in from the node's size (a border inside the size or centered

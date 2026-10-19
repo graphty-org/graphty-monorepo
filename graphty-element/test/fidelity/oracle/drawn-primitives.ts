@@ -260,13 +260,21 @@ export function drawnPrimitives(
         const sub = n.drawn;
         const tiny = n.visible && sub?.subPixel === true && !sub.fillCovered && n.fillOpacity > 0;
         const fill: string | null = n.fill ?? (tiny && typeof sub.fillDrawn === "string" ? sub.fillDrawn : null);
+        // an outer ring beside a border of the node's own is judged on its own (`ring`): the node is its fill out to
+        // that border, as the oracle reads a ring clear of the outline; a ring with no border is the node's outline
+        const outer = d?.outer ?? null;
+        const split = outer !== null && (d?.innerBorder ?? null) !== null;
+        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? null);
+        const gap = split ? 2 * outer.gapPx : 0;
+        const borderColor = split ? (own?.color ?? null) : n.border.color;
+        const borderWidth = split ? (own?.widthPx ?? 0) : n.border.width;
         nodes.push({
             id: n.id,
             cx: n.x,
             cy: n.y,
             // the fill, which graphty's border rings from outside (the scene's size takes the inset back)
-            w: n.w - inset,
-            h: n.h - inset,
+            w: n.w - inset - gap,
+            h: n.h - inset - gap,
             shape: SHAPES[n.shape] ?? "other",
             fill:
                 fill === null
@@ -277,15 +285,26 @@ export function drawnPrimitives(
                           gradient: d?.gradient === true ? gradientOf(d.ramp) : null,
                       },
             stroke:
-                n.border.color !== null && n.border.width > 0
+                borderColor !== null && borderWidth > 0
                     ? {
-                          color: n.border.color,
-                          opacity: 1,
-                          width: n.border.width,
+                          color: borderColor,
+                          opacity: own?.opacity ?? 1,
+                          width: borderWidth,
                           dash: null,
                           // the style the ring was built in: the scene folds a double border into "other"
-                          dashClass: LINE_CLASS[d?.border?.style ?? n.border.style] ?? "other",
-                          ...(d?.border?.screen === true ? { screen: true } : {}),
+                          dashClass: LINE_CLASS[own?.style ?? n.border.style] ?? "other",
+                          ...(own?.screen === true ? { screen: true } : {}),
+                      }
+                    : null,
+            ring:
+                split && outer.border.color !== null && outer.border.widthPx > 0
+                    ? {
+                          color: outer.border.color,
+                          opacity: outer.border.opacity,
+                          width: outer.border.widthPx,
+                          dash: null,
+                          dashClass: LINE_CLASS[outer.border.style] ?? "other",
+                          reach: outer.gapPx + outer.border.widthPx,
                       }
                     : null,
             label,

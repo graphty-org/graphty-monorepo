@@ -47,6 +47,7 @@ export const ORACLE_PROPERTIES = [
     "node.stroke",
     "node.strokeWidth",
     "node.strokeDash",
+    "node.ring",
     "label.present",
     "label.text",
     "label.size",
@@ -160,7 +161,10 @@ export const ORACLE_TOLERANCES = {
     labelAnchorOfSize: 0.25,
     /** A label's lines told apart as aligned left, centered or right when their widths differ by this share of the font size. */
     lineAlignOfSize: 0.5,
-    /** An outline's width outside the letters, and a label background's border width, within this ratio. */
+    /**
+     * An outline's width outside the letters, a label background's border width, and how far a node's outer ring
+     * reaches out from the node, within this ratio.
+     */
     labelOutlineRatio: [0.67, 1.5],
     /** A group box's every side within this share of its smaller side (at least one render pixel) after the fit. */
     groupSideOfSize: 0.05,
@@ -460,13 +464,24 @@ const familyNames = (family: string): string[] =>
         .filter((f) => f !== "");
 
 /**
+ * The names a program's family list holds, as `familyNames`, a name carrying its style as words after it (`DejaVu Sans
+ * Bold`, a full font name a program writes as a family, which its font library resolves) followed by the family it
+ * names. A browser resolves no such name, so graphty's side is read by `familyNames` alone.
+ */
+const programFamilyNames = (family: string): string[] =>
+    familyNames(family).flatMap((f) => {
+        const bare = f.replace(/(\s+(bold|italic|oblique|book|regular))+$/, "");
+        return bare === f || bare === "" ? [f] : [f, bare];
+    });
+
+/**
  * The class of the face a program drew a family in: its first name a pinned font or fontconfig knows, a Java font
  * name's style suffix (`Dialog.bold`) and a PostScript name's (`Calibri-Bold`, `ArialMT`) set aside.
  * @param family - the family the program's SVG names
  * @returns the class, or null where no name is known (what the program drew is then not told)
  */
 export function programFontClass(family: string): FontClass | null {
-    for (const name of familyNames(family)) {
+    for (const name of programFamilyNames(family)) {
         const bare = name.replace(/\.(plain|bold|italic|bolditalic)$/, "");
         for (const k of [bare, bare.replace(/-[a-z]+$/, ""), bare.replace(/mt$/, "").trim()]) {
             const c = PROGRAM_FONTS[k];
@@ -532,7 +547,7 @@ const BROWSER_FACE: Readonly<Record<string, string>> = {
  * @returns the face, lowercased, or null where the family names none
  */
 export function programFace(family: string): string | null {
-    return familyNames(family).find((n) => PINNED_FACES.has(n)) ?? null;
+    return programFamilyNames(family).find((n) => PINNED_FACES.has(n)) ?? null;
 }
 
 /**
@@ -813,8 +828,9 @@ const TOLERANCE_TEXT: Record<OracleProperty, string> = {
     "node.fill": `both unfilled, or both filled within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}`,
     "node.fillOpacity": `within ${String(ORACLE_TOLERANCES.opacity)}, and a ratio in [${ORACLE_TOLERANCES.opacityRatio.join(", ")}] where both are over 0.05`,
     "node.gradient": `a gradient on both sides or on neither; alike, the same kind, colors within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} at five places along it, a linear one's direction within ${String(ORACLE_TOLERANCES.gradientAngleDeg)} degrees`,
-    "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
+    "node.stroke": `both outlined within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)} and at an opacity as a fill's, or neither (under ${String(ORACLE_TOLERANCES.hairline)} px is none)`,
     "node.strokeWidth": `ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}]`,
+    "node.ring": `a ring clear outside the outline (an outline ring, a second periphery) on both sides or neither; alike, its color within deltaE ${String(ORACLE_TOLERANCES.colorDeltaE)}, its opacity as a fill's, its width ratio in [${ORACLE_TOLERANCES.strokeWidthRatio.join(", ")}], the same line class, and how far it reaches out from the node in [${ORACLE_TOLERANCES.labelOutlineRatio.join(", ")}]`,
     "node.strokeDash":
         "same line class (solid, dashed, dotted, dash-dot from the dashes and gaps against the width; double, zigzag, sine wave, slashes, arrows from a pattern's geometry); a pattern no class names matches nothing",
     "label.present": "a label on both sides or on neither",
@@ -1266,8 +1282,16 @@ export function compareOracle(
         if (os === null || gs === null) {
             j.add("node.stroke", "node", id, os === gs ? 0 : 1, os?.color ?? null, gs?.color ?? null);
         } else {
+            // a see-through outline is another line to a reader than an opaque one of its color
             const dE = deltaE(os.color, gs.color);
-            j.add("node.stroke", "node", id, Math.max(0, dE - T.colorDeltaE), os.color, gs.color);
+            j.add(
+                "node.stroke",
+                "node",
+                id,
+                Math.max(0, dE - T.colorDeltaE) + opacityMiss(os.opacity, gs.opacity),
+                [os.color, os.opacity],
+                [gs.color, R(gs.opacity)],
+            );
             if (Number.isFinite(os.width)) {
                 j.add(
                     "node.strokeWidth",
@@ -1287,6 +1311,7 @@ export function compareOracle(
                 gs.dashClass,
             );
         }
+        judgeRing(j, id, o.ring ?? null, g.ring ?? null, lengthScale);
         const outerBox = (n: PNode, w: number, h: number): PBox => ({
             x0: n.cx - w / 2,
             y0: n.cy - h / 2,
@@ -1628,6 +1653,21 @@ export function compareOracle(
             y1: Math.max(a[1], b[1]),
         };
     };
+    /**
+     * How far a box graphty draws is from the program's: its overlap at least the group overlap, and every side where
+     * the program drew it (a box an eighth too wide on one side passes an overlap of 0.8), within its share of the
+     * box's smaller side.
+     */
+    const boxMiss = (gBox: PBox, oBox: PBox): number => {
+        const sideNear = Math.max(T.groupSideOfSize * Math.min(boxW(oBox), boxH(oBox)), pixel);
+        const sides = Math.max(
+            Math.abs(gBox.x0 - oBox.x0),
+            Math.abs(gBox.y0 - oBox.y0),
+            Math.abs(gBox.x1 - oBox.x1),
+            Math.abs(gBox.y1 - oBox.y1),
+        );
+        return Math.max(0, T.groupIoU - iou(toBox(gBox), toBox(oBox))) + Math.max(0, sides / sideNear - 1);
+    };
     const gGroups = [...graphty.groups];
     const pairedGroups: Record<string, string> = {};
     /** graphty's annotations the oracle draws as a group box. */
@@ -1658,8 +1698,20 @@ export function compareOracle(
         if (shape !== undefined) {
             shapesDrawn.add(shape.s.index);
             j.add("group.present", "group", o.id, 0, o.id, shape.s.tag);
-            const vs = iou(toBox(shape.box), toBox(o.box));
-            j.add("group.box", "group", o.id, Math.max(0, T.groupIoU - vs), 1, R(vs));
+            j.add(
+                "group.box",
+                "group",
+                o.id,
+                boxMiss(shape.box, o.box),
+                [o.box.x0, o.box.y0, o.box.x1, o.box.y1],
+                [
+                    R(shape.box.x0),
+                    R(shape.box.y0),
+                    R(shape.box.x1),
+                    R(shape.box.y1),
+                    R(iou(toBox(shape.box), toBox(o.box))),
+                ],
+            );
             if (o.label !== null) {
                 annotatedTexts.push(o.label);
             }
@@ -1672,19 +1724,11 @@ export function compareOracle(
         pairedGroups[g.id] = o.id;
         const gBox = toO(g.box);
         const v = iou(toBox(gBox), toBox(o.box));
-        // every side where the program drew it: a box an eighth too wide on one side passes an overlap of 0.8
-        const sideNear = Math.max(T.groupSideOfSize * Math.min(boxW(o.box), boxH(o.box)), pixel);
-        const sides = Math.max(
-            Math.abs(gBox.x0 - o.box.x0),
-            Math.abs(gBox.y0 - o.box.y0),
-            Math.abs(gBox.x1 - o.box.x1),
-            Math.abs(gBox.y1 - o.box.y1),
-        );
         j.add(
             "group.box",
             "group",
             o.id,
-            Math.max(0, T.groupIoU - v) + Math.max(0, sides / sideNear - 1),
+            boxMiss(gBox, o.box),
             [o.box.x0, o.box.y0, o.box.x1, o.box.y1],
             [R(gBox.x0), R(gBox.y0), R(gBox.x1), R(gBox.y1), R(v)],
         );
@@ -1937,6 +1981,35 @@ function labelOverlap(oracle: PScene, graphty: PScene): number | null {
     return labels.length === 0
         ? null
         : labels.filter((l) => words.has(norm(l.split("\n")[0])) || words.has(norm(l))).length / labels.length;
+}
+
+/**
+ * Judges a node's ring outside its outline, wherever either side draws one that shows.
+ * @param j - the judge
+ * @param id - the node
+ * @param o - the oracle's ring
+ * @param g - graphty's
+ * @param scale - graphty's pixels to the oracle's
+ */
+function judgeRing(j: Judge, id: string, o: PNode["ring"], g: PNode["ring"], scale: number): void {
+    const T = ORACLE_TOLERANCES;
+    const shown = (r: PNode["ring"], k: number): PNode["ring"] =>
+        r !== null && r !== undefined && r.opacity > 0.05 && r.width * k >= T.hairline ? r : null;
+    const [or, gr] = [shown(o, 1), shown(g, scale)];
+    if (or === null && gr === null) {
+        return;
+    }
+    const show = (r: PNode["ring"], k: number): unknown =>
+        r === null || r === undefined ? null : [r.color, R(r.opacity), R(r.width * k), r.dashClass, R(r.reach * k)];
+    const miss =
+        or === null || gr === null || or === undefined || gr === undefined
+            ? 1
+            : Math.max(0, deltaE(or.color, gr.color) - T.colorDeltaE) +
+              opacityMiss(or.opacity, gr.opacity) +
+              ratioMiss((gr.width * scale) / Math.max(or.width, 1e-9), T.strokeWidthRatio) +
+              (sameLine(or.dashClass, gr.dashClass) ? 0 : 1) +
+              ratioMiss((gr.reach * scale) / Math.max(or.reach, 1e-9), T.labelOutlineRatio);
+    j.add("node.ring", "node", id, miss, show(or, 1), show(gr, scale));
 }
 
 function judgeFill(j: Judge, p: OracleProperty, kind: string, id: string, o: PNode["fill"], g: PNode["fill"]): void {

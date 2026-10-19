@@ -199,6 +199,14 @@ const DEFECTS = {
             n.stroke.dashClass = "solid";
         }
     }),
+    "node outline opacity 0.3": eachNode((n) => {
+        if (n.stroke !== null) {
+            n.stroke.opacity *= 0.3;
+        }
+    }),
+    "node outer ring removed": eachNode((n) => {
+        n.ring = null;
+    }),
     "edge width x1.4": eachEdge((e) => {
         if (e.stroke !== null) {
             e.stroke.width *= 1.4;
@@ -696,6 +704,8 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "node outline removed": ["node.stroke", "node.strokeWidth", "node.strokeDash"],
     "node shape ellipse<->rect": ["node.shape"],
     "node outline dashed->solid": ["node.strokeDash", "node.stroke"],
+    "node outline opacity 0.3": ["node.stroke"],
+    "node outer ring removed": ["node.ring"],
     "edge width x1.4": ["edge.width"],
     "edge width x3": ["edge.width"],
     "edge color changed on one edge": ["edge.color", "edge.gradient", "edge.extra"],

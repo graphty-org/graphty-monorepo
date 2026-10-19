@@ -7,7 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { Scene, SceneEdge } from "../../../../graph-io/test/fidelity/scene";
-import type { DrawnEdge, DrawnGraph } from "../drawn-scene";
+import type { DrawnBorder, DrawnEdge, DrawnGraph, DrawnNode } from "../drawn-scene";
 import { drawnPrimitives } from "./drawn-primitives";
 
 type Cap = DrawnEdge["caps"][number];
@@ -154,5 +154,65 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         const outline = { color: "#ff0000", opacity: 1, width: 6 };
         assert.deepEqual(graphOf([], null, null, { outline }).edges[0].outline, outline);
         assert.isNull(graphOf([]).edges[0].outline ?? null);
+    });
+
+    it("reads a node's outer ring beside its own border apart from the border and the node's size", () => {
+        const ring = (color: string, widthPx: number, opacity = 1): DrawnBorder => ({
+            color,
+            widthPx,
+            style: "solid",
+            screen: false,
+            opacity,
+        });
+        const nodeOf = (over: Partial<DrawnNode>): PScene["nodes"][number] | undefined => {
+            const own = over.innerBorder ?? over.border ?? null;
+            // the scene's node as extractScene builds it: its box grown out to the outer ring, its border the outer one
+            const grow = over.outer?.gapPx ?? 0;
+            const sceneNode = {
+                id: "a",
+                x: 50,
+                y: 50,
+                w: 40 + 2 * grow,
+                h: 40 + 2 * grow,
+                shape: "ellipse",
+                fill: "#cccccc",
+                fillOpacity: 1,
+                border: {
+                    color: (over.border ?? own)?.color ?? null,
+                    width: (over.border ?? own)?.widthPx ?? 0,
+                    style: "solid",
+                },
+                label: null,
+                visible: true,
+                drawn: { subPixel: false, fillCovered: false, fillDrawn: "#cccccc" },
+            };
+            const drawnNode = { insetPx: 0, label: null, gradient: false, ramp: null, ...over } as unknown as DrawnNode;
+            const scene = {
+                nodes: [sceneNode],
+                edges: [],
+                groups: [],
+                annotations: [],
+                gaps: [],
+            } as unknown as Scene;
+            const drawn: DrawnGraph = {
+                nodes: new Map([["a", drawnNode]]),
+                edges: new Map(),
+                annotations: [],
+                background: { hex: "#ffffff", alpha: 1 },
+                width: 200,
+                height: 100,
+            };
+            return drawnPrimitives(scene, drawn).nodes[0];
+        };
+        const inner = ring("#505050", 1, 0.4);
+        const outer = { border: ring("#999999", 3), gapPx: 2 };
+        const split = nodeOf({ border: outer.border, innerBorder: inner, outer });
+        assert.deepEqual(
+            [split?.w, split?.stroke?.color, split?.stroke?.opacity, split?.ring?.color, split?.ring?.reach],
+            [40, "#505050", 0.4, "#999999", 5],
+        );
+        // an outer ring with no border of the node's own is its outline, as the oracle reads it
+        const alone = nodeOf({ border: outer.border, innerBorder: null, outer });
+        assert.deepEqual([alone?.w, alone?.stroke?.color, alone?.ring ?? null], [44, "#999999", null]);
     });
 });

@@ -580,6 +580,13 @@ export interface DrawnNode {
     insetPx: number;
     /** The border ring drawn outside the fill, or null when the node has none. */
     border: DrawnBorder | null;
+    /**
+     * Where the node also draws an outer ring (`outer`), its own border ring at the fill, else null: `border` and the
+     * box are then the outer ring's.
+     */
+    innerBorder?: DrawnBorder | null;
+    /** The outer ring (Cytoscape.js's outline) and how far its inner edge is out from the fill, or null for none. */
+    outer?: { border: DrawnBorder; gapPx: number } | null;
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     label: DrawnLabel | null;
@@ -746,7 +753,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const outer = readOuterBorder(node, p);
     // a node with an outer border (Cytoscape.js's outline) shows that ring as its outline: the node is drawn out to
     // its inner edge, past the border and the gap, and the ring is its stroke
-    const border = outer?.border ?? readBorder(node, p);
+    const own = readBorder(node, p);
+    const border = outer?.border ?? own;
     const grow = outer?.gapPx ?? 0;
     // A node whose fill is transparent (Graphviz's default, unfilled shape) still draws its outline.
     const shown = (mesh.isVisible && source.visibility > 0) || border !== null;
@@ -778,6 +786,8 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         ring: ring ?? null,
         insetPx: readInset(node, p),
         border,
+        innerBorder: outer === null ? null : own,
+        outer,
         label: readLabel(node.label, p),
         // the image of a node with no body is the node itself
         pieces: pieces.filter((piece) => piece !== picture),

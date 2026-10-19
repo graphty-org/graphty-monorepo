@@ -1,0 +1,2022 @@
+{
+  "version": 2,
+  "pr": 2108,
+  "subject": {
+    "builtMerge": "7c83c4782df90caa2a0b003187410ebd2b55fe73",
+    "head": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+    "runId": 38415064464,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "7c83c4782df90caa2a0b003187410ebd2b55fe73"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--betweenness-centrality.png",
+      "from": "d359a5dae8c5bc16b53293dd247e8bbcadc8541aff05fce11c782488ce0fa67c",
+      "to": "7c3e343d4979ec14d9d6f5555225707d585c9a94aa51193700ad3f96521d9135",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--closeness-centrality.png",
+      "from": "ff27c8acb4d02bae210bd273eb729580a1e76e611bce2eefda602846fd857331",
+      "to": "e0168c7d34f44d959f4b8f6235b4d2085fdc2320f88b4cce8c86f8e492d173ec",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--degree-centrality.png",
+      "from": "6a970d0520ccd8f803ea67ba25140f694b799dac05c753cc23b59c0938a0c24d",
+      "to": "5471b19b429723404a1c29ca9c53f3d18af960d8ac7a878c9fa5ae94329fef09",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--degrees.png",
+      "from": "44d79412f85cf688a9db61f0686ffcbca640777be3f01ed739491948cd3980be",
+      "to": "57971b66d2581ed058d20dcd6084b3f5d8e8c7b1bde9f7a9d88bedc9180b4030",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--delta-page-rank.png",
+      "from": "ec4f0471a0b4ece1f51895f2760b4e2192bed7abe980a76a17cc13b89a4f4933",
+      "to": "fc18d36d0d4d76c3c9b7c0e1686aa152e2b6d825d370193ef81faca2908d0948",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--edge-betweenness-centrality.png",
+      "from": "d5880cfc4a2a7e58c55356ddfca07bf775243d3a833308c0271287a9af638b17",
+      "to": "120d5487efebad167a945c7b513fa7fb1e519960ca42c1907a48178539644cfb",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--eigenvector-centrality.png",
+      "from": "696dcba53e9dbe17b6cc9f629fdbcfb8df91cea7b280d0fdf692e4534e4e3dc9",
+      "to": "14cddde525e4cf3f5120b3e648a630ffcdd4585893f95b0efe27ba76477f4657",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--hits.png",
+      "from": "3b3ebf289d825d4d6f8f02a607f3dbcb77e946dc440a35fe2642097e2065b478",
+      "to": "98c523462bb8993ffb467867d7d2ba169cb9cc67b0bec5526e31f125dec02917",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--k-core-decomposition.png",
+      "from": "68009d309e84790a579e8a546e7ce54f0572b8cc21bb0ecffb4256ad45db85af",
+      "to": "c289cf22289008d0180be7dc8ce4769cb977c650baac2cad4dc0943d57cc3e87",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--katz-centrality.png",
+      "from": "1dce8606c4d733c24e44a01560000dc4b0e26c60b31fa3bc37139d2cae9979bd",
+      "to": "99757c979caee24877a7ddc1561150f81507c253a66585eb6d892845b2b2fa5c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--node-closeness-centrality.png",
+      "from": "c750c2fa94e05fdb968ed8f176d59293126d860ab078c26eab98d9763b46c721",
+      "to": "78463b71dfe5bf594008bc6e0b54364b2b754f98a580216a458b80d95805c8f7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--overview.png",
+      "from": "ae969e027864f616c5cbfbab5376d9ad0affbf9a67b9498849e6b57db4e7f5e8",
+      "to": "addecfba58a885f94cf0b7c965ebd680e95230a16908c38e4f0d014cbb901961",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--page-rank.png",
+      "from": "f610458e6e9df1bbe56902b6406ef53269db1da1548f3e216defeca21c4e5932",
+      "to": "e23b7ceba9eb18e3c2fedbe0198e1700ec5abafbe125319c34adeb3fd27ccea6",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--personalized-page-rank.png",
+      "from": "2e6689ec14631abcac694c780ce9e7ba7983b78028cc3717f24f648755062e6a",
+      "to": "26fd57871e68d6d73664cb2f4fa00c4b5ce00dd2eb60f335a59e41c18ca7674b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-centrality--triangle-count.png",
+      "from": "1e58824b8d6a1a077d9dc2c48452c59df01bac55cabece2e9650b333bd788585",
+      "to": "49d6925b2b08b285db68dc820a38338b7efa523085198eee087c8c698446d8b3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--connected-components.png",
+      "from": "86b585c0a42040e3cf07d6adaee27f2e9c97f12fbe1ac4f2d2b84c190df10031",
+      "to": "dc1f181816ab6bf7bbaf0b745ea3f0676f9d8da232fe87fccda79b1927194f75",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--girvan-newman.png",
+      "from": "ab38b4a2aa3fcd27afb60a55dd83940af8f2a5f80fb31a2ccd5295b511581cc9",
+      "to": "f5e4b10a1c01f812f443656159b6f1f1252666b9394f6ed510673dfc2b9bf6b8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--grsbm.png",
+      "from": "483aad49f7888759f8c61362e7a2fe4ababf1d6ca8028a50f1649ab8088ad864",
+      "to": "fd8483fa8bc903164f33ffcdf9394ad178d0507fcd48ccefda2e3506a80b7b9c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--hierarchical-clustering.png",
+      "from": "539acdd990c9ad237c1bd0b9c308e33f4b7d79d1488604a06f305a6185cab443",
+      "to": "3b00e54bbdbda1d3fbcd851dc2ee541947a2412ee7593bed447526b5cfb64df7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation-semi-supervised.png",
+      "from": "f4493a2a246162a45192206362b692a8769189180b903c623d6a55d45f7e3583",
+      "to": "9336072eb8f8c09635f6dd9fc7487729a3a773a62fa45fe42cf3182e64adb099",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation-synchronous.png",
+      "from": "9df658bb825fd3ec1c5d42fe4dc5202c79ef7eebb90b49b69d3a7f99d31e1cea",
+      "to": "04574dc93785dcc87ca68c7c7a24175a34a955c524beb504249d1ae5479fd777",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--label-propagation.png",
+      "from": "c8031ed7276f0b535838aa362b10a085cd040298a874f9ebdf54c830e06a134d",
+      "to": "43b2269020367519728e5ddf6c74e009d4ab558c5a073ea1408d5369f784543e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--leiden.png",
+      "from": "790a224f6ff1ebcaf37bd7949de2136f2e4402f53b648f3827dda562f00e9f3d",
+      "to": "ac53b10bdca5a3b68cb77e5e097928b9dca045e04de1b8d8e346cd201b192671",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--louvain.png",
+      "from": "75ea6bf0f181b2c49a8e7ea31d23c497ddf3cc5368f96fa4e5a570327f145271",
+      "to": "419f90aa5cc150c38fee508c8beba05179d85c54e32d3aafdd947ccaad833229",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--markov-clustering.png",
+      "from": "c5f65d768b7f135586a4d31d4073d2d18addf54d2117b656d650b0fe1bf32eab",
+      "to": "322fbd66a80d9ba477a94e556bcd2353856c1dfd7f8f1b16ccf3f3f8facf9d34",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--modularity.png",
+      "from": "34d111301e16703ea15249a7fc2fc921543765d2d7e5f145aaa33462e2ed4306",
+      "to": "f9da94cd51b886a2ffdd8b52f86dd5966bb138968b7ea8f42bc94950efd8e825",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--overview.png",
+      "from": "2e63ebfd6b7781c861987f366186c8d2e714c010c290b9efc1a39159ba965c72",
+      "to": "1c044c498f2df68d8989d9e10fe453573faba60982ee444e7258e7a059d1af50",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--spectral-clustering.png",
+      "from": "422a83d83a177174947babe26c0084b3a52468dfc037aa3455572edd3f06f635",
+      "to": "1f78cbf6b9edfd3bf962f660a16562555008db075c469395c5617a4d034fa2bc",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--sync-clustering.png",
+      "from": "06a56f2e6284672195547b37df0d75d93007fd38ad75f7023d532bbab418c9b3",
+      "to": "6b32c61ec3ee019a5938ed4fd417772bc8485eb19908db07269cbfe2f3d5c458",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-communities--tera-hac.png",
+      "from": "4ac3314efec306f2603e4ea47853fe4ae5546fc5e746e109790ed01663e0dad9",
+      "to": "605a07c122e4b7a0735b66181d0643af1e4e93463d9535d2233a51ce9b2bbf92",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--celegans-neural.png",
+      "from": "d23b08f8cc01598b4e78c68bc249e100f8723975b4184658ce5f588a28daaa8f",
+      "to": "284d63f7faa31788153445fa6f4edb7f1071752a76d9eb9ef8e8939e898a009c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--davis-southern-women.png",
+      "from": "0e64e2eeabd030dec5cb2cbc31642c8217a79501bb32a09d7757d4ab1067cba7",
+      "to": "4fd101b2d5964de956f5b515d73f6891d52ffc1d44d6c4404ab971377319ccbc",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--dolphins.png",
+      "from": "8811c2e64eda12e74a17f44808f20ed4938d1abb258391f8b14e115101215f37",
+      "to": "3381670b33cfdba2ca2fdb681a83613d4d8625d46eed6dc632cd53ab00d273f8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--florentine-families.png",
+      "from": "a070195143ba263608d8d313199acb0fede66ed7faef74b1a14d6409c46aa4ae",
+      "to": "732eac76b52987d348986a954c3dbbd85f4a8975fe724f23dc838291f0381d97",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--football.png",
+      "from": "c7955a44ce1771e3027ec44909a969419eab18ab0b6ee07bbca322c22aaa06bb",
+      "to": "367397cb3b8862c7a24e9aaf182868b29b76c59b31ec37b27c876a1806afadd8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--go-slim-generic.png",
+      "from": "84f3933033ca2d435bf47c7d35258fb6c130feab350260590c6b16f95466647b",
+      "to": "6ccbfe8ea521736ddbc09f05853a3f73efb348b561630ba39ef59cc52ea82968",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--karate.png",
+      "from": "faa94e0e98754e594cfca8ec9abfc2e1fe8f5e7a49212f1b9b5dd210f58063a3",
+      "to": "1d1a2164c0864d45a3c8a307c8ad306c9091d6755b62d0ac75b76efb3e3bc066",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--knuth-miles.png",
+      "from": "44fe8641f8bde7ee538c070b2a9d43e31b5730f820b764eec02652abe2f412f1",
+      "to": "dbda34419606a20a09f43668d24346649d7f8ef1e5cb85b476d7f593ba4c6488",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--les-miserables.png",
+      "from": "35a1b3e4e434666529aa66f2ac8893b716c8fe8e0f1939df9c282232bc2bc1ef",
+      "to": "7c18311b26accb7a0c6f126299c517df71ae1c4aa3b2879b6f9667b8d60af6f4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--openflights.png",
+      "from": "1c49602faf0b838c3363a8455640e6532f9b33b6f279078dcc1b4b3b45d5161f",
+      "to": "a97106b769e891dad3235127abb20484905ccbf8c02ccbd299aa27473b3af335",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--overview.png",
+      "from": "225b87f14ee6dd62a337c1c8a004dcadee86e2546de08a2587db3d34cdf98767",
+      "to": "a6dd8e478276e737c4ec0262d308ec85851b2c008d9d9db54b74a22f969ad768",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-blogs.png",
+      "from": "55973778f995f50f56ff82a6f15abdd64f20f2128082b7b41b4f445c561f0046",
+      "to": "0d0862adf0289ede5b0240e4faa477c573a38436f9aba8748bef46848ec2cce5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--political-books.png",
+      "from": "9015414a33952ad249e6d75c87d01b2d5bdfeabaa1d1f9018491f962509a74b0",
+      "to": "f4e7358548d0b55d5957068e743652463ad9c72f06c3ecad2305e0b65732febf",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--stelzl-interactome.png",
+      "from": "834e32eb660c243116b8ab610c5d8c9520188d248ff4961bedb86ea944b4b28f",
+      "to": "5ccdcdc9941ef60e57a0c8d68608ec66963888261817b010a0289f6185ee53ad",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--wikipathways-senescence-autophagy.png",
+      "from": "a36689657048812ee423f8e79795203d93cad7f88ed73e16c02f1efcec2685b0",
+      "to": "c2c3e1684ce1370d7524c6f09259a1ba6fd978a3241741b5efd2f798d08e25df",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-datasets--yeast-perturbation.png",
+      "from": "3ec3187afb42e2b706df5fad9fcd51d3e7fb06446ffb82b7d8b54c2b88c65690",
+      "to": "b4f6b5856693976c6c31418cd57a88687e04b9aa4c2f1c49ed3e2775e96098c0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--karger-min-cut.png",
+      "from": "d089ee32caf4e14a511c4d7289c34373019c6b77bedd31ec4acfd09bb566efde",
+      "to": "7eb5ebd7174ebabfa460a06fc628f919f4858836477f97afb47fdcfbf5c93527",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--max-flow.png",
+      "from": "ecbbcb5754136c0d273f8cb51f4f58667ef8de2335a526839ff73d088093e1b6",
+      "to": "4a246415d719830e4b6960ad1115e9d5892a67de67c439479e9c8fd01af9528d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--min-st-cut.png",
+      "from": "e99822d812ace79883917cfecdf96ae6440ab9a81f40237f438c187896919e11",
+      "to": "72b76af474564aec7d6551d8bebc10579fc0cdf66467153b962cbe926293bdc9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--overview.png",
+      "from": "e7e094ea6c2c9e9c3a83a0cc5de99d16ee9025177d0d7f402b1103543ae80606",
+      "to": "5d9749092b3907448aee34530caa916eabad56f2b3309d2ed24839f950488549",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-flows-and-cuts--stoer-wagner.png",
+      "from": "c86b8a59710e83ae3d4600a06a0f9df386d6ffceffd756797c962ee046fb2b46",
+      "to": "0e2f305781df73ec66fc93a642027e2099070a9878a03696a111db5aacc2ff0d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--auto.png",
+      "from": "7e12bf0bd1fb294c0965e66816ba7758d5a404aafb870514faf22c612ee776be",
+      "to": "d7f5eb4cfe9a0e99ff010fa414c277057eca245894bed65b0d13252d72a5a83a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--csv.png",
+      "from": "a5271fa4256e3294c0b557c0954113fd5c686315b4cd7ab628d9e7cad2c6ede7",
+      "to": "fcfd89e3d155705162da211824792ac6b7faa6c8d3cf5e6cb1aaf2ec84af4fdb",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx-2.png",
+      "from": "f51525b2c256386b526813abbea12c74f31432576c0e2347f175c7467743c25f",
+      "to": "41913aff4f046a38b8879c561ce70dbde29ebabcefd530e788fc3fd0a899b31b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cx.png",
+      "from": "7e82021f8ab9d76cb52bf7a8ed7765f6e35500f07c0a2a25da040993c45ef525",
+      "to": "2a64515343f9ea4bd3cb71b1bcf1af72ce8b5b97d1220a7b17e4cfcb680817f9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--cys.png",
+      "from": "7bdef5078ed9d3d8b22b4b1702bda9a4b5abbaa7e0afbafc7d04061f46285dac",
+      "to": "cf177615085df8fcdccf3843b8a293de4d61e0a98efb5432730e38c1b4f08dba",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--dot.png",
+      "from": "8327ea5ad82e8202e25e448350dce25aef96b3cd511fe5feccac136f66892490",
+      "to": "f0031d164f65a649b08a88e691a859f596bfcc1e58f731e7e57c1c39f8a06443",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--export.png",
+      "from": "491980d7cc22b67ab37e1744077842a38cbce23c7c014b4ae77f8c91ca8bc255",
+      "to": "b3e268388bb16c8e531457cfcc41b8234cefc9e895116dbbcb60266f26346d6c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gexf.png",
+      "from": "a796e27ae13e889010e6e12fc091e00cf8aba0c21040548e5000b9167c295eb6",
+      "to": "b6cb97a86d085b6ff36138adc4866a3f49705bb6a9d2b0af082f929c97a45e80",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--gml.png",
+      "from": "36daf08e528afccdb6c44a58e61d7e6d4ffa996a540ac9d3ad42c8f4b9ddad0c",
+      "to": "9e44505487b80f0e8710cf41f8d0d206f92f207a0e4b03256d99610d9fd42b71",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--graphml.png",
+      "from": "ec1c3b0cf050987378a07f4153b7af0fed3d2116236655e9ff9aa7d5f9d91fcb",
+      "to": "97ea67631e0d67fa4938aec07de953c5bcb9d45384e0d9eb4c47a2e5012fc78e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--json.png",
+      "from": "a1d68ce1a4afd91f2cab38ae158bf047d89689bf19cc6ec1f0d800ef43ba9a4d",
+      "to": "574f2a7eaf984c25fae1f809a0cdc18030931c2092979b780e3a3c96d6695b72",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--neo-4-j.png",
+      "from": "20cb9fbc84964de12951019c3b37a80357bce436b486c07330e888dec1bef704",
+      "to": "0d8845658e958f555f19c6282726c19802b7327d8b9b4528e6912493916cf465",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--obo.png",
+      "from": "e3f366abe0da77a0b101ada7aab2400cc6205fc4ffbe1b8c7f3c471c4afd5a43",
+      "to": "db98641c8a3e0e4be3788f8bf3f5a49097efd26889d8c23379e1263c56f9942e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--overview.png",
+      "from": "7e9f44277955594d46c8a181a62ca7cc21c4c1ed430540bd2541ff5c45c31b98",
+      "to": "72721eedbc9dba2fa1ca8de77a826ec530f946bc00c608d37928f436613a48df",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--pajek.png",
+      "from": "9ed7dd92c7aaee3cce8d331b46f3c8644f6aae8cb08c0ff14aa9b2377430bc86",
+      "to": "69d2bb0561882b0f6bbbf06426423714dcef113a7a4e0346f6a86ad8c5cfdd6a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-formats--xgmml.png",
+      "from": "4be2160cc43052818ed6bdcbc317818439662099ba7e040579f6aaf75d862908",
+      "to": "55dcbefc578214777e6f9f1013d4c2760426905022235950fafd1133399945ac",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ak.png",
+      "from": "b8e1f3236e63c9a084ab69acc0d9515f1ad8a9649b862406bcab4a7a1bb23546",
+      "to": "7d5233d7953492570409698f517d7c843dd045e140538cf1b23de04475dbf72c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--balanced-tree.png",
+      "from": "3e0a381880c2b52fc839107dc8c43a1b6f4d7efa68c36e544f62beff797ee82e",
+      "to": "cfed0f11183c389c1ffd2dcc91802b5c79718837e48970492d9da71f7538774a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--barabasi-albert.png",
+      "from": "6e48022425c159d997fa93dd58307ca87eb373421cd0b48ca8c48ea6dca78ec2",
+      "to": "745ae674a3d9a5e262f670a4b6e05f8ce5aa05dc9576da3e68d39fa307f455a5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--barbell.png",
+      "from": "c6801db1795a477191c49c8d76e0f5a846334cc43316afa3559c6ec72f3b57f2",
+      "to": "8371016b1610a86ae00ac46c8bd6fbca2aeadd006d9514672a70c482d0cfe4b3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--bianconi-barabasi.png",
+      "from": "4d11f610ab779db70fd4b00434c79fdd2bb6eee7ba40c50757614828102b19da",
+      "to": "cdfe8d3a9f1dda3b91bb550ad2f6c1af7b3aad0f5c6e7ca953e9035c4f4e8a8e",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--bipartite-configuration-model.png",
+      "from": "499e5a7bfe9168ae641eeebd3c16f51fa004833d05477129b5e50808a8757dca",
+      "to": "dea9854c39cc54fe96d34cc3b9eaeaeffb91dfad0fdc76547ce63b3cabc167d1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--caveman.png",
+      "from": "2f21fa1b0ca223c58ac0ae5722ea8f6f85e8377ff7b5d3b192eabf38d27a30f6",
+      "to": "06c8a702b4302298e08a88033d3a90560efb7de46fe4c4ed06e13ef663a8eb81",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--chung-lu.png",
+      "from": "8ddbeef6661ae9e892d3dddcd18b11ffaa89a3f044cae73a36129a7fa2aece3b",
+      "to": "3a470a6c80887391f1b843e6ff5ef08765701cf5dbd91a3a115a9392c1b6efaa",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--circular-ladder.png",
+      "from": "43ae4575e9b59c6f2ecb77877f1de164625f039789c60e031cd19fc6d5302bb3",
+      "to": "96316cc131d9c3acbb6ea0a4ecbba394e45340f0be45d26f9a8d58e5fdbf1bee",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete-bipartite.png",
+      "from": "1564847d2c6a053e04409488fcf31deb69a4c96210b8ca52ebdd9d013ca76462",
+      "to": "199b25858eccd0f9e32a83cca2f7df7ac54e8501be9e5349fc831b8e7ad15f30",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete-multipartite.png",
+      "from": "a62908278718d1ec5fc1d7d874675ff15ca629c76fc491f8d23077132e4d4c11",
+      "to": "7d967d91981254b2cac5b5a58559b879f8014c64f756e559193c9b2f043f8740",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--complete.png",
+      "from": "b772dcde9046445043fe394672ad5ed669d4815248d58d0c4804ffb8adbda3ab",
+      "to": "0b98a08d0d2d1e0c83dde1b7c109dd977fd0cc025ee863f9772c270127aef6d4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--configuration-model.png",
+      "from": "a5266eefa1eb4154532c6173aab83b077a631d10ddcb81d8de9703627ac221e7",
+      "to": "4a4737a5a2378c9c9c9151b334f7f8676440d8fe54644faac9bbf373352b88bd",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--connected-caveman.png",
+      "from": "f2632f3337dc20d0483e4b198d9075cacb9c723ccf2edfaeb80c42eba3ebf8c1",
+      "to": "a07efe1485b444972e4cfdc3e74768e8f14afeaa7045bc1ce1dccc8a7907551f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--cycle.png",
+      "from": "35ed039d0b10708f21127c3d6f0c19be7410136e7b0ec11c711114790e3784a3",
+      "to": "56a401955a941fed4376f01a9a573e92da888987a839d8cbcdaec64d41370cd7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--degree-corrected-sbm.png",
+      "from": "4bdd052f10cb18c8ff1e01d1fd675c5c3012ac415894ba1f8c284c96da21dd4b",
+      "to": "c25b29c81cdb5c81615053fc6027abb5cc1472f6bbdd82c9532dd75fcbe44642",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--directed-configuration-model.png",
+      "from": "7be8244842c8c47633b2120dbbf5a8444c2054ea89b2aa05f54cc56e00c84853",
+      "to": "e398c4d368e38417327219e9f9efe8d0746890031c429c52e5c9f8cd9adb1087",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--duplication-divergence.png",
+      "from": "2efd381c81fc0b8f66bb2a4dfcd292bb0742d8c14a2a9ea4ca54bcc77819a67a",
+      "to": "9fa2f63f795ccb01c77f1569ec82bedcfcf53518d0318c0838a4ced127a12e39",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--empty.png",
+      "from": "bd73f578328fda174a350a21d5aede2c86cbff0ee69310225444e74a016a2d7d",
+      "to": "0cf7920cfaf35304a2d4dc76419d57669ca8000d3de8da63d12d41f3ec68c2c1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--erdos-renyi-gnm.png",
+      "from": "8698e03149e44541a3a0974a72b0df4a10d0300a0967585420bcbdb76e3da288",
+      "to": "8bb81b900b1451f5b3a73118063bb96b960270219c5dc4fafb86e0b4e938cec1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--erdos-renyi.png",
+      "from": "48960499c934b363e7f484398d582da13e1dc51a90842c4c64a44d89d626375b",
+      "to": "e245a21ce85dfb5a7ec603a71f5a425ead35e2681ad6ba132f89f9f97ed47719",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--forest-fire.png",
+      "from": "a2a736a89513385c50c277433158d799d0e5fb99789205f58edeb96b12b02dcc",
+      "to": "95684396462ce2be0161980ea2fe0e99614e7c321d4462775eb46ef6b13457b9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--genrmf.png",
+      "from": "0fb6aacce739964a20109150aa0dd23187bcaa57e715ab435de6a3fcdd845443",
+      "to": "4f7a3768904bec046865d46e64de2e24417420d797085f2c72fbea1233459ff0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid-3-d.png",
+      "from": "5951284c0ecdb8cf4eb63236198c40118fde0eadbc328ed406c2f47c9e0b9706",
+      "to": "44182379f84230b18a49fb2837d35c36840f07d866eeac822dd4af96eb0daf37",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid-flow-network.png",
+      "from": "ceac1d7fb964c2e34b4c573c6067a9c136928f54f9ec6f734a56324b18c3c28a",
+      "to": "7a4124eaece9c609625d3fe0f5a92c3ddb97bdd23eaa7d9cc11a5ccf4fbeb838",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--grid.png",
+      "from": "56d34e05bfa59f041869355576384b5147b4d76dfca1eeaf8cfaab021e91d38a",
+      "to": "f9feae1ff8dab3f1f60933dda75546043cdb9745f43d4ab51c7df1e7f1e94334",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hexagonal-lattice.png",
+      "from": "423fa4f3d313fa3b51fbe057e98ff5e68742d7765495be6ae2070c3f916acfe6",
+      "to": "62677d96b5798afaa245b65c42865f1c9266901074af55fc4c1b0f547d7eac46",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hyperbolic.png",
+      "from": "49f1de9726c3c4f165409a840b4fa334ec464aaedd3866d3e542c03e52c67382",
+      "to": "bcd38fa92887385acfb20d4f51360395df8f2e13fb02bca2a5384b99e57284e7",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--hypercube.png",
+      "from": "35878d887d7f0fd2edca55231ac0905993a148730284dfb7df7dc67afa9fa196",
+      "to": "e121b58c5ad5cbbc6a467a2861d6470d0ef9de3dfde3096b6f3f43778d6fff32",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--knn.png",
+      "from": "8f10f125d147aac683eeb663b887eef807b8310cf3cbbe6744846c7c59328c77",
+      "to": "da4c80fc7e8f5d4c18d0e2ff4ee3bee4b890924ebf2a96be67ec4b3927f4d9f8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--kronecker.png",
+      "from": "c11a4658cb8128f9bfa893000ed03d1e99cd1fd172098af17d05e8894a85a708",
+      "to": "d53c843a3ae310957165d93018de536279b432a6ef65fa25e160b318b15d8089",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ladder.png",
+      "from": "a43a7d1436e85b61b90a4bc30a9f05103e60728721a5348093fd721f0a84fb55",
+      "to": "4b00d85cf1a113a7b59a93b7b473895fd6725297751e82a98caff656f188302d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--layered-flow-network.png",
+      "from": "9197b7bf3ef08e357fb5e9de27bab805a77fa636996756d1644af0b4b59f3810",
+      "to": "b8cbe4d1380c8ca5e1abb147677f450248310305ba807754e1e8dfeb1e581670",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--lfr.png",
+      "from": "939ed7a2ba09669a3cccfbf5ded6966b6049380162871acecd46d6a80bedf406",
+      "to": "38bce97e42c8dc0c6622082135ff30ce89cf8475741acfa76a92f7f45b52f1c5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--lollipop.png",
+      "from": "f62afd7e12696a8a2a00feeb3bd62dd7067513938db68adc8bc76e19a1232101",
+      "to": "bb9d08a4333fa279a399710070f7a8177387a95b8ba22f591d90f9be2d1a8660",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--mobius-ladder.png",
+      "from": "073a2c7aa6c40e096d0aff032223228cd44832323bb275a19340f4cbb606ff2a",
+      "to": "d48566ac21067821174bf15643794ecd39b365982a6fa0d80280335a50882c58",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--named.png",
+      "from": "0f1811fd823ac156fcc022fac78dc718b28cf2a54f663e7b211a86a2603064cf",
+      "to": "652b7d54f573032514c8af94b299a20a53a655803b4bf48897fb83fc600ca34c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--newman-watts.png",
+      "from": "615a517a96004a9e98214f231af71a10f9e9dfc53e2b24fda97a689af9b4e0db",
+      "to": "8890a7253e4da45c560f75f262940eff96a440b9ead70968d89dd2b8d2337185",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--overview.png",
+      "from": "a70a6542c8c74a269267a6ec525cc97461cacdc864d005b7a42ec0c8b8526222",
+      "to": "fdfbd36fc17616c084f2cd7f60ce8ca590251e331fe48f3a5edcc586af5112fe",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--path.png",
+      "from": "36c8f6c24dc5aa21518aaa88beae690c899deca1e2fd90ac140a240fed6df79f",
+      "to": "d0216e848649b4f38db48e61a747315bb8ed93d5f01fe41fdbba436f55c5a398",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--petersen.png",
+      "from": "96802e3aaf049b5d22f28c6896245135a2bd54a5660d6daba641ab0a2c321473",
+      "to": "dd149854d2143ba80a9c3bb30f39c7ea5a44f3309a406a03b0e0c6585654ef05",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--planted-partition.png",
+      "from": "7ea16e6997bbcfe12f52959c423991e145553e8152569bebb4e37e51f28b0393",
+      "to": "d047c7cbbcc2062fb4359a975e3bba1b6d4ee2b1694247773630a75827da8f17",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--price.png",
+      "from": "4ef49deb2308711c60afbc46f5417c06369da1cf17ea9874fe4cbd3e9111fe88",
+      "to": "53c335616fbda74afa7bf904312e60070d2e0de2ce92013fa718249ed4262589",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-apollonian.png",
+      "from": "8a7fd6a055eb880508d34fa394dd31d744ca6d62158f28204c4e6a610ed497a1",
+      "to": "c1eab89f9032f7807ae4ca29de25fe52e9a12d1bcfc21316abf87a5b0b2ec8c4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-bipartite.png",
+      "from": "9c4262a54b798c3bee5c9f89df9afee2441eb1cfeeb111a1a9fadbd3145966f2",
+      "to": "b23f5953177910cf193360c53e66aa4ad5a2dd43430e9d381b2d0a7de61ba88c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-dag.png",
+      "from": "88f19b802da2985b98f696f871a6f2d3b479b70df00f4fac01b53d387a76e7e3",
+      "to": "b7e34fb42c1d04f0bee8b366b2d53f8b8294aed75cfe951bcb17e77b50516355",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-geometric.png",
+      "from": "21389120e47cb09db8cdc18c09af6341e3f3a359faf4d311dea6beff1c3b18c7",
+      "to": "3bac4d3b52584cdd2e5b4d68f067e67c4df3d35a44a075268e7e34823fac25dd",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-order-dag.png",
+      "from": "5bdb90bac1a38976cdd24205047a421ef7c5aca5638aa5ecc4042ae938b81b07",
+      "to": "9ec03257907b27082512a335529c0fe84ab8cd3ea2f54ec26280b1100e301a7b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-recursive-tree.png",
+      "from": "5e9ac8037981acd03abee4750d980895337533899e6d6887b9b9ed0afcb64268",
+      "to": "3302d2d2054edd0768d578116775954722ca8c378cb5be2f00bdc9d85818d36a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-regular.png",
+      "from": "75ff6f0682309379afb179796d1a8369dc06915ebce442f33675c4c00f252344",
+      "to": "01214959c6ea0cad4836dfc3e303005bcca4d186bcd2c9f693eea82875c51ff5",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--random-tree.png",
+      "from": "3a6fd2092ebcc41d29e05477925bf945659cca0d3872ee55ad8b086f6dfac8b0",
+      "to": "040a7849cfd608640da4800b037dc1b73156ad1fbf5e4c317965ed33df9c21d2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--ring-of-cliques.png",
+      "from": "9e40795079895eae8773ce3cf2820c90f8bd9500d46a3c9d75c24b405fe396ed",
+      "to": "fb0fc07f763489aef7a182f36ce18ba57f761e692296e39df1e8db645dbbef03",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--rmat.png",
+      "from": "42454d88dec342cb66e504394b6783a4a370536a5af837d612f6a5a9df914217",
+      "to": "7ef4de1a68314c809c7a606cbe605894936291d2da9b4afb3f6540c1ea25b72a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--star.png",
+      "from": "bfd188ebbef38431d8d109e7c5850c7b402d64c845f1b336d559ace0c049ee54",
+      "to": "ffb9fd9cd6f67406a863a7d97121ccef97038adbf3586fcfe2fb55ed1820c220",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--stochastic-block-model.png",
+      "from": "cfa41bab1906bddd1644dc73525dbde3dc207dfe34dff48793f37a732fe4c878",
+      "to": "190dba3187cd6beafdeb44e643d9959fbd8f2c1d94b992071a2db6b97c1e6886",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--triangular-lattice.png",
+      "from": "f601f138c21efae22cd646b9bfb2b2660569c01936953b122b1c963959b77cfc",
+      "to": "41eefc62b51b60e12b415406a29a5973a34e42946ba8ae6772ba2a56313f7a3b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--watts-strogatz.png",
+      "from": "7c85ccecbe087a17c52701c19390c8522f3eb35673a090679ff75839d320f86e",
+      "to": "734a7bbd07b35701c65bb68af7c43a45b066b418944a223a909c1e66c1f8e789",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--waxman.png",
+      "from": "586af6044aaea9d47951a49529ada7384db1167de0d4989c2f099bdc2f0abf5e",
+      "to": "6804bc233c4af6f67e39dd4841c980c6418edecd7f8a059febb77b62101d05ea",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--wheel.png",
+      "from": "07219d5d1d255cb31de3e9e66894b3f8049b99ea8033bf7720ab788230edc1fb",
+      "to": "6ae45cac715f5768051bcc37d2884d75566a7094a0d4a036cfc994e493918eb1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-generators--wilson-maze.png",
+      "from": "58a7e2dfa00b0a75c594121259c92ffa4b2fbbbefc70a7ea555ba269b7e13192",
+      "to": "aeabf2df39e0381efc7ae626f89cc1c1de846a2cc2ebe7e1086d88d89ecdf7c9",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--arf.png",
+      "from": "42022cf1d62a8550fcb17c7b33d287f238b0a6d4d49a3bc97f9bb066c1fde1ab",
+      "to": "0e536ac5fa8d66547d367e160d7d1f0c7eddbbe9cfaa55d4538ee64b28275185",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--bipartite.png",
+      "from": "c275283b5babbcca93f48023fcc93a8d47e965356bdc134c9406f9684f3ee28e",
+      "to": "a8ad14bf1d80e8f221fae1fa03ff7cef299c0fbb6e96c452c408f11e4ab4569a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--circular.png",
+      "from": "e8b0c56d3892233649a05ffbc9e82179e5b625492ab2a39ac34077d057bced3b",
+      "to": "1577e2706f0ad62ce6d9a81540906b8414bdf1410748e7c85cb43decbbfa7a7b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--force-atlas-2.png",
+      "from": "6f83bfb6cb053071fc0b5d8725f056c31c89a083a3aa33de28f32c8b16cc928b",
+      "to": "5f5025e81f4320add6c932b121eb39b99635eec63ca9f33bbd12b616736f1093",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--fruchterman-reingold.png",
+      "from": "59ed744d1f47403d4764dc1aae32639f78627c698e1f1114bc5d44af6a0150b5",
+      "to": "23fd0f744d27c8379a25176f0ebae76817275c96699b107fa1706de61aa53863",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--grid.png",
+      "from": "bd0b249acd8e16f010910043911770c07f83ffde6bb974bb7844e67941071f3a",
+      "to": "a21bcf6d18d1e1aa2bab4161d7eb9b6dc42772f712a83c5cc315fca71604aa0f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--kamada-kawai.png",
+      "from": "e8ac35d78c02a202adb94c6913f343480ce2cee5b5d12c64a637c31a0a5a182e",
+      "to": "f26ae39ed9e684471f610cb9a1350bb52938db4a6ab25e68e87cc7c8ec7207d1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--multipartite.png",
+      "from": "1b418049afca9c190af0e1902636ea173c297940244b15e0d5562c5b58106f03",
+      "to": "f6a97bed87ede112decd41647df84e73c20cc6dfd13d2c81416a6b92405ca096",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--planar.png",
+      "from": "d32a7d01dd4b469ff7f8bab834f9c64764b38acd973e10bac4b995cb45687116",
+      "to": "d3acd6e381f71d96edd9fa3c6318bda52d4e8ae23bb435e7eee3455e176f059b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--radial.png",
+      "from": "898801cdb652c7a533a41aae68445445b259046e9f77f3eea388a067ed69629d",
+      "to": "788833ed1b23900d79a78aa562bab6e81c0f4c8524ee954bde98dae35415f771",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--random.png",
+      "from": "0d73496ab6045a8a5d5c62865f07a03ef697900207040f2e0029e12d5e8936fa",
+      "to": "fba56188ed6098a55511a4ef10998f5f99dd465a37cb6e60752cb80f7398d19b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--shell.png",
+      "from": "a7b630bcdf3cb7ae8472528f1f44bdfe836111e0ebc2cb52756cf5bbbbd6f69e",
+      "to": "4ab562cbaf919458c807dfc34b2d76af458fbb277f743befd45779b1df89360a",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-layouts--spring-electrical.png",
+      "from": "93c5725200074e465785763ab36dbe05cc33a02f2d972d9a5f1c5196d020c554",
+      "to": "2c8db52360e23d8c926e8472a1bd5944a1554dece746d62a131b8aa8d82ebc3f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-for-pairs.png",
+      "from": "24ec0c243324bee341858acb05d9f74a8780769f56e88d66e605bfca1ce85b80",
+      "to": "f251ea0de836adfd9a68f12e3eee8cb52443dc8fd707d67ca633ea9938af764c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-prediction.png",
+      "from": "45b2d17432b64b95ca176e3ab3059623628c11ad2d1d016332b6b40261fb4af4",
+      "to": "ca4753b69e9fe81b71423697342a865b149d6c93e5bcba968197f64ec8dfbbd2",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--adamic-adar-score.png",
+      "from": "51f0b39305b8cc0dd4cc37a7b0df668b59f68193fc96728d3b39a11391b734a8",
+      "to": "93342a821e9ad438e4568273b72d37f785e44ec5999ba2050c0b6d36a3d3372c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-for-pairs.png",
+      "from": "deb4c9a48af42fbcf2ff702706ebaaeba44497b99020da46d28f4e17912bc6f3",
+      "to": "bd24cd1792496b144484b04ca058e039cd463462bc3d6c81c1c4d760b320b1b1",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-prediction.png",
+      "from": "c7e344b93967430c95aba1f656b6cc10121bbb5ee35118c106bf815f5d6d1467",
+      "to": "f0fea08c442e517e111738821e6a68322aeb08ffea0a613a30396c76181a4707",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--common-neighbors-score.png",
+      "from": "fda5c9f261775e60ff29835447ca9efd09e745887e9fb775efa7df7592919e03",
+      "to": "a4dab2e31ce88d39df040613cdbb35bb0d01a1706d7b32b2bf048e2fcca96da3",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--compare-adamic-adar-with-common-neighbors.png",
+      "from": "97c1c468914c9eb2b1ab85da0a92ea69aa92206fd237d655c8776e5564ca78ee",
+      "to": "7f76d37b859aa6d6a71bda11357065b904c7724020ca257eac844ab13601222b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--evaluate-adamic-adar.png",
+      "from": "fb96ef3aa713a70a24a9a07d37b6b6da6cfe18e62445cf1f134a31e761b61ad8",
+      "to": "f1667cc15fdf6bda5a0426e228dadb991925bec7a2905d3c08b34c3dcb7e6e78",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--evaluate-common-neighbors.png",
+      "from": "d343d02e92fb570a0d4778a9d9e30bdbf394d5fa119d387a1e9cc2b2481e4b58",
+      "to": "c7c94fcd8484e54b87cc52ba6409dc0c07d88d01175f31de790fdd6832fd6577",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--overview.png",
+      "from": "8c3cb536985b94e0d4965763d48d4d20573e449280f3eb8a264735b6da3ae46d",
+      "to": "6043332f2f6497358e17daa877b5fdd0232effd7f846754eb17a4d99510af7d0",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--top-adamic-adar-candidates-for-node.png",
+      "from": "11596413972e70eeec1d6f2eab983cc4ddfb56ba4f92930584bd45f27e51059d",
+      "to": "8051edc2316a463e18429b3cff035017cd99a5fef552262e0df3aa7e2122eab4",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-link-prediction--top-candidates-for-node.png",
+      "from": "ddecaa1f402e30eeb7526d0472024595e1dcbd30ba6639c13dc5deebbfab27e7",
+      "to": "26420f2bd57a2d729859e754aa8de7b90681a87fd194440806f75591d0a2b379",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--a-star.png",
+      "from": "96b9428226cf387990d2a3955f99c11e57f44fa472d00e29104cb2d8b04029cc",
+      "to": "be5624308a49ff2f335bd129b72e63467182ec26be495641b0ef1dd23a97993c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--all-pairs-shortest-path.png",
+      "from": "ce5dc345197759239d95660b361cb240ff1a27f3426863c060ac59ba221419f1",
+      "to": "e0f73c9e2fc862a62f93e3ed114ac2d5c3190296fb2f0557cb2c1b52524fa22b",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--bellman-ford.png",
+      "from": "800c5bbe4affd9733c518aedfc02d6bb3e7b141ea2577cd8760abaa28087aa8b",
+      "to": "1ad6835775650ded7f4b5cac5e67bcf5cc23b69d28c2e1d34398208f19ed803d",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--bidirectional-dijkstra.png",
+      "from": "dacd6179698521145c46b15d6f5b99e8e39352d81dccdf900a66453cb186207e",
+      "to": "249d7ccf2286b93f97a5a4d10d9724eb890c1d50deae11bdea5ab2e7d3e95e7c",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-paths-and-trees--dijkstra.png",
+      "from": "d2d5d31c3e9b67b7e05b113e7bba67eec87d2ba53e832c49f912d40766f3e24a",
+      "to": "ff5b0cb66d15af800b5fdd0ec4f0aab44186eb08729a73fa528c149ae93ca173",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--condensation.png",
+      "from": "1ac5acf5d8cac326b1b127b6e2c1c3490bb5887aef7d766d252529bea5129c88",
+      "to": "773aa67873c87920abe1c668702d8e69baa437191509699b62d0168eacc86bea",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--find-all-isomorphisms.png",
+      "from": "65a8946201f589536412ef1acccc011a8bea8ba06a28e2216fe44ecab367a6c8",
+      "to": "6379802503f0c57f7ce3c91f38626b7feff2d9d07c7dc4899f90d7bd853474b8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--greedy-bipartite-matching.png",
+      "from": "ca55f2000f360a936fd711b7b3357fcf9669ad923fe9d8e8c4897a9822b1a8f0",
+      "to": "473598cd0879457e23ab360dbd492bdb8079667bf9f0b33d52a1b1defe4b2486",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--is-bipartite.png",
+      "from": "8c63803c591135f146582be682f7a362fc201e35a2793e9e1fe4eaa92ebc4d95",
+      "to": "470622778c9a84ebd560bf42ede9b0eae1e3458b2c4b9043935de92859df8056",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--is-graph-isomorphic.png",
+      "from": "85daa201cf00f09a07c19a12b1d6d602c8f4f785b1bb9b3db0679ca608e34d14",
+      "to": "aa246d35c04fb672ead8ac4e1d6ec89a960b6daed782409cdc7e7e01340ea566",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--maximum-bipartite-matching.png",
+      "from": "a6c4bf195b2928f06a93001f6abe938f22fe14c55e894f8efdf135b4dafeb9c9",
+      "to": "1e517bf5c308c162940e837760d992453ee293fe9706743587c21ec1eb9f672f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--strongly-connected-components.png",
+      "from": "0730f560bb98a0c6f2b0db57974e2761ae770022db15b2fde21ccd9546faad21",
+      "to": "f5b22a47d7b79b558d67bf3e9dc09c3e471984355475e9efe54abc6f5b1e218f",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--topological-sort.png",
+      "from": "376b64b4071bb26b2878263068fabe5a6938499117fa3ddebbb3dfcaa7f482df",
+      "to": "ebc00de5d5a69b0e2100205ca2c89cb8b3dffa2cb98b4b8ae0ba7497e3e001c8",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    },
+    {
+      "path": "visual-baselines/cytoscape-extensions/gallery-structure--weakly-connected-components.png",
+      "from": "6b2aebb4a4df661eee40de8ab1426c34fffea82e89c9867b393d6cc9c4a068c1",
+      "to": "0f53bc903416b6e447acbb9faad8281f9eae3c5f0542eb395f4d728c65377d53",
+      "reason": null,
+      "approvedBefore": {
+        "pr": 2108,
+        "commit": "8c96a28cb069c1dadda848c296e85e15342ecebd",
+        "record": "visual-baselines/reviews/20261012T055120Z-pr2108.json",
+        "reviewedAt": "2026-10-12T05:51:20.095Z"
+      }
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-14T00:04:48.664Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoib295aktuZk0wcHVsXzZGMWNEUTlxRURMakRuQkQtVjdVa1JWRTJNSWhzMCIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEUCIQCt3SSPMVZU-iPwD4-sKyMJfpxT29PPfTh0_wZi8CqoTQIgBn719kvKPEXTRWXGu38K8AFR4HN_kECo_ni0BempcFY"
+  }
+}

@@ -106,7 +106,8 @@ const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["square", "square"],
     ["delta_short_1", "triangle"],
     ["delta_short_2", "triangle"],
-    ["arrow_short", "vee"],
+    // a short arrow whose notch is too shallow to show: drawn as the triangle it reads as
+    ["arrow_short", "triangle"],
     ["diamond_short_1", "diamond"],
     ["diamond_short_2", "diamond"],
     ["open_delta", "triangle-open"],

@@ -323,8 +323,15 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // getArrowWidth, and the triangle's points at +-0.15, -0.3 of it
                     length: (size, width) => 0.3 * Math.max((width * 13.37) ** 0.9, 29) * size,
                     aspect: 1,
-                    // a tee is 0.1 of the arrow width deep, the triangle 0.3 long
-                    shapes: { tee: { length: 1 / 3, aspect: 3 } },
+                    // a tee is 0.1 of the arrow width deep, the triangle 0.3 long; triangle-tee reaches back to its bar
+                    // at 0.5, circle-triangle to 0.6 and triangle-cross to its cross line at 0.4 plus the line's width
+                    shapes: {
+                        tee: { length: 1 / 3, aspect: 3 },
+                        "other:triangle-tee": { length: 5 / 3, aspect: 0.6 },
+                        "other:triangle-cross": { length: 1.5, aspect: 0.66 },
+                        "other:circle-triangle": { length: 2, aspect: 0.5 },
+                        "other:chevron": { length: 2 / 3, aspect: 1.5 },
+                    },
                     source: `${CYJS} 23497 (getArrowWidth), 22714-22716 (triangle), 22813-22814 (tee), 22627 (arrowShapeWidth)`,
                 },
                 node: {
@@ -337,6 +344,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     borderWidth: v(0, `${CYJS} 18557`),
                     borderStyle: v("solid", `${CYJS} 18558`),
                     borderPosition: v("center", `${CYJS} 18563`),
+                    outerBorderColor: v("#999999", `${CYJS} 18564`),
                     opacity: v(1, `${CYJS} 18503`),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
@@ -351,6 +359,13 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     color: v("#999999", `${CYJS} 18639`),
                     sourceArrowColor: v("#999999", `${CYJS} 18639`),
                     targetArrowColor: v("#999999", `${CYJS} 18639`),
+                    outlineColor: v("#000000", `${CYJS} 18644`),
+                    gradientKind: v("none", `${CYJS} 18640 (line-fill solid)`),
+                    midSourceArrowColor: v("#999999", `${CYJS} 18639`),
+                    midTargetArrowColor: v("#999999", `${CYJS} 18639`),
+                    // a source or target label is centered on the line where it leaves its node, unless offset
+                    sourceLabelOffset: v(0, `${CYJS} 18511, 18515`),
+                    targetLabelOffset: v(0, `${CYJS} 18511, 18515`),
                     width: v(3, `${CYJS} 18711`),
                     lineStyle: v("solid", `${CYJS} 18638`),
                     opacity: v(1, `${CYJS} 18503`),
@@ -567,9 +582,15 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3
                     length: (size, width) => 15 * size + 3 * width,
                     aspect: 0.6,
-                    // its bar is 0.15 of the arrow's length deep and as wide as the arrow is long
-                    shapes: { tee: { length: 0.15, aspect: 1 / 0.15 } },
-                    source: `${VIS} EdgeBase.getArrowData, ArrowHead, Bar (measured on json-vis-unix, json-vis-world, json-vis-synth)`,
+                    // its bar is 0.15 of the arrow's length deep and as wide as the arrow is long; its box is 0.6 of the
+                    // length square, and its curve and inv_curve arcs have a radius of 0.4 of it
+                    shapes: {
+                        tee: { length: 0.15, aspect: 1 / 0.15 },
+                        square: { length: 0.6, aspect: 1 },
+                        "other:curve": { length: 0.4, aspect: 2 },
+                        "other:inv-curve": { length: 0.4, aspect: 2 },
+                    },
+                    source: `${VIS} EdgeBase.getArrowData, ArrowHead, Bar, Box, Curve, InvertedCurve (measured on json-vis-unix, json-vis-world, json-vis-synth)`,
                 },
                 nodeBorderOnScreen: v(
                     true,
@@ -589,6 +610,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 edge: {
                     width: v(1, `${VIS} lines 25160-25290`),
+                    outlineColor: v("#6f6f6f", `${VIS} lines 25160-25290 (background.color)`),
                     lineStyle: v("solid", `${VIS} lines 25160-25290 (dashes false)`),
                     sourceArrow: v("none", `${VIS} lines 25160-25290`),
                     targetArrow: v("none", `${VIS} lines 25160-25290`),

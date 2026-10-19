@@ -688,6 +688,8 @@ interface VisLayer {
     edgeColor?: unknown;
     edgeOpacity?: unknown;
     inherit?: unknown;
+    background?: unknown;
+    smooth?: unknown;
 }
 
 /**
@@ -774,6 +776,8 @@ function visEdgeLayer(o: Record<string, unknown>, set: SetLayer): void {
     }
     set("dashes", o.dashes);
     set("arrows", o.arrows);
+    set("background", o.background);
+    set("smooth", o.smooth);
 }
 
 /**
@@ -830,6 +834,19 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
     } else {
         color("color", "opacity", layer.edgeColor);
         visEdgeValues(layer, put, site);
+        // the background: a band `size` wide under the line, its outline beyond the line. vis-network draws it only
+        // under a smooth (bezier) edge (BezierEdgeBase._bezierCurve calls drawBackground; StraightEdge never does).
+        // ponytail: `smooth` is read from this layer alone, else vis-network's default (smooth)
+        if (isJsonObject(layer.background)) {
+            const bg = layer.background;
+            const straight = layer.smooth === false || (isJsonObject(layer.smooth) && layer.smooth.enabled === false);
+            color("outlineColor", "outlineOpacity", bg.color);
+            if (bg.enabled !== undefined) {
+                const size = typeof bg.size === "number" ? bg.size : 10;
+                const width = typeof layer.width === "number" ? layer.width : 1;
+                put("outlineWidth", bg.enabled === true && !straight ? Math.max(0, size - width) : 0);
+            }
+        }
     }
     if (layer.hidden !== undefined && canonBoolean(layer.hidden, site("visible")) === true) {
         put("visible", false);
@@ -899,15 +916,16 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         put("lineStyle", layer.dashes === false || layer.dashes === "false" ? "solid" : "dashed");
     }
     if (layer.arrows !== undefined) {
-        const [to, from] = visArrows(layer.arrows, site);
+        const [to, from, middle] = visArrows(layer.arrows, site);
         put("targetArrow", to);
         put("sourceArrow", from);
-        // One neutral size for both ends: the target's scaleFactor, else the source's.
+        put("midTargetArrow", middle);
+        // One neutral size for every end: the target's scaleFactor, else the source's, else the middle's.
         const scaled = (name: string): unknown => {
             const a = isJsonObject(layer.arrows) ? layer.arrows[name] : undefined;
             return isJsonObject(a) ? a.scaleFactor : undefined;
         };
-        const scale = scaled("to") ?? scaled("from");
+        const scale = scaled("to") ?? scaled("from") ?? scaled("middle");
         if (scale !== undefined) {
             put("arrowSize", canonNumber(scale, site("arrowSize")));
         }
@@ -915,15 +933,20 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
 }
 
 /**
- * vis.js `arrows` as the target and source arrows: `"to"`, `"to, from"`, or `{ to: true | { enabled, type } }`.
+ * vis.js `arrows` as the target, source and middle arrows: `"to"`, `"to, from"`, `"middle"`, or
+ * `{ to: true | { enabled, type } }`. The middle one points toward the target.
  * @param arrows - the value
  * @param site - where it is read
- * @returns the target arrow and the source arrow
+ * @returns the target arrow, the source arrow and the middle arrow
  */
-function visArrows(arrows: unknown, site: (property: string) => CanonSite): [string | null, string | null] {
-    const end = (name: string, property: string): string | null => {
+function visArrows(
+    arrows: unknown,
+    site: (property: string) => CanonSite,
+): [string | null, string | null, string | null] {
+    // a middle arrow the file does not mention is no rule at all, so a file that names only its ends carries none
+    const end = (name: string, property: string, absent: "none" | null = "none"): string | null => {
         if (typeof arrows === "string") {
-            return new RegExp(String.raw`\b${name}\b`).test(arrows.slice(0, 256)) ? "triangle" : "none";
+            return new RegExp(String.raw`\b${name}\b`).test(arrows.slice(0, 256)) ? "triangle" : absent;
         }
         if (!isJsonObject(arrows)) {
             return null;
@@ -932,12 +955,15 @@ function visArrows(arrows: unknown, site: (property: string) => CanonSite): [str
         if (a === true) {
             return "triangle";
         }
+        if (a === undefined) {
+            return absent;
+        }
         if (!isJsonObject(a) || a.enabled === false) {
             return "none";
         }
         return canonEnum("arrow", a.type ?? "arrow", "vis", site(property));
     };
-    return [end("to", "targetArrow"), end("from", "sourceArrow")];
+    return [end("to", "targetArrow"), end("from", "sourceArrow"), end("middle", "midTargetArrow", null)];
 }
 
 /**
@@ -1334,7 +1360,7 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "widthConstraint",
         "heightConstraint",
     ],
-    edge: ["color", "width", "value", "scaling", "dashes", "arrows", "hidden", "label", "title", "font"],
+    edge: ["color", "width", "value", "scaling", "dashes", "arrows", "hidden", "label", "title", "font", "background"],
 };
 
 /**

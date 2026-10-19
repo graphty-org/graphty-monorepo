@@ -15,6 +15,7 @@
  *   property to its Cytoscape.js default, whatever the rules beneath say.
  */
 
+import { canonColor } from "../canon/color.js";
 import { CSS_COLORS } from "../canon/color-tables.js";
 import { canonEnum } from "../canon/enums.js";
 import { num6 } from "../canon/number.js";
@@ -256,6 +257,47 @@ export function cyjsPolygonShapes(values: Record<string, unknown>): void {
     }
 }
 
+/** How Cytoscape.js's `line-fill` paints a line, as the neutral gradient kind. */
+const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
+    ["solid", "none"],
+    ["linear-gradient", "linear"],
+    ["radial-gradient", "radial"],
+]);
+
+/**
+ * Cytoscape.js's `line-gradient-stop-colors` (colors separated by spaces) as `#rrggbb` colors separated by spaces.
+ * @param text - the value
+ * @param site - where it was read
+ * @returns the colors, or undefined when one does not parse (noted)
+ */
+function gradientColors(text: string, site: CanonSite): string | undefined {
+    const hexes: string[] = [];
+    for (const token of text.trim().split(/\s+(?![^(]*\))/)) {
+        const c = token === "" ? null : canonColor(token, "css", site);
+        if (c === null) {
+            return undefined;
+        }
+        hexes.push(c.color);
+    }
+    return hexes.join(" ");
+}
+
+/**
+ * Cytoscape.js's `line-gradient-stop-positions` (percentages or fractions separated by spaces) as fractions.
+ * @param text - the value
+ * @returns the fractions separated by spaces, or undefined when one is not a number
+ */
+function gradientStops(text: string): string | undefined {
+    const stops = text
+        .trim()
+        .split(/\s+/)
+        .map((t) => (t.endsWith("%") ? Number.parseFloat(t) / 100 : Number.parseFloat(t)));
+    return stops.every((n) => Number.isFinite(n)) ? stops.map((n) => num6(n)).join(" ") : undefined;
+}
+
+/** The lengths Cytoscape.js draws at half their value: a bundle's control point step, an outline's offset. */
+const HALVED: ReadonlySet<string> = new Set(["fanSpacing", "outerBorderOffset"]);
+
 /** The node properties graph-io carries, by Cytoscape.js name. */
 export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new Map<string, CyjsPropertySpec>([
     ["background-color", { property: "fill", type: "color" }],
@@ -264,6 +306,11 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["border-opacity", { property: "borderOpacity", type: "zeroOne" }],
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
+    ["outline-color", { property: "outerBorderColor", type: "color" }],
+    ["outline-opacity", { property: "outerBorderOpacity", type: "zeroOne" }],
+    ["outline-width", { property: "outerBorderWidth", type: "size" }],
+    ["outline-style", { property: "outerBorderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
+    ["outline-offset", { property: "outerBorderOffset", type: "size" }],
     ["shape", { property: "shape", type: "enum", enums: NODE_SHAPES }],
     ["shape-polygon-points", { property: "shapePoints", type: "text" }],
     ["corner-radius", { property: "cornerRadius", type: "size" }],
@@ -287,16 +334,27 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["line-color", { property: "color", type: "color" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["line-style", { property: "lineStyle", type: "enum", enums: ["solid", "dotted", "dashed"] }],
+    ["line-outline-width", { property: "outlineWidth", type: "size" }],
+    ["line-fill", { property: "gradientKind", type: "enum", enums: ["solid", "linear-gradient", "radial-gradient"] }],
+    ["line-gradient-stop-colors", { property: "gradientColors", type: "text" }],
+    ["line-gradient-stop-positions", { property: "gradientStops", type: "text" }],
+    ["line-outline-color", { property: "outlineColor", type: "color" }],
     ["target-arrow-shape", { property: "targetArrow", type: "enum", enums: ARROWS }],
     ["source-arrow-shape", { property: "sourceArrow", type: "enum", enums: ARROWS }],
     ["target-arrow-color", { property: "targetArrowColor", type: "color" }],
     ["source-arrow-color", { property: "sourceArrowColor", type: "color" }],
+    ["mid-target-arrow-shape", { property: "midTargetArrow", type: "enum", enums: ARROWS }],
+    ["mid-source-arrow-shape", { property: "midSourceArrow", type: "enum", enums: ARROWS }],
+    ["mid-target-arrow-color", { property: "midTargetArrowColor", type: "color" }],
+    ["mid-source-arrow-color", { property: "midSourceArrowColor", type: "color" }],
     ["curve-style", { property: "curved", type: "enum", enums: CURVES }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],
     ["source-label", { property: "sourceLabel", type: "text" }],
     ["target-label", { property: "targetLabel", type: "text" }],
+    ["source-text-offset", { property: "sourceLabelOffset", type: "size" }],
+    ["target-text-offset", { property: "targetLabelOffset", type: "size" }],
     ...LABEL,
 ]);
 
@@ -932,8 +990,9 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
             return `#${v.rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
         }
         case "number":
-            // Cytoscape.js steps a bundle's control points; a quadratic's middle is half as far out
-            return num6((spec.property === "fanSpacing" ? v.value / 2 : v.value) * (v.units === "em" ? EM_PX : 1));
+            // Cytoscape.js steps a bundle's control points; a quadratic's middle is half as far out. It grows the
+            // outline's path by its offset across, so the outline starts half the offset out (drawOutline).
+            return num6((HALVED.has(spec.property) ? v.value / 2 : v.value) * (v.units === "em" ? EM_PX : 1));
         default:
             break;
     }
@@ -948,6 +1007,12 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "targetLabel":
         case "labelFont":
             return String(word);
+        case "gradientKind":
+            return GRADIENT_KINDS.get(String(word)) ?? undefined;
+        case "gradientColors":
+            return gradientColors(String(word), site);
+        case "gradientStops":
+            return gradientStops(String(word));
         case "labelItalic":
             return word === "italic" || word === "oblique";
         case "curved":
@@ -965,11 +1030,14 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
                 : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
         }
         case "borderStyle":
+        case "outerBorderStyle":
             return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "lineStyle":
             return canonEnum("lineStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "sourceArrow":
         case "targetArrow":
+        case "midSourceArrow":
+        case "midTargetArrow":
             return canonEnum("arrow", String(word), "cytoscape-js", site) ?? undefined;
         case "labelWeight":
             return canonEnum("weight", String(word), "cytoscape-js", site) ?? undefined;

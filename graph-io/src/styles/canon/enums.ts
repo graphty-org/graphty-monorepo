@@ -183,11 +183,31 @@ const VIS: Partial<Record<StyleEnumKind, Aliases>> = {
         triangle: ["triangledown"],
         none: ["text"],
     },
-    arrow: { inverted: ["inv-triangle"], square: ["box"] },
+    // curve and inv_curve: an arc at the end, bulging toward the node and away from it
+    arrow: { inverted: ["inv-triangle"], square: ["box"], "other:curve": ["curve"], "other:inv-curve": ["inv-curve"] },
+};
+
+/**
+ * Cytoscape.js's compound arrows (https://js.cytoscape.org/#style/edge-arrow): a triangle with a bar behind it, with a
+ * thin bar across the line behind it, a dot with a triangle behind it and its short chevron each keep their own name;
+ * its triangle-backcurve is a triangle whose back is hollowed out, which is how a vee is drawn.
+ */
+const CYJS: Partial<Record<StyleEnumKind, Aliases>> = {
+    arrow: {
+        "other:triangle-tee": ["triangle-tee"],
+        "other:triangle-cross": ["triangle-cross"],
+        "other:circle-triangle": ["circle-triangle"],
+        // a vee two thirds as long as its triangle (0.2 of the arrow width against 0.3)
+        "other:chevron": ["chevron"],
+        vee: ["triangle-backcurve"],
+    },
 };
 
 /** Per-dialect overrides; a dialect not listed reads the common table alone. */
-const OVERRIDES: ReadonlyMap<string, Partial<Record<StyleEnumKind, Aliases>>> = new Map([["vis", VIS]]);
+const OVERRIDES: ReadonlyMap<string, Partial<Record<StyleEnumKind, Aliases>>> = new Map([
+    ["vis", VIS],
+    ["cytoscape-js", CYJS],
+]);
 
 const OPEN: ReadonlySet<StyleEnumKind> = new Set<StyleEnumKind>(["shape", "borderStyle", "lineStyle", "arrow"]);
 

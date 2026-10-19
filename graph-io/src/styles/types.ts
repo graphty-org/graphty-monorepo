@@ -194,6 +194,19 @@ export interface NodeStyleValues {
     readonly borderStyle: StyleBorderStyle;
     /** Where the border sits against the node's width and height. */
     readonly borderPosition: StyleBorderPosition;
+    /** A second ring's color, drawn outside the border (Cytoscape.js `outline-color`). */
+    readonly outerBorderColor: StyleColor;
+    /** That ring's width (a length; Cytoscape.js `outline-width`); 0 or absent draws none. */
+    readonly outerBorderWidth: number;
+    /** That ring's opacity, 0..1. */
+    readonly outerBorderOpacity: number;
+    /** That ring's line style. */
+    readonly outerBorderStyle: StyleBorderStyle;
+    /**
+     * How far beyond the border's outer edge that ring starts (a length). Cytoscape.js draws its outline half its
+     * `outline-offset` out, so that is what is read.
+     */
+    readonly outerBorderOffset: number;
     /** The label text, as the tool draws it. */
     readonly label: string;
     /** The tooltip text. */
@@ -246,6 +259,27 @@ export interface EdgeStyleValues {
     readonly labelColor: StyleColor;
     /** The opacity of the whole edge, 0..1. */
     readonly opacity: number;
+    /**
+     * How much wider than the line a band drawn under it is (a length, half of it each side; Cytoscape.js
+     * `line-outline-width`, vis-network `background.size` less the line's width); 0 or absent draws none.
+     */
+    readonly outlineWidth: number;
+    /** The color of that band. */
+    readonly outlineColor: StyleColor;
+    /** The opacity of that band, 0..1. */
+    readonly outlineOpacity: number;
+    /**
+     * The colors a line painted in a gradient runs through, `#rrggbb` separated by spaces (Cytoscape.js
+     * `line-gradient-stop-colors`); see `gradientKind`.
+     */
+    readonly gradientColors: string;
+    /** Where each gradient color sits, fractions from 0 to 1 separated by spaces; absent, evenly spaced. */
+    readonly gradientStops: string;
+    /**
+     * How the line's gradient runs: `linear` from the source end to the target end, `radial` out from the line's
+     * middle, or `none` for a line in its `color` (Cytoscape.js `line-fill`).
+     */
+    readonly gradientKind: string;
     /** The line width. */
     readonly width: number;
     /** The label's font size. */
@@ -279,6 +313,17 @@ export interface EdgeStyleValues {
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */
     readonly targetArrow: StyleArrowShape;
+    /**
+     * An arrow drawn at the middle of the line pointing toward the target, besides any at the ends (Cytoscape.js
+     * `mid-target-arrow-shape`, vis-network `arrows.middle`), sized as the target's arrow is.
+     */
+    readonly midTargetArrow: StyleArrowShape;
+    /** An arrow drawn at the middle of the line pointing toward the source (Cytoscape.js `mid-source-arrow-shape`). */
+    readonly midSourceArrow: StyleArrowShape;
+    /** The color of the arrow at the middle pointing toward the target. */
+    readonly midTargetArrowColor: StyleColor;
+    /** The color of the arrow at the middle pointing toward the source. */
+    readonly midSourceArrowColor: StyleColor;
     /** Whether the edge is drawn curved. */
     readonly curved: boolean;
     /**
@@ -321,6 +366,13 @@ export interface EdgeStyleValues {
     readonly sourceLabel: string;
     /** The label text at the target end. */
     readonly targetLabel: string;
+    /**
+     * Where the source end's label sits: its middle on the line, this far along it from where the line leaves the
+     * source node (a length; Cytoscape.js `source-text-offset`). Absent, beside the end as the reader places it.
+     */
+    readonly sourceLabelOffset: number;
+    /** Where the target end's label sits, as `sourceLabelOffset` says, from where the line meets the target node. */
+    readonly targetLabelOffset: number;
     /** The label is not drawn while its letters are drawn smaller than this many screen pixels; see the node's. */
     readonly labelMinScreenSize: number;
     /** Whether the label is drawn over every node and edge; see the node's. */

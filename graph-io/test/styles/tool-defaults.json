@@ -101,12 +101,19 @@
             "labelWeight": "normal",
             "labelPosition": "top",
             "labelWrapTrailingSpace": true,
-            "borderPosition": "center"
+            "borderPosition": "center",
+            "outerBorderColor": "#999999"
         },
         "edge": {
             "color": "#999999",
             "sourceArrowColor": "#999999",
             "targetArrowColor": "#999999",
+            "outlineColor": "#000000",
+            "gradientKind": "none",
+            "midSourceArrowColor": "#999999",
+            "midTargetArrowColor": "#999999",
+            "sourceLabelOffset": 0,
+            "targetLabelOffset": 0,
             "width": 3,
             "lineStyle": "solid",
             "opacity": 1,
@@ -268,6 +275,7 @@
         },
         "edge": {
             "width": 1,
+            "outlineColor": "#6f6f6f",
             "lineStyle": "solid",
             "sourceArrow": "none",
             "targetArrow": "none",

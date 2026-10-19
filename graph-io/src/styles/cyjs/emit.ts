@@ -129,6 +129,13 @@ const ARROWS_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["circle", "circle"],
     ["square", "square"],
 ]);
+/** The Cytoscape.js property each neutral arrow is written to. */
+const ARROW_PROPERTY = {
+    sourceArrow: "source-arrow-shape",
+    targetArrow: "target-arrow-shape",
+    midSourceArrow: "mid-source-arrow-shape",
+    midTargetArrow: "mid-target-arrow-shape",
+} as const;
 const ARROWS_NEAREST: ReadonlyMap<string, string> = new Map([
     ["triangle-open", "triangle"],
     ["diamond-open", "diamond"],
@@ -161,6 +168,13 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "fanSpacing":
         case "labelWrapWidth":
             return typeof value === "number" ? numberToCyjs(property, value) : null;
+        case "outerBorderOffset":
+            // drawn half its value out (see the reader)
+            return typeof value === "number" ? exact({ "outline-offset": num6(value * 2) }) : null;
+        case "outerBorderStyle": {
+            const written = borderStyleToCyjs(String(value));
+            return written === null ? null : { ...written, props: { "outline-style": written.props["border-style"] } };
+        }
         case "shape":
             return enumToCyjs("shape", String(value), SHAPES_TO_CYJS, specs);
         case "borderStyle":
@@ -169,11 +183,9 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return lineStyleToCyjs(String(value));
         case "sourceArrow":
         case "targetArrow":
-            return arrowToCyjs(
-                property === "sourceArrow" ? "source-arrow-shape" : "target-arrow-shape",
-                String(value),
-                specs,
-            );
+        case "midSourceArrow":
+        case "midTargetArrow":
+            return arrowToCyjs(ARROW_PROPERTY[property], String(value), specs);
         case "labelFont":
             return isFontFamily(String(value)) ? exact({ "font-family": String(value) }) : null;
         default:

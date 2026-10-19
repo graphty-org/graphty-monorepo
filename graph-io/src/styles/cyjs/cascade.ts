@@ -1733,14 +1733,25 @@ function dashOnlyName(name: string): string {
 const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "line-color",
     "line-style",
+    "line-outline-width",
+    "line-outline-color",
+    "line-fill",
+    "line-gradient-stop-colors",
+    "line-gradient-stop-positions",
     "target-arrow-shape",
     "source-arrow-shape",
     "target-arrow-color",
     "source-arrow-color",
+    "mid-target-arrow-shape",
+    "mid-source-arrow-shape",
+    "mid-target-arrow-color",
+    "mid-source-arrow-color",
     "curve-style",
     "arrow-scale",
     "source-label",
     "target-label",
+    "source-text-offset",
+    "target-text-offset",
 ]);
 
 /**

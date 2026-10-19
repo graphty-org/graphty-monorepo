@@ -84,7 +84,8 @@ describe("Cytoscape's arrows", () => {
         expect(v.targetArrow).toEqual(["triangle", "triangle"]);
         expect(v.targetArrowLength).toEqual([0.5, null]);
         expect(v.targetArrowWidth).toEqual([null, null]);
-        expect(v.sourceArrow).toEqual(["vee", "vee"]);
+        // ARROW_SHORT's notch is too shallow to show, so it is drawn as the triangle it reads as
+        expect(v.sourceArrow).toEqual(["triangle", "vee"]);
         expect(v.sourceArrowLength).toEqual([0.6, 1.5]);
         expect(v.sourceArrowWidth).toEqual([0.8, 1.5]);
     });

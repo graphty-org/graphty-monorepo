@@ -282,6 +282,7 @@ describe("optionsFromZod", () => {
                     "image",
                     "pie",
                     "stripes",
+                    "glyph",
                     "label",
                     "tooltip",
                 ],

@@ -681,7 +681,7 @@ export class Node {
             }
         }
 
-        const { pieces, image } = createNodeDecorations(
+        const { pieces, image, glyph } = createNodeDecorations(
             this.context.getMeshCache(),
             `${meshKey}-${this.context.is2D() ? "2d" : "3d"}`,
             style,
@@ -689,7 +689,7 @@ export class Node {
             this.mesh,
             this.context.getScene(),
         );
-        this.decorations = [pieces, image].filter((m): m is InstancedMesh => m !== null);
+        this.decorations = [pieces, image, glyph].filter((m): m is InstancedMesh => m !== null);
         for (const mesh of this.decorations) {
             mesh.parent = this.mesh;
             mesh.position.setAll(0);

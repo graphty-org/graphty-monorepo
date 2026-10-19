@@ -7,6 +7,7 @@
 import {
     type AbstractMesh,
     Color3,
+    DynamicTexture,
     type InstancedMesh,
     Mesh,
     type Scene,
@@ -17,7 +18,16 @@ import {
 
 import type { NodeStyleConfig } from "../config";
 import type { MeshCache } from "./MeshCache";
-import { boxOf, clipToBox, type ColorPiece, imageBox, type PieceBox, pieSlices, stripeBands } from "./nodeDecoration";
+import {
+    boxOf,
+    clipToBox,
+    type ColorPiece,
+    databaseRim,
+    imageBox,
+    type PieceBox,
+    pieSlices,
+    stripeBands,
+} from "./nodeDecoration";
 import { NodeMesh } from "./NodeMesh";
 import { earClip, type Point2 } from "./shapeOutlines";
 
@@ -39,6 +49,7 @@ export interface NodeDecorationOptions {
     readonly pie?: NodeStyleConfig["pie"];
     readonly stripes?: NodeStyleConfig["stripes"];
     readonly image?: NodeStyleConfig["image"];
+    readonly glyph?: NodeStyleConfig["glyph"];
 }
 
 /**
@@ -51,23 +62,29 @@ const FRONT_STEP = 0.0005;
 /**
  * Whether a style draws anything over the node's face.
  * @param o - The style.
- * @returns True with a pie, stripes or an image.
+ * @returns True with a pie, stripes, an image, or a database's rim.
  */
 export function hasDecoration(o: NodeDecorationOptions): boolean {
-    return o.pie?.colors !== undefined || o.stripes?.colors !== undefined || (o.image?.src ?? "") !== "";
+    return (
+        o.pie?.colors !== undefined ||
+        o.stripes?.colors !== undefined ||
+        (o.image?.src ?? "") !== "" ||
+        (o.glyph?.text ?? "") !== "" ||
+        (o.shape?.type === "database" && (o.border?.width ?? 0) > 0)
+    );
 }
 
 /**
- * Build a node's decorations: an instance of its colored pieces (pie slices and stripes) and an
- * instance of its image, each null when the style draws none. The caller parents them to the node's
- * mesh.
+ * Build a node's decorations: an instance of its colored pieces (pie slices and stripes), an
+ * instance of its image and one of its glyph, each null when the style draws none. The caller parents
+ * them to the node's mesh.
  * @param cache - The mesh cache the node's mesh came from.
  * @param key - The node's style key, with its view.
  * @param o - The node's shape, border, pie, stripes and image.
  * @param size - The node's size, when its shape gives none.
  * @param fill - The node's own mesh.
  * @param scene - The scene.
- * @returns The two instances.
+ * @returns The three instances.
  */
 export function createNodeDecorations(
     cache: MeshCache,
@@ -76,9 +93,9 @@ export function createNodeDecorations(
     size: number,
     fill: AbstractMesh,
     scene: Scene,
-): { pieces: InstancedMesh | null; image: InstancedMesh | null } {
+): { pieces: InstancedMesh | null; image: InstancedMesh | null; glyph: InstancedMesh | null } {
     if (!hasDecoration(o)) {
-        return { pieces: null, image: null };
+        return { pieces: null, image: null, glyph: null };
     }
     const face = NodeMesh.faceOf(o, size, fill);
     const z = frontOf(fill) - FRONT_STEP;
@@ -92,13 +109,95 @@ export function createNodeDecorations(
                   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- checked just above
                   buildImage(o.image!, face, NodeMesh.extentPerSize(o.shape), z - FRONT_STEP, scene),
               );
-    for (const mesh of [pieces, image]) {
+    const glyph =
+        (o.glyph?.text ?? "") === ""
+            ? null
+            : cache.get(`node-glyph-${key}`, () =>
+                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- checked just above
+                  buildGlyph(o.glyph!, face, NodeMesh.extentPerSize(o.shape), z - 2 * FRONT_STEP, scene),
+              );
+    for (const mesh of [pieces, image, glyph]) {
         if (mesh !== null) {
             mesh.isPickable = false;
             mesh.sourceMesh.isPickable = false;
         }
     }
-    return { pieces, image };
+    return { pieces, image, glyph };
+}
+
+/** How many texture pixels a glyph's font size is drawn at, whatever its size in the scene. */
+const GLYPH_TEXTURE_PX = 128;
+
+/**
+ * The glyph as a mesh textured with its text: a box as wide as the text and a line and a half of the
+ * font tall, centered on the node, the text's middle (canvas `textBaseline` "middle") at the node's
+ * center, as vis-network draws an icon.
+ * @param glyph - The node style's glyph block.
+ * @param face - The node's face.
+ * @param face.width - Its width.
+ * @param face.height - Its height.
+ * @param scale - World units per unit of the style's lengths.
+ * @param z - The z it is drawn at.
+ * @param scene - The scene.
+ * @returns The mesh.
+ */
+function buildGlyph(
+    glyph: NonNullable<NodeStyleConfig["glyph"]>,
+    face: { width: number; height: number },
+    scale: number,
+    z: number,
+    scene: Scene,
+): Mesh {
+    const text = glyph.text ?? "";
+    const font = `${String(glyph.weight ?? 400)} ${String(GLYPH_TEXTURE_PX)}px ${glyph.font ?? "sans-serif"}`;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (ctx !== null) {
+        ctx.font = font;
+    }
+    const textPx = Math.max(1, Math.ceil(ctx?.measureText(text).width ?? GLYPH_TEXTURE_PX));
+    const [w, h] = [textPx + GLYPH_TEXTURE_PX / 4, Math.ceil(GLYPH_TEXTURE_PX * 1.5)];
+    canvas.width = w;
+    canvas.height = h;
+    if (ctx !== null) {
+        // a canvas resized loses its state: the font again, then the text, its middle at the box's
+        ctx.font = font;
+        ctx.fillStyle = glyph.color ?? "#000000";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, w / 2, h / 2);
+    }
+    const texture = new DynamicTexture("node-glyph", canvas, scene, true);
+    texture.hasAlpha = true;
+    texture.update();
+    // the font's size in the scene: the style's size, or the node's shorter side
+    const em = glyph.size === undefined ? Math.min(face.width, face.height) : glyph.size * scale;
+    const [bw, bh] = [(em * w) / GLYPH_TEXTURE_PX, (em * h) / GLYPH_TEXTURE_PX];
+    const box: PieceBox = { x0: -bw / 2, y0: -bh / 2, x1: bw / 2, y1: bh / 2 };
+    const outline: Point2[] = [
+        [box.x0, box.y0],
+        [box.x1, box.y0],
+        [box.x1, box.y1],
+        [box.x0, box.y1],
+    ];
+    const faces = flatFaces([outline], z, ([x, y]) => [(x - box.x0) / bw, (y - box.y0) / bh]);
+    const mesh = new Mesh("node-glyph", scene);
+    const data = new VertexData();
+    data.positions = faces.positions;
+    data.indices = faces.indices;
+    data.uvs = faces.uvs;
+    data.applyToMesh(mesh);
+    const mat = flatMaterial("node-glyph", scene);
+    mat.diffuseTexture = texture;
+    mat.useAlphaFromDiffuseTexture = true;
+    mesh.material = mat;
+    // the text's own box: the ink of a line of it, as wide as it measures and as tall as its font
+    const ink = (em * textPx) / GLYPH_TEXTURE_PX;
+    const metadata: NodeDecorationMetadata = {
+        nodePieces: [{ kind: "image", box: { x0: -ink / 2, y0: -em / 2, x1: ink / 2, y1: em / 2 } }],
+    };
+    mesh.metadata = metadata;
+    return mesh;
 }
 
 /** A colored piece, with the box a reader of the drawing gives it where that is not its outline's. */
@@ -106,7 +205,7 @@ type Placed = ColorPiece & { readonly box?: PieceBox };
 
 /**
  * The pieces a node draws in color over its face: its stripes, cut to its outline, and over them
- * its pie's slices, as Cytoscape.js draws them.
+ * its pie's slices, as Cytoscape.js draws them, and a database's rim.
  * @param o - The node's style.
  * @param face - The node's face.
  * @param face.outline - Its outline.
@@ -121,7 +220,15 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         const outline = clipToBox(face.outline, b.box);
         return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
     });
-    return [...bands, ...pieSlices(o.pie, face.width, face.height, NodeMesh.extentPerSize(o.shape))];
+    const rim =
+        o.shape?.type === "database"
+            ? databaseRim(o.border, face.width, face.height, NodeMesh.extentPerSize(o.shape))
+            : null;
+    return [
+        ...bands,
+        ...pieSlices(o.pie, face.width, face.height, NodeMesh.extentPerSize(o.shape)),
+        ...(rim === null ? [] : [rim]),
+    ];
 }
 
 /**

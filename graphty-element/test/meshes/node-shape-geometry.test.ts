@@ -235,6 +235,25 @@ describe("flat shape outlines", () => {
         assert.approximately(topEnd(flatShapeOutline("round-rectangle", 4, 1, 5), 0.5), 2 - 0.25, 1e-9);
     });
 
+    test("an exact corner radius is drawn as given, up to half the shorter side", () => {
+        const topEnd = (outline: Point2[], halfHeight: number): number =>
+            Math.max(...outline.filter(([, y]) => Math.abs(y - halfHeight) < 1e-9).map(([x]) => x));
+        const exact = (shape: string, w: number, h: number, r: number): Point2[] =>
+            flatShapeOutline(shape, w, h, r, undefined, true, true);
+
+        // Cytoscape.js's corner-radius 14 on a 30 px box: 14 across each corner, not the quarter's 7.5
+        assert.approximately(topEnd(exact("round-rectangle", 30, 30, 14), 15), 15 - 14, 1e-9);
+        // a radius past half the shorter side draws a pill, its ends half circles
+        assert.approximately(topEnd(exact("round-rectangle", 4, 1, 5), 0.5), 2 - 0.5, 1e-9);
+        // a round triangle with a radius of 8 on a 30 px box rounds its corners at 8, not at the tenth's 3, as
+        // Cytoscape.js's getRoundCorner does: its tips, cut back further, reach about 20 px across instead of 26
+        const capped = boxOf(flatShapeOutline("round-triangle", 30, 30, 8));
+        const given = boxOf(exact("round-triangle", 30, 30, 8));
+        assert.approximately(capped.height, 26.29, 0.01);
+        assert.approximately(given.height, 20.11, 0.01);
+        assert.approximately(given.width, 20.1, 0.01);
+    });
+
     test("lays a texture flat across a shape's box, so a gradient fill is drawn as a ramp", () => {
         const mesh = outlineSlab("ellipse", flatShapeOutline("ellipse", 4, 2), 0.1, new Scene(new NullEngine()));
         const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];

@@ -178,3 +178,35 @@ describe("a node's image", () => {
         assert.approximately(maximum.x - minimum.x, 1.5, 1e-6);
     });
 });
+
+describe("a node's glyph", () => {
+    test("is its text drawn in its color, centered on a node with no body, a font size across", async () => {
+        const { faced } = await oneNode({
+            "node.shape": "none",
+            "node.width": 4,
+            "node.height": 4,
+            "node.glyph": "+",
+            "node.glyphFont": "DejaVu Sans",
+            "node.glyphSize": 3,
+            "node.glyphWeight": 900,
+            "node.glyphColor": "#1f77b4",
+        });
+        const [glyph] = faced.decorationPieces;
+        assert.strictEqual(glyph.kind, "image");
+        // the font's size, 3 units of size, tall and centered on the node
+        assert.approximately(glyph.box.y1 - glyph.box.y0, 3 * PER, 1e-6);
+        assert.approximately(glyph.box.x0 + glyph.box.x1, 0, 1e-6);
+        assert.isAbove(glyph.box.x1 - glyph.box.x0, PER);
+        assert(graph);
+        const center = graph.nodeScreenPosition("A");
+        assert(center, "the node is on screen");
+        // a heavy plus sign covers the middle of its box in its color
+        const ink = await pixelAt(center);
+        assert.isBelow(Math.abs(ink[0] - 0x1f) + Math.abs(ink[1] - 0x77) + Math.abs(ink[2] - 0xb4), 60, ink.join(","));
+    });
+
+    test("is not drawn without text", async () => {
+        const { faced } = await oneNode({ "node.glyphColor": "#1f77b4" });
+        assert.lengthOf(faced.decorationPieces, 0);
+    });
+});

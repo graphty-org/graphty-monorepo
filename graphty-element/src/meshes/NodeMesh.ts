@@ -756,6 +756,7 @@ export class NodeMesh {
             corner,
             shape.points,
             shape.stretchPoints !== false,
+            shape.exactCornerRadius === true,
         );
     }
 

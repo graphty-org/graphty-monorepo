@@ -93,6 +93,11 @@ const DECLARED = [
     "node.imageClip",
     "node.imageSmoothing",
     "node.imageOpacity",
+    "node.glyph",
+    "node.glyphFont",
+    "node.glyphSize",
+    "node.glyphWeight",
+    "node.glyphColor",
     "node.pieColors",
     "node.pieSizes",
     "node.pieOpacities",
@@ -108,6 +113,7 @@ const DECLARED = [
     "node.stripeDirection",
     "node.stripeSize",
     "node.cornerRadius",
+    "node.exactCornerRadius",
     "node.shapePoints",
     "node.shapeStretchPoints",
     "node.labelFit",
@@ -219,8 +225,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into ninety-one node channels and seventy-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 91);
+    it("splits into ninety-seven node channels and seventy-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 97);
         assert.strictEqual(channelsFor("edge").length, 77);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -437,6 +443,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.imageWidth",
         "node.imageHeight",
         "node.imagePixelSize",
+        // Unset, a node draws no glyph; its font and size follow from the rest.
+        "node.glyph",
+        "node.glyphFont",
+        "node.glyphSize",
         "node.pieColors",
         "node.pieSizes",
         "node.pieOpacities",
@@ -588,7 +598,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the eighteen that carry a colour, and the type says the same eighteen", () => {
+    it("are the nineteen that carry a colour, and the type says the same nineteen", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -598,6 +608,7 @@ describe("colour channels", () => {
             "node.outerBorderColor",
             "node.underlayColor",
             "node.overlayColor",
+            "node.glyphColor",
             "node.gradientColor",
             "edge.color",
             "edge.outlineColor",

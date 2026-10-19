@@ -193,12 +193,15 @@ function ellipse(halfWidth: number, halfHeight: number): Point2[] {
  * @param halfWidth - Half the box's width.
  * @param halfHeight - Half its height.
  * @param maxRadius - The largest corner radius; unset, a quarter of the shorter side.
+ * @param exact - Whether `maxRadius` is drawn as given, up to half the shorter side, rather than capped at a quarter.
  * @returns The outline, counter-clockwise.
  */
-function roundRectangle(halfWidth: number, halfHeight: number, maxRadius = Infinity): Point2[] {
-    // ponytail: a radius above a quarter of the shorter side (a file's own, larger one) is drawn
-    // at the quarter; let it reach half the side if such a file turns up.
-    const radius = Math.max(0, Math.min(Math.min(halfWidth, halfHeight) / 2, maxRadius));
+function roundRectangle(halfWidth: number, halfHeight: number, maxRadius = Infinity, exact = false): Point2[] {
+    const half = Math.min(halfWidth, halfHeight);
+    const radius = Math.max(
+        0,
+        exact && Number.isFinite(maxRadius) ? Math.min(half, maxRadius) : Math.min(half / 2, maxRadius),
+    );
     const corners: Point2[] = [
         [halfWidth - radius, -halfHeight + radius],
         [halfWidth - radius, halfHeight - radius],
@@ -409,11 +412,13 @@ function database(halfWidth: number, halfHeight: number): Point2[] {
  * @param shape - A flat shape name.
  * @param width - The box's width.
  * @param height - Its height.
- * @param cornerRadius - A round-rectangle's largest corner radius, in the box's units.
+ * @param cornerRadius - A round-rectangle's or a round-* polygon's largest corner radius, in the box's units.
  * @param points - A polygon's corners (`shape.points`); a polygon without usable ones is drawn as a
  *   rectangle.
  * @param stretch - Whether a polygon's corners are stretched to reach the box's sides (`shape.stretchPoints`), or
  *   drawn where they say.
+ * @param exact - Whether `cornerRadius` is drawn as given (`shape.exactCornerRadius`), up to half the shorter side,
+ *   rather than capped at a quarter of it (round-rectangle) or a tenth (round-* polygons).
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
 export function flatShapeOutline(
@@ -423,6 +428,7 @@ export function flatShapeOutline(
     cornerRadius?: number,
     points?: string,
     stretch = true,
+    exact = false,
 ): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
@@ -445,18 +451,18 @@ export function flatShapeOutline(
     }
 
     if (shape === "round-rectangle") {
-        return roundRectangle(halfWidth, halfHeight, cornerRadius);
+        return roundRectangle(halfWidth, halfHeight, cornerRadius, exact);
     }
 
     const sharp = ROUNDED[shape] as string | undefined;
     if (sharp !== undefined) {
         // a tenth of the shorter side, as Cytoscape.js rounds its polygons, never more than the
-        // corner radius (as a round-rectangle's corners are capped)
-        // ponytail: a radius set above a tenth is drawn at the tenth, where Cytoscape.js draws a set
-        // `corner-radius` as given; let a set radius pass when a file needs it
+        // corner radius (as a round-rectangle's corners are capped); exact, the radius as given
+        // (`roundCorners` still keeps each arc within half of both its sides)
+        const tenth = Math.min(width, height) / 10;
         return roundCorners(
             flatShapeOutline(sharp, width, height, undefined, points, stretch),
-            Math.min(Math.min(width, height) / 10, cornerRadius ?? Infinity),
+            exact && cornerRadius !== undefined ? cornerRadius : Math.min(tenth, cornerRadius ?? Infinity),
         );
     }
 

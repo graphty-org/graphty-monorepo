@@ -286,3 +286,43 @@ export function boxOf(outline: readonly Point2[]): PieceBox {
     const ys = outline.map(([, y]) => y);
     return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
 }
+
+/**
+ * The rim a `database` node draws across its face: the near half of its top ellipse, in its border's color and
+ * width, as vis-network draws its database and a flowchart its stored data. The ellipse is the outline's own (a
+ * third of the height tall, `shapeOutlines`' database).
+ * @param border - The node's border.
+ * @param width - The face's width.
+ * @param height - Its height.
+ * @param scale - World units per unit of the border's width.
+ * @returns The rim, or null with no border to draw it in.
+ */
+export function databaseRim(
+    border: NodeStyleConfig["border"],
+    width: number,
+    height: number,
+    scale = 1,
+): ColorPiece | null {
+    const line = (border?.width ?? 0) * scale;
+    const color = border?.color === undefined ? null : toColorValue(border.color);
+    const opacity = (border?.opacity ?? 1) * (color?.a ?? 1);
+    if (!(line > 0) || color === null || !(opacity > 0)) {
+        return null;
+    }
+    const [rx, ry] = [width / 2, height / 6];
+    const cy = height / 2 - ry;
+    const steps = TURN_STEPS / 2;
+    // the lower half of the top ellipse (angles pi to 2 pi, y up), as a band the line's width across
+    const arc = (grow: number): Point2[] =>
+        Array.from({ length: steps + 1 }, (_, i): Point2 => {
+            const t = Math.PI + (Math.PI * i) / steps;
+            return [(rx + grow) * Math.cos(t), cy + (ry + grow) * Math.sin(t)];
+        });
+    const outer = arc(line / 2);
+    const inner = arc(-line / 2).reverse();
+    return {
+        outline: [...outer, ...inner],
+        rgb: [color.r / 255, color.g / 255, color.b / 255],
+        opacity,
+    };
+}

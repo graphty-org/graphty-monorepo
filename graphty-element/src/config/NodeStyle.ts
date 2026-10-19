@@ -208,6 +208,10 @@ export const NodeStyle = z.strictObject({
             // corners are a quarter of the shorter side; set, they are never larger than that.
             // The round-* polygons' corners are a tenth of the shorter side, never larger than it.
             cornerRadius: z.number().nonnegative().optional(),
+            // Draw `cornerRadius` as given, up to half the shorter side (a pill at half), rather
+            // than capped at a quarter of it (round-rectangle) or a tenth (the round-* polygons),
+            // as Cytoscape.js and vis-network draw a radius a file sets. Unset or false keeps the caps.
+            exactCornerRadius: z.boolean().optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
@@ -405,6 +409,22 @@ export const NodeStyle = z.strictObject({
             opacities: z.string().optional(),
             direction: z.enum(["down", "right"]).optional(),
             size: z.number().nonnegative().optional(),
+        })
+        .optional(),
+    /**
+     * A character or a short text drawn over the node's face, centered on it (vis-network's icon
+     * nodes, a font's icon glyph): `text` in the CSS font family `font` (unset, sans-serif) at
+     * `size` (the font's size, in the units of `shape.size`; unset, the node's shorter side) and CSS
+     * `weight` (unset, 400), in `color` (unset, black). A node with shape "none" and a glyph is
+     * drawn as the glyph. No text draws none.
+     */
+    glyph: z
+        .strictObject({
+            text: z.string().optional(),
+            font: z.string().optional(),
+            size: z.number().nonnegative().optional(),
+            weight: z.number().min(1).max(1000).optional(),
+            color: ColorStyle.optional(),
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),

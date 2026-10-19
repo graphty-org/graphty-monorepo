@@ -4,7 +4,7 @@
  */
 import { assert, describe, test } from "vitest";
 
-import { boxOf, clipToBox, imageBox, pieSlices, stripeBands } from "../../src/meshes/nodeDecoration";
+import { boxOf, clipToBox, databaseRim, imageBox, pieSlices, stripeBands } from "../../src/meshes/nodeDecoration";
 import { earClip, type Point2 } from "../../src/meshes/shapeOutlines";
 
 const area = (o: readonly Point2[]): number =>
@@ -123,5 +123,30 @@ describe("cutting an outline to a box", () => {
         const band = clipToBox(square, { x0: -Infinity, x1: Infinity, y0: -1, y1: 0 });
         assert.lengthOf(band, 4);
         assert.lengthOf(earClip(band), 2);
+    });
+});
+
+describe("a database's rim", () => {
+    test("is the near half of its top ellipse, in its border's color and width", () => {
+        // a 60 x 30 cylinder: its top ellipse is 60 wide and 10 tall, centered 10 above the middle
+        const rim = databaseRim({ color: "#2b7ce9", width: 1 }, 60, 30);
+        assert.isNotNull(rim);
+        const box = boxOf(rim?.outline ?? []);
+        assert.approximately(box.x0, -30.5, 1e-9);
+        assert.approximately(box.x1, 30.5, 1e-9);
+        // from the ellipse's middle down to its lowest point, the line's half width beyond it
+        assert.approximately(box.y1, 10, 1e-9);
+        assert.approximately(box.y0, 10 - 5 - 0.5, 1e-9);
+        assert.deepEqual(rim?.rgb, [0x2b / 255, 0x7c / 255, 0xe9 / 255]);
+        assert.strictEqual(rim?.opacity, 1);
+        // a band one line wide along half the ellipse (about 62 long)
+        assert.isAbove(Math.abs(area(rim?.outline ?? [])), 50);
+        assert.isBelow(Math.abs(area(rim?.outline ?? [])), 65);
+    });
+
+    test("is not drawn without a border", () => {
+        assert.isNull(databaseRim(undefined, 60, 30));
+        assert.isNull(databaseRim({ color: "#000000", width: 0 }, 60, 30));
+        assert.isNull(databaseRim({ color: "#000000", width: 1, opacity: 0 }, 60, 30));
     });
 });

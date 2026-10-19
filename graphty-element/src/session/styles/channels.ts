@@ -332,6 +332,7 @@ export interface ChannelValues {
     "node.outerBorderStyle": NodeBorderStyleValue;
     "node.outerBorderOffset": number;
     "node.cornerRadius": number;
+    "node.exactCornerRadius": boolean;
     "node.underlayColor": ColorValue;
     "node.underlayOpacity": number;
     "node.underlayPadding": number;
@@ -364,6 +365,11 @@ export interface ChannelValues {
     "node.imageClip": NodeImageClipValue;
     "node.imageSmoothing": boolean;
     "node.imageOpacity": number;
+    "node.glyph": string;
+    "node.glyphFont": string;
+    "node.glyphSize": number;
+    "node.glyphWeight": number;
+    "node.glyphColor": ColorValue;
     "node.pieColors": string;
     "node.pieSizes": string;
     "node.pieOpacities": string;
@@ -474,6 +480,7 @@ export type ColorChannel =
     | "node.outerBorderColor"
     | "node.underlayColor"
     | "node.overlayColor"
+    | "node.glyphColor"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
@@ -628,6 +635,12 @@ const NODE_IMAGE_CAVEAT =
     "pixels at `node.imagePixelSize` each. `node.imagePositionX` / `-Y` place it across the room left " +
     "(0 to 1), `node.imageOffsetX` / `-Y` move it (y down), in the units of `node.size`. A node of " +
     'shape "none" with an image is drawn as the image.';
+
+const NODE_GLYPH_CAVEAT =
+    "A character or short text drawn over the node's face, centered on it (vis-network's icon nodes): " +
+    "`node.glyph` in the CSS font family `node.glyphFont` at `node.glyphSize` (the font's size in the units " +
+    "of `node.size`; unset, the node's shorter side), CSS weight `node.glyphWeight`, in `node.glyphColor`. " +
+    'A node of shape "none" with a glyph is drawn as the glyph.';
 
 /** How a node's image is sized. */
 const NODE_IMAGE_FIT_VALUES: readonly NodeImageFitValue[] = ["contain", "cover", "fill", "none"];
@@ -1748,6 +1761,66 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
         caveat: NODE_IMAGE_CAVEAT,
     },
+    "node.glyph": {
+        channel: "node.glyph",
+        target: "node",
+        plainName: "Node Glyph",
+        shortName: "Glyph",
+        group: "shape",
+        accepts: "text",
+        stylePath: "glyph.text",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphFont": {
+        channel: "node.glyphFont",
+        target: "node",
+        plainName: "Node Glyph Font",
+        shortName: "Glyph font",
+        group: "shape",
+        accepts: "text",
+        stylePath: "glyph.font",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphSize": {
+        channel: "node.glyphSize",
+        target: "node",
+        plainName: "Node Glyph Size",
+        shortName: "Glyph size",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "glyph.size",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphWeight": {
+        channel: "node.glyphWeight",
+        target: "node",
+        plainName: "Node Glyph Weight",
+        shortName: "Glyph weight",
+        group: "shape",
+        default: 400,
+        accepts: "number",
+        min: 1,
+        max: 1000,
+        stylePath: "glyph.weight",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
+    "node.glyphColor": {
+        channel: "node.glyphColor",
+        target: "node",
+        plainName: "Node Glyph Color",
+        shortName: "Glyph color",
+        group: "shape",
+        default: "#000000",
+        accepts: "color",
+        stylePath: "glyph.color",
+        renderable: true,
+        caveat: NODE_GLYPH_CAVEAT,
+    },
     "node.pieColors": {
         channel: "node.pieColors",
         target: "node",
@@ -1929,6 +2002,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
             "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
             "a large box keeps small corners. Other shapes ignore it.",
+    },
+    "node.exactCornerRadius": {
+        channel: "node.exactCornerRadius",
+        target: "node",
+        plainName: "Node Exact Corner Radius",
+        shortName: "Exact corner radius",
+        group: "shape",
+        default: false,
+        accepts: "boolean",
+        stylePath: "shape.exactCornerRadius",
+        renderable: true,
+        caveat:
+            "Whether `node.cornerRadius` is drawn as given, up to half the shorter side, so a large radius " +
+            "draws a pill (true), or capped at a quarter of the shorter side on a round-rectangle and a " +
+            "tenth on the round-* polygons (false). Other shapes ignore it.",
     },
     "node.shapePoints": {
         channel: "node.shapePoints",

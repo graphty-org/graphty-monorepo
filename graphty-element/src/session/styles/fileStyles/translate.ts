@@ -182,6 +182,18 @@ export interface Translation {
 type Convert = (value: StyleValue) => unknown;
 
 /** One channel a neutral property is drawn on. */
+/** The CSS weight of each neutral glyph weight. */
+const GLYPH_WEIGHTS: ReadonlyMap<string, number> = new Map([
+    ["normal", 400],
+    ["bold", 700],
+]);
+
+/**
+ * The rule property `withCornerCap` writes the program's default cap under: drawn on `node.cornerRadius` alone, so
+ * the corners stay capped at a quarter of the shorter side, where a radius the file gives is drawn as given.
+ */
+const CORNER_CAP = "graphty-internal:cornerRadiusCap";
+
 interface ChannelPlan {
     readonly channel: Channel;
     readonly convert: Convert;
@@ -530,7 +542,19 @@ function channelPlans(
                     : [length("node.borderWidth")],
             ],
             ["borderOpacity", [id("node.borderOpacity")]],
-            ["cornerRadius", [length("node.cornerRadius")]],
+            // A radius the file gives is drawn as given; the writing program's default cap (`withCornerCap`) is a cap.
+            [
+                "cornerRadius",
+                [
+                    length("node.cornerRadius"),
+                    {
+                        channel: "node.exactCornerRadius",
+                        convert: (value) => (typeof value === "number" ? true : null),
+                        identity: false,
+                    },
+                ],
+            ],
+            [CORNER_CAP, [length("node.cornerRadius")]],
             ["shapePoints", [id("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
@@ -553,6 +577,20 @@ function channelPlans(
             ["imageClip", [id("node.imageClip")]],
             ["imageSmoothing", [id("node.imageSmoothing")]],
             ["imageOpacity", [id("node.imageOpacity")]],
+            ["glyph", [id("node.glyph")]],
+            ["glyphFont", [id("node.glyphFont")]],
+            ["glyphSize", [length("node.glyphSize")]],
+            ["glyphColor", [id("node.glyphColor")]],
+            [
+                "glyphWeight",
+                [
+                    {
+                        channel: "node.glyphWeight",
+                        convert: (value) => GLYPH_WEIGHTS.get(String(value)) ?? null,
+                        identity: false,
+                    },
+                ],
+            ],
             ["pieColors", [id("node.pieColors")]],
             ["pieSizes", [id("node.pieSizes")]],
             ["pieOpacities", [id("node.pieOpacities")]],
@@ -727,7 +765,8 @@ function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
     if (rule.origin !== "tool" || rule.target !== "node" || cap === undefined || rule.set?.cornerRadius !== undefined) {
         return rule;
     }
-    return { ...rule, set: { ...rule.set, cornerRadius: cap } };
+    // the key is the translation's own, not a neutral property: no other reader of the rule sees it
+    return { ...rule, set: { ...rule.set, [CORNER_CAP]: cap } as StyleRule["set"] };
 }
 
 /** The element's curve through bends for each neutral one. */

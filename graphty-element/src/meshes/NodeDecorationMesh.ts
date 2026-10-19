@@ -174,9 +174,10 @@ function flatFaces(
  */
 function flatMaterial(name: string, scene: Scene): StandardMaterial {
     const mat = new StandardMaterial(name, scene);
+    // unlit, a fragment's color is its emissive color times its texture and vertex color
     mat.disableLighting = true;
-    mat.diffuseColor = Color3.White();
-    mat.emissiveColor = Color3.Black();
+    mat.diffuseColor = Color3.Black();
+    mat.emissiveColor = Color3.White();
     mat.specularColor = Color3.Black();
     mat.backFaceCulling = false;
     return mat;

@@ -78,6 +78,24 @@ describe("a node's pie", () => {
     });
 });
 
+/**
+ * The color drawn at a point of the canvas, after a fresh frame.
+ * @param at - the point, in CSS pixels from the top left
+ * @param at.x - across
+ * @param at.y - down
+ * @returns red, green and blue
+ */
+async function pixelAt(at: { x: number; y: number }): Promise<[number, number, number]> {
+    assert(graph);
+    await graph.waitForStableFrame();
+    graph.scene.render();
+    const { engine } = graph;
+    const ratio = engine.getRenderWidth() / (container?.clientWidth ?? 1);
+    const [x, y] = [Math.round(at.x * ratio), Math.round(engine.getRenderHeight() - at.y * ratio)];
+    const data = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
+    return [data[0], data[1], data[2]];
+}
+
 describe("a node's stripes", () => {
     test("are bands following one another top to bottom, inside the node", async () => {
         const { faced } = await oneNode({ "node.stripeColors": "#ff0000 #00ff00", "node.stripeSizes": "0.25 0.75" });
@@ -87,6 +105,25 @@ describe("a node's stripes", () => {
         assert.approximately(b.box.y0, -PER, 1e-6);
         assert.approximately(a.box.x0, -2 * PER, 1e-6);
         assert.approximately(a.box.x1, 2 * PER, 1e-6);
+    });
+
+    test("are drawn in their own colors over the node's fill", async () => {
+        await oneNode({
+            "node.color": "#c8c8c8",
+            "node.stripeColors": "#ff0000 #00ff00",
+            "node.stripeDirection": "right",
+            "node.width": 4,
+            "node.height": 4,
+        });
+        assert(graph);
+        const center = graph.nodeScreenPosition("A");
+        assert(center, "the node is on screen");
+        const left = await pixelAt({ x: center.x - 10, y: center.y });
+        const right = await pixelAt({ x: center.x + 10, y: center.y });
+        assert.isAbove(left[0], 200, `left band is red: ${left.join(",")}`);
+        assert.isBelow(left[1], 60);
+        assert.isAbove(right[1], 200, `right band is green: ${right.join(",")}`);
+        assert.isBelow(right[0], 60);
     });
 });
 

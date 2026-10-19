@@ -745,7 +745,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     const shown = (mesh.isVisible && source.visibility > 0) || border !== null;
     const pieces = readPieces(node, p);
     // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
-    // image nodes), or not at all, its label alone (vis-network's text nodes)
+    // image nodes)
     const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
     const drawnBox = picture?.box ?? {
         ...box,
@@ -766,11 +766,7 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         gradient: base?.texture === true,
         ramp,
         instanceColor: buffer !== undefined,
-        visible:
-            node.getRenderState() === "visible" &&
-            mesh.isEnabled() &&
-            shown &&
-            (faces || border !== null || picture !== undefined),
+        visible: node.getRenderState() === "visible" && mesh.isEnabled() && shown,
         shown: node.getRenderState() === "visible" && mesh.isEnabled(),
         ring: ring ?? null,
         insetPx: readInset(node, p),

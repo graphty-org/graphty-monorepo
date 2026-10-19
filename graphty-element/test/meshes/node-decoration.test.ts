@@ -5,7 +5,7 @@
 import { assert, describe, test } from "vitest";
 
 import { boxOf, clipToBox, imageBox, pieSlices, stripeBands } from "../../src/meshes/nodeDecoration";
-import type { Point2 } from "../../src/meshes/shapeOutlines";
+import { earClip, type Point2 } from "../../src/meshes/shapeOutlines";
 
 const area = (o: readonly Point2[]): number =>
     o.reduce((s, [x0, y0], i) => {
@@ -119,5 +119,9 @@ describe("cutting an outline to a box", () => {
         ];
         assert.approximately(area(clipToBox(square, { x0: 0, x1: 5, y0: -Infinity, y1: Infinity })), 2, 1e-12);
         assert.lengthOf(clipToBox(square, { x0: 2, x1: 3, y0: 0, y1: 1 }), 0);
+        // a cut along a side leaves only corners, so the band is cut into triangles that cover it
+        const band = clipToBox(square, { x0: -Infinity, x1: Infinity, y0: -1, y1: 0 });
+        assert.lengthOf(band, 4);
+        assert.lengthOf(earClip(band), 2);
     });
 });

@@ -249,7 +249,31 @@ export function clipToBox(outline: readonly Point2[], box: PieceBox): Point2[] {
         });
         out = kept;
     }
-    return out;
+    return withoutStraightCorners(out);
+}
+
+/**
+ * An outline without its repeated points and the points in the middle of a straight run, which a cut leaves where
+ * it runs along the box and which leave no ear to cut it into triangles by.
+ * @param outline - The outline.
+ * @returns It, with only its corners.
+ */
+function withoutStraightCorners(outline: readonly Point2[]): Point2[] {
+    const out = [...outline];
+    for (let changed = true; changed && out.length >= 3;) {
+        changed = false;
+        for (let i = 0; i < out.length && out.length >= 3; i++) {
+            const [a, p, b] = [out[(i + out.length - 1) % out.length], out[i], out[(i + 1) % out.length]];
+            const cross = (p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0]);
+            const span = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            if (Math.abs(cross) <= 1e-9 * Math.max(span * span, 1e-12)) {
+                out.splice(i, 1);
+                changed = true;
+                i--;
+            }
+        }
+    }
+    return out.length >= 3 ? out : [];
 }
 
 /**

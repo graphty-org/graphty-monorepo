@@ -122,11 +122,12 @@ describe("the Graph place on the real element", () => {
         // Plain text that reads as no rule: No match, then an example rule over the open data.
         await realInput.type(box, "chapters 10");
         assert.isNotNull(await screen.findByText('No match for "chapters 10"'));
-        // The example is a node rule in the plain form the box reads: no backticks, no "=".
-        const example = await screen.findByText(/^[\w.]+ > \d+$/);
+        // The example is a node rule in the plain form the box reads: no backticks, no "=", and
+        // never over the ids (numbers here, as karate's are), which teach nothing about the data.
+        const example = await screen.findByText(/^\w+ == '[^']+'$/);
         assert.match(
             example.parentElement?.textContent ?? "",
-            /\. To select by a value, type a rule such as [\w.]+ > \d+$/,
+            /\. To select by a value, type a rule such as \w+ == '[^']+'$/,
         );
         assert.isNull(screen.queryByRole("option"));
 
@@ -154,7 +155,7 @@ describe("the Graph place on the real element", () => {
     it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
         const { session } = await openGraph();
         await realInput.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
-        const example = await screen.findByText(/^[\w.]+ > \d+$/);
+        const example = await screen.findByText(/^\w+ == '[^']+'$/);
 
         // Any session change asks the element again; the element's own late history step after a
         // load is one, and took the line down between a test finding it and reading it.

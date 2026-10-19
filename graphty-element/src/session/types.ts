@@ -45,6 +45,7 @@ import type {
     ScopeInput,
     SelectionDirection,
     SetId,
+    StructureValue,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
@@ -1053,6 +1054,21 @@ export interface SessionDataApi {
      * @since 3.26.0
      */
     readableValues(): readonly ReadableValue[];
+    /**
+     * The values every node carries from the graph's structure, which a rule reads with no run
+     * and no column, each with its catalog name: `graphty.degree` ("Degree"), and on a directed
+     * graph `graphty.inDegree` ("In-degree") and `graphty.outDegree` ("Out-degree"). A rule
+     * written by `selection.checkRule`'s suggestion may read one, so an application can name it
+     * as its panels do.
+     *
+     * ```ts
+     * const names = new Map(session.data.structureValues().map((each) => [each.path, each.plainName]));
+     * names.get("graphty.degree"); // "Degree"
+     * ```
+     * @returns the values this graph answers, degree first
+     * @since 3.35.0
+     */
+    structureValues(): readonly StructureValue[];
     /**
      * Say what a column measures, as one undoable step in the `"attributes"` project slice.
      *

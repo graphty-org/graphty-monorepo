@@ -1,6 +1,12 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    isGraphtyError,
+    renamePaths,
+    type RuleCheck,
+    rulePath,
+} from "@graphty/graphty-element/session";
 import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -47,7 +53,7 @@ const EXAMPLE_TEXT_MAX = 20;
 /**
  * An example rule over the open data, in the plain form the box reads, always over a column the
  * nodes carry from the reader's own data: a number column compared with a value inside its range,
- * such as minutes > 25, else a text column equal to one of its values, such as name == 'Ava' (the
+ * such as minutes >= 25 (inclusive, so a reader copying it for "25 or more" keeps the 25), else a text column equal to one of its values, such as name == 'Ava' (the
  * rule language has no "contains"), never the ids. A file with neither gets no example: one over a
  * column the reader never gave would teach a name they cannot know.
  * @param session - the element's session.
@@ -57,9 +63,16 @@ function exampleRule(session: GraphSession): string | null {
     const columns = session.data
         .attributes()
         .filter((a) => a.kind === "node" && (a.origin === "imported" || a.origin === "joined"));
-    const number = columns.find((a) => a.measurement === "quantitative" && a.min !== undefined && a.max !== undefined);
+    // The id column is left out, whichever kind: an example over the ids teaches nothing about the data.
+    const number = columns.find(
+        (a) =>
+            a.measurement === "quantitative" &&
+            a.min !== undefined &&
+            a.max !== undefined &&
+            a.roles?.includes("key") !== true,
+    );
     if (number?.min !== undefined && number.max !== undefined) {
-        return `${rulePath(number.path)} > ${String(middleOf(number.min, number.max))}`;
+        return `${rulePath(number.path)} >= ${String(middleOf(number.min, number.max))}`;
     }
     for (const column of columns) {
         // The id column is left out: an example over the ids teaches nothing about the data.
@@ -89,6 +102,43 @@ function exampleRule(session: GraphSession): string | null {
  */
 function plainRule(rule: string): string {
     return rule.replaceAll(/`(-?\d+(?:\.\d+)?)`/g, "$1");
+}
+
+/**
+ * The name the panels show a column a rule reads by: a run's value under its run's name, a node's
+ * structure under its own (Degree, never graphty.degree).
+ * @param session - the element's session.
+ * @param path - the path as the rule names it: a bare column name or a dotted path.
+ * @returns the name, or undefined for a path no value answers.
+ */
+function shownName(session: GraphSession, path: string): string | undefined {
+    const value = session.data
+        .readableValues()
+        .find((each) => each.end === undefined && (each.path === path || rulePath(each.path) === path));
+    if (value !== undefined) {
+        return readableName(session, value).name;
+    }
+    const structure = session.data.structureValues().find((each) => each.path === path);
+    if (structure !== undefined) {
+        return structure.plainName;
+    }
+    const named = attributeName(session, path);
+    return named === path ? undefined : named;
+}
+
+/**
+ * A rule as the find box shows it: each column under the name the panels give it, numbers bare.
+ * It is shown, never typed back: a rule reads columns by their paths.
+ * @param session - the element's session.
+ * @param rule - the rule, without "=".
+ * @returns the words.
+ */
+function shownRule(session: GraphSession, rule: string): string {
+    try {
+        return plainRule(renamePaths(rule, (path) => shownName(session, path)));
+    } catch {
+        return plainRule(rule);
+    }
 }
 
 /**
@@ -134,6 +184,22 @@ interface Refusal {
 }
 
 /**
+ * The element's correction of a typed rule that reads a column this graph does not have, as
+ * Enter on its offer runs it.
+ * @param session - the element's session.
+ * @param typed - the box's text, starting with "=".
+ * @returns the corrected rule with its "=", or null when there is none.
+ */
+function correctedRule(session: GraphSession, typed: string): string | null {
+    try {
+        const { suggestion } = session.selection.checkRule(elementRule(session, typed.slice(1)));
+        return suggestion === undefined ? null : `=${suggestion}`;
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Words why the element refused a typed rule, from the refusal's reason code.
  * @param error - what `selection.apply` threw.
  * @returns the refusal, or null when the error is not a refused rule.
@@ -153,20 +219,25 @@ function ruleRefusal(error: unknown): Refusal | null {
 
 /**
  * Words for a rule that reads a column this graph does not have, from the element's check: the
- * names it does not know, and its rewrite to the column each one names, when there is one.
+ * names it does not know, or, when the element rewrites each to one column, that column under the
+ * name the panels show it by, with the rewrite.
+ * @param session - the element's session.
  * @param check - what `selection.checkRule` said.
  * @returns the refusal, or null when every column is known.
  */
-function unknownRefusal(check: RuleCheck): Refusal | null {
+function unknownRefusal(session: GraphSession, check: RuleCheck): Refusal | null {
     if (check.unknown.length === 0) {
         return null;
     }
+    if (check.suggestion !== undefined) {
+        // "No column named degree" beside a Degree column on screen reads as a contradiction:
+        // the line names the column the reader meant, as the screen names it.
+        const meant = check.unknown.map(({ candidates }) => shownName(session, candidates[0]) ?? candidates[0]);
+        return { words: `Did you mean ${[...new Set(meant)].join(", ")}?`, rule: `=${check.suggestion}` };
+    }
     // A bare name and its `data.` path are one column to the reader.
     const names = check.unknown.map(({ path }) => `"${path.replace(/^data\./, "")}"`).join(", ");
-    const words = `No ${check.unknown.length === 1 ? "column" : "columns"} named ${names}`;
-    return check.suggestion === undefined
-        ? { words, rule: null }
-        : { words: `${words}. Did you mean:`, rule: `=${check.suggestion}` };
+    return { words: `No ${check.unknown.length === 1 ? "column" : "columns"} named ${names}`, rule: null };
 }
 
 /** How long typing pauses before the element checks a typed rule. */
@@ -186,7 +257,7 @@ async function ruleVerdict(session: GraphSession, typed: string): Promise<"ok" |
     try {
         const rule = elementRule(session, typed.slice(1));
         await session.scope.count({ where: rule });
-        return unknownRefusal(session.selection.checkRule(rule)) ?? "ok";
+        return unknownRefusal(session, session.selection.checkRule(rule)) ?? "ok";
     } catch (error) {
         // An error that is not a refused rule is left for Enter, which reports it as before.
         return ruleRefusal(error);
@@ -339,6 +410,15 @@ function valueTarget(option: Extract<Option, { type: "value" }>): FindValueRow["
 }
 
 /**
+ * A value row's key, the same for the same row however the list around it changes.
+ * @param option - the value row.
+ * @returns the key.
+ */
+function valueKey(option: Extract<Option, { type: "value" }>): string {
+    return JSON.stringify([option.row.kind, option.row.path, option.row.value, option.orMore === true]);
+}
+
+/**
  * The height the find list may take: from its top to the bottom of the panel it opens in, less
  * the panel's parts below it that keep their height (the tree's title, its foot) and the first
  * row of the style tree, which gives up the rest of its room.
@@ -383,7 +463,7 @@ export function FindBox(): React.JSX.Element {
     const { session, element, store } = useWorkspace();
     const [text, setText] = useState("");
     const [active, setActive] = useState(-1);
-    const [refusal, setRefusal] = useState<Refusal | null>(null);
+    const [refused, setRefusal] = useState<Refusal | null>(null);
     // The list closes as a list does -- a click or focus anywhere outside the find box -- and
     // opens again on typing, a click in the box or the Down arrow.
     const [listOpen, setListOpen] = useState(true);
@@ -408,6 +488,19 @@ export function FindBox(): React.JSX.Element {
     // none, or undefined until the element has answered.
     const [textAsRuleAnswer, setTextAsRuleAnswer] = useState<{ text: string; rule: string | null } | null>(null);
     const listId = useId();
+    // The value rows added to the selection with Shift while the list stays open, marked as picked.
+    const [pickedValues, setPickedValues] = useState<ReadonlySet<string>>(new Set());
+    // A Shift pick keeps the list for the next one; once the list closes, the box clears as it
+    // does after a plain pick.
+    const shiftPicked = useRef(false);
+    useEffect(() => {
+        if (!listOpen && shiftPicked.current) {
+            shiftPicked.current = false;
+            setText("");
+            setActive(-1);
+            setPickedValues(new Set());
+        }
+    }, [listOpen]);
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
 
@@ -455,9 +548,12 @@ export function FindBox(): React.JSX.Element {
     let ran = false;
     if (session !== null && originText !== undefined) {
         ran = isRule
-            ? originText === text || originText === `=${elementRule(session, text.slice(1))}`
+            ? [text, `=${elementRule(session, text.slice(1))}`, correctedRule(session, text)].includes(originText)
             : typeof textAsRule === "string" && originText === `=${elementRule(session, textAsRule)}`;
     }
+    // Once a rule ran, from the reader's words or from the element's correction of them, the line
+    // says what it selected rather than offering the correction again.
+    const refusal = ran ? null : refused;
     // A rule shown under the box, the element's rewrite of a refused rule or the plain text as a
     // rule not yet run, is an option too: the last, and the one Enter picks.
     let ruleOption: string | null = null;
@@ -546,16 +642,16 @@ export function FindBox(): React.JSX.Element {
         }
         const example = refusal.example ? exampleRule(session) : null;
         if (refusal.rule !== null) {
-            setSpoken(`${refusal.words} ${plainRule(refusal.rule.slice(1))}`);
+            setSpoken(`Did you mean ${shownRule(session, refusal.rule.slice(1))}?`);
         } else {
             setSpoken(example === null ? refusal.words : `${refusal.words}. A rule reads like ${example}`);
         }
     }, [refusal, session]);
     useEffect(() => {
-        if (!isRule || ruleCheck !== null) {
+        if (!isRule || ruleCheck !== null || ran) {
             setSpoken("");
         }
-    }, [isRule, ruleCheck]);
+    }, [isRule, ruleCheck, ran]);
     const optionId = (i: number): string => `${listId}-${String(i)}`;
 
     const pick = async (option: Option, adding = false): Promise<void> => {
@@ -565,6 +661,10 @@ export function FindBox(): React.JSX.Element {
         if (adding && (option.type === "value" || option.type === "hit")) {
             // Shift adds the pick to the selection and keeps the list, for the next pick.
             await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add");
+            shiftPicked.current = true;
+            if (option.type === "value") {
+                setPickedValues((before) => new Set(before).add(valueKey(option)));
+            }
             setListOpen(true);
             return;
         }
@@ -575,11 +675,8 @@ export function FindBox(): React.JSX.Element {
             return;
         }
         if (option.type === "rule") {
-            // The box keeps the reader's own words, and runs, as if run with Enter. A typed rule the
-            // element corrected (a column renamed) shows the correction, as the reader would type it.
-            if (text.startsWith("=")) {
-                setText(`=${plainRule(option.rule.slice(1))}`);
-            }
+            // The box keeps the reader's own words, and runs, as if run with Enter: a typed rule the
+            // element corrected runs the correction, which the line under the box named.
             setActive(-1);
             setRefusal(null);
             await runTyped(session, option.rule);
@@ -619,7 +716,9 @@ export function FindBox(): React.JSX.Element {
             // A rule over a column the graph does not have would select nothing, which reads like
             // an answer; it is refused instead.
             const rule = typed.startsWith("=") ? `=${elementRule(current, typed.slice(1))}` : typed;
-            const unknown = rule.startsWith("=") ? unknownRefusal(current.selection.checkRule(rule.slice(1))) : null;
+            const unknown = rule.startsWith("=")
+                ? unknownRefusal(current, current.selection.checkRule(rule.slice(1)))
+                : null;
             if (unknown !== null) {
                 setRefusal(unknown);
                 return;
@@ -678,6 +777,9 @@ export function FindBox(): React.JSX.Element {
                 void pick(chosen);
             } else if (runsTyped) {
                 void runTyped(session, text);
+            } else if (text.trim() !== "") {
+                // Enter with nothing to pick says so, rather than nothing at all.
+                store.set({ announcement: spokenLine ?? `No match for "${text}"` });
             }
         } else if (event.key === "Escape" && text === "") {
             // An empty box has nothing left to clear: Escape leaves it for the drawing and keeps
@@ -755,8 +857,9 @@ export function FindBox(): React.JSX.Element {
             lineWords = example === null ? "Type a rule" : `Type a rule, such as ${example}`;
         }
     } else if (typeof textAsRule === "string") {
-        // The rule itself is the option under this line.
-        lineWords = "Select by a value:";
+        // The rule itself is the option under this line: with the list closed there is no row for
+        // the heading to lead to, so it goes too.
+        lineWords = listOpen ? "Select by a value:" : null;
         emptyLine = lineWords;
     } else if (textAsRule === null && example !== null) {
         // Text that reads as no rule gets an example of one, on a line of its own.
@@ -796,7 +899,16 @@ export function FindBox(): React.JSX.Element {
         (options.length === 0 || isRule || ruleOption !== null) &&
         refusal === null &&
         emptyLine !== null;
-    const spokenLine = showLine ? lineWords : null;
+    // Plain text the element has not yet read as a rule is not said to match nothing: on the next
+    // pause it may offer one. An offered rule is said with what it selects, once that is counted.
+    const settled = !(foundNothing && textAsRule === undefined);
+    let spokenLine = showLine && settled ? lineWords : null;
+    if (spokenLine !== null && typeof textAsRule === "string" && ruleOption !== null && session !== null) {
+        spokenLine =
+            offerCount?.rule === ruleOption
+                ? `${spokenLine} ${shownRule(session, ruleOption.slice(1))}. ${offerWords(session, ruleOption.slice(1), offerCount)}`
+                : null;
+    }
     useEffect(() => {
         // Said to the reader in the box; a line that changes because something else changed (a
         // selection cleared by Esc elsewhere) does not talk over that change's own message.
@@ -825,6 +937,8 @@ export function FindBox(): React.JSX.Element {
                     setActive(-1);
                     setRefusal(null);
                     setListOpen(true);
+                    shiftPicked.current = false;
+                    setPickedValues(new Set());
                 }}
                 onClick={() => {
                     setListOpen(true);
@@ -898,6 +1012,11 @@ export function FindBox(): React.JSX.Element {
                                                     )
                                                 }
                                                 current={i === target}
+                                                picked={
+                                                    hit.kind === "edge"
+                                                        ? session.selection.edges.includes(hit.id)
+                                                        : session.selection.nodes.includes(hit.id)
+                                                }
                                                 onClick={(event) => {
                                                     void pick({ type: "hit", hit }, event.shiftKey);
                                                 }}
@@ -932,6 +1051,7 @@ export function FindBox(): React.JSX.Element {
                                             aria-label={`Select where ${words}`}
                                             icon={<GLYPHS.filter size={14} />}
                                             current={i === target}
+                                            picked={held > 0 && pickedValues.has(valueKey(option))}
                                             onClick={(event) => {
                                                 void pick(option, event.shiftKey);
                                             }}
@@ -977,7 +1097,11 @@ export function FindBox(): React.JSX.Element {
                                 <ResultRow
                                     lines={2}
                                     id={optionId(options.length - 1)}
-                                    name={plainRule(ruleOption.slice(1))}
+                                    name={
+                                        session === null
+                                            ? plainRule(ruleOption.slice(1))
+                                            : shownRule(session, ruleOption.slice(1))
+                                    }
                                     path={
                                         offerCount?.rule === ruleOption && session !== null
                                             ? offerWords(session, ruleOption.slice(1), offerCount)

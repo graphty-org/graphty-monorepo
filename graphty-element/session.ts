@@ -467,6 +467,7 @@ export type {
     SetId,
     SetOperand,
     StaticStyle,
+    StructureValue,
     StyleDocument,
     StyleDocumentRow,
     TopTies,
@@ -550,7 +551,14 @@ export type {
     ValueEntryWrite,
     ValueGroup,
 } from "./src/session/styles";
-export { OVERFLOW_PATTERNS, OVERFLOW_SHAPES, quotePath, rulePath, selectorRule } from "./src/session/styles";
+export {
+    OVERFLOW_PATTERNS,
+    OVERFLOW_SHAPES,
+    quotePath,
+    renamePaths,
+    rulePath,
+    selectorRule,
+} from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
 // What a host may ask this session for before it offers a feature

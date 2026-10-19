@@ -1660,6 +1660,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             prepare: READ,
             attributes: READ,
             readableValues: READ,
+            structureValues: READ,
             histogram: READ,
             valueCounts: READ,
             declare: {

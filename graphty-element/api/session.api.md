@@ -2589,6 +2589,9 @@ export interface RecordSort {
 }
 
 // @public
+export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query;
+
+// @public
 export type RepaintReason = "add" | "update" | "remove" | "move" | "sweep";
 
 // @public
@@ -3582,6 +3585,7 @@ export interface SessionDataApi {
     sources(): readonly LoadedSource[];
     statistics(): GraphStatistics;
     readonly store: SessionGraphStore;
+    structureValues(): readonly StructureValue[];
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
@@ -3968,6 +3972,13 @@ export interface StoredProject {
     readonly name: string | null;
     readonly nodes: number;
     readonly savedAt: number;
+}
+
+// @public
+export interface StructureValue {
+    readonly path: Path;
+    readonly plainName: string;
+    readonly technicalName: string;
 }
 
 // @public

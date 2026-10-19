@@ -89,6 +89,7 @@ export type {
     ScopeId,
     Selector,
     StaticStyle,
+    StructureValue,
     StyleDocument,
     StyleDocumentRow,
     SuggestedName,

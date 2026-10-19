@@ -4,6 +4,24 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: a rule's columns by their names, picked find rows marked (graphty-element, compact-mantine)
+
+Additive only; nothing existing changes what it returns.
+
+- graphty-element `session` entry: `renamePaths(where, rename)` is exported (it was internal). It
+  rewrites each path a rule reads through a callback and keeps everything else as typed, so an
+  application can show a rule with each column under its own name ("Degree > 30" for
+  `graphty.degree > \`30\``) without parsing the rule language itself.
+- graphty-element `data.structureValues()`: the values every node carries from the graph's
+  structure (`graphty.degree`, and on a directed graph `graphty.inDegree`, `graphty.outDegree`),
+  each with `plainName` ("Degree", "In-degree", "Out-degree") and `technicalName`; new type
+  `StructureValue`. `selection.checkRule` already suggests these paths, and nothing else named
+  them, so every consumer had to hard-code the names. Kept out of `readableValues()` on purpose:
+  adding entries there would change what an existing call returns.
+- compact-mantine `ResultRow`: optional `picked`. A picked row shows a check at its end and is
+  `aria-selected`; only the current row is filled blue (the fill now keys on `data-active`, so a
+  row that is both reads the same as before).
+
 ## 2026-10-18 -- Decided by the team: an unset field takes the value it shows (compact-mantine, graphty app)
 
 compact-mantine and the graphty app. One addition to the API: `CompactMantineLabels.colorDrawn`

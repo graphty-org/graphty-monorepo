@@ -24,6 +24,7 @@ import type {
     ReadableValue,
     RunId,
     ScopeInput,
+    StructureValue,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf, pairKey } from "../data/edgeIdentity";
@@ -71,6 +72,7 @@ import { searchOf } from "./selection/targets";
 import type { ColumnRef, ProgressChange } from "./shared";
 import { computeFingerprint, computeStatistics } from "./statistics";
 import type { CompiledLayer } from "./styles/Layer";
+import { STRUCTURE_VALUES } from "./styles/sources";
 import type {
     ColumnHistogram,
     DataSourceDescriptor,
@@ -1381,6 +1383,17 @@ export class SessionData implements SessionDataApi {
                   );
         this.attributeOverlay = { described, key, result };
         return result;
+    }
+
+    /**
+     * The values every node carries from the graph's structure, with their catalog names.
+     * @returns degree, and on a directed graph in-degree and out-degree
+     */
+    structureValues(): readonly StructureValue[] {
+        // In and out degree only on a directed graph, where they differ from degree.
+        return this.statistics().directedness === "directed"
+            ? STRUCTURE_VALUES
+            : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
     }
 
     /**

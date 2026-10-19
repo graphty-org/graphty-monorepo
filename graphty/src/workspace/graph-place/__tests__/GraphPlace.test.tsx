@@ -321,7 +321,7 @@ describe("the Graph place", () => {
         // workspace's status line, on the page from the start, speaks them.
         assert.isNull(line.closest("[role=status], [role=alert], [aria-live]"));
         await waitFor(() => {
-            assert.equal(store.get().announcement, 'No match for "zzz"');
+            assert.match(store.get().announcement, /^No match for "zzz"/);
         });
     });
 
@@ -417,7 +417,7 @@ describe("the Graph place", () => {
         // A column the graph does not have: the refusal offers the one it names, set like a rule.
         await userEvent.clear(box);
         await userEvent.type(box, "=degree >= 3");
-        const suggestion = await screen.findByRole("option", { name: /^graphty\.degree >= 3/ });
+        const suggestion = await screen.findByRole("option", { name: /^Degree >= 3/ });
         assert.equal(suggestion.getAttribute("aria-selected"), "true");
         const suggestionName = suggestion.querySelector(".cm-result-name") as HTMLElement;
         assert.equal(getComputedStyle(suggestionName).fontFamily, ruleFont);
@@ -688,7 +688,7 @@ describe("the Graph place", () => {
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
-        const words = 'No column named "degree". Did you mean: graphty.degree >= 10';
+        const words = "Did you mean Degree >= 10?";
         const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
 
         await userEvent.type(box, "=degree >= 10");

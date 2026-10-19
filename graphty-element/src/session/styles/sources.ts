@@ -224,6 +224,13 @@ export function edgeEndPathOf(path: Path): { readonly end: "source" | "target"; 
  */
 export const STRUCTURE_PATHS = Object.freeze(["graphty.degree", "graphty.inDegree", "graphty.outDegree"] as const);
 
+/** Each of {@link STRUCTURE_PATHS} with its catalog names, in the same order. */
+export const STRUCTURE_VALUES = Object.freeze([
+    Object.freeze({ path: "graphty.degree", plainName: "Degree", technicalName: "degree" }),
+    Object.freeze({ path: "graphty.inDegree", plainName: "In-degree", technicalName: "inDegree" }),
+    Object.freeze({ path: "graphty.outDegree", plainName: "Out-degree", technicalName: "outDegree" }),
+] as const);
+
 /**
  * One structural value of every node, by dense index, from the snapshot (which caches it).
  * @param graph - The snapshot.

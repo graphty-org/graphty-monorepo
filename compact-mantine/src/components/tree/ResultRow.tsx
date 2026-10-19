@@ -1,5 +1,6 @@
 import React, { forwardRef } from "react";
 
+import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
 import { EllipsizedName } from "../rows/EllipsizedName";
 
@@ -17,6 +18,12 @@ export interface ResultRowProps extends Omit<React.HTMLAttributes<HTMLDivElement
     icon?: React.ReactNode;
     /** The current result (blue fill; `aria-selected`). */
     current?: boolean;
+    /**
+     * For a list the reader picks several results from, one at a time: whether this result is
+     * already picked. A picked row shows a check at its end and is `aria-selected` too; only the
+     * current row is filled blue.
+     */
+    picked?: boolean;
     /** `"component"`: both lines and the glyph in the component (purple) color. */
     tone?: "default" | "component";
     /**
@@ -59,7 +66,7 @@ function highlight(name: string, match: string | undefined): React.ReactNode {
  * @returns The row
  */
 export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function ResultRow(
-    { name, match, path, icon, current = false, tone = "default", lines = 1, onMouseDown, ...rest },
+    { name, match, path, icon, current = false, picked, tone = "default", lines = 1, onMouseDown, ...rest },
     ref,
 ) {
     useCompactStyles();
@@ -67,7 +74,8 @@ export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function Res
         <div
             ref={ref}
             role="option"
-            aria-selected={current}
+            aria-selected={current || picked === true}
+            data-active={current ? "" : undefined}
             data-tone={tone === "component" ? "component" : undefined}
             data-lines={lines === 2 ? "2" : undefined}
             className="cm-result-row"
@@ -92,6 +100,11 @@ export const ResultRow = forwardRef<HTMLDivElement, ResultRowProps>(function Res
                     </span>
                 )}
             </span>
+            {picked === true && (
+                <span className="cm-result-picked" aria-hidden="true">
+                    <UiGlyph name="check" size={16} />
+                </span>
+            )}
         </div>
     );
 });

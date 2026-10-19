@@ -1765,6 +1765,13 @@ export type SetOperand = Scope | {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StructureValue {
+    readonly path: Path;
+    readonly plainName: string;
+    readonly technicalName: string;
+}
+
+// @public
 export interface StyleDocument {
     // (undocumented)
     layers: readonly LayerSpec[];

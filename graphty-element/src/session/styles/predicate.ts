@@ -1253,11 +1253,21 @@ export function expressionRule(where: Query, comparisons = false): RuleTree | un
 
 /**
  * An expression with some of the paths it reads written another way, everything else kept as it
- * was typed: what a refusal or a check offers as the reader's own rule, corrected.
+ * was typed: what a refusal or a check offers as the reader's own rule, corrected, or a rule
+ * written with each column under the name a screen shows it by.
+ *
+ * ```ts
+ * import { renamePaths } from "@graphty/graphty-element/session";
+ *
+ * renamePaths("graphty.degree > `30`", (path) => (path === "graphty.degree" ? "Degree" : undefined));
+ * // "Degree > `30`"
+ * ```
  * @param where - The expression.
- * @param rename - The new source for a path, or undefined to keep it.
+ * @param rename - The new source for a path (given as the rule names it: a bare column name such
+ * as `minutes`, or a dotted path), or undefined to keep it.
  * @returns The rewritten expression.
  * @throws A `GraphtyError` with code `E_BAD_SELECTOR` for an expression that does not lex.
+ * @since 3.35.0
  */
 export function renamePaths(where: Query, rename: (path: Path) => Query | undefined): Query {
     const tokens = tokenize(where);

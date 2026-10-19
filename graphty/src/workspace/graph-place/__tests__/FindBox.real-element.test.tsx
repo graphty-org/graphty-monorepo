@@ -97,7 +97,7 @@ describe("the find box", () => {
         await focusFind();
         await userEvent.keyboard("=degree > `2`");
 
-        await screen.findByText('No column named "degree". Did you mean:', {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);

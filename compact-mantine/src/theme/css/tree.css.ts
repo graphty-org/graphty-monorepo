@@ -431,7 +431,7 @@ const css = `
 }
 .cm-result-row:hover,
 .cm-result-row[data-state="hover"] { background: var(--cm-bg-hover); border-color: var(--cm-bg-hover); }
-.cm-result-row[aria-selected="true"] { background: var(--cm-bg-selected); border-color: var(--cm-bg-selected); }
+.cm-result-row[data-active] { background: var(--cm-bg-selected); border-color: var(--cm-bg-selected); }
 .cm-result-icon {
     flex: none;
     display: flex;
@@ -441,6 +441,7 @@ const css = `
     height: 16px;
     color: var(--cm-icon);
 }
+.cm-result-picked { flex: none; display: flex; width: 16px; height: 16px; color: var(--cm-icon); }
 .cm-result-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cm-result-name,
 .cm-result-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -18,7 +18,7 @@ import {
 } from "../../src/session";
 import { resolveColumn } from "../../src/session/columns";
 import { RevisionCache } from "../../src/session/revision";
-import { quotePath, rulePath } from "../../src/session/styles";
+import { quotePath, renamePaths, rulePath } from "../../src/session/styles";
 import { matchText, normalizeText } from "../../src/session/text";
 import { makeSession } from "./helpers";
 
@@ -126,6 +126,39 @@ describe("rulePath", () => {
             harness.session.dispose();
         });
     }
+});
+
+describe("renamePaths", () => {
+    it("rewrites each path a rule reads and keeps the rest as typed", () => {
+        const names: Record<string, string> = { "graphty.degree": "Degree", hours: "Hours" };
+        assert.strictEqual(
+            renamePaths("graphty.degree > `30` && hours >= `2` && name == 'graphty.degree'", (path) => names[path]),
+            "Degree > `30` && Hours >= `2` && name == 'graphty.degree'",
+        );
+    });
+});
+
+describe("data.structureValues", () => {
+    it("names degree, in and out degree only on a directed graph, and the rule the check suggests reads it", () => {
+        const harness = makeSession();
+        harness.add([{ id: "x" }, { id: "y" }]);
+        const directed = harness.session.data.statistics().directedness === "directed";
+        const values = harness.session.data.structureValues();
+        assert.deepEqual(
+            values.map(({ path, plainName }) => [path, plainName]),
+            [
+                ["graphty.degree", "Degree"],
+                ...(directed
+                    ? [
+                          ["graphty.inDegree", "In-degree"],
+                          ["graphty.outDegree", "Out-degree"],
+                      ]
+                    : []),
+            ],
+        );
+        assert.strictEqual(harness.session.selection.checkRule("degree > `0`").suggestion, "graphty.degree > `0`");
+        harness.session.dispose();
+    });
 });
 
 describe("ResultRef", () => {

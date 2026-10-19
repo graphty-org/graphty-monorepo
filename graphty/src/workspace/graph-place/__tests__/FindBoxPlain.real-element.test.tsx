@@ -97,13 +97,13 @@ describe("the find box in plain words", () => {
             () => {
                 assert.include(
                     lineUnderBox(),
-                    "Still selected: 2 nodes. To select by a value, type a rule such as donations > 6000",
+                    "Still selected: 2 nodes. To select by a value, type a rule such as donations >= 6000",
                 );
             },
             { timeout: TIMEOUT_MS },
         );
         assert.notInclude(lineUnderBox(), "`");
-        assert.notInclude(lineUnderBox(), "=");
+        assert.notMatch(lineUnderBox(), /(^|\s)=/, "no rule starts with =");
     });
 
     it("reads a typed rule with bare numbers, and offers degree with no backticks", async () => {
@@ -111,11 +111,11 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("=degree > 2");
 
-        await screen.findByText('No column named "degree". Did you mean:', {}, { timeout: TIMEOUT_MS });
+        await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
         const list = await screen.findByRole("listbox", { name: "Find results" });
         const offer = within(list).getByRole("group", { name: "Rule" });
         await waitFor(() => {
-            assert.include(offer.textContent, "graphty.degree > 2");
+            assert.include(offer.textContent, "Degree > 2");
             assert.include(offer.textContent, "Select the 1 node");
         });
         assert.notInclude(offer.textContent, "`");
@@ -241,7 +241,7 @@ describe("the find box in plain words", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.include(lineUnderBox(), "Still selected: 1 node. A rule reads like donations > 6000");
+        assert.include(lineUnderBox(), "Still selected: 1 node. A rule reads like donations >= 6000");
         assert.deepEqual([...session.selection.nodes], ["b"]);
     });
 
@@ -295,7 +295,7 @@ describe("the find box in plain words", () => {
         await focusFind();
         await userEvent.keyboard("=degree > 2");
 
-        const line = await screen.findByText('No column named "degree". Did you mean:', {}, { timeout: TIMEOUT_MS });
+        const line = await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
         assert.isTrue(line.classList.contains("ws-find-empty"), line.className);
         assert.isNull(document.querySelector(".ws-find-refusal"));
         const find = screen.getByRole("combobox", { name: "Find" });

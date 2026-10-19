@@ -1329,6 +1329,21 @@ export interface ReadableValue {
 }
 
 /**
+ * A value every node carries from the graph's structure, which a rule reads with no run and no
+ * column: `graphty.degree`, and on a directed graph `graphty.inDegree` and `graphty.outDegree`.
+ * See `SessionDataApi.structureValues`.
+ * @since 3.35.0
+ */
+export interface StructureValue {
+    /** What a rule reads, such as `"graphty.degree"`. */
+    readonly path: Path;
+    /** The catalog name: "Degree", "In-degree" or "Out-degree". */
+    readonly plainName: string;
+    /** The name a technical reader knows it by: "degree", "inDegree" or "outDegree". */
+    readonly technicalName: string;
+}
+
+/**
  * A rule leaf that can test a {@link ReadableValue}, by the `kind` it has in a {@link RuleTree}:
  * `range` (between, at least, at most, is), `top` (a `threshold` leaf's top N), `above` (a
  * `threshold` leaf's strictly above), `categories` (is one of, is not one of) and `text`

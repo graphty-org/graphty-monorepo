@@ -743,7 +743,9 @@ export abstract class DataSource {
     protected chunkSize: number;
     dataValidator(schema: z.core.$ZodObject, obj: object): Promise<boolean>;
     get declaredDirection(): DeclaredDirection | null;
+    get declaredGraphValues(): Readonly<Record<string, unknown>> | null;
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges?: number): void;
+    protected declareGraphValues(values: Readonly<Record<string, unknown>>): void;
     // (undocumented)
     static readonly DEFAULT_CHUNK_SIZE = 1000;
     static descriptor?: FormatDescriptor;
@@ -2936,6 +2938,20 @@ export type GraphtyWarningCode =
 | "W_DIMENSION_OVERRIDDEN";
 
 // @public
+export function graphvizAvailability(): Promise<GraphvizCapability>;
+
+// @public
+export interface GraphvizCapability {
+    readonly available: boolean;
+}
+
+// @public
+export type GraphvizEngine = "dot" | "neato" | "fdp" | "sfdp" | "circo" | "twopi" | "osage" | "patchwork";
+
+// @public
+export type GraphvizFailureCode = "graphviz.unavailable" | "graphviz.syntax" | "graphviz.error" | "graphviz.crashed" | "graphviz.timeout" | "graphviz.too-large";
+
+// @public
 export const GREEN_SUCCESS: {
     readonly highlighted: "#009E73";
     readonly muted: "#999999";
@@ -4730,6 +4746,7 @@ export interface SnapshotLayoutInput {
     };
     readonly graph: GraphSnapshot;
     readonly initial: F32;
+    nodeSizes?(): F32;
     readonly options: Readonly<Record<string, unknown>>;
     report(progress: SnapshotLayoutProgress): void;
     readonly scope: NodeMask | null;

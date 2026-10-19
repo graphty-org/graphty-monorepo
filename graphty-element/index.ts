@@ -197,6 +197,10 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
+export type { GraphvizEngine } from "./src/layout/graphviz/engines";
+export type { GraphvizFailureCode } from "./src/layout/graphviz/protocol";
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it

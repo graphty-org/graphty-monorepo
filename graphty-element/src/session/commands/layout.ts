@@ -105,7 +105,9 @@ export interface LayoutService {
 }
 
 /** Which layout suits the graph the session holds now: what `data.import` with a recommended layout asks. */
-export type LayoutAdvice = () => { readonly id: LayoutId; readonly engine: string } | undefined;
+export type LayoutAdvice = () =>
+    | { readonly id: LayoutId; readonly engine: string; readonly options?: Readonly<Record<string, unknown>> }
+    | undefined;
 
 /** The layout a graph is drawn with before one is chosen: the element's own default. */
 export const DEFAULT_LAYOUT: LayoutChoice = Object.freeze({

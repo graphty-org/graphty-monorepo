@@ -40,6 +40,9 @@ const config: StorybookConfig = {
                     "@babylonjs/core/Shaders/default.fragment",
                     "@babylonjs/core/ShadersWGSL/default.vertex",
                     "@babylonjs/core/ShadersWGSL/default.fragment",
+                    // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
+                    // starts after the page has loaded.
+                    "@hpcc-js/wasm-graphviz",
                 ],
             },
             resolve: {
@@ -54,6 +57,11 @@ const config: StorybookConfig = {
                 },
             },
         });
+        // The library build leaves the Graphviz package out of the Worker it emits, for the
+        // consumer's bundler to resolve. A Storybook is the application, so its Worker carries
+        // the package; without this the built Storybook's Graphviz layouts report
+        // graphviz.unavailable. Replaced rather than merged, since a merge keeps the external list.
+        merged.worker = { format: "es" };
         return merged;
     },
 };

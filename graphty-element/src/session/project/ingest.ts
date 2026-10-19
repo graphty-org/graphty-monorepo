@@ -40,6 +40,7 @@ import {
     type DataImportCommand,
     type DataMutation,
     describeSource,
+    FILE_GRAPH_VALUE,
     type HeldRows,
     SOURCE_VALUE,
 } from "../commands/data";
@@ -1297,6 +1298,8 @@ export class Ingest<K extends KnownEdge> {
                     progress,
                 );
 
+                keepFileGraph(reader, type, writer);
+
                 const errors = reader.getErrorAggregator();
                 // The source's own problems come first: it read the file before any record was
                 // stored. They reach the report whatever the host does with the event below.
@@ -1572,9 +1575,25 @@ function heldReader(held: HeldRows): ChunkReader {
     };
 }
 
+/**
+ * Keep what the file said about the whole graph with the graph, where a layout chosen for the
+ * file reads it.
+ * @param reader - The source, once its last chunk is read.
+ * @param format - The format it read.
+ * @param writer - The command's writer.
+ */
+function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
+    const attributes = reader.declaredGraphValues;
+    if (attributes !== null && attributes !== undefined) {
+        writer.setGraphValues({ [FILE_GRAPH_VALUE]: Object.freeze({ format, attributes }) });
+    }
+}
+
 /** What a load reads its chunks from: a data source, or a draft's held rows. */
 interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
+    /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
+    readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
     getErrorAggregator(): ErrorAggregator;
     getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }

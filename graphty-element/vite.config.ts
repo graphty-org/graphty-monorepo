@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { defineConfig, loadEnv, UserConfig } from "vite";
+import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 import VitePluginCustomElementsManifest from "vite-plugin-cem";
 
 /**
@@ -85,14 +85,50 @@ function externalDependencies(): RegExp[] {
         .map((name) => new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(/.*)?$`));
 }
 
+/**
+ * Leave the Graphviz Worker for the consumer's bundler.
+ *
+ * Vite builds the Worker (`src/layout/graphviz/worker.ts`) into its own file with the optional
+ * Graphviz package left as an import, and writes the reference to it in a shape no other bundler
+ * recognises. Rewritten to the plain `new Worker(new URL("<file>", import.meta.url), ...)` form,
+ * the consumer's Vite, webpack or Parcel bundles the Worker again and resolves the package from
+ * the consumer's own install.
+ * @returns the plugin
+ */
+function plainWorkerUrls(): Plugin {
+    return {
+        name: "graphty-plain-worker-urls",
+        // After Vite has written its own worker references, which it does as chunks are rendered.
+        generateBundle(_options, bundle) {
+            for (const output of Object.values(bundle)) {
+                if (output.type === "chunk") {
+                    output.code = output.code.replaceAll(
+                        /new URL\(\s*\/\* @vite-ignore \*\/\s*"" \+ new URL\(("[^"]+"), import\.meta\.url\)\.href,\s*import\.meta\.url\s*\)/g,
+                        "new URL($1, import.meta.url)",
+                    );
+                }
+            }
+        },
+    };
+}
+
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
     // Load env file from monorepo root (one level up from this package).
     // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
     const monorepoRoot = resolve(__dirname, "..");
     const env = loadEnv(mode, monorepoRoot, "");
     const config: UserConfig = {
+        // Relative in the build, so the Graphviz Worker's file is found next to the chunk that
+        // starts it. The dev server and the test runners keep the root.
+        ...(command === "build" ? { base: "./" } : {}),
+        worker: {
+            format: "es",
+            plugins: () => [],
+            rollupOptions: { external: externalDependencies() },
+        },
         plugins: [
+            plainWorkerUrls(),
             // eslint(),
             VitePluginCustomElementsManifest({
                 files: ["./src/graphty-element.ts"],

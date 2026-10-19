@@ -364,6 +364,8 @@ export abstract class DataSource {
     protected chunkSize: number;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
+    /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
+    private graphValues: Readonly<Record<string, unknown>> | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -729,6 +731,26 @@ export abstract class DataSource {
      */
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges = 0): void {
         this.declaration = { directed, statedBy, conflictingEdges };
+    }
+
+    /**
+     * The graph-level attributes the file declared (DOT's `layout`, `rankdir`, ...), or null when
+     * the format has none or the source has not parsed yet. Read it after the last chunk.
+     * @returns the values by name
+     * @since 3.29.0
+     */
+    get declaredGraphValues(): Readonly<Record<string, unknown>> | null {
+        return this.graphValues;
+    }
+
+    /**
+     * Record the graph-level attributes the file being parsed declared. The element keeps them
+     * with the graph, where a layout chosen for the file reads them.
+     * @param values - the values by name
+     * @since 3.29.0
+     */
+    protected declareGraphValues(values: Readonly<Record<string, unknown>>): void {
+        this.graphValues = Object.freeze({ ...values });
     }
 
     /**

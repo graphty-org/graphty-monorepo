@@ -778,6 +778,9 @@ importers:
       '@graphty/webgpu-graph-algorithms':
         specifier: workspace:^
         version: link:../webgpu-graph-algorithms
+      '@hpcc-js/wasm-graphviz':
+        specifier: 1.29.2
+        version: 1.29.2
       '@playwright/test':
         specifier: 1.57.0
         version: 1.57.0
@@ -2420,6 +2423,9 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
+
+  '@hpcc-js/wasm-graphviz@1.29.2':
+    resolution: {integrity: sha512-AkArBAZERT5OxH52/+kvCHB07cZ6ZNd9GnOvjw+S880bR88D6i27XfK6xj4dBhUDxNA2QPPMdgEcky3x4TJ3KA==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -11835,6 +11841,8 @@ snapshots:
   '@hono/node-server@2.1.3(hono@4.13.13)':
     dependencies:
       hono: 4.13.13
+
+  '@hpcc-js/wasm-graphviz@1.29.2': {}
 
   '@humanfs/core@0.19.2':
     dependencies:

@@ -1559,6 +1559,14 @@ export type GraphtyWarningCode =
 | "W_DIMENSION_OVERRIDDEN";
 
 // @public
+export function graphvizAvailability(): Promise<GraphvizCapability>;
+
+// @public
+export interface GraphvizCapability {
+    readonly available: boolean;
+}
+
+// @public
 export interface HighlightSpec {
     readonly field?: string;
     readonly name?: string;
@@ -1803,15 +1811,21 @@ export interface LayerSpec {
 export interface LayoutRecommendation {
     readonly fact: CodedFact<LayoutRecommendationCode>;
     readonly layout: LayoutDescriptor;
+    readonly options?: Readonly<Record<string, unknown>>;
     // @deprecated
     readonly reason: string;
 }
 
 // @public
-export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable";
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.graphviz-file" | "recommend.graphviz-unavailable";
 
 // @public
 export interface LayoutRecommendationOptions {
+    readonly file?: {
+        readonly format?: string;
+        readonly attributes?: Readonly<Record<string, unknown>>;
+    };
+    readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;
     readonly placedNodes?: number;
 }

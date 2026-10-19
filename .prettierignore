@@ -15,6 +15,9 @@ graph-samples/public-data/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
+# compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
+graphty-element/test/layout/graphviz-fixtures/
 # Vitest file snapshots: written by the tests that compare them byte for byte
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so

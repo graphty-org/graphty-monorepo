@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -298,6 +298,26 @@ describe("the sibling packages", () => {
         // `>=0.6.0 <1.0.0` this line used to pin said the same thing by hand and had to be edited
         // every time the requirement moved.
         assert.strictEqual(manifest.peerDependencies["@graphty/webgpu-graph-algorithms"], "workspace:^");
+    });
+
+    it("takes Graphviz as an optional peer that only the Graphviz Worker imports", () => {
+        assert.isDefined(manifest.peerDependencies["@hpcc-js/wasm-graphviz"]);
+        assert.isTrue(manifest.peerDependenciesMeta["@hpcc-js/wasm-graphviz"]?.optional);
+        assert.isUndefined(manifest.dependencies["@hpcc-js/wasm-graphviz"]);
+        const importers = readdirSync(resolve(PACKAGE_ROOT, "src"), { recursive: true, encoding: "utf8" })
+            .filter((file) => file.endsWith(".ts"))
+            .filter((file) =>
+                /from "@hpcc-js\/wasm-graphviz"|import\("@hpcc-js\/wasm-graphviz"\)/.test(
+                    readFileSync(resolve(PACKAGE_ROOT, "src", file), "utf8"),
+                ),
+            );
+        assert.deepEqual(importers, ["layout/graphviz/loader.ts"]);
+    });
+
+    it("leaves Graphviz out of ./bundle", () => {
+        const bundle = resolve(PACKAGE_ROOT, "dist/graphty.bundle.js");
+        // Graphviz's own entry points, which only its library code defines.
+        assert.notMatch(readFileSync(bundle, "utf8"), /CGraphviz|graphvizlib/);
     });
 
     it.each(MODULE_ENTRIES)("$subpath re-exports no name that means three different things", ({ source }) => {

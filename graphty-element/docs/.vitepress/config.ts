@@ -68,6 +68,7 @@ export default defineConfig({
                         { text: "Counting What a Layer Paints", link: "/guide/layer-counts" },
                         { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
+                        { text: "Graphviz Layouts", link: "/guide/graphviz-layouts" },
                         { text: "Acceleration", link: "/guide/acceleration" },
                         { text: "Renderer", link: "/guide/renderer" },
                         { text: "Algorithms", link: "/guide/algorithms" },

@@ -940,6 +940,43 @@ Still open:
 - `arrows` and `arrows-p2` (25 of 43 and 3 of 15 edges associated): the comparator's edge association, which the
   comparator work is changing in `associate.ts`; not changed here.
 
+## Specimen sheets: Cytoscape session settings graph-io now reads (fix round 1, sessions, 2026-10-19)
+
+A session reads its style from `session_vizmap.xml` and each view's bypasses from `lockedVisualProperties`, through
+the same resolver as XGMML, CX and CX2, so every label setting the XGMML round reads (above) is read for sessions too:
+`labels-p2`, `-p3`, `-p4`, `edge-labels-p2` and `mappings-bypass-p7` to `-p9` pass whole on the session sheets, and
+label.opacity, label.background, label.offLine and edge.label pass on `edge-labels`. What sessions needed beyond that
+(test: "draws what a view's bypass of a parent visual property locks" in `graph-io/test/formats/cys/styles.test.ts`):
+
+- A bypass of a parent visual property: a view saves a bypass under the name it was set with, and Cytoscape locks
+  the parent's children with it. `NODE_PAINT` now paints the fill and the border (`node-fills-borders`
+  `paint-d62728`), `NODE_SIZE` sizes the node whatever `nodeSizeLocked` says (`node-sizes-opacity`
+  `size-80-unlocked`, 36 -> 80), and `EDGE_PAINT` and `EDGE_UNSELECTED_PAINT` paint the line and its arrows
+  (`edges-lines` `paint-d62728`, `unselected-paint-d62728`; edge.color 54/56 -> 56/56). Only these children are read
+  from a parent: the label colors' and the selected paints' places in the lexicon were not measured.
+- `arrowColorMatchesEdge`: the line and both arrows are `EDGE_UNSELECTED_PAINT` (#404040, Cytoscape's own, when the
+  style has none); the stroke's default and its mapping are not drawn, and a bypass of the stroke paints the line
+  alone. `mappings-bypass` edge.color 8/11 -> 11/11, edge.arrowColor 2/6 -> 6/6
+  (`passthrough-edge-color-*` and `arrow-color-matches-edge` are #404040 in all four oracles and in the XGMML's own
+  saved graphics; `bypass-over-edge-passthrough` has a #9467bd line with #404040 arrows). The CX reading is the same
+  resolver and changes with it; a CX test that expected the mapped color was corrected.
+
+Still open on the session sheets (the same rows, with the same counts, on the XGMML, CX and CX2 copies):
+
+- label.backgroundBox, the bar, box, heat map and line charts, the annotation scoring and the large arrowheads of
+  `arrows-p2` (`target-arrow-size-16`, `-24`, `source-arrow-size-16`, `arrow-on-wide-edge`: 14 of 15 edges
+  associated, the heads read as 5 stray paths): as the XGMML round above says. Linear and radial gradient custom
+  graphics cannot be judged against these oracles: Cytoscape's SVG writer (FreeHEP) paints a gradient as one flat
+  color (`#b7cce1` for the white-to-`#1F77B4` gradient on `images-charts-p2`), so a gradient graphty draws would fail
+  where a flat fill would pass; they need a PNG oracle first.
+- `mappings-bypass-p19` `passthrough-font-face` (label.weight 2/3 here, on CX and on CX2): the column holds
+  `Serif,bold,12` and Cytoscape draws it plain (the XGMML saves `Serif.plain,plain,12`). Cytoscape's font parser
+  takes bold only from a `.bold` suffix on the name and ignores the style word; graph-io reads the style word. The
+  reader fix needs the writer to change with it (graph-io writes `SansSerif,bold,12`, which Cytoscape also draws
+  plain), so both are left for one change.
+- `labels` and `mappings-bypass-p6` `font-face-serif` (label.anchor, all four formats): the oracle reads the serif
+  label as start-anchored; not an import setting (graph-io reads the label as centered, as the file says).
+
 ## Specimen sheets: vis-network
 
 The vis-network specimen sheets (`graph-io/test/fidelity/specimens/vis-network/`, `{ nodes, edges, options }`

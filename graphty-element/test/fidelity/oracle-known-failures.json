@@ -14748,7 +14748,7 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#23", "path#24", "path#25", "path#26", "path#27", "path#28", "path#29", "path#3", "path#30", "path#31", "path#32", "path#33", "path#34", "path#35", "path#36", "path#37", "path#38", "path#39", "path#4", "path#40", "path#41", "path#42", "path#43", "path#44", "path#45", "path#46", "path#47", "path#48", "path#49", "path#5", "path#6", "path#7", "path#8", "path#9"],
+            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#3", "path#4", "path#5", "path#6", "path#7", "path#8", "path#9"],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -14784,7 +14784,7 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#23", "path#24", "path#25", "path#26", "path#27", "path#28", "path#29", "path#3", "path#30", "path#31", "path#32", "path#33", "path#34", "path#35", "path#36", "path#37", "path#38", "path#39", "path#4", "path#40", "path#41", "path#42", "path#43", "path#44", "path#45", "path#46", "path#47", "path#48", "path#49", "path#5", "path#6", "path#7", "path#8", "path#9"],
+            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#3", "path#4", "path#5", "path#6", "path#7", "path#8", "path#9"],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -14820,7 +14820,7 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#23", "path#24", "path#25", "path#26", "path#27", "path#28", "path#29", "path#3", "path#30", "path#31", "path#32", "path#33", "path#34", "path#35", "path#36", "path#37", "path#38", "path#39", "path#4", "path#40", "path#41", "path#42", "path#43", "path#44", "path#45", "path#46", "path#47", "path#48", "path#49", "path#5", "path#6", "path#7", "path#8", "path#9"],
+            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#3", "path#4", "path#5", "path#6", "path#7", "path#8", "path#9"],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -14856,7 +14856,7 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#23", "path#24", "path#25", "path#26", "path#27", "path#28", "path#29", "path#3", "path#30", "path#31", "path#32", "path#33", "path#34", "path#35", "path#36", "path#37", "path#38", "path#39", "path#4", "path#40", "path#41", "path#42", "path#43", "path#44", "path#45", "path#46", "path#47", "path#48", "path#49", "path#5", "path#6", "path#7", "path#8", "path#9"],
+            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#13", "path#14", "path#15", "path#16", "path#17", "path#18", "path#19", "path#2", "path#20", "path#21", "path#22", "path#3", "path#4", "path#5", "path#6", "path#7", "path#8", "path#9"],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -14903,7 +14903,7 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.arrowShape": [],
-            "edge.arrowFill": ["109->110#g0@source", "112->113#g0@source", "55->56#g0@target", "58->59#g0@target"],
+            "edge.arrowFill": [],
             "edge.arrowColor": ["100->101#g0@source", "103->104#g0@source", "106->107#g0@source", "109->110#g0@source", "112->113#g0@source", "37->38#g0@target", "40->41#g0@target", "43->44#g0@target", "46->47#g0@target", "49->50#g0@target", "52->53#g0@target", "55->56#g0@target", "58->59#g0@target", "91->92#g0@source", "94->95#g0@source", "97->98#g0@source"],
             "edge.arrowLength": ["109->110#g0@source", "112->113#g0@source"],
             "edge.arrowWidth": ["109->110#g0@source", "112->113#g0@source"],
@@ -14954,7 +14954,7 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.arrowShape": [],
-            "edge.arrowFill": ["109->110#g0@source", "112->113#g0@source", "55->56#g0@target", "58->59#g0@target"],
+            "edge.arrowFill": [],
             "edge.arrowColor": ["100->101#g0@source", "103->104#g0@source", "106->107#g0@source", "109->110#g0@source", "112->113#g0@source", "37->38#g0@target", "40->41#g0@target", "43->44#g0@target", "46->47#g0@target", "49->50#g0@target", "52->53#g0@target", "55->56#g0@target", "58->59#g0@target", "91->92#g0@source", "94->95#g0@source", "97->98#g0@source"],
             "edge.arrowLength": ["109->110#g0@source", "112->113#g0@source"],
             "edge.arrowWidth": ["109->110#g0@source", "112->113#g0@source"],
@@ -14965,6 +14965,8 @@
             "background": []
         },
         "gml-specimen-arrows-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15007,9 +15009,15 @@
             "edge.arrowColor": [],
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
-            "edge.arrowToSpacing": []
+            "edge.arrowToSpacing": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-arrows-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15052,9 +15060,15 @@
             "edge.arrowColor": [],
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
-            "edge.arrowToSpacing": []
+            "edge.arrowToSpacing": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-arrows-p6": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15084,7 +15098,7 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["10->11#0", "4->5#0", "7->8#0"],
+            "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
@@ -15097,9 +15111,15 @@
             "edge.arrowColor": [],
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
-            "edge.arrowToSpacing": []
+            "edge.arrowToSpacing": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-arrows-p6@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15129,7 +15149,7 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["10->11#0", "4->5#0", "7->8#0"],
+            "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
@@ -15142,7 +15162,11 @@
             "edge.arrowColor": [],
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
-            "edge.arrowToSpacing": []
+            "edge.arrowToSpacing": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-arrows@matched": {
             "node.present": [],
@@ -15324,6 +15348,8 @@
             "background": []
         },
         "gml-specimen-edge-labels-p3": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15369,9 +15395,15 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "edge.label": []
+            "edge.label": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edge-labels-p3@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15417,7 +15449,11 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "edge.label": []
+            "edge.label": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edge-labels@matched": {
             "node.present": [],
@@ -15567,6 +15603,8 @@
             "background": []
         },
         "gml-specimen-edges-lines-p3": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15603,9 +15641,15 @@
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": []
+            "edge.arrow": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edges-lines-p3@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15642,9 +15686,15 @@
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": []
+            "edge.arrow": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edges-lines-p4": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15688,9 +15738,15 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "stray.present": ["path#0"]
+            "stray.present": ["path#0"],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edges-lines-p4@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15734,9 +15790,15 @@
             "edge.arrowLength": [],
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
-            "stray.present": ["path#0"]
+            "stray.present": ["path#0"],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edges-lines-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15766,16 +15828,22 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["10->11#0", "13->14#0", "16->17#0", "19->20#0", "22->23#0", "4->5#0", "7->8#0"],
+            "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": []
+            "edge.arrow": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edges-lines-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15805,14 +15873,18 @@
             "label.backgroundBorder": [],
             "edge.present": [],
             "edge.extra": [],
-            "edge.route": ["10->11#0", "13->14#0", "16->17#0", "19->20#0", "22->23#0", "4->5#0", "7->8#0"],
+            "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": []
+            "edge.arrow": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-edges-lines@matched": {
             "node.present": [],
@@ -15910,6 +15982,8 @@
             "background": []
         },
         "gml-specimen-groups-p2": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15948,9 +16022,15 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "group.present": ["box-10", "box-12", "box-14", "box-16", "box-18", "box-2", "box-20", "box-22", "box-6", "box-8"],
-            "stray.present": ["rect#0", "rect#1", "text#10", "text#11", "text#2", "text#3", "text#4", "text#5", "text#6", "text#7", "text#8", "text#9"]
+            "stray.present": ["rect#0", "rect#1", "text#10", "text#11", "text#2", "text#3", "text#4", "text#5", "text#6", "text#7", "text#8", "text#9"],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-groups-p2@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -15989,7 +16069,11 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "group.present": ["box-10", "box-12", "box-14", "box-16", "box-18", "box-2", "box-20", "box-22", "box-6", "box-8"],
-            "stray.present": ["rect#0", "rect#1", "text#10", "text#11", "text#2", "text#3", "text#4", "text#5", "text#6", "text#7", "text#8", "text#9"]
+            "stray.present": ["rect#0", "rect#1", "text#10", "text#11", "text#2", "text#3", "text#4", "text#5", "text#6", "text#7", "text#8", "text#9"],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-groups@matched": {
             "node.present": [],
@@ -16281,6 +16365,8 @@
             "background": []
         },
         "gml-specimen-labels-p4": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16307,9 +16393,15 @@
             "label.anchor": ["5", "7", "8", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-labels-p4@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16336,9 +16428,15 @@
             "label.anchor": ["5", "7", "8", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-labels-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16365,9 +16463,15 @@
             "label.anchor": ["10", "12", "14", "16"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-labels-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16394,9 +16498,15 @@
             "label.anchor": ["10", "12", "14", "16"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-labels-p6": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16423,9 +16533,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-labels-p6@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16452,7 +16568,11 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-labels@matched": {
             "node.present": [],
@@ -16563,6 +16683,8 @@
             "background": []
         },
         "gml-specimen-node-fills-borders-p3": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16589,9 +16711,15 @@
             "label.anchor": ["11", "13", "15", "17", "19", "21", "5", "7", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-fills-borders-p3@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16618,9 +16746,15 @@
             "label.anchor": ["11", "13", "15", "17", "19", "21", "5", "7", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-fills-borders-p4": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16647,9 +16781,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-fills-borders-p4@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16676,9 +16816,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-fills-borders-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16705,9 +16851,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-fills-borders-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16734,7 +16886,11 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-fills-borders@matched": {
             "node.present": [],
@@ -16887,6 +17043,8 @@
             "background": []
         },
         "gml-specimen-node-shapes-p4": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16913,9 +17071,15 @@
             "label.anchor": ["11", "13", "15", "17", "19", "21", "25", "27", "29", "31", "33", "35", "37", "39", "41", "43", "45", "47", "49", "5", "51", "7", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-shapes-p4@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -16942,12 +17106,18 @@
             "label.anchor": ["11", "13", "15", "17", "19", "21", "25", "27", "29", "31", "33", "35", "37", "39", "41", "43", "45", "47", "49", "5", "51", "7", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-shapes-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
-            "node.height": ["16"],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
@@ -16971,12 +17141,18 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-shapes-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
-            "node.height": ["16"],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
@@ -17000,7 +17176,11 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-shapes@matched": {
             "node.present": [],
@@ -17086,7 +17266,7 @@
             "node.gradient": [],
             "node.stroke": ["0", "1", "10", "12", "14", "16", "18", "2", "20", "22", "24", "26", "28", "3", "30", "4", "6", "8"],
             "label.present": ["0", "1", "10", "12", "14", "16", "18", "2", "20", "22", "24", "26", "28", "3", "30", "4", "6", "8"],
-            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#2", "path#3", "path#4", "path#5", "path#6", "path#7", "path#8", "path#9", "text#13"],
+            "stray.present": ["text#0"],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -17106,13 +17286,15 @@
             "node.gradient": [],
             "node.stroke": ["0", "1", "10", "12", "14", "16", "18", "2", "20", "22", "24", "26", "28", "3", "30", "4", "6", "8"],
             "label.present": ["0", "1", "10", "12", "14", "16", "18", "2", "20", "22", "24", "26", "28", "3", "30", "4", "6", "8"],
-            "stray.present": ["path#0", "path#1", "path#10", "path#11", "path#12", "path#2", "path#3", "path#4", "path#5", "path#6", "path#7", "path#8", "path#9", "text#13"],
+            "stray.present": ["text#0"],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
             "background": []
         },
         "gml-specimen-node-sizes-opacity-p3": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -17139,9 +17321,15 @@
             "label.anchor": ["11", "13", "15", "5", "7", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-sizes-opacity-p3@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -17168,9 +17356,15 @@
             "label.anchor": ["11", "13", "15", "5", "7", "9"],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-sizes-opacity-p4": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -17197,9 +17391,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-sizes-opacity-p4@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -17226,9 +17426,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-sizes-opacity-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -17255,9 +17461,15 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-sizes-opacity-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -17284,7 +17496,11 @@
             "label.anchor": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBorder": []
+            "label.backgroundBorder": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "gml-specimen-node-sizes-opacity@matched": {
             "node.present": [],

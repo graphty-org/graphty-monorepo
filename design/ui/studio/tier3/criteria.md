@@ -1,4 +1,4 @@
-The study runs on build 1fa51e2b0b served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-1fa51e2b0b
+The study runs on build e3c5bca8e6 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-e3c5bca8e6
 
 Frozen on 2026-10-19 for the tier 3 rounds.
 
@@ -320,6 +320,12 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-19 (round 1 build refrozen): the study build is now e3c5bca8e6, in
+  `.study-builds/tier3-r1-e3c5bca8e6`. It replaces build 1fa51e2b0b
+  (`.study-builds/tier3-r1-1fa51e2b0b`). Its diff of graphty, graphty-element, compact-mantine and
+  `pnpm-lock.yaml` against 1fa51e2b0b is empty, so it holds the same app code (preflight 1). No bar
+  changed.
 
 - 2026-10-19 (fourth review by the researcher, the user advocate and the red team; frozen for the
   tier 3 rounds on build 1fa51e2b0b; no session has run, and the dry run's exit test has NOT been

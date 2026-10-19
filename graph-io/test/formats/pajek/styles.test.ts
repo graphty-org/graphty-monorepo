@@ -134,8 +134,9 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "borderWidth")[1]).toBe(2);
         // lr 30 lphi 200 is nearest the left side; no lr or lphi is Pajek's default, below and to the right
         expect(drawn(styles, snapshot, "node", "labelPosition").slice(2, 4)).toEqual(["bottom-right", "left"]);
-        // `cross` has no name in the neutral vocabulary: kept as other:cross and noted
-        expect(codes(styles)).toEqual(["W_STYLE_UNKNOWN_VALUE"]);
+        // `cross` has no name in the neutral vocabulary: kept as other:cross and noted; the line pattern `Dashed` is
+        // no Pajek keyword: noted
+        expect(codes(styles)).toEqual(["W_STYLE_UNKNOWN_VALUE", "W_STYLE_UNKNOWN_VALUE"]);
     });
 
     it("reads line color, width and pattern, carried from line to line, and Pajek's arc and edge defaults", async () => {
@@ -151,12 +152,33 @@ describe("Pajek styles: Pajek's rules", () => {
             "4-2": "dotted",
             "3-5": "solid",
             "1-2": "dotted",
-            "5-6": "dashed",
+            // Pajek knows Solid and Dots only: `p Dashed` draws a solid line
+            "5-6": "solid",
             "1-1": "solid",
         });
         // arcs get Pajek's arrow at the target; edges (each kept as a pair) none
         expect(byEdge("targetArrow")).toMatchObject({ "1-1": "triangle", "4-2": "triangle", "1-2": "none" });
         expect(new Set(drawn(styles, snapshot, "edge", "sourceArrow"))).toEqual(new Set(["none"]));
+    });
+
+    it("draws no line of value 0, and a pattern Pajek does not know as a solid line", async () => {
+        const { snapshot, styles } = await load(
+            "*Vertices 4\n1 a\n2 b\n3 c\n4 d\n*Arcs\n1 2 0\n2 3 1 p dots\n3 4 1 p Dots\n",
+        );
+        expect(drawn(styles, snapshot, "edge", "visible")).toEqual([false, null, null]);
+        expect(drawn(styles, snapshot, "edge", "lineStyle")).toEqual(["solid", "solid", "dotted"]);
+        // the same when the import keeps the line value as an attribute (weightFrom null), as graphty-element reads it;
+        // a negative value is dotted while the line carries no pattern
+        const kept = await registry.importGraph("*Vertices 3\n1 a\n2 b\n3 c\n*Arcs\n1 2 0\n2 3 -1\n3 1 -1 p Solid\n", {
+            format: "pajek",
+            styles: { toolDefaults: true },
+            weightFrom: null,
+        });
+        if (kept.styles === null || kept.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(drawn(kept.styles, kept.snapshot, "edge", "visible")).toEqual([false, null, null]);
+        expect(drawn(kept.styles, kept.snapshot, "edge", "lineStyle")).toEqual(["solid", "dotted", "solid"]);
     });
 
     it("reads every color form Pajek documents: names, GrayNN, RGB and CMYK in hex and decimals", async () => {

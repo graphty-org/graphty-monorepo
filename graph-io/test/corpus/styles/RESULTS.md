@@ -399,14 +399,14 @@ Tool values are elements drawn with the writing program's default.
 | pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 261 | 100% | 0% | 0 | 1214 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 9 | 3 | 29 | 55% | 14% | 0 | 202 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 3 | 12 | 100% | 25% | 0 | 107 | 0 | W_STYLE_BAD_VALUE |
-| pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 7 | 283 | 27% | 17% | 0 | 974 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 4 | 28 | 79% | 21% | 0 | 26 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 5 | 253 | 30% | 19% | 0 | 974 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 4 | 27 | 81% | 22% | 0 | 26 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 2 | 0 | - | - | 0 | 132 | 0 |  |
 | pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 4 | 2 | 100% | 0% | 0 | 41 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 4 | 21 | 100% | 29% | 0 | 67 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 4 | 19 | 100% | 32% | 0 | 67 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 4 | 28 | 79% | 21% | 0 | 26 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 4 | 19 | 100% | 32% | 0 | 78 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 4 | 20 | 100% | 30% | 0 | 67 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 4 | 27 | 81% | 22% | 0 | 26 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 4 | 20 | 100% | 30% | 0 | 78 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
 | pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 5 | 4 | 151 | 0% | 0% | 0 | 1631 | 0 |  |
 | pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 2 | 75 | 76% | 76% | 0 | 5173 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |

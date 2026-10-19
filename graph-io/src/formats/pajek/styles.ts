@@ -15,6 +15,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { explicitWeights } from "../../common/weights.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { DVIPS_COLORS } from "../../styles/canon/color-tables.js";
 import { canonEnum } from "../../styles/canon/enums.js";
@@ -40,7 +41,7 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN } from "./syntax.js";
+import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN, VALUE_COLUMN } from "./syntax.js";
 
 /**
  * What the Pajek writer holds natively: the vertex label, the vertex shape keyword and drawing parameters, the line
@@ -379,14 +380,45 @@ function readLine(get: Param, put: Put, at: At, directed: boolean): void {
         at,
     );
     const p = get("p");
-    if (p !== null) {
+    if (p === "Dots" || p === "Solid") {
         put("lineStyle", canonEnum("lineStyle", p, "dvips", at("lineStyle")));
+    } else if (p !== null) {
+        // Pajek knows Solid and Dots, case for case; any other pattern (`Dashed`, `dots`) draws a solid line
+        noteAt(at("lineStyle"), STYLE_ISSUE.UNKNOWN_VALUE, typeof p === "string" ? p : JSON.stringify(p));
+        put("lineStyle", "solid");
     }
     readArrowPosition(get("ap"), put, at);
     readText(get("l"), "label", put, at);
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readText(get("font"), "labelFont", put, at);
+}
+
+/**
+ * What a line's value draws (manual 5.3 p. 90): a line of value 0 is not drawn, and a negative one is dotted unless
+ * the line sets a pattern or carries one from the line before.
+ * @param value - the line's value, or null
+ * @param get - the line's parameters
+ * @param put - receives the values
+ */
+function readLineValue(value: number | null, get: Param, put: Put): void {
+    if (value === 0) {
+        put("visible", false);
+    } else if (value !== null && value < 0 && get("p") === null) {
+        put("lineStyle", "dotted");
+    }
+}
+
+/**
+ * A cell's number: a number as is, a numeric text parsed, anything else null.
+ * @param raw - the cell
+ * @returns the number, or null
+ */
+function numberOrNull(raw: unknown): number | null {
+    if (typeof raw === "string" && raw.trim() !== "") {
+        raw = Number(raw);
+    }
+    return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
 
 /**
@@ -472,11 +504,16 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
                 readVertex(get, put, at);
             } else {
                 readLine(get, put, at, directed[i]);
+                readLineValue(lineValue(i), get, put);
             }
         }
         return out.values;
     };
     const directed = directedEdges(snapshot);
+    const weights = explicitWeights(snapshot);
+    // the line's value: its weight, or the `value` column when the import kept the value as an attribute
+    const lineValue = (e: number): number | null =>
+        weights.isExplicit(e) ? weights.value(e) : numberOrNull(cells(snapshot.edges, e)(VALUE_COLUMN));
     const node = read("node");
     const edge = read("edge");
     const block = typeof context.kept === "string" ? context.kept : null;

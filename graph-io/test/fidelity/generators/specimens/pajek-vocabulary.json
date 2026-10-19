@@ -84,8 +84,8 @@
     },
     "line": {
         "section": {
-            "source": "manual 5.3 p90-92 and 3.x: *Arcs, *Edges, *Arcslist, *Edgeslist, relation number and name (*Arcs :2 \"name\")",
-            "values": ["*Arcs", "*Edges", "*Arcslist", "*Edgeslist", "relation"]
+            "source": "manual 5.3 p90-92, 2 p7 (matrix format) and 3.x: *Arcs, *Edges, *Arcslist, *Edgeslist, *Matrix, relation number and name (*Arcs :2 \"name\")",
+            "values": ["*Arcs", "*Edges", "*Arcslist", "*Edgeslist", "*Matrix", "relation"]
         },
         "value": {
             "source": "manual 5.3 p90: a negative value draws a dotted line",
@@ -153,7 +153,7 @@
         },
         "font": {
             "source": "manual 5.3 p91: PostScript font",
-            "values": ["Helvetica", "Courier", "Times-Roman"]
+            "values": ["Helvetica", "Courier", "Times-Roman", "Arial"]
         },
         "h1": {
             "source": "manual 5.3 p91: hook at initial vertex (0 center, -1 closest, 1.. user defined: the HOOKS of the vertex's shape in SHAPES.CFG)",

@@ -190,6 +190,13 @@ class Sheet:
                 sections.append(ln[0])
         for sec in sections:
             out_lines.append(sec)
+            if sec == "*Matrix":
+                # one row per vertex, one column per vertex: a line s -> t is its value in row s, column t
+                m = [["0"] * len(verts) for _ in verts]
+                for _, s, t, value, _, _ in (ln for ln in lines if ln[0] == sec):
+                    m[s - 1][t - 1] = value
+                out_lines += [" ".join(r) for r in m]
+                continue
             if sec.endswith("list"):
                 by = {}
                 for _, s, t, _, _, _ in (ln for ln in lines if ln[0] == sec):
@@ -387,6 +394,12 @@ s.line("arc-w-4", "arcs w=4", section="*Arcs", params=[("w", "4")])
 s.line("relation-2", 'arcs relation 2', section='*Arcs :2 "r2"', cov=["line.section=relation"])
 s.line("arcslist", "arcslist", section="*Arcslist", cov=["line.section=*Arcslist"])
 s.line("edgeslist", "edgeslist", section="*Edgeslist", cov=["line.section=*Edgeslist"])
+# a *Matrix section's lines are arcs, drawn with the arrows and the curved pair of any arc
+s.line("matrix", "matrix", section="*Matrix", cov=["line.section=*Matrix"])
+s.line("matrix-pair", "matrix both ways", section="*Matrix", pair=True)
+s.line("p-dashed", "p=Dashed", params=[("p", "Dashed")])
+s.line("p-dots-lowercase", "p=dots", params=[("p", "dots")])
+s.line("w-0", "w=0", params=[("w", "0")])
 SHEETS.append(s)
 page(s)
 page(s, {"TransparencyofLines": "0.50"}, "SVG Opacity of Lines = 0.5",

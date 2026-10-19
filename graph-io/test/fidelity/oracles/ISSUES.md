@@ -798,7 +798,10 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
 - Shapes:
     - `cross` is drawn as an ellipse, `empty` draws nothing (and its label at size 1 in white), `r` is ignored on
       box and diamond (`specimen-node-shapes` `r-*`), and a shape keyword with a capital letter (`Box`, `Triangle`)
-      or no shape keyword at all draws an ellipse.
+      or no shape keyword at all draws an ellipse. Open: graph-io reads a shape keyword in any case and keeps it
+      lower-cased in the `shape` column (`isShapeKeyword`, a published helper), so it draws `Box` and `Triangle`
+      as a box and a triangle (`shape-box-capitalized`, `shape-triangle-capitalized`); keeping the keyword as
+      written changes what an import returns, a breaking change left for the owner.
     - `man` and `woman` are about 2.5 x 6.5 times the size of the other shapes at the same `x_fact` / `y_fact` (50 x
       130 px at 1, against 20 for an ellipse); the sheets draw them at 0.5.
     - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie.
@@ -814,7 +817,10 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   into the SVG as given, and a quoted font name (`font "DejaVu Sans"`) breaks the line (the sheets use Helvetica).
   Mark Vertices Using / Numbers draws the vertex numbers instead of the labels (`specimen-labels-p2`), No Labels draws
   none (`-p3`).
-- Lines: an `*Edges` line is drawn twice its `w`, an `*Arcs` line at its `w`; value 0 draws no line; a negative
+- Lines: an `*Edges` line is drawn twice its `w`, an `*Arcs` line at its `w`; value 0 draws no line (graph-io
+  hides it), nor does `w 0`; a pattern other than `Solid` or `Dots`, or either in another case (`p Dashed`,
+  `p dots`), draws a solid line, as graph-io now reads it (`specimen-edges-lines` `p-dashed`, `p-dots-lowercase`);
+  a `*Matrix` section's lines are arcs, and a value in both cells a curved pair (`matrix`, `matrix-pair`); a negative
   value is dotted only when no `p` is set on the line or carried from the line before; the oval (`k1 -1`), circular
   arc (`k1 -2`, `k1 -3`) and double (`k1 -4`) routes are drawn straight; a loop is a Bezier loop and a bidirected
   pair two curves. Straight Lines (`specimen-edges-lines-p4`) draws the Bezier routes straight; Lines Color as

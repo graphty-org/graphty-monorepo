@@ -100,7 +100,9 @@ describe("the start page in the app's frame", () => {
         await waitFor(() => {
             assert.equal(scrolled(), 0, "the wheel scrolled it back up");
         });
-        await wheelOver(screen.getByRole("heading", { level: 1 }), 5000);
+        // As far as the samples, not past them: the library runs on well below its top.
+        const header = Number.parseFloat(getComputedStyle(samples).scrollMarginTop) || 0;
+        await wheelOver(screen.getByRole("heading", { level: 1 }), samples.getBoundingClientRect().top - header);
         await waitFor(() => {
             assert.isTrue(atSamples(samples), "the wheel scrolled it down");
         });

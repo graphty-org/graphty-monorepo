@@ -279,3 +279,66 @@ describe("files graphty wrote", () => {
         expect(other.styles?.styles.source.tool).toBe("cytoscape");
     });
 });
+
+describe("XGMML labels as Cytoscape desktop draws them", () => {
+    const att = (name: string, value: string): string => `<att name="${name}" value="${value}" type="string"/>`;
+    const node = (id: string, x: number, atts: string): string =>
+        `<node id="${id}" label="${id}"><graphics x="${String(x)}" y="0" w="40" h="20">${att("NODE_LABEL", "L")}${atts}</graphics></node>`;
+    const file = doc(
+        [
+            node("above", 0, att("NODE_LABEL_POSITION", "N,S,c,0.00,0.00")),
+            node("corner", 100, att("NODE_LABEL_POSITION", "NW,NW,l,3.00,-2.00")),
+            node(
+                "boxed",
+                200,
+                att("NODE_LABEL_POSITION", "C,NE,r,0.00,0.00") +
+                    att("NODE_LABEL_BACKGROUND_SHAPE", "RECTANGLE") +
+                    att("NODE_LABEL_BACKGROUND_COLOR", "#FFFF66") +
+                    att("NODE_LABEL_BACKGROUND_TRANSPARENCY", "100") +
+                    att("NODE_LABEL_TRANSPARENCY", "64"),
+            ),
+            node(
+                "plain",
+                300,
+                att("NODE_LABEL_BACKGROUND_SHAPE", "NONE") + att("NODE_LABEL_BACKGROUND_COLOR", "#B6B6B6"),
+            ),
+            node("s", 400, ""),
+            node("t", 600, ""),
+            `<edge source="s" target="t"><graphics>${att("EDGE_LABEL", "e")}${att("EDGE_LABEL_POSITION", "W,E,c,0.00,0.00")}${att("EDGE_LABEL_ROTATION", "45.0")}${att("EDGE_LABEL_WIDTH", "30.0")}${att("EDGE_LABEL_TRANSPARENCY", "128")}</graphics></edge>`,
+        ].join("\n"),
+    );
+
+    it("pins any point of the label's box to any point of the node, with the offset, as NODE_LABEL_POSITION says", async () => {
+        const { snapshot, styles } = await load(file);
+        const ex = styles as ExtractedStyles;
+        const v = (p: Parameters<typeof resolveStyles>[2]): Record<string, unknown> => nodeValues(ex, snapshot, p);
+        // above the node: its top middle, the label's bottom middle pinned there
+        expect(v("labelPosition")).toMatchObject({ above: "center", corner: "inside-top-left", boxed: "center" });
+        expect(v("labelOffsetY")).toMatchObject({ above: -10, corner: -2, boxed: 0 });
+        expect(v("labelShiftY")).toMatchObject({ above: -0.5, corner: 0, boxed: 0.5 });
+        expect(v("labelOffsetX")).toMatchObject({ above: 0, corner: 3, boxed: 0 });
+        expect(v("labelShiftX")).toMatchObject({ above: 0, corner: 0, boxed: -0.5 });
+        expect(v("labelTextAlign")).toMatchObject({ corner: "left", boxed: "right" });
+    });
+
+    it("draws a label's box only with a shape other than NONE, and its words' and box's transparencies", async () => {
+        const { snapshot, styles } = await load(file);
+        const ex = styles as ExtractedStyles;
+        expect(nodeValues(ex, snapshot, "labelBackground")).toMatchObject({ boxed: "#ffff66", plain: null });
+        expect(nodeValues(ex, snapshot, "labelBackgroundOpacity")).toMatchObject({ boxed: 0.392157 });
+        expect(nodeValues(ex, snapshot, "labelOpacity")).toMatchObject({ boxed: 0.25098 });
+    });
+
+    it("reads an edge label's rotation, wrap width and transparency, and its place at an end of the line", async () => {
+        const { snapshot, styles } = await load(file);
+        const ex = styles as ExtractedStyles;
+        expect(resolveStyles(ex, "edge", "labelRotation", snapshot)).toEqual([45]);
+        expect(resolveStyles(ex, "edge", "labelWrapWidth", snapshot)).toEqual([30]);
+        expect(resolveStyles(ex, "edge", "labelOpacity", snapshot)).toEqual([0.501961]);
+        expect(resolveStyles(ex, "edge", "labelPosition", snapshot)).toEqual(["center"]);
+        // W: the label's right end at the line's source end, 20 left of the source's center (its ellipse's edge), and
+        // 100 - 20 = 80 left of the drawn line's middle
+        expect(resolveStyles(ex, "edge", "labelOffsetX", snapshot)).toEqual([-80]);
+        expect(resolveStyles(ex, "edge", "labelShiftX", snapshot)).toEqual([-0.5]);
+    });
+});

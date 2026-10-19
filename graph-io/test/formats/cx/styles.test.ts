@@ -79,6 +79,24 @@ describe("reading CX styles", () => {
         expect(resolveStyles(ex, "node", "labelWrapTrailingSpace", snapshot)).toEqual([true, true, true]);
     });
 
+    it("draws the specimen sheet's unmapped edges in #404040 under arrowColorMatchesEdge, as Cytoscape does", async () => {
+        const bytes = readFileSync(
+            resolve(import.meta.dirname, "../../fidelity/specimens/cx/specimen-mappings-bypass.cx"),
+        );
+        const { snapshot, styles } = await load(new Uint8Array(bytes));
+        const ex = styles as ExtractedStyles;
+        const name = snapshot.edges.get("name");
+        const color = resolveStyles(ex, "edge", "color", snapshot);
+        const arrow = resolveStyles(ex, "edge", "targetArrowColor", snapshot);
+        const of = (edge: string): [unknown, unknown] => {
+            const e = Array.from({ length: snapshot.edgeCount }, (_, i) => i).find((i) => name?.value(i) === edge);
+            return e === undefined ? [undefined, undefined] : [color[e], arrow[e]];
+        };
+        expect(of("edge-default")).toEqual(["#404040", "#404040"]);
+        expect(of("discrete-line-type-dashed")).toEqual(["#404040", "#404040"]);
+        expect(of("passthrough-edge-color-d62728")).toEqual(["#d62728", "#d62728"]);
+    });
+
     it("reads the first view of a file with several and notes the others", async () => {
         const { styles } = await load(new Uint8Array(readFileSync(resolve(FIXTURES, "cx/cx2js/5views1network.cx"))));
         const note = (styles as ExtractedStyles).styles.notes.find((n) => n.code === "W_STYLE_OTHER_VIEWS");
@@ -107,9 +125,14 @@ describe("reading CX styles", () => {
 describe("one NDEx network read from CX and from CX2", () => {
     // NDEx's CX-to-CX2 conversion of 821a7310 carried NODE_WIDTH and NODE_HEIGHT mappings that Cytoscape ignores in
     // the CX file (nodeSizeLocked, NODE_SIZE 12) and folded NODE_SIZE into NODE_WIDTH, where the CX2 reader follows
-    // the mapping: the two files draw different node sizes, and only those differ
+    // the mapping: the two files draw different node sizes, and with them where a label pinned to a node's side sits
+    // (its offset). The conversion also dropped the CX file's white NODE_LABEL_BACKGROUND_SHAPE ROUND_RECTANGLE box
+    // behind every label, which Cytoscape draws from the CX file and the CX2 file no longer has.
     it.each([
-        ["ndex-821a7310-beb6-11ed-a79c-005056ae23aa", ["height", "width"]],
+        [
+            "ndex-821a7310-beb6-11ed-a79c-005056ae23aa",
+            ["height", "labelBackground", "labelBackgroundOpacity", "labelOffsetX", "labelOffsetY", "width"],
+        ],
         ["ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa", []],
         ["ndex-da86cc1f-9544-11e5-b435-06603eb7f303", []],
         ["ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf", []],

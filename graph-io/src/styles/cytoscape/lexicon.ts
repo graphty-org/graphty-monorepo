@@ -417,58 +417,177 @@ export function javaFamily(family: string): string {
 const fontWeight: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.weight ?? null;
 const fontItalic: CytoscapeValueParser = (raw, site) => fontFace(raw, site)?.italic ?? null;
 
-/** The node anchor of a desktop label position `C,C,c,0.00,0.00`. */
-const ANCHOR: ReadonlyMap<string, string> = new Map([
-    ["C", "center"],
-    ["N", "top"],
-    ["S", "bottom"],
-    ["E", "right"],
-    ["W", "left"],
-    ["NE", "top-right"],
-    ["NW", "top-left"],
-    ["SE", "bottom-right"],
-    ["SW", "bottom-left"],
-    ["NONE", "center"],
+/** A desktop anchor letter as a point of a box, x right and y down, each -1, 0 or 1. */
+const ANCHOR: ReadonlyMap<string, readonly [number, number]> = new Map([
+    ["C", [0, 0]],
+    ["N", [0, -1]],
+    ["S", [0, 1]],
+    ["E", [1, 0]],
+    ["W", [-1, 0]],
+    ["NE", [1, -1]],
+    ["NW", [-1, -1]],
+    ["SE", [1, 1]],
+    ["SW", [-1, 1]],
+    ["NONE", [0, 0]],
 ]);
 
-/** CX2's `HORIZONTAL_ANCHOR,VERTICAL_ANCHOR`, lowercase. */
-const CX2_ANCHOR: ReadonlyMap<string, string> = new Map([
-    ["center,center", "center"],
-    ["center,top", "top"],
-    ["center,bottom", "bottom"],
-    ["right,center", "right"],
-    ["left,center", "left"],
-    ["right,top", "top-right"],
-    ["left,top", "top-left"],
-    ["right,bottom", "bottom-right"],
-    ["left,bottom", "bottom-left"],
+/** CX2's anchor and align words as a point of a box on one axis. */
+const CX2_SIDE: ReadonlyMap<string, number> = new Map([
+    ["center", 0],
+    ["left", -1],
+    ["right", 1],
+    ["top", -1],
+    ["bottom", 1],
 ]);
 
-const labelPosition: CytoscapeValueParser = (raw, site) => {
-    let key: string;
-    let found: string | undefined;
+/** A label justification as the neutral text alignment. */
+const JUSTIFY: ReadonlyMap<string, string> = new Map([
+    ["l", "left"],
+    ["left", "left"],
+    ["c", "center"],
+    ["center", "center"],
+    ["r", "right"],
+    ["right", "right"],
+]);
+
+/**
+ * A Cytoscape label position, read whole: the point of the node (or the edge's middle) `node` and the point of the
+ * label's box `label` it is pinned to, each `[x, y]` with x right and y down as -1, 0 or 1, the justification of its
+ * lines, and the offset `[x, y]` in px, y down.
+ * @category Styles
+ */
+export interface CytoscapeLabelPlace {
+    readonly node: readonly [number, number];
+    readonly label: readonly [number, number];
+    readonly justify: string;
+    readonly offset: readonly [number, number];
+}
+
+/**
+ * Reads a label position: desktop's `C,C,c,0.00,0.00` (node anchor, label anchor, justification, x and y offsets)
+ * or CX2's `{ HORIZONTAL_ANCHOR, VERTICAL_ANCHOR, HORIZONTAL_ALIGN, VERTICAL_ALIGN, JUSTIFICATION, MARGIN_X,
+ * MARGIN_Y }`.
+ * @param raw - the value
+ * @param site - where a bad value is noted
+ * @returns the place, or null
+ * @category Styles
+ */
+export function cytoscapeLabelPlace(raw: unknown, site: CanonSite): CytoscapeLabelPlace | null {
     if (raw !== null && typeof raw === "object" && !Array.isArray(raw)) {
         const o = raw as Record<string, unknown>;
-        const h = scalarText(Object.hasOwn(o, "HORIZONTAL_ANCHOR") ? o.HORIZONTAL_ANCHOR : "center", site);
-        const v = scalarText(Object.hasOwn(o, "VERTICAL_ANCHOR") ? o.VERTICAL_ANCHOR : "center", site);
-        if (h === null || v === null) {
+        const word = (key: string): string => {
+            const v = Object.hasOwn(o, key) ? scalarText(o[key], site) : null;
+            return (v ?? "center").trim().toLowerCase();
+        };
+        const num = (key: string): number => {
+            const v = Object.hasOwn(o, key) ? Number(o[key]) : 0;
+            return Number.isFinite(v) ? v : 0;
+        };
+        const sides = ["HORIZONTAL_ANCHOR", "VERTICAL_ANCHOR", "HORIZONTAL_ALIGN", "VERTICAL_ALIGN"].map((k) =>
+            CX2_SIDE.get(word(k)),
+        );
+        if (sides.some((v) => v === undefined)) {
+            noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, JSON.stringify(raw).slice(0, 64));
             return null;
         }
-        key = `${h.trim().toLowerCase()},${v.trim().toLowerCase()}`;
-        found = CX2_ANCHOR.get(key);
-    } else {
-        const s = scalarText(raw, site);
-        if (s === null) {
-            return null;
-        }
-        key = s;
-        found = ANCHOR.get(s.split(",")[0].trim().toUpperCase());
+        const [nx, ny, lx, ly] = sides as number[];
+        return {
+            node: [nx, ny],
+            label: [lx, ly],
+            justify: JUSTIFY.get(word("JUSTIFICATION")) ?? "center",
+            offset: [num("MARGIN_X"), num("MARGIN_Y")],
+        };
     }
-    if (found === undefined) {
-        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, key);
+    const s = scalarText(raw, site);
+    if (s === null) {
         return null;
     }
-    return found;
+    const parts = s.split(",").map((p) => p.trim());
+    const node = ANCHOR.get(parts[0].toUpperCase());
+    // a position naming only the node's anchor pins the label's opposite point there, as Cytoscape 2.x did
+    const label = parts.length > 1 ? ANCHOR.get(parts[1].toUpperCase()) : node?.map((v) => -v);
+    if (node === undefined || label === undefined) {
+        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, s);
+        return null;
+    }
+    const at = (i: number): number => {
+        const v = Number(parts[i] ?? 0);
+        return Number.isFinite(v) ? v : 0;
+    };
+    return {
+        node,
+        label: [label[0], label[1]],
+        justify: JUSTIFY.get((parts[2] ?? "c").toLowerCase()) ?? "center",
+        offset: [at(3), at(4)],
+    };
+}
+
+/** The neutral position of a label inside its node against each side, by `[x, y]` of the side, y down. */
+const INSIDE: ReadonlyMap<string, string> = new Map([
+    ["0,0", "center"],
+    ["0,-1", "inside-top"],
+    ["0,1", "inside-bottom"],
+    ["-1,0", "inside-left"],
+    ["1,0", "inside-right"],
+    ["-1,-1", "inside-top-left"],
+    ["1,-1", "inside-top-right"],
+    ["-1,1", "inside-bottom-left"],
+    ["1,1", "inside-bottom-right"],
+]);
+
+/**
+ * The neutral `labelPosition` a Cytoscape label position starts from: where the label's point is the node's own
+ * point on both axes (its center, or inside against a side or a corner), that position; anywhere else `center`,
+ * with the rest said by `labelOffsetX`/`Y` and `labelShiftX`/`Y` (see `cytoscapeLabelMove()`).
+ * @param place - the label position
+ * @returns the neutral position
+ * @category Styles
+ */
+export function cytoscapeLabelBase(place: CytoscapeLabelPlace): string {
+    const inside = place.node[0] === place.label[0] && place.node[1] === place.label[1];
+    return inside ? (INSIDE.get(`${place.node[0]},${place.node[1]}`) ?? "center") : "center";
+}
+
+/**
+ * How far a Cytoscape label is moved from its `cytoscapeLabelBase()` position: the offset in px (y down), with the
+ * node's anchor point added when the base is `center` and the anchors differ, and the shift by the label's own
+ * size that pins the label's anchor point there.
+ * @param place - the label position
+ * @param width - the node's width (0 for an edge's middle)
+ * @param height - the node's height (0 for an edge's middle)
+ * @returns the offset and the shift, each `[x, y]`
+ * @category Styles
+ */
+export function cytoscapeLabelMove(
+    place: CytoscapeLabelPlace,
+    width: number,
+    height: number,
+): { readonly offset: readonly [number, number]; readonly shift: readonly [number, number] } {
+    if (
+        cytoscapeLabelBase(place) !== "center" ||
+        (place.node[0] === 0 && place.node[1] === 0 && place.label[0] === 0 && place.label[1] === 0)
+    ) {
+        return { offset: place.offset, shift: [0, 0] };
+    }
+    return {
+        offset: [(place.node[0] * width) / 2 + place.offset[0], (place.node[1] * height) / 2 + place.offset[1]],
+        shift: [halfBack(place.label[0]), halfBack(place.label[1])],
+    };
+}
+
+/**
+ * How far a label is shifted, as a fraction of its own size, to pin its point `side` (-1, 0 or 1) where its middle was.
+ * @param side - the label's point on one axis
+ * @returns the shift (0, never -0, for the middle)
+ * @category Styles
+ */
+export function halfBack(side: number): number {
+    return side === 0 ? 0 : -side / 2;
+}
+
+const labelPosition: CytoscapeValueParser = (raw, site) => {
+    const place = cytoscapeLabelPlace(raw, site);
+    return place === null ? null : cytoscapeLabelBase(place);
 };
 
 /**
@@ -537,6 +656,13 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["labelItalic", [["NODE_LABEL_FONT_FACE", fontItalic]]],
         ["labelPosition", [["NODE_LABEL_POSITION", labelPosition]]],
         ["labelRotation", [["NODE_LABEL_ROTATION", rotation]]],
+        [
+            "labelOpacity",
+            [
+                ["NODE_LABEL_TRANSPARENCY", opacity255],
+                ["NODE_LABEL_OPACITY", opacity01],
+            ],
+        ],
         ["tooltip", [["NODE_TOOLTIP", text]]],
         [
             "visible",
@@ -602,6 +728,21 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["labelFont", [["EDGE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["EDGE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["EDGE_LABEL_FONT_FACE", fontItalic]]],
+        [
+            "labelWrapWidth",
+            [
+                ["EDGE_LABEL_WIDTH", length],
+                ["EDGE_LABEL_MAX_WIDTH", length],
+            ],
+        ],
+        ["labelRotation", [["EDGE_LABEL_ROTATION", rotation]]],
+        [
+            "labelOpacity",
+            [
+                ["EDGE_LABEL_TRANSPARENCY", opacity255],
+                ["EDGE_LABEL_OPACITY", opacity01],
+            ],
+        ],
         ["tooltip", [["EDGE_TOOLTIP", text]]],
         [
             "visible",
@@ -621,6 +762,13 @@ export const sizeParser: CytoscapeValueParser = length;
 
 /** The parser of colors, for the network background and `arrowColorMatchesEdge`. */
 export const colorParser: CytoscapeValueParser = color;
+
+/**
+ * The parser of 0..255 transparencies (desktop) and 0..1 opacities (CX2), by visual property.
+ * @param vp - the visual property (`*_TRANSPARENCY` or `*_OPACITY`)
+ * @returns its parser
+ */
+export const opacityParser = (vp: string): CytoscapeValueParser => (vp.endsWith("_OPACITY") ? opacity01 : opacity255);
 
 /** Every visual property the lexicon reads. */
 const KNOWN_VPS: ReadonlySet<string> = new Set([

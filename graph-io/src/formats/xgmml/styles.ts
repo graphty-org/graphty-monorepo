@@ -297,12 +297,23 @@ export function exactFromBlock(
             properties: Object.keys(values).filter((p) => values[p] !== undefined && readBack[p] !== undefined),
             readBack: (i) => (property) => readBack[property]?.[i] ?? null,
             // a fan spacing, a curve or a loop's handles only desktop's fanning and looping give (graphty wrote none:
-            // EDGE_CURVED defaults to true there) is graphty's own default again
-            take: (property, wanted) =>
-                wanted !== null || property === "fanSpacing" || property === "curved" || property === "bends",
+            // EDGE_CURVED defaults to true there) is graphty's own default again, and so is a label's place beside its
+            // node, which desktop's anchors spell as an offset and a shift
+            take: (property, wanted) => wanted !== null || BLOCK_DEFAULTED.has(property),
         };
     });
 }
+
+/** What a file graphty wrote leaves unset where Cytoscape's reading of it gives a value. */
+const BLOCK_DEFAULTED: ReadonlySet<string> = new Set([
+    "fanSpacing",
+    "curved",
+    "bends",
+    "labelOffsetX",
+    "labelOffsetY",
+    "labelShiftX",
+    "labelShiftY",
+]);
 
 /**
  * Marks the elements a hidden-state column holds true as not visible.

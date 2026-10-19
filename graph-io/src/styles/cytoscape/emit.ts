@@ -212,28 +212,43 @@ const CY_OTHER_LINES: ReadonlySet<string> = new Set([
 /** The Cytoscape line types a border can take that no canonical border style names. */
 const CY_OTHER_BORDERS: ReadonlySet<string> = new Set([...CY_OTHER_LINES, "zigzag", "sinewave"]);
 
-/** A label position: the node's anchor and the label's opposite anchor. */
-const DESKTOP_POSITIONS = {
-    center: "C,C,c,0.00,0.00",
-    top: "N,S,c,0.00,0.00",
-    bottom: "S,N,c,0.00,0.00",
-    left: "W,E,c,0.00,0.00",
-    right: "E,W,c,0.00,0.00",
-    "top-left": "NW,SE,c,0.00,0.00",
-    "top-right": "NE,SW,c,0.00,0.00",
-    "bottom-left": "SW,NE,c,0.00,0.00",
-    "bottom-right": "SE,NW,c,0.00,0.00",
+/**
+ * A label position as the point of the node and the point of the label's box pinned to it, in desktop's anchor
+ * letters: beside the node, the label's opposite point; inside it, the same point.
+ */
+const POSITION_ANCHORS: Readonly<Record<string, readonly [node: string, label: string]>> = {
+    center: ["C", "C"],
+    top: ["N", "S"],
+    bottom: ["S", "N"],
+    left: ["W", "E"],
+    right: ["E", "W"],
+    "top-left": ["NW", "SE"],
+    "top-right": ["NE", "SW"],
+    "bottom-left": ["SW", "NE"],
+    "bottom-right": ["SE", "NW"],
+    "inside-top": ["N", "N"],
+    "inside-bottom": ["S", "S"],
+    "inside-left": ["W", "W"],
+    "inside-right": ["E", "E"],
+    "inside-top-left": ["NW", "NW"],
+    "inside-top-right": ["NE", "NE"],
+    "inside-bottom-left": ["SW", "SW"],
+    "inside-bottom-right": ["SE", "SE"],
 };
-const CX2_ANCHORS: Readonly<Record<string, readonly [string, string]>> = {
-    center: ["center", "center"],
-    top: ["center", "top"],
-    bottom: ["center", "bottom"],
-    left: ["left", "center"],
-    right: ["right", "center"],
-    "top-left": ["left", "top"],
-    "top-right": ["right", "top"],
-    "bottom-left": ["left", "bottom"],
-    "bottom-right": ["right", "bottom"],
+const DESKTOP_POSITIONS: Readonly<Record<string, string>> = Object.fromEntries(
+    Object.entries(POSITION_ANCHORS).map(([k, [node, label]]) => [k, `${node},${label},c,0.00,0.00`]),
+);
+/** A desktop anchor letter as CX2's horizontal and vertical words. */
+const CX2_WORDS: Readonly<Record<string, readonly [string, string]>> = {
+    C: ["center", "center"],
+    N: ["center", "top"],
+    S: ["center", "bottom"],
+    W: ["left", "center"],
+    E: ["right", "center"],
+    NW: ["left", "top"],
+    NE: ["right", "top"],
+    SW: ["left", "bottom"],
+    SE: ["right", "bottom"],
 };
 
 const desktopNumber: Write = String;
@@ -384,10 +399,12 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
  * @returns the object
  */
 function cx2Position(v: StyleValue): unknown {
-    const [h, vert] = Object.hasOwn(CX2_ANCHORS, String(v)) ? CX2_ANCHORS[String(v)] : ["center", "center"];
+    const [node, label] = Object.hasOwn(POSITION_ANCHORS, String(v)) ? POSITION_ANCHORS[String(v)] : ["C", "C"];
+    const [h, vert] = CX2_WORDS[node];
+    const [ha, va] = CX2_WORDS[label];
     return {
-        HORIZONTAL_ALIGN: "center",
-        VERTICAL_ALIGN: "center",
+        HORIZONTAL_ALIGN: ha,
+        VERTICAL_ALIGN: va,
         HORIZONTAL_ANCHOR: h,
         VERTICAL_ANCHOR: vert,
         MARGIN_X: 0,

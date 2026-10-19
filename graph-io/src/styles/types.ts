@@ -261,6 +261,16 @@ export interface NodeStyleValues {
     /** How far down from where `labelPosition` puts it the label is drawn (a length). */
     readonly labelOffsetY: number;
     /**
+     * How far right the label is drawn again, as a fraction of its own width: -0.5 puts its right edge where its middle
+     * was. With `labelPosition` `center` and the offsets, it pins any point of the label's box to any point of the
+     * node's (Cytoscape desktop's label positions).
+     */
+    readonly labelShiftX: number;
+    /** How far down the label is drawn again, as a fraction of its own height; see `labelShiftX`. */
+    readonly labelShiftY: number;
+    /** The opacity of the label's words, 0..1. */
+    readonly labelOpacity: number;
+    /**
      * The label is not drawn while its letters are drawn smaller than this many screen pixels: a screen size, not a
      * length, so it is never scaled with the file's lengths (vis-network's `scaling.label.drawThreshold`). Unset, the
      * label is drawn at any size.
@@ -281,6 +291,8 @@ export interface NodeStyleValues {
     readonly labelRotation: number;
     /** The color of a box drawn behind the label's text (vis-network `font.background`). */
     readonly labelBackground: StyleColor;
+    /** The opacity of that box, 0..1. */
+    readonly labelBackgroundOpacity: number;
     /** The color of an outline drawn round each letter of the label (vis-network `font.strokeColor`). */
     readonly labelOutlineColor: StyleColor;
     /**
@@ -546,10 +558,22 @@ export interface EdgeStyleValues {
     readonly labelWrapWidth: number;
     /** Where the label sits against the line's middle: `center` on the line, `top` above it. */
     readonly labelPosition: StyleLabelPosition;
+    /** How far right of where `labelPosition` puts it the label is drawn (a length). */
+    readonly labelOffsetX: number;
+    /** How far down from where `labelPosition` puts it the label is drawn (a length). */
+    readonly labelOffsetY: number;
+    /** How far right the label is drawn again, as a fraction of its own width; see the node's. */
+    readonly labelShiftX: number;
+    /** How far down the label is drawn again, as a fraction of its own height; see the node's. */
+    readonly labelShiftY: number;
+    /** The opacity of the label's words, 0..1. */
+    readonly labelOpacity: number;
     /** How far the label is turned, in degrees clockwise on screen, 0 up to 360; see the node's. */
     readonly labelRotation: number;
     /** The color of a box drawn behind the label's text; see the node's. */
     readonly labelBackground: StyleColor;
+    /** The opacity of that box, 0..1. */
+    readonly labelBackgroundOpacity: number;
     /** The color of an outline drawn round each letter of the label; see the node's. */
     readonly labelOutlineColor: StyleColor;
     /** How thick that outline is, in the units of `labelSize`; 0 draws none. */

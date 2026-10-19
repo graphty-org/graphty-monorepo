@@ -142,6 +142,25 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(get("stripeColors", "off")).toBe(null);
     });
 
+    it("gives what sized colors leave to the last one, as Graphviz does", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            w [style=wedged, fillcolor="red;0.3:green;0.3"];
+            s [shape=box, style=striped, fillcolor="red;0.2:blue;0.5"];
+        }`);
+        const get = (p: string, id: string): unknown => byId(styles, snapshot, p).get(id) ?? null;
+        expect([get("pieColors", "w"), get("pieSizes", "w")]).toEqual(["#008000 #ff0000", "0.7 0.3"]);
+        expect([get("stripeColors", "s"), get("stripeSizes", "s")]).toEqual(["#ff0000 #0000ff", "0.2 0.8"]);
+    });
+
+    it("draws a striped box with square corners, as Graphviz does whatever rounded says", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            sr [shape=box, style="striped,rounded", fillcolor="red:blue"];
+            r [shape=box, style="filled,rounded", fillcolor=red];
+        }`);
+        expect(byId(styles, snapshot, "shape").get("sr")).toBe("rectangle");
+        expect(byId(styles, snapshot, "shape").get("r")).toBe("round-rectangle");
+    });
+
     it("reads colors with Graphviz's rules: scheme scope, unknown is black, none and invis transparent, lists", async () => {
         const { snapshot, styles } = await load(`digraph {
             colorscheme=blues9; bgcolor=3;

@@ -677,8 +677,9 @@ function readNodeFill(n: NodeRead): void {
 
 /**
  * Reads a node's striped or wedged fill (`style=striped` on a box, `style=wedged` on an ellipse) from its color
- * list, `color;fraction` separated by `:`: a color with no fraction shares what the others leave, and the shares
- * stop at the whole (https://graphviz.org/docs/attr-types/colorList/). Graphviz draws stripes left to right and
+ * list, `color;fraction` separated by `:`: a color with no fraction shares what the others leave, the last color takes
+ * what sized colors leave when none is unsized, and the shares stop at the whole
+ * (https://graphviz.org/docs/attr-types/colorList/). Graphviz draws stripes left to right and
  * wedges counter-clockwise from 3 o'clock, which is the same pie as the wedges in reverse order clockwise from there.
  * @param n - the node
  */
@@ -710,6 +711,11 @@ function readNodeBands(n: NodeRead): void {
     });
     if (bands.length === 0) {
         return;
+    }
+    // every color sized and short of the whole: Graphviz gives what is left to the last one (emit.c parseSegs)
+    if (unsized === 0 && used < 1) {
+        const last = bands[bands.length - 1];
+        last.size = num6(last.size + 1 - used);
     }
     const order = striped ? bands : [...bands].reverse();
     const prefix = striped ? "stripe" : "pie";
@@ -772,11 +778,12 @@ function readNodeOutline(n: NodeRead): void {
 }
 
 /**
- * Reads a node's or cluster's shape: a cluster is a rectangle, rounded by the `rounded` style as a box is.
+ * Reads a node's or cluster's shape: a cluster is a rectangle, rounded by the `rounded` style as a box is. Graphviz draws
+ * a striped box with square corners whatever `rounded` says.
  * @param n - the node
  */
 function readNodeShape(n: NodeRead): void {
-    const rounded = n.tokens.includes("rounded");
+    const rounded = n.tokens.includes("rounded") && !n.tokens.includes("striped");
     if (n.cx.cluster) {
         n.put("shape", rounded ? "round-rectangle" : "rectangle");
     } else if (n.shape === "polygon") {

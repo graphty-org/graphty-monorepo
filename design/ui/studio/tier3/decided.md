@@ -50,3 +50,127 @@ the evidence; the old entry stays.
 
 - **Control+Y redoes**, beside Control+Shift+Z. (2026-10-18.)
 - **No confirmation for an act that can be undone.** (2026-10-17.)
+
+## Added 2026-10-19 (dry run before round 1, pass on build e3c5bca8e6)
+
+Each entry below is new unless it says what it narrows, corrects or reverses.
+
+### The drawing
+
+- **The drawing moves only when the reader asks**: opening a graph, Frame (f), Reset view. A key
+  that arrives or grows, a panel or the table opening, a filter step turned on or off, a layer
+  added or removed, and Undo never re-frame it. The key floats over the canvas; Frame keeps clear
+  of it. (2026-10-19.) REVERSES the team entry of 2026-10-18 in `owner-decisions.md` ("the key's
+  room only while there is a key"), which framed the graph once when a key arrived over a drawn
+  node: on this build the drawing jumped right and shrank on 16 walks across 15 tasks the moment
+  the first color was set, and stayed off center after Undo. It restores the 2026-10-18 rule the
+  pass 4 rows cited ("the drawing stays put; Frame is one key"). The earlier attempt, reserving
+  the key's room whenever the key was on, opened every sample off center; both moved the view
+  without the reader asking.
+
+### Keyboard: what is a Tab stop
+
+- **CORRECTION of "entered at their first item" (2026-10-17) for the layer tree**: the tree is
+  entered at its focused row, else its selected row, else its resting row Everything, as the team
+  entry "a tree's resting Tab stop" in `owner-decisions.md` (2026-10-18) set, following the
+  WAI-ARIA tree pattern. The toolbar and a grid are still entered at their first item. Nothing
+  changes in the build; the 2026-10-17 line carried the toolbar's rule over to the tree. Ten
+  pilots on this pass reported the tree against the old wording.
+- **A dimmed Undo and Redo are Tab stops** (restates 2026-10-18; the header still passes
+  `skipWhileDisabled`, so it was never built).
+- **Arrow keys in a list stop on a disabled option**, which reads as dimmed with its reason
+  (WAI-ARIA listbox). Tab still skips a disabled "+".
+- **Arrow keys stop at the edges of a tree or a grid**; nothing wraps to the next row or the top
+  (WAI-ARIA tree and grid patterns).
+
+### Focus
+
+- **After a graph opens, focus goes to the inspector's heading**, which names the graph and its
+  counts, and the heading draws a visible focus ring (WCAG 2.4.7). (r1-3 moved focus off the
+  Hovered row; written here 2026-10-19.)
+- **F6 answers the long Tab walks** (r1-2, 2026-10-17): Tab follows the screen's order and its
+  8 to 20 stop walks are not defects. **F6 cycles five regions**: the top bar, the left panel (at
+  its first control), the canvas, the canvas toolbar, the inspector. A resize handle is never a
+  region. (2026-10-19.) Whether a keyboard participant finds F6 is for the sessions.
+- **Enter on a layer row opens its inspector and keeps focus in the tree**; F6 goes to the
+  inspector. (2026-10-19.) A tree's Enter does not move focus out of the tree.
+- **Tab out of a box that writes moves to the next control**, in the panel as the write leaves
+  it; the redraw after a write never pulls focus back into the box or up to the tabs.
+  (2026-10-19.)
+- **After a line is removed, focus goes to its own section's "+"**, never onto another line's
+  remove button. (2026-10-19.)
+
+### Escape
+
+- **Escape on a just-added line or card that holds nothing takes it back**, says so, and puts
+  focus on the "+" or "Add a condition" that added it. This narrows "Escape in a style field keeps
+  focus in the field" (2026-10-17), which is about a field holding a value. (The pass 4 rows
+  T45A-6 and T49B-14 decided it; written here 2026-10-19.)
+- **Escape in a style field reverts what was typed and not committed, keeps focus, and says
+  "Edit discarded; this stays X" on screen and to a screen reader**, the same way in every style
+  box, inline or inside a popover, the color picker's hex box included. (2026-10-19.)
+- **"Escape keeps edits in the picker and in a card" (2026-10-16) means the Which-nodes picker
+  and its condition cards**: Escape in a card's text or number box keeps what was typed and keeps
+  the picker open; only Done, a click on the canvas, or focus leaving closes it. (2026-10-19.)
+- **Escape in the inspector** (settles the flip-flop of passes 3 and 4): on a node's or a
+  selection's inspector it clears the selection from any control that is not a field; on a
+  layer's inspector it leaves the selection alone. When the node was opened from a layer's member
+  list, clearing it returns the inspector to that layer, with focus on that member's row.
+  (2026-10-19.) Narrows 2026-10-18; does not reverse it.
+- **Escape in a dialog closes it from any control in it** (WAI-ARIA dialog). (2026-10-19.)
+- **Right-click selects what is under the pointer; Escape closes the menu only.** (r1-4 row
+  T45B-16; written here 2026-10-19.)
+- **Control+Z in a text box undoes its typing first** (the platform's behavior). (2026-10-19.)
+
+### Lists and cards
+
+- **With no condition yet, opening "Which nodes" opens the attribute list with focus in its
+  search; "Add a condition" opens the list and never closes it.** (2026-10-19.) Settles a
+  flip-flop: pass 4 opened the list and the first click on "Add a condition" closed it; the fix
+  opened the picker with the list closed, so every pointer walk needed two clicks.
+- **Picking any match ("Starts with", "Contains", "Between", "Highest", ...) puts focus in the
+  card's value box.** (2026-10-19.) Typing after a match pick lost the letters.
+- **A condition card's count** (settles the pass 1 / pass 2 flip-flop): a card with no value yet
+  shows no count of its own; the layer's count beside "Which nodes" says what the layer paints.
+  While the reader types, the count on screen follows each keystroke and is spoken once, when
+  typing pauses. (2026-10-19.)
+- **An unfinished card is dropped when its picker closes**, with a notice and no Undo (nothing
+  was written). A click inside either side panel keeps the picker open; a click on the canvas
+  closes it. Focus leaving the picker by Tab or Shift+Tab closes it and keeps its edits ("Tab
+  closes a pop-out", 2026-10-17). (2026-10-19.)
+- **A list that opens with nothing active takes nothing on Enter** until the reader types or
+  arrows (team entry 2026-10-18, `owner-decisions.md`).
+- **An open list, menu or popover covers what is under it while open.** (r1-3 and r1-4, kept;
+  written here 2026-10-19.)
+- **Enter in an analysis card's option box runs the analysis**, as a form's Enter does; a run is
+  undoable. **Enter in a filter step's box commits the step** (r1-3). (2026-10-19.)
+
+### Names and looks
+
+- **A node is called by one name everywhere the app names it** -- the inspector's title, find
+  rows, a layer made for one node, notices, the key, an edge's two ends -- and that name is the
+  node label the element gives. (2026-10-19.) Which column becomes the label when a file has a
+  name column and no label column stays a question for the sessions.
+- **A control's tooltip and its accessible name say the same words** (state may be added to the
+  name). (2026-10-19.)
+- **The cursor stays an arrow over buttons** (compact-mantine `cursorType: "default"`, desktop and
+  Figma convention; r1-1, 2026-10-17).
+- **Icon buttons carry no visible text**; the tooltip and the name say what they do (Figma).
+  (2026-10-17, kept.)
+- **The start screen's "What is collected" stays a native disclosure.** The study tool prints
+  Chromium's internal role (DisclosureTriangle); screen readers announce it as an expandable
+  button. (2026-10-19.)
+- **A table cell's own name is its value**; the screen reader speaks the row and column headers
+  on a move, the study tool does not (r1-3, r1-4). (2026-10-19.)
+
+### Commands
+
+- **Control+A on the canvas selects every node**, and the canvas menu lists Select all.
+  (2026-10-19.)
+- **"New layer from selection" makes the layer at once**, selects it in the tree and opens its
+  Style tab. (2026-10-19.) A command that changed nothing on screen read as broken on three
+  walks.
+- **Opening a file that is already open offers Replace first and Load beside it with its
+  warning**, with no confirmation, because a load can be undone. (2026-10-19.)
+- **Turning label decluttering on or off stays outside undo** until the owner answers (open item
+  in `owner-decisions.md`, 2026-10-18).

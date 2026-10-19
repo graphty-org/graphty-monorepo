@@ -5,50 +5,43 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-19 (fourth review of the tier 3 criteria; frozen on build 1fa51e2b0b).
+Last updated: 2026-10-19 (dry-run triage on the frozen build e3c5bca8e6).
 Summarized on 2026-10-17, 2026-10-18 and 2026-10-19; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-10-19) NO PARTICIPANT SESSION HAS RUN, and the dry run's exit test is NOT met. Criteria
-  frozen on 1fa51e2b0b (same app code as 52cb47a85a). Pass 5 stopped at 23:51 on 2026-10-18 after
-  33 walks; it is finished, not restarted.
-- (2026-10-19) Owed walks, in order: T46 A to T50 B (all three each; pass 4's blockers live
-  there), T39 A keyboard and detours, T41 B keyboard, T43, T45, T51 (A and B). No T37, T42, T44.
-- (2026-10-19) BLOCKER on T40 B's success path: typing straight after "Starts with" reopens the
-  match menu and the letters are lost. Fix in its shared part, refreeze, re-walk T40 B and T50 A.
-  "Add a condition" needing two clicks: triage against the exit test.
-- (2026-10-19) Design engineer owes: `WALKS3` five screens + "Starts with" typing check +
-  `spoken.json`; `wording.mjs` joins irregular forms; `gateCheck` keyed by half folder with three
-  walks (`keyboardOnlyMode: true` for one) and build equivalence. Each with a planted case.
+- (2026-10-19) NO PARTICIPANT SESSION HAS RUN; the exit test is NOT met. Pass on the frozen build
+  e3c5bca8e6 (triage `tier3/dry-run-r1-5.md`): 369 lines, 124 (a), 2 blocking, 37 regressions
+  (30%), one reversal. Fix the 29 groups, refreeze, re-walk only the routes each group names.
+- (2026-10-19) Blockers: typing after "Starts with" loses the letters (every match pick must put
+  focus in the value box); after Undo of a bulk shape the panel shows Box and will not take it.
+- (2026-10-19) Three pass-4 fixes made 29 of 37 regressions: ef2f796ee (key arrival frames the
+  graph, 16), 9f8c35c76 (empty layer opens with the list closed, 10), ce953d22e (focus after a
+  write, 3). Each fixed one complaint by moving the same mechanism; re-walk the neighbors.
+- (2026-10-19) Reversed: the key's arrival never re-frames; the drawing moves only when the reader
+  asks. Third try at this one mechanism; do not reopen it without a session showing the cost.
+- (2026-10-19) `decided.md` now also holds the r1-1..r1-4 rulings the rows cited but the file
+  lacked (cursor, F6, popovers cover, Escape on a just-added line, right-click). Cite it, never
+  the row text of an old triage. Its tree line was mis-transcribed; corrected, no reversal.
+- (2026-10-19) The task text named the output `dry-run-r1-1.md`, which holds pass 1; I wrote
+  `dry-run-r1-5.md` to keep history. Check the workflow's pass counter before the next pass.
+- (2026-10-19) Owed walks first next pass: T46B and T49B keyboard past the start screen, T38A name
+  field keys and Done by keyboard, T38B's four untried detours.
 - (2026-10-19) A docs-only commit never refreezes: walks count on any commit whose diff of
   graphty, graphty-element, compact-mantine and the lockfile against the named build is empty.
 - (2026-10-19) Round 1: T51 at 4 (judged), T44 and T42 at 4 in round 2, T37 later. Still 56.
-- (2026-10-19) Bar 5 is not scored when the walk skipped a success-path screen; bar 7 confirms by a
-  `--keys` repro or two Sam sessions; selected styled nodes graded by the style tree's color.
-- (2026-10-18) EXIT TEST (preflight 4): no blocking defect on a success path or listed detour;
-  regressions of the last pass's fixes under 10%; no reversed decision in `tier3/decided.md`.
-  At about 40% regressions, stop full passes and fix shared parts first.
-- (2026-10-18) Owed before round 1: reference values of every community analysis on T46-T48, read
-  twice; a method that does not repeat is graded against the session's own `styles.json`.
-- (2026-10-18) Pass 4 blockers fixed in 52cb47a85a, still never re-walked: an unset line cannot
-  take the default it shows; "cube" in the shape list picks Cylinder; ArrowDown, Enter in a
-  colleague's open rule rewrites it.
-- (2026-10-17) Most repeated (b), unchanged since r1-1: what names a node; where "who" and "draw by"
-  live; hover names; Enter in find; a card's count read as the layer's; "and" between cards; how a
-  selection looks while styled; canvas keyboard walk. These go to the sessions.
-- (2026-10-17) Round 1 questions to read first: is the purple <<Layer>> token read as a column; does
-  anyone click a chit; is the collapsed picker found unprompted; is Escape expected to cancel; are
-  edges sought on the Node tab; is a chip's count read as the total; what B halves type for
-  "clusters".
-- (2026-10-16) The combined Style panel spec is DECIDED (`tier3/design.md`, "2026-10-16"). If anyone
-  rebuilds a split row, child rows, "Follow parent" or app-side node/edge pairing, stop it.
-- (2026-10-13) PUSH BLOCKED by 213 SonarQube findings on the studio branch's lines; most vanish by
-  merging `design/studio-tier1`. Needs an engineer unit with the owner's leave. No bypass trailer.
-- Owner items open: the default label font fallback; the five tier 3 breaking items
-  (`owner-decisions.md`). Words at rest never rise. A severity 4 needs a wrong conclusion a reader
-  would act on.
+- (2026-10-18) EXIT TEST: no blocking defect on a success path or listed detour; regressions of
+  the last pass's fixes under 10%; no reversed decision. At about 40% stop full passes.
+- (2026-10-18) Owed before round 1: reference values of every community analysis on T46-T48.
+- (2026-10-17) The (b) list has not changed since r1-1: what names a node (now only the column,
+  the label is used everywhere); where "who" and "draw by" live; hover names; Enter in find; a
+  card's count read as the layer's; "and" between cards; a styled selection's look; canvas walk.
+- (2026-10-16) The combined Style panel spec is DECIDED (`tier3/design.md`, "2026-10-16").
+- (2026-10-13) PUSH BLOCKED by 213 SonarQube findings on the studio branch's lines; needs an
+  engineer unit with the owner's leave. No bypass trailer.
+- Owner items open: the default label font fallback; the five tier 3 breaking items; whether label
+  decluttering is an undo step (`owner-decisions.md`).
 
 ## Priorities and values
 
@@ -89,6 +82,16 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-19, dry-run triage on e3c5bca8e6 (`tier3/dry-run-r1-5.md`).** Team calls,
+  reversible, all in `tier3/decided.md`: the drawing moves only when the reader asks (reverses the
+  2026-10-18 arrival frame; 16 walks jumped); with no condition, Which nodes opens on the attribute
+  list and "Add a condition" never closes it (settles the r1-4 / 9f8c35c76 flip); a card with no
+  value shows no count, a typed count is spoken once on a pause (settles the r1-1 / r1-2 flip);
+  Escape clears a selection only on a node's or selection's inspector and returns to the layer it
+  came from (settles r1-3 / r1-4); Escape keeps what was typed in a card; any match pick focuses
+  the value box; Tab and remove never pull focus back; F6 cycles five regions, never a separator;
+  a node is called by its element label everywhere; Control+A selects all; "New layer from
+  selection" makes the layer. Kept (b): the list in Top of mind. No API change.
 - **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b.** Taken: bar 2 states
   T49's exception (researcher); bar 5 unscored when the walk skipped a success-path screen, and
   experts/audit count only via repro or measurement (user advocate); bar 6 checks typing after
@@ -144,10 +147,8 @@ history.
   "one by one counts" hid what question 3 asks), T47 A ask for cubes, question 3 read T46 with a
   `Token:` line, bar 4 count pointer sessions only, bar 6 walk both themes, and the audit check
   key-and-drawing agreement on every last screenshot.
-- **2026-10-17, first review of the first-use styling drafts.** T48 core at 6 (bulk meets picking);
-  T47's route recorded; T37's slots to T48, T42's to T51; unjudged tasks never pass; bar 4 ends at
-  every node in one new color; bar 8's limits only fall; the dry run has no pass cap (owner's "until
-  clean"); my watch items became measures. Size stays 56.
+- **2026-10-17, first review of the first-use styling drafts.** T48 core at 6; unjudged tasks
+  never pass; the dry run has no pass cap (owner's "until clean"). Size stays 56.
 - **2026-10-16, combined Style panel and bulk iteration 7.** See Top of mind. Frozen build
   `tier3-bulk7-457aa9f0f2` (servherd design-studio-tier3). BoundValue for single and bulk
   (SpreadValues deleted); the Layer token in guillemets, purple `--cm-text-component`, weight 600,
@@ -179,6 +180,14 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-10-19 (r1-5) -- Worked: reading each pass-4 fix commit's message before classing origin.
+  ef2f796ee says in words "an overlay that arrives over a drawn node frames the graph once", and
+  9f8c35c76 "a layer with no condition opens ... with its list closed": two lines named 26 of 37
+  regressions. Worked: grepping `skipWhileDisabled` showed the dimmed-Undo rule of 2026-10-18 was
+  decided and never built (Header.tsx still passes it), so it is "new", not a regression. Worked:
+  reading `owner-decisions.md` before ruling on the tree's Tab entry: the team set Everything as
+  the resting row on 2026-10-18, so ten "against decided" rows were a transcription error.
+  Worked: a script counting classes and origins against the input lines (369 both).
 - 2026-10-19 (criteria review) -- Worked: reading `gateCheck` before taking the red team's gate
   claim (it was right: `basename(dir)` is the walk folder) and diffing the app paths between
   52cb47a85a and 1fa51e2b0b (empty) before writing the docs-only rule. Worked: recounting the
@@ -222,18 +231,17 @@ history.
   Escape dropped the unfinished card and lost the rest of the walk.
 - 2026-10-17 -- Did not work: my own first-review call that "one by one" counts toward T47's route
   bar. Two reviewers showed it lets the core bulk task pass with the bulk edit never used.
-- 2026-10-11..13 -- Worked: relaunching from the main script; the gate inside `real.mjs --start`
-  (56 of 56 refusals); reading the red team against source before taking it; measuring (`--hover`,
-  PNG contrast, undo ratios) before classing a claim. Did not work: editing a script while a
-  continuation fork was the one running; histories, setups and prompts never grepped against what
-  the round scores; counting steps differently for key and participants.
-- 2026-09-27..10-10 -- Worked: piloting every task on each new build; root-causing in source; one
-  change per path; scripts that fail on a planted case. Did not work: a check that read zero pages
-  passed; a clock running while queued; session folders inside the studio tree; a fix nobody grepped
-  for siblings.
+- 2026-10-11..13 -- Worked: the gate inside `real.mjs --start`; reading the red team against source;
+  measuring before classing. Did not work: counting steps differently for key and participants.
+- 2026-09-27..10-10 -- Worked: root-causing in source; one change per path. Did not work: a fix
+  nobody grepped for siblings.
 
 ## Thinking
 
+- **2026-10-19, r1-5:** the regressions are not spread out; they come from a fix that answered one
+  complaint by flipping a single switch the complaint's neighbors also depend on (when to frame,
+  whether the list starts open, where focus goes after a write). Before a fix group lands, list
+  the routes that cross the switch it flips and re-walk those, not the task that reported it.
 - **2026-10-19, criteria review:** a rule the tool does not enforce is a wish. Three of this
   review's findings were rules already written (three walks, keyboard walk, five walk screens)
   that the gate or the walk never checked. When I write a preflight rule, name the script line

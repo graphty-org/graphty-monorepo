@@ -4,6 +4,16 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-19 -- Decided by the team: the key never moves the drawing (graphty app)
+
+Graphty app, no API change. This reverses the arrival frame in the entry below ("the key's room
+only while there is a key"): a key that arrives over a drawn node no longer frames the graph. On
+the frozen build e3c5bca8e6 that frame made the drawing shrink and move right the moment the first
+color was set, on 16 dry-run walks across 15 tasks, and the drawing stayed off center after Undo.
+The camera moves only when the reader asks (opening a graph, Frame, Reset view); the key floats
+over the canvas, and Frame keeps clear of it through the view insets. A sample still opens
+centered on the whole canvas. Recorded in `tier3/decided.md`, "The drawing".
+
 ## 2026-10-18 -- Decided by the team: a layer's groups count its own elements; the key and the layer rows say what a layer draws (graphty-element, graphty app)
 
 No API is added. `styles.groups(layer, path)` documents each group's `count` as "how many of the

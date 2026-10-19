@@ -837,6 +837,49 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         expect(overlaps).toBe(false);
     });
 
+    /**
+     * Two section headers at the window's right edge, each a heading and a "+" at its end: the
+     * "+"'s tooltip has no room to the right, a "+" below and above, and the heading's words to
+     * the left.
+     */
+    function Headers(): React.JSX.Element {
+        const header = (title: string): React.JSX.Element => (
+            <div style={{ display: "flex", alignItems: "center", height: 40, padding: "0 8px 0 16px" }}>
+                <div role="heading" aria-level={3} style={{ flex: 1 }}>
+                    {title}
+                </div>
+                <Tooltip label={`Everything in node ${title.toLowerCase()} is set`}>
+                    <button type="button" aria-label={`Add to ${title}`} style={{ width: 24, height: 24 }}>
+                        +
+                    </button>
+                </Tooltip>
+            </div>
+        );
+        return (
+            <div style={{ position: "fixed", top: 200, right: 0, width: 240 }}>
+                {header("Text")}
+                {header("Visibility")}
+                {header("Effects")}
+            </div>
+        );
+    }
+
+    it("opens off its own section's heading rather than over its words", async () => {
+        const { getByRole } = await renderFigma(<Headers />);
+        const mounted = tooltipMount("Everything in node visibility is set");
+        await userEvent.hover(getByRole("button", { name: "Add to Visibility" }));
+        const tip = await mounted;
+        await waitFor(() => (isVisible(tip) ? true : null), 2000);
+        const box = tip.getBoundingClientRect();
+        const heading = getByRole("heading", { name: "Visibility" });
+        const words = document.createRange();
+        words.selectNodeContents(heading);
+        const text = words.getBoundingClientRect();
+        const overlaps =
+            box.left < text.right && box.right > text.left && box.top < text.bottom && box.bottom > text.top;
+        expect(overlaps).toBe(false);
+    });
+
     it("hides at once on a key press but not on a modifier", async () => {
         const { getByRole } = await renderFigma(<Tips />);
         await userEvent.hover(getByRole("button", { name: "1" }));

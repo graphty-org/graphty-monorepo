@@ -12,7 +12,16 @@
  * whole on screen first.
  */
 
-/** What a tooltip must not cover: the controls a reader acts on, and a field's error line. */
+/**
+ * Headings, which count by their words rather than their box: a title's row runs on past them,
+ * and a heading may be drawn as its children only (display: contents).
+ */
+const HEADINGS = '[role="heading"], h1, h2, h3, h4, h5, h6';
+
+/**
+ * What a tooltip must not cover: the controls a reader acts on, a field's error line, and a
+ * heading's words (a section's "+" at the panel's edge would otherwise open over its own title).
+ */
 const OBSTACLES = [
     "button",
     "a[href]",
@@ -30,7 +39,39 @@ const OBSTACLES = [
     '[role="treeitem"]',
     '[role="alert"]',
     ".cm-field-error",
+    HEADINGS,
 ].join(", ");
+
+/**
+ * Where an obstacle is drawn: its box, or a heading's words.
+ * @param element - the obstacle
+ * @returns its box, in viewport pixels
+ */
+function obstacleBox(element: Element): DOMRect {
+    if (!element.matches(HEADINGS)) {
+        return element.getBoundingClientRect();
+    }
+    const words = document.createRange();
+    words.selectNodeContents(element);
+    return words.getBoundingClientRect();
+}
+
+/**
+ * How much more the trigger's own heading counts than anything else: a "+" at the end of a
+ * section's title row has a control or a neighbor's title on every side, and of those its own
+ * title is the one the reader is reading.
+ */
+const OWN_HEADING_WEIGHT = 10;
+
+/**
+ * Whether an obstacle is the heading of the trigger's own row: a heading beside it in one parent.
+ * @param element - the obstacle
+ * @param reference - the trigger
+ * @returns true for the trigger's own heading
+ */
+function isOwnHeading(element: Element, reference: Element): boolean {
+    return element.matches(HEADINGS) && element.parentElement?.contains(reference) === true;
+}
 
 /** The covered area, in px^2, at which a side's penalty is halfway between its least and most. */
 const COVER_SCALE = 2000;
@@ -71,9 +112,9 @@ function fallbacksFor(initial: string): string[] {
 }
 
 /**
- * How much of what the bubble would cover at this place is a control or an error line, in px of
- * area. The trigger, what holds it and what it holds never count, nor does anything another layer
- * hides at its center.
+ * How much of what the bubble would cover at this place is a control, an error line or a heading's
+ * words, in px of area, the trigger's own heading weighted up. The trigger, what holds it and what
+ * it holds never count, nor does anything another layer hides at its center.
  * @param bubble - the bubble's box, in viewport pixels
  * @param reference - the trigger
  * @param floating - the bubble
@@ -85,7 +126,7 @@ function coveredArea(bubble: Box, reference: Element, floating: HTMLElement): nu
         if (element.contains(reference) || reference.contains(element) || floating.contains(element)) {
             continue;
         }
-        const box = element.getBoundingClientRect();
+        const box = obstacleBox(element);
         const width = Math.min(bubble.x + bubble.width, box.right) - Math.max(bubble.x, box.left);
         const height = Math.min(bubble.y + bubble.height, box.bottom) - Math.max(bubble.y, box.top);
         if (width <= 1 || height <= 1 || box.width <= 1 || box.height <= 1) {
@@ -96,7 +137,7 @@ function coveredArea(bubble: Box, reference: Element, floating: HTMLElement): nu
             .elementsFromPoint(box.left + box.width / 2, box.top + box.height / 2)
             .find((hit) => !floating.contains(hit));
         if (top && (element.contains(top) || top.contains(element))) {
-            area += width * height;
+            area += width * height * (isOwnHeading(element, reference) ? OWN_HEADING_WEIGHT : 1);
         }
     }
     return area;

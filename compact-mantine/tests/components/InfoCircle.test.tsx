@@ -26,6 +26,21 @@ describe("InfoCircle", () => {
         expect(screen.getByRole("button", { name: "About Betweenness" })).toBeInTheDocument();
     });
 
+    it("shows its name as a tooltip on hover, as every icon button does", async () => {
+        const user = userEvent.setup();
+        renderCircle(<InfoCircle label="Betweenness">{EXPLANATION}</InfoCircle>);
+
+        await user.hover(screen.getByRole("button", { name: "About Betweenness" }));
+
+        // The theme opens tooltips after a delay and mounts them hidden first.
+        await waitFor(
+            () => {
+                expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("About Betweenness");
+            },
+            { timeout: 3000 },
+        );
+    });
+
     it("keeps the explanation closed until it is asked for", () => {
         renderCircle(<InfoCircle label="Betweenness">{EXPLANATION}</InfoCircle>);
 

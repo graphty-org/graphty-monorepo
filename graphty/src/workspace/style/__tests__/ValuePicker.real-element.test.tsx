@@ -126,14 +126,17 @@ describe("the value picker on the real element", () => {
 
         const refused = refusedForSize(session);
         assert.isAbove(refused, 0, "the fixture has columns size cannot take");
-        const fold = within(picker).getByRole("option", {
-            name: new RegExp(`^${String(refused)} attributes?, hidden$`),
+        // The fold sits in a group named "Does not fit", and while folded its name says why the
+        // rows do not fit and that it shows why.
+        const misfits = within(picker).getByRole("group", { name: "Does not fit" });
+        const fold = within(misfits).getByRole("option", {
+            name: new RegExp(`^${String(refused)} attributes?, hidden, .*holds groups, not amounts.*, Show why$`),
         });
         assert.isNull(within(picker).queryByRole("option", { name: /^dept(,|$)/ }), "dept is folded");
         await userEvent.click(fold);
         const dept = await within(picker).findByRole("option", { name: /^dept(,|$)/ });
         // The fold says its state in its name: a list option carries no aria-expanded.
-        within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} attributes?, shown$`) });
+        within(picker).getByRole("option", { name: new RegExp(`^${String(refused)} attributes?, shown, Hide them$`) });
         assert.equal(dept.getAttribute("aria-disabled"), "true");
         // Its reason is in its name, and nothing it is not is "selected".
         assert.match(dept.getAttribute("aria-label") ?? "", /^dept, /);
@@ -225,7 +228,7 @@ describe("the value picker on the real element", () => {
 
         const picker = await openBySize();
         await within(picker).findByRole("option", {
-            name: new RegExp(`^${String(refusedForSize(session))} attributes?, (hidden|shown)$`),
+            name: new RegExp(`^${String(refusedForSize(session))} attributes?, (hidden|shown), `),
         });
         assert.isAtLeast(within(picker).getAllByRole("option").length, 150, "the columns that fit are listed");
         for (const [name, spy] of reads) {

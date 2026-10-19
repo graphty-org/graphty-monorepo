@@ -716,7 +716,8 @@ describe("several layers holding different values", () => {
         assert.strictEqual(name?.getAttribute("data-tone"), "component");
         const kind = channel === "node.color" ? "colors" : "values";
         within(row).getByRole("button", {
-            name: `${fieldName(channel)}: from each layer, ${String(n)} layers, ${String(n)} ${kind}`,
+            // Then each layer's value, by the layer's name.
+            name: new RegExp(`^${fieldName(channel)}: from each layer, ${String(n)} layers, ${String(n)} ${kind}: `),
         });
         assert.notInclude(row.textContent ?? "", "Mixed");
         assert.isNull(row.querySelector("[data-breakdown]"), "every layer sets it: no breakdown");
@@ -1031,7 +1032,7 @@ describe("color sets from 2 to dozens", () => {
             assert.strictEqual(shown.more, more, `${String(n)} colors`);
             assert.notInclude(shown.words, "+1");
             within(row).getByRole("button", {
-                name: `Node color: from each layer, ${String(n)} layers, ${String(n)} colors`,
+                name: new RegExp(`^Node color: from each layer, ${String(n)} layers, ${String(n)} colors: `),
             });
         }
     });
@@ -1066,7 +1067,7 @@ describe("color sets from 2 to dozens", () => {
             assert.lengthOf(chits, 5);
             assert.match(more ?? "", /^\+\d+$/);
         });
-        within(row).getByRole("button", { name: new RegExp(`${shown}$`) });
+        within(row).getByRole("button", { name: new RegExp(`${shown}: `) });
     });
 
     it("draws the lumped Other chit last, uncounted, with its note", async () => {
@@ -1123,19 +1124,19 @@ describe("color sets from 2 to dozens", () => {
         assert.isNull(document.querySelector(".ws-spread, [data-spread]"), "no second drawing anywhere");
     });
 
-    it("names the bulk pill with its counts and describes its layers by name", async () => {
+    it("names the bulk pill with its counts and its layers by name", async () => {
         const session = await openSample();
         const colors = TWELVE_COLORS.slice(0, 7);
         const layers = await eachOwn(session, "Named", "node.color", colors);
         await clickRow("Named");
         const row = await line("node.color");
-        const pill = within(row).getByRole("button", { name: "Node color: from each layer, 7 layers, 7 colors" });
-        const described = document.getElementById(pill.getAttribute("aria-describedby") ?? "")?.textContent ?? "";
+        const pill = within(row).getByRole("button", { name: /^Node color: from each layer, 7 layers, 7 colors: / });
+        const named = pill.getAttribute("aria-label") ?? "";
         const names = layers.map((id) => session.styles.get(id)?.name ?? "");
         for (const name of names.slice(0, 5)) {
-            assert.include(described, name, "each drawn layer by name");
+            assert.include(named, name, "each drawn layer by name");
         }
-        assert.match(described, / and 2 more$/);
+        assert.match(named, / and 2 more$/);
         assert.isTrue(row.querySelector("[data-varied-line]")?.getAttribute("aria-hidden") === "true");
         assert.isTrue(atRest(row).strip?.getAttribute("aria-hidden") === "true");
     });

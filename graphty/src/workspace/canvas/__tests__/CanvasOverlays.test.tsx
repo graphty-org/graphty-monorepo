@@ -351,8 +351,10 @@ describe("the legend card", () => {
             block({ ...highlight, layerId: "path-nodes", channel: "node.color" }),
         ];
         renderOver(standIn({ blocks, runs: { "run-path": "Shortest path" } }).session);
-        const section = screen.getByRole("group", { name: "Shortest path" });
-        // No title over a row that only repeats it: the run's name is the row.
+        const section = within(screen.getByRole("region", { name: "Legend" })).getByRole("group");
+        // No title over a row that only repeats it: the run's name is the row, and the section
+        // takes no name of its own, so a screen reader hears "Shortest path" once.
+        assert.isNull(section.getAttribute("aria-label"));
         assert.lengthOf(within(section).getAllByText("Shortest path"), 1);
         assert.isNull(within(section).queryByText(/In the result|On the path/));
     });

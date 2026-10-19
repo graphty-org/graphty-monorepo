@@ -1455,8 +1455,16 @@ function Footer({
         (Object.keys(DIRECTIONS) as (keyof typeof DIRECTIONS)[]).find(
             (key) => DIRECTIONS[key] === page.choices.directed,
         ) ?? "auto";
+    const strip = page.report !== null && page.source !== null;
     return (
-        <footer className="dp-footer">
+        // A named region, named by the line that says what the load makes ("24 nodes, 63 edges"),
+        // so a reader who lands on Load and reads around it hears the counts, not only the grid's
+        // caption above it.
+        <section
+            className="dp-footer"
+            aria-labelledby={strip ? MODEL_STRIP_ID : undefined}
+            aria-label={strip ? undefined : action}
+        >
             <Select
                 label="Direction"
                 size="sm"
@@ -1502,7 +1510,7 @@ function Footer({
                     aria-disabled={blocked === null ? undefined : true}
                     aria-describedby={
                         [
-                            page.report === null || page.source === null ? null : MODEL_STRIP_ID,
+                            strip ? MODEL_STRIP_ID : null,
                             blocked === null ? null : "dp-load-reason",
                             repeats ? "dp-repeats" : null,
                         ]
@@ -1520,6 +1528,6 @@ function Footer({
                     {action}
                 </Button>
             </Group>
-        </footer>
+        </section>
     );
 }

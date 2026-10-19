@@ -1,4 +1,4 @@
-import { ActionIcon, Box } from "@mantine/core";
+import { ActionIcon, Box, Tooltip } from "@mantine/core";
 import React, { useId } from "react";
 
 import { PANEL_GRID } from "../constants/panel";
@@ -72,19 +72,24 @@ function InfoCircleTrigger({ name, bubbleId }: InfoCircleTriggerProps): React.JS
     return (
         // Hovering has already opened the bubble by the time a click arrives,
         // so the trigger only ever opens rather than toggling.
+        // Its tooltip is its name, as every icon button's is: the bubble below says what the thing
+        // is, the tooltip above which thing the circle is about. On hover only: focus already
+        // says the name, and a tooltip open on focus would take the Escape that closes the bubble.
         <Popout.Trigger action="open">
-            <ActionIcon
-                variant="subtle"
-                size="sm"
-                aria-label={name}
-                aria-describedby={isOpen ? bubbleId : undefined}
-                data-testid="info-circle"
-                onMouseEnter={open}
-                onMouseLeave={close}
-                onBlur={close}
-            >
-                <UiGlyph name="info" size={PANEL_GRID.GLYPH} />
-            </ActionIcon>
+            <Tooltip label={name} position="top" events={{ hover: true, focus: false, touch: false }}>
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={name}
+                    aria-describedby={isOpen ? bubbleId : undefined}
+                    data-testid="info-circle"
+                    onMouseEnter={open}
+                    onMouseLeave={close}
+                    onBlur={close}
+                >
+                    <UiGlyph name="info" size={PANEL_GRID.GLYPH} />
+                </ActionIcon>
+            </Tooltip>
         </Popout.Trigger>
     );
 }

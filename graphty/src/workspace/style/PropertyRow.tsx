@@ -1059,7 +1059,8 @@ function BoundValue({
     const isColor = descriptor.accepts === "color";
     const view =
         source.kind === "layers" ? layersView(session, descriptor, source) : dataView(session, descriptor, source);
-    const described = describedWords(descriptor, view.list);
+    const described = describedWords(view.list);
+    const groups = groupWords(descriptor, view.list);
     const drawn = (onClick: () => void): React.JSX.Element => (
         <>
             <VariablePill
@@ -1072,7 +1073,7 @@ function BoundValue({
                 swatch={isColor ? stripOf(view.list, view.fallback) : undefined}
                 swatchWidth={isColor ? SWATCH_STRIP : undefined}
                 width="100%"
-                aria-label={`${fieldName(channel)}: ${view.spoken}`}
+                aria-label={`${fieldName(channel)}: ${view.spoken}${groups === "" ? "" : `: ${groups}`}`}
                 aria-describedby={described === "" ? undefined : describedId}
                 onClick={onClick}
             />
@@ -1429,25 +1430,37 @@ function shownOf(list: LineList): { readonly shown: readonly LineEntry[]; readon
 }
 
 /**
- * What a screen reader hears after a bound pill's name: the entries its line draws, each with
- * its color or value in words, "and N more" (a ramp's or a number's ends), then the notes.
+ * The groups a bound pill's line draws, each with its color or value in words, "and N more" past
+ * the ones it draws: part of the pill's name, so a reader hears which group paints what without
+ * reaching the chits, which are not controls. Empty for a ramp or a number.
  * @param descriptor - the property.
  * @param list - the line's list.
  * @returns the words.
  */
-function describedWords(descriptor: ChannelDescriptor, list: LineList | undefined): string {
+function groupWords(descriptor: ChannelDescriptor, list: LineList | undefined): string {
+    if (list?.kind !== "categorical") {
+        return "";
+    }
+    const { shown, more } = shownOf(list);
+    const words = (e: LineEntry): string =>
+        `${e.name} ${e.color === undefined ? e.words : valueWords(descriptor, e.color)}`;
+    const entries = [...shown, ...(list.other === undefined ? [] : [list.other])].map(words).join(", ");
+    return more > 0 ? `${entries} and ${String(more)} more` : entries;
+}
+
+/**
+ * What a screen reader hears after a bound pill's name: a ramp's or a number's ends, then the
+ * notes. A list of groups is in the name itself (`groupWords`).
+ * @param list - the line's list.
+ * @returns the words.
+ */
+function describedWords(list: LineList | undefined): string {
     if (list === undefined) {
         return "";
     }
     let entries = "";
     if (list.kind === "categorical") {
-        const { shown, more } = shownOf(list);
-        const words = (e: LineEntry): string =>
-            `${e.name} ${e.color === undefined ? e.words : valueWords(descriptor, e.color)}`;
-        entries = [...shown, ...(list.other === undefined ? [] : [list.other])].map(words).join(", ");
-        if (more > 0) {
-            entries = `${entries} and ${String(more)} more`;
-        }
+        entries = ""; // its groups are said in the name
     } else if (list.range !== undefined) {
         entries = `From ${String(list.range[0])} to ${String(list.range[1])}`;
     } else if (list.ends !== undefined) {

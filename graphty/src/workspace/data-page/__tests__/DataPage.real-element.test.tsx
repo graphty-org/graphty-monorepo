@@ -213,6 +213,14 @@ describe("the Data page on the real element", () => {
         assert.equal(store.get().project?.name, "les-miserables");
     });
 
+    it("puts Load in a region named by what the load makes, so reading around Load says the counts", async () => {
+        await openFromEmptyApp();
+        await chooseFiles(new File([GML], "les-miserables.gml"));
+        await screen.findByTestId("model-strip", {}, { timeout: TIMEOUT_MS });
+        const region = screen.getByRole("region", { name: "les-miserables: 3 nodes, 2 edges" });
+        assert.isTrue(region.contains(loadButton()), "Load sits in the region the counts name");
+    });
+
     it("T4: loads a node CSV and an edge CSV as one network with the match report", async () => {
         const { session } = await openFromEmptyApp();
         await chooseFiles(new File([PEOPLE], "people.csv"), new File([TIES], "ties.csv"));

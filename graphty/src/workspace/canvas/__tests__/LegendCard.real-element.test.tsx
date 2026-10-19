@@ -138,7 +138,11 @@ describe("the canvas key on the real element", () => {
 
         const titles = within(legend)
             .getAllByRole("group")
-            .map((group) => group.getAttribute("aria-label") ?? "");
+            // A section of one row named as its title takes no name of its own: its row says it.
+            .map(
+                (group) =>
+                    group.getAttribute("aria-label") ?? group.querySelector(".cm-data-row-name")?.textContent ?? "",
+            );
         assert.notInclude(titles.join("|"), "Selected", "Selected paints nothing while nothing is selected");
         assert.include(titles, "Halo: Key people");
         assert.notInclude(legend.textContent, "72", "a label's size is not a key");
@@ -178,7 +182,11 @@ describe("the canvas key on the real element", () => {
         const line = await within(legend).findByRole("group", { name: "Edge line: Bob" }, { timeout: TIMEOUT_MS });
         const titles = within(legend)
             .getAllByRole("group")
-            .map((group) => group.getAttribute("aria-label") ?? "");
+            // A section of one row named as its title takes no name of its own: its row says it.
+            .map(
+                (group) =>
+                    group.getAttribute("aria-label") ?? group.querySelector(".cm-data-row-name")?.textContent ?? "",
+            );
         assert.notInclude(titles, "Bob", "no section is titled by the layer's name alone");
         const names = [...line.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent ?? "");
         assert.deepEqual(names, ["Solid"], "the row names the pattern, not the layer again");
@@ -200,7 +208,11 @@ describe("the canvas key on the real element", () => {
         });
         const titles = within(legend)
             .getAllByRole("group")
-            .map((group) => group.getAttribute("aria-label") ?? "");
+            // A section of one row named as its title takes no name of its own: its row says it.
+            .map(
+                (group) =>
+                    group.getAttribute("aria-label") ?? group.querySelector(".cm-data-row-name")?.textContent ?? "",
+            );
         assert.include(titles, "Color: Louvain");
         assert.notMatch(titles.join("|"), /Selected|Hovered/);
     });

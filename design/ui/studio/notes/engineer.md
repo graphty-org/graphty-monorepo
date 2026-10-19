@@ -16,22 +16,28 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, summaries and the Data place) All app-side; the element already had every fact
-   (`SelectionAttributeStatistics.min/max`, `AttributeDescriptor.holdsNodeIds` and `roles`,
-   `readableValues().kind`), so no API change. `attributeSummary` (inspector/words.ts) takes the
-   column: an id column (holdsNodeIds or role key) says "34 of 34 have a value", a number "31 to 52,
-   mean 41.14". Data place rows always draw their second line ("Text, all have a value"; "No
-   values" alone at 0%). A category now wears `Boxes` and free text `CaseSensitive` (GLYPHS.text,
-   TypeGlyph "text", VALUE_GLYPHS.text) in the Data place, the attribute header and every value
-   list. Table "Columns" with only the key column is aria-disabled with a tooltip, no menu. A line
-   "+" added on a selection with no layer says "Not set yet: the first size you pick makes the
-   layer" (`firstValueWords`, PropertyRow). Quick actions' reason: "Open a node attribute in Data >
-   Attributes first". Analyze: an algorithm reading N nodes from the selection is unavailable with
-   more than N selected ("Select only 2 nodes; 34 are selected") and `paramsFor` fills only on an
-   exact count. The Degree tooltip already worked (1 s hover delay; pilots clicked). Tests:
-   `inspector/__tests__/TrueSummaries.real-element` (8; 7 fail without). Walks
-   `design/ui/studio/tmp/r1-dry3-summaries-data-place/w1-w4`.
-1. (2026-10-18, focus after a style line; condition card keys) `useFocusKept` in PropertyRow keeps
+0. (2026-10-18, screen-reader names) All app and compact-mantine; no API change. The analysis
+   card's "Run" is named "Run <analysis>" (aria-label; landed inside d7781a87d, whose author's
+   commit took my staged-by-nobody hunk from the shared file). The read-the-file page's footer is a
+   `section` named by the model strip (`aria-labelledby` dp-model, "volunteers: 24 nodes, 63
+   edges"), so `--read` from Load hears the counts. The value picker's fold says why while folded
+   ("5 attributes, hidden, holds text, not groups or amounts (3), ..., Show why"; `foldWhy` counts
+   each refusal's words) and "shown, Hide them" when open; its groups were already named
+   (`role=group` aria-label in QuickActions; real.mjs reads only the highlighted option, not its
+   group). A bound pill's name ends with each group's color ("Node color: kind, 3 groups, ...:
+   person orange, company blue, agency green", `groupWords`, cap as the chits, "and N more"); the
+   description keeps only notes and a ramp's ends. Key: a merged section's fieldset takes no name
+   (its one row says it), a titled one keeps the name and hides its visible title; a key chip has a
+   Tooltip with its color word. compact-mantine `InfoCircle` shows its name ("About Degree") as a
+   hover-only tooltip on top (a focus tooltip ate the Escape that closes the bubble: 4 tests).
+   Tests: `workspace/__tests__/ScreenReaderNames.real-element` (3), DataPage "puts Load in a
+   region", ValuePicker fold, InfoCircle "tooltip on hover" (fails without). Walks
+   `design/ui/studio/tmp/r1-dry3-screen-reader-names/w1` (sr: 15 read, 19 Run Degree), `w2` (12 key
+   tooltip, 16 picker, 20 About Degree), `w3` (08 Poster key, one name).
+1. (2026-10-18, summaries and the Data place) True attribute summaries, Data place second lines,
+   category and text glyphs, "Select only N nodes": in full in
+   `git show 10800b21b:design/ui/studio/notes/engineer.md`, Top of mind 0.
+   1b. (2026-10-18, focus after a style line; condition card keys) `useFocusKept` in PropertyRow keeps
    focus when a line's control is swapped; a card's remove is after its header in the DOM; text
    cards open their list only on typing or ArrowDown. In full, with tests and walks:
    `git show c768cdaaf:design/ui/studio/notes/engineer.md`, Top of mind 0-1.
@@ -91,6 +97,13 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **Group colors go in a bound pill's name, not its description.** The study tool
+  and many screen readers read a description late or not at all, and the chits are not controls;
+  the name is what Tab lands on. Order is facts then groups so `^... colors$`-style names became
+  `...: ` prefixes in tests. Applies to every categorical line (shape and Layer pills too).
+- (2026-10-18) **A merged key section takes no name,** rather than labelling the row: one element
+  says "Color: Poster". `CanvasOverlays.test` finds the section by role inside the Legend.
+
 - (2026-10-18) **A larger selection disables a node-reading analysis rather than opening it
   empty.** An open form with Source and Sink unset has no way to fill them (the Analyze form reads
   ends only from the selection), so Run would only refuse; the row's reason says what to do.
@@ -119,20 +132,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 - (2026-10-18) The key's room and its one framing, Frame selection keeping the angle, the hover
   ending on `pointerleave`, `selection:hover-changed`: in full in
   `git show bdd01700e:design/ui/studio/notes/engineer.md`, "Decisions and reasons".
-- (2026-10-18) **The find example is "name == 'value'", not contains.** The rule subset refuses
-  function calls (`function-not-supported`), so `contains(name, 'x')` would be an example that
-  fails when typed; equality with a whole sample value of 20 characters or fewer runs. Adding
-  contains to the element's rule language would be additive but is its own piece of work.
-- (2026-10-18) **Wrapping lives in compact-mantine, not in a find-box style.** A two-line result
-  row is a property of the shared row (`lines?: 1 | 2`, default 1 keeps every caller), so another
-  list can take it; overriding `.cm-result-name` in the app would be a bespoke row.
-- (2026-10-18) **The find list is sized to the panel, not to 320 px.** With a fixed cap it scrolled
-  five rows while the panel had room below; the tree under it gives its room up to one row.
-- (2026-10-18) **Escape is a field's in the inspector, but its tabs still clear.** "Escape inside
-  any inspector field never clears the selection" was scoped to targets in `.ws-right` outside its
-  `[role=tablist]`, so the earlier rule "Escape on the selected tab clears and the ring stays on the
-  tab" (FocusAndTabOrder) still holds. Tab out of Analyze goes to the next Tab stop after the
-  button it opened from (the inspector's first control), as Tab from the toolbar would.
+- Four find-box and Escape decisions of 2026-10-18 (the "name == 'value'" example, two-line rows
+  in compact-mantine, the list sized to the panel, Escape in inspector fields):
+  `git show 10800b21b:design/ui/studio/notes/engineer.md`.
 - (2026-10-18) **The filter step reuses the condition card instead of its own condition row.**
   One job, one component: the step's own row took one value and offered only "is" on text,
   while the card already took several and offered contains. Reusing `CardBody` gave the step
@@ -197,6 +199,16 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-18) Swapping HEAD copies of shared files in to prove a test fails is unsafe when other
+  agents are editing them (AnalyzePopover and PropertyRow both changed under me in minutes); prove
+  failures only on files nobody else touches, or reason from the old name. A Tooltip with
+  `events.focus` inside `Popout.Trigger` stopped Escape reaching `useEscapeKey` (the open tooltip
+  stops it; `hasOpenTooltip` saw the bubble id, not the tooltip's): hover-only fixed it.
+- (2026-10-18) Seen, not mine (failing with others' uncommitted Section/WhichPicker work in the
+  tree): VaryByLayer "+" menu tests (no menuitem Shape/Size), PropertyRows locked-layer Tab and '='
+  in Size, DataPage "draws every sample row" (two "All 12 rows"), CanvasOverlays T8 "Show anyway",
+  VaryByLayer "+33 vs +35" chits and color picker Escape.
 
 - (2026-10-18) Proving a test fails by copying HEAD over shared files (PropertyRow, WhichPicker)
   for one run: worked, but another agent committed my WhichPicker hunk in 9f8c35c76 meanwhile, and

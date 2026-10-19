@@ -1,7 +1,7 @@
 import { DataRow, RampRow } from "@graphty/compact-mantine";
 import type { ViewInsets } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session";
-import { ColorSwatch, Paper, Stack, Text } from "@mantine/core";
+import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -133,14 +133,17 @@ function List({
                             // picture the Style tab's picker draws.
                             <ShapePicture channel={block.channel} value={swatch.paints} />
                         ) : (
-                            // The chip is read with its color word, so the entry is not a name alone.
-                            <ColorSwatch
-                                className="ws-legend-chit"
-                                color={swatch.color}
-                                size={12}
-                                role="img"
-                                aria-label={colorName(swatch.color.slice(0, 7))}
-                            />
+                            // The chip is read with its color word, so the entry is not a name alone;
+                            // a pointer hovering it sees the same word.
+                            <Tooltip label={colorName(swatch.color.slice(0, 7))}>
+                                <ColorSwatch
+                                    className="ws-legend-chit"
+                                    color={swatch.color}
+                                    size={12}
+                                    role="img"
+                                    aria-label={colorName(swatch.color.slice(0, 7))}
+                                />
+                            </Tooltip>
                         )
                     }
                 />
@@ -336,12 +339,15 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
                     return (
                         <fieldset
                             key={`${block.layerId}-${block.channel}`}
-                            aria-label={title}
+                            // Named once: a merged section's one row already says its title, and a
+                            // titled section's heading line is hidden from a screen reader, which
+                            // hears the title as the section's name.
+                            aria-label={merged ? undefined : title}
                             className="ws-legend-section"
                         >
                             {/* A run's one highlight is one line: its chip beside the run's name. */}
                             {!merged && (
-                                <Text size="xs" fw={500}>
+                                <Text size="xs" fw={500} aria-hidden="true">
                                     {title}
                                 </Text>
                             )}

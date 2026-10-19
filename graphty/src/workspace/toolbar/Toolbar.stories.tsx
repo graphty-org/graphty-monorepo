@@ -142,7 +142,7 @@ export const AfterLouvain: Story = {
         const element = await loadRings(canvasElement);
         await press(canvasElement, "Analyze");
         await userEvent.click(await body().findByRole("option", { name: /^Louvain/ }));
-        await userEvent.click(await body().findByRole("button", { name: "Run" }));
+        await userEvent.click(await body().findByRole("button", { name: /^Run\b/ }));
         await Promise.all(element.session.runs.list());
         await element.waitForStableFrame();
         // Run closes the popover and hands focus back to Analyze. The play's clicks are synthetic,

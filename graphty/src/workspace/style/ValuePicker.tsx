@@ -137,6 +137,28 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
 }
 
 /**
+ * Why the folded rows do not fit, from each row's own reason: "holds groups, not amounts", or with
+ * several reasons, how many rows each covers ("holds groups, not amounts (3), has no values (2)").
+ * @param refused - the folded rows, each described by its reason.
+ * @returns the words.
+ */
+function foldWhy(refused: readonly QuickAction[]): string {
+    const counts = new Map<string, number>();
+    for (const row of refused) {
+        const why = row.description ?? "";
+        counts.set(why, (counts.get(why) ?? 0) + 1);
+    }
+    const lower = (why: string): string => why.charAt(0).toLowerCase() + why.slice(1);
+    if (counts.size === 1) {
+        return lower([...counts.keys()][0]);
+    }
+    return [...counts]
+        .sort((a, b) => b[1] - a[1])
+        .map(([why, n]) => `${lower(why)} (${String(n)})`)
+        .join(", ");
+}
+
+/**
  * The value picker (tier3 design, decision 1.5), Figma's "apply variable" list: a search focused on
  * open, then In use, Data, and one group per run, one fact per row. What the property cannot take
  * (graphty-element's `styles.proposeEncoding`, which reads only the cached column descriptors)
@@ -211,8 +233,10 @@ export function ValuePicker({
                       // 240 px list beside "Show why" (the property's name cut it short).
                       label: foldedCount,
                       // A list option cannot carry aria-expanded, so its name says whether the
-                      // values it folds are shown.
-                      "aria-label": `${foldedCount}, ${unfolded ? "shown" : "hidden"}`,
+                      // values it folds are shown, and while they are hidden, why they do not fit.
+                      "aria-label": unfolded
+                          ? `${foldedCount}, shown, Hide them`
+                          : `${foldedCount}, hidden, ${foldWhy(refused)}, Show why`,
                       description: unfolded ? "Hide them" : "Show why",
                       section: "Does not fit",
                   },

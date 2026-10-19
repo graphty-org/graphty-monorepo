@@ -275,7 +275,10 @@ async function inner() {
         await sleep(400);
         await p.keyboard.press("Enter");
         await sleep(600);
-        await p.getByRole("button", { name: "Run", exact: true }).first().click();
+        await p
+            .getByRole("button", { name: /^Run\b/ })
+            .first()
+            .click();
         await sleep(3500);
     });
     await step(p, "Style tab with a label line", async () => {

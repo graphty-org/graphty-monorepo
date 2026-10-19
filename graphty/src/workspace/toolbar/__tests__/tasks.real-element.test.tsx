@@ -69,7 +69,7 @@ async function analyze(filter: string, entry: string): Promise<void> {
     const box = await screen.findByRole("combobox", { name: "Filter analyses" });
     await userEvent.type(box, filter);
     await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${entry}`) }));
-    await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
 }
 
 /**

@@ -118,7 +118,7 @@ describe("counts that say only what a layer paints", () => {
         await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
-        await userEvent.click(await screen.findByRole("button", { name: "Run" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
         await waitFor(
             () => {
                 assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");

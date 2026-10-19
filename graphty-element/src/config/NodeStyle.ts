@@ -211,7 +211,7 @@ export const NodeStyle = z.strictObject({
                 .strictObject({
                     enabled: z.boolean().optional(),
                     color: ColorStyle.optional(),
-                    scale: z.number().positive().optional(),
+                    scale: z.number().min(0).optional(), // 0 leaves the selection style's scale, as the channel does
                     opacity: z.number().min(0).max(1).optional(),
                 })
                 .optional(),

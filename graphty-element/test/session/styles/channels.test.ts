@@ -42,6 +42,9 @@ const DECLARED = [
     "node.labelMinScreenSize",
     "node.labelOnTop",
     "node.labelRotation",
+    "node.labelBackground",
+    "node.labelOutline",
+    "node.labelOutlineWidth",
     "node.labelDeclutter",
     "node.tooltip",
     "node.tooltipStyle",
@@ -199,6 +202,9 @@ const DECLARED = [
     "edge.labelMinScreenSize",
     "edge.labelOnTop",
     "edge.labelRotation",
+    "edge.labelBackground",
+    "edge.labelOutline",
+    "edge.labelOutlineWidth",
 ];
 
 describe("the channel set", () => {
@@ -225,9 +231,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into ninety-seven node channels and seventy-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 97);
-        assert.strictEqual(channelsFor("edge").length, 77);
+    it("splits into one hundred node channels and eighty edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 100);
+        assert.strictEqual(channelsFor("edge").length, 80);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -527,6 +533,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOnTop",
         "node.labelDeclutter",
         "node.labelRotation",
+        "node.labelBackground",
+        "node.labelOutline",
+        "node.labelOutlineWidth",
         "edge.labelColor",
         "edge.labelSize",
         "edge.labelLetterSize",
@@ -538,6 +547,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelMinScreenSize",
         "edge.labelOnTop",
         "edge.labelRotation",
+        "edge.labelBackground",
+        "edge.labelOutline",
+        "edge.labelOutlineWidth",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -620,10 +632,12 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the nineteen that carry a colour, and the type says the same nineteen", () => {
+    it("are the twenty-three that carry a colour, and the type says the same twenty-three", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
+            "node.labelBackground",
+            "node.labelOutline",
             "node.outline",
             "node.glow",
             "node.borderColor",
@@ -641,6 +655,8 @@ describe("colour channels", () => {
             "edge.arrowMiddleHeadColor",
             "edge.arrowMiddleTailColor",
             "edge.labelColor",
+            "edge.labelBackground",
+            "edge.labelOutline",
         ];
 
         assert.deepEqual([...COLOR_CHANNELS], fromTheType);

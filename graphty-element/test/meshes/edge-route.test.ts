@@ -7,6 +7,7 @@ import { assert, describe, it } from "vitest";
 
 import {
     bendPoints,
+    bezierThroughControls,
     centerArc,
     curveThroughMidpoints,
     fanArc,
@@ -95,6 +96,22 @@ describe("edge route geometry", () => {
         for (let i = 0; i < out.length; i += 3) {
             assert.closeTo(Math.hypot(out[i] - 1, out[i + 1] - 1), 1, 3e-4);
         }
+    });
+
+    it("draws a curve through its bends as control points: a quadratic through one, a cubic through two", () => {
+        // vis-network's smooth edge: quadraticCurveTo from (0, 0) via (1, 2) to (2, 0), whose middle is at (1, 1)
+        const quad = bezierThroughControls([0, 0, 0, 1, 2, 0, 2, 0, 0]);
+        assert.deepEqual(quad.slice(0, 3), [0, 0, 0]);
+        assert.deepEqual(quad.slice(-3), [2, 0, 0]);
+        const mid = quad.length / 3 / 2 - 0.5;
+        assert.closeTo(quad[3 * mid], 1, 1e-9);
+        assert.closeTo(quad[3 * mid + 1], 1, 1e-9);
+        // bezierCurveTo via (0, 1) and (1, 1) to (1, 0): its middle is at (0.5, 0.75)
+        const cubic = bezierThroughControls([0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0]);
+        assert.closeTo(cubic[3 * mid], 0.5, 1e-9);
+        assert.closeTo(cubic[3 * mid + 1], 0.75, 1e-9);
+        // no bends: the line itself
+        assert.deepEqual(bezierThroughControls([0, 0, 0, 2, 0, 0]), [0, 0, 0, 2, 0, 0]);
     });
 
     it("draws a curve through midpoints through the middle of each segment between two bends", () => {

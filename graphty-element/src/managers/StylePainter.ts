@@ -261,7 +261,8 @@ function richTextOf(style: LabelStyle): Record<string, unknown> {
     }
 
     if (style.outline !== undefined) {
-        text.textOutline = true;
+        // a width of 0 says no outline: a canvas ignores a line width of 0 and would stroke at its last width
+        text.textOutline = style.outlineWidth !== 0;
         text.textOutlineColor = style.outline;
     }
 

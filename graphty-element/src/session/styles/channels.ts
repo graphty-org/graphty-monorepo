@@ -305,6 +305,9 @@ export interface ChannelValues {
     "node.labelOnTop": boolean;
     "node.labelDeclutter": LabelDeclutterOrder;
     "node.labelRotation": number;
+    "node.labelBackground": ColorValue;
+    "node.labelOutline": ColorValue;
+    "node.labelOutlineWidth": number;
     "node.tooltip": string;
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
@@ -461,6 +464,9 @@ export interface ChannelValues {
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
     "edge.labelRotation": number;
+    "edge.labelBackground": ColorValue;
+    "edge.labelOutline": ColorValue;
+    "edge.labelOutlineWidth": number;
 }
 
 /**
@@ -481,6 +487,8 @@ export type ColorChannel =
     | "node.underlayColor"
     | "node.overlayColor"
     | "node.glyphColor"
+    | "node.labelBackground"
+    | "node.labelOutline"
     | "edge.color"
     | "edge.arrowHeadColor"
     | "edge.arrowTailColor"
@@ -489,7 +497,9 @@ export type ColorChannel =
     | "edge.outlineColor"
     | "edge.underlayColor"
     | "edge.overlayColor"
-    | "edge.labelColor";
+    | "edge.labelColor"
+    | "edge.labelBackground"
+    | "edge.labelOutline";
 
 /** What a repaint reads for one channel. */
 export type PaintedValue<C extends Channel> = ChannelValues[C];
@@ -620,7 +630,7 @@ const EDGE_GRADIENT_CAVEAT =
 
 /** How an edge's gradient runs, or that it has none. */
 const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
-const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints"];
+const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -896,7 +906,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -911,6 +921,9 @@ const LABEL_FIELD_OF_SUFFIX = {
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
+    Background: "background",
+    Outline: "outline",
+    OutlineWidth: "outlineWidth",
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
@@ -982,6 +995,19 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
         row("OnTop", "On Top", { accepts: "boolean" }),
         row("Rotation", "Rotation", { accepts: "number" }),
+        row("Background", "Background", {
+            accepts: "color",
+            caveat: "The color of a panel drawn behind the label's words, as a program's label background is.",
+        }),
+        // The outline's color switches it on; a width of 0 switches it off.
+        row("Outline", "Outline", { accepts: "color" }),
+        // No minimum: a channel takes exactly the numbers its schema path (`label.textOutlineWidth`) takes.
+        row("OutlineWidth", "Outline Width", {
+            accepts: "number",
+            caveat:
+                "How far the outline reaches out from each letter's edge, in pixels of the label drawn at its " +
+                "own size (`labelSize`). 0 draws none.",
+        }),
     ];
 
     return Object.fromEntries(rows.map((entry) => [entry.channel, entry])) as Record<
@@ -1003,6 +1029,9 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
+    Background: "backgroundColor",
+    Outline: "textOutlineColor",
+    OutlineWidth: "textOutlineWidth",
 };
 
 /** Every weight the `labelWeight` channels take. */
@@ -1019,7 +1048,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth)$/.exec(
             channel,
         );
 
@@ -1039,7 +1068,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
  * @returns The one-field label style.
  */
 export function labelPatchOf(field: LabelFieldName, painted: unknown): LabelStyle {
-    const color = field === "color" ? asColorValue(painted) : null;
+    const color = field === "color" || field === "background" || field === "outline" ? asColorValue(painted) : null;
 
     return { [field]: color === null ? painted : color.hex };
 }
@@ -2325,7 +2354,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         caveat:
             'How a curved edge is drawn through its bends: "corners" runs straight through each bend ' +
             'and rounds its corner; "midpoints" draws one smooth curve that uses the bends as control ' +
-            "points, from the middle of each segment to the next. A straight edge or one without bends " +
+            'points, from the middle of each segment to the next; "bezier" draws one Bezier curve whose ' +
+            "control points are the bends (one: quadratic, two: cubic). A straight edge or one without bends " +
             "ignores it.",
     },
     "edge.arcRadius": {

@@ -253,6 +253,43 @@ export function curveThroughMidpoints(flat: readonly number[]): number[] {
     return out;
 }
 
+/** How many pieces a curve through its control points (`line.bendCurve` "bezier") is drawn with. */
+const BEZIER_STEPS = 24;
+
+/**
+ * A polyline drawn as one Bezier curve whose control points are its interior points (`line.bendCurve` "bezier"):
+ * one bend draws a quadratic curve, two a cubic, more a curve of higher degree, leaving each end toward the bend
+ * next to it. vis-network draws its smooth edges this way (`quadraticCurveTo`, `bezierCurveTo`).
+ * @param flat - The polyline, flat x, y, z, ends included.
+ * @returns The curve, the same ends.
+ */
+export function bezierThroughControls(flat: readonly number[]): number[] {
+    const n = flat.length / 3;
+    if (n < 3) {
+        return [...flat];
+    }
+
+    const out: number[] = [];
+    const work = new Array<number>(flat.length);
+    for (let s = 0; s <= BEZIER_STEPS; s++) {
+        const t = s / BEZIER_STEPS;
+        for (let i = 0; i < flat.length; i++) {
+            work[i] = flat[i];
+        }
+        // de Casteljau: n - 1 rounds of interpolating neighbors
+        for (let r = n - 1; r > 0; r--) {
+            for (let i = 0; i < r; i++) {
+                for (let k = 0; k < 3; k++) {
+                    work[3 * i + k] += (work[3 * (i + 1) + k] - work[3 * i + k]) * t;
+                }
+            }
+        }
+        out.push(work[0], work[1], work[2]);
+    }
+
+    return out;
+}
+
 /**
  * How far from a node's center a segment leaving it in a direction crosses its surface: its
  * radius when it is round, else where the ray leaves its box.

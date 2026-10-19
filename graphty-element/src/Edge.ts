@@ -15,6 +15,7 @@ import { gradientPieceColors } from "./meshes/edgeGradient";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
+    bezierThroughControls,
     centerArc,
     curveThroughMidpoints,
     fanArc,
@@ -1736,7 +1737,12 @@ export class Edge {
             return false;
         }
 
-        const route = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        const line = this.drawnStyle?.line;
+        // A Bezier curve runs from node center to node center through its bends as control points, and is cut where
+        // it leaves each node, as a program that draws its curves under its nodes shows it.
+        const bezier = line?.bezier === true && line.bendCurve === "bezier";
+        const through = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        const route = bezier ? bezierThroughControls(through) : through;
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
         const span = routeEnds(route, ports, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
         if (span === null) {
@@ -1762,13 +1768,13 @@ export class Edge {
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
-        this.placeRun(batch, Edge.curveThroughBends(this.drawnStyle?.line, flat));
+        this.placeRun(batch, bezier ? flat : Edge.curveThroughBends(line, flat));
         return true;
     }
 
     /**
      * A line through its bends as its style draws it: straight segments, or a curve when the line is curved, with
-     * its corners rounded or through the segments' midpoints (`line.bendCurve`).
+     * its corners rounded or through the segments' midpoints (`line.bendCurve`; a "bezier" curve is sampled before).
      * @param line - The line's style.
      * @param flat - The line's points, flat x, y, z, ends included.
      * @returns The points it is drawn through.

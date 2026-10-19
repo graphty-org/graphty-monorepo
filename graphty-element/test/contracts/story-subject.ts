@@ -188,6 +188,11 @@ function written(story: StoryDeclaration, fileChannels: readonly string[]): { wo
         found.add("color");
     }
 
+    // A label style's gradient fills the panel behind its words: it is that label's background (`labelBackground`).
+    if (found.has("gradient") && found.has("label")) {
+        found.add("background");
+    }
+
     return { words: found, paths };
 }
 

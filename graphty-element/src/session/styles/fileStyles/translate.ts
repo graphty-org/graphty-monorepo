@@ -522,6 +522,21 @@ function channelPlans(
                   length(letters, letter),
               ];
     };
+    // A label outline's width: the file's is the width of a stroke centered on the letters' edges (a canvas
+    // `strokeText`), the element's how far the outline reaches out from them, half that, in the canvas pixels its
+    // `sizePx` is drawn in. The file's width over its label size is kept, at vis-network's and Cytoscape.js's usual
+    // 14 px (the size is not in proportion to `sizePx`, see LABEL, so one ratio stands for every label).
+    // ponytail: one ratio for every label size; per element against its own label size if outlines of very different
+    // sizes need it
+    const labelLength = (channel: Channel): ChannelPlan => {
+        const px = factors.label;
+        const ratio = (px === null ? 1 : px(14) / 14) / 2;
+        return {
+            channel,
+            convert: (value) => (typeof value === "number" ? round(value * ratio) : null),
+            identity: ratio === 1,
+        };
+    };
     if (kind === "node") {
         const shapeTable = new Map(Object.entries(shapes));
         const nearShapes = new Set([...shapeTable].filter(([from, to]) => from !== to).map(([from]) => from));
@@ -637,6 +652,9 @@ function channelPlans(
             ["labelWeight", [label("labelWeight")]],
             ["labelItalic", [label("labelItalic")]],
             ["labelRotation", [label("labelRotation")]],
+            ["labelBackground", [label("labelBackground")]],
+            ["labelOutlineColor", [label("labelOutline")]],
+            ["labelOutlineWidth", [labelLength("node.labelOutlineWidth")]],
             ["labelFit", [id("node.labelFit")]],
             ["labelPaddingX", [length("node.labelPaddingX")]],
             ["labelPaddingY", [length("node.labelPaddingY")]],
@@ -746,6 +764,12 @@ function channelPlans(
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelItalic", [label("labelItalic")]],
+        // in the scene's units, as a node label's wrap width is
+        ["labelWrapWidth", [length("edge.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
+        ["labelRotation", [label("labelRotation")]],
+        ["labelBackground", [label("labelBackground")]],
+        ["labelOutlineColor", [label("labelOutline")]],
+        ["labelOutlineWidth", [labelLength("edge.labelOutlineWidth")]],
         ["labelMinScreenSize", [id("edge.labelMinScreenSize")]],
         ["labelOnTop", [id("edge.labelOnTop")]],
     ]);
@@ -773,6 +797,7 @@ function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
 const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["corners", "corners"],
     ["midpoints", "midpoints"],
+    ["bezier", "bezier"],
 ]);
 
 /** The element's gradient kind for each neutral one. */
@@ -932,7 +957,7 @@ const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
 /** The properties the translation draws in passes of their own, per kind. */
 const COMPOSITE: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
     node: new Set(["width", "height", "fillOpacity", "opacity", "labelPosition", "visible"]),
-    edge: new Set(["visible"]),
+    edge: new Set(["labelPosition", "visible"]),
 };
 
 /**
@@ -2372,6 +2397,7 @@ class KindTranslation {
     #composites(): void {
         if (this.#kind !== "node") {
             this.#arrowSizes();
+            this.#labelPositions();
             return;
         }
 

@@ -142,6 +142,17 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["display", { property: "_display", type: "enum", enums: ["element", "none"] }],
     ["opacity", { property: "opacity", type: "zeroOne" }],
     ["text-transform", { property: "_transform", type: "enum", enums: ["none", "uppercase", "lowercase"] }],
+    ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
+    // how the lines line up; `auto` follows the horizontal alignment (`combineLabelText`)
+    ["text-justification", { property: "_justification", type: "enum", enums: ["auto", "left", "center", "right"] }],
+    // a width only `text-wrap: wrap` wraps at, so it is combined with the wrap afterward (`combineParts`)
+    ["text-max-width", { property: "_maxWidth", type: "size" }],
+    // the outline and the background box draw only with a width and an opacity (`combineLabelDress`)
+    ["text-outline-color", { property: "_outlineColor", type: "color" }],
+    ["text-outline-width", { property: "_outlineWidth", type: "size" }],
+    ["text-outline-opacity", { property: "_outlineOpacity", type: "zeroOne" }],
+    ["text-background-color", { property: "_backgroundColor", type: "color" }],
+    ["text-background-opacity", { property: "_backgroundOpacity", type: "zeroOne" }],
     ["text-rotation", { property: "_rotation", type: "text" }],
 ];
 
@@ -387,9 +398,6 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
         "text-halign",
         { property: "_halign", type: "enum", enums: ["left", "left-inside", "center", "right", "right-inside"] },
     ],
-    ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
-    // a width only `text-wrap: wrap` wraps at, so it is combined with the wrap afterward (`combineParts`)
-    ["text-max-width", { property: "_maxWidth", type: "size" }],
     // the fill's gradient, combined afterward into `fill`, `fillGradient` and `fillGradientAngle`
     [
         "background-fill",

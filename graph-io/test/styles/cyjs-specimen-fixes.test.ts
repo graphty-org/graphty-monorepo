@@ -197,3 +197,50 @@ describe("Cytoscape.js node sizes", () => {
         expect(v.width?.[1]).toBeCloseTo(36.4, 6);
     });
 });
+
+describe("Cytoscape.js label outlines, boxes, turns and wraps", () => {
+    it("draws an outline only with a width, as a stroke twice that width, and a box only with an opacity", () => {
+        const v = evaluateCytoscapeJs(
+            doc({}, {}, [
+                { data: { id: "a" }, style: { "text-outline-width": "2px", "text-outline-color": "red" } },
+                { data: { id: "b" }, style: { "text-outline-color": "red" } },
+                { data: { id: "c" }, style: { "text-background-color": "yellow", "text-background-opacity": 1 } },
+                { data: { id: "d" }, style: { "text-background-color": "yellow" } },
+            ]),
+        ).node.values;
+        expect([v.labelOutlineColor?.[0], v.labelOutlineWidth?.[0]]).toEqual(["#ff0000", 4]);
+        expect(v.labelOutlineColor?.[1] ?? null).toBeNull();
+        expect(v.labelBackground?.[2]).toBe("#ffff00");
+        expect(v.labelBackground?.[3] ?? null).toBeNull();
+    });
+
+    it("turns an edge label by text-rotation, and along its line for autorotate", () => {
+        const at = (r: string, to = { x: 100, y: 0 }): unknown =>
+            evaluateCytoscapeJs(
+                doc({}, { "text-rotation": r, "curve-style": "straight" }, [
+                    { data: { id: "a" }, position: { x: 0, y: 0 } },
+                    { data: { id: "b" }, position: to },
+                    { data: { id: "ab", source: "a", target: "b" } },
+                ]),
+            ).edge.values.labelRotation?.[0];
+        expect(at("30deg")).toBe(30);
+        expect(at("-30deg")).toBe(330);
+        expect(at("autorotate", { x: 100, y: 100 })).toBe(45);
+    });
+
+    it("wraps an edge label at text-max-width under text-wrap: wrap", () => {
+        const v = evaluateCytoscapeJs(doc({}, { "text-wrap": "wrap", "text-max-width": "40px" })).edge.values;
+        expect(v.labelWrapWidth?.[0]).toBe(40);
+    });
+});
+
+describe("Cytoscape.js text justification", () => {
+    it("lines a label's lines up as text-justification says, auto against the node", () => {
+        const at = (style: Record<string, unknown>): unknown =>
+            evaluateCytoscapeJs(doc({ label: "a\nbb", "text-wrap": "wrap", ...style })).node.values.labelTextAlign?.[0];
+        expect(at({ "text-justification": "left" })).toBe("left");
+        expect(at({ "text-justification": "auto", "text-halign": "left" })).toBe("right");
+        expect(at({ "text-justification": "auto", "text-halign": "right" })).toBe("left");
+        expect(at({ "text-justification": "auto" })).toBe("center");
+    });
+});

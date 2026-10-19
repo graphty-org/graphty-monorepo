@@ -1926,7 +1926,7 @@ function combineParts(
     // dist/cytoscape.cjs.js line 18484), which wraps nothing but the label's own line breaks.
     const wrap = words.get("_wrap");
     const maxWidth = words.get("_maxWidth");
-    if (kind === "node" && wrap !== undefined) {
+    if (wrap !== undefined) {
         values.labelWrapWidth = Array.from({ length: n }, (_, i) =>
             wrap[i] === "wrap" && typeof maxWidth?.[i] === "string" ? Number(maxWidth[i]) : null,
         );
@@ -1938,7 +1938,8 @@ function combineParts(
         combineArrowFills(n, words, values);
         combineLineOpacity(n, words.get("_lineOpacity"), values);
     }
-    combineLabelText(kind, n, words, values);
+    combineLabelText(n, words, values);
+    combineLabelDress(kind, n, words, values, notes);
     combineVisibility(kind, n, words, values);
 }
 
@@ -1984,13 +1985,11 @@ function combineVisibility(
 
 /**
  * The label's words as Cytoscape.js draws them: `text-transform`, and a node's `text-rotation` as `labelRotation`.
- * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
  * @param values - the values; changed in place
  */
 function combineLabelText(
-    kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
     values: Record<string, (StyleValue | null)[]>,
@@ -2007,9 +2006,69 @@ function combineLabelText(
             }
         }
     }
+    // cytoscape.js 3.34.3 `labelJustification`: auto lines the lines up against the node, a label beside it on the
+    // left to its right edge
+    const justification = words.get("_justification");
+    if (justification !== undefined) {
+        const halign = words.get("_halign");
+        const AUTO: Readonly<Record<string, string>> = { left: "right", right: "left", "left-inside": "left" };
+        values.labelTextAlign = justification.map((j, i) => {
+            if (j === null) {
+                return null;
+            }
+            const h = halign?.[i] ?? "center";
+            return j === "auto" ? (AUTO[h] ?? (h === "right-inside" ? "right" : "center")) : j;
+        });
+    }
+    // an edge's `autorotate` follows its line, which the routes work out (`autorotateLabels`)
     const rotation = words.get("_rotation");
-    if (kind === "node" && rotation !== undefined) {
+    if (rotation !== undefined) {
         values.labelRotation = rotation.map((r) => (r === null ? null : cyjsAngleDegrees(r)));
+    }
+}
+
+/**
+ * A label's outline and background box as Cytoscape.js draws them: the outline only with a `text-outline-width` and
+ * a `text-outline-opacity` above 0, a stroke of twice that width centered on the letters' edges (cytoscape.js
+ * 3.34.3 `drawText`: `lineWidth = 2 * text-outline-width`); the box only with a `text-background-opacity` above 0
+ * (its default is 0). An opacity between 0 and 1 is drawn opaque, noted.
+ * @param kind - the target
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values; changed in place
+ * @param notes - where problems are noted
+ */
+function combineLabelDress(
+    kind: StyleTarget,
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+    notes: StyleNotes,
+): void {
+    const num = (part: string, i: number, fallback: number): number => {
+        const v = words.get(part)?.[i];
+        return v === null || v === undefined ? fallback : Number(v);
+    };
+    const col = (p: string): (StyleValue | null)[] => (values[p] ??= new Array<StyleValue | null>(n).fill(null));
+    const outlined = words.has("_outlineWidth");
+    const boxed = words.has("_backgroundOpacity");
+    for (let i = 0; i < n && (outlined || boxed); i++) {
+        const width = num("_outlineWidth", i, 0);
+        const outlineOpacity = num("_outlineOpacity", i, 1);
+        if (outlined && width > 0 && outlineOpacity > 0) {
+            col("labelOutlineColor")[i] = words.get("_outlineColor")?.[i] ?? "#000000";
+            col("labelOutlineWidth")[i] = 2 * width;
+            if (outlineOpacity < 1) {
+                notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelOutlineColor", { sample: outlineOpacity, element: i });
+            }
+        }
+        const boxOpacity = num("_backgroundOpacity", i, 0);
+        if (boxed && boxOpacity > 0) {
+            col("labelBackground")[i] = words.get("_backgroundColor")?.[i] ?? "#000000";
+            if (boxOpacity < 1) {
+                notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: boxOpacity, element: i });
+            }
+        }
     }
 }
 
@@ -2030,7 +2089,8 @@ function cyjsAngleDegrees(text: string): number | null {
     }
     const x = Number(m[1]);
     const deg = m[2]?.toLowerCase() === "deg" ? x : (x * 180) / Math.PI;
-    return Math.round(deg * 1e6) / 1e6 + 0;
+    // the neutral rotation runs from 0 up to 360
+    return Math.round((((deg % 360) + 360) % 360) * 1e6) / 1e6 + 0;
 }
 
 /**
@@ -2179,6 +2239,7 @@ function edgeRoutes(
             ellipse: (nodes.values.shape?.[k] ?? "ellipse") === "ellipse",
         };
     };
+    const rotations = drawnColumn(read, "text-rotation", TEXT_PART);
     const loops = new Map<string, number>();
     let routed: (StyleValue | null)[] | null = null;
     for (let k = 0; k < read.order.length; k++) {
@@ -2188,6 +2249,12 @@ function edgeRoutes(
         const tgt = loop || e < 0 ? src : geometry(graph.target[e]);
         if (src === null || tgt === null) {
             continue;
+        }
+        if (rotations[k] === "autorotate" && !loop) {
+            // along the line between the centers, kept upright (cytoscape.js 3.34.3 `labelAngle`: atan(dy / dx))
+            const turn = (Math.atan((tgt.center[1] - src.center[1]) / (tgt.center[0] - src.center[0])) * 180) / Math.PI;
+            const deg = Number.isFinite(turn) ? Math.round((((turn % 360) + 360) % 360) * 1e6) / 1e6 + 0 : 0;
+            (values.labelRotation ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = deg;
         }
         const edge = routeSettings(words, k, curves[k]);
         let index = 0;

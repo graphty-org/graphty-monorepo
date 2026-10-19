@@ -356,6 +356,9 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         expect(labels("node", "labelItalic")[0]).toBe(true);
         // overlap avoidance off: nothing turns it on (Gephi's default turns it on for every node)
         expect(labels("node", "labelAvoidOverlap")).toEqual([null, null, null]);
+        const boxed = await loadWith({ "node.label.box": "true", "node.label.box.color": "darker" });
+        expect(boxed("node", "labelBorderColor")).toEqual(["#7f0000", "#00007f", "#404040"]);
+        expect(boxed("node", "labelBorderWidth")).toEqual([2, 0.8, 0.8]);
         const hidden = await loadWith({ "node.label.show": "false" });
         expect(hidden("node", "label")).toEqual([null, null, null]);
     });

@@ -36,6 +36,8 @@ const GEPHI_PREVIEW: Readonly<Record<string, string>> = Object.freeze({
     "node.label.max-char": "30",
     "node.label.outline.size": "0.0",
     "node.label.outline.color": "#ffffff",
+    "node.label.box": "false",
+    "node.label.box.color": "parent",
     "edge.label.show": "false",
     "edge.label.customFont": "false",
     "edge.label.font": "Dialog,plain,10",

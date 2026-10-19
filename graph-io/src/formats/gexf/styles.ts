@@ -617,6 +617,7 @@ export function gephiRules(
     const labelSizes = nodeRules(node, snapshot, channels, nodes, preview);
     edgeRules(edge, snapshot, channels, edges, gexf, preview);
     nodeLabelRules(node, channels, labelSizes, preview);
+    labelBox(node, channels, nodes, preview);
     return { node, edge };
 }
 
@@ -738,6 +739,41 @@ function nodeLabelRules(
             set: { labelAvoidOverlap: true },
         });
     }
+}
+
+/**
+ * The label box of `node.label.box`: Gephi strokes an unfilled box round the label, 0.08 of the node's size wide, in
+ * the color `node.label.box.color` derives from the node's (`gexf-specimen-labels-p11`, `-p12`, `-p20`, `-p21`). Its
+ * opacity (`node.label.box.opacity`) is not drawn: the style vocabulary has no label border opacity.
+ * @param node - the node rules, changed in place
+ * @param channels - each node's color channels
+ * @param nodes - the node values
+ * @param preview - the settings
+ */
+function labelBox(
+    node: GephiTargetRules,
+    channels: readonly number[][],
+    nodes: GephiNodeValues,
+    preview: GephiPreview,
+): void {
+    if (!preview.on("node.label.box")) {
+        return;
+    }
+    const mode = preview.text("node.label.box.color");
+    perElementDefault(
+        node,
+        "node",
+        ["labelBorderColor", "preview-box-color"],
+        channels.map((c) => hexOf(dependantColor(mode, c) ?? c)),
+        "LABEL_BOX",
+    );
+    perElementDefault(
+        node,
+        "node",
+        ["labelBorderWidth", "preview-box-width"],
+        channels.map((_, i) => 0.04 * nodeWidth(nodes, i)),
+        "LABEL_BOX",
+    );
 }
 
 /**

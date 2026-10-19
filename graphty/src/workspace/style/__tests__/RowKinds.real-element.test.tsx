@@ -160,7 +160,7 @@ describe("folders, several rows and the draft on the real element", () => {
         });
         assert.equal(written(session, ring, "edge.color"), "#FF0000", "the locked row is unwritten");
 
-        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(written(session, key, "node.size"), 3, "one Undo restores both");
             assert.equal(written(session, degree, "node.size"), 1);

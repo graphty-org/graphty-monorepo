@@ -23,7 +23,7 @@ import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
 import { findTreeRow } from "../graph-place/rows";
 import { useAsyncValue } from "../inspector/hooks";
 import { formatNumber } from "../inspector/words";
-import { isPanelEscape } from "../keys/keys";
+import { hasPendingEdit, isPanelEscape, isTypingTarget } from "../keys/keys";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
@@ -615,7 +615,7 @@ type OnCard = (next: Card) => void;
 /**
  * The open picker: "Elements that pass every condition", the cards, "+ Add a condition", the total and
  * Done. Holds the cards as edited, so typing is never undone by a write still on its way; every
- * finished change is written at once, merged into one undo step for the open.
+ * finished change is written at once, as its own undo step.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.rows - the rows it writes
@@ -983,9 +983,11 @@ function isDoneKey(event: React.KeyboardEvent): boolean {
 const RULE_REFUSED = "That rule could not be used for this layer";
 
 /**
- * Writes several layers as one undo step per open picker: the first write records the step, each
- * later one merges into it (`TransactionOptions.after`) while it is still the newest. Writes go one
- * at a time, and a write waiting behind another is replaced by a newer one.
+ * Writes several layers, one undo step per finished change: a number typed and committed, a handle
+ * dragged, a match picked. Typing that writes as it goes (a text card's words) is one step while
+ * focus stays in that box: each keystroke merges into the step its first one recorded
+ * (`TransactionOptions.after`) while it is still the newest. Writes go one at a time, and a write
+ * waiting behind another is replaced by a newer one.
  * @param session - the element's session.
  * @param label - the step's label.
  * @param landed - called after each write has landed (or been refused).
@@ -999,14 +1001,21 @@ function useStepWriter(
     const { store } = useWorkspace();
     const step = useRef<HistoryStepId | undefined>(undefined);
     const chain = useRef<Promise<void>>(Promise.resolve());
-    const waiting = useRef<readonly LayerPatch[] | null>(null);
+    const waiting = useRef<{ patches: readonly LayerPatch[]; merge: boolean } | null>(null);
     const pending = useRef(0);
+    // The box whose typing the last step holds: typing on in it merges, anything else starts a step.
+    const typingIn = useRef<Element | null>(null);
     return {
         busy: () => pending.current > 0,
         write: (patches) => {
-            const queued = waiting.current !== null;
-            waiting.current = patches;
-            if (queued) {
+            const active = document.activeElement;
+            const typing = isTypingTarget(active) && hasPendingEdit(active) ? active : null;
+            const merge = typing !== null && typing === typingIn.current;
+            typingIn.current = typing;
+            const queued = waiting.current;
+            // A write that replaces a queued one starts a step when either would have.
+            waiting.current = { patches, merge: merge && (queued?.merge ?? true) };
+            if (queued !== null) {
                 return;
             }
             pending.current += 1;
@@ -1017,12 +1026,13 @@ function useStepWriter(
                     if (next === null) {
                         return;
                     }
+                    const after = next.merge ? step.current : undefined;
                     await session.transaction(
                         label,
-                        (tx) => tx.styles.updateMany(next),
-                        step.current === undefined ? {} : { after: step.current },
+                        (tx) => tx.styles.updateMany(next.patches),
+                        after === undefined ? {} : { after },
                     );
-                    step.current ??= session.history.steps[session.history.position - 1]?.id;
+                    step.current = after ?? session.history.steps[session.history.position - 1]?.id;
                 })
                 .then(() => {
                     // A rule the layer took clears the notice a refused one left.

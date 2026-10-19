@@ -130,9 +130,12 @@ describe("the Filters words", () => {
     it("names the step an Undo or Redo took back", () => {
         assert.equal(
             stepChangeWords("visibility.step-off", "weight is at least 4"),
-            'turning off "weight is at least 4"',
+            'turning off the filter step "weight is at least 4"',
         );
-        assert.equal(stepChangeWords("visibility.step-add", "weight is at least 4"), 'adding "weight is at least 4"');
+        assert.equal(
+            stepChangeWords("visibility.step-add", "weight is at least 4"),
+            'adding the filter step "weight is at least 4"',
+        );
         assert.isNull(stepChangeWords("visibility.filter", "x"));
     });
 

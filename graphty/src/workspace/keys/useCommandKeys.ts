@@ -12,11 +12,19 @@ import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesK
 const OVERLAY = '[role="menu"], [role="dialog"], [role="listbox"]';
 
 /**
+ * The overlays that keep Undo and Redo too: a menu, a list, a modal dialog. A non-modal panel
+ * (`aria-modal="false"`, such as a binding's "Color by" panel) edits the page, so Control+Z there
+ * takes back the page's last step, as it does in the inspector beside it.
+ */
+const HISTORY_OVERLAY = '[role="menu"], [role="dialog"]:not([aria-modal="false"]), [role="listbox"]';
+
+/**
  * Whether a menu, popover list or dialog is showing.
+ * @param selector - which overlays count.
  * @returns true when one is.
  */
-function overlayShown(): boolean {
-    return [...document.querySelectorAll(OVERLAY)].some((overlay) => overlay.checkVisibility());
+function overlayShown(selector = OVERLAY): boolean {
+    return [...document.querySelectorAll(selector)].some((overlay) => overlay.checkVisibility());
 }
 
 /**
@@ -64,9 +72,10 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                 if (key === undefined) {
                     continue;
                 }
+                const pending = hasPendingEdit(event.target);
                 const blocked =
-                    (typing && !firesWhileTyping(key, hasPendingEdit(event.target))) ||
-                    (overlayOpen && !firesWhileTyping(key)) ||
+                    (typing && !firesWhileTyping(key, pending)) ||
+                    (overlayOpen && !firesWhileTyping(key, (typing && pending) || overlayShown(HISTORY_OVERLAY))) ||
                     (!singleKeyShortcuts && isSingleKey(key)) ||
                     inspectorEscape(event, key);
                 if (blocked) {

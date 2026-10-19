@@ -44,7 +44,7 @@ async function openWorkspace(): Promise<GraphSession> {
 describe("the workspace frame on the real element", () => {
     it("undoes and redoes the element's own steps from the header and the keys", async () => {
         const session = await openWorkspace();
-        const undo = screen.getByRole("button", { name: "Undo" });
+        const undo = screen.getByRole("button", { name: /^Undo( |$)/ });
         assert.equal(undo.getAttribute("aria-disabled"), "true");
 
         await session.data.addNodes([{ id: "a" }, { id: "b" }]);

@@ -160,15 +160,18 @@ describe("Filters on the real element", () => {
             });
             await within(filters()).findByRole("treeitem", { name: "value is between 10 and 31" });
             // Undo restores the step as it was: the old rule, off.
-            await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
             await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
             assert.isFalse(session.visibility.steps[0]?.on);
 
             // Undo puts the step back on and the notice names it.
-            await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+            await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
             await waitFor(() => {
                 assert.isTrue(session.visibility.steps[0]?.on);
-                assert.equal(store.get().notice?.message, 'Undid turning off "value is between 9 and 31".');
+                assert.equal(
+                    store.get().notice?.message,
+                    'Undid turning off the filter step "value is between 9 and 31".',
+                );
             });
             await screen.findByRole("button", { name: `Filter: ${edgesShown}` });
 

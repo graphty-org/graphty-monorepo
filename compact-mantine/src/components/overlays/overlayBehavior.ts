@@ -7,6 +7,9 @@
  *   the pointer leaves the window. The open tooltip element is marked `data-cm-dismissed` (CSS
  *   hides it); the mark lives exactly as long as that tooltip does, so it stays hidden while the
  *   pointer rests on its trigger and the next tooltip shows normally.
+ * - A dismissed tooltip whose trigger then turns off (Undo pressed until nothing is left) shows
+ *   again, now with its reason ("Nothing to undo"): Mantine keeps the same tooltip element and only
+ *   changes its words, so the dismissal would otherwise hide the reason too.
  * - A pointer-down on a trigger also keeps every tooltip that mounts for it later dismissed until
  *   the pointer leaves it: a click before the open delay ran out, or a toggle whose label changes,
  *   mounts a new tooltip under the resting pointer, which must not open over what the click just
@@ -98,11 +101,35 @@ function triggerOf(tooltip: Element): Element | null {
     return tooltip.id ? document.querySelector(`[aria-describedby~="${CSS.escape(tooltip.id)}"]`) : null;
 }
 
+/** What makes a trigger off: a tooltip on it then says why. */
+const DISABLED = ':disabled, [aria-disabled="true"], [data-disabled]';
+
+/**
+ * Watches the triggers of dismissed tooltips; one that turns off shows its tooltip again.
+ * ponytail: a trigger stays observed after its tooltip goes; the callback finds no tooltip then.
+ */
+const turnedOff =
+    typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver((records) => {
+              for (const { target } of records) {
+                  if (!(target instanceof Element) || !target.matches(DISABLED)) {
+                      continue;
+                  }
+                  for (const id of target.getAttribute("aria-describedby")?.split(/\s+/) ?? []) {
+                      document.getElementById(id)?.removeAttribute("data-cm-dismissed");
+                  }
+              }
+          });
+
 /**
  * Hide every tooltip that is open because its trigger is hovered or focused. A tooltip held open
- * through its `opened` prop is left alone: its owner decides when it goes.
+ * through its `opened` prop is left alone: its owner decides when it goes, and so is the reason of
+ * an off control the reader presses again (`pressedOn`): the press did nothing, and the tooltip
+ * says why.
+ * @param pressedOn - what a pointer-down, Enter or Space landed on, if one did
  */
-function dismissTooltips(): void {
+function dismissTooltips(pressedOn: EventTarget | null = null): void {
     // The key (Tab) or pointer-down that hides a visible tooltip keeps the group warm, so the
     // tooltip it moves focus to shows at once.
     if (anotherTooltipVisible()) {
@@ -112,8 +139,16 @@ function dismissTooltips(): void {
     // trigger must still show it.
     for (const tooltip of document.querySelectorAll(".cm-tooltip:not([data-cm-still])")) {
         const trigger = triggerOf(tooltip);
-        if (trigger && (trigger.matches(":hover") || trigger === document.activeElement)) {
+        const offPressed =
+            trigger?.matches(DISABLED) === true && pressedOn instanceof Node && trigger.contains(pressedOn);
+        if (trigger && !offPressed && (trigger.matches(":hover") || trigger === document.activeElement)) {
             tooltip.setAttribute("data-cm-dismissed", "");
+            if (!trigger.matches(DISABLED)) {
+                turnedOff?.observe(trigger, {
+                    attributes: true,
+                    attributeFilter: ["disabled", "aria-disabled", "data-disabled"],
+                });
+            }
         }
     }
 }
@@ -219,7 +254,7 @@ function focusReturned(tooltip: HTMLElement): boolean {
  */
 function pressedTrigger(tooltip: HTMLElement): boolean {
     const trigger = triggerOf(tooltip);
-    if (!pressed || !trigger || trigger.matches(':disabled, [aria-disabled="true"], [data-disabled]')) {
+    if (!pressed || !trigger || trigger.matches(DISABLED)) {
         return false;
     }
     return trigger.contains(pressed) || pressedPath.includes(trigger);
@@ -415,11 +450,17 @@ export function installOverlayBehavior(): void {
             pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
             pressedPath = event.composedPath();
             navigating = false;
+            dismissTooltips(event.target);
+        },
+        capture,
+    );
+    document.addEventListener(
+        "wheel",
+        () => {
             dismissTooltips();
         },
         capture,
     );
-    document.addEventListener("wheel", dismissTooltips, capture);
     document.addEventListener(
         "focusin",
         (event) => {
@@ -435,7 +476,7 @@ export function installOverlayBehavior(): void {
         (event) => {
             if (!MODIFIER_KEYS.has(event.key)) {
                 navigating = NAVIGATION_KEYS.has(event.key);
-                dismissTooltips();
+                dismissTooltips(event.key === "Enter" || event.key === " " ? event.target : null);
             }
         },
         capture,

@@ -184,7 +184,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         await userEvent.click(
             await screen.findByRole("button", { name: "Remove node color" }, { timeout: TIMEOUT_MS }),
         );
-        const undo = screen.getByRole("button", { name: "Undo" });
+        const undo = screen.getByRole("button", { name: /^Undo( |$)/ });
         await waitFor(() => {
             assert.strictEqual(undo.getAttribute("aria-disabled"), "false");
         });

@@ -118,7 +118,7 @@ describe("the Style tab's fields on the real element", () => {
             assert.isNull(tab.querySelector('[data-line="node.size"]'), "the row is gone");
         });
 
-        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(written(session, selected, "node.size"), 2, "one Undo restores 2");
         });
@@ -653,7 +653,7 @@ describe("the Style tab's rows on the real element", () => {
             );
         });
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
         await waitFor(() => {
             assert.equal(idLayers(session).length, 0);
         });

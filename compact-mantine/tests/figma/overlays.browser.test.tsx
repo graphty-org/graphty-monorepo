@@ -808,6 +808,37 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await waitFor(() => (isVisible(tip) ? true : null), 2000);
     });
 
+    it.each(["pointer", "keyboard"])(
+        "a shown tooltip whose trigger the press turns off says why it is off (%s)",
+        async (how) => {
+            const { getByRole } = await renderFigma(<UndoOnce />);
+            const button = getByRole("button", { name: "Undo" });
+            const mounted = tooltipMount("Undo");
+            if (how === "pointer") {
+                await userEvent.hover(button);
+            } else {
+                await userEvent.tab();
+            }
+            const tip = await mounted;
+            await waitFor(() => (isVisible(tip) ? true : null), 2000);
+            if (how === "pointer") {
+                await userEvent.click(button);
+            } else {
+                await userEvent.keyboard("{Enter}");
+            }
+            // The same tooltip element, its words changed: it shows the reason, not stays dismissed.
+            await waitFor(() => (tip.textContent === "Nothing to undo" && isVisible(tip) ? true : null), 2000);
+            // Pressed again, the off control does nothing: its reason stays.
+            if (how === "pointer") {
+                await userEvent.click(button, { force: true });
+            } else {
+                await userEvent.keyboard("{Enter}");
+            }
+            await frames();
+            expect(isVisible(tip)).toBe(true);
+        },
+    );
+
     /** A button with another control right under it, and room above and beside. */
     function Crowded(): React.JSX.Element {
         return (

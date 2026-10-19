@@ -217,7 +217,7 @@ function opWords(session: GraphSession, ops: readonly string[]): string | null {
 }
 
 /**
- * One history step as Undo and Redo name it: "Size by PageRank", `turning off "weight is at
+ * One history step as Undo and Redo name it: "Size by PageRank", `turning off the filter step "weight is at
  * least 4"`. A filter step change names the step's rule when the session holds the step; a batch
  * nobody named names what it holds rather than "2 changes".
  * @param session - the element's session.

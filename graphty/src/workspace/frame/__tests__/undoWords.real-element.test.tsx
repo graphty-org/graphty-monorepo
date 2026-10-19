@@ -61,7 +61,7 @@ describe("Undo, Redo and Clear selection words", () => {
             });
             await session.styles.update(layer.id, { set: { "node.color": "#ff0000", "node.size": 3 } });
 
-            const undo = screen.getByRole("button", { name: "Undo" });
+            const undo = screen.getByRole("button", { name: "Undo changing node size on Hubs" });
             await userEvent.hover(undo);
             await screen.findByText("Undo changing node size on Hubs", undefined, { timeout: TIMEOUT_MS });
 
@@ -69,12 +69,12 @@ describe("Undo, Redo and Clear selection words", () => {
             await waitFor(() => {
                 assert.equal(store.get().notice?.message, "Undid changing node size on Hubs.");
             });
-            await userEvent.click(screen.getByRole("button", { name: "Redo" }));
+            await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
             await waitFor(() => {
                 assert.equal(store.get().notice?.message, "Redid changing node size on Hubs.");
             });
-            // The accessible names stay the verbs, so no two controls change names.
-            assert.isNotNull(screen.queryByRole("button", { name: "Undo" }));
+            // The accessible name says what Undo takes back, as the tooltip does.
+            assert.strictEqual(undo.getAttribute("aria-label"), "Undo changing node size on Hubs");
         },
         TIMEOUT_MS,
     );

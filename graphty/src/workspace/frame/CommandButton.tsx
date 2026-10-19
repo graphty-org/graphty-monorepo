@@ -2,7 +2,7 @@ import { TooltipShortcut } from "@graphty/compact-mantine";
 import { ActionIcon, Tooltip } from "@mantine/core";
 import type React from "react";
 
-import { formatKey } from "../keys/keys";
+import { ariaKey, formatKey } from "../keys/keys";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 
 /** Props for CommandButton. */
@@ -22,10 +22,12 @@ interface CommandButtonProps {
 }
 
 /**
- * An icon-only button for one command: its label is the accessible name, the tooltip shows the
- * label (or the command's own tooltip name) and the first key, and a disabled command stays focusable with its reason as the tooltip
+ * An icon-only button for one command: its tooltip name (the command's own, such as "Undo
+ * changing node color on Everything", else its label) is the accessible name, the tooltip shows
+ * it and the first key, and a disabled command stays focusable with its reason as the tooltip
  * (tier1-design.md section 4, "Tooltip" and "Disabled"); pressed while disabled, it says that
- * reason ("Nothing to undo"), so a second Enter on Undo is never silent. Draws nothing for a stub
+ * reason ("Nothing to undo") and clears the notice of its last run, so a second Enter on Undo is
+ * never silent and never reads as a second undo. Draws nothing for a stub
  * command.
  * @param props - Component props
  * @param props.id - The command id
@@ -52,7 +54,9 @@ export function CommandButton({
         <Tooltip label={disabledReason ?? label}>
             <ActionIcon
                 variant="subtle"
-                aria-label={command.label}
+                aria-label={tip}
+                // Every key, where the tooltip shows the first: Redo is Shift+Control+Z and Control+Y.
+                aria-keyshortcuts={command.keys?.map(ariaKey).join(" ")}
                 aria-pressed={pressed}
                 aria-disabled={disabledReason !== null}
                 data-disabled={disabledReason === null ? undefined : true}
@@ -61,7 +65,9 @@ export function CommandButton({
                     disabledReason === null
                         ? run
                         : () => {
-                              store.set({ announcement: disabledReason });
+                              // The notice of what it last did ("Undid ...") goes: the button
+                              // did nothing this time, and its tooltip says why.
+                              store.set({ announcement: disabledReason, notice: null });
                           }
                 }
             >

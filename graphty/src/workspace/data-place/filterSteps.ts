@@ -122,7 +122,7 @@ export async function writeSteps(
 }
 
 /**
- * A filter step change as Undo and Redo name it (`turning off "weight is at least 4"`), or null
+ * A filter step change as Undo and Redo name it (`turning off the filter step "weight is at least 4"`), or null
  * for any other history step, or for a step the session does not hold now (a removed step before
  * its Redo): read it again after the undo or redo has run.
  * @param session - the element's session.

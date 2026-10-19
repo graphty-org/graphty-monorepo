@@ -238,7 +238,7 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         const { session } = await openRings();
         const header = within(screen.getByRole("banner", { name: "Project" }));
         // Loading the rings was undoable; with nothing to undo, Undo is passed over too.
-        assert.strictEqual(header.getByRole("button", { name: "Undo" }).tabIndex, 0);
+        assert.strictEqual(header.getByRole("button", { name: /^Undo( |$)/ }).tabIndex, 0);
         act(() => {
             session.history.clear();
         });

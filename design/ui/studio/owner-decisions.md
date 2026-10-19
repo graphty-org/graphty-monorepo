@@ -4,6 +4,41 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- For the owner: should turning "Hide overlapping labels" on or off be an undo step?
+
+graphty-element documents label decluttering (`layoutBehavior.labels.declutter`, and the
+`label-declutter` attribute) as a preference of the view that undo does not touch, beside pin on
+drag and the throughput settings; only the layout's pacing settings and `session.config` are
+project settings that undo takes back. The graphty app keeps the reader's label choices in its own
+view settings for the same reason, and the app never keeps a history of its own. A reader who turns
+"Hide overlapping labels" on and presses Control+Z finds "Nothing to undo".
+
+Making it a step changes what an existing element API does (a setting undo leaves alone today
+would be taken back by it), so it is not made. Two ways forward, either one the element's:
+
+- label settings become project settings (`session.config.set({ labels })`, saved with the
+  project and undone like the background), with `layoutBehavior.labels` kept as the view's
+  default until a major release removes the second home; or
+- the history takes a step for a view setting the consumer names as undoable, so each application
+  decides which of its view preferences are steps.
+
+Until then the toggle records no step, as it never has.
+
+## 2026-10-18 -- Decided by the team: Undo says what it takes back, and a dimmed Undo says why (compact-mantine, graphty app)
+
+No API is added or changed. compact-mantine's tooltips: a tooltip a press dismissed comes back when
+that press turns its trigger off (Undo pressed until nothing is left), now with the reason ("Nothing
+to undo"), and a second press on an off control keeps the reason showing; Mantine keeps one tooltip
+element and only changes its words, so the dismissal hid the reason too. In the graphty app: a
+command button's accessible name is its tooltip name ("Undo changing node color on Everything"),
+and `aria-keyshortcuts` lists every key (Redo: Shift+Control+Z and Control+Y); a press on a dimmed
+command clears the notice of its last run; Control+Z and Control+Y work with focus in a non-modal
+panel (`aria-modal="false"`, such as a binding's "Color by" panel) unless the focused box holds
+typing of its own; each finished change in the condition cards (a number committed, a handle
+dragged, a match picked) is its own undo step, while typing in one box stays one step; and Undo
+names a filter step as one (`the filter step "name contains GAL"`), since a layer can carry the
+same words as its name.
+
 ## 2026-10-18 -- Decided by the team: a rule's columns by their names, picked find rows marked (graphty-element, compact-mantine)
 
 Additive only; nothing existing changes what it returns.

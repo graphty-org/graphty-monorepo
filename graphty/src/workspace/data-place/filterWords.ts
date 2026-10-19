@@ -285,12 +285,13 @@ const DID: Partial<Record<HistoryCode, string>> = {
 };
 
 /**
- * A step change as Undo and Redo name it: `turning off "weight is at least 4"`.
+ * A step change as Undo and Redo name it: `turning off the filter step "weight is at least 4"`. It
+ * says "the filter step", since a style layer may hold the same sentence as its name.
  * @param code - the history step's code.
  * @param words - the step's sentence.
  * @returns the words, or null for a code that is not one step's.
  */
 export function stepChangeWords(code: HistoryCode, words: string): string | null {
     const did = DID[code];
-    return did === undefined ? null : `${did} "${words}"`;
+    return did === undefined ? null : `${did} the filter step "${words}"`;
 }

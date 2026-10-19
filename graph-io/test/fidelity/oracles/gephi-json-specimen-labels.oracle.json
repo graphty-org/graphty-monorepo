@@ -25,313 +25,245 @@
         "labelsShown": 25
     },
     "drawn": {
-        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness), as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
         "nodes": [
             {
                 "id": "cap-default",
                 "x": 167.44827402049097,
                 "y": 128.724126304532,
                 "r": 6.758620826334783,
-                "label": "default=nothing set",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "default=nothing set"
             },
             {
                 "id": "cap-label-plain",
                 "x": 383.7241370102455,
                 "y": 128.724126304532,
                 "r": 6.758620826334783,
-                "label": "label=Label",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=Label"
             },
             {
                 "id": "cap-label-one-char",
                 "x": 600,
                 "y": 128.724126304532,
                 "r": 6.758620826334783,
-                "label": "label=A",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=A"
             },
             {
                 "id": "cap-label-long",
                 "x": 816.2758629897545,
                 "y": 128.724126304532,
                 "r": 6.758620826334783,
-                "label": "label=A much longer label",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=A much longer label"
             },
             {
                 "id": "cap-label-digits",
                 "x": 1032.551725979509,
                 "y": 128.724126304532,
                 "r": 6.758620826334783,
-                "label": "label=12345",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=12345"
             },
             {
                 "id": "cap-label-spaces",
                 "x": 167.44827402049097,
                 "y": 326.6551679501246,
                 "r": 6.758620826334783,
-                "label": "label=two  words",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=two  words"
             },
             {
                 "id": "cap-label-unicode",
                 "x": 383.7241370102455,
                 "y": 326.6551679501246,
                 "r": 6.758620826334783,
-                "label": "label=Zürich",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=Zürich"
             },
             {
                 "id": "cap-label-html-chars",
                 "x": 600,
                 "y": 326.6551679501246,
                 "r": 6.758620826334783,
-                "label": "label=a<b & c>d",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=a<b & c>d"
             },
             {
                 "id": "cap-label-empty",
                 "x": 816.2758629897545,
                 "y": 326.6551679501246,
                 "r": 6.758620826334783,
-                "label": "label=\"\"",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=\"\""
             },
             {
                 "id": "cap-label-newline",
                 "x": 1032.551725979509,
                 "y": 326.6551679501246,
                 "r": 6.758620826334783,
-                "label": "label=two\\nlines",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=two\\nlines"
             },
             {
                 "id": "cap-label-quotes",
                 "x": 167.44827402049097,
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
-                "label": "label=say \"hi\"",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=say \"hi\""
             },
             {
                 "id": "cap-label-apostrophe",
                 "x": 383.7241370102455,
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
-                "label": "label=it's",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=it's"
             },
             {
                 "id": "cap-attr-label",
                 "x": 600,
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
-                "label": "attributes.label=Column",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "attributes.label=Column"
             },
             {
                 "id": "cap-label-small-node",
                 "x": 816.2758629897545,
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
-                "label": "label=Small (size=4)",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "label=Small (size=4)"
             },
             {
                 "id": "cap-attr-forcelabel",
                 "x": 1032.551725979509,
                 "y": 524.5862095957172,
                 "r": 6.758620826334783,
-                "label": "attributes.forceLabel=true",
-                "fill": "#ffffff",
-                "alpha": 1
+                "label": "attributes.forceLabel=true"
             },
             {
                 "id": "anchor-nw",
                 "x": 39.99999761581421,
                 "y": 34.827571182415305,
                 "r": 2.896551782714907,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "anchor-ne",
                 "x": 1160.0000023841858,
                 "y": 34.827571182415305,
                 "r": 2.896551782714907,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "anchor-sw",
                 "x": 39.99999761581421,
                 "y": 865.1724288175845,
                 "r": 2.896551782714907,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "anchor-se",
                 "x": 1160.0000023841858,
                 "y": 865.1724288175845,
                 "r": 2.896551782714907,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "default",
                 "x": 167.44827402049097,
                 "y": 90.10343525173342,
                 "r": 9.655172609049691,
-                "label": null,
-                "fill": "#666666",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "label-plain",
                 "x": 383.7241370102455,
                 "y": 90.10343525173342,
                 "r": 17.379310696289444,
-                "label": "Label",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "Label"
             },
             {
                 "id": "label-one-char",
                 "x": 600,
                 "y": 90.10343525173342,
                 "r": 17.379310696289444,
-                "label": "A",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "A"
             },
             {
                 "id": "label-long",
                 "x": 816.2758629897545,
                 "y": 90.10343525173342,
                 "r": 17.379310696289444,
-                "label": "A much longer label",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "A much longer label"
             },
             {
                 "id": "label-digits",
                 "x": 1032.551725979509,
                 "y": 90.10343525173342,
                 "r": 17.379310696289444,
-                "label": "12345",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "12345"
             },
             {
                 "id": "label-spaces",
                 "x": 167.44827402049097,
                 "y": 288.034476897326,
                 "r": 17.379310696289444,
-                "label": "two  words",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "two  words"
             },
             {
                 "id": "label-unicode",
                 "x": 383.7241370102455,
                 "y": 288.034476897326,
                 "r": 17.379310696289444,
-                "label": "Zürich",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "Zürich"
             },
             {
                 "id": "label-html-chars",
                 "x": 600,
                 "y": 288.034476897326,
                 "r": 17.379310696289444,
-                "label": "a<b & c>d",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "a<b & c>d"
             },
             {
                 "id": "label-empty",
                 "x": 816.2758629897545,
                 "y": 288.034476897326,
                 "r": 17.379310696289444,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "label-newline",
                 "x": 1032.551725979509,
                 "y": 288.034476897326,
                 "r": 17.379310696289444,
-                "label": "two\nlines",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "two\nlines"
             },
             {
                 "id": "label-quotes",
                 "x": 167.44827402049097,
                 "y": 485.96551854291863,
                 "r": 17.379310696289444,
-                "label": "say \"hi\"",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "say \"hi\""
             },
             {
                 "id": "label-apostrophe",
                 "x": 383.7241370102455,
                 "y": 485.96551854291863,
                 "r": 17.379310696289444,
-                "label": "it's",
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": "it's"
             },
             {
                 "id": "attr-label",
                 "x": 600,
                 "y": 485.96551854291863,
                 "r": 17.379310696289444,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "label-small-node",
                 "x": 816.2758629897545,
                 "y": 485.96551854291863,
                 "r": 3.862069043619876,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             },
             {
                 "id": "attr-forcelabel",
                 "x": 1032.551725979509,
                 "y": 485.96551854291863,
                 "r": 3.862069043619876,
-                "label": null,
-                "fill": "#c8c8c8",
-                "alpha": 1
+                "label": null
             }
         ],
         "edges": []

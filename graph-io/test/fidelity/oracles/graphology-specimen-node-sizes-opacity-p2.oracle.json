@@ -25,77 +25,97 @@
         "labelsShown": 3
     },
     "drawn": {
-        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
         "nodes": [
             {
                 "id": "anchor-nw",
                 "x": 39.99999761581421,
                 "y": 34.827571182415305,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "anchor-ne",
                 "x": 1160.0000023841858,
                 "y": 34.827571182415305,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "anchor-sw",
                 "x": 39.99999761581421,
                 "y": 865.1724288175845,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "anchor-se",
                 "x": 1160.0000023841858,
                 "y": 865.1724288175845,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "default",
                 "x": 239.5402283504091,
                 "y": 436.48275813152054,
                 "r": 9.655172609050382,
-                "label": null
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
             },
             {
                 "id": "z-200",
                 "x": 600,
                 "y": 436.48275813152054,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "z-negative",
                 "x": 960.4597716495907,
                 "y": 436.48275813152054,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "cap-default",
                 "x": 196.67126265065414,
                 "y": 475.103449184319,
                 "r": 6.758620826335267,
-                "label": "nothing=set"
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-z-200",
                 "x": 576.8275861082406,
                 "y": 475.103449184319,
                 "r": 6.758620826335267,
-                "label": "z=200"
+                "label": "z=200",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-z-negative",
                 "x": 876.073564393767,
                 "y": 475.103449184319,
                 "r": 6.758620826335267,
-                "label": "z=-200"
+                "label": "z=-200",
+                "fill": "#000000",
+                "alpha": 0
             }
         ],
         "edges": []

@@ -25,133 +25,169 @@
         "labelsShown": 7
     },
     "drawn": {
-        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+        "about": "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
         "nodes": [
             {
                 "id": "anchor-nw",
                 "x": 39.99999761581421,
                 "y": 34.827571182415305,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "anchor-ne",
                 "x": 1160.0000023841858,
                 "y": 34.827571182415305,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "anchor-sw",
                 "x": 39.99999761581421,
                 "y": 865.1724288175845,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "anchor-se",
                 "x": 1160.0000023841858,
                 "y": 865.1724288175845,
                 "r": 2.8965517827151146,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "default",
                 "x": 167.44827402049097,
                 "y": 238.55171648592793,
                 "r": 9.655172609050382,
-                "label": null
+                "label": null,
+                "fill": "#666666",
+                "alpha": 1
             },
             {
                 "id": "index-3",
                 "x": 383.7241370102455,
                 "y": 238.55171648592793,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "vx-1",
                 "x": 600,
                 "y": 238.55171648592793,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "vy-1",
                 "x": 816.2758629897545,
                 "y": 238.55171648592793,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "fx-100",
                 "x": 1032.551725979509,
                 "y": 238.55171648592793,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "fy-100",
                 "x": 167.44827402049097,
                 "y": 634.4137997771132,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "physics-false",
                 "x": 383.7241370102455,
                 "y": 634.4137997771132,
                 "r": 17.379310696290688,
-                "label": null
+                "label": null,
+                "fill": "#c8c8c8",
+                "alpha": 1
             },
             {
                 "id": "cap-default",
                 "x": 95.61379095603681,
                 "y": 277.1724075387264,
                 "r": 6.758620826335267,
-                "label": "nothing=set"
+                "label": "nothing=set",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-index-3",
                 "x": 296.0551711197557,
                 "y": 277.1724075387264,
                 "r": 6.758620826335267,
-                "label": "index=3"
+                "label": "index=3",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-vx-1",
                 "x": 580.1103447429065,
                 "y": 277.1724075387264,
                 "r": 6.758620826335267,
-                "label": "vx=1"
+                "label": "vx=1",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-vy-1",
                 "x": 796.386207732661,
                 "y": 277.1724075387264,
                 "r": 6.758620826335267,
-                "label": "vy=1"
+                "label": "vy=1",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-fx-100",
                 "x": 977.1310360883843,
                 "y": 277.1724075387264,
                 "r": 6.758620826335267,
-                "label": "fx=100"
+                "label": "fx=100",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-fy-100",
                 "x": 83.06206676466718,
                 "y": 673.0344908299118,
                 "r": 6.758620826335267,
-                "label": "fy=100"
+                "label": "fy=100",
+                "fill": "#000000",
+                "alpha": 0
             },
             {
                 "id": "cap-physics-false",
                 "x": 276.3586193117602,
                 "y": 673.0344908299118,
                 "r": 6.758620826335267,
-                "label": "physics=false"
+                "label": "physics=false",
+                "fill": "#000000",
+                "alpha": 0
             }
         ],
         "edges": []

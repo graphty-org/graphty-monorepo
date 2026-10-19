@@ -1142,9 +1142,11 @@ function pickCut(ctx, given) {
         if (r.status !== 0) return { error: `no commit ${given}` };
         sha = r.stdout;
         console.log(`land: cutting the commit given, ${given}`);
-    } else if ((sha = newestStableCut(ctx))) {
-        console.log(`land: the newest golden commit with a stable preview is ${sha.slice(0, 10)}`);
     } else {
+        sha = newestStableCut(ctx);
+        if (sha) console.log(`land: the newest golden commit with a stable preview is ${sha.slice(0, 10)}`);
+    }
+    if (!sha) {
         return {
             error:
                 "no golden commit since master has a finished screenshot preview without unstable or failed images.\n" +

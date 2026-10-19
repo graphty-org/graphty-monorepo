@@ -703,6 +703,13 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 // PostScript points, the unit of Pajek's EPS and SVG export (formats/pajek/styles.ts)
                 units: "px",
                 roundedCornerRadius: cornerCap("pajek"),
+                // a line's `s` (arrowSize) scales Pajek's arrowhead whatever its width: 6 x s long (tip to its back
+                // corners) and 5 x s wide
+                arrowhead: {
+                    length: (size) => 6 * size,
+                    aspect: 5 / 6,
+                    source: `${PAJEK_SVG}specimen-arrows: s 0.5, 1, 2, 3 and 5 draw arrowheads 3, 6, 12, 18 and 30 long, 2.5, 5, 10, 15 and 25 wide; football: s 4 and 9)`,
+                },
                 node: {
                     shape: v("ellipse", `${PAJEK} p. 85`),
                     opacity: v(1, `${PAJEK} p. 87`),

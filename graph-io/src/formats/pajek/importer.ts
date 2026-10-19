@@ -68,6 +68,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { type DrawWindow, type PajekDrawOptions, resolvePajekDraw } from "./draw.js";
 import { PAJEK_POINTS_PER_UNIT, pajekStyles } from "./styles.js";
 import {
     decodeCharacterReferences,
@@ -106,6 +107,14 @@ export interface PajekImportOptions extends GraphChoiceOptions, CommonImportOpti
      * @defaultValue "auto"
      */
     firstVertex?: 0 | 1 | "auto" | undefined;
+    /**
+     * How the network is drawn, which Pajek keeps in its ini file and Draw menu rather than in the file: the Draw
+     * window's size (Pajek stretches the 0..1 coordinates across it, one axis at a time), the partition and vectors of
+     * Draw > Network + Partition (+ Vector), and the Draw window's options by their ini names. Read for the
+     * coordinates' scale and the file's styles; without it a file is drawn as Pajek's defaults draw it in a 500 x 500
+     * window.
+     */
+    pajekDraw?: PajekDrawOptions | undefined;
 }
 
 /**
@@ -302,9 +311,10 @@ function spellsDecl(): ColumnDecl {
  * The position column declaration (design section 5.2: f64 x 3, role position, units "file"), with
  * its spelling for `extractPositions()`.
  * @param sourceDims - 2 or 3, the coordinate count of the first vertex line with coordinates
+ * @param window - the Draw window the coordinates are stretched to
  * @returns a fresh declaration
  */
-function positionDecl(sourceDims: number): ColumnDecl {
+function positionDecl(sourceDims: number, window: DrawWindow): ColumnDecl {
     return {
         name: POSITION_COLUMN,
         dtype: "f64",
@@ -314,17 +324,22 @@ function positionDecl(sourceDims: number): ColumnDecl {
         origin: { format: "pajek", id: "coordinates" },
         // Pajek draws y downward (USAir97.net has Deadhorse, Alaska at y 0.10 and Miami at 0.53),
         // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position; one unit
-        // is 500 of the points the styles' lengths are in (PAJEK_POINTS_PER_UNIT)
+        // is the Draw window's width in points across and its height down (500 each by default,
+        // PAJEK_POINTS_PER_UNIT): Pajek stretches 0..1 to the window one axis at a time
         extra: {
             sourceDims,
             units: "file",
-            pxPerUnit: PAJEK_POINTS_PER_UNIT,
+            pxPerUnit: window.width,
+            ...(window.height === window.width ? {} : { pxPerUnitY: window.height }),
             yAxis: "down",
             zOrigin: 0.5,
             zeroUnplaced: true,
         },
     };
 }
+
+/** The Draw window a file is drawn in without `pajekDraw`: the square Pajek's EPS export maps 0..1 to. */
+const DEFAULT_WINDOW: DrawWindow = { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT };
 
 /** A problem with one line, recorded as an issue by the per-line catch. */
 class LineError extends Error {
@@ -408,6 +423,12 @@ class PajekParser {
     private readonly coercer: IdCoercer;
 
     private readonly firstVertex: NonNullable<PajekImportOptions["firstVertex"]>;
+
+    /** The Draw window the coordinates are stretched to. */
+    private readonly window: DrawWindow;
+
+    /** The `% graphty.styles` block kept for the styles, or null. */
+    keptBlock: string | null = null;
 
     private section: Section = "none";
 
@@ -513,13 +534,16 @@ class PajekParser {
      * @param report - the report
      * @param options - the resolved common options
      * @param firstVertex - the firstVertex format option
+     * @param window - the Draw window the coordinates are stretched to
      */
     constructor(
         sink: GraphSink,
         report: ImportReportBuilder,
         options: ResolvedImportOptions,
         firstVertex: 0 | 1 | "auto",
+        window: DrawWindow = DEFAULT_WINDOW,
     ) {
+        this.window = window;
         this.sink = sink;
         this.report = report;
         this.options = options;
@@ -540,7 +564,8 @@ class PajekParser {
         const trimmed = text.trimStart();
         if (trimmed.startsWith(PAJEK_STYLE_COMMENT)) {
             this.styleBlockKept = true;
-            this.report.keepForStyles(trimmed.slice(PAJEK_STYLE_COMMENT.length));
+            this.keptBlock = trimmed.slice(PAJEK_STYLE_COMMENT.length);
+            this.report.keepForStyles(this.keptBlock);
         }
     }
 
@@ -1246,7 +1271,9 @@ class PajekParser {
     private writePosition(index: number, dims: number, point: readonly number[], k: number, line: number): void {
         if (this.positionHandle === INVALID_INDEX) {
             this.coordDims = dims;
-            this.positionHandle = declareResolved(this.sink, "node", positionDecl(dims), this.report, { line }).handle;
+            this.positionHandle = declareResolved(this.sink, "node", positionDecl(dims, this.window), this.report, {
+                line,
+            }).handle;
         } else if (dims !== this.coordDims) {
             this.report.warnOnce(
                 "validation-error",
@@ -1875,7 +1902,7 @@ function headSection(text: string): string | null {
  */
 export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     format: "pajek",
-    options: Object.freeze(["firstVertex"]),
+    options: Object.freeze(["firstVertex", "pajekDraw"]),
     extensions: Object.freeze([".net", ".paj"]),
     mimeTypes: Object.freeze(["text/x-pajek", "text/plain"]),
     styles: pajekStyles,
@@ -1913,10 +1940,11 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         }
         const resolved = resolveImportOptions(options, DEFAULTS);
         const firstVertex = firstVertexOption(options?.firstVertex);
+        const draw = resolvePajekDraw(options?.pajekDraw);
         const report = new ImportReportBuilder("pajek", resolved.errorLimit);
         reportSinkOptions(sink, options, report);
         reportUnusedOptions(options, report, USED_OPTIONS);
-        const parser = new PajekParser(sink, report, resolved, firstVertex);
+        const parser = new PajekParser(sink, report, resolved, firstVertex, draw ?? DEFAULT_WINDOW);
         const reader = new LineReader(input, report, resolved);
         // after the first network: only its successors' headers are counted
         let rest: NetworkCounter | null = null;
@@ -1937,6 +1965,9 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             }
         }
         parser.finish();
+        if (draw !== null) {
+            report.keepForStyles({ block: parser.keptBlock, pajekDraw: draw });
+        }
         if (rest !== null) {
             const objects =
                 rest.objects > 0 ? `; ${rest.objects} *Partition / *Vector object(s) after them are not read` : "";
@@ -1967,13 +1998,20 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     ): Promise<ImportReport[]> {
         const resolved = resolveImportOptions(options, DEFAULTS);
         const firstVertex = firstVertexOption(options?.firstVertex);
+        const draw = resolvePajekDraw(options?.pajekDraw);
         const reports = [new ImportReportBuilder("pajek", resolved.errorLimit)];
         reportUnusedOptions(options, reports[0], USED_OPTIONS);
         const open = (): PajekParser => {
             const report = reports[reports.length - 1];
             const sink = sinkFor(reports.length - 1);
             reportSinkOptions(sink, options, report);
-            return new PajekParser(sink, report, resolved, firstVertex);
+            return new PajekParser(sink, report, resolved, firstVertex, draw ?? DEFAULT_WINDOW);
+        };
+        const close = (p: PajekParser): void => {
+            p.finish();
+            if (draw !== null) {
+                reports[reports.length - 1].keepForStyles({ block: p.keptBlock, pajekDraw: draw });
+            }
         };
         let parser = open();
         // decoding issues belong to the file, so they go to the first network's report
@@ -1982,7 +2020,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         for await (const raw of reader) {
             const text = withoutStrayBom(raw);
             if (parser.line(text, reader.line)) {
-                parser.finish();
+                close(parser);
                 reports.push(new ImportReportBuilder("pajek", resolved.errorLimit));
                 parser = open();
                 parser.line(text, reader.line);
@@ -1992,7 +2030,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
                 throwIfAborted(resolved.signal);
             }
         }
-        parser.finish();
+        close(parser);
         throwIfAborted(resolved.signal);
         return reports.map((r) => r.finish());
     },

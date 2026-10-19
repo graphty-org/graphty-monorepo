@@ -41,6 +41,7 @@ import type {
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
+import { drawLines, drawVertices, type PajekDraw } from "./draw.js";
 import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN, VALUE_COLUMN } from "./syntax.js";
 
 /**
@@ -107,10 +108,11 @@ const NODE_KEYS: readonly string[] = [
     "font",
     "lr",
     "lphi",
+    "la",
 ];
 
 /** The line parameters read as styles. */
-const EDGE_KEYS: readonly string[] = ["c", "w", "p", "ap", "l", "lc", "fos", "font"];
+const EDGE_KEYS: readonly string[] = ["c", "w", "p", "s", "ap", "l", "lc", "fos", "font"];
 
 /**
  * What Pajek carries from one line of a section to the next. A line (arc or edge) that does not set one of these
@@ -124,7 +126,7 @@ const EDGE_KEYS: readonly string[] = ["c", "w", "p", "ap", "l", "lc", "fos", "fo
  */
 const CARRIED: Readonly<Record<StyleTarget, readonly string[]>> = {
     node: [SHAPE_COLUMN, ...NODE_KEYS],
-    edge: ["c", "w", "p", "ap"],
+    edge: ["c", "w", "p", "s", "ap"],
 };
 
 /** The width Pajek draws an edge (undirected) at for each unit of `w`; an arc is drawn `w` wide. */
@@ -183,8 +185,20 @@ const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
         "labelSize",
         "labelFont",
         "labelPosition",
+        "labelRotation",
     ],
-    edge: ["color", "opacity", "width", "lineStyle", "arrowPosition", "label", "labelColor", "labelSize", "labelFont"],
+    edge: [
+        "color",
+        "opacity",
+        "width",
+        "lineStyle",
+        "arrowSize",
+        "arrowPosition",
+        "label",
+        "labelColor",
+        "labelSize",
+        "labelFont",
+    ],
 };
 
 /** A parameter's value on one element, or null. */
@@ -256,6 +270,22 @@ function readVertex(get: Param, put: Put, at: At): void {
     readNumber(get("fos"), "labelSize", put, at);
     readText(get("font"), "labelFont", put, at);
     readLabelPosition(get, put, at);
+    readLabelAngle(get("la"), put, at);
+}
+
+/**
+ * A vertex label's angle `la` (manual p. 90), degrees counterclockwise, as a clockwise rotation: Pajek 6.02's SVG export
+ * turns the label by `rotate(-la)` (`pajek-specimen-labels`, `la-30` .. `la-270`). An angle of 360 or more turns the
+ * label toward the middle of the layout, which depends on where the vertex is drawn; it is left unread.
+ * @param raw - the parameter's value, or null
+ * @param put - receives the value
+ * @param at - the sites
+ */
+function readLabelAngle(raw: unknown, put: Put, at: At): void {
+    const a = raw === null ? null : canonNumber(raw, at("labelRotation"));
+    if (a !== null && a < 360) {
+        put("labelRotation", (((360 - a) % 360) + 360) % 360);
+    }
 }
 
 /**
@@ -387,6 +417,8 @@ function readLine(get: Param, put: Put, at: At, directed: boolean): void {
         noteAt(at("lineStyle"), STYLE_ISSUE.UNKNOWN_VALUE, typeof p === "string" ? p : JSON.stringify(p));
         put("lineStyle", "solid");
     }
+    // an arrowhead is 6 x `s` long and 5 x `s` wide; `s` 1, Pajek's normal size, is 6 long (the pajek tool arrowhead)
+    readNumber(get("s"), "arrowSize", put, at);
     readArrowPosition(get("ap"), put, at);
     readText(get("l"), "label", put, at);
     readColor(get("lc"), "labelColor", null, put, at);
@@ -516,7 +548,11 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         weights.isExplicit(e) ? weights.value(e) : numberOrNull(cells(snapshot.edges, e)(VALUE_COLUMN));
     const node = read("node");
     const edge = read("edge");
-    const block = typeof context.kept === "string" ? context.kept : null;
+    const { block, draw } = keptOf(context.kept);
+    if (draw !== null) {
+        drawVertices(draw, snapshot, node);
+        drawLines(draw, snapshot, node, edge);
+    }
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge });
     }
@@ -551,6 +587,22 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
             edge: styleColumns(snapshot.edges, EDGE_KEYS),
         },
     };
+}
+
+/**
+ * What the import kept for the styles: the `graphty.styles` block, and the Draw window of the `pajekDraw` option.
+ * @param kept - the kept value: the block's text, or `{ block, pajekDraw }`
+ * @returns the block and the draw settings, each null when absent
+ */
+function keptOf(kept: unknown): { readonly block: string | null; readonly draw: PajekDraw | null } {
+    if (typeof kept === "string") {
+        return { block: kept, draw: null };
+    }
+    if (typeof kept === "object" && kept !== null) {
+        const { block, pajekDraw } = kept as { block?: unknown; pajekDraw?: PajekDraw };
+        return { block: typeof block === "string" ? block : null, draw: pajekDraw ?? null };
+    }
+    return { block: null, draw: null };
 }
 
 // ============================================================ writing

@@ -217,6 +217,7 @@ function extraOf(source: object): PositionColumnExtra {
     pick("width", (v) => typeof v === "string");
     pick("height", (v) => typeof v === "string");
     pick("pxPerUnit", (v) => typeof v === "number" && Number.isFinite(v) && v > 0);
+    pick("pxPerUnitY", (v) => typeof v === "number" && Number.isFinite(v) && v > 0);
     pick("zOrigin", (v) => typeof v === "number" && Number.isFinite(v));
     pick("zeroUnplaced", (v) => typeof v === "boolean");
     pick("containersFollowChildren", (v) => typeof v === "boolean");

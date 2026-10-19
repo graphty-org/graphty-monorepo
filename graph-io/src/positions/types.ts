@@ -42,6 +42,12 @@ export interface PositionColumnExtra {
      */
     readonly pxPerUnit?: number;
     /**
+     * How many px one unit of y is, when the program that draws the file stretches its axes apart
+     * (Pajek fits the file's 0..1 square to its Draw window, x across the width and y down the
+     * height); absent when y is `pxPerUnit` like x. `extractPositions()` returns y in x's unit.
+     */
+    readonly pxPerUnitY?: number;
+    /**
      * Set when the coordinates have no fixed length: the program that draws the file fits their
      * bounding box into its canvas, `padding` px in from each side, and draws label sizes in the
      * canvas's px rather than in the coordinates' unit (sigma.js). Absent when the coordinates

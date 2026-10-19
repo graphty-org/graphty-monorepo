@@ -393,6 +393,55 @@ const CHARTS = {
     // no image here: a bypass can only name an image already in the session's image manager (a URL bypassed over
     // CyREST draws Cytoscape's "?" placeholder); the mappings page reaches an image URL through a passthrough mapping
 };
+/**
+ * The chart options the earlier chart pages leave out, read from custom-graphics-internal's AbstractChart and the bar,
+ * line and heat map charts: the axis label size, the domain labels' slant (LabelPosition; STANDARD is the default) and
+ * labels read from a list column instead of the column names. They go on specimen-images-charts-p7. cy_autoRange is
+ * left out: only the chart editor reads it (to fill in cy_range), never the drawing.
+ */
+// the slant and column specimens also set the axis label size to 10: at the default size the labels are too small to
+// see on a 60 node, so the slant or the label text would not show
+const AXIS_LABELS = { cy_axisLabelFontSize: 10 };
+const BAR_AXES = { ...CHART_DATA, cy_type: "GROUPED", cy_showDomainAxis: true, ...AXIS_LABELS };
+const CHARTS_P7 = {
+    "bar-axis-label-font-size-20": cg("BarChart", { ...BAR_AXES, cy_showRangeAxis: true, cy_axisLabelFontSize: 20 }),
+    "bar-axis-label-font-size-10": cg("BarChart", { ...BAR_AXES, cy_showRangeAxis: true }),
+    ...Object.fromEntries(
+        ["UP_45", "UP_90", "DOWN_45", "DOWN_90"].map((p) => [
+            `bar-domain-label-position-${p.toLowerCase().replace("_", "-")}`,
+            cg("BarChart", { ...BAR_AXES, cy_domainLabelPosition: p }),
+        ]),
+    ),
+    "bar-domain-labels-column": cg("BarChart", { ...BAR_AXES, cy_domainLabelsColumn: "chartLabels" }),
+    "bar-range-labels-column": cg("BarChart", {
+        ...CHART_DATA,
+        cy_type: "GROUPED",
+        cy_showRangeAxis: true,
+        cy_rangeLabelsColumn: "chartLabels",
+        ...AXIS_LABELS,
+    }),
+    "pie-item-labels-column": cg("PieChart", {
+        ...CHART_DATA,
+        cy_startAngle: 0,
+        cy_showItemLabels: true,
+        cy_itemLabelsColumn: "chartLabels",
+        cy_itemLabelFontSize: 10,
+    }),
+    "heat-map-item-labels-column": cg("HeatMapChart", {
+        ...CHART_DATA,
+        cy_colors: HEAT_COLORS,
+        cy_showDomainAxis: true,
+        cy_itemLabelsColumn: "chartLabels",
+        ...AXIS_LABELS,
+    }),
+    "line-domain-labels-column": cg("LineChart", {
+        ...LIST_DATA,
+        cy_lineWidth: 1,
+        cy_showDomainAxis: true,
+        cy_domainLabelsColumn: "chartLabels",
+        ...AXIS_LABELS,
+    }),
+};
 /** The chart specimens added after the first chart page was drawn; they go on specimen-images-charts-p5. */
 const CHARTS_P5 = new Set([
     "pie-rotation-clockwise",
@@ -1005,6 +1054,8 @@ function sheets() {
         ),
     ]);
 
+    add("specimen-images-charts-p7", [dflt("node"), ...Object.entries(CHARTS_P7).map(chartSp)]);
+
     // mappings: the same kinds of value reached through the style (defaults, discrete, continuous, passthrough),
     // and per-element bypasses over a mapping
     add("specimen-mappings-bypass", MAPPED_SPECIMENS, {
@@ -1013,7 +1064,7 @@ function sheets() {
     });
 
     // the bypass sheets replayed through discrete mappings on the name column
-    const replayed = out.filter((s) => !/groups|images-charts-p[46]|mappings/.test(s.id));
+    const replayed = out.filter((s) => !/groups|images-charts-p[467]|mappings/.test(s.id));
     replayed.forEach(({ id, specimens, ...rest }, i) =>
         add(`specimen-mappings-bypass-p${i + 2}`, specimens, { ...rest, replayOf: id, mapped: true }),
     );
@@ -1374,7 +1425,9 @@ const NODE_COLUMNS = {
 };
 const EDGE_COLUMNS = { label: "String", edgeColor: "String", weight: "Double", elabel: "String" };
 /** Every node of a chart sheet carries the chart data, so a chart specimen has values to draw. */
-const CHART_VALUES = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4] };
+const CHART_VALUES = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4], chartLabels: ["X", "Y", "Z"] };
+/** The list columns charts read, with their element type. */
+const LIST_COLUMNS = { series: "Double", chartLabels: "String" };
 
 /**
  * As many columns as the widest caption line leaves room for (about 5.6 px a character at the caption size), at
@@ -1669,10 +1722,10 @@ async function builtInStyles() {
 /** Declares the columns and writes every element's values. */
 async function writeColumns(net, table, columns, rows) {
     const used = Object.keys(columns).filter((c) => rows.some((r) => r.cols[c] !== undefined && r.cols[c] !== null));
-    const list = rows.some((r) => r.cols.series) ? ["series"] : [];
+    const list = Object.keys(LIST_COLUMNS).filter((c) => rows.some((r) => r.cols[c]));
     const decl = [
         ...used.map((name) => ({ name, type: columns[name] })),
-        ...list.map((name) => ({ name, type: "Double", list: true })),
+        ...list.map((name) => ({ name, type: LIST_COLUMNS[name], list: true })),
     ];
     if (decl.length) await call("POST", `/networks/${net}/tables/${table}/columns`, decl);
     const data = rows

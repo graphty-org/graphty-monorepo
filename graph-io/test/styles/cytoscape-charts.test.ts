@@ -63,7 +63,20 @@ describe("Cytoscape charts", () => {
         expect(cx2.pieColors).toBe("#ff0000");
         expect(cx2.pieRotation).toBe(0);
         expect(cx2.pieRadius).toBe(0.36);
-        expect([cx2.pieOffsetX, cx2.pieOffsetY]).toEqual([18, 18]);
+        // NW,NW on a 60 node with a 21.6 disc: 19.2 px down and right, as the specimen sheets' oracles measure
+        expect([cx2.pieOffsetX, cx2.pieOffsetY]).toEqual([19.2, 19.2]);
+    });
+
+    it("places a chart whose anchors differ as Cytoscape draws it", () => {
+        const at = (p: string): unknown[] => {
+            const v = read({ NODE_CUSTOMGRAPHICS_1: PIE, NODE_CUSTOMGRAPHICS_POSITION_1: p });
+            return [v.pieOffsetX, v.pieOffsetY];
+        };
+        expect(at("NW,NW,c,0.00,0.00")).toEqual([3, 3]);
+        expect(at("C,NW,c,0.00,0.00")).toEqual([30, 30]);
+        expect(at("E,W,c,0.00,0.00")).toEqual([57, 0]);
+        expect(at("C,C,c,12.00,-8.00")).toEqual([12, -8]);
+        expect(at("C,C,c,0.00,0.00")).toEqual([undefined, undefined]);
     });
 
     it("draws nothing for another custom graphic or a node with no values", () => {

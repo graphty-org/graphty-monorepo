@@ -82,6 +82,10 @@
             "specimens": 45
         },
         {
+            "id": "specimen-images-charts-p7",
+            "specimens": 12
+        },
+        {
             "id": "specimen-mappings-bypass",
             "specimens": 42
         },
@@ -179,7 +183,7 @@
             "specimens": 5
         }
     ],
-    "valuesCovered": 461,
+    "valuesCovered": 472,
     "uncovered": [],
     "visualProperties": {
         "COMPOUND_NODE_PADDING": {
@@ -1164,6 +1168,39 @@
                 ],
                 "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_type\":\"GROUPED\",\"cy_colorScheme\":\"YL_OR_RD\"}": [
                     "specimen-images-charts-p6#bar-color-scheme-yl-or-rd"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":20,\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts-p7#bar-axis-label-font-size-20"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_showRangeAxis\":true}": [
+                    "specimen-images-charts-p7#bar-axis-label-font-size-10"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"UP_45\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-up-45"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"UP_90\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-up-90"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"DOWN_45\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-down-45"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelPosition\":\"DOWN_90\"}": [
+                    "specimen-images-charts-p7#bar-domain-label-position-down-90"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showDomainAxis\":true,\"cy_axisLabelFontSize\":10,\"cy_domainLabelsColumn\":\"chartLabels\"}": [
+                    "specimen-images-charts-p7#bar-domain-labels-column"
+                ],
+                "org.cytoscape.BarChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_type\":\"GROUPED\",\"cy_showRangeAxis\":true,\"cy_rangeLabelsColumn\":\"chartLabels\",\"cy_axisLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#bar-range-labels-column"
+                ],
+                "org.cytoscape.PieChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#D62728\",\"#2CA02C\",\"#1F77B4\"],\"cy_startAngle\":0,\"cy_showItemLabels\":true,\"cy_itemLabelsColumn\":\"chartLabels\",\"cy_itemLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#pie-item-labels-column"
+                ],
+                "org.cytoscape.HeatMapChart:{\"cy_dataColumns\":[\"a\",\"b\",\"c\"],\"cy_range\":[0,10],\"cy_colors\":[\"#2166AC\",\"#F7F7F7\",\"#B2182B\"],\"cy_showDomainAxis\":true,\"cy_itemLabelsColumn\":\"chartLabels\",\"cy_axisLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#heat-map-item-labels-column"
+                ],
+                "org.cytoscape.LineChart:{\"cy_dataColumns\":[\"series\"],\"cy_range\":[0,10],\"cy_colors\":[\"#1F77B4\"],\"cy_lineWidth\":1,\"cy_showDomainAxis\":true,\"cy_domainLabelsColumn\":\"chartLabels\",\"cy_axisLabelFontSize\":10}": [
+                    "specimen-images-charts-p7#line-domain-labels-column"
                 ],
                 "(passthrough mapping)": ["specimen-mappings-bypass"]
             }

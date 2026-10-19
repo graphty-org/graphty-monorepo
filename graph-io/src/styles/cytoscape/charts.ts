@@ -169,13 +169,16 @@ export function readCytoscapeCharts(
         const side = typeof w === "number" && typeof h === "number" ? Math.min(w, h) : null;
         const fitted = sizeSync || !(own > 0) || side === null || side <= 0;
         col("pieRadius")[i] = fitted ? CHART_ACROSS : num6((CHART_ACROSS * own) / side);
-        // as Cytoscape 3.10.5 draws a chart's position (measured from its SVG export: NW,NW moves the chart down and
-        // right, E,E left), then moved by the position's offsets (y down)
+        // as Cytoscape 3.10.5 draws a chart's position (measured from its SVG export of the specimen sheets, every
+        // anchor pair they hold, fitted and at a size of its own): the node anchor scales by the drawn disc and the
+        // chart anchor by the node, so on a 60 node NW,NW moves a fitted 54 disc 3 px down and right and a 21.6 disc
+        // 19 px, C,NW puts either one's center 30 px down and right, and E,W puts a fitted disc 57 px right; then
+        // the position's offsets (y down)
         const at = positionOf(graphicOf(`NODE_CUSTOMGRAPHICS_POSITION_${String(slot + 1)}`, i));
         if (at !== null && typeof w === "number" && typeof h === "number") {
-            const box = fitted ? Math.min(w, h) : own;
-            const dx = (at.chart[0] * box) / 2 - (at.node[0] * w) / 2 + at.x;
-            const dy = (at.chart[1] * box) / 2 - (at.node[1] * h) / 2 + at.y;
+            const disc = CHART_ACROSS * (fitted ? Math.min(w, h) : own);
+            const dx = (at.node[0] * disc) / 2 - (at.chart[0] * w) / 2 + at.x;
+            const dy = (at.node[1] * disc) / 2 - (at.chart[1] * h) / 2 + at.y;
             if (dx !== 0 || dy !== 0) {
                 col("pieOffsetX")[i] = num6(dx);
                 col("pieOffsetY")[i] = num6(dy);

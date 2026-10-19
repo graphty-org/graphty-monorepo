@@ -34,6 +34,7 @@ export const FORMAT: SpecimenFormat = {
         { id: "specimen-images-charts-p4", file: "specimen-images-charts-p4.cx" },
         { id: "specimen-images-charts-p5", file: "specimen-images-charts-p5.cx" },
         { id: "specimen-images-charts-p6", file: "specimen-images-charts-p6.cx" },
+        { id: "specimen-images-charts-p7", file: "specimen-images-charts-p7.cx" },
         { id: "specimen-mappings-bypass", file: "specimen-mappings-bypass.cx" },
         { id: "specimen-mappings-bypass-p2", file: "specimen-mappings-bypass-p2.cx" }, // the node-shapes sheet through discrete mappings on name
         { id: "specimen-mappings-bypass-p3", file: "specimen-mappings-bypass-p3.cx" }, // the node-fills-borders sheet through discrete mappings on name

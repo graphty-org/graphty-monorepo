@@ -707,11 +707,14 @@ The annotation, chart color scheme and mapping pages added after the first round
   drops an annotation's alpha).
 - `annotation-image-brightness-50`, `annotation-image-contrast-50`: Cytoscape draws the picture lighter and with more
   contrast; graph-io does not read `brightness` or `contrast`, so graphty draws the picture as it is. Open.
-- Chart positions with different anchors (`customgraphics-position-1-e-w-c-0-0` on p6): Cytoscape puts the chart's
-  W side on the node's E side, so the chart sits right of the node; graphty draws it left of the node. graph-io's
-  position formula (`styles/cytoscape/charts.ts`) was fitted to the same-anchor pages (`NW,NW` moves the chart down
-  and right, inward) and inverts the case where the anchors differ. Open: the formula needs refitting against both
-  pages (`-p3` `C,NW` is the other different-anchor case). The offset specimen (`C,C,c,12.00,-8.00`) matches.
+- Chart positions with different anchors (`customgraphics-position-1-e-w-c-0-0` on p6,
+  `customgraphics-position-9-c-nw` on p3): fixed. Measured over every anchor pair on both pages, fitted (XGMML,
+  which saves no style dependencies) and at the chart's own size of 24 (CX, CX2 and sessions, which save
+  `nodeCustomGraphicsSizeSync` off): Cytoscape moves the chart's center by the node anchor times half the drawn disc
+  minus the chart anchor times half the node, so `NW,NW` moves a fitted 54 disc 3 px down and right and a 21.6 disc
+  19 px, `C,NW` puts either one's center 30 px down and right, and `E,W` puts a fitted disc 57 px right. graph-io's
+  formula (`styles/cytoscape/charts.ts`) had the two terms swapped; the pie sheets now match every oracle slice
+  (`stray.present` 108 of 108 on all four `-p3` sheets, was 28).
 - Continuous mappings at a point (`specimen-mappings-bypass-p20`): a point's `equal` value is drawn for a value
   exactly at the point (`continuous-shape-5`, `continuous-step-fill-5`). Cytoscape's CX2 writer drops `equal`
   (each range excludes the point), and a continuous mapping onto `NODE_SHAPE` written that way cannot be loaded
@@ -1153,10 +1156,13 @@ to 7, `cytoscapejs-specimen-node-shapes` from 7 failing elements to 2, the Cytos
   `-mappings-bypass-p14`, `-p15`, `-p18`: 84, 14 and 74 oracle pieces per sheet), with their item labels
   (`pie-item-label-font-size-20`). graphty-element has no chart of bars, boxes or lines and no gradient with more
   than two stops over a node; graphty-element work, then graph-io maps the chart options.
-- A chart placed with different anchors (`customgraphics-position-9-c-nw`: node anchor C, chart anchor NW) lands 30
-  px down and right in Cytoscape, where the same rule that places NW,NW, N,N and the other matched anchors puts it
-  12 px up and left; 6 pieces per Cytoscape desktop sheet. Needs Cytoscape's ObjectPosition code read rather than
-  measured.
+- The chart options the earlier pages left out (`{xgmml,cx,cx2,cys}-specimen-images-charts-p7`): the axis label size
+  (`cy_axisLabelFontSize`), the domain labels' slant (`cy_domainLabelPosition` UP_45, UP_90, DOWN_45, DOWN_90) and
+  labels read from a list column (`cy_domainLabelsColumn`, `cy_rangeLabelsColumn`, `cy_itemLabelsColumn`). Cytoscape
+  draws the slanted and column labels on the bar, line and heat map charts and the column's labels on a pie; it
+  ignores `cy_rangeLabelsColumn` (the range axis keeps its numbers). graphty draws the pie but none of the axes or
+  item labels (the bar, line and heat map rows above); 71 of 75 oracle pieces unmatched. `cy_autoRange` has no
+  specimen: only Cytoscape's chart editor reads it, to fill in `cy_range`.
 - `cytoscapejs-specimen-node-shapes` `corner-radius-8-round-triangle`: Cytoscape.js draws a set `corner-radius` as
   given, graphty-element caps a rounded polygon's corner at a tenth of its shorter side (as it caps a round
   rectangle's), so the set 8 draws as 3.6.

@@ -900,3 +900,47 @@ rows these sheets still fail, and why each cannot pass yet:
 - Cytoscape.js `outline-style: dashed` reads as dotted (its dash lengths, the same as the border's `dash-pattern`
   gap), and `outline-style: double` erases a band a third of the BORDER's width (Cytoscape.js drawOutline), so its
   "double" outline is nearly solid, as `border-style-double` already is in this SVG.
+
+## Specimen sheets: node images, charts and shapes graphty-element now draws (rendering round 1, batch 2, 2026-10-18)
+
+graphty-element now draws, each as a style option with channels, and graph-io maps the files onto them: a picture
+over the node (`image`: Cytoscape.js `background-*`, vis-network `image` and `circularImage` nodes with
+`brokenImage` as the fallback); a pie or ring chart (`pie`: Cytoscape.js `pie-*`, Graphviz `style=wedged`, Cytoscape
+desktop's PieChart and RingChart from the node's own data, with their size and position); bands of color
+(`stripes`: Cytoscape.js `stripe-*`, Graphviz `style=striped`); and the node shapes `round-triangle`,
+`round-diamond`, `round-pentagon`, `round-hexagon`, `round-octagon`, `round-polygon` (Cytoscape.js `round-*`),
+`barrel` and `database` (vis-network). `cytoscapejs-specimen-images-charts` went from 121 unmatched oracle pieces
+to 7, `cytoscapejs-specimen-node-shapes` from 7 failing elements to 2, the Cytoscape desktop pie sheets
+(`*-specimen-images-charts-p3`, `-mappings-bypass-p16`) from 108 unmatched pieces to 6. The rows still open:
+
+- Cytoscape desktop's bar (grouped, stacked, up-down, heat strips), box, heat map and line charts, and its linear
+  and radial gradient custom graphics (`{xgmml,cx,cx2,cys}-specimen-images-charts`, `-p2`, `-p5`,
+  `-mappings-bypass-p14`, `-p15`, `-p18`: 84, 14 and 74 oracle pieces per sheet), with their item labels
+  (`pie-item-label-font-size-20`). graphty-element has no chart of bars, boxes or lines and no gradient with more
+  than two stops over a node; graphty-element work, then graph-io maps the chart options.
+- A chart placed with different anchors (`customgraphics-position-9-c-nw`: node anchor C, chart anchor NW) lands 30
+  px down and right in Cytoscape, where the same rule that places NW,NW, N,N and the other matched anchors puts it
+  12 px up and left; 6 pieces per Cytoscape desktop sheet. Needs Cytoscape's ObjectPosition code read rather than
+  measured.
+- `cytoscapejs-specimen-node-shapes` `corner-radius-8-round-triangle`: Cytoscape.js draws a set `corner-radius` as
+  given, graphty-element caps a rounded polygon's corner at a tenth of its shorter side (as it caps a round
+  rectangle's), so the set 8 draws as 3.6.
+- Comparator: an image the program draws inside the node's own group is part of the oracle node, not a stray
+  (Cytoscape.js `background-image-png`, `-fit-contain`, `-fit-cover`, the repeat specimens; vis-network
+  `circular-image`, `use-border-with-image`, `image-padding`, `image-background`, `image-label`), so graphty's image
+  of it fails `stray.extra`; and Cytoscape.js draws a node's body again as an unhinted path for `background-clip:
+  none` and containment, which no graphty element matches. Comparator work: associate a node's image pieces with
+  the node on both sides.
+- Comparator: a node with no body (vis-network `text` and `icon` nodes) is still counted as a graphty node
+  (`node.extra` on `vis-network-specimen-node-shapes` `shape-text`, `-icon`). Marking such a node not drawn in the
+  reader moves the caption nodes of every vis-network sheet out of the raster regions and lowers their raster floors,
+  so it is left to the comparator.
+- vis-network icon nodes draw their glyph (`icon.code` in `icon.face`); graphty-element draws them with no body and
+  no glyph. vis-network `imagePadding` and `shapeProperties.coordinateOrigin` are not read.
+- Cytoscape.js `background-image` with two layers draws only the first; `background-width-relative-to` and
+  `background-image-containment` follow the node's padding, which graph-io does not read (`node-size-to-label`).
+- yEd ImageNode and SVGNode pictures are not read (graph-io would resolve the `y:Resources` the image refers to),
+  and draw.io, the stand-in, draws an empty box for them. yEd GenericNode configurations with no neutral shape
+  (flowchart card, cloud, delay, display, document, manual input, paper type, stored data; BPMN data object and data
+  store) still draw rectangles; graphty-element needs those outlines, then graph-io maps the configurations, and
+  much of what the stand-in classes "roundrect" is draw.io's own rounding.

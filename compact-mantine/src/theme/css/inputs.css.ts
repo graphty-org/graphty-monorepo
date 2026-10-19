@@ -326,6 +326,27 @@ const css = `
     width: 100%;
     height: 100%;
 }
+/* The letters typed into an open list (ensureListboxKeyboard), in a line held at its foot, so
+   the reader sees what the list is matching. It eats the bottom padding; a clamped list's scroll
+   chevron rises above it. */
+.cm-listbox > .cm-listbox-typed {
+    position: sticky;
+    bottom: -8px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    height: 24px;
+    margin-bottom: -8px;
+    padding: 0 12px;
+    border-top: 1px solid var(--cm-border-menu);
+    background: var(--cm-bg-menu);
+    ${cmFont("body")}
+    color: var(--cm-text-menu-secondary);
+    white-space: pre;
+}
+.cm-menu[data-cm-scroll-down]:has(> .cm-listbox-typed)::after {
+    bottom: 16px;
+}
 .cm-listbox .cm-listbox-label {
     min-width: 0;
     overflow: hidden;

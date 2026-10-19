@@ -138,6 +138,44 @@ describe("StyleSelect grid", () => {
         expect(onChange).toHaveBeenCalledWith("shape-22");
     });
 
+    it("highlights nothing and writes nothing when no name starts with the letters typed", async () => {
+        const onChange = vi.fn();
+        await renderThemed(
+            <StyleSelect label="Shape" defaultValue="shape-1" options={OPTIONS} layout="grid" onChange={onChange} />,
+        );
+        await userEvent.tab();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            expect(highlighted()).toBe("Sphere");
+        });
+        // "c" alone would land on Cylinder; no name starts with "cube".
+        await userEvent.keyboard("cube");
+        expect(highlighted()).toBe("");
+        expect(document.querySelector("[data-combobox-selected]")).toBeNull();
+        expect(document.querySelector(".cm-listbox-typed")?.textContent).toBe("cube");
+        await userEvent.keyboard("{Enter}");
+        expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it("shows the letters typed while the highlight follows them, and Enter picks the match", async () => {
+        const onChange = vi.fn();
+        await renderThemed(
+            <StyleSelect label="Shape" defaultValue="shape-1" options={OPTIONS} layout="grid" onChange={onChange} />,
+        );
+        await userEvent.tab();
+        await userEvent.keyboard("{ArrowDown}");
+        await waitFor(() => {
+            expect(highlighted()).toBe("Sphere");
+        });
+        await userEvent.keyboard("box");
+        expect(highlighted()).toBe("Box");
+        const line = document.querySelector<HTMLElement>(".cm-listbox-typed");
+        expect(line?.textContent).toBe("box");
+        expect(line?.checkVisibility()).toBe(true);
+        await userEvent.keyboard("{Enter}");
+        expect(onChange).toHaveBeenCalledWith("shape-0");
+    });
+
     it("opens on a letter typed while closed and types ahead from the value in force", async () => {
         const onChange = vi.fn();
         await renderThemed(

@@ -357,6 +357,9 @@ export function consumeListEscape(event: React.KeyboardEvent<HTMLElement>): void
  * - Letters type ahead: the highlight moves to the next enabled option whose label starts with
  *   the letters typed in the last half second (one repeated letter cycles through the options
  *   that start with it). A letter typed on the closed trigger opens the list and types ahead.
+ *   The run is drawn in a line at the foot of the list while the list is open. When no option
+ *   starts with the whole run, nothing is highlighted and Enter writes nothing, so a reader who
+ *   types a name the list does not hold never gets the option that shared its first letter.
  *
  * Installed once, by the Select theme resolver; applies to read-only triggers only (an editable
  * combobox keeps Home / End for its caret and has no checked option to announce), and does
@@ -370,6 +373,8 @@ export function ensureListboxKeyboard(): void {
     let typed = "";
     let lastAt = 0;
     let closedTrigger: EventTarget | null = null;
+    // The trigger whose last run matched no option: its Enter is used up, writing nothing.
+    let missOn: EventTarget | null = null;
 
     // Opening: note a closed trigger before Mantine handles the event (capture), then, after
     // Mantine's own zero-delay index update has run, walk to the checked option.
@@ -377,6 +382,9 @@ export function ensureListboxKeyboard(): void {
         const input = event.target;
         closedTrigger =
             event.isTrusted && input instanceof HTMLInputElement && !input.hasAttribute("data-expanded") ? input : null;
+        if (closedTrigger !== null) {
+            missOn = null;
+        }
     };
     const announceOpened = (event: Event): void => {
         const input = event.target;
@@ -458,13 +466,35 @@ export function ensureListboxKeyboard(): void {
         // A new run starts after the highlight; a longer run may stay on it.
         const from = typed.length === 1 || repeated ? current + 1 : Math.max(current, 0);
         const count = options.length;
+        showRun(list);
         for (let i = 0; i < count; i++) {
             const option = options[(from + i) % count];
             if ((option.textContent ?? "").trim().toLocaleLowerCase().startsWith(needle)) {
+                missOn = null;
                 walkHighlight(input, list, option);
                 return;
             }
         }
+        // No option starts with the run: no highlight. Mantine's store keeps its index (only
+        // its own handlers move it), so the miss also holds back Enter until the next move.
+        missOn = input;
+        list.querySelector("[data-combobox-selected]")?.removeAttribute("data-combobox-selected");
+        input.removeAttribute("aria-activedescendant");
+    };
+    /**
+     * Draws the run in a line at the foot of the open list, so the reader sees what was typed.
+     * @param list - the open list
+     */
+    const showRun = (list: HTMLElement): void => {
+        const surface = list.closest<HTMLElement>(".cm-listbox") ?? list;
+        let line = surface.querySelector<HTMLElement>(":scope > .cm-listbox-typed");
+        if (line === null) {
+            line = surface.ownerDocument.createElement("div");
+            line.className = "cm-listbox-typed";
+            line.setAttribute("aria-hidden", "true");
+            surface.append(line);
+        }
+        line.textContent = typed;
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
@@ -480,6 +510,14 @@ export function ensureListboxKeyboard(): void {
             const input = event.target as HTMLInputElement;
             if (!list || event.ctrlKey || event.metaKey || event.altKey) {
                 return;
+            }
+            if (event.key === "Enter" && missOn === input) {
+                event.preventDefault();
+                event.stopPropagation();
+                return;
+            }
+            if (!printable(event)) {
+                missOn = null;
             }
             const options = enabledOptions(list);
             if (options.length === 0) {

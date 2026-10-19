@@ -16,7 +16,22 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, color picker) Three defects in compact-mantine's picker, one in the app:
+0. (2026-10-18, shape list typing) compact-mantine's select type-ahead (`ensureListboxKeyboard`
+   in `src/components/inputs/listbox.tsx`, so every read-only Select and StyleSelect, list or
+   grid) left the highlight on the option the FIRST letter matched when the whole run matched
+   nothing: "cube" sat on Cylinder and Enter applied it. Now a run no option starts with clears
+   the highlight (DOM `data-combobox-selected` and `aria-activedescendant`) and uses up Enter
+   (Mantine's store index lives in a ref no DOM event resets, so the Enter guard is what makes
+   "writes nothing" true; any non-letter key ends the guard). The run is drawn in a sticky line
+   at the list's foot (`.cm-listbox-typed`, aria-hidden, appended to the dropdown; the clamped
+   list's down chevron rises above it). Tried the trigger box and a top line: the box is under an
+   over-the-trigger list, and a top line shifts every option; the foot moves nothing. Tests:
+   `StyleSelect.browser` "highlights nothing ..." and "shows the letters typed ..." (both fail
+   without). Walk `design/ui/studio/tmp/r1-dry3-shape-list-typeahead/w1` (06 cube: no highlight,
+   "cube" at the foot; 07 Enter: still Icosphere, Undo off; 08 box; 09 Box applied). Known: 12
+   compact-mantine tests fail on the commit before this change too (QuickActions FieldChooser
+   axe and play, CompactColorInput swatches/onChangeEnd, select disabled trigger, Tree toggles).
+1. (2026-10-18, color picker) Three defects in compact-mantine's picker, one in the app:
    (a) the swatch the picker opened on was named "the starting color", but after a second edit it
    is not the color the drawing started with: now "the color before this edit"; (b) the opening
    color was a swatch only when the consumer's set held it: `ColorPickerPanel` now puts it first
@@ -32,64 +47,49 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    6366F1, no "starting", Enter closes with focus on the trigger). Walk
    `design/ui/studio/tmp/r1-dry3-color-picker-swatches/w1` (04 Enter closed; 07 tooltip "blue
    0000FF, the color before this edit"; 10 set and 15 unset show the same five swatches).
-1. (2026-10-18, labels on the drawing) Three causes, none of them two labels stacked: (a) a pilot's
-   "Magnon over Mme Thenardier" was a name drawn across ANOTHER NODE (the overlap rule only tests
-   labels against labels; nodes count only with `labels.avoidNodesAndEdges`), so the app now
-   defaults Graph settings' "Move labels off nodes and edges" ON (`labelsAvoid: true` in
-   `state/store.ts`); (b) the label sits on its node's surface (`attachOffset` resolves to 0), so a
-   halo (1.45x) ran through the words: `RichTextLabel.setRing(scale)` places the label beside the
-   ring's sphere, `Node.ringLabel` calls it when the halo shows or goes and marks the declutter
-   dirty; (c) found by the new test: `LabelDeclutter` read node world matrices with
-   `computeWorldMatrix()`, which Babylon returns cached within one render id, so a node the layout
-   moved (selection wakes it) was measured a step behind and the last step before rest left
-   overlaps; now forced. Two layers labeling one node already draw one label, upper words.
-   Tests: element `test/browser/label-clears-halo` (fails without b), `labels-on-a-dense-drawing`
-   (Les Mis at 96, framed whole and on Cosette; fails without c; avoid case covers names over
-   nodes; two-layer case). Walk `design/ui/studio/tmp/r1-dry3-labels-on-drawing/w1` (08 size 96,
-   10 hidden; 09 F on Cosette: ring clear, no name over a name or a node); probe script and
-   frozen-vs-fresh shots in the same folder.
-2. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
+2. (2026-10-18, labels on the drawing) Names drawn across other nodes (app defaults "Move labels off
+   nodes and edges" on), labels beside the halo ring (`RichTextLabel.setRing`), declutter forcing
+   world matrices: in full in `git show 273e236a4:design/ui/studio/notes/engineer.md`, Top of mind 1.
+3. (2026-10-18, framing; hover) The key's room only while a key shows entries, framed once when
    it arrives (`useOverlayInset`), F keeps the angle (`keepAngle`); a hover ends on `pointerleave`
    of the engine's input element, event `selection:hover-changed`. In full in
    `git show fa270090e:design/ui/studio/notes/engineer.md`, Top of mind 1-2.
-3. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
+4. (2026-10-18, find box) Keeps the reader's words, example rule over the reader's own column,
    two-line `ResultRow`, list sized to the panel: in full in `git show ef2f796ee:design/ui/studio/notes/engineer.md`, Top of mind 3.
-4. Earlier 2026-10-18 entries (keys and focus: Which picker closing on blur, card x after its
-   controls, Tab out of Analyze, inspector Escape) are in full in `git show 28e989215:design/ui/studio/notes/engineer.md`,
-   Top of mind 3; filter steps, Highest, layer panel words in `git show 6d312090c:...`, 3-5.
-5. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
+5. Earlier 2026-10-18 entries (keys and focus, filter steps, layer panel words): `git show 28e989215:design/ui/studio/notes/engineer.md` and `6d312090c`.
+6. Every fix of the earlier dry runs (and the inspector summaries: `WholeTruth.real-element`), and how the study build's source was landed: `git show e6e1d1616:design/ui/studio/notes/engineer.md`.
    Redo of a run (`runs.answered`, live scopes) and key-and-drawing (`useOverlayInset`,
    `KeyRoom`) are in full in `git show 5cd203ff0:design/ui/studio/notes/engineer.md`, Top of mind 5-6.
-6. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-7. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-8. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-9. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
-   graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
-   unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
-   refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
-   is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-10. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
+    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
+    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
+    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-11. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-12. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
     (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-13. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use

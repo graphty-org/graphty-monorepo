@@ -182,12 +182,34 @@ afterEach(() => {
 });
 
 describe("T14: save and reopen, on the real element", () => {
-    it("saves to a file the browser keeps, and reopens it from Recent projects", async () => {
-        const root = await navigator.storage.getDirectory();
-        const file = await root.getFileHandle("t14.graphty.json", { create: true });
-        const picker = vi.fn(() => Promise.resolve(file));
-        vi.stubGlobal("showSaveFilePicker", picker);
-        try {
+    describe("where the browser keeps file handles", () => {
+        const FILE = "t14.graphty.json";
+        let root: FileSystemDirectoryHandle;
+        let file: FileSystemFileHandle;
+        let picker: ReturnType<typeof vi.fn<() => Promise<FileSystemFileHandle>>>;
+
+        beforeEach(async () => {
+            root = await navigator.storage.getDirectory();
+            file = await root.getFileHandle(FILE, { create: true });
+            picker = vi.fn(() => Promise.resolve(file));
+            vi.stubGlobal("showSaveFilePicker", picker);
+        });
+
+        afterEach(async () => {
+            vi.unstubAllGlobals();
+            await root.removeEntry(FILE);
+        });
+
+        /**
+         * Builds the project, saves it as "Florentine, my copy" to the kept file, and saves it again.
+         * @returns the session, what it held when built, and what it held when last saved.
+         */
+        async function buildAndSave(): Promise<{
+            store: WorkspaceStore;
+            session: GraphSession;
+            before: Snapshot;
+            saved: Snapshot;
+        }> {
             const store = createWorkspaceStore();
             const { session, before } = await buildProject(store);
             assert.isTrue(session.project.dirty);
@@ -213,7 +235,15 @@ describe("T14: save and reopen, on the real element", () => {
                 assert.equal(store.get().notice?.message, "Saved Florentine, my copy");
             });
             assert.equal(picker.mock.calls.length, 1);
-            const saved = snapshot(session);
+            return { store, session, before, saved: snapshot(session) };
+        }
+
+        it("saves to a file the browser keeps, and a later Save writes it again", async () => {
+            await buildAndSave();
+        });
+
+        it("reopens the kept file from Recent projects", async () => {
+            const { store, session, before, saved } = await buildAndSave();
 
             await closeFromMenu("Florentine, my copy");
             assert.isNull(store.get().project);
@@ -233,6 +263,19 @@ describe("T14: save and reopen, on the real element", () => {
             assert.deepEqual(saved.selection, before.selection);
             assert.isFalse(reopened.project.dirty);
             assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine, my copy" }));
+        });
+
+        it("opens the kept file again over unsaved changes once the reader discards them", async () => {
+            const { store, session, saved } = await buildAndSave();
+            await closeFromMenu("Florentine, my copy");
+            await userEvent.click(await screen.findByRole("button", { name: /^Florentine, my copy/ }));
+            const reopened = await elementSession(session);
+            await waitFor(
+                () => {
+                    assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+                },
+                { timeout: TIMEOUT_MS },
+            );
 
             // Opening it again over unsaved changes: the element refuses, the reader discards.
             await reopened.styles.add({
@@ -254,10 +297,7 @@ describe("T14: save and reopen, on the real element", () => {
                 { timeout: TIMEOUT_MS },
             );
             assert.deepEqual(snapshot(reopened), saved);
-        } finally {
-            vi.unstubAllGlobals();
-            await root.removeEntry("t14.graphty.json");
-        }
+        });
     });
 
     it("downloads where the browser keeps no file handles, and reopens with Locate...", async () => {

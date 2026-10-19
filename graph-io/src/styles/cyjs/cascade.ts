@@ -1139,6 +1139,18 @@ const POSITIONS: ReadonlyMap<string, string> = new Map([
     ["bottom,right", "bottom-right"],
 ]);
 
+/** The positions inside the node, by the sides the `-inside` alignments name (`center` for neither). */
+const INSIDE_POSITIONS: ReadonlyMap<string, string> = new Map([
+    ["top,left", "inside-top-left"],
+    ["top,center", "inside-top"],
+    ["top,right", "inside-top-right"],
+    ["center,left", "inside-left"],
+    ["center,right", "inside-right"],
+    ["bottom,left", "inside-bottom-left"],
+    ["bottom,center", "inside-bottom"],
+    ["bottom,right", "inside-bottom-right"],
+]);
+
 /**
  * Applies a Cytoscape.js stylesheet to its elements as Cytoscape.js 3.34 does.
  * @param input - the elements, the stylesheet, the graph and the options
@@ -1982,8 +1994,10 @@ function combineArrowFills(
 }
 
 /**
- * A node label's position from its vertical and horizontal alignments; an `-inside` alignment is read as its
- * outside one, noted.
+ * A node label's position from its vertical and horizontal alignments. Cytoscape.js 3.34 places an `-inside`
+ * alignment against that side of the node, inside it (`recalculateNodeLabelProjection`): `top-inside` with
+ * `center` is `inside-top`, `top-inside` with `left-inside` is `inside-top-left`. One inside and one outside
+ * alignment have no neutral position: the outside side wins, its inside part read as centered, noted.
  * @param v - the vertical alignment, or null
  * @param h - the horizontal alignment, or null
  * @param note - notes an alignment read as another
@@ -1993,10 +2007,18 @@ function labelPosition(v: string | null, h: string | null, note: (sample: string
     if (v === null && h === null) {
         return null;
     }
+    const vIn = (v ?? "").endsWith("-inside");
+    const hIn = (h ?? "").endsWith("-inside");
     const vv = (v ?? "top").replace("-inside", "");
     const hh = (h ?? "center").replace("-inside", "");
-    if ((v ?? "").endsWith("-inside") || (h ?? "").endsWith("-inside")) {
+    if (vIn || hIn) {
+        const vOut = vv !== "center" && !vIn;
+        const hOut = hh !== "center" && !hIn;
+        if (!vOut && !hOut) {
+            return INSIDE_POSITIONS.get(`${vv},${hh}`) ?? null;
+        }
         note(`${v ?? ""} ${h ?? ""}`);
+        return POSITIONS.get(`${vIn ? "center" : vv},${hIn ? "center" : hh}`) ?? null;
     }
     return POSITIONS.get(`${vv},${hh}`) ?? null;
 }

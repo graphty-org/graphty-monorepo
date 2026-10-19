@@ -259,9 +259,12 @@ function near(props: Record<string, string | number>): Written {
  * @returns the written value
  */
 function labelPositionToCyjs(text: string): Written {
-    const v = ["top", "bottom"].find((x) => text.startsWith(x)) ?? "center";
-    const h = ["left", "right"].find((x) => text.endsWith(x)) ?? "center";
-    return exact({ "text-valign": v, "text-halign": h });
+    const inside = text.startsWith("inside-");
+    const side = inside ? text.slice("inside-".length) : text;
+    const v = ["top", "bottom"].find((x) => side.startsWith(x)) ?? "center";
+    const h = ["left", "right"].find((x) => side.endsWith(x)) ?? "center";
+    const of = (a: string): string => (inside && a !== "center" ? `${a}-inside` : a);
+    return exact({ "text-valign": of(v), "text-halign": of(h) });
 }
 
 /**

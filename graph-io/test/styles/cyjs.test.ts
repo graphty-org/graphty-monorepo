@@ -80,6 +80,25 @@ const POSITION: Record<string, string> = {
     "bottom,right": "bottom-right",
 };
 
+/**
+ * Where Cytoscape.js draws a node label for its alignments: an `-inside` alignment against that side inside the node,
+ * both inside (or centered) an inside position; with one outside, the outside side, the inside part centered.
+ */
+function drawnLabelPosition(v: string, h: string): string | null {
+    const vIn = v.endsWith("-inside");
+    const hIn = h.endsWith("-inside");
+    const vv = v.replace("-inside", "");
+    const hh = h.replace("-inside", "");
+    if (!vIn && !hIn) {
+        return POSITION[`${vv},${hh}`] ?? null;
+    }
+    if ((vv === "center" || vIn) && (hh === "center" || hIn)) {
+        const side = [vv, hh].filter((x) => x !== "center").join("-");
+        return `inside-${side}`;
+    }
+    return POSITION[`${vIn ? "center" : vv},${hIn ? "center" : hh}`] ?? null;
+}
+
 /** Every element's expected value per neutral property, from Cytoscape.js's reported values. */
 function expected(
     target: StyleTarget,
@@ -126,7 +145,7 @@ function expected(
         const ha = raw.get("text-halign") ?? [];
         values.set(
             "labelPosition",
-            va.map((v, i) => POSITION[`${v.replace("-inside", "")},${ha[i].replace("-inside", "")}`] ?? null),
+            va.map((v, i) => drawnLabelPosition(v, ha[i])),
         );
     }
     const vis = raw.get("visibility") ?? [];

@@ -392,7 +392,10 @@ function readSigmaRow(
             put("width", i, d);
             put("height", i, d);
         } else {
-            put("width", i, canonNumber(raw, site("width")));
+            // sigma's edge shader draws an edge half as wide as a node of the same size is in radius: size 6 draws
+            // 3 px where a node of size 6 is 5.8 px in radius (graphology-specimen-arrows edge-size-6)
+            const w = canonNumber(raw, site("width"));
+            put("width", i, w === null ? null : w / 2);
         }
     }
     // sigma.js draws no edge labels unless its `renderEdgeLabels` setting is on, and a graphology
@@ -2371,7 +2374,8 @@ function writeGraphology(
                 ? nodeSizes(p("node", "width"), p("node", "height"), approximated).map((d) =>
                       d === null ? null : d / 2,
                   )
-                : p("edge", "width"),
+                : // sigma draws an edge half as wide as its size (readSigmaRow)
+                  p("edge", "width").map((w) => (typeof w === "number" ? w * 2 : w)),
             replaced,
         );
         writeKey(table, "label", p(target, "label"), replaced);

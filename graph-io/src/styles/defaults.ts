@@ -682,7 +682,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 edge: {
                     color: v("#cccccc", `${SIGMA}/settings.ts lines 119-126`),
-                    width: v(1, `${SIGMA4} DEFAULT_EDGE_DISPLAY_DATA (size 1)`),
+                    // an edge of sigma's default size 1, drawn half as wide as its size (readSigmaRow)
+                    width: v(0.5, `${SIGMA4} DEFAULT_EDGE_DISPLAY_DATA (size 1)`),
                     sourceArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                     targetArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                 },

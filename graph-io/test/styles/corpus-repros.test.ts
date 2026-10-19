@@ -131,8 +131,8 @@ describe("sigma's node size", () => {
         expect(r.styles?.styles.source.tool).toBe("sigma");
         expect(planned(r, "node", "width")).toEqual([10, 20]);
         expect(planned(r, "node", "height")).toEqual([10, 20]);
-        // an edge's size is its thickness
-        expect(planned(r, "edge", "width")).toEqual([3]);
+        // an edge is drawn half as wide as its size (graphology-specimen-arrows edge-size-6: 3 px)
+        expect(planned(r, "edge", "width")).toEqual([1.5]);
     });
 
     it("draws labels 12 px, as sigma 4 sets every node's labelSize", async () => {

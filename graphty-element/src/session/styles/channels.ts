@@ -56,7 +56,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { LabelDeclutterOrder } from "../../catalog/label-style";
+import type { LabelDeclutterOrder, LabelTextAlign } from "../../catalog/label-style";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
@@ -299,6 +299,7 @@ export interface ChannelValues {
     "node.labelFont": string;
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
+    "node.labelTextAlign": LabelTextAlign;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
     "node.labelMinScreenSize": number;
@@ -459,6 +460,7 @@ export interface ChannelValues {
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
+    "edge.labelTextAlign": LabelTextAlign;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
     "edge.labelMinScreenSize": number;
@@ -927,7 +929,34 @@ const LABEL_FIELD_OF_SUFFIX = {
 } as const satisfies Record<string, keyof LabelStyle>;
 
 /** A label style field one channel writes on its own. */
-export type LabelFieldName = (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter";
+export type LabelFieldName =
+    (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter" | "textAlign";
+
+/** Every way `labelTextAlign` lines up a label's lines. */
+const LABEL_TEXT_ALIGN_VALUES: readonly LabelTextAlign[] = ["left", "center", "right"];
+
+/**
+ * How a label's lines line up with one another, one field of the label style like the label field channels.
+ * @param target - Nodes or edges.
+ * @returns The channel.
+ */
+function labelTextAlignChannel(target: "node" | "edge"): ChannelDescriptor {
+    const Target = target === "node" ? "Node" : "Edge";
+    return {
+        channel: `${target}.labelTextAlign`,
+        target,
+        plainName: `${Target} Label Text Align`,
+        shortName: "Label text align",
+        group: "text",
+        stylePath: "label.textAlign",
+        renderable: true,
+        accepts: "enum",
+        values: LABEL_TEXT_ALIGN_VALUES,
+        caveat:
+            "Lines up the lines of a label of more than one line with one another: their left edges, their " +
+            "middles or their right edges. The label's place against its node or edge is `labelStyle`'s location.",
+    };
+}
 
 /** Every order `node.labelDeclutter` takes. */
 const LABEL_DECLUTTER_VALUES: readonly LabelDeclutterOrder[] = ["degree", "size"];
@@ -1045,6 +1074,10 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
     if (channel === "node.labelDeclutter") {
         return { into: "node.labelStyle", field: "declutter" };
+    }
+
+    if (channel === "node.labelTextAlign" || channel === "edge.labelTextAlign") {
+        return { into: channel === "node.labelTextAlign" ? "node.labelStyle" : "edge.labelStyle", field: "textAlign" };
     }
 
     const match =
@@ -1307,6 +1340,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     },
     ...labelFieldChannels("node"),
     "node.labelDeclutter": NODE_LABEL_DECLUTTER,
+    "node.labelTextAlign": labelTextAlignChannel("node"),
     "node.tooltip": {
         channel: "node.tooltip",
         target: "node",
@@ -2438,6 +2472,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "label",
         renderable: true,
     },
+    "edge.labelTextAlign": labelTextAlignChannel("edge"),
     ...labelFieldChannels("edge"),
 };
 

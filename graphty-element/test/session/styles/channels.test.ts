@@ -46,6 +46,7 @@ const DECLARED = [
     "node.labelOutline",
     "node.labelOutlineWidth",
     "node.labelDeclutter",
+    "node.labelTextAlign",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -191,6 +192,7 @@ const DECLARED = [
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
+    "edge.labelTextAlign",
     "edge.labelColor",
     "edge.labelSize",
     "edge.labelLetterSize",
@@ -231,9 +233,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred node channels and eighty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 100);
-        assert.strictEqual(channelsFor("edge").length, 80);
+    it("splits into one hundred and one node channels and eighty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 101);
+        assert.strictEqual(channelsFor("edge").length, 81);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -532,6 +534,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelMinScreenSize",
         "node.labelOnTop",
         "node.labelDeclutter",
+        "node.labelTextAlign",
         "node.labelRotation",
         "node.labelBackground",
         "node.labelOutline",
@@ -542,6 +545,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        "edge.labelTextAlign",
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
         "edge.labelMinScreenSize",

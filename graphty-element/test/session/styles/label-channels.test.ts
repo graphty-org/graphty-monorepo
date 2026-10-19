@@ -184,6 +184,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelOutline",
                         "node.labelOutlineWidth",
                         "node.labelDeclutter",
+                        "node.labelTextAlign",
                     ],
                 },
             },
@@ -279,5 +280,20 @@ describe("label field channels take a rule", () => {
         assert.deepEqual(labelFieldOf("edge.labelColor"), { into: "edge.labelStyle", field: "color" });
         assert.isUndefined(labelFieldOf("node.labelStyle"));
         assert.isUndefined(labelFieldOf("node.label"));
+        assert.deepEqual(labelFieldOf("edge.labelTextAlign"), { into: "edge.labelStyle", field: "textAlign" });
+    });
+
+    it("lines up a label's lines as labelTextAlign says, beside the other fields", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: { "node.label": "one\ntwo", "node.labelStyle": { sizePx: 24 }, "node.labelTextAlign": "left" },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(held.styles.explain({ node: "a" }).merged["node.labelStyle"], {
+            sizePx: 24,
+            textAlign: "left",
+        });
+        assert.strictEqual(drawnLabel(held, 0).textAlign, "left");
     });
 });

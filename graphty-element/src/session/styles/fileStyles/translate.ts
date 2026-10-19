@@ -650,6 +650,7 @@ function channelPlans(
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
+            ["labelTextAlign", [label("labelTextAlign")]],
             ["labelItalic", [label("labelItalic")]],
             ["labelRotation", [label("labelRotation")]],
             ["labelBackground", [label("labelBackground")]],
@@ -763,6 +764,7 @@ function channelPlans(
         ],
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
+        ["labelTextAlign", [label("labelTextAlign")]],
         ["labelItalic", [label("labelItalic")]],
         // in the scene's units, as a node label's wrap width is
         ["labelWrapWidth", [length("edge.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],

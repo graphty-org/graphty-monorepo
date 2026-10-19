@@ -8,7 +8,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, diskColor, rasterScene, shapeOf, stackedTexts } from "./associate";
+import { associate, diskColor, type RasterDrawing, rasterScene, shapeOf, stackedTexts } from "./associate";
 import { clipToNodes, compareOracle, curvatureOf, medianSpacing, outerOf, withoutCaptions } from "./compare-oracle";
 import {
     boxOfPoints,
@@ -800,7 +800,7 @@ describe("oracle comparison", () => {
         );
         assert.strictEqual(scene.nodesOnly, false);
         // a self-loop the record names by its one node has no route to judge, but is judged present and painted
-        const node = (id: string, x: number, y: number): (typeof drawing.nodes)[number] => ({
+        const node = (id: string, x: number, y: number): RasterDrawing["nodes"][number] => ({
             id,
             x,
             y,

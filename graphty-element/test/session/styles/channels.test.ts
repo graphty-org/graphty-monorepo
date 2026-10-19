@@ -131,6 +131,7 @@ const DECLARED = [
     "edge.arrowHeadPosition",
     "edge.arrowHeadColor",
     "edge.arrowHeadOpacity",
+    "edge.arrowHeadImage",
     "edge.arrowHeadText",
     "edge.arrowHeadTextStyle",
     "edge.arrowHeadTextSize",
@@ -142,6 +143,7 @@ const DECLARED = [
     "edge.arrowTailPosition",
     "edge.arrowTailColor",
     "edge.arrowTailOpacity",
+    "edge.arrowTailImage",
     "edge.arrowTailText",
     "edge.arrowTailTextStyle",
     "edge.arrowTailTextSize",
@@ -153,12 +155,14 @@ const DECLARED = [
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
     "edge.arrowMiddleHeadOpacity",
+    "edge.arrowMiddleHeadImage",
     "edge.arrowMiddleTail",
     "edge.arrowMiddleTailSize",
     "edge.arrowMiddleTailWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
     "edge.arrowMiddleTailOpacity",
+    "edge.arrowMiddleTailImage",
     "edge.animationSpeed",
     "edge.label",
     "edge.labelStyle",
@@ -199,9 +203,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into eighty-one node channels and sixty-seven edge channels", () => {
+    it("splits into eighty-one node channels and seventy-one edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 81);
-        assert.strictEqual(channelsFor("edge").length, 67);
+        assert.strictEqual(channelsFor("edge").length, 71);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -428,6 +432,11 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
         "edge.patternCount",
+        // Unset, an image cap has no picture and draws nothing.
+        "edge.arrowHeadImage",
+        "edge.arrowTailImage",
+        "edge.arrowMiddleHeadImage",
+        "edge.arrowMiddleTailImage",
         // Unset, an edge runs straight from node to node.
         "edge.bends",
         // Unset, a bundle's curved edges are two node radii apart.

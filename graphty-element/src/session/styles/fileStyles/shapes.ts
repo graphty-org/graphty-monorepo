@@ -99,6 +99,8 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["square", "box"],
     ["crow", "crow"],
     ["half", "half-open"],
+    // Cytoscape's HALF_BOTTOM: the half arrow on the line's other side
+    ["other:half-bottom", "half-open-flipped"],
     ["inverted", "inverted"],
     // Cytoscape's half circles, vis-network's curves and Cytoscape.js's compound arrows
     ["other:half-circle", "half-circle"],
@@ -108,18 +110,16 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:triangle-tee", "triangle-tee"],
     ["other:triangle-cross", "triangle-cross"],
     ["other:circle-triangle", "circle-triangle"],
+    ["other:open-square", "open-box"],
+    // vis-network's image arrow: its picture, standing on the line
+    ["other:image", "image"],
     // Cytoscape's arrows the element has no cap for, drawn as the nearest one: Cytoscape.js's chevron is a short vee
-    ["other:open-square", "box"],
     ["other:chevron", "vee"],
 ]);
 
 /**
- * The arrow shapes drawn as the nearest cap rather than exactly: an open square as a filled box, and vis-network's
+ * The arrow shapes drawn as the nearest cap rather than exactly: vis-network's
  * inv_curve as an open half circle at the end, where vis-network draws its arc a little back from it, and Cytoscape.js's
  * chevron as a vee.
  */
-export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set([
-    "other:open-square",
-    "other:inv-curve",
-    "other:chevron",
-]);
+export const ARROW_SHAPES_NEAREST: ReadonlySet<string> = new Set(["other:inv-curve", "other:chevron"]);

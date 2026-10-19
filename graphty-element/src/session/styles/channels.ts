@@ -393,6 +393,7 @@ export interface ChannelValues {
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
+    "edge.arrowHeadImage": string;
     "edge.arrowHeadText": string;
     "edge.arrowHeadTextStyle": LabelStyle;
     "edge.arrowHeadTextSize": number;
@@ -404,6 +405,7 @@ export interface ChannelValues {
     "edge.arrowTailPosition": number;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
+    "edge.arrowTailImage": string;
     "edge.arrowTailText": string;
     "edge.arrowTailTextStyle": LabelStyle;
     "edge.arrowTailTextSize": number;
@@ -415,12 +417,14 @@ export interface ChannelValues {
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
+    "edge.arrowMiddleHeadImage": string;
     "edge.arrowMiddleTail": ArrowValue;
     "edge.arrowMiddleTailSize": number;
     "edge.arrowMiddleTailWidth": number;
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
+    "edge.arrowMiddleTailImage": string;
     "edge.animationSpeed": number;
     "edge.label": string;
     "edge.labelStyle": LabelStyle;
@@ -671,7 +675,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextDistance"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextDistance"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -754,6 +758,18 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             renderable: true,
         },
         {
+            ...id("Image"),
+            plainName: `Arrow ${end} Image`,
+            shortName: `${end} image`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.image`,
+            renderable: true,
+            caveat:
+                "The picture an `image` cap draws, a URL or a data URL, standing on the line with its top " +
+                "edge across the tip; a cap of another type ignores it.",
+        },
+        {
             ...id("Text"),
             plainName: `Arrow ${end} Caption`,
             shortName: `${end} caption`,
@@ -814,7 +830,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source

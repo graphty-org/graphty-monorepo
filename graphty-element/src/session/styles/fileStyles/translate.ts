@@ -637,6 +637,9 @@ function channelPlans(
         ["midSourceArrow", [table("edge.arrowMiddleTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
         ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
         ["midSourceArrowColor", [id("edge.arrowMiddleTailColor")]],
+        ["targetArrowImage", [id("edge.arrowHeadImage")]],
+        ["sourceArrowImage", [id("edge.arrowTailImage")]],
+        ["midTargetArrowImage", [id("edge.arrowMiddleHeadImage")]],
         [
             "arrowSize",
             arrowsSized
@@ -654,6 +657,12 @@ function channelPlans(
         ["targetArrowLength", []],
         ["sourceArrowWidth", []],
         ["targetArrowWidth", []],
+        ["targetArrowImageWidth", []],
+        ["targetArrowImageHeight", []],
+        ["sourceArrowImageWidth", []],
+        ["sourceArrowImageHeight", []],
+        ["midTargetArrowImageWidth", []],
+        ["midTargetArrowImageHeight", []],
         ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
@@ -747,6 +756,7 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["circle-open", 1],
     // one arm of a vee, to one side of its line
     ["half", 0.4],
+    ["other:half-bottom", 0.4],
     ["other:open-square", 1],
     // a half disc or its arc, twice as wide as it is deep
     ["other:half-circle", 2],
@@ -757,6 +767,8 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["other:triangle-cross", 0.75],
     ["other:circle-triangle", 0.5],
     ["other:chevron", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
+    // a picture on a square, stretched to its own width and length
+    ["other:image", 1],
 ]);
 const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
@@ -774,6 +786,9 @@ interface ArrowEnd {
     /** Its length and width against its shape's, per edge. */
     readonly length: readonly (StyleValue | null)[];
     readonly breadth: readonly (StyleValue | null)[];
+    /** An image arrow's size across and along its line, in the program's units, where the file gives it. */
+    readonly imageWidth: readonly (StyleValue | null)[];
+    readonly imageHeight: readonly (StyleValue | null)[];
 }
 
 /**
@@ -786,6 +801,25 @@ interface ArrowEnd {
 function factor(values: readonly (StyleValue | null)[], i: number, fallback = 1): number {
     const value = values[i];
     return typeof value === "number" ? value : fallback;
+}
+
+/**
+ * The size an image arrow is drawn at, where the file gives one: its width across the line and its
+ * height along it, a side the file leaves out taken as the other (a square picture).
+ * @param end - The end.
+ * @param i - The edge.
+ * @returns The size in the program's units, or null for an arrow that is not a sized picture.
+ */
+function imageSizeOf(end: ArrowEnd, i: number): { width: number; height: number } | null {
+    const w = end.imageWidth[i];
+    const h = end.imageHeight[i];
+    if (end.shapes[i] !== "other:image" || (typeof w !== "number" && typeof h !== "number")) {
+        return null;
+    }
+
+    const width = typeof w === "number" ? w : (h as number);
+    const height = typeof h === "number" ? h : width;
+    return width > 0 && height > 0 ? { width, height } : null;
 }
 
 /**
@@ -804,10 +838,13 @@ function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, wi
         return null;
     }
 
+    // a picture is drawn at the size the file gives it, whatever the arrow size
+    const picture = imageSizeOf(end, i);
     const length =
+        picture?.height ??
         geometry.length(end.size(i), width) *
-        (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
-        factor(end.length, i);
+            (geometry.shapes?.[shape as StyleArrowShape]?.length ?? 1) *
+            factor(end.length, i);
     return round((length * scene) / (EDGE_CONSTANTS.DEFAULT_ARROW_LENGTH * (CAP_DEPTH.get(shape) ?? 1)));
 }
 
@@ -821,6 +858,12 @@ function arrowLengthOf(geometry: ToolArrowhead, scene: number, end: ArrowEnd, wi
  * @returns The multiple, or null for the cap's own.
  */
 function arrowBreadthOf(geometry: ToolArrowhead, end: ArrowEnd, i: number): number | null {
+    const picture = imageSizeOf(end, i);
+    if (picture !== null) {
+        const across = round(picture.width / picture.height);
+        return across === 1 ? null : across;
+    }
+
     const shape = end.shapes[i];
     const own = typeof shape === "string" ? CAP_ASPECT.get(shape) : undefined;
     const theirs =
@@ -2325,6 +2368,12 @@ class KindTranslation {
             "sourceArrowWidth",
             "midTargetArrow",
             "midSourceArrow",
+            "targetArrowImageWidth",
+            "targetArrowImageHeight",
+            "sourceArrowImageWidth",
+            "sourceArrowImageHeight",
+            "midTargetArrowImageWidth",
+            "midTargetArrowImageHeight",
         ] as const;
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
@@ -2335,20 +2384,60 @@ class KindTranslation {
         }
 
         const { extracted, snapshot } = this.#input;
-        const [width, size, head, tail, tailSize, headLength, tailLength, headWidth, tailWidth, midHead, midTail] =
-            props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        const [
+            width,
+            size,
+            head,
+            tail,
+            tailSize,
+            headLength,
+            tailLength,
+            headWidth,
+            tailWidth,
+            midHead,
+            midTail,
+            headImageWidth,
+            headImageHeight,
+            tailImageWidth,
+            tailImageHeight,
+            midImageWidth,
+            midImageHeight,
+        ] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
         const none: readonly (StyleValue | null)[] = [];
         // a middle arrow is sized as the target's is, in its own shape's proportions
         const ends: Record<"Head" | "Tail" | "MiddleHead" | "MiddleTail", ArrowEnd> = {
-            Head: { shapes: head, size: (i) => factor(size, i), length: headLength, breadth: headWidth },
+            Head: {
+                shapes: head,
+                size: (i) => factor(size, i),
+                length: headLength,
+                breadth: headWidth,
+                imageWidth: headImageWidth,
+                imageHeight: headImageHeight,
+            },
             Tail: {
                 shapes: tail,
                 size: (i) => factor(tailSize, i, factor(size, i)),
                 length: tailLength,
                 breadth: tailWidth,
+                imageWidth: tailImageWidth,
+                imageHeight: tailImageHeight,
             },
-            MiddleHead: { shapes: midHead, size: (i) => factor(size, i), length: none, breadth: none },
-            MiddleTail: { shapes: midTail, size: (i) => factor(size, i), length: none, breadth: none },
+            MiddleHead: {
+                shapes: midHead,
+                size: (i) => factor(size, i),
+                length: none,
+                breadth: none,
+                imageWidth: midImageWidth,
+                imageHeight: midImageHeight,
+            },
+            MiddleTail: {
+                shapes: midTail,
+                size: (i) => factor(size, i),
+                length: none,
+                breadth: none,
+                imageWidth: none,
+                imageHeight: none,
+            },
         };
         const { rule, bucket } = last;
         const layer = this.#layerFor(

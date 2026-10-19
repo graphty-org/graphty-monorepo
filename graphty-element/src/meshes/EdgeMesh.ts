@@ -11,8 +11,10 @@ import {
     RawTexture,
     type Scene,
     StandardMaterial,
+    Texture,
     Vector3,
     VertexBuffer,
+    VertexData,
 } from "@babylonjs/core";
 import { CreateGreasedLine } from "@babylonjs/core/Meshes/Builders/greasedLineBuilder";
 
@@ -49,6 +51,7 @@ interface ArrowHeadOptions {
     size?: number; // Size multiplier (default 1.0)
     breadth?: number; // Width across the line as a multiple of the type's own (default 1.0)
     opacity?: number; // Opacity 0-1 (default 1.0)
+    image?: string; // The picture an "image" cap draws (a URL or a data URL)
 }
 
 /**
@@ -444,6 +447,23 @@ void main() {
         // A batch holds one geometry, so a cap drawn at another width is a batch of its own.
         const widthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
 
+        // AN IMAGE CAP IS ITS PICTURE on a flat quad, drawn by a StandardMaterial that holds the
+        // texture, so it is a batch per picture and is laid in the XY plane turned along its line in
+        // 3D as in 2D: the billboard shader draws a single colour and no texture.
+        if (options.type === "image") {
+            const src = options.image;
+            if (src === undefined || src === "") {
+                return null;
+            }
+
+            return FilledArrowRenderer.capOf(
+                scene,
+                `2d|image|${src}|${String(opacity)}${widthKey}`,
+                () => widened(this.createImageCap(src, opacity, scene), breadth),
+                { scale: length, billboard: false },
+            );
+        }
+
         // Detect 2D mode
         const is2D = this.is2DMode(scene);
 
@@ -550,6 +570,55 @@ void main() {
             },
             { scale: sphereDiameter, billboard: false },
         );
+    }
+
+    /**
+     * An image cap's source mesh: a square quad in the XZ plane from its tip at the origin back to
+     * x = -1 and half a unit either side of the line, with the picture's top edge across the tip and
+     * its left edge on the -Z side (vis-network draws an image arrow so: the picture turned to
+     * stand on its line, its top at the arrow's point).
+     * @param src - The picture's URL or data URL.
+     * @param opacity - How opaque it is drawn.
+     * @param scene - Babylon.js scene
+     * @returns The mesh, with its textured material
+     */
+    private static createImageCap(src: string, opacity: number, scene: Scene): Mesh {
+        const mesh = new Mesh("arrow-2d-image", scene);
+        const data = new VertexData();
+        data.positions = [0, 0, -0.5, 0, 0, 0.5, -1, 0, 0.5, -1, 0, -0.5];
+        // the picture's top (v = 1) at the tip, its left (u = 0) on the -Z side
+        data.uvs = [0, 1, 1, 1, 1, 0, 0, 0];
+        data.indices = [0, 1, 2, 0, 2, 3];
+        data.applyToMesh(mesh);
+
+        const material = new StandardMaterial(`material-2d-image|${src}`, scene);
+        material.disableLighting = true;
+        material.diffuseColor = Color3.Black();
+        material.emissiveColor = Color3.White();
+        material.specularColor = Color3.Black();
+        material.backFaceCulling = false;
+        material.alpha = opacity;
+        // Babylon.js reads a `data:` URL itself only in base64; another (an SVG written out as text)
+        // it loads as an image only when handed the URL as the picture's buffer
+        const texture = new Texture(
+            src,
+            scene,
+            false,
+            true,
+            Texture.TRILINEAR_SAMPLINGMODE,
+            null,
+            null,
+            src.startsWith("data:") && !src.includes(";base64,") ? src : null,
+        );
+        texture.hasAlpha = true;
+        texture.wrapU = Texture.CLAMP_ADDRESSMODE;
+        texture.wrapV = Texture.CLAMP_ADDRESSMODE;
+        material.diffuseTexture = texture;
+        material.useAlphaFromDiffuseTexture = true;
+        mesh.material = material;
+        mesh.metadata = { is2D: true };
+
+        return mesh;
     }
 
     /**
@@ -871,6 +940,9 @@ void main() {
             case "triangle-tee":
             case "triangle-cross":
             case "circle-triangle":
+            case "half-open-flipped":
+            case "open-box":
+            case "image":
                 return {
                     positioningMode: "tip",
                     needsRotation: false, // Billboard shaders handle orientation

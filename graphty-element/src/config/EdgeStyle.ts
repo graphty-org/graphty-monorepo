@@ -34,6 +34,13 @@ export const EdgeArrowTypes = z.enum([
     "triangle-tee",
     "triangle-cross",
     "circle-triangle",
+    // half-open reflected across its line, its one arm on the line's other side (Cytoscape
+    // HALF_BOTTOM, where half-open is HALF_TOP)
+    "half-open-flipped",
+    // a box's outline (Cytoscape OPEN_SQUARE, Cytoscape.js a hollow square)
+    "open-box",
+    // the arrow's `image`, a picture standing on the line (vis-network arrows type "image")
+    "image",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -65,6 +72,13 @@ const ArrowStyle = z.strictObject({
      */
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).default(1).optional(),
+    /**
+     * The picture an `image` cap draws, a URL or a data URL: stretched over the cap with its top
+     * edge across the tip, as long along the line as the cap (`size`) and as wide across it as
+     * the cap is long times `width`. A cap of another type ignores it; an `image` cap without one
+     * draws nothing. Drawn flat, turned along its line, in 3D as in 2D.
+     */
+    image: z.string().optional(),
     text: RichTextStyle.optional(),
     /**
      * Where the caption (`text`) sits along the line: unset, beside the cap at this end; set,

@@ -184,3 +184,45 @@ describe("a node's outer border", () => {
         assert.isNull((node as unknown as { outerBorder: AbstractMesh | null }).outerBorder);
     });
 });
+
+describe("an image cap", () => {
+    // a 16 x 16 red triangle pointing right, written out as text, as vis-network files carry it
+    const picture =
+        "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20" +
+        "height%3D%2216%22%3E%3Cpath%20d%3D%22M0%200%20L16%208%20L0%2016%20Z%22%20fill%3D%22%23d62728%22%2F%3E%3C%2Fsvg%3E";
+
+    test("draws its picture standing on the line at the target, at the cap's length and width", async () => {
+        const edge = await oneEdge({
+            "edge.arrowHead": "image",
+            "edge.arrowHeadImage": picture,
+            "edge.arrowHeadSize": 2,
+            "edge.arrowHeadWidth": 3,
+        });
+        const cap = edge.arrowCap;
+        assert(cap, "the edge draws a cap at its target");
+        assert.include(cap.name, "image");
+        const mesh = cap.batchMesh;
+        assert(mesh);
+        const texture = (mesh.material as StandardMaterial).diffuseTexture as { url?: string } | null;
+        assert.strictEqual(texture?.url, picture, "its material holds the picture");
+        // at the target end, as long along the line as the cap and three times as wide across it
+        assert.isAbove(cap.position.x, 2);
+        const p = mesh.getVerticesData("position") ?? [];
+        const xs = p.filter((_, i) => i % 3 === 0);
+        const zs = p.filter((_, i) => i % 3 === 2);
+        assert.closeTo((Math.max(...zs) - Math.min(...zs)) / (Math.max(...xs) - Math.min(...xs)), 3, 1e-6);
+    });
+
+    test("draws nothing without a picture", async () => {
+        const edge = await oneEdge({ "edge.arrowHead": "image" });
+        assert.isNull(edge.arrowCap);
+    });
+});
+
+describe("the half arrow's other side and the open box", () => {
+    test("each draws its own cap", async () => {
+        const edge = await oneEdge({ "edge.arrowHead": "half-open-flipped", "edge.arrowTail": "open-box" });
+        assert.include(edge.arrowCap?.name ?? "", "half-open-flipped");
+        assert.include(edge.arrowTailCap?.name ?? "", "open-box");
+    });
+});

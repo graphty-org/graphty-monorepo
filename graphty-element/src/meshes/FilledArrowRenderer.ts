@@ -17,6 +17,8 @@ import { PerSceneMaterials } from "./PerSceneMaterials";
 
 /** Segments a whole circle is drawn with; an arc gets its share of them. */
 const ARC_SEGMENTS = 32;
+/** How thick the open box's frame is: the open dot's ring (its radius 0.5 inset 22.5%). */
+const OPEN_FRAME = 0.5 * 0.225;
 
 /**
  * A disc's piece between two angles, as a fan from its center, in the XZ plane.
@@ -960,6 +962,8 @@ void main() {
      * - "triangle-tee": a triangle with a bar behind it (Cytoscape.js's triangle-tee).
      * - "triangle-cross": a triangle with a thin bar across the line behind it (triangle-cross).
      * - "circle-triangle": a dot at the tip with a triangle behind it pointing at it (circle-triangle).
+     * - "half-open-flipped": half-open's one arm on the line's other side (Cytoscape's HALF_BOTTOM).
+     * - "open-box": the box's outline (Cytoscape's OPEN_SQUARE, Cytoscape.js's hollow square).
      */
     static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
         "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
@@ -988,6 +992,21 @@ void main() {
                 [-1, -0.25],
                 [-1, 0.25],
             ],
+        ],
+        // half-open's arm (tip, base corner, middle) reflected across the line, wound the same way
+        "half-open-flipped": () => [
+            [
+                [0, 0],
+                [-0.4, 0],
+                [-1, 0.4],
+            ],
+        ],
+        // the box's square (x -1..0, z -0.5..0.5) as a frame as thick as the open dot's ring
+        "open-box": () => [
+            rect(-1, 0, 0.5).map(([x, z]) => [x, z < 0 ? z : -0.5 + OPEN_FRAME] as [number, number]),
+            rect(-1, 0, 0.5).map(([x, z]) => [x, z > 0 ? z : 0.5 - OPEN_FRAME] as [number, number]),
+            rect(-1, -1 + OPEN_FRAME, 0.5 - OPEN_FRAME),
+            rect(-OPEN_FRAME, 0, 0.5 - OPEN_FRAME),
         ],
     };
 
@@ -1339,6 +1358,8 @@ void main() {
             case "triangle-tee":
             case "triangle-cross":
             case "circle-triangle":
+            case "half-open-flipped":
+            case "open-box":
                 mesh = this.createPolygonArrow(type, scene);
                 break;
             default:

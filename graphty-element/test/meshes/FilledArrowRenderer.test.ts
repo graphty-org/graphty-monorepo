@@ -626,6 +626,52 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         assert.deepEqual(triangle[0], [-0.5, 0]);
     });
 
+    test("half-open-flipped is half-open's arm reflected across the line, wound the same way", () => {
+        const half = FilledArrowRenderer.createHalfOpen(scene);
+        const flipped = FilledArrowRenderer.createPolygonArrow("half-open-flipped", scene);
+        const corner = (mesh: Mesh): number => {
+            const p = mesh.getVerticesData("position") ?? [];
+            const back = [];
+            for (let i = 0; i < p.length; i += 3) {
+                if (Math.abs(p[i] + 1) < 1e-9) {
+                    back.push(p[i + 2]);
+                }
+            }
+            assert.lengthOf(back, 1, "one corner at the back");
+            return back[0];
+        };
+        // the arm's back corner is on the other side of the line, as far from it
+        assert.closeTo(corner(flipped), -corner(half), 1e-9);
+        assert.isAbove(corner(flipped), 0);
+        // the same winding (signed area), so a face culled on one is culled on the other
+        const area = (mesh: Mesh): number => {
+            const p = mesh.getVerticesData("position") ?? [];
+            const [a, b, c] = Array.from(mesh.getIndices() ?? [], (k) => [p[3 * k], p[3 * k + 2]]);
+            return (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
+        };
+        assert.strictEqual(Math.sign(area(flipped)), Math.sign(area(half)));
+        half.dispose();
+        flipped.dispose();
+    });
+
+    test("open-box is the box's square with its middle left open", () => {
+        const e = extents("open-box");
+        assert.closeTo(e.z0, -0.5, 1e-9);
+        assert.closeTo(e.z1, 0.5, 1e-9);
+        const mesh = FilledArrowRenderer.createPolygonArrow("open-box", scene);
+        const p = mesh.getVerticesData("position") ?? [];
+        const idx = mesh.getIndices() ?? [];
+        // no triangle covers the box's center (-0.5, 0)
+        for (let t = 0; t < idx.length; t += 3) {
+            const [a, b, c] = [idx[t], idx[t + 1], idx[t + 2]].map((k) => [p[3 * k], p[3 * k + 2]]);
+            const side = (u: number[], v: number[]): number =>
+                (v[0] - u[0]) * (0 - u[1]) - (-0.5 - u[0]) * (v[1] - u[1]);
+            const s = [side(a, b), side(b, c), side(c, a)];
+            assert.isFalse(s.every((x) => x > 0) || s.every((x) => x < 0), "the center is outside every triangle");
+        }
+        mesh.dispose();
+    });
+
     test("2D builds each one by its type", () => {
         for (const type of Object.keys(FilledArrowRenderer.POLYGON_ARROWS)) {
             const mesh = FilledArrowRenderer.create2DArrow(type, 0.5, 0.3, "#ff0000", 1, scene);

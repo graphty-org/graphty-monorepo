@@ -345,6 +345,14 @@ const slug = (v) =>
 const IMAGE_SHAPES = { image: { image: QUADRANTS }, circularImage: { image: QUADRANTS } };
 const ICON = { face: N.fontFamily, code: "A", size: 30, color: "#1f77b4" };
 
+/** The multi-font modifiers and a label that uses each. */
+const MULTI_TEXT = [
+    ["bold", "<b>B</b> x"],
+    ["ital", "<i>I</i> x"],
+    ["boldital", "<b><i>BI</i></b> x"],
+    ["mono", "<code>M</code> x"],
+];
+
 const SHEETS = {
     "specimen-node-shapes": [
         node("default", {}),
@@ -519,11 +527,10 @@ const SHEETS = {
                 { cap: `font.align=${v}` },
             ),
         ),
-        node(
-            "font-shorthand",
-            { label: "Short", font: "14px DejaVu Serif #2ca02c" },
-            { cap: "font=14px DejaVu Serif green" },
-        ),
+        // vis-network splits the shorthand on single spaces into size, face and color, so the face is one word: with a
+        // two-word face the third word is an invalid color, which the canvas ignores, keeping the previous label's
+        // color, so that drawing depends on draw order and has no specimen (ISSUES.md, vis-network)
+        node("font-shorthand", { label: "Short", font: "18px arial #2ca02c" }, { cap: "font=18px arial green" }),
         node("font-multi-true", { label: "<b>Bold</b> plain", font: { multi: true } }, { cap: "font.multi=true" }),
         node(
             "font-multi-html",
@@ -578,8 +585,8 @@ const SHEETS = {
         }),
         node(
             "font-bold-shorthand",
-            { label: "<b>B</b> x", font: { multi: "html", bold: "14px DejaVu Serif #2ca02c" } },
-            { cap: "font.bold=shorthand" },
+            { label: "<b>B</b> x", font: { multi: "html", bold: "18px arial #2ca02c" } },
+            { cap: "font.bold=18px arial green" },
         ),
         node(
             "label-wrap",
@@ -822,6 +829,29 @@ const SHEETS = {
         edge("arrow-dashed", { arrows: "to", dashes: true }, { cap: "dashes arrows=to" }),
         edge("arrow-box-node", { arrows: "to" }, { ends: { shape: "box", label: "B" }, cap: "arrows=to box ends" }),
         edge("arrow-opacity", { arrows: "to", color: { opacity: 0.3 } }, { cap: "arrows color.opacity=0.3" }),
+        edge("arrows-from-true", { arrows: { from: true } }, { cap: "arrows.from=true" }),
+        edge("arrows-middle-true", { arrows: { middle: true } }, { cap: "arrows.middle=true" }),
+    ],
+    // the multi-font text form (`font.<mod>: "size face color"`) of the modifiers labels and labels-p2 hold as objects
+    "specimen-labels-p3": [
+        node("default", {}, { set: { label: "Label" }, raw: true, cap: "label only" }),
+        ...MULTI_TEXT.slice(1).map(([m, text]) =>
+            node(
+                `font-${m}-shorthand`,
+                { label: text, font: { multi: "html", [m]: "18px arial #2ca02c" } },
+                { cap: `font.${m}=18px arial green` },
+            ),
+        ),
+    ],
+    "specimen-edge-labels-p2": [
+        edge("default", { label: "Label" }, { raw: true, cap: "label only" }),
+        ...MULTI_TEXT.map(([m, text]) =>
+            edge(
+                `font-${m}-shorthand`,
+                { label: text, font: { multi: "html", [m]: "18px arial #2ca02c" } },
+                { cap: `font.${m}=18px arial green` },
+            ),
+        ),
     ],
     "specimen-edge-labels": [
         edge("default", { label: "Label" }, { raw: true, cap: "label only" }),
@@ -847,7 +877,8 @@ const SHEETS = {
         ...E("edges.font.align").map((v) =>
             edge(`font-align-${v}`, { label: "Along", font: { align: v } }, { dy: 50, cap: `font.align=${v}` }),
         ),
-        edge("font-shorthand", { label: "Short", font: "14px DejaVu Serif #2ca02c" }, { cap: "font=14px Serif green" }),
+        // vis-network draws no edge label whose font is text (ISSUES.md, vis-network)
+        edge("font-shorthand", { label: "Short", font: "18px arial #2ca02c" }, { cap: "font=18px arial green" }),
         edge(
             "font-multi-html",
             { label: "<b>B</b> <i>I</i> <code>M</code>", font: { multi: "html" } },

@@ -289,6 +289,25 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "labelMinScreenSize")).toEqual([4]);
     });
 
+    it("reads vis.js font text as vis-network splits it, and draws no edge label whose font is text", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", label: "A", font: "18px arial #2ca02c" },
+                { id: "b", label: "B", font: "14px DejaVu Serif #2ca02c" },
+            ],
+            edges: [
+                { from: "a", to: "b", label: "text", font: "18px arial #2ca02c" },
+                { from: "a", to: "b", label: "object", font: { size: 18 } },
+            ],
+        });
+        // size, face and color are the first three words: a two-word face leaves "Serif" as the color
+        expect(values(r, "node", "labelFont")).toEqual(["arial", "DejaVu"]);
+        expect(values(r, "node", "labelSize")).toEqual([18, 14]);
+        expect(values(r, "node", "label")).toEqual(["A", "B"]);
+        // vis-network 9.1.9 draws an edge label whose font is text off the canvas
+        expect(values(r, "edge", "label")).toEqual(["", "object"]);
+    });
+
     it("reads vis.js keys over its groups and options, with vis-network's defaults, palette and edge colors", async () => {
         const r = await load({
             nodes: [

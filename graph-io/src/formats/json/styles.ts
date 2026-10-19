@@ -682,6 +682,8 @@ interface VisLayer {
     hidden?: unknown;
     label?: unknown;
     title?: unknown;
+    /** edges: whether `font` was given as text, which leaves the edge's label off the canvas (visValues) */
+    fontText?: unknown;
     fontColor?: unknown;
     fontSize?: unknown;
     fontFace?: unknown;
@@ -728,6 +730,9 @@ function visLayer(o: unknown, target: StyleTarget): VisLayer {
     set("label", o.label);
     set("title", o.title);
     visFontLayer(o.font, set);
+    if (target === "edge" && o.font !== undefined && o.font !== null) {
+        set("fontText", typeof o.font === "string");
+    }
     return layer;
 }
 
@@ -904,7 +909,10 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
         put("visible", false);
     }
     if (layer.label !== undefined) {
-        put("label", canonText(layer.label, site("label")));
+        // vis-network 9.1.9 draws no edge label whose `font` is text: Edge.drawLabel reads `options.font.align` (undefined
+        // on a string) as not horizontal and moves the context to the label point, while the label module, which
+        // parsed the text, still draws at the absolute point, so the label lands off the canvas
+        put("label", target === "edge" && layer.fontText === true ? "" : canonText(layer.label, site("label")));
     }
     if (layer.title !== undefined) {
         put("tooltip", canonText(layer.title, site("tooltip")));

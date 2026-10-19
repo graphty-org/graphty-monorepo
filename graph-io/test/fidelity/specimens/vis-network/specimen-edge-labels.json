@@ -1092,7 +1092,7 @@
             "x": 880,
             "y": 312,
             "shape": "text",
-            "label": "font=14px Serif green",
+            "label": "font=18px arial green",
             "font": {
                 "size": 9,
                 "face": "DejaVu Sans",
@@ -3567,7 +3567,7 @@
                 }
             },
             "shadow": false,
-            "font": "14px DejaVu Serif #2ca02c",
+            "font": "18px arial #2ca02c",
             "label": "Short"
         },
         {

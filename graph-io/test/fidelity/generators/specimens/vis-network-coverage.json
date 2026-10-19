@@ -36,7 +36,15 @@
         },
         {
             "id": "specimen-arrows",
-            "specimens": 56
+            "specimens": 58
+        },
+        {
+            "id": "specimen-labels-p3",
+            "specimens": 4
+        },
+        {
+            "id": "specimen-edge-labels-p2",
+            "specimens": 5
         },
         {
             "id": "specimen-edge-labels",
@@ -271,7 +279,8 @@
                 "specimen-labels-p2#font-boldital-size",
                 "specimen-labels-p2#font-boldital-face",
                 "specimen-labels-p2#font-boldital-mod",
-                "specimen-labels-p2#font-boldital-vadjust"
+                "specimen-labels-p2#font-boldital-vadjust",
+                "specimen-labels-p3#font-boldital-shorthand"
             ]
         },
         "nodes.font.boldital.color": {
@@ -295,7 +304,8 @@
                 "specimen-labels-p2#font-ital-size",
                 "specimen-labels-p2#font-ital-face",
                 "specimen-labels-p2#font-ital-mod",
-                "specimen-labels-p2#font-ital-vadjust"
+                "specimen-labels-p2#font-ital-vadjust",
+                "specimen-labels-p3#font-ital-shorthand"
             ]
         },
         "nodes.font.ital.color": {
@@ -319,7 +329,8 @@
                 "specimen-labels-p2#font-mono-size",
                 "specimen-labels-p2#font-mono-face",
                 "specimen-labels-p2#font-mono-mod",
-                "specimen-labels-p2#font-mono-vadjust"
+                "specimen-labels-p2#font-mono-vadjust",
+                "specimen-labels-p3#font-mono-shorthand"
             ]
         },
         "nodes.font.mono.color": {
@@ -1068,12 +1079,12 @@
         },
         "edges.font": {
             "specimens": [
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels-p2#font-mono-shorthand",
                 "specimen-edge-labels#font-size-6",
-                "specimen-edge-labels#font-size-14",
-                "specimen-edge-labels#font-size-20",
-                "specimen-edge-labels#font-face-deja-vu-serif",
-                "specimen-edge-labels#font-face-deja-vu-sans-mono",
-                "specimen-edge-labels#font-color"
+                "specimen-edge-labels#font-size-14"
             ]
         },
         "edges.font.color": {
@@ -1125,26 +1136,27 @@
         },
         "edges.font.multi": {
             "specimens": [
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels-p2#font-mono-shorthand",
                 "specimen-edge-labels#font-multi-html",
-                "specimen-edge-labels#font-multi-markdown",
-                "specimen-edge-labels#font-multi-true",
-                "specimen-edge-labels#font-multi-false",
-                "specimen-edge-labels#font-bold-color",
-                "specimen-edge-labels#font-bold-size"
+                "specimen-edge-labels#font-multi-markdown"
             ],
             "values": {
                 "false": ["specimen-edge-labels#font-multi-false"],
                 "true": ["specimen-edge-labels#font-multi-true"],
                 "html": [
-                    "specimen-edge-labels#font-multi-html",
-                    "specimen-edge-labels#font-bold-color",
-                    "specimen-edge-labels#font-bold-size"
+                    "specimen-edge-labels-p2#font-bold-shorthand",
+                    "specimen-edge-labels-p2#font-ital-shorthand",
+                    "specimen-edge-labels-p2#font-boldital-shorthand"
                 ],
                 "markdown": ["specimen-edge-labels#font-multi-markdown"]
             }
         },
         "edges.font.bold": {
             "specimens": [
+                "specimen-edge-labels-p2#font-bold-shorthand",
                 "specimen-edge-labels#font-bold-color",
                 "specimen-edge-labels#font-bold-size",
                 "specimen-edge-labels#font-bold-face",
@@ -1169,6 +1181,7 @@
         },
         "edges.font.boldital": {
             "specimens": [
+                "specimen-edge-labels-p2#font-boldital-shorthand",
                 "specimen-edge-labels#font-boldital-color",
                 "specimen-edge-labels#font-boldital-size",
                 "specimen-edge-labels#font-boldital-face",
@@ -1193,6 +1206,7 @@
         },
         "edges.font.ital": {
             "specimens": [
+                "specimen-edge-labels-p2#font-ital-shorthand",
                 "specimen-edge-labels#font-ital-color",
                 "specimen-edge-labels#font-ital-size",
                 "specimen-edge-labels#font-ital-face",
@@ -1217,6 +1231,7 @@
         },
         "edges.font.mono": {
             "specimens": [
+                "specimen-edge-labels-p2#font-mono-shorthand",
                 "specimen-edge-labels#font-mono-color",
                 "specimen-edge-labels#font-mono-size",
                 "specimen-edge-labels#font-mono-face",
@@ -1248,11 +1263,11 @@
         "edges.label": {
             "specimens": [
                 "specimen-edges-lines-p2#label-scaling",
-                "specimen-edge-labels#default",
-                "specimen-edge-labels#label",
-                "specimen-edge-labels#label-multiline",
-                "specimen-edge-labels#font-size-6",
-                "specimen-edge-labels#font-size-14"
+                "specimen-edge-labels-p2#default",
+                "specimen-edge-labels-p2#font-bold-shorthand",
+                "specimen-edge-labels-p2#font-ital-shorthand",
+                "specimen-edge-labels-p2#font-boldital-shorthand",
+                "specimen-edge-labels-p2#font-mono-shorthand"
             ]
         },
         "edges.labelHighlightBold": {

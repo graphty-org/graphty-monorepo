@@ -761,6 +761,17 @@ vis-network 9.1.9's source and seen on Chromium's own screen):
   first: vis-network caches images by URL, so `broken-image-none` (no `brokenImage` of its own) draws the fallback
   of `broken-image` (`vis-network-specimen-images-charts`).
 - An 8-digit hex color (`#1f77b480`) is drawn with its alpha.
+- A `font` given as text (`"18px arial #2ca02c"`, and a multi-font modifier such as `font.bold` given the same way)
+  is split on single spaces into size, face and color (`Label.parseFontString`), so a face is one word. With a
+  two-word face (`"14px DejaVu Serif #2ca02c"`) the face is `DejaVu` and the color is the word `Serif`, which the
+  canvas rejects, so the label keeps the fill of whatever vis-network drew before it: the drawing depends on draw
+  order, not on the file, so it has no specimen (the earlier `font-shorthand` specimens used that form, and their
+  oracle showed black where Chromium drew the previous label's green: svgcanvas writes the rejected color as
+  `fill="Serif"`, which resvg paints black). graph-io reads the text form as vis-network splits it.
+- An edge whose `font` is text draws no label at all: `Edge.drawLabel` reads `options.font.align` (undefined on a
+  string) as not horizontal, translates the canvas to the label point and rotates, while the label module, which
+  parsed the text, still draws at the absolute point, so the text lands off the canvas (seen on Chromium's own
+  screen; `font-shorthand`, `vis-network-specimen-edge-labels`). Fixed in graph-io: such an edge's label is empty.
 
 Fixed, found while checking the sheets: two defects kept 11 of the 14 sheets from being read as vis-network at all,
 so graphty ran its own layout with default styles and the comparator matched almost nothing (before: 0 to 3 oracle
@@ -781,13 +792,21 @@ Comparator blind spots, for the Comparator phase:
   likely confusion; the edges-lines and edge-labels sheets, with the same layout and no such heads, associate fully.
 - When association fails, `node.present` has n = 0 and passes; only `node.extra` failed on the eight edgeless sheets
   while nothing was matched. A sheet whose oracle has dozens of unassociated node-sized shapes should fail outright.
+- Raster scores of an unchanged sheet differ between consecutive runs: `vis-network-specimen-edge-labels`
+  `raster.edge` measured 0.85 and then 0.83, `raster.label` 0.89 and then 0.88, and `vis-network-specimen-labels-p3`
+  `raster.nodeOutline` 0.98 in the recording run and 0.97 in the next three, with the same sheet, oracle and build.
+  Something in graphty's drawing or in the raster capture is not deterministic, so a recorded raster floor can fail
+  the next run with nothing changed.
 - `vis-network-specimen-edges-lines` `dashes-wide` (dashes true, width 4) and `width-on-dashes` (width 6, dashes
   [4,4]): the oracle draws dashes (see its PNG), but the oracle side is read as "solid"; `dashes-pattern`
   ([12,3,3,3]) reads "dash-dot" on the oracle and "dashed" on graphty.
 
 Open import and drawing gaps the sheets show (graphty against the oracle, 2026-10-18): middle arrows are not drawn,
 and the `curve`, `inv_curve` and `image` arrow types draw nothing (arrows); captions and labels ignore
-`widthConstraint.maximum` and do not wrap (every sheet); curved `smooth` types other than the default draw straight
+`widthConstraint.maximum` and do not wrap (every sheet); multi-font markup (`font.multi` html / markdown / true and the
+`bold`, `ital`, `boldital`, `mono` modifiers, as objects or as text) is not read by graph-io, so graphty draws the
+markup characters as plain text where vis-network draws styled runs (labels, labels-p2, labels-p3, edge-labels,
+edge-labels-p2); curved `smooth` types other than the default draw straight
 (edges-lines route 38/56, edges-lines-p3 route 7/17); edge `background` and the rest of edges-lines-p3 as judged in
 `graphty-element/tmp/oracle-report/`.
 

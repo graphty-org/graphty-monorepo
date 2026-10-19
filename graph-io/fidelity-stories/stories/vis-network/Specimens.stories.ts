@@ -33,6 +33,10 @@ export const LabelsP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-labels-p2", FILES),
     name: "labels-p2",
 };
+export const LabelsP3: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-labels-p3", FILES),
+    name: "labels-p3",
+};
 export const EdgesLines: StoryObj = { ...specimenStory(FORMAT, "specimen-edges-lines", FILES), name: "edges-lines" };
 export const EdgesLinesP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines-p2", FILES),
@@ -44,6 +48,10 @@ export const EdgesLinesP3: StoryObj = {
 };
 export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
 export const EdgeLabels: StoryObj = { ...specimenStory(FORMAT, "specimen-edge-labels", FILES), name: "edge-labels" };
+export const EdgeLabelsP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edge-labels-p2", FILES),
+    name: "edge-labels-p2",
+};
 export const Groups: StoryObj = { ...specimenStory(FORMAT, "specimen-groups", FILES), name: "groups" };
 export const GroupsP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-groups-p2", FILES),

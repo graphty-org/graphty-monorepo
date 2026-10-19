@@ -700,8 +700,9 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
         }
         const prims: Prim[] = [];
         const opacities = new Map<Element, number>();
-        // the outline of a label stroked as an unfilled text of its own, kept for the filled text drawn over it
-        let pendingOutline: { key: string; outline: NonNullable<PText["outline"]> } | null = null;
+        // the outline of a label stroked as an unfilled text of its own, kept for the filled text drawn over it: right
+        // after it (Cytoscape.js) or after every other outline (Gephi writes all its label outlines, then the labels)
+        const pendingOutlines = new Map<string, NonNullable<PText["outline"]>>();
         const textKey = (el: SVGTextElement): string =>
             `${textContentOf(el)}\u0000${el.getAttribute("x") ?? ""}\u0000${el.getAttribute("y") ?? ""}\u0000${el.getAttribute("transform") ?? ""}`;
         let index = 0;
@@ -731,14 +732,19 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 const key = textKey(el as SVGTextElement);
                 if (cs.fill === "none") {
                     const outline = textOutlineOf(cs, opacity, scale);
-                    pendingOutline = outline === null ? null : { key, outline };
+                    if (outline === null) {
+                        pendingOutlines.delete(key);
+                    } else {
+                        pendingOutlines.set(key, outline);
+                    }
                     continue;
                 }
                 const text = textOf(el as SVGTextElement, m, cs, opacity, scale);
-                if (text !== null && pendingOutline?.key === key) {
-                    text.outline ??= pendingOutline.outline;
+                const outline = pendingOutlines.get(key);
+                if (text !== null && outline !== undefined) {
+                    text.outline ??= outline;
                 }
-                pendingOutline = null;
+                pendingOutlines.delete(key);
                 if (text !== null) {
                     prims.push({
                         index: i,

@@ -42,6 +42,23 @@ describe("the oracle SVG reader", () => {
         );
     });
 
+    it("gives each filled label its outline when every outline is written before every label, as Gephi does", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <text fill="none" stroke="#ff8000" stroke-width="2" font-size="10px" x="50" y="50">A</text>
+            <text fill="none" stroke="#00ff00" stroke-width="2" font-size="10px" x="150" y="50">B</text>
+            <text fill="#000000" font-size="10px" x="50" y="50">A</text>
+            <text fill="#000000" font-size="10px" x="150" y="50">B</text>
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        assert.deepEqual(
+            texts.map((t) => [t.content, t.outline?.color]),
+            [
+                ["A", "#ff8000"],
+                ["B", "#00ff00"],
+            ],
+        );
+    });
+
     it("reads each positioned tspan line's own box, which a label's alignment is read off", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <text font-size="10px"><tspan x="20" y="20">a long line</tspan><tspan x="20" y="32">short</tspan></text>

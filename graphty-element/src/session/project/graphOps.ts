@@ -1119,8 +1119,9 @@ class Writer implements GraphWriter {
                 this.store.builder.setNodeValue(this.store.seedColumn, index, seed);
             }
 
-            // EVERY mutating path touches, including a merge: `builder.mutationCount` counts
-            // neither a merge nor a column write (DEP-M6-A).
+            // EVERY mutating path touches, including a merge: the store keys its snapshot cache
+            // on its own revision (see GraphStore.touch), so a burst of merges would otherwise
+            // serve a stale snapshot.
             this.store.touch();
         }
 

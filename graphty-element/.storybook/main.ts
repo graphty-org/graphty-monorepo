@@ -35,6 +35,11 @@ const config: StorybookConfig = {
                     "@babylonjs/core/Meshes/instancedMesh",
                     "@babylonjs/core/Culling/ray",
                     "@babylonjs/core/Animations/animatable",
+                    // The shaders src/meshes/bundledStandardShaders.ts loads with the element.
+                    "@babylonjs/core/Shaders/default.vertex",
+                    "@babylonjs/core/Shaders/default.fragment",
+                    "@babylonjs/core/ShadersWGSL/default.vertex",
+                    "@babylonjs/core/ShadersWGSL/default.fragment",
                     // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
                     // starts after the page has loaded.
                     "@hpcc-js/wasm-graphviz",

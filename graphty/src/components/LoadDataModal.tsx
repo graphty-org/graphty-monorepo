@@ -1,3 +1,4 @@
+import { PANEL_INK } from "@graphty/compact-mantine";
 import {
     detectFormat,
     FORMAT_DESCRIPTORS,
@@ -483,7 +484,7 @@ export function LoadDataModal({
                         onDragLeave={handleDragLeave}
                         onClick={() => document.getElementById("file-input")?.click()}
                         style={{
-                            border: `2px dashed ${isDragging ? "var(--mantine-color-blue-5)" : "var(--mantine-color-default-border)"}`,
+                            border: `2px dashed ${isDragging ? "var(--cm-graphic-brand)" : "var(--mantine-color-default-border)"}`,
                             borderRadius: "8px",
                             padding: "40px 20px",
                             textAlign: "center",
@@ -642,7 +643,7 @@ export function LoadDataModal({
 
                 {/* Error Display */}
                 {error && (
-                    <Group gap="xs" style={{ color: "var(--mantine-color-red-5)" }}>
+                    <Group gap="xs" style={{ color: PANEL_INK.DANGER_TEXT }}>
                         <AlertCircle size={16} />
                         <Text size="sm">{error}</Text>
                     </Group>

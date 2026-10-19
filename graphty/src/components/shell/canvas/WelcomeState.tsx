@@ -196,7 +196,7 @@ export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
                                 gap: CANVAS_SPACE.MD,
                                 padding: `${String(CANVAS_SPACE.LG)}px ${String(CANVAS_SPACE.XXL)}px`,
                                 borderRadius: "var(--mantine-radius-lg)",
-                                border: `${String(CANVAS_SPACE.HAIRLINE)}px dashed ${dragging ? PANEL_INK.ACCENT : PANEL_INK.BORDER}`,
+                                border: `${String(CANVAS_SPACE.HAIRLINE)}px dashed ${dragging ? PANEL_INK.ACCENT_GRAPHIC : PANEL_INK.BORDER}`,
                                 background: PANEL_INK.PANEL,
                                 boxSizing: "border-box",
                             }}
@@ -220,7 +220,7 @@ export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
                                 <line x1="46" y1="14" x2="38" y2="37" />
                                 <line x1="14" y1="34" x2="38" y2="37" />
                                 <circle cx="14" cy="34" r="4" />
-                                <circle cx="29" cy="21" r="5" stroke={PANEL_INK.ACCENT} />
+                                <circle cx="29" cy="21" r="5" stroke={PANEL_INK.ACCENT_GRAPHIC} />
                                 <circle cx="46" cy="14" r="4" />
                                 <circle cx="38" cy="37" r="4" />
                                 <circle cx="58" cy="26" r="4" />
@@ -259,7 +259,7 @@ export function WelcomeState(props: WelcomeStateProps): React.JSX.Element {
                                     style={{
                                         fontSize: CANVAS_TYPE.SMALL,
                                         lineHeight: CANVAS_LEADING.DENSE,
-                                        color: PANEL_INK.DANGER,
+                                        color: PANEL_INK.DANGER_TEXT,
                                         textAlign: "center",
                                     }}
                                 >

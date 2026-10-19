@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { Redo2, Undo2 } from "lucide-react";
 import React, { useCallback, useSyncExternalStore } from "react";
 
+import { BrandLogo } from "../../components/BrandLogo";
 import { PrivacyChip } from "../privacy/PrivacyChip";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { CommandButton } from "./CommandButton";
@@ -33,6 +34,9 @@ export function Header(): React.JSX.Element {
 
     return (
         <header className="ws-header" aria-label="Project">
+            <span className="ws-header-mark">
+                <BrandLogo variant="mark" height={20} />
+            </span>
             <MainMenu />
             {renaming ? (
                 <InlineRename

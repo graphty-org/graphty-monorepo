@@ -22,10 +22,7 @@
 .ws-start-brand {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
     margin: 0;
-    font-size: 13px;
-    font-weight: 600;
 }
 
 .ws-start-main {

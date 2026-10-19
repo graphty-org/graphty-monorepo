@@ -20,6 +20,7 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -298,6 +299,13 @@ export class RenderManager implements Manager {
     private readonly drawsOnDemand: () => boolean;
     /** Set by anything that may have changed the picture since the last frame drawn. */
     private drawOwed = true;
+    /**
+     * While it answers true, a tick runs its update but draws nothing: set by the graph while an
+     * element built from the defaults waits for its style to be drawn, so no frame shows it in
+     * them. The update still runs, so the frame that applies the style is the one drawn.
+     * @internal
+     */
+    drawHeld: (() => boolean) | null = null;
     /** What the last frame drawn left behind; see {@link RenderManager.sameAsDrawn}. */
     private readonly drawnFrom = {
         view: new Float32Array(16),
@@ -369,6 +377,7 @@ export class RenderManager implements Manager {
 
         // Create scene
         this.scene = new Scene(this.engine);
+        useBundledStandardShaders(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
@@ -503,6 +512,10 @@ export class RenderManager implements Manager {
                 // this.camera.update() is already called in UpdateManager.update()
                 // Commenting out to avoid double updates
                 // this.camera.update();
+
+                if (this.drawHeld?.() === true) {
+                    return;
+                }
 
                 if (this.mayRest()) {
                     this.ticks.rested++;

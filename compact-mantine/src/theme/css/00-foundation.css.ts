@@ -12,7 +12,14 @@
  * `compactGlobalCss({ highContrast: true })` works without the attribute (SSR, shadow roots).
  */
 import interLatinWoff2 from "../../fonts/inter-latin-wght-normal.woff2";
-import { cmFont, highContrastDeclarations, primaryAccentDeclarations, tokenDeclarations } from "../tokens";
+import {
+    CM_ELEVATIONS,
+    cmFont,
+    graphtyAccentDeclarations,
+    highContrastDeclarations,
+    primaryAccentDeclarations,
+    tokenDeclarations,
+} from "../tokens";
 
 /** The latin subset's range, as @fontsource-variable/inter 5.3.0 declares it. */
 const LATIN_RANGE =
@@ -47,6 +54,27 @@ export function highContrastBlock(selector: string): string {
 }`;
 }
 
+/**
+ * The graphty accent token block under a selector.
+ * @param selector - where the block applies
+ * @returns the CSS rule
+ */
+export function graphtyAccentBlock(selector: string): string {
+    return `${selector} {
+    ${graphtyAccentDeclarations()}
+}`;
+}
+
+/**
+ * What a menu or listbox row sets on itself while its highlight is filled: its label and check
+ * take the ink on the accent (`--cm-text-onbrand`), its trailing slot the dimmed one, so a lime
+ * highlight gets dark labels. `UNLIT` clears them wherever a rule clears the fill, so the ink
+ * follows the fill rule for rule.
+ */
+export const ROW_LIT =
+    "--cm-row-ink: var(--cm-text-onbrand); --cm-row-ink-secondary: var(--cm-text-onbrand-secondary);";
+export const ROW_UNLIT = "--cm-row-ink: initial; --cm-row-ink-secondary: initial;";
+
 const FOCUSABLE_REST = ".cm-focus-outside, .cm-focus-flush, .cm-focus-inside, .cm-focus-inside-2, .cm-focus-double";
 
 const css = `
@@ -72,6 +100,10 @@ ${highContrastBlock(':root[data-cm-contrast="high"]')}
 :root[data-cm-accent] {
     ${primaryAccentDeclarations()}
 }
+
+/* The graphty brand accent (createCompactTheme({ accent: "graphty" })): fixed brand values, so
+   after the derived block above. */
+${graphtyAccentBlock(':root[data-cm-accent="graphty"]')}
 
 /* Reduced motion: the few things that move (spec 2.8: a checkbox tick, a switch knob, a hover
    color, the help button's ring, the loading fade) change in one frame. Every such transition
@@ -199,17 +231,40 @@ ${FOCUSABLE_REST} {
 .cm-field ::placeholder { color: var(--cm-text-tertiary); opacity: 1; }
 .cm-field ::selection { background-color: var(--cm-text-highlight); }
 
-/* The dark menu surface (spec 6.5, 8.1). The surface keeps the page's scheme so its shadow
-   follows the page; its children render dark. */
+/* The menu surface (spec 6.5, 8.1): menus, list boxes and context menus follow the page's
+   scheme. Every rule inside reads the menu tokens (--cm-bg-menu, --cm-text-menu, ...), which on
+   their own are the always-dark values; this surface points them at the page-following set, so a
+   light app gets a light menu with dark ink and a dark app the dark menu. The highlights are the
+   brand's and the danger fill's darker steps in each scheme, so the white row text and shortcut
+   on them meet 4.5:1 and the pill meets 3:1 against the surface.
+
+   The class cm-menu-inverse keeps Figma's always-dark menu in both schemes (a Menu adds it for
+   variant="inverse"; any other dropdown, a Select's or a Combobox's, takes it through
+   classNames={{ dropdown: "cm-menu-inverse" }}): the surface resolves dark and the
+   menu tokens and highlights keep their Figma values. Only its shadow follows the page. */
 .cm-menu-surface {
+    --cm-menu-shadow: var(--cm-elevation-400);
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
     border: 0;
     border-radius: 13px;
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
     padding: 8px 0;
 }
-.cm-menu-surface > * { color-scheme: dark; }
+.cm-menu-surface:not(.cm-menu-inverse) {
+    --cm-bg-menu: var(--cm-bg-menu-page);
+    --cm-text-menu: var(--cm-text-menu-page);
+    --cm-text-menu-secondary: var(--cm-text-menu-page-secondary);
+    --cm-text-menu-disabled: var(--cm-text-menu-page-disabled);
+    --cm-border-menu: var(--cm-border-menu-page);
+    --cm-bg-brand: light-dark(var(--cm-bg-brand-pressed), var(--cm-bg-brand-hover));
+    --cm-bg-danger: light-dark(var(--cm-bg-danger-pressed), var(--cm-bg-danger-hover));
+    --cm-text-onbrand-secondary: var(--cm-text-onbrand);
+}
+.cm-menu-surface.cm-menu-inverse { color-scheme: dark; }
+:where([data-mantine-color-scheme="light"]) .cm-menu-surface.cm-menu-inverse {
+    --cm-menu-shadow: ${CM_ELEVATIONS["400"].light.join(", ")};
+}
 
 /* A menu or listbox row: 24 tall, text 16px from the menu edge, the highlight an inner pill
    inset 8px each side. Only one row is ever filled: a selected row gives its highlight up while
@@ -223,7 +278,7 @@ ${FOCUSABLE_REST} {
     height: 24px;
     padding: 0 16px;
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
     ${cmFont("body")}
     cursor: default;
 }
@@ -241,13 +296,20 @@ ${FOCUSABLE_REST} {
 .cm-menu-row[aria-selected="true"]::before {
     background: var(--cm-bg-brand);
 }
+.cm-menu-row:hover,
+.cm-menu-row[data-hovered],
+.cm-menu-row[data-combobox-selected],
+.cm-menu-row[aria-selected="true"] { ${ROW_LIT} }
 .cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover)::before {
     background: transparent;
 }
+.cm-menu-surface:has(.cm-menu-row:hover) .cm-menu-row[aria-selected="true"]:not(:hover) { ${ROW_UNLIT} }
 .cm-menu-row[data-disabled],
 .cm-menu-row[aria-disabled="true"] { color: var(--cm-text-menu-disabled); }
 .cm-menu-row[data-disabled]::before,
 .cm-menu-row[aria-disabled="true"]::before { background: transparent; }
+.cm-menu-row[data-disabled],
+.cm-menu-row[aria-disabled="true"] { ${ROW_UNLIT} }
 /* The 16 x 16 check column; its glyph shows on a checked or selected row. */
 .cm-menu-row-check {
     display: inline-flex;

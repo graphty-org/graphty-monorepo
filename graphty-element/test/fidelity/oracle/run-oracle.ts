@@ -31,6 +31,7 @@ import {
     isStandIn,
     ORACLE_CANVAS,
     type OracleComparison,
+    oracleFormatOptions,
     oracleGraphName,
     oracleMeta,
     oraclePngUrl,
@@ -177,7 +178,12 @@ export async function runOracle(id: string, options: { write: boolean }): Promis
         throw new Error(`${id} is not a fidelity sample`);
     }
     const meta = oracleMeta(id);
-    const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS, oracleGraphName(meta));
+    const { element, sha256, command } = await mountSample(
+        sample,
+        ORACLE_CANVAS,
+        oracleGraphName(meta),
+        oracleFormatOptions(meta, sample.format),
+    );
     const first = await compareWithOracle(id, element, sha256, command);
     const { report, association, graphty, width, height } = first;
     const scores = { ...first.scores };

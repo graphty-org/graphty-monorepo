@@ -67,6 +67,19 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
 }
 
 /**
+ * The reader options a program's drawing was made with that the file cannot carry: the Gephi Preview
+ * settings of a GEXF page (`previewProperties`), which graphty-element's GEXF reader takes as
+ * `gephiPreview`.
+ * @param meta - the oracle's metadata
+ * @param format - graph-io's format name of the sample
+ * @returns the options, empty for none
+ */
+export function oracleFormatOptions(meta: Record<string, unknown>, format: string): Record<string, unknown> {
+    const preview = meta.previewProperties;
+    return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
+}
+
+/**
  * The graph the program drew, by name, when the file holds several: Cytoscape desktop draws a
  * session's largest network view and records its title, so graphty reads that network too.
  * @param meta - the oracle's metadata

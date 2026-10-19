@@ -62,12 +62,14 @@ async function readSample(file: string): Promise<{ sha256: string; data: Blob }>
  * @param size.width - width
  * @param size.height - height
  * @param graphName - which graph to read from a file that holds several, when not its first
+ * @param formatOptions - the reader's own options the program drew the file with
  * @returns the element, the sample's hash and how it was loaded
  */
 export async function mountSample(
     sample: FidelitySample,
     size: { width: number; height: number } = { width: WIDTH, height: HEIGHT },
     graphName?: string,
+    formatOptions?: Readonly<Record<string, unknown>>,
 ): Promise<{ element: Graphty; sha256: string; command: string }> {
     unmount();
     const { sha256, data } = await readSample(sample.file);
@@ -78,7 +80,7 @@ export async function mountSample(
     document.body.style.margin = "0";
     document.body.appendChild(element);
     mounted = element;
-    const loaded = await importSample(element, sample.format, blobUrl, graphName);
+    const loaded = await importSample(element, sample.format, blobUrl, graphName, formatOptions);
     const command = `${loaded}, url = ${sample.file}${sample.file.endsWith(".gz") ? " gunzipped" : ""}; 2D, ${String(size.width)}x${String(size.height)}, layoutConfig.seed ${String(SEED)}, layout preSteps ${String(PRE_STEPS)}, GRAPHTY_BROWSER_GPU=${GPU}`;
     return { element, sha256, command };
 }

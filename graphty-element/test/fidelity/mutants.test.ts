@@ -29,7 +29,14 @@ import { SPECIMEN_SAMPLES } from "../../../graph-io/test/fidelity/specimens/inde
 import { mountSample, unmount } from "./mount";
 import { absorbedByKnownFailures, MUTATIONS } from "./mutations";
 import { type OracleReport, withoutCaptions } from "./oracle/compare-oracle";
-import { compareWithOracle, isStandIn, ORACLE_CANVAS, oracleGraphName, oracleMeta } from "./oracle/oracle-library";
+import {
+    compareWithOracle,
+    isStandIn,
+    ORACLE_CANVAS,
+    oracleFormatOptions,
+    oracleGraphName,
+    oracleMeta,
+} from "./oracle/oracle-library";
 import type { PScene } from "./oracle/primitives";
 import { checkFloors, readOracleFloors } from "./oracle/run-oracle";
 
@@ -103,7 +110,13 @@ describe("comparator mutants", () => {
         if (sample === undefined) {
             throw new Error(`${id} is not a sample`);
         }
-        const { element, sha256, command } = await mountSample(sample, ORACLE_CANVAS, oracleGraphName(oracleMeta(id)));
+        const meta = oracleMeta(id);
+        const { element, sha256, command } = await mountSample(
+            sample,
+            ORACLE_CANVAS,
+            oracleGraphName(meta),
+            oracleFormatOptions(meta, sample.format),
+        );
         const out: Record<string, unknown> = {};
         const baseline = new Set<string>();
         let base: OracleReport | null = null;

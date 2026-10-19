@@ -24,6 +24,7 @@ import {
     isStandIn,
     ORACLE_CANVAS,
     ORACLE_IDS,
+    oracleFormatOptions,
     oracleGraphName,
     oracleMeta,
     oraclePngUrl,
@@ -219,7 +220,13 @@ function render(sample: FidelitySample, fileUrl: string, live: boolean): HTMLEle
             const { sha256, data } = await sampleData(stored, stored[0] === 0x1f && stored[1] === 0x8b);
             const blobUrl = URL.createObjectURL(data);
             try {
-                const loaded = await importSample(element, sample.format, blobUrl, oracleGraphName(meta));
+                const loaded = await importSample(
+                    element,
+                    sample.format,
+                    blobUrl,
+                    oracleGraphName(meta),
+                    oracleFormatOptions(meta, sample.format),
+                );
                 const how = live ? "live canvas" : "its own screenshot";
                 middle.caption.textContent = `graphty-element, file styles (${how}); ${loaded.slice(loaded.indexOf("; ") + 2)}`;
                 right.lastElementChild?.remove();

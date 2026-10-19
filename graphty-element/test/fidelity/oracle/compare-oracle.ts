@@ -961,13 +961,34 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
         [...dropped].some(
             (t) => inside(s.box, t) && s.box.y1 - s.box.y0 <= 2 * Math.max(t.box.y1 - t.box.y0, t.sizePx),
         );
+    // a caption's words the association gave a specimen beside it as its label (a tall node reaching down to its
+    // caption) are the caption's, not the specimen's
+    const captionLabel = (n: PNode): boolean => n.label !== null && words.has(squash(n.label.content));
     return {
         ...scene,
-        nodes: scene.nodes.filter((n) => !ids.has(n.id)),
+        nodes: scene.nodes.filter((n) => !ids.has(n.id)).map((n) => (captionLabel(n) ? { ...n, label: null } : n)),
         edges: scene.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
         texts: texts.filter((t) => !dropped.has(t)),
         strays: scene.strays.filter((s) => !bodyOf(s)),
     };
+}
+
+/**
+ * The specimen sheet nodes a format ids otherwise (Cytoscape desktop by SUID, GML by number) that keep their role in
+ * an attribute (`name`, GML's `comment` or `template`): each caption (`cap-*`) and corner anchor (`anchor-*`) by id,
+ * with that name, for `namedCaptions`.
+ * @param rows - the nodes' data rows, each with its `id`
+ * @returns each such node's id and its name
+ */
+export function specimenRoleNames(rows: readonly Record<string, unknown>[]): Map<string, string> {
+    return new Map(
+        rows.flatMap((r) => {
+            const name = Object.values(r).find(
+                (v): v is string => typeof v === "string" && (v.startsWith("cap-") || v.startsWith("anchor-")),
+            );
+            return name === undefined ? [] : [[String(r.id), name] as const];
+        }),
+    );
 }
 
 /**

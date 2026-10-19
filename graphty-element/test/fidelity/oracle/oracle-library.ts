@@ -11,7 +11,13 @@ import type { Graphty } from "../../../index.js";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
 import { associate, type Association, diskColor, type RasterDrawing, rasterScene } from "./associate";
-import { compareOracle, namedCaptions, ORACLE_PROPERTIES, type OracleReport } from "./compare-oracle";
+import {
+    compareOracle,
+    namedCaptions,
+    ORACLE_PROPERTIES,
+    type OracleReport,
+    specimenRoleNames,
+} from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
@@ -218,14 +224,9 @@ export async function compareWithOracle(
     const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
     const unmutated = drawnPrimitives(scene, drawn, { groups: !raster });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`
-    // in an attribute (`name`, GML's `comment`): a caption drawn as text only is owned by that, so the comparison
-    // knows it for a caption
-    const captionOf = new Map(
-        element.session.data.nodes().flatMap((r) => {
-            const cap = Object.values(r).find((v): v is string => typeof v === "string" && v.startsWith("cap-"));
-            return cap === undefined ? [] : [[String(r.id), cap] as const];
-        }),
-    );
+    // and `anchor-*` in an attribute (`name`, GML's `comment` or `template`): its captions and corner anchors are
+    // named by that on both sides, so the comparison leaves the captions out and fixes the frame on the anchors
+    const captionOf = specimenRoleNames(element.session.data.nodes());
     // a sheet whose vertices are numbers names each by its setting, on both sides, once the oracle is associated
     const names = specimenNames(id);
     const numbers = new Map([...names].map(([k, v]) => [v, k]));

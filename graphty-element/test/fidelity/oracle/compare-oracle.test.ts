@@ -16,6 +16,7 @@ import {
     medianSpacing,
     namedCaptions,
     outerOf,
+    specimenRoleNames,
     withoutCaptions,
 } from "./compare-oracle";
 import {
@@ -913,6 +914,60 @@ describe("oracle comparison", () => {
             ["a", "b", "c"],
         );
         assert.strictEqual(namedCaptions(o, new Map()), o);
+    });
+
+    it("names a sheet's numbered captions and corner anchors by the attribute that keeps their role", () => {
+        const rows = [
+            { id: 0, comment: "anchor-nw", label: "" },
+            { id: 4, comment: "default" },
+            { id: 5, template: "cap-default", label: "(nothing set)" },
+        ];
+        assert.deepEqual(
+            [...specimenRoleNames(rows)],
+            [
+                ["0", "anchor-nw"],
+                ["5", "cap-default"],
+            ],
+        );
+    });
+
+    it("fixes the frame on anchors named by their role, so a misplaced specimen does not pull it", () => {
+        const g = graphtyScene();
+        g.nodes = [
+            ...g.nodes,
+            ...[
+                ["0", 0, 0],
+                ["1", 400, 0],
+                ["2", 0, 300],
+                ["3", 400, 300],
+            ].map(([id, x, y]) => ({ ...g.nodes[0], id: String(id), cx: Number(x), cy: Number(y), label: null })),
+        ];
+        // the oracle draws node c 60 px off where the anchors place it
+        const o: PScene = {
+            ...g,
+            side: "oracle",
+            nodes: g.nodes.map((n) => (n.id === "c" ? { ...n, cx: n.cx + 60 } : n)),
+        };
+        const names = specimenRoleNames(
+            ["0", "1", "2", "3"].map((id, i) => ({ id, comment: `anchor-${["nw", "ne", "sw", "se"][i]}` })),
+        );
+        const report = compareOracle("t", namedCaptions(o, names), namedCaptions(g, names));
+        assert.deepEqual(report.failures["node.position"], ["c"]);
+        assert.closeTo(report.transform?.tx ?? NaN, 0, 1e-3);
+        // by number, the fit is taken on every node and the misplaced one pulls the frame towards itself
+        assert.isAbove(Math.abs(compareOracle("t", o, g).transform?.tx ?? NaN), 1);
+    });
+
+    it("takes a caption's words off a specimen the association gave them to as its label", () => {
+        const g = { ...graphtyScene(), texts: [text("w=40 h=80", 50, 50, 12, { owner: "cap-size-40x80" })] };
+        // a tall specimen reaches down to its caption, so the oracle's association hands it the caption's words
+        const o = { ...graphtyScene(), side: "oracle" as const };
+        o.nodes = o.nodes.map((n) => (n.id === "a" ? { ...n, label: text("w=40 h=80", 50, 50) } : n));
+        const out = withoutCaptions(o, g);
+        assert.deepEqual(
+            out.nodes.map((n) => n.label?.content ?? null),
+            [null, "B", "C"],
+        );
     });
 
     it("leaves out the box a program draws tight around a caption's words, and keeps other shapes", () => {

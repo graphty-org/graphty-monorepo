@@ -119,6 +119,42 @@ describe("reading CX2 styles", () => {
         expect(resolveStyles(ex, "edge", "curved", snapshot).slice(0, 2)).toEqual([true, true]);
     });
 
+    it("reads an edge label position's EDGE_ANCHOR and LABEL_ANCHOR letters, as Cytoscape writes them in CX2", async () => {
+        const bytes = readFileSync(
+            resolve(import.meta.dirname, "../../fidelity/specimens/cx2/specimen-edge-labels.cx2"),
+        );
+        const { snapshot, styles } = await load(new Uint8Array(bytes));
+        const ex = styles as ExtractedStyles;
+        const id = snapshot.edges.get("id");
+        const cols = (["labelShiftX", "labelShiftY", "labelTextAlign"] as const).map((p) =>
+            resolveStyles(ex, "edge", p, snapshot),
+        );
+        const of = (edge: string): unknown[] => {
+            const e = Array.from({ length: snapshot.edgeCount }, (_, i) => i).find((i) => id?.value(i) === edge);
+            return cols.map((c) => (e === undefined ? undefined : c[e]));
+        };
+        // { EDGE_ANCHOR: "E", LABEL_ANCHOR: "W", JUSTIFICATION: "left" }: the label's left end at the line's target end
+        expect(of("label-position-e-w-l-0-0")).toEqual([0.5, 0, "left"]);
+        expect(of("label-position-w-e-r-0-0")).toEqual([-0.5, 0, "right"]);
+        // { EDGE_ANCHOR: "N", LABEL_ANCHOR: "S" }: the label's bottom on the line
+        expect(of("label-position-n-s-c-0-0")).toEqual([0, -0.5, "center"]);
+    });
+
+    it("turns an EDGE_LABEL_AUTOROTATE label along its line, as Cytoscape 3.10.5's SVG draws it", async () => {
+        const bytes = readFileSync(
+            resolve(import.meta.dirname, "../../fidelity/specimens/cx2/specimen-edge-labels.cx2"),
+        );
+        const { snapshot, styles } = await load(new Uint8Array(bytes));
+        const rotation = resolveStyles(styles as ExtractedStyles, "edge", "labelRotation", snapshot);
+        const id = snapshot.edges.get("id");
+        const of = (edge: string): unknown =>
+            rotation[Array.from({ length: snapshot.edgeCount }, (_, i) => i).find((i) => id?.value(i) === edge) ?? -1];
+        // the oracle's label is turned -27.759 degrees, along the line from the source's center to the target's
+        expect(of("label-autorotate-true")).toBe(332.241);
+        expect(of("label-autorotate-false")).toBe(0);
+        expect(of("label-rotation-45")).toBe(45);
+    });
+
     it("maps the edge weight a file's mapping reads, when the import keeps it only as the graph's weights", async () => {
         const file = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },

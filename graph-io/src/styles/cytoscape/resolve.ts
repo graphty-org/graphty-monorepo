@@ -554,6 +554,9 @@ function labelDress(
         if (place !== null) {
             placeLabel(target, place, i, out, put, ends);
         }
+        if (target === "edge") {
+            autorotate(one, i, out, n, ends);
+        }
     }
     const kept = (property: string, v: StyleValue | null): boolean =>
         v !== null && v !== 0 && (v !== "center" || (property === "labelPosition" && target === "edge"));
@@ -627,6 +630,43 @@ function placeLabel(
     put("labelShiftX", i, move.shift[0]);
     put("labelShiftY", i, move.shift[1]);
     put("labelTextAlign", i, place.justify);
+}
+
+/**
+ * Turns an edge's label along its line under `EDGE_LABEL_AUTOROTATE`, as Cytoscape draws it: the line's angle from
+ * its source's center to its target's (kept between -90 and 90 so the words read left to right), plus its
+ * `EDGE_LABEL_ROTATION`.
+ * ponytail: the angle is the file's node places at import; a layout that moves the nodes leaves it as it was, until
+ * the neutral styles can say "along the line"
+ * @param one - reads one visual property of one element
+ * @param e - the edge
+ * @param out - the values per property, changed in place
+ * @param n - the edge count
+ * @param ends - the edges' ends and their nodes' centers
+ */
+function autorotate(
+    one: Resolver["one"],
+    e: number,
+    out: Partial<Record<string, StyleColumn>>,
+    n: number,
+    ends: CytoscapeElements["ends"],
+): void {
+    const on = one("EDGE_LABEL_AUTOROTATE", rawText, "labelRotation", e);
+    const [si, ti] = [ends?.source[e], ends?.target[e]];
+    const [s, t] = [si === undefined ? null : ends?.nodeAt?.[si], ti === undefined ? null : ends?.nodeAt?.[ti]];
+    if (String(on).toLowerCase() !== "true" || !s || !t || (s[0] === t[0] && s[1] === t[1])) {
+        return;
+    }
+    const a = (Math.atan2(t[1] - s[1], t[0] - s[0]) * 180) / Math.PI;
+    let upright = a;
+    if (a > 90) {
+        upright = a - 180;
+    } else if (a <= -90) {
+        upright = a + 180;
+    }
+    const column = (out.labelRotation ??= new Array<StyleValue | null>(n).fill(null)) as (StyleValue | null)[];
+    const own = column[e];
+    column[e] = num6((((upright + (typeof own === "number" ? own : 0)) % 360) + 360) % 360);
 }
 
 /**

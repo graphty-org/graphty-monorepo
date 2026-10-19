@@ -464,9 +464,26 @@ export interface CytoscapeLabelPlace {
 }
 
 /**
+ * The anchors of CX2's edge label position `{ EDGE_ANCHOR, LABEL_ANCHOR, ... }`, each a desktop anchor letter, as
+ * `[edge x, edge y, label x, label y]`; undefined where a letter is not one.
+ * @param o - the position
+ * @param site - where a bad value is noted
+ * @returns the four sides
+ */
+function cx2EdgeAnchors(o: Record<string, unknown>, site: CanonSite): (number | undefined)[] {
+    const letter = (key: string): readonly [number, number] | undefined =>
+        ANCHOR.get((scalarText(Object.hasOwn(o, key) ? o[key] : "C", site) ?? "").trim().toUpperCase());
+    return [
+        ...(letter("EDGE_ANCHOR") ?? [undefined, undefined]),
+        ...(letter("LABEL_ANCHOR") ?? [undefined, undefined]),
+    ];
+}
+
+/**
  * Reads a label position: desktop's `C,C,c,0.00,0.00` (node anchor, label anchor, justification, x and y offsets)
  * or CX2's `{ HORIZONTAL_ANCHOR, VERTICAL_ANCHOR, HORIZONTAL_ALIGN, VERTICAL_ALIGN, JUSTIFICATION, MARGIN_X,
- * MARGIN_Y }`.
+ * MARGIN_Y }` (for an edge's label `{ EDGE_ANCHOR, LABEL_ANCHOR, JUSTIFICATION, MARGIN_X, MARGIN_Y }`, the anchors
+ * as desktop's letters).
  * @param raw - the value
  * @param site - where a bad value is noted
  * @returns the place, or null
@@ -483,9 +500,11 @@ export function cytoscapeLabelPlace(raw: unknown, site: CanonSite): CytoscapeLab
             const v = Object.hasOwn(o, key) ? Number(o[key]) : 0;
             return Number.isFinite(v) ? v : 0;
         };
-        const sides = ["HORIZONTAL_ANCHOR", "VERTICAL_ANCHOR", "HORIZONTAL_ALIGN", "VERTICAL_ALIGN"].map((k) =>
-            CX2_SIDE.get(word(k)),
-        );
+        const sides = Object.hasOwn(o, "EDGE_ANCHOR")
+            ? cx2EdgeAnchors(o, site)
+            : ["HORIZONTAL_ANCHOR", "VERTICAL_ANCHOR", "HORIZONTAL_ALIGN", "VERTICAL_ALIGN"].map((k) =>
+                  CX2_SIDE.get(word(k)),
+              );
         if (sides.some((v) => v === undefined)) {
             noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, JSON.stringify(raw).slice(0, 64));
             return null;

@@ -221,6 +221,11 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                             value={name}
                             onClick={() => {
                                 store.set({ inspected: groupInspected(session, run.id, group) });
+                                // This row goes with the node's Values: focus follows the reader
+                                // into the group's layer, on its heading, which names it.
+                                requestAnimationFrame(() => {
+                                    focusInspectorTitle();
+                                });
                             }}
                         />
                     ))}

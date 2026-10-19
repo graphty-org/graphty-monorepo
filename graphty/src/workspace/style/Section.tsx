@@ -86,6 +86,14 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
     const pending = descriptors.filter((d) => !set.includes(d) && waiting.includes(d.channel));
     const note = sectionNote(ctx, spec, set);
     const unset = descriptors.filter((d) => !set.includes(d) && !pending.includes(d));
+    // A line "+" added keeps the place it was added at, below the lines set before it, once its
+    // value is written too: drawn in the section's order, it would jump above them under the
+    // reader's eyes.
+    const added = waiting.flatMap((channel) => descriptors.find((d) => d.channel === channel) ?? []);
+    const lines = [
+        ...set.filter((d) => !added.includes(d)),
+        ...added.filter((d) => set.includes(d) || pending.includes(d)),
+    ];
     const write = (descriptor: ChannelDescriptor, value: boolean): void => {
         writeIn(ctx, descriptor.channel, { value })
             .then(() => {
@@ -142,7 +150,7 @@ export function Section({ ctx, spec }: Readonly<{ ctx: RowContext; spec: Section
                     />
                 }
             >
-                {[...set, ...pending].map((d) => (
+                {lines.map((d) => (
                     <Field
                         key={d.channel}
                         ctx={ctx}

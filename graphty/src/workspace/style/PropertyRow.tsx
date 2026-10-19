@@ -32,7 +32,7 @@ import {
     type Target,
     writeIn,
 } from "./row";
-import { focusLineNext, listOpensNext, openListNext } from "./useFocusLine";
+import { focusLineNext, lineTarget, listOpensNext, openListNext } from "./useFocusLine";
 import { ValueField } from "./ValueField";
 import { ValuePicker } from "./ValuePicker";
 import {
@@ -346,6 +346,47 @@ function useFocusOnRemoval(box: React.RefObject<HTMLElement | null>): void {
     }, [box]);
 }
 
+/**
+ * Keeps keyboard focus in a line whose control is drawn anew in place: the first value of a line
+ * "+" added turns its waiting field into the set one, an Undo puts a binding's pill back where a
+ * color box was. The control that held focus leaves the page, so focus would fall to the page and
+ * then to whatever had it before (the section's "+"); it goes to the line's new control instead.
+ * @param box - the line.
+ */
+function useFocusKept(box: React.RefObject<HTMLElement | null>): void {
+    // The control in the line that last took focus, until focus moves to something else.
+    const held = useRef<HTMLElement | null>(null);
+    useEffect(() => {
+        const node = box.current;
+        if (node === null) {
+            return undefined;
+        }
+        const onIn = (event: FocusEvent): void => {
+            held.current = event.target instanceof HTMLElement ? event.target : null;
+        };
+        const onOut = (event: FocusEvent): void => {
+            // A control leaving the page has no next focus: keep it, so the line takes focus back.
+            if (event.relatedTarget instanceof Node && !node.contains(event.relatedTarget)) {
+                held.current = null;
+            }
+        };
+        node.addEventListener("focusin", onIn);
+        node.addEventListener("focusout", onOut);
+        return () => {
+            node.removeEventListener("focusin", onIn);
+            node.removeEventListener("focusout", onOut);
+        };
+    }, [box]);
+    // No dependency list: the control is drawn anew on whatever render the element's change causes.
+    useLayoutEffect(() => {
+        const control = held.current;
+        if (control !== null && !control.isConnected && focusIsLost()) {
+            held.current = null;
+            lineTarget(box.current)?.focus();
+        }
+    });
+}
+
 /** Props for Field. */
 interface FieldProps {
     /** The row the field belongs to. */
@@ -401,6 +442,7 @@ export function Field({
     const escapedBulk = useRef(false);
     const bulkChain = useRef<Promise<unknown>>(Promise.resolve());
     useFocusOnRemoval(box);
+    useFocusKept(box);
     const line = lineIn(ctx, channel);
     // A line on a locked layer (the element's own base layers) is not this row's.
     const own = line !== undefined && !line.layer.locked ? line : undefined;

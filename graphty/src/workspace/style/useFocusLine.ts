@@ -23,7 +23,7 @@ export function keystrokeTarget(controls: readonly HTMLElement[]): HTMLElement |
  * @param line - the line.
  * @returns the control, or null.
  */
-function lineTarget(line: Element | null | undefined): HTMLElement | null {
+export function lineTarget(line: Element | null | undefined): HTMLElement | null {
     const all = (selector: string): HTMLElement[] => [...(line?.querySelectorAll<HTMLElement>(selector) ?? [])];
     return keystrokeTarget(all(`.ws-field-control :is(${CONTROL})`)) ?? keystrokeTarget(all(CONTROL)) ?? null;
 }

@@ -16,48 +16,25 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-18, focus after a style line) Enter in a new Color box sent focus to the section's
-   disabled "+": not a tab redraw, but the line's CONTROL being swapped in place. A line "+" added
-   draws `ValueField`; once written it draws `CompactColorInput` (another component), so the box
-   that held focus left the page and the focus guard's `rescue` (frame/focus.ts) handed focus to
-   the previous control, the "+". A layer made from a selection kept focus only because its tab
-   remounts and `useFocusLine` re-asks. Fix once, in `Field`: `useFocusKept` (PropertyRow.tsx)
-   remembers the line's control that had focus and, when it is gone and focus is on the page,
-   focuses the line's new control (`lineTarget`, now exported from useFocusLine.ts). The same
-   hook fixes Undo putting a binding's pill back where a color box was. Section draws lines "+"
-   added in the order added (Color stays below Width once written). Memberships' entry focuses the
-   inspector title in a frame callback. compact-mantine `tooltipPlacement.ts`: headings' words are
-   obstacles, the trigger's own heading (a heading in the same parent) weighted x10, so a section
-   "+"'s tooltip opens above or below rather than over its own title. Tests:
-   `FocusAfterWriting.real-element` (7; 5 failed before the change; the Remove cases already
-   passed: the pilot's Effects "+" was the pointer's hover, not focus) and overlays.browser "opens
-   off its own section's heading". Walk `design/ui/studio/tmp/r1-dry3-style-line-focus/w1` (07
-   box kept, 09 tooltip above Visibility, 16 Color under Width, 20 Shift+Tab proves focus was on
-   Fill "+", 21 Undo in the box, 28-29 Group 1's heading then its next control).
-1. (2026-10-18, condition card keys) In `WhichPicker.tsx`: a card's remove button is now drawn
-   right after its header in the DOM (still absolutely placed in the corner), so Tab goes remove,
-   match, values, Add a condition, Done. A text card's Autocomplete has `openOnFocus={false}` and
-   catches ArrowDown in `onKeyDownCapture` on a closed list (stopPropagation at the root's capture
-   stops Mantine's own ArrowDown, which would highlight the first option even on a closed list),
-   so opening, Undo or a removed card never opens the list, and ArrowDown+Enter is Done, not a
-   suggestion. Undo while open: `Cards` keeps `held` (each layer's selector after this open's
-   last write landed; `useStepWriter` now has `busy()` and a `landed` callback) and, when a layer
-   holds another selector with no write on its way, redraws the cards from the layers. A row with
-   no card opens on Add a condition (the auto-opened list made one press close it). Letters typed
-    - Tab take the highlighted attribute. `data-enter-done` on value check boxes. NumberCard
-      focuses its first number box after Highest or Between; a filter step focuses its card's value
-      after an attribute is picked (`Filters.tsx`). Words: card header "3 nodes", one layer's head
-      "8 of 24 nodes", the open cards' "Which nodes" is a heading naming the group, and the count
-      is announced from `WhichPicker` (which outlives the cards, so Enter in a number box still says
-      it). compact-mantine: new `focusWithRing(el)` (sets `data-cm-modality="keyboard"`, focuses),
-      because a select trigger hides its ring after a pointer press and Chromium ignores
-      `focus({focusVisible})` (probed: buttons and check boxes never ring, a read-only input always
-      matches `:focus-visible`). Tests: `ConditionCardKeys.real-element` (6, all fail on the old
-      picker; the Undo case must change the rule by a list pick, since typed text is taken back by
-      the box's own undo) and FilterStepCard "picking an attribute hands focus to its value". Walks
-      `tmp/r1-dry3-condition-card-keys/w1` (05 no list, 06 list with nothing lit, 07 Enter closed,
-      rule kept; 12 Undo shows Mlle; 14 Shift+Tab reaches Remove) and `w2` (09 Add, no list; 12
-      "don"+Tab; 15 Highest focuses the box; 22 Enter on a ticked value; 25-26 filter focus).
+0. (2026-10-18, summaries and the Data place) All app-side; the element already had every fact
+   (`SelectionAttributeStatistics.min/max`, `AttributeDescriptor.holdsNodeIds` and `roles`,
+   `readableValues().kind`), so no API change. `attributeSummary` (inspector/words.ts) takes the
+   column: an id column (holdsNodeIds or role key) says "34 of 34 have a value", a number "31 to 52,
+   mean 41.14". Data place rows always draw their second line ("Text, all have a value"; "No
+   values" alone at 0%). A category now wears `Boxes` and free text `CaseSensitive` (GLYPHS.text,
+   TypeGlyph "text", VALUE_GLYPHS.text) in the Data place, the attribute header and every value
+   list. Table "Columns" with only the key column is aria-disabled with a tooltip, no menu. A line
+   "+" added on a selection with no layer says "Not set yet: the first size you pick makes the
+   layer" (`firstValueWords`, PropertyRow). Quick actions' reason: "Open a node attribute in Data >
+   Attributes first". Analyze: an algorithm reading N nodes from the selection is unavailable with
+   more than N selected ("Select only 2 nodes; 34 are selected") and `paramsFor` fills only on an
+   exact count. The Degree tooltip already worked (1 s hover delay; pilots clicked). Tests:
+   `inspector/__tests__/TrueSummaries.real-element` (8; 7 fail without). Walks
+   `design/ui/studio/tmp/r1-dry3-summaries-data-place/w1-w4`.
+1. (2026-10-18, focus after a style line; condition card keys) `useFocusKept` in PropertyRow keeps
+   focus when a line's control is swapped; a card's remove is after its header in the DOM; text
+   cards open their list only on typing or ArrowDown. In full, with tests and walks:
+   `git show c768cdaaf:design/ui/studio/notes/engineer.md`, Top of mind 0-1.
 2. (2026-10-18, shape list typing; color picker) compact-mantine type-ahead clears the highlight on
    a run no option starts with; the picker's "color before this edit" swatch and `closeOnEnter`;
    `ValueField` swatches: in full in `git show bdd01700e:design/ui/studio/notes/engineer.md`, Top of
@@ -114,6 +91,15 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-18) **A larger selection disables a node-reading analysis rather than opening it
+  empty.** An open form with Source and Sink unset has no way to fill them (the Analyze form reads
+  ends only from the selection), so Run would only refuse; the row's reason says what to do.
+  Applies to every algorithm whose options read nodes, not only Most flow.
+- (2026-10-18) **Id columns are told apart by the element's `holdsNodeIds` / role `key`, in the
+  app's words, not by the element dropping their mean.** Changing what `selection.statistics()`
+  returns would be breaking; which statistic a reader sees is the app's choice.
+- (2026-10-18) **Category gets its own icon (Boxes) instead of text losing Aa.** The read-the-file
+  page and the summary already call such columns categories; one icon per concept.
 - (2026-10-18) **Focus is kept by the line, not by `useFocusLine`.** The tab was never redrawn
   (the walk and a DOM identity check showed the tab, section and line elements unchanged); only
   the control inside the line was replaced. Making every control one component across waiting,
@@ -212,6 +198,14 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-18) Proving a test fails by copying HEAD over shared files (PropertyRow, WhichPicker)
+  for one run: worked, but another agent committed my WhichPicker hunk in 9f8c35c76 meanwhile, and
+  restoring my copy could have dropped an edit made in that minute. For a shared file, remove only
+  my hunk by string replacement and put it back the same way. Playwright refuses `userEvent.click`
+  on an `aria-disabled` control until forced (`{ force: true }`); a findByRole for a tooltip needs
+  a guard past the theme's 1 s open delay. Seen, not mine: LayerPanelBehavior "takes an attribute
+  of the other kind" times out at HEAD's test too; StylePanel.real-element three ValuePicker cases
+  (the id column now listed once as "Node id").
 - (2026-10-18) Seen, not mine, with others' uncommitted edits in the worktree: 15 style
   real-element tests (ColorBox, PropertyRows 3, OneLineRows, RowKinds 2, StylePanel 3, Groups,
   LayerPanelWords, BindingPopover Louvain, BulkPilot 2) fail with my focus change switched off too.

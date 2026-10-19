@@ -523,9 +523,11 @@ export function extendToTip(path: readonly Pt[], outline: readonly Pt[], end: "s
     const dx = (last[0] - back[0]) / len;
     const dy = (last[1] - back[1]) / len;
     const along = (q: Pt): number => (q[0] - last[0]) * dx + (q[1] - last[1]) * dy;
-    const tip = [...outline].sort((a, b) => along(b) - along(a))[0];
-    if (along(tip) > 0.5) {
-        pts.push(tip);
+    // the head's reach along the line, on the line: a flat head (a tee's bar, a half circle) has its farthest points at
+    // its corners, beside the line, and a line bent to one of them reads as curved
+    const reach = Math.max(...outline.map(along));
+    if (reach > 0.5) {
+        pts.push([last[0] + dx * reach, last[1] + dy * reach]);
     }
     return end === "target" ? pts : pts.reverse();
 }
@@ -838,9 +840,21 @@ export function arrowheadEdge(
     const best =
         (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3, ["source", "target"]) : null) ??
         (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
-    // the nearest end decides; a shape longer than that edge's own line (beyond a few pixels) is
-    // something else drawn near it
-    return best === null || size > Math.max(pathLength(best.e.points), 12) ? null : { e: best.e, end: best.end };
+    if (best === null) {
+        return null;
+    }
+    // the nearest end decides; a shape longer than that edge's own line (beyond a few pixels) is something else drawn
+    // near it -- unless the line ends on it and it runs on to that end's node: a program that stops its line at its
+    // arrowhead's base (Cytoscape desktop) draws a long arrowhead on a short edge longer than the line it caps
+    const capsShortLine = (): boolean => {
+        if (best.end === "middle" || toBox(endOf(best.e, best.end), p.box) > 2) {
+            return false;
+        }
+        const id = best.end === "source" ? best.e.source : best.e.target;
+        const n = nodes.find((m) => m.id === id);
+        return n !== undefined && toBox([n.cx, n.cy], p.box) <= 0.5 * Math.max(n.w, n.h) + 3;
+    };
+    return size > Math.max(pathLength(best.e.points), 12) && !capsShortLine() ? null : { e: best.e, end: best.end };
 }
 
 const strayOf = (p: Prim): PStray => ({
@@ -1101,10 +1115,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         const border = n.stroke !== null && Number.isFinite(n.stroke.width) ? n.stroke.width : 0;
         return Math.max(15, 0.5 * Math.max(n.w, n.h)) + (border >= 2 ? border : 0);
     };
-    // The small closed shapes no body took (arrowheads among them): a line a program stops at its arrowhead's base
-    // (Cytoscape desktop's) ends an arrowhead's length short of its node, so an end reaches as far as the shape it
-    // touches does.
-    const heads = free().filter((q) => q.kind === "shape" && Math.max(bw(q.box), bh(q.box)) <= 50);
+    // The closed shapes no body took that hold no node (arrowheads among them, of any size: Cytoscape desktop's arrow
+    // size 24 is 51 px long): a line a program stops at its arrowhead's base (Cytoscape desktop's) ends an
+    // arrowhead's length short of its node, so an end reaches as far as the shape it touches does.
+    const heads = free().filter((q) => q.kind === "shape" && !nodeList.some((n) => inside([n.cx, n.cy], q.box)));
     const gap = (a: PBox, b: PBox): number =>
         Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
     // every node a path's end lands on, nearest first; through a shape it touches only where it lands on none itself

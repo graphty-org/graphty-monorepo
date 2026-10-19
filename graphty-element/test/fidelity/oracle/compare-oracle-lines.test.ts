@@ -923,4 +923,78 @@ describe("a line a program stops at its arrowhead's base", () => {
         );
         assert.deepEqual(o.strays, []);
     });
+    // The pieces of one edge drawn as a line from a's outline and a head reaching to b's (x 280), in the oracle.
+    const drawn = (line: Pt[], head: Pt[]): Prim[] => {
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        return [
+            ...NODES.map(([, x, y]) => prim({ tag: "ellipse", points: disc(x, y, 20), fill: fill("#cccccc") })),
+            prim({ kind: "path", closed: false, points: line, stroke: stroke("#0000ff") }),
+            prim({ tag: "polygon", points: head, fill: fill("#0000ff") }),
+        ];
+    };
+
+    it("takes an arrowhead longer than the short line it caps as that line's, not as a stray", () => {
+        // Cytoscape desktop's arrow size 24 on a short edge: a 40 px line and a 120 px head
+        const prims = drawn(
+            [
+                [120, 100],
+                [160, 100],
+            ],
+            [
+                [160, 80],
+                [280, 100],
+                [160, 120],
+                [160, 80],
+            ],
+        );
+        const o = associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow()] })])).scene;
+        assert.deepEqual(
+            o.edges.map((e) => [e.source, e.target, e.arrows.map((a) => a.end)]),
+            [["a", "b", ["target"]]],
+        );
+        assert.deepEqual(o.strays, []);
+        assert.deepEqual(o.edges[0].points.at(-1), [280, 100]);
+    });
+
+    it("runs a line on to its flat head's reach along the line, not to one of the head's corners", () => {
+        // a tee: a bar across the line's end, whose farthest points are its two outer corners
+        const prims = drawn(
+            [
+                [120, 100],
+                [276, 100],
+            ],
+            [
+                [276, 85],
+                [280, 85],
+                [280, 115],
+                [276, 115],
+                [276, 85],
+            ],
+        );
+        const o = associate(prims, 600, 400, scene("graphty", [edge({ arrows: [arrow({ shape: "tee" })] })])).scene;
+        assert.deepEqual(
+            o.edges.map((e) => e.points.map(([x, y]) => [Math.round(x), Math.round(y)])),
+            [
+                [
+                    [120, 100],
+                    [276, 100],
+                    [280, 100],
+                ],
+            ],
+        );
+    });
 });

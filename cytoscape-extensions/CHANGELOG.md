@@ -1,3 +1,92 @@
+## 0.0.25 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-io to 0.3.45
+
+## 0.0.24 (2026-10-18)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** import and export file styles through graph-io's style system ([#1983](https://github.com/graphty-org/graphty-monorepo/issues/1983))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** count the gallery's own stylesheet as nothing the export tile loses ([4b045ca8a](https://github.com/graphty-org/graphty-monorepo/commit/4b045ca8a))
+- **cytoscape-extensions:** read and write positions the way up each format's program draws them ([4699b048f](https://github.com/graphty-org/graphty-monorepo/commit/4699b048f))
+- **graph-io:** write each node's position into its yEd geometry in a styled GraphML export ([bf69a4788](https://github.com/graphty-org/graphty-monorepo/commit/bf69a4788))
+- reconcile the merged file-styles, file-positions and master branches ([852fd978c](https://github.com/graphty-org/graphty-monorepo/commit/852fd978c))
+- **cytoscape-extensions:** say so when a core with styles disabled exports none ([7fb435e38](https://github.com/graphty-org/graphty-monorepo/commit/7fb435e38))
+- **cytoscape-extensions:** leave GEXF viz values out of data when styles are read ([2fe81ae98](https://github.com/graphty-org/graphty-monorepo/commit/2fe81ae98))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+- Updated graph-io to 0.3.44
+- Updated layout to 2.5.8
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.0.23 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+- Updated graph-io to 0.3.43
+- Updated layout to 2.5.7
+
+## 0.0.22 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+- Updated graph-io to 0.3.42
+- Updated layout to 2.5.6
+
+## 0.0.21 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+- Updated graph-io to 0.3.41
+- Updated layout to 2.5.5
+
+## 0.0.20 (2026-10-15)
+
+### 🚀 Features
+
+- **cytoscape-extensions:** download every sample dataset from graphty.app ([821943cf8](https://github.com/graphty-org/graphty-monorepo/commit/821943cf8))
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** build the size update message without a nested template ([#2694](https://github.com/graphty-org/graphty-monorepo/issues/2694))
+- **cytoscape-extensions:** raise the total size budget with a part budget ([#2694](https://github.com/graphty-org/graphty-monorepo/issues/2694))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+- Updated layout to 2.5.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.0.19 (2026-10-14)
 
 ### 🧱 Updated Dependencies

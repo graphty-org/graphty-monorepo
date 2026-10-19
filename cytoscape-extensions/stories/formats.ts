@@ -427,6 +427,8 @@ const LOST: Partial<Record<string, string | null>> = {
     W_PAJEK_LABEL_GAINED: null,
     // the edge ids are already listed as renumbered
     W_DTYPE_UNSUPPORTED: null,
+    // the core's stylesheet is the gallery's own look, not the karate club's: the dataset has no styles to lose
+    W_STYLES_NOT_EXPORTED: null,
 };
 
 /**

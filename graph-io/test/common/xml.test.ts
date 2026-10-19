@@ -268,6 +268,9 @@ describe("helpers", () => {
         expect(isXmlName("a")).toBe(true);
         expect(isXmlName("ns:b-c.d_e1")).toBe(true);
         expect(isXmlName(`x${String.fromCharCode(0xe9)}`)).toBe(true);
+        expect(isXmlName(`${String.fromCharCode(0xe9)}x`)).toBe(true);
+        expect(isXmlName(`a${String.fromCharCode(0xd7)}`)).toBe(false);
+        expect(isXmlName(`a-${String.fromCharCode(0xb7)}1`)).toBe(true);
         expect(isXmlName("")).toBe(false);
         expect(isXmlName("1a")).toBe(false);
         expect(isXmlName("-a")).toBe(false);

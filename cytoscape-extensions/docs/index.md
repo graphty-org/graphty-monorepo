@@ -2,6 +2,10 @@
 layout: home
 
 hero:
+    image:
+        light: /brand/graphty-cytoscape-extensions-lockup-color-on-light.svg
+        dark: /brand/graphty-cytoscape-extensions-lockup-color-on-dark.svg
+        alt: graphty cytoscape-extensions
     name: cytoscape-extensions
     text: Graph layouts and algorithms for Cytoscape.js
     tagline: 16 layouts, 63 algorithms, WebGPU acceleration, generators, datasets and file formats, added with one cytoscape.use() call
@@ -83,7 +87,3 @@ main();
 ```
 
 `graphtyPageRank` writes each node's score to `data("rank")`, and the `mapData()` style turns scores from 0 to 0.1 into sizes from 10 to 50 pixels. The `node[rank]` selector applies the sizing only to nodes that have a score, so Cytoscape does not warn about nodes added before PageRank runs. The [getting started guide](./guide/getting-started) builds this into a full page.
-
-## Status
-
-`@graphty/cytoscape-extensions` has not had its first release yet. Until it does, `npm install` fetches `0.0.0-placeholder.0`, a package that holds only a README, so the imports on this page fail to resolve and the jsDelivr URLs return 404. The package names, URLs and install commands in these docs are the ones it will be released under.

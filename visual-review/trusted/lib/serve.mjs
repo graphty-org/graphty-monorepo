@@ -110,6 +110,7 @@ import { approvalIndex, clusters, isNoise, knownNoise, observations } from "./fi
 import { coupledGroups, inboxOf, readyKey, writeJson } from "./inbox.mjs";
 import { isSkipMarker, NOT_AFFECTED, SKIPPED_FILE, validateResults } from "./results.mjs";
 import { SPOT_KINDS, scaled } from "./thumbs.mjs";
+import { USAGE_FILE } from "./usage.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATIC = {
@@ -151,6 +152,7 @@ const WRITES = new Set([
     "passkey-challenge",
     "register",
     "update",
+    "usage",
 ]);
 // A registration challenge is good for one use within this long; a prepared approval for this long.
 const CHALLENGE_MS = 5 * 60000;
@@ -270,6 +272,41 @@ async function signingIdentity(repo) {
     };
 }
 
+const USAGE_TYPE = /^[a-z][a-z-]{0,31}$/;
+
+/**
+ * A page's batch of usage events as JSONL lines, or null when it is not one. Each event is a small
+ * object with a short `type`, a time `at` and a session id `s`; one whose JSON holds the session
+ * token is dropped, so the token is never written whatever the page sends.
+ * @param {unknown} events the page's batch
+ * @param {string} token the session token
+ * @returns {string | null} the lines to append
+ */
+export function usageLines(events, token) {
+    if (!Array.isArray(events) || events.length > 100) {
+        return null;
+    }
+    let out = "";
+    for (const e of events) {
+        const line = JSON.stringify(e);
+        if (
+            typeof e !== "object" ||
+            e === null ||
+            Array.isArray(e) ||
+            !USAGE_TYPE.test(e.type) ||
+            !Number.isFinite(e.at) ||
+            typeof e.s !== "string" ||
+            line.length > 2000
+        ) {
+            return null;
+        }
+        if (!line.includes(token)) {
+            out += `${line}\n`;
+        }
+    }
+    return out;
+}
+
 /**
  * The session token, created once so a restart keeps the owner's URL.
  * @param {string} stateDir where the token file lives
@@ -368,6 +405,12 @@ export function createApp({
     // the branch" check.
     let tips = new Map();
     let recordsAt = new Map();
+    // The commit each Finish pushed, by branch, and how many pushes there were: a refresh reads the
+    // branch tips once, and while a Finish runs it fetches nothing, so the tips it read can predate
+    // the push. Without these, that refresh put back the branch as it was before the push, and the
+    // decisions the Finish published read as unpublished again (issue #3040).
+    const pushedTips = new Map();
+    let pushes = 0;
     /** What the last refresh could not read from GitHub (the pull request list, a git fetch). */
     let listWarnings = [];
     /**
@@ -617,6 +660,12 @@ export function createApp({
                 mine.set(k, posted && !onBranch(t, project, item, d.decision) ? rest : d);
             }
         }
+        addApprovedBefore(t, mine);
+        return mine;
+    };
+
+    // Adds an accept to `mine` for each undecided item whose exact image was approved before.
+    const addApprovedBefore = (t, mine) => {
         for (const p of t.projects) {
             for (const item of p.results?.items ?? []) {
                 const k = `${p.project}/${item.file}`;
@@ -633,7 +682,6 @@ export function createApp({
                 }
             }
         }
-        return mine;
     };
 
     /**
@@ -998,7 +1046,7 @@ export function createApp({
     const keptOr = (info, err) => {
         const old = targets.get(info.id);
         return old?.runId
-            ? { ...old, warnings: [retryLater("could not refresh", err.message)] }
+            ? { ...old, draft: info.draft, warnings: [retryLater("could not refresh", err.message)] }
             : blank(info, retryLater("failed to load", err.message));
     };
 
@@ -1118,6 +1166,7 @@ export function createApp({
                         url: pr.url,
                         branch: pr.branch,
                         head: pr.headSha,
+                        draft: pr.draft,
                     };
                     try {
                         const run = await runOf(pr, read);
@@ -1155,6 +1204,7 @@ export function createApp({
                 );
             }
         }
+        let seen = pushes;
         await readTips();
         step("checking the baselines", 0, next.size);
         let checked = 0;
@@ -1171,6 +1221,7 @@ export function createApp({
             await legacyFor(t);
         }
         signer = await signingIdentity(repo);
+        await republish(next, seen);
         targets = next;
         save();
         prune();
@@ -1284,6 +1335,17 @@ export function createApp({
         }
     }
 
+    // A Finish that pushed while a refresh ran (after `seen` pushes): reads what each branch
+    // publishes again. The caller swaps in the list right after, with no await between.
+    async function republish(next, seen) {
+        while (seen !== pushes) {
+            seen = pushes;
+            for (const t of next.values()) {
+                t.published = await publishedOn(t);
+            }
+        }
+    }
+
     // Every fetched branch tip in one git call, once per refresh.
     async function readTips() {
         const out = await exec(
@@ -1307,7 +1369,18 @@ export function createApp({
     // head's (`earlier`) when the tip is that head; null when the branch was never fetched, so
     // nothing is known about it.
     async function publishedOn(t) {
-        const tip = t.branch ? tips.get(t.branch) : undefined;
+        const fetched = t.branch ? tips.get(t.branch) : undefined;
+        const mine = t.branch ? pushedTips.get(t.branch) : undefined;
+        // Our own push counts until a fetch shows a tip that holds it, or one that replaced it.
+        const stale =
+            mine !== undefined &&
+            mine !== fetched &&
+            (fetched === undefined ||
+                (await exec("git", ["merge-base", "--is-ancestor", fetched, mine], { cwd: repo }).then(
+                    () => true,
+                    () => false,
+                )));
+        const tip = stale ? mine : fetched;
         if (tip === undefined) {
             return null;
         }
@@ -1348,6 +1421,11 @@ export function createApp({
                       () => null,
                   )
                 : null;
+        await markBehind(t, base, known);
+    }
+
+    // Whether each of a target's projects is behind the default branch, and what is newer there.
+    async function markBehind(t, base, known) {
         t.mergeMasterFirst = false;
         for (const p of t.projects) {
             p.newer = [];
@@ -1399,6 +1477,8 @@ export function createApp({
             title: t.title,
             url: t.url,
             branch: t.branch,
+            // Its author is still working on it: the inbox never offers it (inbox.mjs).
+            draft: t.draft === true,
             runId: t.runId,
             runAttempt: t.runAttempt,
             runUrl: t.runUrl,
@@ -1580,12 +1660,10 @@ export function createApp({
         return { t, p: p?.results ? p : undefined };
     }
 
-    const gone = (id) => [
-        404,
-        {
-            error: `${id === "master" ? defaultBranch : `#${id}`} is not listed any more (closed, or it could not be loaded): reload the list`,
-        },
-    ];
+    const gone = (id) => {
+        const name = id === "master" ? defaultBranch : `#${id}`;
+        return [404, { error: `${name} is not listed any more (closed, or it could not be loaded): reload the list` }];
+    };
 
     // Whether a write is about the capture the page shows: `hash` (the image), or `runId` and
     // `runAttempt`. A page that sends neither is not checked.
@@ -2511,6 +2589,21 @@ export function createApp({
             return [202, { job }];
         },
         "GET /api/finish-status": async () => [200, { job }],
+        // Usage events (config `usage`): whether the page sends them, and the page's batches,
+        // appended to usage-events.jsonl. Off, nothing is written.
+        "GET /api/usage-setting": async () => [200, { on: config.usage === true }],
+        "POST /api/usage": async (_, body) => {
+            if (config.usage !== true) {
+                return [404, { error: "usage events are off" }];
+            }
+            const lines = usageLines(body.events, token);
+            if (lines === null) {
+                return [400, { error: "events must be at most 100 small usage events" }];
+            }
+            mkdirSync(stateDir, { recursive: true });
+            appendFileSync(join(stateDir, USAGE_FILE), lines);
+            return [200, { kept: lines.split("\n").length - 1 }];
+        },
         // Update from the default branch: a background job like Finish, followed the same way.
         "POST /api/update": async (_, body) => {
             const t = await targetOf(String(body.id));
@@ -2601,7 +2694,16 @@ export function createApp({
             });
         // The commit Finish pushed is the branch's tip now, before a refresh fetches it.
         const pushed = async (commit) => {
+            if (t.branch) {
+                pushedTips.set(t.branch, commit);
+                pushes++;
+            }
             t.published = await earlierAccepts(repo, commit, t.pr, config.baselines);
+            // A refresh that ended while this Finish ran listed a new object for the target.
+            const shown = targets.get(t.id);
+            if (shown && shown !== t) {
+                shown.published = t.published;
+            }
         };
         try {
             j.result = await finish({
@@ -2624,7 +2726,9 @@ export function createApp({
             const r = j.result;
             const status = r.statusError ? `; status not posted: ${r.statusError}` : "";
             console.log(
-                `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
+                r.alreadyFinished
+                    ? `visual-review: Finish of ${finishLabel(t)} done: already finished as commit ${r.commit}`
+                    : `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
             );
         } catch (err) {
             if (err instanceof AcceptError && err.committed && !err.pullRequestMissing) {
@@ -2689,14 +2793,19 @@ export function createApp({
         setInterval(() => refresh().catch(failed("background")), POLL).unref();
     }
 
+    // The page's own files: GET only, and only those it names.
+    async function sendStatic(req, res, pathname) {
+        const entry = req.method === "GET" && Object.hasOwn(STATIC, pathname) ? STATIC[pathname] : null;
+        return entry
+            ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
+            : send(res, 404, { error: "not found" });
+    }
+
     const handler = async (req, res) => {
         try {
             const url = new URL(req.url, origin);
             if (!url.pathname.startsWith("/api/")) {
-                const entry = req.method === "GET" && Object.hasOwn(STATIC, url.pathname) ? STATIC[url.pathname] : null;
-                return entry
-                    ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
-                    : send(res, 404, { error: "not found" });
+                return await sendStatic(req, res, url.pathname);
             }
             if (!tokenOk(req.headers["x-review-token"])) {
                 return send(res, 401, { error: "missing or wrong session token: open the URL serve printed" });

@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { contentHash, gateProblems, unrecordedChanges } from "../trusted/gate.mjs";
 import {
     commitMessage,
+    commitStatus,
     finish,
     legacyApprovals,
     legacyApprovalsAsync,
@@ -394,6 +395,45 @@ describe("finish: refusals", () => {
         const local = { local: { describe: "abc-dirty", diff: "0".repeat(64) }, runId: null };
         s.projects["compact-mantine"] = copyFixture("compact-mantine", join(s.dir, "l/compact-mantine"), local);
         await expect(s.run([accept("badge--default.light.png")])).rejects.toThrow(/local preview/);
+    });
+});
+
+describe("finish: a Finish sent again after it succeeded", () => {
+    const B = "badge--default.light.png";
+    const P = "button--primary.dark.png";
+
+    it("reports the same decisions as already finished, and pushes and posts nothing", async () => {
+        const s = setup();
+        const first = await s.run([accept(B), accept(P, "compact-mantine", "wider")]);
+        const calls = s.calls.length;
+        const again = await s.run([accept(B), accept(P, "compact-mantine", "wider")]);
+        expect(again).toMatchObject({ commit: first.commit, branch: "feature", alreadyFinished: true });
+        expect(remoteLog(s, "feature")[0]).toBe(first.commit);
+        expect(s.calls).toHaveLength(calls);
+    });
+
+    it("reports part of the same decisions as already finished", async () => {
+        const s = setup();
+        const first = await s.run([accept(B), accept(P)]);
+        await expect(s.run([accept(B)])).resolves.toMatchObject({ commit: first.commit, alreadyFinished: true });
+    });
+
+    it("still refuses as stale when the branch moved by anything else", async () => {
+        const s = setup();
+        await s.run([accept(B)]);
+        pushCommit(s.remote, "feature", "later.txt");
+        await expect(s.run([accept(B)])).rejects.toThrow(/capture is stale, wait for CI/);
+    });
+
+    it("still refuses as stale when the decisions differ", async () => {
+        const s = setup();
+        const first = await s.run([accept(B)]);
+        await expect(s.run([accept(B), accept(P)])).rejects.toThrow(/capture is stale, wait for CI/);
+        await expect(s.run([accept(B, "compact-mantine", "a note")])).rejects.toThrow(/capture is stale/);
+        await expect(
+            s.run([accept(B), { project: "compact-mantine", file: P, decision: "reject", reason: "no" }]),
+        ).rejects.toThrow(/capture is stale/);
+        expect(remoteLog(s, "feature")[0]).toBe(first.commit);
     });
 });
 
@@ -1151,6 +1191,16 @@ describe("finish with a passkey approval", () => {
         });
     });
 
+    it("reports a signed Finish sent again, rejects and all, as already finished", async () => {
+        const s = setup();
+        const first = await run(s, DECISIONS, await approved(s, DECISIONS));
+        const again = await run(s, DECISIONS, await approved(s, DECISIONS));
+        expect(again).toMatchObject({ commit: first.commit, alreadyFinished: true });
+        const other = [...DECISIONS.slice(0, 3), { ...DECISIONS[3], reason: "short" }, DECISIONS[4]];
+        await expect(run(s, other, await approved(s, other))).rejects.toThrow(/capture is stale/);
+        expect(remoteLog(s, "feature")[0]).toBe(first.commit);
+    });
+
     it("refuses, before committing, a record that differs from the approved one", async () => {
         const s = setup();
         const approval = await approved(s, [accept("badge--default.light.png")]);
@@ -1463,5 +1513,28 @@ describe("finish: the less travelled paths", () => {
             "uploading images to LFS (50 of 51 done)",
             "uploading images to LFS (checking the commit has them all)",
         ]);
+    });
+});
+
+describe("commitStatus", () => {
+    const counts = { accepted: 2, rejected: 0, excluded: 1, undecided: 0, unloaded: [] };
+
+    it("is success when everything was decided and loaded", () => {
+        expect(commitStatus(counts)).toEqual({
+            state: "success",
+            description: "Reviewed: 2 accepted, 0 rejected, 1 excluded, 0 left undecided",
+        });
+    });
+
+    it("is pending while a story is undecided or a project did not load", () => {
+        expect(commitStatus({ ...counts, undecided: 3 }).state).toBe("pending");
+        expect(commitStatus({ ...counts, unloaded: ["layout", "graphty"] })).toEqual({
+            state: "pending",
+            description: "Reviewed: 2 accepted, 0 rejected, 1 excluded, 0 left undecided, not loaded: layout, graphty",
+        });
+    });
+
+    it("is failure on any reject, even with stories undecided", () => {
+        expect(commitStatus({ ...counts, rejected: 1, undecided: 3, unloaded: ["layout"] }).state).toBe("failure");
     });
 });

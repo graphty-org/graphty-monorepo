@@ -1,6 +1,6 @@
 /**
  * The input family's CSS (design/figma-spec.md 6): Mantine's fields on the foundation's
- * `cm-field` / `cm-field-outlined`, the select trigger, the dark listbox on `cm-menu-surface` /
+ * `cm-field` / `cm-field-outlined`, the select trigger, the listbox on `cm-menu-surface` /
  * `cm-menu-row`, pill fields, and the package's own SearchInput, ComboInput and VariablePill.
  *
  * Mantine's field is three boxes: the Input wrapper (`cm-input-wrapper`, which also takes
@@ -12,6 +12,7 @@
  * `--cm-field-shadow` / `--cm-field-border`, which the AA token block switches.
  */
 import { cmFont } from "../tokens";
+import { ROW_UNLIT } from "./00-foundation.css";
 
 const css = `
 /* ---- The field (spec 6, shared rules) ---- */
@@ -191,7 +192,7 @@ const css = `
     color: var(--cm-text-disabled);
 }
 
-/* ---- The dark listbox (spec 6.5) ---- */
+/* ---- The listbox (spec 6.5): the menu surface, following the page's scheme ---- */
 /* The surface restated at two classes: a Combobox dropdown is a Mantine Popover dropdown, so it
    also receives the Popover's theme classes (the light popover), which must not win here. */
 .cm-listbox.cm-menu-surface {
@@ -210,14 +211,14 @@ const css = `
     border-radius: 13px;
     background-color: var(--cm-bg-menu);
     color: var(--cm-text-menu);
-    box-shadow: var(--cm-elevation-400);
+    box-shadow: var(--cm-menu-shadow);
 }
 .cm-listbox .cm-listbox-option {
     gap: 4px;
     padding: 0 32px 0 12px;
     border-radius: 0;
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
     white-space: nowrap;
     opacity: 1;
     cursor: default;
@@ -226,7 +227,7 @@ const css = `
 .cm-listbox .cm-listbox-option[data-combobox-selected],
 .cm-listbox .cm-listbox-option[data-checked] {
     background: transparent;
-    color: var(--cm-text-menu);
+    color: var(--cm-row-ink, var(--cm-text-menu));
 }
 .cm-listbox .cm-listbox-option[data-combobox-disabled] {
     opacity: 1;
@@ -236,12 +237,16 @@ const css = `
 .cm-listbox .cm-listbox-option[data-combobox-disabled]::before {
     background: transparent;
 }
+.cm-listbox .cm-listbox-option[data-combobox-disabled] { ${ROW_UNLIT} }
 /* Only one row is ever filled: the pointer's row, else the keyboard's, else the selected one. */
 .cm-listbox:has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover)::before,
 .cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected])::before,
 .cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected])::before {
     background: transparent;
 }
+.cm-listbox:has(.cm-menu-row:hover) .cm-menu-row[data-combobox-selected]:not(:hover),
+.cm-listbox:has([data-combobox-selected]) .cm-menu-row[aria-selected="true"]:not([data-combobox-selected]),
+.cm-listbox-multi .cm-menu-row[aria-selected="true"]:not(:hover):not([data-combobox-selected]) { ${ROW_UNLIT} }
 /* The check follows the value (data-checked), not aria-selected: Mantine's store moves
    aria-selected along with the keyboard highlight. */
 .cm-listbox .cm-menu-row .cm-menu-row-check {
@@ -268,8 +273,9 @@ const css = `
 }
 .cm-listbox .cm-listbox-group + .cm-listbox-group,
 .cm-listbox .cm-listbox-separator {
-    margin-top: 8px;
+    margin: 8px 0 0;
     padding-top: 8px;
+    border: 0;
     border-top: 1px solid var(--cm-border-translucent);
 }
 .cm-listbox .cm-listbox-separator {

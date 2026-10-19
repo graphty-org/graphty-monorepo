@@ -1,10 +1,10 @@
 import { PopoutManager } from "@graphty/compact-mantine";
-import userEvent from "@testing-library/user-event";
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { makeLayer } from "../../../../test/layerFixture";
-import { fireEvent, render, screen, within } from "../../../../test/test-utils";
+import { render, screen, within } from "../../../../test/test-utils";
 import type { LayerItem } from "../../../shell/panel/StyleLayerList";
 import { ShellProvider } from "../../../shell/ShellContext";
 import { StyleLayerPropertiesPanel } from "../StyleLayerPropertiesPanel";
@@ -83,20 +83,20 @@ describe("StyleLayerPropertiesPanel", () => {
         expect(screen.getByLabelText("Node Selector")).toHaveValue("data.group == `1`");
     });
 
-    it("commits a changed selector as an expression", () => {
+    it("commits a changed selector as an expression", async () => {
         const onUpdate = vi.fn();
         renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} onUpdate={onUpdate} />);
 
         const input = screen.getByLabelText("Node Selector");
-        fireEvent.change(input, { target: { value: "data.group == `2`" } });
-        fireEvent.blur(input);
+        await userEvent.fill(input, "data.group == `2`");
+        await userEvent.tab();
 
         expect(onUpdate).toHaveBeenCalledWith("layer-1", {
             selector: { match: "expression", where: "data.group == `2`" },
         });
     });
 
-    it("commits an emptied selector as `everything`, spelled out", () => {
+    it("commits an emptied selector as `everything`, spelled out", async () => {
         /* The empty string used to mean "every element", which looks scoped, behaves
            universally and says nothing about the difference. The element refuses it outright
            now, so the panel says what it means. */
@@ -104,17 +104,18 @@ describe("StyleLayerPropertiesPanel", () => {
         renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} onUpdate={onUpdate} />);
 
         const input = screen.getByLabelText("Node Selector");
-        fireEvent.change(input, { target: { value: "   " } });
-        fireEvent.blur(input);
+        await userEvent.fill(input, "   ");
+        await userEvent.tab();
 
         expect(onUpdate).toHaveBeenCalledWith("layer-1", { selector: { match: "everything" } });
     });
 
-    it("writes nothing when the selector text did not change", () => {
+    it("writes nothing when the selector text did not change", async () => {
         const onUpdate = vi.fn();
         renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} onUpdate={onUpdate} />);
 
-        fireEvent.blur(screen.getByLabelText("Node Selector"));
+        await userEvent.click(screen.getByLabelText("Node Selector"));
+        await userEvent.tab();
 
         expect(onUpdate).not.toHaveBeenCalled();
     });
@@ -155,14 +156,13 @@ describe("StyleLayerPropertiesPanel", () => {
     it("carries every other literal across when one channel is written", async () => {
         /* A patch replaces `set` wholesale, because `update` merges one key deep. A handler
            that sent only the channel it owns would delete every other literal on the layer. */
-        const user = userEvent.setup();
         const onUpdate = vi.fn();
         renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} onUpdate={onUpdate} />);
 
         const size = within(group("Shape")).getByLabelText("Size");
-        await user.clear(size);
-        await user.type(size, "5");
-        fireEvent.blur(size);
+        await userEvent.clear(size);
+        await userEvent.type(size, "5");
+        await userEvent.tab();
 
         expect(onUpdate).toHaveBeenCalledWith("layer-1", { set: { "node.color": "#FF0000", "node.size": 5 } });
     });
@@ -170,14 +170,29 @@ describe("StyleLayerPropertiesPanel", () => {
     it("writes `set: undefined` when the last literal is reset", async () => {
         /* Removing the key is how a layer says it no longer sets that channel; a present key
            holding `undefined` is a different fact and the element reads it as one. */
-        const user = userEvent.setup();
         const onlyColour = makeLayer("layer-4", "One colour", { set: { "node.color": "#FF0000" } });
         const onUpdate = vi.fn();
         renderPanel(<StyleLayerPropertiesPanel layer={onlyColour} onUpdate={onUpdate} />);
 
-        await user.click(within(group("Color")).getByTestId("compact-color-input-reset"));
+        await userEvent.click(within(group("Color")).getByTestId("compact-color-input-reset"));
 
         expect(onUpdate).toHaveBeenCalledWith("layer-4", { set: undefined });
+    });
+
+    it("offers a reset only on a number the layer sets, and the reset drops that channel", async () => {
+        const onUpdate = vi.fn();
+        renderPanel(<StyleLayerPropertiesPanel layer={NODE_LAYER} onUpdate={onUpdate} />);
+
+        expect(within(group("Shape")).getByLabelText("Size")).toHaveValue("2");
+        await userEvent.click(within(group("Shape")).getByRole("button", { name: "Reset Size to default" }));
+
+        expect(onUpdate).toHaveBeenCalledWith("layer-1", { set: { "node.color": "#FF0000" } });
+    });
+
+    it("draws an unset number at its default with no reset beside it", () => {
+        renderPanel(<StyleLayerPropertiesPanel layer={makeLayer("layer-7", "Empty")} />);
+
+        expect(within(group("Shape")).queryByRole("button", { name: "Reset Size to default" })).toBeNull();
     });
 
     it("opens the swatch on a component color clamped into range, without its alpha", () => {
@@ -197,11 +212,10 @@ describe("StyleLayerPropertiesPanel", () => {
     });
 
     it("offers exactly one verb for a bound channel, and it converts the rule", async () => {
-        const user = userEvent.setup();
         const onResolveToStatic = vi.fn();
         renderPanel(<StyleLayerPropertiesPanel layer={BOUND_LAYER} onResolveToStatic={onResolveToStatic} />);
 
-        await user.click(screen.getByRole("button", { name: /Convert to a fixed value/ }));
+        await userEvent.click(screen.getByRole("button", { name: /Convert to a fixed value/ }));
 
         expect(onResolveToStatic).toHaveBeenCalledWith("layer-3", "node.color");
     });

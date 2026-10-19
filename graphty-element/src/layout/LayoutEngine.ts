@@ -11,7 +11,7 @@ import {
     type NodeMask,
 } from "@graphty/graph-format";
 import { fromPositionColumn, type LayoutResult, toPositionColumn } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { publishLayoutDescriptor } from "../catalog/layoutRegistry";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
@@ -222,6 +222,8 @@ export const layoutEngineInternals = {} as {
     attachPositions(engine: LayoutEngine, positions: ElementPositions): void;
     /** See `LayoutEngine.edgeProblems`. */
     edgeProblems(engine: LayoutEngine, drawn: ReadonlyMap<string, Edge>): string[];
+    /** See `LayoutEngine.setFollowers`. */
+    setFollowers(engine: LayoutEngine, rows: ReadonlySet<number> | null): void;
 };
 
 /**
@@ -310,6 +312,9 @@ export abstract class LayoutEngine {
         layoutEngineInternals.attachPositions = (engine, positions) => {
             engine.attachPositions(positions);
         };
+        layoutEngineInternals.setFollowers = (engine, rows) => {
+            engine.setFollowers(rows);
+        };
     }
 
     static type: string;
@@ -381,6 +386,9 @@ export abstract class LayoutEngine {
 
     /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
     private holdRows = 0;
+
+    /** The rows the element places itself (group nodes following their members), or null. */
+    private followers: ReadonlySet<number> | null = null;
 
     // basic functionality
     abstract init(): Promise<void>;
@@ -607,12 +615,48 @@ export abstract class LayoutEngine {
      * @returns True while a hold is set and the row is held or newer than the hold.
      */
     protected isHeld(index: number): boolean {
+        if (this.isFollower(index)) {
+            return true;
+        }
+
         const { hold } = this;
         if (hold === null) {
             return false;
         }
 
         return index >= this.holdRows || !Number.isInteger(index) || index < 0 || maskTest(hold, index);
+    }
+
+    /**
+     * Hand the engine the rows the element places itself: group nodes with no stored position,
+     * which follow their members' box. Each is held like a scoped layout's held row -- never
+     * integrated, never written by a layout step -- and an engine with forces of its own makes
+     * it exert none (see {@link LayoutEngine.isFollower}). Re-applies the hold through
+     * {@link LayoutEngine.setHoldMask}, so an engine that fixes held nodes in its own state picks
+     * the followers up too.
+     * @param rows - The follower rows, or null for none.
+     */
+    protected setFollowers(rows: ReadonlySet<number> | null): void {
+        this.followers = rows === null || rows.size === 0 ? null : rows;
+        this.setHoldMask(this.hold, this.holdRows);
+    }
+
+    /**
+     * Whether the element places this row itself, as a group following its members: an engine
+     * with forces of its own gives it none, so it neither repels nor attracts another node.
+     * @param index - The node's row.
+     * @returns True for a follower row.
+     */
+    protected isFollower(index: number): boolean {
+        return this.followers?.has(index) === true;
+    }
+
+    /**
+     * Whether any row is held, by a scope or as a follower.
+     * @returns True when {@link LayoutEngine.isHeld} can answer true.
+     */
+    protected get holdsAny(): boolean {
+        return this.hold !== null || this.followers !== null;
     }
 
     /**

@@ -28,7 +28,7 @@ import { StoryPanel, StoryState, StoryStates } from "../../helpers/story-panel";
  * |---|---|
  * | Between sections | 1px `--cm-border`, full panel width |
  * | Toolbar | 1 x 48 (secondary bar 1 x 40) `--cm-border` |
- * | Dark menu | 1px `--cm-border-translucent`, 8px above and below |
+ * | Menu | 1px `--cm-border-translucent`, 8px above and below |
  */
 const meta: Meta<typeof Divider> = {
     title: "Themed Mantine/Surfaces/Divider",

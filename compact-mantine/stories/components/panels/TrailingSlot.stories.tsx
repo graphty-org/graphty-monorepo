@@ -33,6 +33,7 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * | **The row's `trailing` prop** | Almost always. FieldRow, CompoundRow, ToggleRow, RampRow, DataRow and the chart rows already reserve the slot. |
  * | **TrailingSlot** | You are laying out a row of your own and want it to end in the library's column. |
  * | **AdvancedButton** | The usual thing to put in the slot: a 24px gear that opens the rarer settings (its own page is under Components/Actions). |
+ * | **ResetButton** | A value with a default the reader overrides: a 24px reset, drawn once the reader has set something (an example is on the Select page). |
  *
  * A lone boolean that qualifies the row belongs in the slot as a checkbox, not
  * on a row of its own.

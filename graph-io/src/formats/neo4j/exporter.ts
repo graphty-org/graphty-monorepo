@@ -400,6 +400,17 @@ class ExportPlan {
         this.checkStoredIds();
         this.directionNotes();
         const slots = new Set([this.kind, this.labels, this.idSpace].flatMap((c) => (c === null ? [] : [c.meta.name])));
+        this.addGenericNotes(generic, slots);
+        this.notes.push(...this.ownNotes);
+        this.filterNotesByPart();
+    }
+
+    /**
+     * Add the generic capability notes, leaving out the ones this format reads back as they were.
+     * @param generic - the notes the capability check found
+     * @param slots - the names of the :TYPE, :LABEL and :ID(Space) columns
+     */
+    private addGenericNotes(generic: ReturnType<typeof checkCapabilities>, slots: ReadonlySet<string>): void {
         for (const gen of generic) {
             if (gen.code === LOSS.JSON && gen.column !== null && this.writtenAsPoint(gen.column)) {
                 continue;
@@ -412,7 +423,8 @@ class ExportPlan {
                 this.fatalEdges = new GraphFormatError("E_DIRECTED", gen.message, { reason: "mixed direction" });
             }
             if ((gen.code === LOSS.POSITIONS || gen.code === LOSS.VIZ) && gen.column !== null) {
-                // written as a plain property (a point for a position); the role is what is lost
+                // written as a plain property (a point for a position); the role is what is lost. Deprecated for
+                // the style roles (next major): styles reach a file only through the style writer.
                 this.notes.push(
                     Object.freeze({
                         code: gen.code,
@@ -425,8 +437,6 @@ class ExportPlan {
             }
             this.notes.push(gen);
         }
-        this.notes.push(...this.ownNotes);
-        this.filterNotesByPart();
     }
 
     /**
@@ -617,22 +627,7 @@ class ExportPlan {
      * @returns the scalar plan
      */
     private integralOrDouble(column: Column, declared: string, label: string): ScalarPlan {
-        let integral = true;
-        if (column.dtype === "f64") {
-            for (let r = 0; r < column.length && integral; r++) {
-                if (column.isSet(r) && !Number.isInteger(column.data[r])) {
-                    integral = false;
-                }
-            }
-        } else if (column.dtype === "list" && column.child.dtype === "f64") {
-            const { data } = column.child;
-            for (let i = 0; i < data.length && integral; i++) {
-                if (!Number.isInteger(data[i])) {
-                    integral = false;
-                }
-            }
-        }
-        if (integral) {
+        if (holdsOnlyIntegers(column)) {
             return { type: declared, kind: "integer", temporal: null };
         }
         this.note(
@@ -1186,22 +1181,33 @@ class ExportPlan {
             return null;
         }
         if (plan.list) {
-            const items = column.dtype === "list" ? column.sliceOf(row) : (column.value(row) as ArrayLike<unknown>);
-            const texts: string[] = [];
-            for (const item of Array.from(items)) {
-                // an item of several components (itemComponents > 1) is flattened into the array
-                if (Array.isArray(item) || ArrayBuffer.isView(item)) {
-                    for (const component of Array.from(item as ArrayLike<unknown>)) {
-                        texts.push(formatScalar(component, scalar, null));
-                    }
-                } else {
-                    texts.push(formatScalar(item, scalar, null));
-                }
-            }
-            return texts.join(this.options.arrayDelimiter);
+            return this.listText(plan, row);
         }
         const text = companion?.isSet(row) ? textOf(companion, row) : null;
         return formatScalar(column.dtype === "json" ? column.values[row] : column.value(row), scalar, text);
+    }
+
+    /**
+     * The text of one list cell: its items joined by the array delimiter.
+     * @param plan - the column plan
+     * @param row - the row, which is set
+     * @returns the text
+     */
+    private listText(plan: ColumnPlan, row: number): string {
+        const { column, scalar } = plan;
+        const items = column.dtype === "list" ? column.sliceOf(row) : (column.value(row) as ArrayLike<unknown>);
+        const texts: string[] = [];
+        for (const item of Array.from(items)) {
+            // an item of several components (itemComponents > 1) is flattened into the array
+            if (Array.isArray(item) || ArrayBuffer.isView(item)) {
+                for (const component of Array.from(item as ArrayLike<unknown>)) {
+                    texts.push(formatScalar(component, scalar, null));
+                }
+            } else {
+                texts.push(formatScalar(item, scalar, null));
+            }
+        }
+        return texts.join(this.options.arrayDelimiter);
     }
 }
 
@@ -1320,6 +1326,16 @@ function defaultScalar(dtype: Dtype | ScalarDtype): ScalarPlan {
 }
 
 /**
+ * Format a number with a formatter; any other value is written as String(value).
+ * @param value - the value
+ * @param format - the number formatter
+ * @returns the text
+ */
+function numberOrString(value: unknown, format: (n: number) => string): string {
+    return typeof value === "number" ? format(value) : String(value);
+}
+
+/**
  * Format one scalar value for a cell.
  * @param value - the value
  * @param scalar - the plan
@@ -1329,22 +1345,22 @@ function defaultScalar(dtype: Dtype | ScalarDtype): ScalarPlan {
 function formatScalar(value: unknown, scalar: ScalarPlan, text: string | null): string {
     switch (scalar.kind) {
         case "integer":
-            return typeof value === "number" ? formatInteger(value) : String(value);
+            return numberOrString(value, formatInteger);
         case "float":
-            return typeof value === "number" ? formatF32(value) : String(value);
+            return numberOrString(value, formatF32);
         case "double":
-            return typeof value === "number" ? formatF64(value) : String(value);
+            return numberOrString(value, formatF64);
         case "boolean":
             return value === true ? "true" : "false";
         case "string":
-            return typeof value === "string" ? value : String(value);
+            return String(value);
         case "temporal":
-            if (text !== null) {
-                return text;
-            }
-            return typeof value === "number" && scalar.temporal !== null
-                ? formatTemporal(value, scalar.temporal)
-                : String(value);
+            return (
+                text ??
+                numberOrString(value, (n) =>
+                    scalar.temporal === null ? String(n) : formatTemporal(n, scalar.temporal),
+                )
+            );
         case "point":
             return formatPoint(value);
         case "json":
@@ -1538,4 +1554,27 @@ function weightPropertyOf(snapshot: GraphSnapshot): string | null {
     const neo4j = (snapshot.meta.extra as { neo4j?: { weightProperty?: unknown } } | null)?.neo4j;
     const name = neo4j?.weightProperty;
     return typeof name === "string" && name !== "" ? name : null;
+}
+
+/**
+ * Whether every set value of an f64 column, or of an f64 list column's items, is integral.
+ * @param column - the column
+ * @returns false when a value is not an integer
+ */
+function holdsOnlyIntegers(column: Column): boolean {
+    if (column.dtype === "f64") {
+        for (let r = 0; r < column.length; r++) {
+            if (column.isSet(r) && !Number.isInteger(column.data[r])) {
+                return false;
+            }
+        }
+    } else if (column.dtype === "list" && column.child.dtype === "f64") {
+        const { data } = column.child;
+        for (let i = 0; i < data.length; i++) {
+            if (!Number.isInteger(data[i])) {
+                return false;
+            }
+        }
+    }
+    return true;
 }

@@ -1,3 +1,195 @@
+## 0.8.89 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty:** use the graphty brand accent ([#3117](https://github.com/graphty-org/graphty-monorepo/issues/3117))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.31
+- Updated graphty-element to 3.29.1
+- Updated graph-io to 0.3.45
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.88 (2026-10-18)
+
+### 🚀 Features
+
+- **graphty-element:** draw overlapping file nodes in the file's own order ([6200b61ba](https://github.com/graphty-org/graphty-monorepo/commit/6200b61ba))
+- **graphty-element:** draw edges through bends with the edge.bends channel ([8ebc4190d](https://github.com/graphty-org/graphty-monorepo/commit/8ebc4190d))
+- **graphty-element:** draw file group nodes behind their members with node.zIndex ([b1332a531](https://github.com/graphty-org/graphty-monorepo/commit/b1332a531))
+- **graphty:** name and offer the new node width, height, depth, planar and border channels ([f36607b25](https://github.com/graphty-org/graphty-monorepo/commit/f36607b25))
+- **graph-io:** draw a Gephi edge with no thickness as thick as its weight ([cff1c0b23](https://github.com/graphty-org/graphty-monorepo/commit/cff1c0b23))
+- **graphty:** warn before an export loses the graph's styles ([cc4367ee8](https://github.com/graphty-org/graphty-monorepo/commit/cc4367ee8))
+- **graphty:** a preference to import styles from files, on every load path ([7d15a07c7](https://github.com/graphty-org/graphty-monorepo/commit/7d15a07c7))
+- **graphty-element:** bindable label fields, label styles merged in explain() ([a5037638a](https://github.com/graphty-org/graphty-monorepo/commit/a5037638a))
+
+### 🩹 Fixes
+
+- **graphty-element:** cap a file's rounded corners so large groups keep small ones ([c6aefbdbc](https://github.com/graphty-org/graphty-monorepo/commit/c6aefbdbc))
+- **graphty-element:** read JSON node positions through the shared file-positions path ([578a6f627](https://github.com/graphty-org/graphty-monorepo/commit/578a6f627))
+- **graphty:** tell the reader what a file's styles lost, and never offer to save a refused file ([6004b0323](https://github.com/graphty-org/graphty-monorepo/commit/6004b0323))
+- **graphty:** save every format from the export's bytes and word refusals from their codes ([15fde8de4](https://github.com/graphty-org/graphty-monorepo/commit/15fde8de4))
+- **graphty:** name a style only graphty draws by its channel's name in the export warning ([72d998ac7](https://github.com/graphty-org/graphty-monorepo/commit/72d998ac7))
+- **graphty-element:** report no style loss for what only the element's base layers draw ([e0927dd89](https://github.com/graphty-org/graphty-monorepo/commit/e0927dd89))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.59
+- Updated compact-mantine to 0.9.30
+- Updated graphty-element to 3.29.0
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated graph-io to 0.3.44
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.87 (2026-10-18)
+
+### 🩹 Fixes
+
+- **graphty:** use CompactColorInput for the Style tab's color lines ([#3052](https://github.com/graphty-org/graphty-monorepo/issues/3052))
+- **graphty-element:** read a zod 4 type list as a union in optionsFromZod ([#1940](https://github.com/graphty-org/graphty-monorepo/issues/1940))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.29
+- Updated graphty-element to 3.28.7
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.86 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.58
+- Updated compact-mantine to 0.9.28
+- Updated graphty-element to 3.28.6
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated graph-io to 0.3.43
+
+## 0.8.85 (2026-10-17)
+
+### 🚀 Features
+
+- **compact-mantine:** replace legacy number, select and fold controls with Figma rows ([968d8fd6b](https://github.com/graphty-org/graphty-monorepo/commit/968d8fd6b))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.27
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.84 (2026-10-17)
+
+### 🚀 Features
+
+- **graphty:** open the workspace by default ([#3056](https://github.com/graphty-org/graphty-monorepo/issues/3056))
+
+### 🩹 Fixes
+
+- **graphty:** show copy feedback at once, and let Enter on Copy all copy ([2b67499c0](https://github.com/graphty-org/graphty-monorepo/commit/2b67499c0))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.57
+- Updated graphty-element to 3.28.5
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated graph-io to 0.3.42
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.83 (2026-10-16)
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.26
+
+## 0.8.82 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** apply a held-back mark suggestion with styles.mark() ([6d56a198c](https://github.com/graphty-org/graphty-monorepo/commit/6d56a198c))
+- **graphty:** keep focus where a panel More row moved it ([#2950](https://github.com/graphty-org/graphty-monorepo/issues/2950))
+- **compact-mantine:** report one segmented control change per click ([#2944](https://github.com/graphty-org/graphty-monorepo/issues/2944))
+- **graphty:** keep the device-lost toast clear of the activity rail ([#2949](https://github.com/graphty-org/graphty-monorepo/issues/2949))
+
+### 🧱 Updated Dependencies
+
+- Updated compact-mantine to 0.9.25
+- Updated graphty-element to 3.28.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.81 (2026-10-16)
+
+### 🩹 Fixes
+
+- **graphty:** color canvas strip action text with the brand text token ([#2948](https://github.com/graphty-org/graphty-monorepo/issues/2948))
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.3
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 0.8.80 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.56
+- Updated compact-mantine to 0.9.24
+- Updated graphty-element to 3.28.2
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated graph-io to 0.3.41
+
+## 0.8.79 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.1
+
+## 0.8.78 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graphty-element to 3.28.0
+
+## 0.8.77 (2026-10-15)
+
+### 🚀 Features
+
+- **graphty:** offer the node size mode in the Style tab ([#2495](https://github.com/graphty-org/graphty-monorepo/issues/2495))
+- **graphty:** pivot the camera on the selected nodes ([#2293](https://github.com/graphty-org/graphty-monorepo/issues/2293))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.55
+- Updated graphty-element to 3.27.0
+- Updated graph-samples to 0.1.33
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.8.76 (2026-10-14)
 
 ### 🩹 Fixes

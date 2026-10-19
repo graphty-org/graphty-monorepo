@@ -68,6 +68,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { pajekStyles } from "./styles.js";
 import {
     decodeCharacterReferences,
     isCommentOrBlank,
@@ -78,6 +79,7 @@ import {
     isVertexNumber,
     LABEL_COLUMN,
     ORIGINAL_ID_KEY,
+    PAJEK_STYLE_COMMENT,
     parseIntervals,
     parseSectionHeader,
     PARTITION_COLUMN,
@@ -222,6 +224,10 @@ export const PAJEK_ISSUE = Object.freeze({
     NEGATIVE_LIST_ENTRY: "W_PAJEK_NEGATIVE_LIST_ENTRY",
     /** An integer beyond 2^53 was stored as the nearest 64-bit float; pass `long: "string"` to keep every digit. */
     PRECISION: PRECISION_CODE,
+    /** A number alone at the end of a row, after its parameters (Pajek writes a trailing `0`); it is ignored. */
+    TRAILING_VALUE: "W_PAJEK_TRAILING_VALUE",
+    /** A line whose value is `NaN`; the line is kept without a value. */
+    NAN_VALUE: "W_PAJEK_NAN_VALUE",
 });
 
 /** The common options the Pajek importer reads (the rest is reported by reportUnusedOptions). */
@@ -251,6 +257,8 @@ const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
 const NUMERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const NON_FINITE_WORD = /^[+-]?(?:nan|inf|infinity)$/i;
+/** A line value Pajek writes for a missing value. */
+const NAN_WORD = /^[+-]?nan$/i;
 
 const LABEL_DECL: ColumnDecl = {
     name: LABEL_COLUMN,
@@ -291,7 +299,8 @@ function spellsDecl(): ColumnDecl {
 }
 
 /**
- * The position column declaration (design section 5.2: f64 x 3, role position, units "file").
+ * The position column declaration (design section 5.2: f64 x 3, role position, units "file"), with
+ * its spelling for `extractPositions()`.
  * @param sourceDims - 2 or 3, the coordinate count of the first vertex line with coordinates
  * @returns a fresh declaration
  */
@@ -303,7 +312,9 @@ function positionDecl(sourceDims: number): ColumnDecl {
         nullable: true,
         role: "position",
         origin: { format: "pajek", id: "coordinates" },
-        extra: { sourceDims, units: "file" },
+        // Pajek draws y downward (USAir97.net has Deadhorse, Alaska at y 0.10 and Miami at 0.53),
+        // centers depth on 0.5, and NetworkX writes "0.0 0.0" for a node with no position
+        extra: { sourceDims, units: "file", yAxis: "down", zOrigin: 0.5, zeroUnplaced: true },
     };
 }
 
@@ -335,6 +346,8 @@ interface RowExtras {
     readonly values: string[];
     /** The spells of an interval token, or null. */
     spells: [number, number][] | null;
+    /** A vertex shape keyword written among the parameters (Pajek reads it anywhere), lower-cased, or null. */
+    shape: string | null;
 }
 
 /** The section the parser is in. */
@@ -483,6 +496,9 @@ class PajekParser {
 
     private readonly edgeParams = new Map<string, TextCellWriter>();
 
+    /** Whether a `% graphty.styles` comment was kept for the style reader. */
+    private styleBlockKept = false;
+
     /**
      * Create the parser for one import call.
      * @param sink - the sink
@@ -505,6 +521,22 @@ class PajekParser {
     }
 
     /**
+     * Keep the first `% graphty.styles <json>` comment for the style reader (a file graphty wrote carries its styles
+     * there; Pajek skips comment lines).
+     * @param text - a comment or blank line
+     */
+    private comment(text: string): void {
+        if (this.styleBlockKept) {
+            return;
+        }
+        const trimmed = text.trimStart();
+        if (trimmed.startsWith(PAJEK_STYLE_COMMENT)) {
+            this.styleBlockKept = true;
+            this.report.keepForStyles(trimmed.slice(PAJEK_STYLE_COMMENT.length));
+        }
+    }
+
+    /**
      * Handle one line; every problem of the line is recorded as an issue and the line skipped.
      * @param text - the line without its terminator
      * @param line - the 1-based line number
@@ -512,6 +544,7 @@ class PajekParser {
      */
     line(text: string, line: number): boolean {
         if (isCommentOrBlank(text)) {
+            this.comment(text);
             return false;
         }
         const afterObjectHeader = this.objectHeader;
@@ -686,21 +719,7 @@ class PajekParser {
                 this.section = "none";
                 return;
             case "vertices":
-                if (afterObjectHeader) {
-                    // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
-                    // section), wherever it stands: never the network's own
-                    this.section = previous;
-                    if (previous === "object") {
-                        this.objects[this.objects.length - 1].count = h.count;
-                    }
-                    return;
-                }
-                if (this.vertexCount >= 0) {
-                    // a second `*Vertices` without a `*Network` header starts the next network
-                    this.ended = true;
-                    return;
-                }
-                this.verticesHeader(h, line);
+                this.verticesSectionLine(h, line, previous, afterObjectHeader);
                 return;
             case "arcs":
             case "edges":
@@ -737,6 +756,32 @@ class PajekParser {
                 throw new Error(`unknown section kind ${name}`);
             }
         }
+    }
+
+    /**
+     * A `*Vertices` line: a project object's own count, the start of the next network, or the
+     * network's vertices header.
+     * @param h - the header
+     * @param line - the line number
+     * @param previous - the section before this header
+     * @param afterObjectHeader - the previous line was a `*Partition`, `*Vector` or skipped section header
+     */
+    private verticesSectionLine(h: SectionHeader, line: number, previous: Section, afterObjectHeader: boolean): void {
+        if (afterObjectHeader) {
+            // the `*Vertices N` line of a project object (*Partition, *Vector, a skipped
+            // section), wherever it stands: never the network's own
+            this.section = previous;
+            if (previous === "object") {
+                this.objects[this.objects.length - 1].count = h.count;
+            }
+            return;
+        }
+        if (this.vertexCount >= 0) {
+            // a second `*Vertices` without a `*Network` header starts the next network
+            this.ended = true;
+            return;
+        }
+        this.verticesHeader(h, line);
     }
 
     /**
@@ -1038,6 +1083,7 @@ class PajekParser {
             i++;
         }
         const extras = this.extras(tokens, i, "node", line);
+        shape = extras.shape ?? shape;
         const restored = this.restoredId(extras);
         this.createNodes();
         // write
@@ -1317,6 +1363,14 @@ class PajekParser {
         if (i < tokens.length && isNumericText(tokens[i])) {
             valueText = tokens[i];
             i++;
+        } else if (i < tokens.length && NAN_WORD.test(tokens[i])) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.NAN_VALUE,
+                `a line value ${JSON.stringify(tokens[i])} is not a number; the line is kept without a value`,
+                { line },
+            );
+            i++;
         }
         const extras = this.extras(tokens, i, "edge", line);
         const { weightFrom } = this.options;
@@ -1595,7 +1649,7 @@ class PajekParser {
      * @returns the parsed extras
      */
     private extras(tokens: readonly string[], start: number, domain: "node" | "edge", line: number): RowExtras {
-        const extras: RowExtras = { keys: [], values: [], spells: null };
+        const extras: RowExtras = { keys: [], values: [], spells: null, shape: null };
         const seen = new Set<string>();
         for (let i = start; i < tokens.length;) {
             const token = tokens[i];
@@ -1604,13 +1658,14 @@ class PajekParser {
                 i++;
                 continue;
             }
+            if (domain === "node" && isShapeKeyword(token)) {
+                extras.shape = token.toLowerCase();
+                i++;
+                continue;
+            }
             if (i + 1 >= tokens.length) {
-                this.skip(domain);
-                throw new LineError(
-                    "parse-error",
-                    domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
-                    `parameter "${token}" has no value`,
-                );
+                this.loneLastToken(token, domain, line);
+                break;
             }
             if (seen.has(token)) {
                 this.report.warning(
@@ -1626,6 +1681,31 @@ class PajekParser {
             i += 2;
         }
         return extras;
+    }
+
+    /**
+     * A token alone at the end of a row, with no value after it: a number is ignored (reported once);
+     * anything else is a parameter without its value, which skips the row.
+     * @param token - the token
+     * @param domain - what is skipped when the row is malformed
+     * @param line - the line number
+     */
+    private loneLastToken(token: string, domain: "node" | "edge", line: number): void {
+        if (isNumericText(token)) {
+            this.report.warnOnce(
+                "validation-error",
+                PAJEK_ISSUE.TRAILING_VALUE,
+                `the number ${JSON.stringify(token)} alone at the end of a row is not a parameter; it is ignored`,
+                { line },
+            );
+            return;
+        }
+        this.skip(domain);
+        throw new LineError(
+            "parse-error",
+            domain === "node" ? PAJEK_ISSUE.VERTEX_LINE : PAJEK_ISSUE.LINE,
+            `parameter "${token}" has no value`,
+        );
     }
 
     /**
@@ -1768,6 +1848,7 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
     options: Object.freeze(["firstVertex"]),
     extensions: Object.freeze([".net", ".paj"]),
     mimeTypes: Object.freeze(["text/x-pajek", "text/plain"]),
+    styles: pajekStyles,
 
     /**
      * Confidence that the input is a Pajek network: it starts with `*Vertices` (or `*Network`),

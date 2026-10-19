@@ -5,7 +5,7 @@ import type {
     SimulationType,
     SpringElectricalOptions,
 } from "@graphty/layout";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { AccelerationController } from "../acceleration/AccelerationController";
 import { LAYOUT_DESCRIPTORS, layoutDescriptor } from "../catalog/layouts";
@@ -13,12 +13,18 @@ import { resolveOptionValues } from "../catalog/options";
 import type { AuthoredLayoutDescriptor, Scope, ScopeInput } from "../catalog/types";
 import type { GraphLayoutBehavior } from "../config/GraphBehavior";
 import { type OptionsSchema, toZodSchema } from "../config/OptionsSchema";
+import type { NodeGroup } from "../data/groups";
 import { WRITABLE_LANE } from "../data/lane";
 import type { Edge } from "../Edge";
 import { GraphtyError, isGraphtyError } from "../errors";
-import type { GraphSnapshotReplacedEvent, LayoutChangedEvent } from "../events";
+import type { GraphSnapshotReplacedEvent, LayoutChangedEvent, LayoutWarningEvent } from "../events";
 import { ForceAtlas2Layout } from "../layout/ForceAtlas2LayoutEngine";
-import { LayoutEngine, layoutEngineInternals, StaticLayoutEngine } from "../layout/LayoutEngine";
+import {
+    LayoutEngine,
+    layoutEngineInternals,
+    type LayoutEngineStatics,
+    StaticLayoutEngine,
+} from "../layout/LayoutEngine";
 import { NGraphEngine } from "../layout/NGraphLayoutEngine";
 import {
     SIMULATION_CAPABILITY,
@@ -26,7 +32,11 @@ import {
     type SimulationEngineOptions,
     SimulationLayoutEngine,
 } from "../layout/SimulationLayoutEngine";
-import { SnapshotLayoutEngine, snapshotLayoutInternals } from "../layout/SnapshotLayoutEngine";
+import {
+    SnapshotLayoutEngine,
+    snapshotLayoutInternals,
+    type SnapshotLayoutWarning,
+} from "../layout/SnapshotLayoutEngine";
 import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
@@ -352,6 +362,34 @@ function optionRefusal(type: string, error: unknown, passed: Record<string, unkn
     });
 }
 
+/** What a simulation layout reads beside its published schema: see {@link resolveSimulationOptions}. */
+const FRAME_LOOP_OPTIONS: readonly string[] = ["iterationsPerStep", "maxInFlight", "settleThreshold", "settleWindow"];
+
+/**
+ * The options a layout will run without, for the engines that do not refuse an unknown name.
+ *
+ * `ngraph` and the simulation layouts read their options without a strict schema, so a misspelled
+ * option used to be dropped with no sign. Refusing it now would break a call that runs today, so
+ * it is reported instead, as `W_UNKNOWN_OPTION`. Every other built-in engine refuses an unknown
+ * name with `E_UNKNOWN_OPTION` while it is built, and a registered layout's descriptor does.
+ * @param engineClass - The engine the consumer named.
+ * @param passed - The consumer's options.
+ * @returns The ignored names and the names the layout takes, or undefined when none is ignored.
+ */
+function ignoredOptions(
+    engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
+    passed: Record<string, unknown>,
+): { options: string[]; available: string[] } | undefined {
+    const simulation = engineClass.simulationType !== undefined;
+    if (!simulation && engineClass.type !== NGraphEngine.type) {
+        return undefined;
+    }
+
+    const available = [...Object.keys(engineClass.getZodOptionsSchema()), ...(simulation ? FRAME_LOOP_OPTIONS : [])];
+    const options = Object.keys(passed).filter((name) => !available.includes(name));
+    return options.length > 0 ? { options, available } : undefined;
+}
+
 /**
  * The refusal for a layout name nothing answers to.
  *
@@ -628,6 +666,13 @@ export class LayoutManager implements Manager {
      * outside it is held, including one that arrives later.
      */
     private members: ReadonlySet<NodeIdType> | null = null;
+
+    /** The engine and the rows {@link syncFollowers} last handed it. */
+    private followersOf: LayoutEngine | null = null;
+    private followersKey = "";
+
+    /** Each following group's box, from the last {@link placeGroups}. */
+    private readonly groupBoxes = new Map<NodeIdType, GroupBox>();
 
     /**
      * Strict state: something asked to step the layout while the lane was restoring, which only a
@@ -1042,6 +1087,36 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * Log a layout's warning and emit it as `layout-warning`.
+     * @param type - The layout that reported it.
+     * @param warning - Its code and parameters.
+     */
+    private warnLayout(type: string, warning: SnapshotLayoutWarning): void {
+        this.logger.warn("The layout could not do everything it was asked", { layoutType: type, ...warning });
+        this.eventManager.emit("layout-warning", {
+            layoutType: type,
+            ...warning,
+        } satisfies Omit<LayoutWarningEvent, "type">);
+    }
+
+    /**
+     * Report the consumer's options a layout will run without, as `W_UNKNOWN_OPTION`.
+     * @param type - The layout.
+     * @param engineClass - Its engine.
+     * @param passed - The consumer's options.
+     */
+    private warnIgnoredOptions(
+        type: string,
+        engineClass: LayoutEngineStatics & { simulationType?: SimulationType },
+        passed: Record<string, unknown>,
+    ): void {
+        const ignored = ignoredOptions(engineClass, passed);
+        if (ignored !== undefined) {
+            this.warnLayout(type, { code: "W_UNKNOWN_OPTION", params: ignored });
+        }
+    }
+
+    /**
      * Internal method for setting layout - bypasses queue
      * Used by operations that are already queued to prevent nested queueing
      * @param layout - A registered engine name, or a catalogue layout id
@@ -1160,6 +1235,9 @@ export class LayoutManager implements Manager {
                 progress: (progress) => {
                     this.eventManager.emit("layout-progress", { layoutType: type, ...progress });
                 },
+                warn: (warning) => {
+                    this.warnLayout(type, warning);
+                },
                 fail: (error) => {
                     if (this.layoutEngine === built) {
                         this.running = false;
@@ -1183,6 +1261,8 @@ export class LayoutManager implements Manager {
             // not answering, because from the caller's side that is what happened.
             throw unknownLayout(type);
         }
+
+        this.warnIgnoredOptions(type, engineClass, callerOpts);
 
         // Kept so that a failure during set-up leaves the element exactly as it found it: the
         // engine that was working is still the one working, and it is still configured the way the
@@ -1823,6 +1903,8 @@ export class LayoutManager implements Manager {
         // Cleared before the first await, so a frame that arrives while the chunks are still in
         // flight does not order the same count a second time.
         this.preStepsOwed = false;
+        // A group that follows its members is held before the first step, so it pushes nothing.
+        this.syncFollowers();
 
         if (engine instanceof SimulationLayoutEngine) {
             for (let remaining = preSteps; remaining > 0 && !engine.isSettled;) {
@@ -1983,6 +2065,156 @@ export class LayoutManager implements Manager {
     }
 
     /**
+     * The groups that follow their members, when the behaviour asks for it: see
+     * `behavior.layout.groupsFollowMembers`.
+     * @returns The groups with no stored position.
+     */
+    private followingGroups(): readonly NodeGroup[] {
+        return this.styles.config.behavior.layout.groupsFollowMembers === false ? [] : this.dataManager.groups;
+    }
+
+    /**
+     * Tell the engine which rows are groups following their members, when that has changed: a
+     * new engine, new groups, or a freeze that renumbered them. Held, they are never moved by a
+     * layout step and exert no force.
+     */
+    private syncFollowers(): void {
+        const engine = this.layoutEngine;
+        if (engine === undefined) {
+            return;
+        }
+
+        const rows: number[] = [];
+        for (const { group } of this.followingGroups()) {
+            const index = this.dataManager.nodes.get(group)?.index;
+            if (index !== undefined && validRow(index)) {
+                rows.push(index);
+            }
+        }
+
+        const key = rows.join(",");
+        if (engine === this.followersOf && key === this.followersKey) {
+            return;
+        }
+
+        this.followersOf = engine;
+        this.followersKey = key;
+        layoutEngineInternals.setFollowers(engine, rows.length === 0 ? null : new Set(rows));
+    }
+
+    /**
+     * Place every group with no stored position on its members' bounding box, padded by its
+     * largest member's radius: its position is the box's centre, written as a placement, and the
+     * box is what {@link LayoutManager.groupBox} answers and the node is drawn at. A group inside a
+     * group counts with its own box. Called before the nodes are drawn, every frame they are.
+     */
+    placeGroups(): void {
+        this.syncFollowers();
+        const engine = this.layoutEngine;
+        const groups = this.followingGroups();
+        this.groupBoxes.clear();
+        if (engine === undefined || groups.length === 0) {
+            return;
+        }
+
+        const byId = new Map(groups.map((g) => [g.group, g]));
+        const at = { x: 0, y: 0, z: 0 };
+        const { positions, nodes } = this.dataManager;
+        for (const group of groups) {
+            const box = this.boxOf(group, byId, new Set());
+            const node = nodes.get(group.group);
+            if (box === null || node === undefined || !validRow(node.index)) {
+                continue;
+            }
+
+            const placed = positions.isPlaced(node.index);
+            if (placed) {
+                positions.read(node.index, at);
+            }
+
+            const { center } = box;
+            if (!placed || Math.abs(at.x - center.x) + Math.abs(at.y - center.y) + Math.abs(at.z - center.z) > 1e-6) {
+                layoutEngineInternals.setNodePosition(engine, node, this.onEnginePlane(center));
+            }
+        }
+    }
+
+    /**
+     * One group's box: its members' extents (an inner group's own box), padded by its largest
+     * member's radius. Remembered in {@link groupBoxes}.
+     * @param group - The group.
+     * @param byId - Every following group, by id.
+     * @param seen - The groups on the way here, so a cycle ends.
+     * @returns The box, or null when no member is placed.
+     */
+    private boxOf(group: NodeGroup, byId: ReadonlyMap<NodeIdType, NodeGroup>, seen: Set<NodeIdType>): GroupBox | null {
+        const known = this.groupBoxes.get(group.group);
+        if (known !== undefined || seen.has(group.group)) {
+            return known ?? null;
+        }
+
+        seen.add(group.group);
+        const min = [Infinity, Infinity, Infinity];
+        const max = [-Infinity, -Infinity, -Infinity];
+        let pad = 0;
+        for (const id of group.members) {
+            const inner = byId.get(id);
+            const extent = inner === undefined ? this.nodeExtent(id) : this.boxOf(inner, byId, seen);
+            if (extent === null) {
+                continue;
+            }
+
+            const c = [extent.center.x, extent.center.y, extent.center.z];
+            const h = [extent.half.x, extent.half.y, extent.half.z];
+            for (let axis = 0; axis < 3; axis++) {
+                min[axis] = Math.min(min[axis], c[axis] - h[axis]);
+                max[axis] = Math.max(max[axis], c[axis] + h[axis]);
+            }
+
+            pad = inner === undefined ? Math.max(pad, extent.half.x) : pad;
+        }
+
+        if (!Number.isFinite(min[0])) {
+            return null;
+        }
+
+        const half = (axis: number): number => (max[axis] - min[axis]) / 2 + pad;
+        const box: GroupBox = {
+            center: { x: (min[0] + max[0]) / 2, y: (min[1] + max[1]) / 2, z: (min[2] + max[2]) / 2 },
+            half: { x: half(0), y: half(1), z: half(2) },
+        };
+        this.groupBoxes.set(group.group, box);
+        return box;
+    }
+
+    /**
+     * Where a placed node is and how far its drawn sphere reaches.
+     * @param id - The node.
+     * @returns Its centre and its radius on every axis, or null when it is not placed.
+     */
+    private nodeExtent(id: NodeIdType): GroupBox | null {
+        const node = this.dataManager.nodes.get(id);
+        const { positions } = this.dataManager;
+        if (node === undefined || !validRow(node.index) || !positions.isPlaced(node.index)) {
+            return null;
+        }
+
+        const center = { x: 0, y: 0, z: 0 };
+        positions.read(node.index, center);
+        const r = node.drawnRadius;
+        return { center, half: { x: r, y: r, z: r } };
+    }
+
+    /**
+     * The box a group with no stored position is drawn at, from the last {@link placeGroups}.
+     * @param id - The node.
+     * @returns Its centre and half extents, or undefined for a node that is no such group.
+     */
+    groupBox(id: NodeIdType): GroupBox | undefined {
+        return this.groupBoxes.get(id);
+    }
+
+    /**
      * Step the layout engine forward
      */
     step(): void {
@@ -1999,6 +2231,7 @@ export class LayoutManager implements Manager {
         }
 
         this.runPreStepsOnceThereIsSomethingToStep();
+        this.syncFollowers();
 
         if (this.layoutEngine && this.running && !this.layoutEngine.isSettled) {
             this.layoutEngine.step();
@@ -2186,6 +2419,12 @@ export class LayoutManager implements Manager {
 
         return Promise.resolve();
     }
+}
+
+/** Where a group with no stored position is drawn: its members' padded box, in scene units. */
+export interface GroupBox {
+    readonly center: { readonly x: number; readonly y: number; readonly z: number };
+    readonly half: { readonly x: number; readonly y: number; readonly z: number };
 }
 
 /**

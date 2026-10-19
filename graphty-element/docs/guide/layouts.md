@@ -15,11 +15,11 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 | Layout              | Type           | Best For                                  | Dimensions |
 | ------------------- | -------------- | ----------------------------------------- | ---------- |
 | `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
-| `d3-force`          | Force-directed | Web-standard                              | 2D         |
+| `d3`                | Force-directed | Web-standard                              | 2D/3D      |
 | `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
 | `grid`              | Geometric      | Regular structures                        | 2D         |
 | `radial`            | Geometric      | Distance from one node                    | 2D         |
-| `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
+| `hierarchical`      | Layered        | Trees, DAGs                               | 2D         |
 | `random`            | Random         | Testing, initial state                    | 2D/3D      |
 | `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
 | `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
@@ -66,7 +66,7 @@ graph.setLayout("ngraph", {
     springLength: 100,
     springCoefficient: 0.0008,
     gravity: -1.2,
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
@@ -87,7 +87,7 @@ graph.setLayout("ngraph", {
     springLength: 100, // Ideal edge length
     springCoefficient: 0.0008, // Spring stiffness
     gravity: -1.2, // Global attraction/repulsion
-    dimensions: 3, // 2 or 3
+    dim: 3, // 2 or 3
     dragCoefficient: 0.02, // Damping
     theta: 0.8, // Barnes-Hut approximation
     seed: 7, // Starting positions; unset, they differ on every load
@@ -139,15 +139,18 @@ element.edgeData = edges;
 await element.setLayout("force", { seed: 7 });
 ```
 
-### d3-force (Force-Directed)
+### d3 (Force-Directed)
 
-D3's force simulation. Industry-standard for web visualizations:
+D3's force simulation (`d3-force-3d`). Industry-standard for web visualizations. It runs until its
+"alpha" cools from 1 down to `alphaMin`:
 
 ```typescript
-graph.setLayout("d3-force", {
-    strength: -30, // Node repulsion
-    distance: 50, // Link distance
-    iterations: 300, // Simulation steps
+graph.setLayout("d3", {
+    alphaMin: 0.1, // Stop once alpha cools below this
+    alphaTarget: 0, // The alpha the simulation cools towards
+    alphaDecay: 0.0228, // How fast alpha cools each tick
+    velocityDecay: 0.4, // Friction: how much speed each node loses each tick
+    dim: 3, // 2 or 3
 });
 ```
 
@@ -161,9 +164,9 @@ Arranges nodes in a circle. Good for:
 
 ```typescript
 graph.setLayout("circular", {
-    radius: 100, // Circle radius
-    startAngle: 0, // Starting angle (radians)
-    endAngle: Math.PI * 2, // Ending angle
+    scale: 1, // Radius of the circle, before scalingFactor
+    scalingFactor: 80, // Multiplies every position; the drawn radius is scale * scalingFactor
+    dim: 2, // 2 or 3
 });
 ```
 
@@ -192,13 +195,16 @@ graph.setLayout("radial", {
 
 ### hierarchical
 
-Tree-like layout for directed graphs:
+Puts nodes in rows by how many steps they are from a starting node, so the graph reads as a tree
+growing away from it. It runs the `bfs` engine, and `start` is required: without it the layout is
+refused with `E_OPTION_RANGE`.
 
 ```typescript
 graph.setLayout("hierarchical", {
-    direction: "TB", // TB, BT, LR, RL
-    levelSeparation: 100, // Vertical spacing
-    nodeSeparation: 50, // Horizontal spacing
+    start: "root", // The node the tree grows from (required)
+    align: "vertical", // "vertical" or "horizontal"
+    scale: 1, // Size of the layout, before scalingFactor
+    scalingFactor: 20, // Multiplies every position
 });
 ```
 
@@ -213,25 +219,43 @@ Random positions. Useful for:
 ```typescript
 graph.setLayout("random", {
     seed: 42, // For reproducible layouts
-    dimensions: 3,
+    dim: 3,
 });
 ```
 
 ### fixed
 
-Use pre-computed positions from node data:
+Use pre-computed positions from node data. Each node carries its center in a `position` field,
+either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0), with y growing upward.
+Top-level `x`, `y` and `z` fields are ordinary attributes, not a position:
 
 ```typescript
-// Node data includes positions
 const nodes = [
-    { id: "a", x: 0, y: 0, z: 0 },
-    { id: "b", x: 100, y: 0, z: 0 },
-    { id: "c", x: 50, y: 100, z: 0 },
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: 100, y: 0, z: 0 } },
+    { id: "c", position: { x: 50, y: 100, z: 0 } },
 ];
 
 await graph.addNodes(nodes);
-graph.setLayout("fixed");
+await graph.setLayout("fixed");
 ```
+
+The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+`position` is put at the origin (or stays where an earlier layout put it), and the element emits a
+`layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
+nodes without one and the number placed:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_NO_POSITION") {
+        console.warn(`${event.params.missing} of ${event.params.total} nodes have no position`);
+    }
+});
+```
+
+To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where it was saved,
+load it with `layout: "recommended"`: see
+[Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
 ### forceatlas2 (Force-Directed, live)
 
@@ -284,24 +308,15 @@ graph.setLayout("spring-electrical", {
 
 See the [acceleration guide](./acceleration) for how to attach one.
 
-## Layout Transitions
+## Switching Layouts
 
-Animate between layouts for smooth visual transitions:
+Set another layout at any time; the new one starts from where the nodes are:
 
 ```typescript
-// Current layout
 graph.setLayout("random");
 await graph.waitForSettled();
 
-// Transition to new layout
-graph.setLayout(
-    "circular",
-    {},
-    {
-        animate: true,
-        duration: 1000,
-    },
-);
+graph.setLayout("circular");
 ```
 
 ## Waiting for Settled
@@ -347,7 +362,19 @@ in `details.option`:
 | `E_ATTRIBUTE_TYPE`    | an option names a node attribute whose values the layout cannot read                   |
 | `E_BAD_WEIGHT`        | an edge weight the layout cannot use, such as a negative `kamada-kawai` distance       |
 
-What to do about it is the application's choice, such as picking another layout:
+`ngraph`, `forceatlas2`, `spring` and `spring-electrical` do not refuse an option they do not take:
+they run without it and emit a `layout-warning` event with code `W_UNKNOWN_OPTION`, whose
+`params.options` lists the names they ignored and `params.available` the names they take:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_UNKNOWN_OPTION") {
+        console.warn(`${event.layoutType} ignored ${String(event.params.options)}`);
+    }
+});
+```
+
+What to do about a refusal is the application's choice, such as picking another layout:
 
 ```typescript
 element.addEventListener("error", (event) => {
@@ -364,16 +391,16 @@ Most layouts support both dimensions:
 
 ```typescript
 // 3D layout (default)
-graph.setLayout("ngraph", { dimensions: 3 });
+graph.setLayout("ngraph", { dim: 3 });
 
 // 2D layout
-graph.setLayout("ngraph", { dimensions: 2 });
+graph.setLayout("ngraph", { dim: 2 });
 ```
 
 For 2D layouts, also set the view mode:
 
 ```html
-<graphty-element layout="d3-force" view-mode="2d"></graphty-element>
+<graphty-element layout="d3" view-mode="2d"></graphty-element>
 ```
 
 ## Edge weights

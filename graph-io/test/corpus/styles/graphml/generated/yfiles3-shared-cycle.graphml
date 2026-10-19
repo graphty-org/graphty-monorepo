@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/yfiles-common/3.0" xmlns:x="http://www.yworks.com/xml/yfiles-common/markup/3.0" xmlns:yjs="http://www.yworks.com/xml/yfiles-for-html/3.0/xaml">
+  <key id="d3" for="node" attr.name="NodeStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/NodeStyle"/>
+  <key id="d9" for="graphml" attr.name="SharedData" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/SharedData"/>
+  <data key="d9">
+    <y:SharedData>
+      <y:CollapsibleNodeStyleDecorator x:Key="1" wrappedStyle="{y:GraphMLReference 1}"/>
+      <yjs:SolidColorFill x:Key="2" color="{y:GraphMLReference 3}"/>
+      <yjs:SolidColorFill x:Key="3" color="{y:GraphMLReference 2}"/>
+      <yjs:SolidColorFill x:Key="4" color="#FF00FF00"/>
+    </y:SharedData>
+  </data>
+  <graph id="G" edgedefault="directed">
+    <node id="n0"><data key="d3"><y:GraphMLReference ResourceKey="1"/></data></node>
+    <node id="n1"><data key="d3"><yjs:ShapeNodeStyle shape="ELLIPSE" fill="{y:GraphMLReference 2}"/></data></node>
+    <node id="n2"><data key="d3"><yjs:ShapeNodeStyle shape="RECTANGLE" fill="{y:GraphMLReference 4}"/></data></node>
+  </graph>
+</graphml>

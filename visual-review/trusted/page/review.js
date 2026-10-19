@@ -165,6 +165,7 @@ function usage() {
     }
 }
 function count(name) {
+    logUsage("press", { c: name });
     try {
         const all = usage();
         all[name] = (all[name] ?? 0) + 1;
@@ -173,17 +174,166 @@ function count(name) {
         // Not counted; nothing else depends on it.
     }
 }
+const controlName = (b) =>
+    b.dataset.count ??
+    (b.id ||
+        [...b.childNodes]
+            .filter((n) => n.nodeType === 3)
+            .map((n) => n.textContent)
+            .join("")
+            .trim() ||
+        "button");
 document.addEventListener(
     "click",
     (e) => {
         const b = e.target.closest?.("button, summary");
         if (b && b.isConnected) {
-            const words = [...b.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent);
-            count(b.dataset.count ?? (b.id || words.join("").trim() || "button"));
+            count(controlName(b));
         }
     },
     true,
 );
+
+// Usage events, only when the server's owner turned them on (`usage` in visual-review.config.json):
+// a timeline of how a review goes, sent to this page's own server and nowhere else, which appends
+// it to a file on its disk. Off, nothing is kept or sent. No image, no reason text, no token.
+const usageLog = {
+    on: null, // null until the server answers; then true or false
+    queue: [],
+    sending: false,
+    session: crypto.randomUUID(), // the page runs over HTTPS or on localhost, where crypto has it
+    last: 0, // when the last event was taken
+    settings: null, // the view settings as last logged
+    seen: new Set(), // the controls seen on screen in this session
+    itemAt: 0, // when the item on screen was shown
+    itemFile: null,
+    itemIndex: -1,
+    pointer: null,
+};
+const IDLE_MS = 60000;
+function logUsage(type, data = {}) {
+    if (usageLog.on === false) {
+        return;
+    }
+    const at = Date.now();
+    if (usageLog.last && at - usageLog.last > IDLE_MS) {
+        usageLog.queue.push({ type: "idle", at, s: usageLog.session, ms: at - usageLog.last });
+    }
+    usageLog.last = at;
+    usageLog.queue.push({ type, at, s: usageLog.session, ...data });
+    // Waiting on the server's answer (a token not pasted yet) keeps only the newest.
+    usageLog.queue.splice(0, usageLog.queue.length - 500);
+    if (usageLog.on) {
+        queueMicrotask(sendUsage);
+    }
+}
+async function sendUsage() {
+    if (usageLog.sending || usageLog.queue.length === 0) {
+        return;
+    }
+    usageLog.sending = true;
+    const events = usageLog.queue.splice(0, 100);
+    try {
+        // Not through api(): a refused token here must not ask for it again. The answer is read, so
+        // the request ends (a page test waits for the page's writes to end).
+        const res = await fetch("/api/usage", {
+            method: "POST",
+            headers: { "x-review-token": token, "content-type": "application/json" },
+            body: JSON.stringify({ events }),
+        });
+        await res.text();
+    } catch {
+        // Lost; usage is never worth a message.
+    } finally {
+        usageLog.sending = false;
+    }
+    if (usageLog.queue.length > 0) {
+        sendUsage();
+    }
+}
+// Asks the server once per token whether to log; until it answers, events wait in the queue.
+async function startUsage() {
+    try {
+        const res = await fetch("/api/usage-setting", { headers: { "x-review-token": token } });
+        if (res.status === 401) {
+            return; // asked again once a token is pasted
+        }
+        usageLog.on = res.ok && (await res.json()).on === true;
+    } catch {
+        usageLog.on = false;
+    }
+    if (usageLog.on) {
+        sendUsage();
+    } else {
+        usageLog.queue.length = 0;
+    }
+}
+// The view settings that changed since the last call, each as one event; and (logControls) the
+// controls on screen not seen before in this session, so the report can name those never pressed.
+function logSettings() {
+    if (usageLog.on === false) {
+        return;
+    }
+    const now = {
+        screen: state.screen,
+        view: state.view,
+        zoom: state.zoom,
+        showBox: state.showBox,
+        baselinePane: state.baselinePane,
+        focus: state.focus,
+        blink: state.blink,
+        spotFlash: state.spotFlash,
+        motion: state.motion,
+        filter: state.filter,
+        grouped: state.grouped,
+        gridSpot: state.gridSpot,
+        gridZoom: state.gridZoom,
+        shortcuts: state.shortcuts,
+    };
+    for (const [key, value] of Object.entries(now)) {
+        if (usageLog.settings && usageLog.settings[key] !== value) {
+            logUsage("set", { key, from: usageLog.settings[key], to: value });
+        }
+    }
+    usageLog.settings = now;
+    logControls();
+}
+function logControls() {
+    if (usageLog.on === false) {
+        return;
+    }
+    // Once the screen being drawn is in the document.
+    queueMicrotask(() => {
+        const fresh = new Set(
+            [...document.querySelectorAll("button, summary")]
+                .filter((b) => b.getClientRects().length > 0)
+                .map(controlName)
+                .filter((c) => !usageLog.seen.has(c)),
+        );
+        if (fresh.size > 0) {
+            fresh.forEach((c) => usageLog.seen.add(c));
+            logUsage("controls", { c: [...fresh] });
+        }
+    });
+}
+document.addEventListener(
+    "pointerdown",
+    (e) => {
+        if (e.pointerType !== usageLog.pointer) {
+            usageLog.pointer = e.pointerType;
+            logUsage("pointer", { p: e.pointerType });
+        }
+    },
+    true,
+);
+document.addEventListener("visibilitychange", () => logUsage(document.visibilityState));
+logUsage("load", {
+    w: innerWidth,
+    h: innerHeight,
+    dpr: devicePixelRatio,
+    coarse: globalThis.matchMedia?.("(pointer: coarse)").matches === true,
+    touch: navigator.maxTouchPoints ?? 0,
+});
 // A tap outside an open menu closes it, as a menu does.
 document.addEventListener("pointerdown", (e) => {
     for (const m of document.querySelectorAll("details.menu[open]")) {
@@ -235,6 +385,9 @@ function setBar(node = null) {
 // The same message again is not rewritten, so a screen reader does not read it again.
 function say(text, isError = false) {
     const shown = text === "" && running() ? finishing() : text;
+    if (isError && shown) {
+        logUsage("error", { m: shown.slice(0, 160) });
+    }
     elapsedLine.textContent = "";
     if (!isError && shown !== "" && statusLine.textContent === shown && alertLine.textContent === "") {
         return;
@@ -762,7 +915,12 @@ const isLocal = () => state.target?.local === true;
 const scale = () => state.data?.results.scale ?? 1;
 // The default branch's name, as the server reports it.
 const branchName = (t = state.target) => t?.defaultBranch ?? state.list?.defaultBranch ?? "master";
-const labelOf = (t) => (t.local ? "Local preview" : t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`);
+const labelOf = (t) => {
+    if (t.local) {
+        return "Local preview";
+    }
+    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr}`;
+};
 const undecidedOf = (t) => t.projects.reduce((n, p) => n + p.undecided, 0);
 const finishedOf = (t) => t.projects.reduce((n, p) => n + (p.finished ?? 0), 0);
 const draftKey = (item) => `${state.target.id}/${state.project}/${item.file}`;
@@ -904,6 +1062,13 @@ function toggleOption(key) {
 
 // Takes a project's data from the server as the one on screen.
 function adopt(data, project) {
+    if (state.target?.id !== data.target.id) {
+        logUsage("target", { id: data.target.id, local: data.target.local === true });
+    }
+    if (state.target?.id !== data.target.id || state.project !== project) {
+        const p = data.target.projects.find((x) => x.project === project);
+        logUsage("project", { id: data.target.id, project, items: data.items.length, stale: p?.newer?.length ?? 0 });
+    }
     state.data = data;
     state.target = data.target;
     state.project = project;
@@ -931,6 +1096,7 @@ function counted(item, before, after, unpublished) {
 // The breadcrumb (on the grid and story screens: Visual review / target / project / Grid, or on the
 // grid the item last opened) and Finish.
 function drawHeader() {
+    logSettings();
     const onTargets = state.screen === "targets" || state.target === null;
     crumbs.hidden = onTargets;
     finishSlot.replaceChildren();
@@ -1194,6 +1360,7 @@ function drawTargets() {
             : state.list.inbox && el("h2", { class: "all-heading" }, "All pull requests"),
         ...targets.map(targetCard),
     );
+    logControls();
     if (running()) {
         drawFinishPanel();
     }
@@ -1276,7 +1443,7 @@ function inboxView(inbox) {
                 return badRow(bad);
             }
             // Only a member the server counted as done has nothing to decide; never guess it.
-            const said = { done: "nothing to decide", capturing: "still capturing" }[g.states?.[n]];
+            const said = { done: "nothing to decide", capturing: "still capturing", draft: "draft" }[g.states?.[n]];
             return el("li", { class: "meta" }, `#${g.prs[n]}: ${said ?? "status unknown: reload the page"}`);
         });
         const first = g.ids.find((id) => inbox.ready.some((r) => r.id === id && r.undecided > 0));
@@ -1321,6 +1488,7 @@ function inboxView(inbox) {
     const rest = [
         inbox.capturing > 0 ? `${inbox.capturing} capturing` : null,
         inbox.done > 0 ? `${inbox.done} with nothing to decide` : null,
+        inbox.drafts > 0 ? `${inbox.drafts} still a draft` : null,
     ].filter(Boolean);
     return el(
         "section",
@@ -1426,22 +1594,20 @@ function passkeyName(platform) {
         return `security key, ${day}`;
     }
     const ua = navigator.userAgent;
-    const device =
-        /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
-            ? "iPad"
-            : /iPhone/.test(ua)
-              ? "iPhone"
-              : /Android/.test(ua)
-                ? "Android"
-                : /Mac OS X|Macintosh/.test(ua)
-                  ? "Mac"
-                  : /Windows/.test(ua)
-                    ? "Windows"
-                    : /Linux|CrOS/.test(ua)
-                      ? "Linux"
-                      : "device";
+    const iPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const device = iPad ? "iPad" : (PASSKEY_DEVICES.find(([pattern]) => pattern.test(ua))?.[1] ?? "device");
     return `${device} passkey, ${day}`;
 }
+
+// The kind of device a user agent names, checked in this order after the iPad (which can call
+// itself a Mac).
+const PASSKEY_DEVICES = [
+    [/iPhone/, "iPhone"],
+    [/Android/, "Android"],
+    [/Mac OS X|Macintosh/, "Mac"],
+    [/Windows/, "Windows"],
+    [/Linux|CrOS/, "Linux"],
+];
 
 // The browser's refusal of a passkey, said with its likely cause: a page opened from another
 // address than the one the passkey was made on.
@@ -1505,15 +1671,7 @@ async function registerOwnPasskey(e) {
             true,
         );
     } catch (err) {
-        say(
-            err?.name === "NotAllowedError"
-                ? "Passkey not created: nothing was changed."
-                : err?.name === "SecurityError"
-                  ? `Passkey not created (${err.message}): a passkey needs this page opened by its host name ` +
-                    "over https, not by an IP address."
-                  : `Passkey not created: ${err.message}`,
-            true,
-        );
+        say(passkeyError(err), true);
         button.focus?.();
     }
 }
@@ -1553,8 +1711,77 @@ function signerBlock(t) {
 
 const link = (href, text) => el("a", { href, target: "_blank", rel: "noreferrer" }, text);
 
+// Why registering a passkey failed, for the status line.
+function passkeyError(err) {
+    if (err?.name === "NotAllowedError") {
+        return "Passkey not created: nothing was changed.";
+    }
+    if (err?.name === "SecurityError") {
+        return (
+            `Passkey not created (${err.message}): a passkey needs this page opened by its host name ` +
+            "over https, not by an IP address."
+        );
+    }
+    return `Passkey not created: ${err.message}`;
+}
+
+// A target card's heading, before its title.
+function targetHeading(t) {
+    if (t.local) {
+        return "Local preview ";
+    }
+    return t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+}
+
+// A target card's title: a link to the pull request when there is one.
+function targetTitle(t) {
+    if (t.url) {
+        return link(t.url, t.title);
+    }
+    return t.pr === null ? null : t.title;
+}
+
+// "Captured <commit> on <branch>, ", or nothing when the run names no commit.
+function capturedLine(t) {
+    if (!(t.commit || t.headSha)) {
+        return "";
+    }
+    const sha = t.pr === null ? t.commit : t.headSha;
+    const on = t.branch ? ` on ${t.branch}` : "";
+    return `Captured ${short(sha)}${on}, `;
+}
+
+// The line under a target card's heading: what was captured and by which CI run.
+function targetMeta(t, problem) {
+    if (t.local) {
+        return el("p", { class: "meta" }, t.title);
+    }
+    if (!t.runId) {
+        return el("p", { class: "meta" }, problem ?? "No CI run");
+    }
+    return el(
+        "p",
+        { class: "meta" },
+        capturedLine(t),
+        t.runUrl ? link(t.runUrl, `CI run ${t.runId}`) : `CI run ${t.runId}`,
+        ` (attempt ${t.runAttempt})`,
+    );
+}
+
+// The last line of a target card: the Finish control, or what is running.
+function finishLine(t, busy) {
+    if (t.local) {
+        return null;
+    }
+    if (!busy) {
+        return el("p", { class: "finish-line" }, ...finishControl(t));
+    }
+    const what = isUpdate(state.job) ? `Update from ${branchName(t)}` : "Finish";
+    return el("p", { class: "finish-running" }, `${what} is running: ${state.job.step}...`);
+}
+
 function targetCard(t) {
-    const heading = t.local ? "Local preview " : t.pr === null ? `${branchName(t)} seed` : `#${t.pr} `;
+    const heading = targetHeading(t);
     const busy = running() && state.job.target === t.id;
     const shown = t.projects.filter((p) => p.reviewable > 0 || p.problem || p.downloading);
     const unchanged = t.projects.filter((p) => !shown.includes(p));
@@ -1562,20 +1789,8 @@ function targetCard(t) {
     return el(
         "section",
         { class: "card", "data-target": t.id },
-        el("h2", {}, heading, t.url ? link(t.url, t.title) : t.pr === null ? null : t.title),
-        t.local
-            ? el("p", { class: "meta" }, t.title)
-            : t.runId
-              ? el(
-                    "p",
-                    { class: "meta" },
-                    t.commit || t.headSha
-                        ? `Captured ${short(t.pr === null ? t.commit : t.headSha)}${t.branch ? ` on ${t.branch}` : ""}, `
-                        : "",
-                    t.runUrl ? link(t.runUrl, `CI run ${t.runId}`) : `CI run ${t.runId}`,
-                    ` (attempt ${t.runAttempt})`,
-                )
-              : el("p", { class: "meta" }, problem ?? "No CI run"),
+        el("h2", {}, heading, targetTitle(t)),
+        targetMeta(t, problem),
         ...(t.warnings ?? []).map((w) =>
             el(
                 "p",
@@ -1639,15 +1854,7 @@ function targetCard(t) {
                   `${plural(unchanged.length, "project")} unchanged: ${unchanged.map((p) => p.project).join(", ")}`,
               )
             : null,
-        t.local
-            ? null
-            : busy
-              ? el(
-                    "p",
-                    { class: "finish-running" },
-                    `${isUpdate(state.job) ? `Update from ${branchName(t)}` : "Finish"} is running: ${state.job.step}...`,
-                )
-              : el("p", { class: "finish-line" }, ...finishControl(t)),
+        finishLine(t, busy),
     );
 }
 
@@ -1703,21 +1910,25 @@ function projectRow(t, p) {
             results,
         ),
         el("td", {}, t.local || p.downloading ? "-" : `${p.decided} of ${p.reviewable}`),
-        el(
-            "td",
-            {},
-            p.downloading
-                ? el(
-                      "button",
-                      { type: "button", onclick: () => openProject(t.id, p.project) },
-                      spinner(),
-                      "Downloading...",
-                  )
-                : p.reviewable > 0
-                  ? el("button", { type: "button", onclick: () => openProject(t.id, p.project) }, "Review")
-                  : null,
-        ),
+        el("td", {}, projectAction(t, p)),
     );
+}
+
+// A project row's button: Downloading... while its captures download, Review once there is
+// something to review.
+function projectAction(t, p) {
+    if (p.downloading) {
+        return el(
+            "button",
+            { type: "button", onclick: () => openProject(t.id, p.project) },
+            spinner(),
+            "Downloading...",
+        );
+    }
+    if (p.reviewable > 0) {
+        return el("button", { type: "button", onclick: () => openProject(t.id, p.project) }, "Review");
+    }
+    return null;
 }
 
 // The next target after `id` in the list's order that still has undecided items.
@@ -1814,6 +2025,32 @@ async function openTarget(id, story) {
 
 // ---------------------------------------------------------------- screen: project grid
 
+// The wait box's count of a download: its artifacts, and its bytes once their size is known.
+function downloadDetail(d) {
+    if (!d) {
+        return "";
+    }
+    const bytes = d.bytes ? `, ${megabytes(d.bytesDone)} of ${megabytes(d.bytes)}` : "";
+    return `${d.done} of ${plural(d.total, "artifact")}${bytes}`;
+}
+
+// What the wait box says while a project's captures are still downloading.
+function downloadingView(project, data) {
+    const t = data.target;
+    const d = t.download;
+    const size = t.projects.find((x) => x.project === project)?.bytes;
+    return {
+        title: `Downloading ${project} captures for ${labelOf(t)}`,
+        text:
+            `CI run ${t.runId}'s captures are not on this computer yet. ${project}` +
+            `${size ? ` (${megabytes(size)})` : ""} downloads first; the rest go on in the background.`,
+        detail: downloadDetail(d),
+        done: d?.done ?? null,
+        total: d?.total ?? null,
+        net: networkLine(data.network, data.now),
+    };
+}
+
 // A project's items, in the wait box for as long as that takes. A project whose captures are still
 // downloading is asked for again until they land: the server downloads it ahead of the others, and
 // the box counts the artifacts and bytes. Resolves null when the wait was cancelled or another
@@ -1848,21 +2085,7 @@ async function loadProject(targetId, project, seq) {
             box.end();
             return { data };
         }
-        const t = data.target;
-        const d = t.download;
-        const size = t.projects.find((x) => x.project === project)?.bytes;
-        box.update({
-            title: `Downloading ${project} captures for ${labelOf(t)}`,
-            text:
-                `CI run ${t.runId}'s captures are not on this computer yet. ${project}` +
-                `${size ? ` (${megabytes(size)})` : ""} downloads first; the rest go on in the background.`,
-            detail: d
-                ? `${d.done} of ${plural(d.total, "artifact")}${d.bytes ? `, ${megabytes(d.bytesDone)} of ${megabytes(d.bytes)}` : ""}`
-                : "",
-            done: d?.done ?? null,
-            total: d?.total ?? null,
-            net: networkLine(data.network, data.now),
-        });
+        box.update(downloadingView(project, data));
         await sleep(700);
         if (seq !== nav) {
             box.end();
@@ -2477,6 +2700,13 @@ async function decideMany(items, decision, what) {
         say(err.message, true);
         return;
     }
+    logUsage("decide", {
+        project: state.project,
+        d: decision,
+        n: answer.files.length,
+        bulk: "cluster",
+        reasonLength: reason?.length ?? 0,
+    });
     for (const file of answer.files) {
         state.data.decisions[file] = { decision, reason, ...(decision === "accept" && { bulk: true }) };
     }
@@ -2761,6 +2991,7 @@ function goTo(value) {
     if (v === "") {
         return;
     }
+    logUsage("jump", { number: /^\d+$/.test(v) });
     const all = ordered(reviewable());
     if (/^\d+$/.test(v)) {
         const n = Number(v);
@@ -2862,6 +3093,11 @@ function explanation(item, d) {
     if (item.status === "new") {
         return "New story: no baseline yet.";
     }
+    return changeText(item);
+}
+
+// What changed in a story's image: its rename, the pixels that differ and where, and the threshold.
+function changeText(item) {
     const parts = [];
     if (item.from) {
         parts.push(`Moved from ${item.from}: Accept moves its baseline to this id. `);
@@ -2892,9 +3128,24 @@ function showStory() {
         return;
     }
     const focusId = barFocus();
+    const wasStory = state.screen === "story";
     state.screen = "story";
     state.index = Math.max(0, Math.min(state.index, items.length - 1));
     const item = items[state.index];
+    if (!wasStory || item.file !== usageLog.itemFile) {
+        logUsage("item", {
+            project: state.project,
+            file: item.file,
+            status: item.status,
+            i: state.index,
+            n: items.length,
+            pass: state.pass,
+            back: wasStory && state.index < usageLog.itemIndex,
+        });
+        usageLog.itemAt = performance.now();
+        usageLog.itemFile = item.file;
+        usageLog.itemIndex = state.index;
+    }
     if (item.file !== state.lastFile) {
         stageShown = null;
         appearedAt = Infinity;
@@ -2962,6 +3213,14 @@ function showStory() {
 // Exclude, the least used, in the middle; Reject, then Accept, the widest, at the right end, with
 // a gap between them. Each always present in the same place. Reject and Exclude ask their reason
 // in a box of their own (askReason), so the screen holds no text field.
+// What explains an unavailable decision button: the end screen's heading, or the explanation.
+function describedBy(ok) {
+    if (ok) {
+        return null;
+    }
+    return state.ended ? "end-heading" : "explain";
+}
+
 function decisionBar(item, items, d) {
     const can = available(item, d);
     const left = items.filter((i) => !decisionOf(i)).length;
@@ -2973,7 +3232,7 @@ function decisionBar(item, items, d) {
                 type: "button",
                 id,
                 "aria-disabled": String(!ok),
-                "aria-describedby": ok ? null : state.ended ? "end-heading" : "explain",
+                "aria-describedby": describedBy(ok),
                 "aria-keyshortcuts": key,
                 ...extra,
             },
@@ -3028,6 +3287,15 @@ function decisionBar(item, items, d) {
 
 // Item number, name and badges, then one explanation, on one row cut short; a tap shows it all.
 // Not a live region: the status row speaks.
+// The badge naming an item's decision, with its reason; none while undecided.
+function decisionBadge(d) {
+    if (!d) {
+        return null;
+    }
+    const reason = d.reason ? `: ${d.reason}` : "";
+    return el("span", { class: `badge ${d.decision}` }, `${DECISIONS[d.decision]}${reason}`);
+}
+
 function itemLine(item, d) {
     const sizeChanged =
         item.size &&
@@ -3055,13 +3323,7 @@ function itemLine(item, d) {
             " ",
             el("span", { class: `badge ${item.status}` }, statusLabel(item.status)),
             item.from ? el("span", { class: "badge moved" }, movedFrom(item)) : null,
-            d
-                ? el(
-                      "span",
-                      { class: `badge ${d.decision}` },
-                      `${DECISIONS[d.decision]}${d.reason ? `: ${d.reason}` : ""}`,
-                  )
-                : null,
+            decisionBadge(d),
             sizeChanged
                 ? el(
                       "span",
@@ -3574,6 +3836,7 @@ function shown(stage, item) {
         }
         if (appearedAt === Infinity) {
             appearedAt = performance.now();
+            logUsage("drawn", { file: item.file, ms: Math.round(appearedAt - usageLog.itemAt) });
         }
         setTimeout(
             () => {
@@ -3584,6 +3847,21 @@ function shown(stage, item) {
             Math.max(0, GUARD_MS - (performance.now() - appearedAt)),
         );
     });
+}
+
+// Replaces a sheet's outline of the changed area (sheet pixels), or removes it when outlines are off.
+function markBox(sheet, [left, top, right, bottom]) {
+    sheet.querySelector(".boxmark")?.remove();
+    if (state.showBox) {
+        const mark = el("div", { class: "boxmark" });
+        Object.assign(mark.style, {
+            left: `${left}px`,
+            top: `${top}px`,
+            width: `${right - left}px`,
+            height: `${bottom - top}px`,
+        });
+        sheet.append(mark);
+    }
 }
 
 // Outlines the current changed area in every pane, and scrolls it into view. A pane opens at the
@@ -3606,17 +3884,7 @@ function showBox(stage, boxes, jump, reset = true) {
         // The outline is drawn inside the image, so an area at an edge keeps all four sides.
         const [left, top] = [Math.max(0, x * factor - 2), Math.max(0, y * factor - 2)];
         const [right, bottom] = [Math.min(sw, (x + w) * factor + 2), Math.min(sh, (y + h) * factor + 2)];
-        sheet.querySelector(".boxmark")?.remove();
-        if (state.showBox) {
-            const mark = el("div", { class: "boxmark" });
-            Object.assign(mark.style, {
-                left: `${left}px`,
-                top: `${top}px`,
-                width: `${right - left}px`,
-                height: `${bottom - top}px`,
-            });
-            sheet.append(mark);
-        }
+        markBox(sheet, [left, top, right, bottom]);
         if (!jump && !reset) {
             continue;
         }
@@ -3778,6 +4046,26 @@ async function fillEnd(card, seq) {
     const next = others.find((p) => p.undecided > 0 && !p.downloading && !p.problem);
     const waitingFor = others.filter((p) => p.downloading);
     const left = leftToReview(t, state.project);
+    const offers = endOffers(t, here, next, left);
+    const verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
+    card.replaceChildren(
+        ...[
+            el(
+                "h2",
+                { id: "end-heading", tabindex: "-1" },
+                `End of ${state.project}: ${here.decided} of ${here.reviewable} decided, ${here.undecided} undecided.`,
+            ),
+            isLocal() ? null : el("p", {}, verdict),
+            el("div", { class: "offers" }, offers),
+            waitingFor.length > 0 ? downloadingList(t, waitingFor) : null,
+        ].filter(Boolean),
+    );
+    offers[0].focus();
+}
+
+// The end card's offers, in order: the next project, this project's undecided, Finish, the grid
+// and the next pull request.
+function endOffers(t, here, next, left) {
     const offer = (label, onclick, cls = null) =>
         el("button", { type: "button", class: cls, onclick, "aria-describedby": "end-heading" }, label);
     const offers = [];
@@ -3819,20 +4107,7 @@ async function fillEnd(card, seq) {
             offer(`Next: ${labelOf(after)} (${undecidedOf(after)} undecided)`, () => openTarget(after.id, true)),
         );
     }
-    const verdict = left ? `${left}.` : `Every project of ${labelOf(t)} is decided.`;
-    card.replaceChildren(
-        ...[
-            el(
-                "h2",
-                { id: "end-heading", tabindex: "-1" },
-                `End of ${state.project}: ${here.decided} of ${here.reviewable} decided, ${here.undecided} undecided.`,
-            ),
-            isLocal() ? null : el("p", {}, verdict),
-            el("div", { class: "offers" }, offers),
-            waitingFor.length > 0 ? downloadingList(t, waitingFor) : null,
-        ].filter(Boolean),
-    );
-    offers[0].focus();
+    return offers;
 }
 
 // The end card's Finish, primary when no next project comes first.
@@ -3942,6 +4217,7 @@ function move(step) {
     }
     const count = passItems().length;
     const at = state.index + step;
+    logUsage("move", { step });
     if (at >= count) {
         showEnd("");
         return;
@@ -4109,6 +4385,16 @@ async function decide(decision, press = null) {
         clearTimeout(slow);
         saving = null;
     }
+    logUsage(decision === null ? "undo" : "decide", {
+        project: state.project,
+        file: item.file,
+        d: decision,
+        was: before?.decision ?? null,
+        ms: Math.round(performance.now() - usageLog.itemAt),
+        view: state.view,
+        zoom: state.zoom,
+        reasonLength: reason?.length ?? 0,
+    });
     rememberDecision(item, before, decision, reason);
     counted(item, before, decision, answer.unpublished);
     if (decision === null) {
@@ -4166,6 +4452,7 @@ async function undo(files, where, one = false) {
     } catch (err) {
         say(`Undid ${done} of ${files.length}, then: ${err.message}`, true);
     }
+    logUsage("undo", { project: state.project, n: done });
     try {
         await reload();
     } catch (err) {
@@ -4173,14 +4460,19 @@ async function undo(files, where, one = false) {
     }
     showGrid();
     if (done === files.length || stopped) {
-        say(
-            one
-                ? `Undid ${where}: undecided again.`
-                : stopped
-                  ? `Stopped: undid ${done} of ${plural(files.length, "decision")} of ${where}.`
-                  : `Undid ${plural(done, "decision")} of ${where}.`,
-        );
+        say(undoneMessage(done, files.length, where, one, stopped));
     }
+}
+
+// What an undo says once it ends: one item, a stopped run, or every decision it was asked to undo.
+function undoneMessage(done, total, where, one, stopped) {
+    if (one) {
+        return `Undid ${where}: undecided again.`;
+    }
+    if (stopped) {
+        return `Stopped: undid ${done} of ${plural(total, "decision")} of ${where}.`;
+    }
+    return `Undid ${plural(done, "decision")} of ${where}.`;
 }
 
 // A component's Undo N, or More > Undo all decisions: asks first, naming the count.
@@ -4246,6 +4538,13 @@ async function acceptAll(component) {
         say(err.message, true);
         return;
     }
+    logUsage("decide", {
+        project: state.project,
+        d: "accept",
+        n: answer.files.length,
+        bulk: "accept-all",
+        component,
+    });
     for (const file of answer.files) {
         state.data.decisions[file] = { decision: "accept", reason: null, bulk: true };
     }
@@ -4406,6 +4705,21 @@ const finishing = () =>
     `${isUpdate(state.job) ? "Updating" : "Finishing"} ${jobLabel(state.job)}: ${state.job.step}...`;
 
 // What Finish's sheet says it will do, from the server's preview: every line is the server's count.
+// Why the commit status a Finish sets is failure or pending, in brackets; nothing for success.
+function statusWhy(f) {
+    if (f.status.state === "failure") {
+        return ` (${f.rejects} rejected)`;
+    }
+    if (f.status.state !== "pending") {
+        return "";
+    }
+    const parts = [
+        f.undecided.length > 0 ? `${f.undecided.reduce((k, p) => k + p.undecided, 0)} undecided` : null,
+        f.unloaded.length > 0 ? `not loaded: ${f.unloaded.join(", ")}` : null,
+    ];
+    return ` (${parts.filter(Boolean).join("; ")})`;
+}
+
 function sheet(t, f, prepared, notice) {
     const label = labelOf(t);
     const seed = t.pr === null;
@@ -4446,17 +4760,7 @@ function sheet(t, f, prepared, notice) {
     } else if (posts.length > 0) {
         lines.push(`Post ${posts.join(" and ")} as a comment on ${label}.`);
     }
-    const why =
-        f.status.state === "failure"
-            ? ` (${f.rejects} rejected)`
-            : f.status.state === "pending"
-              ? ` (${[
-                    f.undecided.length > 0 ? `${f.undecided.reduce((k, p) => k + p.undecided, 0)} undecided` : null,
-                    f.unloaded.length > 0 ? `not loaded: ${f.unloaded.join(", ")}` : null,
-                ]
-                    .filter(Boolean)
-                    .join("; ")})`
-              : "";
+    const why = statusWhy(f);
     lines.push(`Then set the commit status 'Visual review' to ${f.status.state}${why}.`);
     if (f.notOpened > 0) {
         lines.push(`Accepted without opening: ${f.notOpened}.`);
@@ -4556,6 +4860,14 @@ function passkeySentence(f, prepared) {
 
 // Finish publishes every decision of one target. It asks the server what it would do, states it
 // in a sheet, and starts on the server; then the targets screen follows it step by step.
+// The Finish sheet's final button.
+function finishTitle(t, f, required, onlyRejects) {
+    if (required) {
+        return `Sign and finish ${labelOf(t)}`;
+    }
+    return onlyRejects ? `Post ${plural(f.rejects, "reject")} to ${labelOf(t)}` : `Finish ${labelOf(t)}`;
+}
+
 async function finishTarget(id, button) {
     if (running()) {
         say("A Finish is running: wait for it to end.");
@@ -4600,21 +4912,13 @@ async function finishTarget(id, button) {
         // When the server cannot prepare an approval the final button is unavailable, and the sheet
         // says why.
         let approval = null;
-        const go = await ask(
-            sheet(t, f, prepared, notice),
-            prepared.required
-                ? `Sign and finish ${labelOf(t)}`
-                : onlyRejects
-                  ? `Post ${plural(f.rejects, "reject")} to ${labelOf(t)}`
-                  : `Finish ${labelOf(t)}`,
-            {
-                label: "sheet-title",
-                unavailable: prepared.error ? "Finish cannot be approved now: see the sheet." : null,
-                why: "sheet-passkey",
-                focusYes: notice !== "",
-                onYes: () => (approval = prepared.required ? approve(prepared) : null),
-            },
-        );
+        const go = await ask(sheet(t, f, prepared, notice), finishTitle(t, f, prepared.required, onlyRejects), {
+            label: "sheet-title",
+            unavailable: prepared.error ? "Finish cannot be approved now: see the sheet." : null,
+            why: "sheet-passkey",
+            focusYes: notice !== "",
+            onYes: () => (approval = prepared.required ? approve(prepared) : null),
+        });
         if (!go) {
             reset();
             say("Finish cancelled: nothing was changed.");
@@ -4682,12 +4986,24 @@ async function finishTarget(id, button) {
 let watching = false;
 
 // Follows the running Finish to its end, then shows its result above the targets.
+// A Finish or an update from the default branch followed (also after a reload), and its end:
+// success or failure, and how long it was followed.
+function logJob(type) {
+    const job = state.job ?? {};
+    const end = type === "finish-end" && {
+        ok: job.error === null && !job.interrupted,
+        ms: Math.round(performance.now() - state.finishSeen),
+    };
+    logUsage(type, { id: job.target ?? null, kind: job.kind ?? "finish", ...end });
+}
+
 async function watchFinish() {
     if (watching) {
         return;
     }
     watching = true;
     state.finishSeen ??= performance.now();
+    logJob("finish-start");
     try {
         let spoken = "";
         while (running()) {
@@ -4711,6 +5027,7 @@ async function watchFinish() {
     } finally {
         watching = false;
     }
+    logJob("finish-end");
     state.finishSeen = null;
     say("");
     // The box closes on a Finish that worked: its result is the card on the targets screen. One
@@ -4759,6 +5076,15 @@ let finishBox = null; // the wait box following the running Finish
 // The running Finish's steps, each marked done, in progress or waiting, with the count of the
 // current one and the time spent: in the wait box, over whatever screen is open. Finish runs on
 // the server, so the box has no Cancel: closing or reloading the page does not stop it.
+// Where a Finish step stands against the step running now, and how the panel says it.
+function stepState(i, now) {
+    if (i < now) {
+        return "done";
+    }
+    return i === now ? "now" : "waiting";
+}
+const STEP_TEXT = { done: "done", now: "in progress", waiting: "waiting" };
+
 function drawFinishPanel() {
     if (!running()) {
         return;
@@ -4798,8 +5124,8 @@ function drawFinishPanel() {
             steps.map(([key, name], i) =>
                 el(
                     "li",
-                    { class: i < now ? "done" : i === now ? "now" : "waiting" },
-                    `${key === "comment" && plan?.seed ? "Opening the issue" : name}: ${i < now ? "done" : i === now ? "in progress" : "waiting"}`,
+                    { class: stepState(i, now) },
+                    `${key === "comment" && plan?.seed ? "Opening the issue" : name}: ${STEP_TEXT[stepState(i, now)]}`,
                     i === now && count
                         ? [
                               ` (${count[1]} of ${count[2]})`,
@@ -4852,6 +5178,37 @@ function track(job) {
 const repoUrl = (url) => (url ? url.replace(/\/pull\/\d+$/, "") : null);
 
 // What the newest Finish did, shown above the targets until it is dismissed or the server restarts.
+// The Finish result's commit, linked when the repository is known.
+function commitLine(out, repo) {
+    if (!out.commit) {
+        return el("p", {}, "No commit: nothing was accepted or excluded.");
+    }
+    const commit = repo ? link(`${repo}/commit/${out.commit}`, short(out.commit)) : short(out.commit);
+    if (out.alreadyFinished) {
+        return el(
+            "p",
+            {},
+            "Already finished: an earlier Finish committed these decisions as ",
+            commit,
+            ` to ${out.branch}.`,
+        );
+    }
+    return el("p", {}, "Committed ", commit, ` to ${out.branch}.`);
+}
+
+// The commit status a Finish posted, or why posting it failed; none when it was already finished.
+function finishStatusLine(out) {
+    if (out.alreadyFinished) {
+        return [];
+    }
+    const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");
+    return [
+        out.statusError
+            ? el("p", { class: "error" }, `The commit status failed: ${out.statusError}`)
+            : el("p", {}, `Commit status: ${out.state ?? "set"} -- ${counts}.`),
+    ];
+}
+
 function finishOutcome() {
     const job = state.job;
     if (!job || job.running || state.dismissed === job.id) {
@@ -4894,17 +5251,7 @@ function finishOutcome() {
     const repo = repoUrl(t?.url ?? out.pullRequest);
     const parts = [];
     const notes = out.acceptNotes ?? 0;
-    parts.push(
-        out.commit
-            ? el(
-                  "p",
-                  {},
-                  "Committed ",
-                  repo ? link(`${repo}/commit/${out.commit}`, short(out.commit)) : short(out.commit),
-                  ` to ${out.branch}.`,
-              )
-            : el("p", {}, "No commit: nothing was accepted or excluded."),
-    );
+    parts.push(commitLine(out, repo));
     if (out.pullRequest) {
         parts.push(
             el(
@@ -4940,12 +5287,7 @@ function finishOutcome() {
             el("p", { class: "error" }, `The comment with the accept notes was not posted: ${out.commentError}`),
         );
     }
-    const counts = (out.status ?? "").replace(/^Reviewed: /, "").replace(" left undecided", " undecided");
-    parts.push(
-        out.statusError
-            ? el("p", { class: "error" }, `The commit status failed: ${out.statusError}`)
-            : el("p", {}, `Commit status: ${out.state ?? "set"} -- ${counts}.`),
-    );
+    parts.push(...finishStatusLine(out));
     const next = nextTarget(job.target);
     const offers = [
         next
@@ -5052,13 +5394,21 @@ function hashFor() {
 
 // Writes the screen into the address: a new history entry when the screen changes (so Back
 // returns to the one before), in place when only the item, view, zoom or filter does.
+// The screen a location hash's parameters open.
+function screenOf(params) {
+    if (params.has("item")) {
+        return "story";
+    }
+    return params.has("target") ? "grid" : "targets";
+}
+
 function remember() {
     const hash = hashFor();
     if (hash === location.hash) {
         return;
     }
     const was = new URLSearchParams(location.hash.slice(1));
-    const screen = was.has("item") ? "story" : was.has("target") ? "grid" : "targets";
+    const screen = screenOf(was);
     const moved =
         screen !== state.screen ||
         (screen !== "targets" &&
@@ -5068,7 +5418,9 @@ function remember() {
 }
 
 // Reads the newest Finish once; a running one is followed on whatever screen opens.
+// Also asks whether to log usage: both run once a token is known.
 async function checkFinish() {
+    startUsage();
     try {
         track((await api("/api/finish-status")).job);
     } catch {
@@ -5433,12 +5785,17 @@ document.addEventListener("keydown", (e) => {
         e: () => decide("exclude", e),
         u: () => decide(null, e),
         // In Spotlight, F flashes the spotlighted baseline and new instead of leaving it.
-        f: () =>
-            state.view === "spotlight"
-                ? state.spotFlash && !state.motion
-                    ? ((state.motion = true), showStory())
-                    : toggleOption("spotFlash")
-                : toggleView("flash"),
+        f: () => {
+            if (state.view !== "spotlight") {
+                return toggleView("flash");
+            }
+            if (state.spotFlash && !state.motion) {
+                state.motion = true;
+                showStory();
+                return;
+            }
+            return toggleOption("spotFlash");
+        },
         h: () => toggleView("highlight"),
         s: () => toggleView("spotlight"),
         b: () => toggleOption("showBox"),

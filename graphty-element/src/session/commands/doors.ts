@@ -547,6 +547,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
         [{ run: "no-such-run" }],
         [{ op: "style.patch", action: "highlight", spec: { run: "no-such-run" } }],
     ),
+    mark: calls(
+        [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],
+        [{ op: "style.patch", action: "mark", spec: { run: "no-such-run", set: { "node.color": "#ff0000" } } }],
+    ),
     legend: READ,
     proposeEncoding: READ,
     settled: READ,
@@ -1059,6 +1063,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             isPinned: READ,
             roundRadius: READ,
             drawnRadius: READ,
+            borderReach: READ,
+            framingHalf: READ,
+            drawnHalfExtents: READ,
         },
     },
     {
@@ -1164,6 +1171,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodes: READ,
             edges: READ,
             edgeVersion: RENDER,
+            nodeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
             isLoading: READ,
@@ -1178,6 +1186,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             seededNodeCount: READ,
             directionSettledBy: READ,
             lastImport: READ,
+            groups: READ,
             updateStyles: RENDER,
             setGraphContext: LIFECYCLE,
             setLayoutEngine: LIFECYCLE,
@@ -1185,6 +1194,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dispose: LIFECYCLE,
             bindSession: LIFECYCLE,
             reconcile: RENDER,
+            // The draw gate: what the graph pass painted and what a frame has applied.
+            takeLateEdgeRows: RENDER,
+            notePainted: RENDER,
+            notePaintDrawn: RENDER,
+            drawHeld: READ,
             addNode: calls([{ id: "door-c" }], [addNodes({ id: "door-c" })]),
             addNodes: calls([[{ id: "door-d" }]], [addNodes({ id: "door-d" })]),
             getNode: READ,
@@ -1195,6 +1209,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
+            incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
             setEdges: calls(
                 [[{ src: "n1", dst: "n2" }]],
@@ -1259,6 +1274,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             step: TRANSPORT,
             stepBatch: TRANSPORT,
+            placeGroups: TRANSPORT,
+            groupBox: READ,
             getNodePosition: READ,
             isSettled: READ,
             nodes: READ,
@@ -1432,8 +1449,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onDragUpdate: GESTURE,
             onDragEnd: GESTURE,
             setPositionDirect: GESTURE,
+            onPointerDown: GESTURE,
+            onPointerMove: GESTURE,
+            onPointerUp: GESTURE,
+            onHover: INPUT,
             getNode: READ,
-            sceneObservers: READ,
             select: SELECTION,
             dispose: LIFECYCLE,
         },
@@ -1549,6 +1569,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Measured in a scratch session; this one is untouched.
             report: READ,
             rows: READ,
+            styles: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
             load: calls(
                 [],
@@ -1943,6 +1964,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...SELECTION_API,
             applyNow: SELECTION,
             applyAtNextRead: SELECTION,
+            edgeRemovalChangesNothing: READ,
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -2143,6 +2165,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
+            drawHeld: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
             getRenderStats: READ,
@@ -2208,12 +2231,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
 ];
 
 /**
- * The ops a gesture the element handles itself dispatches, with no public member of its own: the
- * gesture is the door. Each names where it is handled; the browser test of that gesture checks
- * that it dispatches the op.
+ * The ops with no public member of their own: a gesture the element handles itself, or a whole
+ * operation that dispatches them as part of its one step. Each names where it is dispatched and
+ * the test that checks it.
  */
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",
+    "data.setFileStyles":
+        "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
+        "checked by test/session/styles/file-style-store.test.ts.",
 };

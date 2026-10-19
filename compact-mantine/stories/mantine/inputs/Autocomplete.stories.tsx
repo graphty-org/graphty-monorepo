@@ -6,7 +6,7 @@ import { StateGrid } from "../../helpers/input-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
- * Mantine's `Autocomplete`, themed as Figma's filled field, with the dark list box (the one on the
+ * Mantine's `Autocomplete`, themed as Figma's filled field, with the list box (the one on the
  * Components/Inputs/Select page) opening 4px below it. Every prop is Mantine's: see
  * [Autocomplete on mantine.dev](https://mantine.dev/core/autocomplete/).
  *
@@ -30,7 +30,7 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  * | Part | Value |
  * |---|---|
  * | Field | 24px tall, radius 5px, 11/16 text inset 8px |
- * | List | dark in both schemes, opens below with a 4px offset |
+ * | List | follows the page scheme, opens below with a 4px offset |
  */
 const meta: Meta<typeof Autocomplete> = {
     title: "Themed Mantine/Inputs/Autocomplete",

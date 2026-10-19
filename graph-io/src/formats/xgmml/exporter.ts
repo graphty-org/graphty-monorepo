@@ -8,7 +8,9 @@
  * and nested atts, containment as each group node's nested graph of `xlink:href` member
  * references (every node is declared at the top level, so the node order survives), and newline
  * and tab as character references unless `cytoscapeEscapes` asks for Cytoscape's two-character
- * form. It writes the graph's structure and columns, never styles.
+ * form. It writes the graph's structure and columns; given styles (`exportGraph(..., { styles })`), every element's
+ * `<graphics>` holds what graphty draws as Cytoscape visual properties, and the `graphty.styles` block and the
+ * style values its rules read go into graph and element `<att>`s.
  */
 
 import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/graph-format";
@@ -24,6 +26,7 @@ import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { xmlIllegalTextNotes } from "../../common/xml.js";
+import type { ExporterStyleInput, ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
 import {
     CY_NAMESPACE,
@@ -48,6 +51,10 @@ import {
     Z_COLUMN,
 } from "./constants.js";
 import { aliasesOf } from "./emit.js";
+import { styledGraphGraphics, styledGraphics, styledGraphicsNotes, XGMML_STYLE_CAPABILITIES } from "./styles.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type XgmmlWriteOptions = XgmmlExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /** The two escapes Cytoscape reads back as a newline and a tab, as a message writes them. */
 const LITERAL_ESCAPES = String.raw`\n or \t`;
@@ -394,6 +401,17 @@ function slotOf(column: Column, domain: "graph" | "node" | "edge", hasLabelRole:
     if (domain !== "node") {
         return "att";
     }
+    return nodeSlotOf(column);
+}
+
+/**
+ * Where a node column goes when it is no XML attribute, label or graphics: one of the node-only
+ * slots, else a typed att.
+ * @param column - the column
+ * @returns the slot
+ */
+function nodeSlotOf(column: Column): ColumnWrite["kind"] {
+    const { meta } = column;
     if (meta.name === Z_COLUMN && meta.dtype === "f64" && meta.role === null) {
         return "z";
     }
@@ -1004,21 +1022,38 @@ function cellOf(column: Column | null, row: number): unknown {
  * @returns the coordinates as XML attributes
  */
 function coordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
-    const out: [string, string][] = [];
-    const xyz = cellOf(plan.position, node);
-    if (xyz !== null) {
-        const [x, y, z] = Array.from(xyz as ArrayLike<number>);
-        const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
-        if (Number.isFinite(x) && Number.isFinite(y)) {
-            out.push(["x", fmt(x)], ["y", fmt(y === 0 ? 0 : -y)]);
-            if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
-                out.push(["z", fmt(z)]);
-            }
-        }
-    }
+    const out = positionCoordsOf(plan, zColumn, node);
     const z = cellOf(zColumn, node);
     if (typeof z === "number") {
         out.push(["z", formatF64(z)]);
+    }
+    return out;
+}
+
+/**
+ * The graphics coordinates a node's position gives: x, y negated back to screen coordinates, and
+ * z when no z column carries it.
+ * @param plan - the plan
+ * @param zColumn - the z column, or null
+ * @param node - the node
+ * @returns the coordinates as XML attributes (none for an unset or non-finite position)
+ */
+function positionCoordsOf(plan: Plan, zColumn: Column | null, node: number): [string, string][] {
+    const xyz = cellOf(plan.position, node);
+    if (xyz === null) {
+        return [];
+    }
+    const [x, y, z] = Array.from(xyz as ArrayLike<number>);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return [];
+    }
+    const fmt = plan.position?.dtype === "f32" ? formatF32 : formatF64;
+    const out: [string, string][] = [
+        ["x", fmt(x)],
+        ["y", fmt(y === 0 ? 0 : -y)],
+    ];
+    if (zColumn === null && z !== undefined && z !== 0 && Number.isFinite(z)) {
+        out.push(["z", fmt(z)]);
     }
     return out;
 }
@@ -1061,6 +1096,7 @@ function* groupAttOf(
  * @param plan - the plan
  * @param node - the node
  * @param indent - the indentation
+ * @param styles - the styles being written, or undefined
  * @yields the node element
  * @returns nothing
  */
@@ -1069,6 +1105,7 @@ function* nodeOf(
     plan: Plan,
     node: number,
     indent: string,
+    styles: ExporterStyleInput | undefined,
 ): Generator<string, void, undefined> {
     const labelCol = slot(plan.nodes, "label");
     const label = cellOf(labelCol, node);
@@ -1087,7 +1124,8 @@ function* nodeOf(
     } else if (typeof pointer === "string") {
         yield `${inner}<att>\n${inner}    <graph xlink:href="${escapeXmlAttribute(pointer)}"/>\n${inner}</att>\n`;
     }
-    const graphics = cellOf(slot(plan.nodes, "graphics"), node) as Record<string, unknown> | null;
+    const kept = cellOf(slot(plan.nodes, "graphics"), node) as Record<string, unknown> | null;
+    const graphics = styles === undefined ? kept : styledGraphics("node", styles, node, kept);
     yield* graphicsOf(graphics, coordsOf(plan, slot(plan.nodes, "z"), node), inner);
     yield `${indent}</node>\n`;
 }
@@ -1100,11 +1138,9 @@ function* nodeOf(
  * @yields the XML text
  * @returns nothing
  */
-function* write(
-    snapshot: GraphSnapshot,
-    options: (XgmmlExportOptions & CommonExportOptions) | undefined,
-): Generator<string, void, undefined> {
+function* write(snapshot: GraphSnapshot, options: XgmmlWriteOptions | undefined): Generator<string, void, undefined> {
     const plan = planFor(snapshot, options);
+    const styles = options?.styles;
     const meta = snapshot.meta.extra[META_KEY] as { graphId?: unknown; directed?: unknown } | undefined;
     const graphId = typeof meta?.graphId === "string" ? ` id="${escapeXmlAttribute(meta.graphId)}"` : "";
     // Every edge carries cy:directed, so when they all agree the root attribute does not decide
@@ -1122,12 +1158,13 @@ function* write(
     yield `<graph${graphId}${name} directed="${directed}" cy:documentVersion="3.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xlink="${XLINK_NAMESPACE}" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cy="${CY_NAMESPACE}" xmlns="${XGMML_NAMESPACE}">\n`;
     yield* metadataOf(snapshot);
     yield* attsOf(plan.graph, 0, true, plan, "    ");
-    yield* graphicsOf(cellOf(slot(plan.graph, "graphics"), 0) as Record<string, unknown> | null, [], "    ");
+    const graphGraphics = cellOf(slot(plan.graph, "graphics"), 0) as Record<string, unknown> | null;
+    yield* graphicsOf(styles === undefined ? graphGraphics : styledGraphGraphics(styles, graphGraphics), [], "    ");
     for (let u = 0; u < snapshot.nodeCount; u++) {
-        yield* nodeOf(snapshot, plan, u, "    ");
+        yield* nodeOf(snapshot, plan, u, "    ", styles);
     }
     yield* networksOf(snapshot, plan);
-    yield* edgesOf(snapshot, plan);
+    yield* edgesOf(snapshot, plan, styles);
     yield "</graph>\n";
 }
 
@@ -1188,10 +1225,15 @@ function* networksOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, voi
  * The edges: one per logical edge, expanded pairs folded.
  * @param snapshot - the snapshot
  * @param plan - the plan
+ * @param styles - the styles being written, or undefined
  * @yields the edge elements
  * @returns nothing
  */
-function* edgesOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
+function* edgesOf(
+    snapshot: GraphSnapshot,
+    plan: Plan,
+    styles: ExporterStyleInput | undefined,
+): Generator<string, void, undefined> {
     const { folding, weights } = plan;
     const labelCol = slot(plan.edges, "label");
     const graphicsCol = slot(plan.edges, "graphics");
@@ -1213,7 +1255,8 @@ function* edgesOf(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, 
         const target = escapeXmlAttribute(idText(snapshot.ids.idOf(v)));
         yield `    <edge${idAttr}${labelAttr} source="${source}" target="${target}" cy:directed="${directed ? "1" : "0"}"${optionalAttribute("weight", weight)}${xmlAttributesOf(plan.edges, e)}>\n`;
         yield* attsOf(plan.edges, e, first, plan, "        ");
-        yield* graphicsOf(cellOf(graphicsCol, e) as Record<string, unknown> | null, [], "        ");
+        const kept = cellOf(graphicsCol, e) as Record<string, unknown> | null;
+        yield* graphicsOf(styles === undefined ? kept : styledGraphics("edge", styles, e, kept), [], "        ");
         yield "    </edge>\n";
         first = false;
     }
@@ -1258,8 +1301,12 @@ export const xgmmlExporter: GraphExporter<XgmmlExportOptions> = Object.freeze({
     format: FORMAT,
     options: Object.freeze(["cytoscapeEscapes"]),
     capabilities: CAPABILITIES,
-    check: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): readonly LossNote[] =>
-        Object.freeze(planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes),
+    styles: Object.freeze({ capabilities: XGMML_STYLE_CAPABILITIES }),
+    check: (snapshot: GraphSnapshot, options?: XgmmlWriteOptions): readonly LossNote[] =>
+        Object.freeze([
+            ...planExport(snapshot, resolveExportOptions(options), resolveEscapes(options)).notes,
+            ...(options?.styles === undefined ? [] : styledGraphicsNotes(options.styles, snapshot)),
+        ]),
     export: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> =>
         encodeChunks(write(snapshot, options)),
     exportToString: (snapshot: GraphSnapshot, options?: XgmmlExportOptions & CommonExportOptions): Promise<string> =>

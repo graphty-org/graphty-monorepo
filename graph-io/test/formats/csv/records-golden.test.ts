@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { ImportReportBuilder } from "../../../src/common/report.js";
-import { RecordReader, type RecordSyntax } from "../../../src/formats/csv/records.js";
+import { RecordReader, type RecordSyntax, sniffDelimiter } from "../../../src/formats/csv/records.js";
 import { ImportError } from "../../../src/types.js";
 import { textChunksOf } from "../../helpers/corpus.js";
 
@@ -87,4 +87,27 @@ describe("RecordReader golden outputs", () => {
             expect(actual).toEqual(JSON.parse(readFileSync(file, "utf8")));
         });
     }
+});
+
+describe("sniffDelimiter", () => {
+    it("never tries the quote or the newline as the delimiter", () => {
+        expect(sniffDelimiter("a'b'c\nd'e'f\n", "\n", ["'", ","], "'")).toBeNull();
+        expect(sniffDelimiter("a\rb\rc\n", "\r", ["\r", ","])).toBeNull();
+    });
+
+    it("picks the candidate whose rows vary least in width, the first on a tie", () => {
+        expect(sniffDelimiter("a,b;c\nd,e;f\ng;h\n", "\n", [",", ";"])).toBe(";");
+        expect(sniffDelimiter("a,b;c\nd,e;f\n", "\n", [",", ";"])).toBe(",");
+        expect(sniffDelimiter("a,b,c\nd,e\n", "\n", [","])).toBe(",");
+    });
+
+    it("drops the last row of an unterminated preview and needs two fields per row on average", () => {
+        // terminated, the short last row counts; unterminated, it may be cut short and is dropped
+        expect(sniffDelimiter("a,b;c\nd,e;f\ng;h\ni", "\n", [",", ";"])).toBe(";");
+        expect(sniffDelimiter("a;b\nc;d\ne,f,g", "\n", [",", ";"])).toBe(";");
+        expect(sniffDelimiter("a;b\nc;d\ne,f,g\n", "\n", [",", ";"])).toBeNull();
+        expect(sniffDelimiter("a,b\nc\nd\n", "\n", [","])).toBeNull();
+        expect(sniffDelimiter("a,b", "\n", [","])).toBe(",");
+        expect(sniffDelimiter("\n \n", "\n", [","])).toBeNull();
+    });
 });

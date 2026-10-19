@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graph-io",
-    "version": "0.3.40",
+    "version": "0.3.45",
     "description": "Read and write 13 graph file formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) as @graphty/graph-format snapshots",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
@@ -76,6 +76,16 @@
             "types": "./dist/cys.d.ts",
             "import": "./dist/cys.js",
             "default": "./dist/cys.js"
+        },
+        "./styles": {
+            "types": "./dist/styles.d.ts",
+            "import": "./dist/styles.js",
+            "default": "./dist/styles.js"
+        },
+        "./positions": {
+            "types": "./dist/positions.d.ts",
+            "import": "./dist/positions.js",
+            "default": "./dist/positions.js"
         }
     },
     "sideEffects": false,
@@ -147,6 +157,7 @@
     "devDependencies": {
         "@vitest/coverage-v8": "catalog:",
         "@vitest/ui": "catalog:",
+        "cytoscape": "^3.34.3",
         "eslint": "^9.29.0",
         "fast-check": "^4.2.0",
         "fast-xml-parser": "^5.11.1",

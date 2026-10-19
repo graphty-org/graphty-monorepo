@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { assert, describe, test } from "vitest";
 
 import { GEXFDataSource } from "../../src/data/GEXFDataSource.js";
+import { createGraphSession } from "../../src/session";
 
 describe("GEXFDataSource", () => {
     test("parses basic GEXF", async () => {
@@ -370,6 +374,39 @@ describe("GEXFDataSource", () => {
             assert.deepEqual(edges[0].spells, [
                 { start: "2001", end: "2002" },
                 { start: "2004", end: "2005", endOpen: true },
+            ]);
+        });
+
+        test("a slice with only one bound loads, keeping just the bound it has", async () => {
+            // gexf.net's dynamics example: attvalues with only end= or only start= in timeformat="date".
+            const data = readFileSync(
+                join(
+                    __dirname,
+                    "..",
+                    "..",
+                    "..",
+                    "graph-io",
+                    "test",
+                    "conformance",
+                    "fixtures",
+                    "gexf",
+                    "gexf.net",
+                    "dynamics.gexf",
+                ),
+                "utf8",
+            );
+            for (const styles of ["none", "file"] as const) {
+                const session = createGraphSession();
+                await session.data.import({ type: "gexf", config: { data } }, { styles });
+                assert.lengthOf([...session.data.nodes()], 4);
+                session.dispose();
+            }
+
+            const { nodes } = await load(data);
+            assert.deepEqual(nodes[1].indegree, [
+                { value: 1, end: "2009-03-01" },
+                { value: 2, start: "2009-03-01", end: "2009-03-10" },
+                { value: 1, start: "2009-03-10" },
             ]);
         });
 

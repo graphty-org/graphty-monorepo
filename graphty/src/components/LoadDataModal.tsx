@@ -1,3 +1,4 @@
+import { PANEL_INK } from "@graphty/compact-mantine";
 import {
     detectFormat,
     FORMAT_DESCRIPTORS,
@@ -22,6 +23,7 @@ import { AlertCircle, Clipboard, FileText, Link, Upload } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { standardModalStyles } from "../utils/modal-styles";
+import { fileStylesChoice, writeFileStylesChoice } from "../workspace/settings/preferences";
 
 /** Which of the dialog's three inputs is showing: a file, a URL or pasted text. */
 export type InputMethod = "file" | "url" | "paste";
@@ -179,10 +181,14 @@ export function LoadDataModal({
     /* Reset to the caller's tab during the render that opens the dialog, not in an effect
        after it, so the modal's focus trap lands on that tab's input rather than the last one's. */
     const [wasOpened, setWasOpened] = useState(opened);
+    /* The reader's one import-styles preference, read again each time the dialog opens; the
+       shell's load reads the same preference, so ticking it here is what the load does. */
+    const [importStyles, setImportStyles] = useState(() => fileStylesChoice() === "file");
     if (opened !== wasOpened) {
         setWasOpened(opened);
         if (opened) {
             setInputMethod(initialMethod);
+            setImportStyles(fileStylesChoice() === "file");
         }
     }
     const [selectedFormat, setSelectedFormat] = useState<FormatType>("auto");
@@ -478,7 +484,7 @@ export function LoadDataModal({
                         onDragLeave={handleDragLeave}
                         onClick={() => document.getElementById("file-input")?.click()}
                         style={{
-                            border: `2px dashed ${isDragging ? "var(--mantine-color-blue-5)" : "var(--mantine-color-default-border)"}`,
+                            border: `2px dashed ${isDragging ? "var(--cm-graphic-brand)" : "var(--mantine-color-default-border)"}`,
                             borderRadius: "8px",
                             padding: "40px 20px",
                             textAlign: "center",
@@ -606,6 +612,22 @@ export function LoadDataModal({
                     {SUPPORTED_FORMATS_LINE}
                 </Text>
 
+                {/* Shown only for a format whose catalog entry says its files can carry styles. */}
+                {formatDescriptor(getEffectiveFormat() ?? "")?.styles?.read === true && (
+                    <Checkbox
+                        label="Import styles from the file"
+                        description="Draw the colors, sizes and shapes the file gives its nodes and edges"
+                        checked={importStyles}
+                        onChange={(e) => {
+                            setImportStyles(e.currentTarget.checked);
+                            writeFileStylesChoice(e.currentTarget.checked);
+                        }}
+                        styles={{
+                            description: { color: "var(--mantine-color-dimmed)" },
+                        }}
+                    />
+                )}
+
                 {/* Replace Existing Data Checkbox */}
                 <Checkbox
                     label="Replace existing data"
@@ -621,7 +643,7 @@ export function LoadDataModal({
 
                 {/* Error Display */}
                 {error && (
-                    <Group gap="xs" style={{ color: "var(--mantine-color-red-5)" }}>
+                    <Group gap="xs" style={{ color: PANEL_INK.DANGER_TEXT }}>
                         <AlertCircle size={16} />
                         <Text size="sm">{error}</Text>
                     </Group>

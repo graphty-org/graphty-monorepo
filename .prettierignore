@@ -5,6 +5,9 @@ node_modules/
 dist/
 coverage/
 storybook-static/
+# graph-samples' hosted datasets: written by `npm run datasets:hosted`, ignored by
+# graph-samples/.gitignore, which prettier does not read (it reads only the root .gitignore)
+graph-samples/public-data/
 
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
@@ -12,6 +15,8 @@ storybook-static/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# Vitest file snapshots: written by the tests that compare them byte for byte
+**/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
 # nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
 # __proto__ -> **proto**), and a release commit must never fail CI on its own changelogs.
@@ -56,6 +61,14 @@ githerd/test/worker-settings/
 
 # Generated benchmark reports
 algorithms/benchmark-results/
+
+# The style corpus: real files kept byte for byte, and RESULTS.md, which the style harness compares as written
+graph-io/test/corpus/styles/
+
+# Style fidelity references: scenes written by graph-io/test/fidelity/regenerate.sh, and the samples
+# they hash byte for byte
+graph-io/test/fidelity/scenes/
+graph-io/test/fidelity/samples/
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/

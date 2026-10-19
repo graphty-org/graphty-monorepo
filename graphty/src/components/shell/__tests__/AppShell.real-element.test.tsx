@@ -15,14 +15,17 @@ import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { findSample, SAMPLE_MANIFEST, type SampleRecord } from "../../../data/sampleManifest";
-import { fireEvent, render, screen, waitFor, within } from "../../../test/test-utils";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { AppShell } from "../AppShell";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../CommandPalette";
 
 /** The element itself, by its own published type; the import above registers it. */
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
-/** A hang guard for loading a sample, laying it out and drawing it; not a pass/fail timing. */
+/**
+ * How long a poll on a run's result may keep polling: past the test's own limit, so the test's
+ * limit, not the poll's, is what ends a hang. Not a pass/fail timing.
+ */
 const LOAD_TEST_TIMEOUT_MS = 120_000;
 
 /** What the element reported once the load ended and the picture settled. */
@@ -85,6 +88,10 @@ async function mountSampleThroughWelcome(
             reject(new Error(`the element rejected ${record.fileName}: ${error.message}`));
         });
     });
+    // A real click resolves only after the browser has handled it, and a bad file can be rejected
+    // before then: handled here so the rejection waits for the `await loaded` below rather than
+    // surfacing as an unhandled one. Awaiting `loaded` still throws it.
+    loaded.catch(() => undefined);
 
     const row = container.querySelector<HTMLElement>(`[data-sample-row="${record.id}"]`);
 
@@ -103,7 +110,7 @@ async function mountSampleThroughWelcome(
         });
     });
 
-    fireEvent.click(row);
+    await userEvent.click(row);
     await loaded;
     await recorded;
     await element.waitForSettled();
@@ -187,20 +194,21 @@ async function failureOf(check: Promise<void>): Promise<Error> {
     return outcome;
 }
 
+// The shell's design frame, for every block: at the runner's default 414 px frame the 1440 px
+// shell overflows and its panels overlap, so a real click lands on whatever is drawn on top.
+beforeAll(async () => {
+    await page.viewport(1440, 900);
+});
+
 describe("AppShell with the real graphty-element", () => {
     afterEach(() => {
         vi.restoreAllMocks();
     });
 
     for (const record of SAMPLE_MANIFEST) {
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-        it(
-            `loads ${record.name} with the manifest's counts and draws it`,
-            async () => {
-                await expectSampleLoads(record);
-            },
-            LOAD_TEST_TIMEOUT_MS,
-        );
+        it(`loads ${record.name} with the manifest's counts and draws it`, async () => {
+            await expectSampleLoads(record);
+        });
     }
 
     it("fails when a sample's file is not the format it claims", async () => {
@@ -293,20 +301,22 @@ describe("the ego network with the real graphty-element", () => {
 
         // G applies the element's neighborhood filter at the default depth of one hop.
         let next = changed();
-        fireEvent.keyDown(window, { key: "g" });
+        await userEvent.keyboard("g");
         await next;
         assert.deepEqual(visible(), hopsFrom(edges, seed, 1));
 
         // The depth control moves the same filter to two hops.
         const control = await within(container).findByTestId("ego-network-control");
         next = changed();
-        fireEvent.click(within(control).getByLabelText("2 hop"));
+        // The segment's label: its radio input is drawn invisible under it
+        const twoHop = within(control).getByLabelText("2 hop");
+        await userEvent.click(control.querySelector(`label[for="${twoHop.id}"]`) as HTMLElement);
         await next;
         assert.deepEqual(session.visibility.filter, { kind: "neighborhood", seeds: [seedRecord.id], depth: 2 });
         assert.deepEqual(visible(), hopsFrom(edges, seed, 2));
 
         next = changed();
-        fireEvent.click(within(control).getByRole("button", { name: "Clear" }));
+        await userEvent.click(within(control).getByRole("button", { name: "Clear" }));
         await next;
         assert.isNull(session.visibility.filter);
         assert.strictEqual(session.visibility.nodes.size, total);
@@ -327,13 +337,13 @@ describe("the inspector's Pin verb on the real graphty-element", () => {
         const { element } = await mountSampleThroughWelcome(karate);
 
         assert.isTrue(element.selectNode(34), "the element holds node 34");
-        fireEvent.click(await screen.findByTestId("inspector-actions-more"));
-        fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
+        await userEvent.click(await screen.findByTestId("inspector-actions-more"));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
         assert.include((await screen.findByTestId("node-pinned-badge")).textContent ?? "", "Pinned");
         assert.deepEqual([...element.session.positions.pinned], [34], "pinned under the id the graph holds");
 
-        fireEvent.click(screen.getByTestId("node-unpin"));
+        await userEvent.click(screen.getByTestId("node-unpin"));
         await waitFor(() => {
             assert.isNull(screen.queryByTestId("node-pinned-badge"));
         });
@@ -351,8 +361,8 @@ describe("the command palette's node and edge search on the real graphty-element
      * @param text - what to type.
      */
     async function typeInPalette(text: string): Promise<void> {
-        fireEvent.click(screen.getByRole("button", { name: new RegExp(COMMAND_PALETTE_PLACEHOLDER) }));
-        fireEvent.change(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), { target: { value: text } });
+        await userEvent.click(screen.getByRole("button", { name: new RegExp(COMMAND_PALETTE_PLACEHOLDER) }));
+        await userEvent.fill(await screen.findByLabelText(COMMAND_PALETTE_PLACEHOLDER), text);
     }
 
     it("selects a node typed by its id and frames it", async () => {
@@ -365,7 +375,7 @@ describe("the command palette's node and edge search on the real graphty-element
         const rows = await screen.findAllByRole("option", { name: /^Nodes/ });
         // The exact id match sorts first.
         assert.strictEqual(rows[0]?.textContent, "NodesMr_Whiskers");
-        fireEvent.click(rows[0]);
+        await userEvent.click(rows[0]);
 
         await waitFor(() => {
             assert.deepEqual([...element.session.selection.nodes], ["Mr_Whiskers"]);
@@ -385,7 +395,7 @@ describe("the command palette's node and edge search on the real graphty-element
         await typeInPalette("rivals");
         const [row] = await screen.findAllByRole("option", { name: /^Edges/ });
         assert.isDefined(row);
-        fireEvent.click(row);
+        await userEvent.click(row);
 
         await waitFor(() => {
             assert.deepEqual([...element.session.selection.edges], [expected.id]);

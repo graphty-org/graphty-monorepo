@@ -1,9 +1,34 @@
+---
+head:
+    - - link
+      - rel: icon
+        href: /docs/brand/graph-io/favicon.ico
+        sizes: 48x48
+    - - link
+      - rel: icon
+        href: /docs/brand/graph-io/favicon.svg
+        type: image/svg+xml
+---
+
+![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-light.svg){.graph-io-logo-light}
+![graphty graph-io](./brand/graphty-graph-io-lockup-color-on-dark.svg){.graph-io-logo-dark}
+
+<style>
+html:not(.dark) .graph-io-logo-dark,
+html.dark .graph-io-logo-light {
+    display: none;
+}
+</style>
+
 # graph-io
 
 graph-io reads and writes graph files. It turns a GraphML, GEXF, CSV or other graph file into a
 [`@graphty/graph-format`](https://www.npmjs.com/package/@graphty/graph-format) snapshot, and writes a
 snapshot back out in any of the same formats. It runs in browsers and in Node, and streams large
 files. Its one dependency, graph-format, is installed with it.
+
+graph-io also reads how a file draws its graph (colors, sizes, shapes, labels, arrows) when you
+ask, and writes that look into any format that can hold it.
 
 When a file holds something graph-io cannot represent, or a format cannot hold part of your graph,
 graph-io tells you: an import returns a report that lists every skipped or changed element, and
@@ -42,8 +67,11 @@ one keeps.
   graphs, cancelling, keeping a browser bundle small.
 - [Reading the graph](./guide/reading.md): nodes, attributes, labels, edges, weights.
 - [Saving graphs](./guide/saving.md): checking a save, streaming, downloads, ids a format cannot hold.
+- [Styles](./guide/styles.md): a file's colors, sizes, shapes and labels, read and written in every
+  format that has them.
 - [The import report and errors](./guide/report.md): what went wrong, and where.
 - [Format detection](./guide/detection.md): how graph-io tells formats apart, and when to name one.
+- [Reading stored positions](./guide/positions.md): where a file drew each node, in one form whatever the format.
 - [Options reference](./guide/options.md): every option, with its default.
 - [Issue and loss codes](./guide/codes.md): every code an import or a save can report.
 - [Writing a format plugin](./guide/extending/new-format.md): teach graph-io a format of your own.

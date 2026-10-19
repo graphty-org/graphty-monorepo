@@ -11,6 +11,7 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
+import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -223,8 +224,10 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-io": {
+            "@typescript-eslint/no-unsafe-argument": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-samples": {
             "@typescript-eslint/no-unnecessary-condition": "error",
@@ -279,6 +282,22 @@ export default tseslint.config(
     {
         files: ["compact-mantine/**/*.ts", "compact-mantine/**/*.tsx"],
         rules: { "@typescript-eslint/no-restricted-imports": ["error", { paths: MANTINE_REPLACEMENTS }] },
+    },
+
+    // ============================================
+    // ONE ZOD: IMPORT IT AS "zod"
+    // ============================================
+    // Every package is on the zod 4 package. The versioned subpaths ("zod/v3", "zod/v4",
+    // "zod/v4/core", "zod/v4-mini") are what let zod 3 and zod 4 types sit side by side in the
+    // public API; core types are under `z.core`.
+    {
+        files: ["**/*.{ts,tsx,js,mjs,cjs}"],
+        rules: {
+            "no-restricted-imports": [
+                "error",
+                { patterns: [{ regex: "^zod/v[34]", message: 'Import zod as "zod" (core types are z.core.*).' }] },
+            ],
+        },
     },
 
     // ============================================
@@ -350,6 +369,13 @@ export default tseslint.config(
             "compact-mantine/tests/figma/overlays.browser.test.tsx",
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
+    },
+    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
+    // of its own under a test runner (#2930). graphty's stories are in its own config.
+    {
+        files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
+        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
+        rules: { "local-stories/story-wait-options": "error" },
     },
 
     // ============================================

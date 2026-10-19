@@ -1,5 +1,7 @@
 # SonarQube as a local pre-push gate
 
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
 How graphty-monorepo uses the owner's SonarQube server: a pre-push step that blocks only the
 problems a push introduces, a background job that keeps master's analysis current, and a staged
 plan that burns the existing backlog down without ever blocking feature work.
@@ -100,13 +102,20 @@ habit. So a finding on a changed line does not block when master already has it:
   raises them is usually an edit further down: a branch added deep inside a function leaves its
   first line untouched. So the gate judges each one by the whole stretch of code it covers: from
   the reported line to its last secondary location (SonarQube marks every complexity increment as
-  one), and for S107 through the end of the parameter list. When a hunk adds, changes or deletes a
-  line in that stretch, the push edits the function, and the gate compares it with the merge base
-  of the push -- not with master's analysis, which can be hours behind or ahead. It writes the
-  merge base's copies of those files to a scratch directory and scans them into the same scratch
-  project, right after the scan of HEAD and under the same lock (the second scan runs only when
-  such a finding exists, and adds about a minute). The finding blocks when:
-    - the merge base has no such finding there (the function or regex just crossed the limit), or
+  one), and for S107 through the end of the parameter list. Only hunks THIS push introduces count:
+  for a branch already on GitHub, the lines changed since the branch's remote head (the remote sha
+  git hands the pre-push hook) that also differ from the merge base, so a function the branch
+  changed in an earlier push is left alone, and what a merge brought in from master is never the
+  branch's; for a new branch, every hunk against the merge base. When such a hunk adds, changes or
+  deletes a line in that stretch, the push edits the function, and the gate compares it with the
+  version before the push (the remote head; for a new branch the merge base) -- not with master's
+  analysis, which can be hours behind or ahead. It writes that version's copies of those files to
+  a scratch directory and scans them into the same scratch project, right after the scan of HEAD
+  and under the same lock (the second scan runs only when such a finding exists, and adds about a
+  minute). When the push holds a merge commit, the merge base's copies are scanned as well, and a
+  score counts as risen only when it exceeds both. The finding blocks when:
+    - the previous version has no such finding there (the function or regex just crossed the
+      limit), or
     - its score rose (the number in the message: "from 17 to the 15 allowed", or "(9)" parameters),
       or
     - "touch it, fix it": it is S3776 and the function scores 16 to 20. A function that is only a
@@ -235,7 +244,8 @@ off-network push impossible, and the only way through would be `git push --no-ve
 skips Git LFS, the secret scan, the build, lint and the tests. Nothing is lost:
 
 - The gate judges the whole branch against its merge base, not the commits since the last push.
-  The next push from the network re-checks everything a skipped push carried.
+  The next push from the network re-checks everything a skipped push carried, except the
+  whole-function complexity rules, which judge only what each push itself changes.
 - A branch that merges before it is pushed again from the network lands on master, where the
   baseline job's next scan shows its issues as new code. The weekly review (section 3) lists
   them.
@@ -572,6 +582,7 @@ changes the profile.
 | javascript:S2486 (exception caught and ignored)                      |                   5 | Keep                                            | All 5 are in example and benchmark pages (the XR pivot camera demo, the BFS browser benchmark), each with a comment saying why the error is ignored: a disposed controller, a hand-tracking glitch, a failed warm-up run.                                                                                                                                                                                                                                                                                                          |
 | css:S7924 (text contrast)                                            |                   1 | Keep                                            | The start button of the XR pivot camera example page. The example is a demo, not a published component; its colors are its author's.                                                                                                                                                                                                                                                                                                                                                                                               |
 | javascript:S7784 (`structuredClone` over a JSON round trip)          |                   1 | Keep                                            | visual-review's capture reads each story's `parameters.chromatic` through JSON on purpose, so functions and class instances never cross into Node; `structuredClone` throws on a function instead of dropping it.                                                                                                                                                                                                                                                                                                                  |
+| typescript:S1994 (`for` update skips the tested variable)            |                   9 | Fix                                             | Each loop searches with a counter its condition never reads: the next free id suffix (graphty-element's set store, graph-io's exporters and GraphML hubs), the level count of a frontier loop (algorithms' BFS, webgpu-graph-algorithms' closeness), a first-submit flag (betweenness). A `while` with the step at the end runs the same iterations. Fixed in the set store and closeness; 7 sites wait for open pull requests that edit their files.                                                                              |
 
 Closed on the server on 2026-10-13, so they stop counting as open: the sites the "Fix where ..."
 decisions above deliberately leave were accepted (S7755 56, S7764 43, S7781 8, S7780 8, S7763 5,
@@ -580,7 +591,8 @@ and the 3 S1135 TODOs that track open work (#2343, #2344, #2345); the stale TODO
 next scan of master. The 31 S1940 sites were closed as false positives: the rewrite the rule asks
 for changes the answer for `NaN`. S4323 is Fix everywhere since then: exporting a new alias only
 adds to the API (the owner's rule of 2026-10-08), and an exported one goes into the API report in
-the same pull request.
+the same pull request. The kept S6479 (4), S4144 (1) and S7924 (1) sites were accepted the same way on
+2026-10-15.
 
 ### Stages
 

@@ -1,3 +1,41 @@
+## 0.1.37 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.5
+
+## 0.1.36 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.4
+
+## 0.1.35 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.3
+
+## 0.1.34 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-format to 1.4.2
+
+## 0.1.33 (2026-10-15)
+
+### 🚀 Features
+
+- **graph-samples:** load every dataset from graphty.app instead of bundling it ([11d72b864](https://github.com/graphty-org/graphty-monorepo/commit/11d72b864))
+
+### 🩹 Fixes
+
+- **graph-samples:** pack hosted datasets without a commit stamp ([#2709](https://github.com/graphty-org/graphty-monorepo/issues/2709))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 0.1.32 (2026-10-14)
 
 ### 🧱 Updated Dependencies

@@ -133,8 +133,8 @@ describe("GEXF styles: reading", () => {
         expect(resolveStyles(styles, "node", "fillOpacity", snapshot)).toEqual([null, null, null]);
         const source = styles.styles.rules.find((r) => r.facts?.reason === "END_NODE_COLORS");
         expect(source).toMatchObject({ origin: "tool", map: { color: { kind: "passthrough" } } });
-        // undirected: Gephi draws no arrows
-        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "none", "none"]);
+        // no defaultedgetype: Gephi Toolkit 0.11.3 reads every edge directed and draws an arrow at each target
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["triangle", "triangle", "triangle"]);
     });
 
     it("draws every curved edge as its own curve, as Gephi does: it fans no bundle", async () => {
@@ -155,17 +155,100 @@ describe("GEXF styles: reading", () => {
             <edges><edge source="a" target="b" weight="3"/><edge source="b" target="a"/>
             <edge source="a" target="a" weight="5"><viz:thickness value="2"/></edge></edges></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3, 1, 5]);
+        // the self-loop is drawn 1.3 times its weight
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([3, 1, 6.5]);
         expect(styles.styles.rules.find((r) => r.facts?.reason === "EDGE_WEIGHT")).toMatchObject({ origin: "tool" });
     });
 
-    it("draws the weight as the width when every edge has a weight, and 1 for a weight of 0 or below", async () => {
+    it("raises every weight by |smallest| + 1 when the smallest is 0 or below, as Gephi does", async () => {
         const { snapshot, styles } = await load(
             `<gexf version="1.3"><graph><nodes><node id="a"/><node id="b"/></nodes>
             <edges><edge source="a" target="b" weight="2.5"/><edge source="b" target="a" weight="0.1"/>
             <edge source="a" target="a" weight="0"/><edge source="b" target="b" weight="-2.25"/></edges></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([2.5, 0.1, 1, 1]);
+        // measured on Gephi Toolkit 0.11.3: weights 5.75, 3.35, 3.25 and 1 (gexf-specimen-edges-lines-p13 too), the
+        // two self-loops stroked 1.3 times theirs (4.225 and 1.3)
+        const widths = resolveStyles(styles, "edge", "width", snapshot) as number[];
+        expect(widths.map((w) => Math.round(w * 1e4) / 1e4)).toEqual([5.75, 3.35, 4.225, 1.3]);
+    });
+
+    it("merges parallel edges into the first with their summed weight, and drops an edge against the graph's type, as Gephi does", async () => {
+        const nodes = `<nodes><node id="a"/><node id="b"/><node id="c"/></nodes>`;
+        // each measured on Gephi Toolkit 0.11.3 (its preview items: the edges drawn and their weights)
+        const directed = await load(
+            `<gexf version="1.3"><graph defaultedgetype="directed">${nodes}<edges>
+            <edge id="e1" source="a" target="b" weight="2"/><edge id="e2" source="a" target="b" weight="3"/>
+            <edge id="e3" source="b" target="a" weight="1"/><edge id="e4" source="b" target="c" type="undirected"/>
+            <edge id="e5" source="a" target="c" kind="x"/><edge id="e6" source="a" target="c" kind="y"/>
+            </edges></graph></gexf>`,
+        );
+        const shown = (ex: Awaited<ReturnType<typeof load>>): (string | null)[] => {
+            const visible = resolveStyles(ex.styles, "edge", "visible", ex.snapshot);
+            const width = resolveStyles(ex.styles, "edge", "width", ex.snapshot);
+            const id = ex.snapshot.edges.get("id");
+            const out: (string | null)[] = [];
+            for (let e = 0; e < ex.snapshot.edgeCount; e++) {
+                // an undirected edge of a directed graph is two halves; the second has no id
+                if (id?.isSet(e) === true) {
+                    out.push(visible[e] === false ? null : `${String(id.value(e))}:${String(width[e])}`);
+                } else if (visible[e] !== false) {
+                    out.push(`half:${String(width[e])}`);
+                }
+            }
+            return out;
+        };
+        // a->b twice merges (5); b->a stays; the undirected edge's two halves are dropped; kinds x and y stay apart
+        expect(shown(directed)).toEqual(["e1:5", null, "e3:1", null, "e5:1", "e6:1"]);
+        const undirected = await load(
+            `<gexf version="1.3"><graph defaultedgetype="undirected">${nodes}<edges>
+            <edge id="e1" source="a" target="b" weight="2"/><edge id="e2" source="b" target="a" type="mutual" weight="3"/>
+            <edge id="e3" source="b" target="c" type="directed"/></edges></graph></gexf>`,
+        );
+        // a-b and b-a (mutual is undirected here) merge into 5 on both halves of e1 (the second has no id); the directed edge is dropped
+        expect(shown(undirected).filter((s) => s !== null)).toEqual(["e1:5", "half:5"]);
+        const mutual = await load(
+            `<gexf version="1.3"><graph defaultedgetype="mutual">${nodes}<edges>
+            <edge id="e1" source="a" target="b" weight="2"/><edge id="e2" source="b" target="a" weight="3"/>
+            <edge id="e3" source="a" target="c" type="undirected" weight="1"/>
+            <edge id="e4" source="c" target="a" type="undirected" weight="4"/></edges></graph></gexf>`,
+        );
+        // a mutual graph keeps every edge: an untyped one directed (a->b and b->a stay apart), undirected ones merge
+        expect([...new Set(shown(mutual).filter((s) => s !== null))]).toEqual([
+            "e1:2",
+            "half:2",
+            "e2:3",
+            "half:3",
+            "e3:5",
+            "half:5",
+        ]);
+        expect(
+            resolveStyles(mutual.styles, "edge", "targetArrow", mutual.snapshot).filter((a) => a === "triangle"),
+        ).toHaveLength(4);
+    });
+
+    it("draws a self-loop 1.3 times as thick as its weight and without an arrowhead, as Gephi does", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3"><graph defaultedgetype="directed"><nodes><node id="a"/><node id="b"/></nodes>
+            <edges><edge source="a" target="a" weight="2"/><edge source="a" target="b" weight="2"/></edges></graph></gexf>`,
+        );
+        // measured on Gephi Toolkit 0.11.3: a self-loop of weight 1 is stroked 1.3 wide, one of 3.25 4.225
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([2.6, 2]);
+        expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["none", "triangle"]);
+    });
+
+    it("reads a dynamic weight attribute at its earliest interval, and 0 for an edge without one, as Gephi does", async () => {
+        const { snapshot, styles } = await load(
+            `<gexf version="1.3"><graph mode="dynamic" timeformat="double" defaultedgetype="undirected">
+            <attributes class="edge" mode="dynamic"><attribute id="weight" title="Weight" type="float"/></attributes>
+            <nodes><node id="a"/><node id="b"/><node id="c"/><node id="d"/></nodes><edges>
+            <edge source="a" target="b" weight="4"/>
+            <edge source="b" target="c"><attvalues><attvalue for="weight" value="1" start="2" end="3"/>
+            <attvalue for="weight" value="8" start="1" end="2"/></attvalues></edge>
+            <edge source="c" target="d"><attvalues><attvalue for="weight" value="4" start="1" end="3"/></attvalues></edge>
+            </edges></graph></gexf>`,
+        );
+        // gexf-specimen-edges-lines-p15: 0, 8 and 4, raised by 1
+        expect(resolveStyles(styles, "edge", "width", snapshot)).toEqual([1, 9, 5]);
     });
 
     it("leaves out every Gephi default, the derived ones too, with toolDefaults: false", async () => {

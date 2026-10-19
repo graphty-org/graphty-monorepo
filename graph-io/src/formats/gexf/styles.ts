@@ -29,7 +29,7 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { NODE_COLUMNS, VIZ_NAMESPACE } from "./schema.js";
+import { NODE_COLUMNS, TEMPORAL_COLUMNS, temporalTableName, VIZ_NAMESPACE } from "./schema.js";
 
 /** The column of a node's `label` attribute. */
 const LABEL_COLUMN = NODE_COLUMNS.label;
@@ -57,12 +57,17 @@ const GEPHI_NODE_FILL = "#000000";
 /** The style column marking directed edges, which Gephi draws with an arrow at the target. */
 const DIRECTED_KEY = "directed";
 
+/** The style column marking the edges Gephi does not draw (dropped, or merged into a parallel edge). */
+const HIDDEN_KEY = "gephi-hidden";
+
 /** The style column holding the mix of its end nodes' colors of each edge without a color of its own. */
 const MIXED_COLOR_KEY = "end-colors";
 /** The width property and the style column of the width Gephi draws an edge with from its weight. */
 const WEIGHT_WIDTH = ["width", "weight-width"] as const;
 /** Gephi's node width when a node has no `viz:size` (graphstore NodeImpl size 10, a radius). */
 const GEPHI_NODE_WIDTH = 20;
+/** How much thicker than its weight Gephi draws a self-loop. */
+const SELF_LOOP_THICKNESS = 1.3;
 
 /** GEXF's node shapes, by the neutral shape each writes exactly. */
 const NODE_SHAPES: ReadonlyMap<string, string> = new Map([
@@ -299,20 +304,140 @@ function readVizShape(viz: VizRead, shape: string, i: number): boolean {
     return typeof raw === "string" && raw.toLowerCase() === "image";
 }
 
+/** What Gephi draws of each edge (gephiEdges()). */
+interface GephiDrawnEdges {
+    /** Whether Gephi draws the edge directed, with an arrow at its target. */
+    readonly directed: boolean[];
+    /** Whether Gephi does not draw the edge at all. */
+    readonly hidden: boolean[];
+    /** The weight Gephi draws the edge with: merged, then shifted. */
+    readonly weight: number[];
+}
+
 /**
- * Whether each edge is directed.
+ * The edges as Gephi's importer and preview draw them (measured with the Gephi Toolkit 0.11.3:
+ * `gexf-specimen-edges-lines`, `-p13`, `-p15`, `gexf-specimen-arrows`, `-p6`, `-p7`):
+ * - an edge whose own type is against the graph's `defaultedgetype` is dropped (`undirected` in a `directed`
+ *   graph, `directed` in an `undirected` one); a `mutual` graph, or one with no `defaultedgetype`, keeps every
+ *   edge, an untyped or `mutual` one directed;
+ * - edges of one kind between the same ends (either way round for an undirected edge) are merged into the first,
+ *   whose weight is their sum;
+ * - an edge's weight is its `weight` (1 when it has none), or, when an edge attribute named weight is dynamic, its
+ *   value over the earliest interval (0 when it has none);
+ * - when the smallest weight drawn is 0 or less, every weight is raised by |smallest| + 1.
+ * An undirected edge of a directed snapshot is two halves here; both take what its first half gets.
  * @param snapshot - the graph
- * @returns one flag per edge
+ * @returns per edge, what Gephi draws
  */
-function directedEdges(snapshot: GraphSnapshot): boolean[] {
-    const out = new Array<boolean>(snapshot.edgeCount).fill(snapshot.directed);
-    const col = snapshot.directed ? snapshot.edges.byRole("directed") : null;
-    if (col !== null) {
-        for (let e = 0; e < snapshot.edgeCount; e++) {
-            out[e] = plainCell(col.value(e)) !== false;
+function gephiEdges(snapshot: GraphSnapshot): GephiDrawnEdges {
+    const n = snapshot.edgeCount;
+    const first = firstHalf(snapshot);
+    const header = gexfDefaultEdgeType(snapshot);
+    const dirCol = snapshot.edges.byRole("directed");
+    const mutualCol = snapshot.edges.byRole("mutual");
+    const kindCol = snapshot.edges.byRole("kind");
+    const weightOf = gephiWeight(snapshot);
+    const out: GephiDrawnEdges = {
+        directed: new Array<boolean>(n).fill(false),
+        hidden: new Array<boolean>(n).fill(false),
+        weight: new Array<number>(n).fill(1),
+    };
+    const leaders = new Map<string, number>();
+    const drawnLeaders: number[] = [];
+    for (let e = 0; e < n; e++) {
+        const f = first(e);
+        if (f !== e) {
+            continue;
+        }
+        // the edge's own type: graph-io records it only when the file mixes directions
+        const ownUndirected =
+            dirCol === null ? header === "undirected" : dirCol.value(f) === false && mutualCol?.value(f) !== true;
+        const ownDirected =
+            dirCol === null ? header !== "undirected" : dirCol.value(f) === true && mutualCol?.value(f) !== true;
+        if ((header === "directed" && ownUndirected) || (header === "undirected" && ownDirected)) {
+            out.hidden[f] = true;
+            continue;
+        }
+        // Gephi draws no arrowhead on a self-loop
+        const s = snapshot.edgeSource(f);
+        const t = snapshot.edgeTarget(f);
+        const directed = header === "undirected" || s === t ? false : !ownUndirected;
+        out.directed[f] = directed;
+        const kind = kindCol?.isSet(f) === true ? String(kindCol.value(f)) : "";
+        const key = `${kind}\u0000${directed ? `${String(s)}>${String(t)}` : `${String(Math.min(s, t))}-${String(Math.max(s, t))}`}`;
+        const leader = leaders.get(key);
+        if (leader === undefined) {
+            leaders.set(key, f);
+            drawnLeaders.push(f);
+            out.weight[f] = weightOf(f);
+        } else {
+            out.weight[leader] += weightOf(f);
+            out.hidden[f] = true;
         }
     }
+    const smallest = Math.min(...drawnLeaders.map((f) => out.weight[f]));
+    const shift = smallest <= 0 ? 1 - smallest : 0;
+    for (let e = 0; e < n; e++) {
+        const f = first(e);
+        out.directed[e] = out.directed[f];
+        out.hidden[e] = out.hidden[f];
+        out.weight[e] = out.weight[f] + shift;
+    }
     return out;
+}
+
+/**
+ * The graph's `defaultedgetype` as written, lower case, or null when it wrote none.
+ * @param snapshot - the graph
+ * @returns the keyword
+ */
+function gexfDefaultEdgeType(snapshot: GraphSnapshot): string | null {
+    const written = (snapshot.meta.extra.gexf as { defaultedgetype?: unknown } | undefined)?.defaultedgetype;
+    return typeof written === "string" ? written.trim().toLowerCase() : null;
+}
+
+/**
+ * Each edge's weight as Gephi reads it: an edge attribute whose id or title is `weight` and is dynamic is the weight,
+ * at its value over the earliest interval (0 for an edge without one: its static `weight` is not read); otherwise
+ * the edge's `weight`, 1 for an edge with none.
+ * @param snapshot - the graph
+ * @returns the weight of an edge
+ */
+function gephiWeight(snapshot: GraphSnapshot): (e: number) => number {
+    const isWeight = (v: unknown): boolean => typeof v === "string" && v.toLowerCase() === "weight";
+    const dynamic = snapshot.edges
+        .names()
+        .map((name) => snapshot.edges.get(name))
+        .find(
+            (c) =>
+                c !== null && c.meta.dynamic && [c.meta.name, c.meta.origin?.id, c.meta.origin?.title].some(isWeight),
+        );
+    const table =
+        dynamic === undefined || dynamic === null
+            ? undefined
+            : snapshot.extensions.get(temporalTableName("edge", dynamic.meta.name));
+    if (table !== undefined) {
+        const element = table.get(TEMPORAL_COLUMNS.element);
+        const start = table.get(TEMPORAL_COLUMNS.start);
+        const value = table.get(TEMPORAL_COLUMNS.value);
+        const earliest = new Map<number, { start: number; value: number }>();
+        for (let row = 0; element !== null && value !== null && row < table.rowCount; row++) {
+            const e = element.value(row) as number;
+            const at = start?.isSet(row) === true ? (start.value(row) as number) : -Infinity;
+            const v = Number(value.value(row));
+            const seen = earliest.get(e);
+            if (Number.isFinite(v) && (seen === undefined || at < seen.start)) {
+                earliest.set(e, { start: at, value: v });
+            }
+        }
+        return (e) => earliest.get(e)?.value ?? 0;
+    }
+    // the snapshot's own weights (the role column exists only when some edge has none), as their shortest decimal
+    const weights = explicitWeights(snapshot);
+    return (e) => {
+        const w = Number(weights.text(e) ?? 1);
+        return Number.isFinite(w) ? w : 1;
+    };
 }
 
 /** The node values Gephi's per-element defaults are worked out from, each undefined when no node has one. */
@@ -414,7 +539,8 @@ export function gephiRules(
 ): { readonly node: GephiTargetRules; readonly edge: GephiTargetRules } {
     const node: GephiTargetRules = { rules: [], columns: new Map() };
     const edge: GephiTargetRules = { rules: [], columns: new Map() };
-    const directed = directedEdges(snapshot);
+    const drawn = gephiEdges(snapshot);
+    const { directed } = drawn;
     if (directed.some(Boolean)) {
         edge.columns.set(
             DIRECTED_KEY,
@@ -463,23 +589,32 @@ export function gephiRules(
         nodeIndices.map((i) => Math.max(1, Math.round(0.3 * width(i)))),
         "NODE_SIZE",
     );
-    // An undirected edge in a directed graph is one edge in the file and two halves here: both halves take the
-    // first half's weight.
-    const first = firstHalf(snapshot);
-    // Gephi draws an edge as thick as its weight (1 for an edge with none); a width of its own is the file's
-    // The weights come from the snapshot's own weights (the role column exists only when some edge has none), read
-    // as the shortest decimal of their dtype. A weight of 0 or below is drawn 1 wide, so the edge stays visible.
-    const weights = explicitWeights(snapshot);
+    // Gephi draws an edge as thick as its weight (gephiEdges(): merged and shifted); a width of its own is the file's
     perElementDefault(
         edge,
         "edge",
         WEIGHT_WIDTH,
-        withoutOwn(edges.width, snapshot.edgeCount, (e) => {
-            const w = Number(weights.text(first(e)) ?? 1);
-            return Number.isFinite(w) && w > 0 ? w : 1;
-        }),
+        // Gephi's self-loop is 1.3 times as thick (measured: weight 1 draws 1.3, 3.25 draws 4.225)
+        withoutOwn(edges.width, snapshot.edgeCount, (e) =>
+            snapshot.edgeSource(e) === snapshot.edgeTarget(e) ? SELF_LOOP_THICKNESS * drawn.weight[e] : drawn.weight[e],
+        ),
         "EDGE_WEIGHT",
     );
+    // the edges Gephi does not draw: one of another direction than the graph's, or one merged into a parallel edge
+    if (drawn.hidden.some(Boolean)) {
+        edge.columns.set(
+            HIDDEN_KEY,
+            drawn.hidden.map((h) => (h ? true : null)),
+        );
+        edge.rules.push({
+            id: "edge.tool.gephi-hidden",
+            target: "edge",
+            role: "group",
+            origin: "tool",
+            where: { has: { style: HIDDEN_KEY } },
+            set: { visible: false },
+        });
+    }
     // EdgeColor MIXED: each channel, alpha too, the truncated mean of the two end nodes'. graphty-element cannot
     // bind an edge's color to its nodes' drawn colors, so the mix is frozen here.
     const mixed = (e: number): number[] => {

@@ -871,6 +871,54 @@ function readElement(
     }
 }
 
+/** The font size GraphIO::drawSVG draws every label in (SVGSettings), by which it sets a cluster's label off its box. */
+const OGDF_SVG_FONT_SIZE = 10;
+
+/**
+ * Places each OGDF cluster's label where GraphIO::drawSVG draws it (SvgPrinter::drawCluster): one font size below the
+ * cluster's box where more of the drawing lies below it than above, else above it; starting at the box's left side
+ * where more of the drawing lies left of it than right, else ending at its right side. The importer reads a cluster as
+ * a group node with the id `cluster<id>`; its box is its center and its `w` and `h`.
+ * @param snapshot - the graph
+ * @param values - the node values read so far, given the label's place
+ */
+function placeOgdfClusterLabels(snapshot: GraphSnapshot, values: ValueColumns): void {
+    const n = snapshot.nodeCount;
+    const boxOf = (i: number): [number, number, number, number] => {
+        const [x, y] = centerOf(snapshot, i);
+        const [w, h] = sizeOf(snapshot, i);
+        return [x - w / 2, y - h / 2, x + w / 2, y + h / 2];
+    };
+    // ponytail: drawSVG's bounding box also holds the edges' bends; nodes and clusters decide every sheet so far
+    const all = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < n; i++) {
+        const b = boxOf(i);
+        if (b.every(Number.isFinite)) {
+            all[0] = Math.min(all[0], b[0]);
+            all[1] = Math.min(all[1], b[1]);
+            all[2] = Math.max(all[2], b[2]);
+            all[3] = Math.max(all[3], b[3]);
+        }
+    }
+    const put = (property: string, i: number, value: StyleValue): void => {
+        values[property] ??= new Array<StyleValue | null>(n).fill(null);
+        values[property][i] = value;
+    };
+    for (let i = 0; i < n; i++) {
+        const id = snapshot.ids.idOf(i);
+        const [x0, y0, x1, y1] = boxOf(i);
+        if (typeof id !== "string" || !id.startsWith("cluster") || ![x0, y0, x1, y1].every(Number.isFinite)) {
+            continue;
+        }
+        const below = all[3] - y1 > y0 - all[1];
+        const start = x0 - all[0] > all[2] - x1;
+        put("labelPosition", i, "center");
+        put("labelOffsetX", i, ((start ? -1 : 1) * (x1 - x0)) / 2);
+        put("labelShiftX", i, start ? 0.5 : -0.5);
+        put("labelOffsetY", i, (below ? 1 : -1) * ((y1 - y0) / 2 + OGDF_SVG_FONT_SIZE));
+    }
+}
+
 /**
  * An element's `label` key. Cytoscape's GML reader names a node by its label and, where the label is empty or
  * missing, by its id, and its default style draws that name.
@@ -1148,6 +1196,9 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     const notes = new StyleNotes();
     const writer = { ...writerOf(snapshot), directed: snapshot.directed };
     const values = readValues(snapshot, writer, notes, context);
+    if (writer.vocabulary === "ogdf") {
+        placeOgdfClusterLabels(snapshot, values.node);
+    }
     const blockText = graphText(snapshot, GML_STYLE_BLOCK_KEY);
     const block = blockText === null ? null : blockWithValues(snapshot, blockText);
     if (block !== null) {

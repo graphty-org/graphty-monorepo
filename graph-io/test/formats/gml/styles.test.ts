@@ -246,6 +246,31 @@ describe("GML styles: who wrote the file", () => {
         expect([at("shape"), at("label")]).toEqual(["rectangle", "Inner"]);
         // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple
         expect(at("borderStyle")).not.toBe("dashed");
+        // and its label one font size off the box, toward the side with more of the drawing (here a tie: above,
+        // ending at the box's right side)
+        expect([at("labelPosition"), at("labelOffsetX"), at("labelShiftX"), at("labelOffsetY")]).toEqual([
+            "center",
+            50,
+            -0.5,
+            -40,
+        ]);
+    });
+
+    it("sets an OGDF cluster's label below and from the left where more of the drawing lies there", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                "node [ id 0 graphics [ x 0 y 0 w 10 h 10 ] ]",
+                "node [ id 1 graphics [ x 500 y 500 w 10 h 10 ] ]",
+                "]",
+                'rootcluster [ cluster [ id 1 label "C" graphics [ x 400 y 50 width 60 height 40 ] vertex "1" ] ]',
+            ].join("\n"),
+        );
+        const i = snapshot.ids.requireIndex("cluster1");
+        type Property = Parameters<typeof resolveStyles>[2];
+        const at = (p: Property): unknown => resolveStyles(styles, "node", p, snapshot)[i];
+        expect([at("labelOffsetX"), at("labelShiftX"), at("labelOffsetY")]).toEqual([-30, 0.5, 30]);
     });
 
     it("reads what Graphviz's gv2gml writes: H, hasFill, visible, fontColor, Graphviz names, y up, dir as arrow", async () => {

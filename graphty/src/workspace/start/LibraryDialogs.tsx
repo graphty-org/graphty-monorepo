@@ -9,11 +9,10 @@ import type {
     GeneratorParamDescriptor,
     GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, NumberInput, Select, Stack, Switch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
-import { countWords, fitsInBrowser, megabytes } from "./library";
+import { countWords, megabytes } from "./library";
 
 /** One parameter's value, as a generator takes it. */
 type ParamValue = GeneratorParams[string];
@@ -29,8 +28,8 @@ function sizeOf(dataset: DatasetMeta): string {
 }
 
 /**
- * What opening a large dataset takes, asked before it downloads; for one too large for the
- * browser, why it does not open.
+ * What opening a large dataset takes, asked before it downloads: its size, its download and how
+ * long it takes, then where the data comes from.
  * @param props - Component props
  * @param props.dataset - The dataset, or null when the dialog is closed
  * @param props.onOpen - Opens it
@@ -46,45 +45,34 @@ export function DatasetDialog({
     onOpen: (dataset: DatasetMeta) => void;
     onClose: () => void;
 }>): React.JSX.Element {
-    const fits = dataset === null || fitsInBrowser(dataset);
     const size = dataset === null ? "" : sizeOf(dataset);
     return (
         <Modal opened={dataset !== null} onClose={onClose} title={dataset?.title ?? ""} centered>
             {dataset === null ? null : (
                 <Stack gap="sm">
                     <Text size="sm">{size}</Text>
-                    {fits ? (
-                        <Text size="sm">
-                            A graph this size takes a while to open: first the download, then laying it out and drawing
-                            it. Expect anything from several seconds to a minute or two, depending on your computer.
-                        </Text>
-                    ) : (
-                        <Text size="sm">
-                            That is more than graphty can draw in a browser, which holds up to{" "}
-                            {countWords(DEFAULT_LIMITS.renderCeiling)} nodes and {countWords(DEFAULT_LIMITS.edgesDrawn)}{" "}
-                            edges, so it cannot be opened here.
-                        </Text>
-                    )}
+                    <Text size="sm">
+                        A graph this size takes a while to open: first the download, then laying it out and drawing it.
+                        Expect anything from several seconds to a minute or two, depending on your computer.
+                    </Text>
                     <Text size="xs" c="dimmed">
-                        Source:{" "}
+                        Data from{" "}
                         <Anchor href={dataset.source} target="_blank" rel="noopener noreferrer" size="xs">
                             {new URL(dataset.source).hostname}
                         </Anchor>
-                        . {dataset.license}
+                        . License: {dataset.license}
                     </Text>
                     <Group justify="flex-end">
                         <Button variant="default" onClick={onClose}>
-                            {fits ? "Cancel" : "Close"}
+                            Cancel
                         </Button>
-                        {fits ? (
-                            <Button
-                                onClick={() => {
-                                    onOpen(dataset);
-                                }}
-                            >
-                                Open
-                            </Button>
-                        ) : null}
+                        <Button
+                            onClick={() => {
+                                onOpen(dataset);
+                            }}
+                        >
+                            Open
+                        </Button>
                     </Group>
                 </Stack>
             )}

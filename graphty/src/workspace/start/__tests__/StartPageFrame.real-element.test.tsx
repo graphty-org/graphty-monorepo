@@ -11,6 +11,7 @@ import "../../../index.css";
 import "@graphty/graphty-element";
 
 import { DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+import { DEFAULT_LIMITS } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -171,12 +172,15 @@ describe("the start page in the app's frame", () => {
         assert.isNotNull(screen.getByRole("button", { name: `Switch to ${before ?? "dark"} mode` }));
     });
 
-    it("offers every dataset graph-samples lists, and opens one", async () => {
+    it("offers every dataset graph-samples lists that graphty-element opens, and opens one", async () => {
         const store = await startPage();
         const offered = screen
             .getAllByRole("button", { name: /^Open the .+ sample$/ })
             .map((button) => button.getAttribute("aria-label"));
-        assert.lengthOf(offered, DATASET_DESCRIPTORS.length);
+        const opens = DATASET_DESCRIPTORS.filter(
+            (dataset) => dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn,
+        );
+        assert.lengthOf(offered, opens.length);
         for (const title of [
             "Doubtful Sound dolphins",
             "OpenFlights airline routes",
@@ -200,7 +204,7 @@ describe("the start page in the app's frame", () => {
         assert.isNull(store.get().notice);
     });
 
-    it("says what a large dataset takes before it downloads, and that a too-large one does not open here", async () => {
+    it("says what a large dataset takes before it downloads, and leaves out one the element does not open", async () => {
         const store = await startPage();
 
         const large = screen.getByRole("button", { name: "Open the Gene Ontology (go-basic) sample" });
@@ -216,17 +220,25 @@ describe("the start page in the app's frame", () => {
         });
         assert.isNull(store.get().project, "nothing opened");
 
-        const road = screen.getByRole("button", { name: "Open the New York City road network (DIMACS) sample" });
-        assert.include(road.textContent, "Too large to open in the browser");
-        await userEvent.click(road);
-        const refusal = await screen.findByRole("dialog", { name: "New York City road network (DIMACS)" });
-        assert.include(refusal.textContent, "264,346 nodes and 733,846 edges, a 9.4 MB download.");
-        assert.include(refusal.textContent, "cannot be opened here");
-        assert.isNull(screen.queryByRole("button", { name: "Open" }));
-        // The footer's Close, after the title bar's.
-        const closes = within(refusal).getAllByRole("button", { name: "Close" });
-        await userEvent.click(closes[closes.length - 1]);
-        assert.isNull(store.get().project, "nothing opened");
+        // The license is where the data comes from, said once, under the size; Open is always there.
+        await userEvent.click(large);
+        const again = await screen.findByRole("dialog", { name: "Gene Ontology (go-basic)" });
+        assert.include(again.textContent, "License: CC BY 4.0");
+        assert.isNotNull(within(again).queryByRole("button", { name: "Open" }));
+        await userEvent.click(within(again).getByRole("button", { name: "Cancel" }));
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+        });
+
+        // A dataset past graphty-element's published ceilings has no tile: it could only open empty.
+        for (const dataset of DATASET_DESCRIPTORS) {
+            const tile = screen.queryByRole("button", { name: `Open the ${dataset.title} sample` });
+            const fits = dataset.nodes <= DEFAULT_LIMITS.renderCeiling && dataset.edges <= DEFAULT_LIMITS.edgesDrawn;
+            if (!fits) {
+                assert.isNull(tile, `${dataset.name} is left out`);
+            }
+        }
+        assert.isNull(screen.queryByText(/Too large/), "no tile offers what does not open");
     });
 
     it("lists every generator, and generates a small graph with the parameters set", async () => {

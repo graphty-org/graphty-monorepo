@@ -1,6 +1,6 @@
 /**
  * The sample library's words for a dataset's size, and graphty-element's own published limits
- * that decide whether a dataset is large or too large to open in the browser.
+ * that decide whether a dataset is large, and whether the element opens it at all.
  */
 
 import type { DatasetMeta } from "@graphty/graphty-element/catalog";
@@ -25,7 +25,8 @@ export function megabytes(bytes: number): string {
 }
 
 /**
- * Whether graphty-element holds a dataset this size: its own published ceilings.
+ * Whether graphty-element holds a dataset this size: its own published ceilings, past which it
+ * declines the load.
  * @param dataset - The dataset.
  * @returns True when it does.
  */

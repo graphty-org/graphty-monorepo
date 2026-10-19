@@ -164,14 +164,11 @@ interface LibraryActions {
 }
 
 /**
- * The note on a large dataset's tile: its download, or that it does not open here.
+ * The note on a large dataset's tile: its download.
  * @param dataset - The dataset.
  * @returns The words, or undefined for one that opens in a moment.
  */
 function noteOf(dataset: DatasetMeta): string | undefined {
-    if (!fitsInBrowser(dataset)) {
-        return "Too large to open in the browser";
-    }
     if (!isLarge(dataset)) {
         return undefined;
     }
@@ -200,7 +197,8 @@ function firstSentence(text: string): string {
 
 /**
  * The sample library: the app's four samples first, then every other dataset in graph-samples'
- * catalog, in the catalog's order, then every generator.
+ * catalog that graphty-element can open, in the catalog's order, then every generator. A dataset
+ * past the element's published ceilings is left out: its tile could only open an empty graph.
  * @param samples - The app's own samples.
  * @param datasets - graph-samples' catalog.
  * @param generators - graph-samples' generators.
@@ -232,7 +230,7 @@ function sampleTiles(
             };
         }),
         ...datasets
-            .filter((dataset) => !Object.values(OWN_COPIES).includes(dataset.name))
+            .filter((dataset) => !Object.values(OWN_COPIES).includes(dataset.name) && fitsInBrowser(dataset))
             .map((dataset) => ({
                 id: dataset.name,
                 name: dataset.title,

@@ -130,6 +130,51 @@ describe("JSON files graph-io read wrongly before", () => {
         const i = r.snapshot.ids.indexOf("268");
         expect(values(r, "node", "fill")[i]).toBe("#e543a4");
     });
+
+    it("reads Gephi's JSON export of a graph with no edges as Gephi's, with its positions, sizes and colors", async () => {
+        const r = await load({
+            edges: [],
+            nodes: [{ label: "A", x: 10.0, y: -20.0, id: "a", attributes: {}, color: "rgb(255,0,0)", size: 18.0 }],
+        });
+        expect(r.styles.styles.source.tool).toBe("sigma");
+        expect(values(r, "node", "fill")).toEqual(["#ff0000"]);
+        expect(values(r, "node", "width")).toEqual([36]);
+        expect(values(r, "node", "label")).toEqual(["A"]);
+    });
+
+    it("reads a Gephi column named like a key sigma.js draws as data, never as the element's own key", async () => {
+        const r = await load({
+            edges: [
+                {
+                    source: "a",
+                    target: "b",
+                    id: "0",
+                    attributes: { color: "rgb(255,0,0)", size: "8" },
+                    color: "rgb(1,2,3)",
+                    size: 1.0,
+                },
+            ],
+            nodes: [
+                {
+                    x: 0.0,
+                    y: 0.0,
+                    id: "a",
+                    attributes: { label: "Column", color: "rgb(255,0,0)", x: "50" },
+                    color: "rgb(1,2,3)",
+                    size: 5.0,
+                },
+                { label: "B", x: 9.0, y: 0.0, id: "b", attributes: { size: "30" }, color: "rgb(1,2,3)", size: 5.0 },
+            ],
+        });
+        expect(values(r, "node", "fill")).toEqual(["#010203", "#010203"]);
+        expect(values(r, "node", "width")).toEqual([10, 10]);
+        expect(values(r, "node", "label")).toEqual([null, "B"]);
+        expect(values(r, "edge", "color")).toEqual(["#010203"]);
+        expect(values(r, "edge", "width")).toEqual([1]);
+        expect(r.snapshot.nodes.value("label#data", 0)).toBe("Column");
+        expect(r.snapshot.nodes.value("x", 0)).toBe(0);
+        expect(r.snapshot.edges.value("color#data", 0)).toBe("rgb(255,0,0)");
+    });
 });
 
 describe("JSON styles: reading", () => {

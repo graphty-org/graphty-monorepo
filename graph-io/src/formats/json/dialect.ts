@@ -267,8 +267,9 @@ function isVisOptions(options: unknown): boolean {
 
 /**
  * The graphology or vis dialect, read from the first node and edge records of a document without
- * NetworkX's keys: graphology for a `key` node without `id`, or an edge without `from` that has
- * `undirected` or an `attributes` record; vis for an edge with `from` and `to` but no `source`.
+ * NetworkX's keys: graphology for a `key` node without `id`, an edge without `from` that has
+ * `undirected` or an `attributes` record, or, with no edges, an `id` node with an `attributes` record
+ * (Gephi's JSON export); vis for an edge with `from` and `to` but no `source`.
  * @param firstNode - the first node record, or null
  * @param firstEdge - the first edge record, or null
  * @returns the dialect, or undefined when the records name neither
@@ -281,7 +282,10 @@ function sniffRecordDialect(
         return "graphology";
     }
     if (firstEdge === null) {
-        return undefined;
+        // Gephi's JSON export of a graph with no edges: its nodes still carry the exporter's `attributes` record
+        return firstNode !== null && hasKey(firstNode, "id") && isJsonObject(firstNode.attributes)
+            ? "graphology"
+            : undefined;
     }
     if (!hasKey(firstEdge, "from")) {
         return hasKey(firstEdge, "undirected") || isJsonObject(firstEdge.attributes) ? "graphology" : undefined;

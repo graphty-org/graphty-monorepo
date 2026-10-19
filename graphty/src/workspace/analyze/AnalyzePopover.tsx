@@ -1,7 +1,7 @@
 import { SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { Badge, Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Button, Group, Stack, Text, UnstyledButton } from "@mantine/core";
 import { ChartColumn, ChevronLeft, Hash, Layers, Waypoints } from "lucide-react";
 import React, { useState } from "react";
 
@@ -175,7 +175,7 @@ export function AnalyzePopover({
                   .filter((a): a is AlgorithmDescriptor => a !== undefined)
             : [];
 
-    const entry = (descriptor: AlgorithmDescriptor, showStart: boolean): React.JSX.Element => {
+    const entry = (descriptor: AlgorithmDescriptor): React.JSX.Element => {
         const words = wordsFor(descriptor);
         const reason = unavailable(session, descriptor);
         return (
@@ -199,11 +199,6 @@ export function AnalyzePopover({
                             <Text size="sm" c={reason === null ? undefined : "dimmed"}>
                                 {words.name}
                             </Text>
-                            {showStart && words.startHere === true ? (
-                                <Badge size="xs" variant="light">
-                                    Start here
-                                </Badge>
-                            ) : null}
                         </Group>
                         <Text size="xs" c="dimmed">
                             {reason ?? words.answers}
@@ -230,7 +225,7 @@ export function AnalyzePopover({
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             Recent
                         </Text>
-                        {recent.map((descriptor) => entry(descriptor, false))}
+                        {recent.map(entry)}
                     </section>
                 ) : null}
                 {groups.map(({ heading, entries }) => (
@@ -238,7 +233,7 @@ export function AnalyzePopover({
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             {heading.title}
                         </Text>
-                        {entries.map((descriptor) => entry(descriptor, true))}
+                        {entries.map(entry)}
                     </section>
                 ))}
                 {groups.length === 0 ? (

@@ -241,7 +241,10 @@ node tools/land.mjs land <branch>
    told who holds the lock.
 2. **Sync.** Fetches, then merges `origin/golden` (where the owner's screenshot accept commits
    land) and `origin/master` (release version merges and the merged golden pull request) into
-   local `golden`.
+   local `golden`. It then fast-forwards the main checkout's master to `origin/master` (so new
+   sessions read the current CLAUDE.md), unless the main checkout is on another branch, has
+   uncommitted changes or has commits master lacks, in which case it only warns; `revert`, `ship`
+   and `status` do the same after their fetch.
 3. **Merge.** Merges the change branch with `--no-ff` and the message `land: <branch>`. A conflict
    aborts the merge, leaves `golden` unchanged, and tells the session to merge `golden` into its
    own branch, resolve the conflict and land again (exit code 2).

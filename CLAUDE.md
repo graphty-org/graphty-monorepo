@@ -1164,6 +1164,10 @@ How to land a change:
    (a draft) open, lists the landed branches and their issue references in its description, and
    starts the screenshot preview for the review page.
 
+After every fetch, `land`, `revert`, `ship` and `status` also fast-forward the main checkout's
+master to `origin/master`, so new sessions read current instructions; when it is on another
+branch, has uncommitted changes or has commits master lacks, they leave it alone and print a warning.
+
 Rules:
 
 - Do not open pull requests for your changes, do not push your branch to master, and do not open a

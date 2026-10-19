@@ -392,6 +392,7 @@ function installIfNeeded(ctx) {
  */
 export function sync(ctx) {
     git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
+    updateMainCheckout(ctx);
     const start = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     for (const ref of [`origin/${GOLDEN}`, "origin/master"]) {
         if (hasRef(ctx, ctx.golden, ref).status !== 0) continue;
@@ -403,6 +404,43 @@ export function sync(ctx) {
         return { ref, files, error: r.stderr || r.stdout };
     }
     return null;
+}
+
+/**
+ * Fast-forwards the main checkout's master to origin/master after a fetch, so new sessions read
+ * current instructions (CLAUDE.md) from it. Changes nothing, with one warning line, when it is on
+ * another branch, has tracked changes or has commits origin/master lacks; never throws.
+ * @param ctx the run's context
+ */
+export function updateMainCheckout(ctx) {
+    try {
+        const from = git(ctx, ctx.main, ["rev-parse", "HEAD"]);
+        const to = git(ctx, ctx.main, ["rev-parse", "origin/master"]);
+        if (from === to) return;
+        const why = mainCheckoutBlocker(ctx, from);
+        if (why) {
+            console.error(`land: warning: left the main checkout ${ctx.main} alone: ${why}`);
+            return;
+        }
+        git(ctx, ctx.main, ["merge", "-q", "--ff-only", "origin/master"]);
+        console.log(`land: moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`);
+    } catch (e) {
+        console.error(`land: warning: could not update the main checkout ${ctx.main}: ${e.message}`);
+    }
+}
+
+/**
+ * Why the main checkout cannot be fast-forwarded to origin/master.
+ * @param ctx the run's context
+ * @param head its HEAD commit
+ * @returns the reason, or null when it can be
+ */
+function mainCheckoutBlocker(ctx, head) {
+    const branch = git(ctx, ctx.main, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
+    if (branch !== "master") return `it is on ${branch || "a detached HEAD"}, not master`;
+    if (git(ctx, ctx.main, ["status", "--porcelain", "--untracked-files=no"])) return "it has uncommitted changes";
+    const ff = git(ctx, ctx.main, ["merge-base", "--is-ancestor", head, "origin/master"], { ok: true });
+    return ff.status === 0 ? null : "its master has commits origin/master does not";
 }
 
 const conflicted = (ctx) =>
@@ -894,6 +932,7 @@ export async function revert(ctx, branch) {
  */
 export async function ship(ctx) {
     git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
+    updateMainCheckout(ctx);
     if (hasRef(ctx, ctx.golden, `origin/${GOLDEN}`).status !== 0) return fail("nothing is on GitHub's golden yet");
     // Picks up the owner's accept commits; anything golden has that GitHub does not must land first.
     git(ctx, ctx.golden, ["merge", "-q", "--ff-only", `origin/${GOLDEN}`], { ok: true });
@@ -924,6 +963,7 @@ export async function ship(ctx) {
 export function status(ctx) {
     if (!existsSync(ctx.golden)) return fail(`no golden worktree yet (${ctx.golden}); the first landing makes it`);
     git(ctx, ctx.golden, ["fetch", "-q", "origin"], { ok: true });
+    updateMainCheckout(ctx);
     const counts = (ref) => {
         if (hasRef(ctx, ctx.golden, ref).status !== 0) return `${ref} does not exist`;
         const [ahead, behind] = git(ctx, ctx.golden, ["rev-list", "--left-right", "--count", `HEAD...${ref}`]).split(

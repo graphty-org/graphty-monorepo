@@ -414,3 +414,58 @@ describe("landing several branches", () => {
         assert.equal(gh.length, 0);
     });
 });
+
+describe("the main checkout", () => {
+    // A new commit on GitHub's master, made from the other clone.
+    const advanceMaster = (name) => {
+        write(other, `${name}.txt`, `${name}\n`);
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", `chore: ${name}`);
+        git(other, "pull", "-q", "--no-rebase", "origin", "master");
+        git(other, "push", "-q", "origin", "master");
+        return git(other, "rev-parse", "HEAD");
+    };
+
+    it("fast-forwards its master to origin/master when it is behind and clean", async () => {
+        const from = git(repo, "rev-parse", "HEAD");
+        const to = advanceMaster("main-ff");
+        const r = await run("status");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(git(repo, "rev-parse", "HEAD"), to);
+        assert.match(
+            r.out,
+            new RegExp(`moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`),
+        );
+    });
+
+    it("says nothing when it is already current", async () => {
+        const r = await run("status");
+        assert.doesNotMatch(r.out, /main checkout/);
+    });
+
+    it("leaves it alone with a warning when it is on another branch", async () => {
+        git(repo, "checkout", "-q", "-b", "side");
+        try {
+            advanceMaster("main-side");
+            const before = git(repo, "rev-parse", "master");
+            const r = await run("status");
+            assert.equal(git(repo, "rev-parse", "master"), before);
+            assert.match(r.out, /left the main checkout .* alone: it is on side, not master/);
+        } finally {
+            git(repo, "checkout", "-q", "master");
+        }
+    });
+
+    it("leaves it alone with a warning when it has uncommitted changes", async () => {
+        write(repo, "a.txt", "dirty\n");
+        try {
+            advanceMaster("main-dirty");
+            const before = git(repo, "rev-parse", "HEAD");
+            const r = await run("status");
+            assert.equal(git(repo, "rev-parse", "HEAD"), before);
+            assert.match(r.out, /left the main checkout .* alone: it has uncommitted changes/);
+        } finally {
+            git(repo, "checkout", "--", "a.txt");
+        }
+    });
+});

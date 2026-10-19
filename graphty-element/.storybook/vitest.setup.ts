@@ -78,9 +78,9 @@ afterEach(() => {
 Logger.LogLevels = Logger.ErrorLogLevel;
 
 // Suppress Lit dev mode warnings
-if (typeof window !== "undefined") {
+if (globalThis.window !== undefined) {
     // @ts-expect-error - Global window modification for test environment
-    window.litIssuedWarnings = new Set(); // Prevent duplicate warnings
+    globalThis.litIssuedWarnings = new Set(); // Prevent duplicate warnings
     // Suppress console warnings from Lit during tests
     const originalWarn = console.warn;
     console.warn = (...args: unknown[]) => {
@@ -163,13 +163,14 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
         return null;
     }
 
-    assert.isTrue(
-        typeof declared.exempt === "string" && declared.exempt.trim() !== "",
-        `${story}: parameters.paintCheck.exempt must say WHY this story draws no graph. An exemption with ` +
-            "no reason is a silent skip.",
-    );
+    if (typeof declared.exempt !== "string" || declared.exempt.trim() === "") {
+        assert.fail(
+            `${story}: parameters.paintCheck.exempt must say WHY this story draws no graph. An exemption with ` +
+                "no reason is a silent skip.",
+        );
+    }
 
-    return String(declared.exempt);
+    return declared.exempt;
 }
 
 /**

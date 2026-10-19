@@ -67,6 +67,75 @@ interface ArrowHeadOptions {
     breadth?: number; // Width across the line as a multiple of the type's own (default 1.0)
     opacity?: number; // Opacity 0-1 (default 1.0)
     image?: string; // The picture an "image" cap draws (a URL or a data URL)
+    side?: "left" | "right"; // Draw only the cap's half on this side of its line (unset: all of it)
+}
+
+/**
+ * The part of a triangle on one side of the cap's line (z = 0), as a fan of triangles.
+ * @param tri - The triangle's corners, each x, y, z.
+ * @param keep - Whether a z is on the kept side.
+ * @param at - Where a side crosses the line: the point between two corners.
+ * @returns The kept corners, in order (none, a triangle or a quad).
+ */
+function clipTriangle(
+    tri: readonly (readonly number[])[],
+    keep: (z: number) => boolean,
+    at: (a: readonly number[], b: readonly number[]) => number[],
+): (readonly number[])[] {
+    const out: (readonly number[])[] = [];
+    for (let i = 0; i < 3; i++) {
+        const a = tri[i];
+        const b = tri[(i + 1) % 3];
+        if (keep(a[2])) {
+            out.push(a);
+        }
+        if (keep(a[2]) !== keep(b[2])) {
+            out.push(at(a, b));
+        }
+    }
+    return out;
+}
+
+/**
+ * An arrow cap's geometry cut along its line, keeping one side: Graphviz's `l` and `r` arrow
+ * modifiers ("clip the shape, leaving only the part to the left of the edge"). Left is left looking
+ * along the line toward the cap's tip, which is -z in every cap's geometry, as half-open's arm is.
+ * The mesh is named for its side, so the cap reads as a half arrow.
+ * @param mesh - The cap's normalized geometry.
+ * @param side - The side kept, or undefined for the whole cap.
+ * @returns The same mesh.
+ */
+function sided(mesh: Mesh, side: "left" | "right" | undefined): Mesh {
+    if (side === undefined) {
+        return mesh;
+    }
+
+    const positions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    const indices = mesh.getIndices();
+    if (positions === null || indices === null) {
+        return mesh;
+    }
+
+    const keep = side === "left" ? (z: number): boolean => z <= 1e-9 : (z: number): boolean => z >= -1e-9;
+    const at = (a: readonly number[], b: readonly number[]): number[] => {
+        const t = a[2] / (a[2] - b[2]);
+        return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1]), 0];
+    };
+    const corner = (i: number): number[] => [positions[3 * i], positions[3 * i + 1], positions[3 * i + 2]];
+    const out: number[] = [];
+    for (let i = 0; i + 2 < indices.length; i += 3) {
+        const kept = clipTriangle([corner(indices[i]), corner(indices[i + 1]), corner(indices[i + 2])], keep, at);
+        for (let k = 1; k + 1 < kept.length; k++) {
+            out.push(...kept[0], ...kept[k], ...kept[k + 1]);
+        }
+    }
+
+    const data = new VertexData();
+    data.positions = out;
+    data.indices = Array.from({ length: out.length / 3 }, (_, i) => i);
+    data.applyToMesh(mesh);
+    mesh.name = `${mesh.name}-${side}-half`;
+    return mesh;
 }
 
 /**
@@ -100,6 +169,11 @@ interface ArrowGeometry {
     positionOffset: number;
     /** Optional scale factor for variant arrows (e.g., "dot" variants are smaller) */
     scaleFactor?: number;
+    /**
+     * How far back from its tip the line stops, as a fraction of the cap's length (default 1, at its back): a crossed
+     * delta's line runs on through its bar to the back of its delta.
+     */
+    lineStop?: number;
 }
 
 /**
@@ -459,8 +533,9 @@ void main() {
         const opacity = options.opacity ?? 1;
         const length = this.calculateArrowLength() * size;
         const breadth = options.breadth ?? 1;
-        // A batch holds one geometry, so a cap drawn at another width is a batch of its own.
-        const widthKey = breadth === 1 ? "" : `|w${String(breadth)}`;
+        const { side } = options;
+        // A batch holds one geometry, so a cap drawn at another width or on one side is a batch of its own.
+        const widthKey = `${breadth === 1 ? "" : `|w${String(breadth)}`}${side === undefined ? "" : `|${side}`}`;
 
         // AN IMAGE CAP IS ITS PICTURE on a flat quad, drawn by a StandardMaterial that holds the
         // texture, so it is a batch per picture and is laid in the XY plane turned along its line in
@@ -522,9 +597,12 @@ void main() {
                 scene,
                 `2d|${arrowType}|${options.color}|${String(opacity)}${widthKey}`,
                 () => {
-                    const source = widened(
-                        FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
-                        breadth,
+                    const source = sided(
+                        widened(
+                            FilledArrowRenderer.create2DArrow(arrowType, 1, 1, options.color, opacity, scene),
+                            breadth,
+                        ),
+                        side,
                     );
                     source.visibility = opacity;
                     return source;
@@ -540,7 +618,7 @@ void main() {
         // 3D mode: shader-based billboard arrows; size and colour are per instance.
         return FilledArrowRenderer.createArrowCap(
             `${arrowType}${widthKey}`,
-            () => widened(this.createArrowShape(arrowType, scene), breadth),
+            () => sided(widened(this.createArrowShape(arrowType, scene), breadth), side),
             {
                 size: length, // World-space length (e.g., 0.5 units)
                 color: options.color,
@@ -938,6 +1016,16 @@ void main() {
                     scaleFactor: 0.25, // Small dot-sized sphere (1/4 size)
                 };
 
+            // A crossed delta's line runs on through its bar to the back of its delta
+            case "cross-delta":
+            case "open-cross-delta":
+                return {
+                    positioningMode: "tip",
+                    needsRotation: false,
+                    positionOffset: 0,
+                    lineStop: 2 / 3,
+                };
+
             // Filled arrows using FilledArrowRenderer (billboard shaders, no rotation)
             // These arrows have tip/front edge at origin
             case "normal":
@@ -1027,7 +1115,7 @@ void main() {
     ): Vector3 {
         // Line gap equals actual arrow size (base size × scale factor)
         const scaleFactor = geometry.scaleFactor ?? 1;
-        const actualSize = arrowLength * scaleFactor;
+        const actualSize = arrowLength * scaleFactor * (geometry.lineStop ?? 1);
         return surfacePoint.subtract(direction.scale(actualSize));
     }
 

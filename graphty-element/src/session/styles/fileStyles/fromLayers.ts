@@ -192,6 +192,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelFont", plan(text, "labelFont")],
         ["node.labelWeight", plan(weight, "labelWeight")],
         ["node.labelTextAlign", plan(text, "labelTextAlign")],
+        ["node.labelLocation", plan(text, "labelPosition")],
         ["node.labelItalic", plan(flag, "labelItalic")],
         ["node.labelRotation", plan(number, "labelRotation")],
         // The scene's units, written in a node size's, which a file graphty wrote is read back in.
@@ -227,6 +228,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.labelFont", plan(text, "labelFont")],
         ["edge.labelWeight", plan(weight, "labelWeight")],
         ["edge.labelTextAlign", plan(text, "labelTextAlign")],
+        ["edge.labelLocation", plan(text, "labelPosition")],
         ["edge.labelItalic", plan(flag, "labelItalic")],
         ["edge.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["edge.labelOnTop", plan(flag, "labelOnTop")],

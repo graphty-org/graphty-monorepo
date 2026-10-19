@@ -55,6 +55,7 @@ const DECLARED = [
     "node.labelShiftY",
     "node.labelDeclutter",
     "node.labelTextAlign",
+    "node.labelLocation",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
@@ -162,6 +163,7 @@ const DECLARED = [
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadWidth",
+    "edge.arrowHeadSide",
     "edge.arrowHeadPosition",
     "edge.arrowHeadColor",
     "edge.arrowHeadOpacity",
@@ -174,6 +176,7 @@ const DECLARED = [
     "edge.arrowTail",
     "edge.arrowTailSize",
     "edge.arrowTailWidth",
+    "edge.arrowTailSide",
     "edge.arrowTailPosition",
     "edge.arrowTailColor",
     "edge.arrowTailOpacity",
@@ -186,6 +189,7 @@ const DECLARED = [
     "edge.arrowMiddleHead",
     "edge.arrowMiddleHeadSize",
     "edge.arrowMiddleHeadWidth",
+    "edge.arrowMiddleHeadSide",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
     "edge.arrowMiddleHeadOpacity",
@@ -193,6 +197,7 @@ const DECLARED = [
     "edge.arrowMiddleTail",
     "edge.arrowMiddleTailSize",
     "edge.arrowMiddleTailWidth",
+    "edge.arrowMiddleTailSide",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
     "edge.arrowMiddleTailOpacity",
@@ -201,6 +206,7 @@ const DECLARED = [
     "edge.label",
     "edge.labelStyle",
     "edge.labelTextAlign",
+    "edge.labelLocation",
     "edge.labelColor",
     "edge.labelSize",
     "edge.labelLetterSize",
@@ -249,9 +255,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and nine node channels and eighty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 109);
-        assert.strictEqual(channelsFor("edge").length, 89);
+    it("splits into one hundred and ten node channels and ninety-four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 110);
+        assert.strictEqual(channelsFor("edge").length, 94);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -514,6 +520,11 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailImage",
         "edge.arrowMiddleHeadImage",
         "edge.arrowMiddleTailImage",
+        // Unset, a cap is drawn whole.
+        "edge.arrowHeadSide",
+        "edge.arrowTailSide",
+        "edge.arrowMiddleHeadSide",
+        "edge.arrowMiddleTailSide",
         // Unset, an edge runs straight from node to node.
         "edge.bends",
         // Unset, a bundle's curved edges are two node radii apart.
@@ -551,6 +562,7 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOnTop",
         "node.labelDeclutter",
         "node.labelTextAlign",
+        "node.labelLocation",
         "node.labelRotation",
         "node.labelBackground",
         "node.labelOutline",
@@ -576,6 +588,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelWeight",
         "edge.labelItalic",
         "edge.labelTextAlign",
+        "edge.labelLocation",
         "edge.labelWrapWidth",
         "edge.labelWrapTrailingSpace",
         "edge.labelMinScreenSize",

@@ -159,6 +159,9 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     "triangle-cross": "triangle",
     // a picture standing on the line
     image: "image",
+    // a delta with a bar behind it, which the oracle reads as no one class
+    "cross-delta": "other",
+    "open-cross-delta": "other",
 };
 
 /** Where along its edge each of graphty's caps sits. */
@@ -168,6 +171,9 @@ const CAP_END: Readonly<Record<DrawnEdge["caps"][number]["end"], PArrow["end"]>>
     arrowMiddleHead: "middle",
     arrowMiddleTail: "middle",
 };
+
+/** The shape classes a cap cut to one side of its line keeps: its front still runs across the line. */
+const SIDED_KEEP_CLASS: ReadonlySet<ArrowShape> = new Set(["box", "tee", "inverted"]);
 
 /** A shape class turned to point back along its line, where turning it changes its class. */
 const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
@@ -190,7 +196,10 @@ function arrowShapeNamed(name: string): ArrowShape {
     const type = Object.keys(ARROW_SHAPE)
         .filter((t) => name.includes(t))
         .sort((a, b) => b.length - a.length)[0];
-    return type === undefined ? "other" : (ARROW_SHAPE[type] ?? "other");
+    const shape = type === undefined ? "other" : (ARROW_SHAPE[type] ?? "other");
+    // a cap cut along its line to one side (`arrowHead.side`) is half an arrow when its tip is a point on the line; a
+    // box, a bar or a triangle pointing back still meets the line along its whole front, and reads as itself
+    return /-(?:left|right)-half\b/.test(name) && !SIDED_KEEP_CLASS.has(shape) ? "half" : shape;
 }
 
 /**

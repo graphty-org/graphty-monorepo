@@ -41,6 +41,10 @@ export const EdgeArrowTypes = z.enum([
     "open-box",
     // the arrow's `image`, a picture standing on the line (vis-network arrows type "image")
     "image",
+    // a delta with a bar across the line behind it, filled and outlined (Cytoscape CROSS_DELTA,
+    // CROSS_OPEN_DELTA)
+    "cross-delta",
+    "open-cross-delta",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -54,6 +58,12 @@ const ArrowStyle = z.strictObject({
      * arrows keep their shape through this.
      */
     width: z.number().nonnegative().optional(),
+    /**
+     * Draw only the half of the cap on one side of its line, cut along the line: `left` or `right`
+     * looking along the line toward the cap's tip (Graphviz's `l` and `r` arrow modifiers: `lcrow`,
+     * `rdiamond`). Unset, the whole cap.
+     */
+    side: z.enum(["left", "right"]).optional(),
     /**
      * Where along the line the cap is drawn, as a fraction of the line measured from the cap's own
      * end: unset or 0 at the end, 0.5 at the middle. Above 0 the line runs on to its node and the

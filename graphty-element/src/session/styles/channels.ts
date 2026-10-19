@@ -56,7 +56,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { LabelDeclutterOrder, LabelTextAlign } from "../../catalog/label-style";
+import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
@@ -275,6 +275,9 @@ const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeLineTypes.options;
 /** Every arrow, in schema order. */
 const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
 
+/** The sides of its line `arrowHeadSide` and the other side channels keep a cap's half on. */
+const ARROW_SIDE_VALUES: readonly ("left" | "right")[] = ["left", "right"];
+
 // ---------------------------------------------------------------------------------------------
 // What each channel carries
 // ---------------------------------------------------------------------------------------------
@@ -300,6 +303,7 @@ export interface ChannelValues {
     "node.labelWeight": LabelWeightValue;
     "node.labelItalic": boolean;
     "node.labelTextAlign": LabelTextAlign;
+    "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
     "node.labelMinScreenSize": number;
@@ -424,6 +428,7 @@ export interface ChannelValues {
     "edge.arrowHead": ArrowValue;
     "edge.arrowHeadSize": number;
     "edge.arrowHeadWidth": number;
+    "edge.arrowHeadSide": "left" | "right";
     "edge.arrowHeadPosition": number;
     "edge.arrowHeadColor": ColorValue;
     "edge.arrowHeadOpacity": number;
@@ -436,6 +441,7 @@ export interface ChannelValues {
     "edge.arrowTail": ArrowValue;
     "edge.arrowTailSize": number;
     "edge.arrowTailWidth": number;
+    "edge.arrowTailSide": "left" | "right";
     "edge.arrowTailPosition": number;
     "edge.arrowTailColor": ColorValue;
     "edge.arrowTailOpacity": number;
@@ -448,6 +454,7 @@ export interface ChannelValues {
     "edge.arrowMiddleHead": ArrowValue;
     "edge.arrowMiddleHeadSize": number;
     "edge.arrowMiddleHeadWidth": number;
+    "edge.arrowMiddleHeadSide": "left" | "right";
     "edge.arrowMiddleHeadPosition": number;
     "edge.arrowMiddleHeadColor": ColorValue;
     "edge.arrowMiddleHeadOpacity": number;
@@ -455,6 +462,7 @@ export interface ChannelValues {
     "edge.arrowMiddleTail": ArrowValue;
     "edge.arrowMiddleTailSize": number;
     "edge.arrowMiddleTailWidth": number;
+    "edge.arrowMiddleTailSide": "left" | "right";
     "edge.arrowMiddleTailPosition": number;
     "edge.arrowMiddleTailColor": ColorValue;
     "edge.arrowMiddleTailOpacity": number;
@@ -469,6 +477,7 @@ export interface ChannelValues {
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
     "edge.labelTextAlign": LabelTextAlign;
+    "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
     "edge.labelMinScreenSize": number;
@@ -738,7 +747,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextDistance"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextDistance"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -785,6 +794,19 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             min: 0,
             stylePath: `arrow${end}.width`,
             renderable: true,
+        },
+        {
+            ...id("Side"),
+            plainName: `Arrow ${end} Side`,
+            shortName: `${end} side`,
+            group: "arrows",
+            accepts: "enum",
+            values: ARROW_SIDE_VALUES,
+            stylePath: `arrow${end}.side`,
+            renderable: true,
+            caveat:
+                "Draws only the half of the cap on one side of its line, cut along the line: left or right " +
+                "looking along the line toward the cap's tip. Unset, the whole cap.",
         },
         {
             ...id("Position"),
@@ -893,7 +915,7 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
 
 /** The six channels of a cap drawn part-way along the line: `edge.arrowMiddleHead`, `edge.arrowMiddleHeadSize` and so on. */
 type ArrowMidChannel<End extends "MiddleHead" | "MiddleTail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Position" | "Color" | "Opacity" | "Image"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image"}`;
 
 /**
  * The channels of a cap drawn part-way along the line, pointing toward the target (`MiddleHead`) or the source
@@ -956,7 +978,7 @@ const LABEL_FIELD_OF_SUFFIX = {
 
 /** A label style field one channel writes on its own. */
 export type LabelFieldName =
-    (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter" | "textAlign";
+    (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter" | "textAlign" | "location";
 
 /** Every way `labelTextAlign` lines up a label's lines. */
 const LABEL_TEXT_ALIGN_VALUES: readonly LabelTextAlign[] = ["left", "center", "right"];
@@ -981,6 +1003,52 @@ function labelTextAlignChannel(target: "node" | "edge"): ChannelDescriptor {
         caveat:
             "Lines up the lines of a label of more than one line with one another: their left edges, their " +
             "middles or their right edges. The label's place against its node or edge is `labelStyle`'s location.",
+    };
+}
+
+/** Every place `labelLocation` puts a label. */
+const LABEL_LOCATION_VALUES: readonly LabelLocation[] = [
+    "top",
+    "top-right",
+    "top-left",
+    "left",
+    "center",
+    "right",
+    "bottom",
+    "bottom-left",
+    "bottom-right",
+    "inside-top",
+    "inside-bottom",
+    "inside-left",
+    "inside-right",
+    "inside-top-left",
+    "inside-top-right",
+    "inside-bottom-left",
+    "inside-bottom-right",
+    "automatic",
+];
+
+/**
+ * Where a label sits against its node or edge, one field of the label style like the label field channels, so a
+ * layer can bind it to a column and give each element its own place.
+ * @param target - Nodes or edges.
+ * @returns The channel.
+ */
+function labelLocationChannel(target: "node" | "edge"): ChannelDescriptor {
+    const Target = target === "node" ? "Node" : "Edge";
+    return {
+        channel: `${target}.labelLocation`,
+        target,
+        plainName: `${Target} Label Location`,
+        shortName: "Label location",
+        group: "text",
+        stylePath: "label.location",
+        renderable: true,
+        accepts: "enum",
+        values: LABEL_LOCATION_VALUES,
+        caveat:
+            "Where the label sits against its node or edge: beyond a side or a corner, in the middle, or inside " +
+            "a node against a side or in a corner. The same field as `labelStyle`'s location.",
     };
 }
 
@@ -1149,6 +1217,10 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
     if (channel === "node.labelDeclutter") {
         return { into: "node.labelStyle", field: "declutter" };
+    }
+
+    if (channel === "node.labelLocation" || channel === "edge.labelLocation") {
+        return { into: channel === "node.labelLocation" ? "node.labelStyle" : "edge.labelStyle", field: "location" };
     }
 
     if (channel === "node.labelTextAlign" || channel === "edge.labelTextAlign") {
@@ -1419,6 +1491,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     ...labelFieldChannels("node"),
     "node.labelDeclutter": NODE_LABEL_DECLUTTER,
     "node.labelTextAlign": labelTextAlignChannel("node"),
+    "node.labelLocation": labelLocationChannel("node"),
     "node.tooltip": {
         channel: "node.tooltip",
         target: "node",
@@ -2551,6 +2624,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
     },
     "edge.labelTextAlign": labelTextAlignChannel("edge"),
+    "edge.labelLocation": labelLocationChannel("edge"),
     ...labelFieldChannels("edge"),
 };
 

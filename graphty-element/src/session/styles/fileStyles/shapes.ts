@@ -126,6 +126,9 @@ export const ARROW_SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:triangle-cross", "triangle-cross"],
     ["other:circle-triangle", "circle-triangle"],
     ["other:open-square", "open-box"],
+    // Cytoscape's CROSS_DELTA and CROSS_OPEN_DELTA
+    ["other:cross-delta", "cross-delta"],
+    ["other:cross-open-delta", "open-cross-delta"],
     // vis-network's image arrow: its picture, standing on the line
     ["other:image", "image"],
     // Cytoscape's arrows the element has no cap for, drawn as the nearest one: Cytoscape.js's chevron is a short vee

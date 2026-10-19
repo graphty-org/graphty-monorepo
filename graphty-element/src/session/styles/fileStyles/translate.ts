@@ -39,7 +39,6 @@ import {
     toolDefaults,
 } from "@graphty/graph-io/styles";
 
-import type { LabelLocation } from "../../../catalog/label-style";
 import type { Binding, BindingStop, Channel, LayerKind, LayerSpec, Path, Selector } from "../../../catalog/types";
 import { EDGE_CONSTANTS } from "../../../constants/meshConstants";
 import type { CodedFactParam } from "../../shared";
@@ -68,8 +67,6 @@ const MAX_TERMS = 8;
 const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
-/** The label budget when the load does not set one, and the most it may be. */
-const LABEL_LAYERS = { default: 8, max: 16 } as const;
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
@@ -88,8 +85,9 @@ export interface FileStyleOptions {
      */
     readonly shapes?: FileStyleShapeTable;
     /**
-     * How many layers label positions may take when the file sets them per element, at most 16;
-     * 8 by default. Further positions are drawn as the most common kept one, and noted.
+     * How many layers label positions may take when the file sets them per element. Label positions are
+     * drawn by one layer whatever their number (`node.labelLocation`), so this caps nothing.
+     * @deprecated Every label position the file sets is drawn; the value is ignored.
      */
     readonly labelLayers?: number;
     /**
@@ -499,6 +497,12 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    // a label's place, one field of its label style, so each element keeps its own however many places the file uses
+    const location = (target: StyleTarget): ChannelPlan => ({
+        channel: `${target}.labelLocation`,
+        convert: (value) => (typeof value === "string" && LOCATIONS.has(value) ? value : null),
+        identity: false,
+    });
     const length = (channel: Channel, factor = factors[kind]): ChannelPlan => ({
         channel,
         convert: (value) => (typeof value === "number" ? round(value * factor) : null),
@@ -652,6 +656,7 @@ function channelPlans(
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelTextAlign", [label("labelTextAlign")]],
+            ["labelPosition", [location("node")]],
             ["labelItalic", [label("labelItalic")]],
             ["labelRotation", [label("labelRotation")]],
             ["labelBackground", [label("labelBackground")]],
@@ -741,6 +746,8 @@ function channelPlans(
         ["midTargetArrowImageWidth", []],
         ["midTargetArrowImageHeight", []],
         ["arrowPosition", [id("edge.arrowHeadPosition"), id("edge.arrowTailPosition")]],
+        ["targetArrowSide", [id("edge.arrowHeadSide")]],
+        ["sourceArrowSide", [id("edge.arrowTailSide")]],
         ["curved", [id("edge.curvature")]],
         ["bends", [id("edge.bends")]],
         // Drawn in the scene's units, in proportion to the nodes it spaces the edges by.
@@ -775,6 +782,7 @@ function channelPlans(
         ["labelFont", [label("labelFont")]],
         ["labelWeight", [label("labelWeight")]],
         ["labelTextAlign", [label("labelTextAlign")]],
+        ["labelPosition", [location("edge")]],
         ["labelItalic", [label("labelItalic")]],
         // in the scene's units, as a node label's wrap width is
         ["labelWrapWidth", [length("edge.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
@@ -861,6 +869,9 @@ const CAP_ASPECT: ReadonlyMap<string, number> = new Map([
     ["other:triangle-tee", 0.6],
     ["other:triangle-cross", 0.75],
     ["other:circle-triangle", 0.5],
+    // a delta and a bar 1.5 across, 3 long
+    ["other:cross-delta", 0.5],
+    ["other:cross-open-delta", 0.5],
     ["other:chevron", EDGE_CONSTANTS.NORMAL_ARROW_ASPECT],
     // a picture on a square, stretched to its own width and length
     ["other:image", 1],
@@ -977,8 +988,8 @@ const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
 
 /** The properties the translation draws in passes of their own, per kind. */
 const COMPOSITE: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
-    node: new Set(["width", "height", "fillOpacity", "opacity", "labelPosition", "visible"]),
-    edge: new Set(["labelPosition", "visible"]),
+    node: new Set(["width", "height", "fillOpacity", "opacity", "visible"]),
+    edge: new Set(["visible"]),
 };
 
 /**
@@ -2414,11 +2425,10 @@ class KindTranslation {
     // Passes of their own
     // -----------------------------------------------------------------------------------------
 
-    /** Node size from width and height, node opacity from two opacities, label positions, and arrow sizes. */
+    /** Node size from width and height, node opacity from two opacities, and arrow sizes. */
     #composites(): void {
         if (this.#kind !== "node") {
             this.#arrowSizes();
-            this.#labelPositions();
             return;
         }
 
@@ -2449,7 +2459,6 @@ class KindTranslation {
             },
             "node.opacity",
         );
-        this.#labelPositions();
     }
 
     /**
@@ -2755,94 +2764,6 @@ class KindTranslation {
         const faded = fill.filter((value) => typeof value === "number" && value < 1).length;
         if (faded > 0) {
             this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.DRAWN_NEAREST, this.#kind, "fillOpacity", faded);
-        }
-    }
-
-    /**
-     * Label positions. The element sets a label's position as part of its whole label style, so a
-     * position set by a rule is drawn by that rule's layer; a position per element takes one
-     * layer per distinct value, within the label budget, above the topmost rule that sets one.
-     */
-    #labelPositions(): void {
-        const property = "labelPosition";
-        const writers = this.#rules
-            .map((rule, bucket) => ({ rule, bucket }))
-            .filter(({ rule }) => rule.set?.labelPosition !== undefined || rule.map?.labelPosition !== undefined);
-        if (writers.length === 0) {
-            return;
-        }
-
-        const channel = `${this.#kind}.labelStyle` as Channel;
-        const location = (value: StyleValue): unknown =>
-            typeof value === "string" && LOCATIONS.has(value) ? { location: value } : null;
-        if (writers.every(({ rule }) => rule.map?.labelPosition === undefined)) {
-            for (const { rule, bucket } of writers) {
-                this.#emitFor(rule, () => {
-                    this.#emit(
-                        rule,
-                        bucket,
-                        property,
-                        { channel, convert: location, identity: false },
-                        this.#input.extracted,
-                    );
-                });
-            }
-
-            return;
-        }
-
-        if (writers.every(({ rule }) => this.#rebuilt.has(rule))) {
-            return;
-        }
-
-        const values = resolveStyles(this.#input.extracted, this.#kind, property, this.#input.snapshot);
-        const counts = new Map<string, number>();
-        for (const value of values) {
-            if (typeof value === "string" && LOCATIONS.has(value)) {
-                counts.set(value, (counts.get(value) ?? 0) + 1);
-            }
-        }
-
-        const budget = Math.max(
-            1,
-            Math.min(LABEL_LAYERS.max, Math.floor(this.#input.options.labelLayers ?? LABEL_LAYERS.default)),
-        );
-        const kept = [...counts.keys()]
-            .sort((x, y) => (counts.get(y) ?? 0) - (counts.get(x) ?? 0) || (x < y ? -1 : 1))
-            .slice(0, budget);
-        const keptSet = new Set(kept);
-        let capped = 0;
-        const column = values.map((value) => {
-            if (typeof value !== "string" || !LOCATIONS.has(value)) {
-                return null;
-            }
-
-            if (keptSet.has(value)) {
-                return value;
-            }
-
-            capped++;
-            return kept[0];
-        });
-        if (capped > 0) {
-            this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LABEL_CAPPED, this.#kind, property, capped);
-        }
-
-        const path = this.#keepNew("labelPosition", column);
-        const top = writers.at(-1)?.bucket ?? 0;
-        const rule = writers.at(-1)?.rule as StyleRule;
-        for (const value of kept) {
-            const selector = this.#scoped({ match: "expression", where: `${quotePath(path)} == ${literal(value)}` });
-            const layer = this.#layerFor(rule, top, selector);
-            layer.spec.set[channel] = { location: value as LabelLocation };
-            layer.drawn ??= new Map(layer.paint ?? []);
-            layer.drawn.set(
-                channel,
-                column.map((held) => (held === value ? { location: value } : null)),
-            );
-            // A whole label style is no scalar: its layers are never folded.
-            (layer as { paint: Building["paint"] }).paint = null;
-            layer.spec.name = `${rule.id}.labelPosition=${value}`;
         }
     }
 

@@ -900,9 +900,15 @@ export const EdgeStyle: z.ZodObject<{
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
             image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
         position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1113,9 +1119,15 @@ export const EdgeStyle: z.ZodObject<{
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
             image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
         }>>>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
         position: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
@@ -1327,12 +1339,18 @@ export const EdgeStyle: z.ZodObject<{
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
             image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
         }>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         position: z.ZodOptional<z.ZodNumber>;
         image: z.ZodOptional<z.ZodString>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -1360,12 +1378,18 @@ export const EdgeStyle: z.ZodObject<{
             "half-open-flipped": "half-open-flipped";
             "open-box": "open-box";
             image: "image";
+            "cross-delta": "cross-delta";
+            "open-cross-delta": "open-cross-delta";
         }>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         width: z.ZodOptional<z.ZodNumber>;
         size: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         position: z.ZodOptional<z.ZodNumber>;
         image: z.ZodOptional<z.ZodString>;
+        side: z.ZodOptional<z.ZodEnum<{
+            left: "left";
+            right: "right";
+        }>>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{

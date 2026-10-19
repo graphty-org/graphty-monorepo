@@ -77,7 +77,7 @@ while it turns a file's rules into layers:
 | `W_STYLE_COLUMN_ABSENT`      | A rule reads a column no element of this load holds; left out                                                                   |
 | `W_STYLE_TABLE_AS_VALUES`    | A mapping table too large or too mixed to keep as a table; its values are kept per element                                      |
 | `W_STYLE_LAYERS_FOLDED`      | Layers folded into one that keeps their values, to stay within the bound on layers per kind                                     |
-| `W_STYLE_LABEL_CAPPED`       | More distinct label styles than `labelLayers` allows; the rest are drawn as the nearest kept one                                |
+| `W_STYLE_LABEL_CAPPED`       | No longer noted: every label position a file sets is drawn                                                                      |
 | `W_STYLE_LAYER_REFUSED`      | A layer the element refused; it is left out and the others apply                                                                |
 | `W_STYLE_LAYER_SPEC_IGNORED` | A layer graphty wrote into the file could not be rebuilt as it was; the file's own rule is drawn instead                        |
 | `W_STYLE_NOT_UNDERSTOOD`     | A rule, condition or mapping of a kind this version does not know; left out                                                     |
@@ -100,7 +100,6 @@ await element.loadFromUrl(url, {
     styles: "file",
     styleOptions: {
         lengths: "file",
-        labelLayers: 4,
         toolDefaults: false,
         shapes: { ...FILE_STYLE_SHAPES, star: "box" },
     },
@@ -111,7 +110,7 @@ await element.loadFromUrl(url, {
 | -------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lengths`      | `"median"`          | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are |
 | `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (every 2D shape as the flat shape of the same name: `ellipse`, `rectangle`, `hexagon`, ...; a body-less `none` as an `ellipse`). A shape the table leaves out is not drawn from the file, and the load notes it                                   |
-| `labelLayers`  | `8` (at most 16)    | How many layers label positions may take when the file sets them element by element. Further positions are drawn as the most common kept one, and noted                                                                                                                                                   |
+| `labelLayers`  | none                | Deprecated, and ignored: every label position the file sets is drawn, element by element, by one layer (`node.labelLocation`)                                                                                                                                                                             |
 | `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                                                                            |
 
 Copy `FILE_STYLE_SHAPES` and change the entries you want, as above.

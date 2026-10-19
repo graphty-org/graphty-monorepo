@@ -93,12 +93,13 @@ export function shapeClassOf(shape: unknown): ShapeClass {
  * The shape class of a polygon node, from its corners as a reader tells them apart: by how many
  * there are, and four as a rectangle when three sit on their box's corners, else a diamond.
  * @param points - the polygon's `shape.points`
- * @returns the class; "other" without usable corners
+ * @returns the class; "rect", the box graphty draws, without usable corners
  */
 export function polygonClassOf(points: string | undefined): ShapeClass {
     const corners = polygonPoints(points);
     if (corners === null) {
-        return "other";
+        // without usable corners graphty draws the node's box (shapeOutlines.flatShapeOutline)
+        return "rect";
     }
     if (corners.length === 4) {
         const xs = corners.map(([x]) => x);

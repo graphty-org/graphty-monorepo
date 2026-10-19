@@ -193,6 +193,7 @@ describe("a rule bound to a whole label style", () => {
                         "node.labelShiftY",
                         "node.labelDeclutter",
                         "node.labelTextAlign",
+                        "node.labelLocation",
                     ],
                 },
             },
@@ -303,6 +304,31 @@ describe("label field channels take a rule", () => {
             textAlign: "left",
         });
         assert.strictEqual(drawnLabel(held, 0).textAlign, "left");
+    });
+
+    it("gives each node its own label place from a column through labelLocation, however many places", async () => {
+        const held = harness();
+        await everyNode(held, "style", {
+            set: { "node.label": "hi", "node.labelStyle": { sizePx: 24 } },
+            encode: {
+                "node.labelLocation": {
+                    by: "data.id",
+                    scale: "passthrough",
+                    map: { a: "inside-top-left", b: "bottom-right", c: "top" },
+                },
+            },
+        });
+        await held.paintAll();
+
+        assert.deepEqual(labelFieldOf("node.labelLocation"), { into: "node.labelStyle", field: "location" });
+        assert.deepEqual(held.styles.explain({ node: "a" }).merged["node.labelStyle"], {
+            sizePx: 24,
+            location: "inside-top-left",
+        });
+        assert.deepEqual(
+            [0, 1, 2].map((i) => drawnLabel(held, i).location),
+            ["inside-top-left", "bottom-right", "top"],
+        );
     });
 
     it("draws a line round the label's box as labelBorder and labelBorderWidth say", async () => {

@@ -76,6 +76,54 @@ function rect(x0: number, x1: number, half: number): [number, number][] {
     ];
 }
 
+/**
+ * A convex outline drawn as a frame `t` thick inside it, one quad per side: each side moved in by
+ * `t`, and each corner of the inner outline where two moved sides meet.
+ * @param outline - The outline's corners, in order.
+ * @param t - How thick the frame is.
+ * @returns The quads.
+ */
+function frame(outline: readonly (readonly [number, number])[], t: number): [number, number][][] {
+    const n = outline.length;
+    // the side from corner i to i + 1, moved in by t: a point on it and its direction
+    const area = outline.reduce((sum, [x, z], i) => {
+        const [x1, z1] = outline[(i + 1) % n];
+        return sum + x * z1 - x1 * z;
+    }, 0);
+    const turn = area > 0 ? 1 : -1;
+    const sides = outline.map(([x, z], i) => {
+        const [x1, z1] = outline[(i + 1) % n];
+        const length = Math.hypot(x1 - x, z1 - z);
+        const [dx, dz] = [(x1 - x) / length, (z1 - z) / length];
+        // the inward normal: to the left of a side of a counter-clockwise outline
+        const [nx, nz] = [-dz * turn, dx * turn];
+        return { x: x + nx * t, z: z + nz * t, dx, dz };
+    });
+    const inner = outline.map((_, i) => {
+        const a = sides[(i + n - 1) % n];
+        const b = sides[i];
+        const det = a.dx * b.dz - a.dz * b.dx;
+        const k = ((b.x - a.x) * b.dz - (b.z - a.z) * b.dx) / det;
+        return [a.x + k * a.dx, a.z + k * a.dz] as [number, number];
+    });
+    return outline.map((corner, i) => [
+        [corner[0], corner[1]],
+        [outline[(i + 1) % n][0], outline[(i + 1) % n][1]],
+        inner[(i + 1) % n],
+        inner[i],
+    ]);
+}
+
+/** Cytoscape's CROSS_DELTA, 3 long: a delta 2 long and 1 wide at the tip, and a bar 0.25 deep and 1.5 wide at the back. */
+const CROSS_DELTA = {
+    delta: [
+        [0, 0],
+        [-2 / 3, -1 / 6],
+        [-2 / 3, 1 / 6],
+    ] as [number, number][],
+    bar: rect(-1, -11 / 12, 0.25),
+};
+
 export interface FilledArrowOptions {
     size: number; // Screen-space size in pixels
     color: string; // Hex color
@@ -964,6 +1012,8 @@ void main() {
      * - "circle-triangle": a dot at the tip with a triangle behind it pointing at it (circle-triangle).
      * - "half-open-flipped": half-open's one arm on the line's other side (Cytoscape's HALF_BOTTOM).
      * - "open-box": the box's outline (Cytoscape's OPEN_SQUARE, Cytoscape.js's hollow square).
+     * - "cross-delta": a delta with a bar across the line a little behind it (Cytoscape's CROSS_DELTA).
+     * - "open-cross-delta": the delta outlined, with the bar (Cytoscape's CROSS_OPEN_DELTA).
      */
     static readonly POLYGON_ARROWS: Readonly<Record<string, () => readonly (readonly [number, number])[][]>> = {
         "half-circle": () => [arc(0, 1, 0, Math.PI / 2, (3 * Math.PI) / 2)],
@@ -1001,6 +1051,10 @@ void main() {
                 [-1, 0.4],
             ],
         ],
+        // Cytoscape's CROSS_DELTA: a delta with a bar across the line behind it, a gap between them
+        "cross-delta": () => [CROSS_DELTA.delta, CROSS_DELTA.bar],
+        // CROSS_OPEN_DELTA: the same outlined, its 0.25 stroke a twelfth of its length; the bar it strokes is solid
+        "open-cross-delta": () => [...frame(CROSS_DELTA.delta, 1 / 12), rect(-1, -5 / 6, 0.25)],
         // the box's square (x -1..0, z -0.5..0.5) as a frame as thick as the open dot's ring
         "open-box": () => [
             rect(-1, 0, 0.5).map(([x, z]) => [x, z < 0 ? z : -0.5 + OPEN_FRAME] as [number, number]),
@@ -1352,19 +1406,12 @@ void main() {
             case "open-diamond":
                 mesh = this.createOpenDiamond(scene);
                 break;
-            case "half-circle":
-            case "open-half-circle":
-            case "curve":
-            case "triangle-tee":
-            case "triangle-cross":
-            case "circle-triangle":
-            case "half-open-flipped":
-            case "open-box":
-                mesh = this.createPolygonArrow(type, scene);
-                break;
             default:
-                // Default to normal triangle
-                mesh = this.createTriangle(false, scene);
+                // a polygon arrow by its table, and any other as the normal triangle
+                mesh =
+                    type in this.POLYGON_ARROWS
+                        ? this.createPolygonArrow(type, scene)
+                        : this.createTriangle(false, scene);
         }
 
         // Extract vertex data from the temporary mesh

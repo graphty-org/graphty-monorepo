@@ -30805,7 +30805,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0,
+            "node.shape": 0.027,
             "node.fill": 0,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -30838,7 +30838,7 @@
             "raster.edge": 0.79,
             "raster.label": 0.83,
             "raster.nodeBody": 0.85,
-            "raster.nodeOutline": 0.89
+            "raster.nodeOutline": 0.91
         },
         "graphml-yfiles-html-stag-flowchart@matched": {
             "node.present": 1,
@@ -30848,7 +30848,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0,
+            "node.shape": 0.027,
             "node.fill": 0,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33744,7 +33744,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.87,
-            "raster.nodeOutline": 0.98
+            "raster.nodeOutline": 0.99
         },
         "yed-live-graphml-specimen-groups-p2@matched": {
             "node.present": 1,
@@ -34016,7 +34016,7 @@
             "background": 1,
             "raster.canvas": 0.98,
             "raster.label": 0.88,
-            "raster.nodeBody": 0.86,
+            "raster.nodeBody": 0.87,
             "raster.nodeOutline": 0.98
         },
         "yed-live-graphml-specimen-labels-p2@matched": {
@@ -34358,12 +34358,12 @@
             "node.height": 0.975,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.55,
-            "node.fill": 0.875,
+            "node.shape": 0.85,
+            "node.fill": 0.925,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.75,
-            "node.strokeWidth": 0.971,
+            "node.stroke": 0.8,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -34374,7 +34374,7 @@
             "raster.canvas": 0.98,
             "raster.label": 0.87,
             "raster.nodeBody": 0.87,
-            "raster.nodeOutline": 0.94
+            "raster.nodeOutline": 0.96
         },
         "yed-live-graphml-specimen-node-shapes-p2@matched": {
             "node.present": 1,
@@ -34384,12 +34384,12 @@
             "node.height": 0.975,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.55,
-            "node.fill": 0.875,
+            "node.shape": 0.85,
+            "node.fill": 0.925,
             "node.fillOpacity": 1,
             "node.gradient": 1,
-            "node.stroke": 0.75,
-            "node.strokeWidth": 0.971,
+            "node.stroke": 0.8,
+            "node.strokeWidth": 1,
             "node.strokeDash": 1,
             "label.present": 1,
             "stray.present": 0,
@@ -34406,7 +34406,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.147,
+            "node.shape": 0.559,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -34422,7 +34422,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.88,
             "raster.nodeBody": 0.91,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.97
         },
         "yed-live-graphml-specimen-node-shapes-p3@matched": {
             "node.present": 1,
@@ -34432,7 +34432,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.147,
+            "node.shape": 0.559,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -34702,7 +34702,44 @@
             "background": 1
         }
     },
-    "allowedDrops": {},
+    "allowedDrops": {
+        "yed-live-graphml-specimen-node-shapes/node.shape": {
+            "reason": "graphty draws yFiles' PILL (a box with half-circle ends; on this square box a circle); draw.io, standing in for yEd Live, draws PILL as a plain box (shape-pill)",
+            "issue": "ISSUES.md yed-live-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.756
+        },
+        "yed-live-graphml-specimen-node-shapes@matched/node.shape": {
+            "reason": "as yed-live-graphml-specimen-node-shapes/node.shape",
+            "issue": "ISSUES.md yed-live-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.756
+        },
+        "yed-live-graphml-specimen-node-shapes-p3/node.fill": {
+            "reason": "a FlowchartNodeStyle with no fill is the demo's default rgb(183, 201, 227) (yfiles-for-html-demos v2.6 FlowchartStyle.ts); draw.io, standing in for yEd Live, fills it white (default)",
+            "issue": "ISSUES.md yed-live-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.971
+        },
+        "yed-live-graphml-specimen-node-shapes-p3@matched/node.fill": {
+            "reason": "as yed-live-graphml-specimen-node-shapes-p3/node.fill",
+            "issue": "ISSUES.md yed-live-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.971
+        },
+        "yed-live-graphml-specimen-node-shapes-p2/raster.nodeBody": {
+            "reason": "graphty fills PanelNodeStyle with its color, which draw.io, standing in for yEd Live, draws as a white box (panel, panel-color, panel-label-insets-color); the outline region rose 0.947 to 0.968",
+            "issue": "ISSUES.md yed-live-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.86
+        },
+        "graphml-yfiles-html-stag-flowchart/raster.nodeBody": {
+            "reason": "two FlowchartNodeStyle process nodes with no fill are the demo's default rgb(183, 201, 227); draw.io, standing in for yFiles, fills them white; the outline region rose 0.891 to 0.914",
+            "issue": "ISSUES.md yed-live-stand-in",
+            "expires": "2026-12-31",
+            "atLeast": 0.84
+        }
+    },
     "lowered": {
         "gexf-specimen-node-fills-borders-p2/node.stroke": {
             "from": 1,

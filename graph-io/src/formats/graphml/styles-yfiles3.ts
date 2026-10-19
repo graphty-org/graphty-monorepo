@@ -409,7 +409,10 @@ function putRounded(radius: string | undefined, fallback: number, put: PutValue,
  */
 function readStyle26(refs: References, style: StyleObject, put: PutValue, at: SiteOf): boolean {
     const fill = (v: unknown): void => {
-        putPaint(paintOf(refs, v, null), "fill", "fillOpacity", put, at);
+        const gradient = (): void => {
+            noteAt(at("fill"), STYLE_ISSUE.GRADIENT, style.tag);
+        };
+        putPaint(paintOf(refs, v, gradient), "fill", "fillOpacity", put, at);
     };
     switch (style.tag) {
         case "BevelNodeStyle":

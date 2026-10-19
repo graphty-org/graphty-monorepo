@@ -585,15 +585,65 @@ copy a draw.io mistake into graph-io):
   3.0 markup: it draws every 2.6 `ShapeNodeStyle` shape, BevelNodeStyle and ShinyPlateNodeStyle (as a glossy plate),
   every `demostyle:FlowchartNodeStyle` type with its fill and stroke, and the 2.6 arrows; it draws `PanelNodeStyle` as
   a white box, ignores an Arrow's fill and stroke, and draws no label text (`y:Label.Text`), so the `labels-p3` and
-  `labels-p4` oracles judge only the nodes. graph-io reads none of FlowchartNodeStyle, BevelNodeStyle,
-  ShinyPlateNodeStyle and PanelNodeStyle (a W_ note and `other:<style>`), nor the 2.6 shapes `SHEARED_RECTANGLE`,
-  `SHEARED_RECTANGLE2`, `TRAPEZ`, `TRAPEZ2`, `STAR5_UP` and `PILL`.
+  `labels-p4` oracles judge only the nodes. graph-io reads FlowchartNodeStyle, BevelNodeStyle, ShinyPlateNodeStyle,
+  PanelNodeStyle and the 2.6 shapes since fix round 1 (below).
 - Spelling the sheets could not take from a real file: no yEd-written corpus file shows the camel case of 37 of
   yEd's 63 GenericNode configuration ids (`yed-vocabulary.json`, `"spelling": "inferred"`), and no yFiles for HTML
   3 corpus file shows the edge label model parameters (`SmartEdgeLabelModelParameter`, `EdgePathLabelModelParameter`,
   `EdgeSegmentLabelModelParameter`, `FreeEdgeLabelModelParameter`), gradients or arrow scales; those follow the API
   reference's property names. The owner's export from yEd and yEd Live settles both: a specimen the program draws
   as its default was misspelled.
+
+
+## Specimen sheets: yEd Live settings graph-io now reads (fix round 1, 2026-10-19)
+
+What graph-io now reads from yEd Live's markup as yFiles draws it (unit tests in
+`graph-io/test/formats/graphml/styles-yfiles3.test.ts`; defaults from the yFiles for HTML 2.6 API reference and the
+v2.6 demos' `FlowchartStyle.ts`):
+
+- `BevelNodeStyle` and `PanelNodeStyle` fill with their `color` (default black), `ShinyPlateNodeStyle` with its
+  `fill`; Bevel and ShinyPlate are rounded boxes of their `radius` (10 and 5; 0 is a plain box), outlined only where
+  a ShinyPlate sets `stroke` (the bevel's light band and the plate's gloss are not drawn).
+- `demostyle:FlowchartNodeStyle` draws its `type`'s outline, the one yEd's flowchart palette draws for the same type
+  (`configurationOutline`), with the demo's default fill rgb(183, 201, 227) and black stroke; `annotation` is an
+  unoutlined box (its bracket is not drawn), and a style with no `type` an outlined box.
+- The 2.6 shapes `SHEARED_RECTANGLE`, `SHEARED_RECTANGLE2` (parallelogram), `TRAPEZ`, `TRAPEZ2` (trapezoid),
+  `STAR5_UP` (star), `TRIANGLE2`, `FAT_ARROW2` and `PILL` (a box with half-circle ends); `ROUND_RECTANGLE` has its
+  documented corner of 10.
+- Node label places: the interior, exterior, stretch and sandwich models of 2.6 (`y:InteriorLabelModelParameter`,
+  `{x:Static y:InteriorStretchLabelModel.North}`, ...) and of yFiles 3 (`yx:InteriorNodeLabelModelParameter`,
+  `yx:ExteriorNodeLabelModelParameter`, `yx:StretchNodeLabelModelParameter`), inline or shared. Edge labels: the path
+  model's `SideOfEdge` at ratio 0.5 and the nine-position model's center row (above, on, below the line).
+
+Measured against draw.io's drawings (stand-ins): node-shapes-p2 node shape 22/40 -> 34/40, fill 35/40 -> 37/40,
+outline 30/40 -> 32/40; node-shapes-p3 node shape 5/34 -> 19/34; graphml-yfiles-html-stag-flowchart node shape 0/37 ->
+1/37; node outline raster regions up (p2 0.947 -> 0.968, p3 0.952 -> 0.980, stag-flowchart 0.891 -> 0.914). The labels
+are not judged: draw.io draws no yFiles label text.
+
+Where draw.io misreads what graphty now draws as yFiles documents it (`yed-live-stand-in`; allowed drops and known
+failures in graphty-element's `test/fidelity/oracle-floors.json` and `oracle-known-failures.json`, expiring
+2026-12-31):
+
+- `PILL` and `STAR5_UP` are drawn as plain boxes (`shape-pill`, `v2-shape-pill`, `v2-shape-star5-up`); graphty draws
+  the pill (a circle on a square box) and the star.
+- `PanelNodeStyle` is a white box outlined black (`panel`, `panel-color`, `panel-label-insets-color`); graphty fills
+  it with its `color` and draws no outline. yFiles gives the style no stroke property; its panel border shading is
+  not drawn, and the owner's export will show whether yEd Live outlines it.
+- A FlowchartNodeStyle without a fill is white (`node-shapes-p3` `default`, two `stag-flowchart` process nodes); the
+  demo's default is rgb(183, 201, 227).
+
+Still open after fix round 1:
+
+- The free and ratio-anchored models' `LayoutOffset` (`model-free-offset`, `v2-model-...`): the neutral style
+  vocabulary has no label offset (shared with the other formats' label anchor and offset work). A label at an
+  edge's end, a segment's middle, or left or right of the edge's direction is not placed either.
+- GroupNodeStyle stroke (`groups`, `groups-p2`, `groups-p3`: 39 groups): not an import defect. Every sheet writes the
+  stroke (`#FF505050` 1, `stroke-group` `#FFFF0000` 2) and graphty draws it; draw.io, the stand-in, ignores
+  `GroupNodeStyle.stroke` and draws every group outline black and 1 wide, the red 2-wide one too. yFiles documents the
+  stroke's default as null. Judged when the owner's yEd Live export replaces the stand-in.
+- Label text, and fills and shapes draw.io misreads (`CssFill`, gradients, `CORNFLOWER_BLUE`, `{x:Null}`,
+  `RectangleNodeStyle` corners, `ArrowNodeStyle`; `node-fills-borders`, `node-shapes`): the stand-in's, above. They
+  wait for the owner's yEd Live export; yEd Live's license is treated as yEd's, so it is not driven by a script.
 
 ## Specimen sheets: Cytoscape.js
 

@@ -110,3 +110,21 @@ describe("yEd Live GraphML: edge label model parameters", () => {
         expect(positions.filter((p) => p === "bottom")).toHaveLength(2);
     });
 });
+
+describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
+    it("is drawn in its first stop and noted", async () => {
+        const result = await registry.importGraph(
+            new Uint8Array(
+                readFileSync(
+                    resolve(
+                        import.meta.dirname,
+                        "../../corpus/styles/graphml/yfiles-html-large/ctmrbio__stag-mwc__stag_flowchart.graphml",
+                    ),
+                ),
+            ),
+            { format: "graphml", styles: { toolDefaults: true }, errorLimit: Infinity },
+        );
+        const { styles } = result;
+        expect(styles?.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+    });
+});

@@ -803,6 +803,23 @@ function readDocument(text: string): ReadDocument {
 }
 
 /**
+ * Parse a file as a graphty document, or tell that it is not one.
+ * @param text - The file's text.
+ * @returns The document, or undefined when the file is not a graphty document (a data file).
+ */
+function graphtyDocumentOf(text: string): ReadDocument | undefined {
+    try {
+        return readDocument(text);
+    } catch (error) {
+        if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
+            throw error;
+        }
+
+        return undefined;
+    }
+}
+
+/**
  * The refusal of JSON that is not a graphty document.
  * @returns The error.
  */
@@ -1476,15 +1493,9 @@ export function projectOf(
         async open(source, options = {}) {
             const text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
-            let doc: ReadDocument;
-            try {
-                doc = readDocument(text);
-            } catch (error) {
+            const doc = graphtyDocumentOf(text);
+            if (doc === undefined) {
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
-                if (!isGraphtyError(error) || (error.code !== "E_UNKNOWN_FORMAT" && error.code !== "E_PARSE_FAILED")) {
-                    throw error;
-                }
-
                 const draft = await session.data.prepare(dataSourceOf(source, text, fileName));
                 return Object.freeze({
                     opened: "graph" as const,

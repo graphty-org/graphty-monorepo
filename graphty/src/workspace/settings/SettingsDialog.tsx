@@ -1,6 +1,7 @@
 import "./settings.css";
 
 import { ModalFooter, PageList, SegmentedControl } from "@graphty/compact-mantine";
+import type { AccelerationStatus } from "@graphty/graphty-element/session";
 import {
     Button,
     Input,
@@ -18,6 +19,7 @@ import { answerUsageData, useUsageAnswer } from "../privacy/usageData";
 import { UsageDataText } from "../privacy/UsageDataText";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
+    ACCELERATION,
     fileStylesChoice,
     NUMBER_FORMAT,
     readPreference,
@@ -30,6 +32,7 @@ const SECTIONS = [
     { id: "general", name: "General" },
     { id: "privacy", name: "Privacy" },
     { id: "accessibility", name: "Accessibility and input" },
+    { id: "performance", name: "Performance" },
 ] as const;
 
 type SectionId = (typeof SECTIONS)[number]["id"];
@@ -147,6 +150,75 @@ function Accessibility(): React.JSX.Element {
 }
 
 /**
+ * The words for where acceleration stands, from the document graphty-element publishes.
+ * @param status - the element's acceleration status, or null before it has come up.
+ * @returns one line for the reader.
+ */
+function accelerationLine(status: AccelerationStatus | null): string {
+    if (status === null || status.state === "probing") {
+        return "Now: looking for a GPU...";
+    }
+    if (status.state === "active" || status.state === "idle") {
+        const hardware = [status.vendor, status.architecture].filter((part) => part !== undefined).join(" ");
+        return hardware === "" ? "Now: on" : `Now: on (${hardware})`;
+    }
+    if (status.state === "off") {
+        return "Now: off";
+    }
+    return `Now: off. ${status.reason ?? "No GPU is available."}`;
+}
+
+/**
+ * Performance: the GPU acceleration policy, written on the element and kept in this browser,
+ * and where acceleration stands now, as the element reports it.
+ * @returns The section
+ */
+function Performance(): React.JSX.Element {
+    const { element, session } = useWorkspace();
+    const [policy, setPolicy] = useState(() => readPreference(ACCELERATION));
+    const [status, setStatus] = useState<AccelerationStatus | null>(() => session?.capabilities.acceleration ?? null);
+    useEffect(() => {
+        if (element === null) {
+            return undefined;
+        }
+        const update = (): void => {
+            setStatus(element.session.capabilities.acceleration);
+        };
+        update();
+        element.addEventListener("graphty-capabilities-change", update);
+        return () => {
+            element.removeEventListener("graphty-capabilities-change", update);
+        };
+    }, [element]);
+    return (
+        <Input.Wrapper
+            label="GPU acceleration"
+            description="Automatic uses the GPU when this browser has one and the CPU otherwise. Required refuses to run without one."
+        >
+            <SegmentedControl
+                value={policy}
+                onChange={(value) => {
+                    const next = ACCELERATION.values.find((v) => v === value) ?? ACCELERATION.fallback;
+                    setPolicy(next);
+                    writePreference(ACCELERATION, next);
+                    if (element !== null) {
+                        element.acceleration = next;
+                    }
+                }}
+                data={[
+                    { value: "auto", label: "Automatic" },
+                    { value: "off", label: "Off" },
+                    { value: "required", label: "Required" },
+                ]}
+            />
+            <Text size="xs" mt={6}>
+                {accelerationLine(status)}
+            </Text>
+        </Input.Wrapper>
+    );
+}
+
+/**
  * Settings (tier1-design.md section 2.12): one dialog, a section list down the left, closed with
  * X or Esc. Open while the workspace dialog is "settings" (General) or "settings:<section>".
  * @returns The dialog
@@ -188,6 +260,7 @@ export function SettingsDialog(): React.JSX.Element {
                     {section === "general" ? <General /> : null}
                     {section === "privacy" ? <Privacy /> : null}
                     {section === "accessibility" ? <Accessibility /> : null}
+                    {section === "performance" ? <Performance /> : null}
                 </section>
             </div>
             <ModalFooter>

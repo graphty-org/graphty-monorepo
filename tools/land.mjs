@@ -379,9 +379,12 @@ function installIfNeeded(ctx) {
     const installed = existsSync(installedFile(ctx)) ? readFileSync(installedFile(ctx), "utf8").trim() : "";
     if (installed === blob.stdout) return;
     console.log("land: pnpm-lock.yaml changed; pnpm install --frozen-lockfile");
+    ctx.install(ctx);
+    markInstalled(ctx);
+}
+function defaultInstall(ctx) {
     const r = spawnSync("pnpm", ["install", "--frozen-lockfile"], { cwd: ctx.golden, env: ctx.env, stdio: "inherit" });
     if (r.status !== 0) throw new Error("pnpm install --frozen-lockfile failed in the golden worktree");
-    markInstalled(ctx);
 }
 
 /**
@@ -392,6 +395,7 @@ function installIfNeeded(ctx) {
  */
 export function sync(ctx) {
     git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
+    updateMainCheckout(ctx);
     const start = git(ctx, ctx.golden, ["rev-parse", "HEAD"]);
     for (const ref of [`origin/${GOLDEN}`, "origin/master"]) {
         if (hasRef(ctx, ctx.golden, ref).status !== 0) continue;
@@ -403,6 +407,43 @@ export function sync(ctx) {
         return { ref, files, error: r.stderr || r.stdout };
     }
     return null;
+}
+
+/**
+ * Fast-forwards the main checkout's master to origin/master after a fetch, so new sessions read
+ * current instructions (CLAUDE.md) from it. Changes nothing, with one warning line, when it is on
+ * another branch, has tracked changes or has commits origin/master lacks; never throws.
+ * @param ctx the run's context
+ */
+export function updateMainCheckout(ctx) {
+    try {
+        const from = git(ctx, ctx.main, ["rev-parse", "HEAD"]);
+        const to = git(ctx, ctx.main, ["rev-parse", "origin/master"]);
+        if (from === to) return;
+        const why = mainCheckoutBlocker(ctx, from);
+        if (why) {
+            console.error(`land: warning: left the main checkout ${ctx.main} alone: ${why}`);
+            return;
+        }
+        git(ctx, ctx.main, ["merge", "-q", "--ff-only", "origin/master"]);
+        console.log(`land: moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`);
+    } catch (e) {
+        console.error(`land: warning: could not update the main checkout ${ctx.main}: ${e.message}`);
+    }
+}
+
+/**
+ * Why the main checkout cannot be fast-forwarded to origin/master.
+ * @param ctx the run's context
+ * @param head its HEAD commit
+ * @returns the reason, or null when it can be
+ */
+function mainCheckoutBlocker(ctx, head) {
+    const branch = git(ctx, ctx.main, ["symbolic-ref", "-q", "--short", "HEAD"], { ok: true }).stdout;
+    if (branch !== "master") return `it is on ${branch || "a detached HEAD"}, not master`;
+    if (git(ctx, ctx.main, ["status", "--porcelain", "--untracked-files=no"])) return "it has uncommitted changes";
+    const ff = git(ctx, ctx.main, ["merge-base", "--is-ancestor", head, "origin/master"], { ok: true });
+    return ff.status === 0 ? null : "its master has commits origin/master does not";
 }
 
 const conflicted = (ctx) =>
@@ -506,7 +547,8 @@ function refreshPr(ctx) {
     writeFileSync(file, body);
     const pr = goldenPr(ctx);
     if (pr) {
-        ctx.gh(ctx, ["pr", "edit", String(pr.number), "--body-file", file]);
+        // gh pr edit fails on this repository while GitHub retires classic Projects; the REST call does not.
+        ctx.gh(ctx, ["api", "-X", "PATCH", `repos/{owner}/{repo}/pulls/${pr.number}`, "-F", `body=@${file}`]);
         return pr.number;
     }
     const url = ctx.gh(ctx, [
@@ -695,10 +737,7 @@ export async function landMany(ctx, branches, opts = {}) {
         const what = git(ctx, ctx.golden, ["diff", "--stat", before, "HEAD"]);
         console.log(`land: dry run -- would push to golden:\n${log}\n${what}`);
     }
-    if (!opts.dryRun && merged.length) {
-        installIfNeeded(ctx);
-        await landGroup(ctx, run, merged, before);
-    }
+    if (!opts.dryRun && merged.length) await landGroup(ctx, run, merged, before);
     if (run.pushed) announce(ctx, goldenHead(ctx));
     else git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
     return summarize(run, branches);
@@ -744,6 +783,9 @@ async function landGroup(ctx, run, list, merged) {
     const base = merged ?? goldenHead(ctx);
     const group = merged ? list : mergeEach(ctx, run, list);
     if (!group.length) return;
+    // Each group's own lockfile: a half without the branch that changed it would fail the gate's
+    // node_modules check in a second, and blame a branch that never touched the lockfile.
+    installIfNeeded(ctx);
     const r = await pushGolden(ctx, base, run.pushed ? base : run.start);
     if (r.code === 0) {
         run.pushed = true;
@@ -894,6 +936,7 @@ export async function revert(ctx, branch) {
  */
 export async function ship(ctx) {
     git(ctx, ctx.golden, ["fetch", "-q", "origin"]);
+    updateMainCheckout(ctx);
     if (hasRef(ctx, ctx.golden, `origin/${GOLDEN}`).status !== 0) return fail("nothing is on GitHub's golden yet");
     // Picks up the owner's accept commits; anything golden has that GitHub does not must land first.
     git(ctx, ctx.golden, ["merge", "-q", "--ff-only", `origin/${GOLDEN}`], { ok: true });
@@ -924,6 +967,7 @@ export async function ship(ctx) {
 export function status(ctx) {
     if (!existsSync(ctx.golden)) return fail(`no golden worktree yet (${ctx.golden}); the first landing makes it`);
     git(ctx, ctx.golden, ["fetch", "-q", "origin"], { ok: true });
+    updateMainCheckout(ctx);
     const counts = (ref) => {
         if (hasRef(ctx, ctx.golden, ref).status !== 0) return `${ref} does not exist`;
         const [ahead, behind] = git(ctx, ctx.golden, ["rev-list", "--left-right", "--count", `HEAD...${ref}`]).split(
@@ -1002,6 +1046,7 @@ export function context(cwd, overrides = {}) {
         gh: defaultGh,
         preview: defaultPreview,
         addWorktree: defaultAddWorktree,
+        install: defaultInstall,
         ...base,
     };
 }

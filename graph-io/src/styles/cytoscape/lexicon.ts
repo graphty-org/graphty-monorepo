@@ -39,6 +39,11 @@ const opacity255: CytoscapeValueParser = (raw, site) => {
 // CX2's 0..1 opacity.
 const opacity01: CytoscapeValueParser = (raw, site) => canonOpacity(raw, "css", site);
 const length: CytoscapeValueParser = (raw, site) => canonNumber(raw, site);
+// Cytoscape desktop holds a font size as a whole number, so every value read for one is drawn rounded.
+const fontSize: CytoscapeValueParser = (raw, site) => {
+    const v = canonNumber(raw, site);
+    return v === null ? null : Math.round(v);
+};
 const text: CytoscapeValueParser = (raw, site) => canonText(raw, site);
 const bool: CytoscapeValueParser = (raw, site) => canonBoolean(raw, site);
 
@@ -397,7 +402,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["height", [["NODE_HEIGHT", length]]],
         ["label", [["NODE_LABEL", text]]],
         ["labelColor", [["NODE_LABEL_COLOR", color]]],
-        ["labelSize", [["NODE_LABEL_FONT_SIZE", length]]],
+        ["labelSize", [["NODE_LABEL_FONT_SIZE", fontSize]]],
         ["labelFont", [["NODE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["NODE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["NODE_LABEL_FONT_FACE", fontItalic]]],
@@ -455,7 +460,7 @@ export const CYTOSCAPE_LEXICON: Readonly<
         ["curved", [["EDGE_CURVED", bool]]],
         ["label", [["EDGE_LABEL", text]]],
         ["labelColor", [["EDGE_LABEL_COLOR", color]]],
-        ["labelSize", [["EDGE_LABEL_FONT_SIZE", length]]],
+        ["labelSize", [["EDGE_LABEL_FONT_SIZE", fontSize]]],
         ["labelFont", [["EDGE_LABEL_FONT_FACE", fontFamily]]],
         ["labelWeight", [["EDGE_LABEL_FONT_FACE", fontWeight]]],
         ["labelItalic", [["EDGE_LABEL_FONT_FACE", fontItalic]]],

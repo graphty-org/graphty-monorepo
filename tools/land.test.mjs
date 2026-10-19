@@ -39,6 +39,8 @@ let previews;
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let duringPush; // runs once inside the next push, as if the gate were running
+let installed = null; // the lockfile golden's node_modules were last installed from
+let installs = [];
 let ctx;
 const golden = join(repo, ".worktrees/golden-local");
 const run = async (...argv) => {
@@ -81,7 +83,7 @@ before(() => {
                 gh.body = readFileSync(args[args.indexOf("--body-file") + 1], "utf8");
                 return "https://github.com/o/r/pull/7";
             }
-            if (args[1] === "edit") gh.body = readFileSync(args[args.indexOf("--body-file") + 1], "utf8");
+            if (isEdit(args)) gh.body = readFileSync(args.find((a) => a.startsWith("body=@")).slice(6), "utf8");
             return "";
         },
         push: async (c) => {
@@ -100,6 +102,10 @@ before(() => {
         },
         preview: (_ctx, pr) => previews.push(pr),
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
+        install: (c) => {
+            installed = readFileSync(join(c.golden, "pnpm-lock.yaml"), "utf8");
+            installs.push(installed.trim());
+        },
         lockOptions: { pollMs: 10 },
     });
 });
@@ -110,7 +116,15 @@ beforeEach(() => {
     pushResult = 0;
     pushes = 0;
     duringPush = null;
+    installs = [];
 });
+
+/**
+ * Whether a fake gh call is the description update (a REST PATCH of the pull request).
+ * @param args the gh arguments
+ * @returns true for the update
+ */
+const isEdit = (args) => args[0] === "api" && args.includes("PATCH");
 
 describe("the lock", () => {
     const lock = join(dir, "locks/lock");
@@ -262,7 +276,7 @@ describe("revert", () => {
         assert.equal(git(golden, "log", "-1", "--format=%s"), 'Revert "land: feat/a"');
         assert.equal(readFileSync(join(golden, "a.txt"), "utf8"), "one\n");
         assert.equal(originGolden(), head());
-        assert.ok(gh.some((a) => a[1] === "edit"));
+        assert.ok(gh.some((a) => isEdit(a)));
         assert.match(gh.body, /Reverted from golden: `feat\/a`/);
         assert.match(gh.body, /\nNo issue\n/);
         assert.deepEqual(previews, [7]);
@@ -360,7 +374,7 @@ describe("landing several branches", () => {
         assert.deepEqual(landSubjects(2), ["land: multi/b", "land: multi/a"]);
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/a\s+landed\n\s+multi\/b\s+landed/);
-        assert.equal(gh.filter((a) => a[1] === "edit").length, 1, "the description is refreshed once");
+        assert.equal(gh.filter((a) => isEdit(a)).length, 1, "the description is refreshed once");
         assert.match(gh.body, /### multi\/a\n/);
         assert.match(gh.body, /\nFixes #21\n/);
         assert.deepEqual(previews, [7]);
@@ -397,8 +411,24 @@ describe("landing several branches", () => {
         assert.deepEqual(landSubjects(2), ["land: multi/f", "land: multi/d"]);
         assert.equal(originGolden(), head());
         assert.match(r.out, /multi\/e\s+gate failure, log: tmp\/push-gate-logs\/x\.log/);
-        assert.equal(gh.filter((a) => a[1] === "edit").length, 1);
+        assert.equal(gh.filter((a) => isEdit(a)).length, 1);
         assert.deepEqual(previews, [7]);
+    });
+
+    it("installs each half's own lockfile, so a half without the lockfile change is not blamed", async () => {
+        branch("multi/lock1", { "pnpm-lock.yaml": "1\n" }, "chore: lock 1");
+        assert.equal((await run("land", "multi/lock1")).code, 0);
+        branch("multi/n", { "mn.txt": "n\n" }, "feat: mn", "origin/golden");
+        branch("multi/o", { "bad.txt": "o\n" }, "feat: mo", "origin/golden");
+        branch("multi/p", { "pnpm-lock.yaml": "2\n" }, "chore: lock 2", "origin/golden");
+        // As the gate's first check: node_modules must match the checkout's lockfile.
+        const lockGate = (c) => (readFileSync(join(c.golden, "pnpm-lock.yaml"), "utf8") !== installed ? 1 : badGate(c));
+        pushResult = lockGate;
+        const r = await run("land", "multi/n", "multi/o", "multi/p");
+        assert.equal(r.code, 3, r.out);
+        assert.match(r.out, /multi\/n\s+landed\n\s+multi\/o\s+gate failure.*\n\s+multi\/p\s+landed/);
+        // lock1; the whole batch (2); n and o (back to 1); p (2).
+        assert.deepEqual(installs, ["1", "2", "1", "2"]);
     });
 
     it("exits 5 when a conflict and a gate failure each keep a branch out, golden as it was", async () => {
@@ -412,5 +442,60 @@ describe("landing several branches", () => {
         assert.equal(head(), before);
         assert.match(r.out, /multi\/g\s+conflict\n\s+multi\/h\s+gate failure/);
         assert.equal(gh.length, 0);
+    });
+});
+
+describe("the main checkout", () => {
+    // A new commit on GitHub's master, made from the other clone.
+    const advanceMaster = (name) => {
+        write(other, `${name}.txt`, `${name}\n`);
+        git(other, "add", ".");
+        git(other, "commit", "-q", "-m", `chore: ${name}`);
+        git(other, "pull", "-q", "--no-rebase", "origin", "master");
+        git(other, "push", "-q", "origin", "master");
+        return git(other, "rev-parse", "HEAD");
+    };
+
+    it("fast-forwards its master to origin/master when it is behind and clean", async () => {
+        const from = git(repo, "rev-parse", "HEAD");
+        const to = advanceMaster("main-ff");
+        const r = await run("status");
+        assert.equal(r.code, 0, r.out);
+        assert.equal(git(repo, "rev-parse", "HEAD"), to);
+        assert.match(
+            r.out,
+            new RegExp(`moved the main checkout's master from ${from.slice(0, 10)} to ${to.slice(0, 10)}`),
+        );
+    });
+
+    it("says nothing when it is already current", async () => {
+        const r = await run("status");
+        assert.doesNotMatch(r.out, /main checkout/);
+    });
+
+    it("leaves it alone with a warning when it is on another branch", async () => {
+        git(repo, "checkout", "-q", "-b", "side");
+        try {
+            advanceMaster("main-side");
+            const before = git(repo, "rev-parse", "master");
+            const r = await run("status");
+            assert.equal(git(repo, "rev-parse", "master"), before);
+            assert.match(r.out, /left the main checkout .* alone: it is on side, not master/);
+        } finally {
+            git(repo, "checkout", "-q", "master");
+        }
+    });
+
+    it("leaves it alone with a warning when it has uncommitted changes", async () => {
+        write(repo, "a.txt", "dirty\n");
+        try {
+            advanceMaster("main-dirty");
+            const before = git(repo, "rev-parse", "HEAD");
+            const r = await run("status");
+            assert.equal(git(repo, "rev-parse", "HEAD"), before);
+            assert.match(r.out, /left the main checkout .* alone: it has uncommitted changes/);
+        } finally {
+            git(repo, "checkout", "--", "a.txt");
+        }
     });
 });

@@ -293,6 +293,7 @@ function graphStyleOf(snapshot: GraphSnapshot, notes: StyleNotes): GraphStyle {
  * background. The block and the tagged values go into graph and element `<att>`s.
  */
 export const XGMML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "cytoscape",
     node: Object.freeze(cytoscapeWritableProperties("node", "desktop") as NodeStyleProperty[]),
     edge: Object.freeze(cytoscapeWritableProperties("edge", "desktop") as EdgeStyleProperty[]),
     graph: Object.freeze(["background"] as const),

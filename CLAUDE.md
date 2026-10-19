@@ -1168,6 +1168,10 @@ How to land a change:
    (a draft) open, lists the landed branches and their issue references in its description, and
    starts the screenshot preview for the review page.
 
+After every fetch, `land`, `revert`, `ship` and `status` also fast-forward the main checkout's
+master to `origin/master`, so new sessions read current instructions; when it is on another
+branch, has uncommitted changes or has commits master lacks, they leave it alone and print a warning.
+
 Rules:
 
 - Do not open pull requests for your changes, do not push your branch to master, and do not open a
@@ -1192,6 +1196,13 @@ Rules:
   to draft until it is fixed. If master's build is red, ship nothing but the fix for it.
 - `node tools/land.mjs status` shows golden against `origin/golden` and master, the landed changes
   not yet on master, the golden pull request's state, the lock holder and the newest preview log.
+- An issue labeled `in-progress` belongs to the session that labeled it (its comment names the
+  session and branch); other sessions skip it. Two project skills keep work moving without the
+  owner routing it: `/loop 30m /pipeline-round` handles alarms, lands and ships golden and owns
+  landing failures but never starts issue work, and `/loop 30m /issue-round` starts issues (alone
+  or in groups of related ones) in background subagents but never lands. Run both for normal work
+  (two clients, or one `/loop` with issue-round second), only pipeline-round to drain, or only
+  issue-round to start work that waits for the next pipeline round to land it.
 
 ## Where a change takes effect
 

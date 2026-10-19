@@ -162,7 +162,7 @@ is kept as `other:<the file's spelling>` and noted.
 | `labelFont`        | yes   | yes   |       | text                                                                                                                                                    |
 | `labelWeight`      | yes   | yes   |       | `normal`, `bold`                                                                                                                                        |
 | `labelItalic`      | yes   | yes   |       | true or false                                                                                                                                           |
-| `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`                                                      |
+| `labelPosition`    | yes   |       |       | `center`, `top`, `bottom`, `left`, `right`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `inside-top`                                        |
 | `image`            | yes   |       |       | text                                                                                                                                                    |
 | `visible`          | yes   | yes   |       | true or false                                                                                                                                           |
 | `color`            |       | yes   |       | a color, `#rrggbb`                                                                                                                                      |
@@ -461,8 +461,8 @@ if (styles) {
 
 ```text
 csv { W_STYLE_NOT_WRITTEN: 23, W_STYLE_RULES_NOT_KEPT: 1 }
-gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 14 }
-graphml { W_STYLE_NOT_WRITTEN: 2 }
+gexf { W_STYLE_APPROXIMATED: 1, W_STYLE_NOT_WRITTEN: 13 }
+graphml { W_STYLE_NOT_WRITTEN: 1 }
 { format: 'graphml', dialect: 'graphty', tool: 'graphty' }
 true
 [ 'E_STYLES_MISMATCH' ]

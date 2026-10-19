@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
+import { ACCELERATION, readPreference } from "../settings/preferences";
 
 /**
  * Labels that would land on each other are thinned out until the reader turns on Show all
@@ -65,6 +66,8 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             ref={ref}
             layoutBehavior={LAYOUT_BEHAVIOR}
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}
+            // On the tag, so the reader's policy is in force before the element's first GPU probe.
+            acceleration={readPreference(ACCELERATION)}
             style={{ display: "block", width: "100%", height: "100%" }}
         />
     );

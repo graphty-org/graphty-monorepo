@@ -677,6 +677,13 @@ export function cytoscapeStyleFromCx2(
         }
     }
     lockedSizeFromWidth(style.node);
+    // CX2 names an edge's bend handles EDGE_CONTROL_POINTS
+    for (const part of [style.edge.defaults, style.edge.mappings] as Map<string, unknown>[]) {
+        if (part.has("EDGE_CONTROL_POINTS") && !part.has("EDGE_BEND")) {
+            part.set("EDGE_BEND", part.get("EDGE_CONTROL_POINTS"));
+        }
+    }
+    style.edge.bypassAliases.set("EDGE_CONTROL_POINTS", "EDGE_BEND");
     return style;
 }
 

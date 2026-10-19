@@ -7,7 +7,6 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
-import { num6 } from "../canon/number.js";
 import { type CanonSite, noteAt } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { toolDefaults } from "../defaults.js";
@@ -30,15 +29,9 @@ import {
     arrowSizeParser,
     colorParser,
     CYTOSCAPE_LEXICON,
-    cytoscapeLabelBase,
-    cytoscapeLabelMove,
-    type CytoscapeLabelPlace,
-    cytoscapeLabelPlace,
     type CytoscapeValueParser,
-    halfBack,
     isUncarriedVp,
     NODE_SIZE_VP,
-    opacityParser,
     sizeParser,
 } from "./lexicon.js";
 import {
@@ -83,8 +76,6 @@ export interface CytoscapeElements {
         readonly target: ArrayLike<number>;
         readonly nodeSize?: ArrayLike<number | null>;
         readonly nodeBox?: ArrayLike<readonly [width: number, height: number, border: number] | null>;
-        /** Each node's center on screen, x right and y down, by node index: what an edge's label is placed by. */
-        readonly nodeAt?: ArrayLike<readonly [x: number, y: number] | null>;
     };
 }
 
@@ -136,15 +127,8 @@ export function edgeEnds(
         const [w, h, b] = [nodes.width?.[i], nodes.height?.[i], nodes.borderWidth?.[i]];
         return typeof w === "number" && typeof h === "number" ? ([w, h, typeof b === "number" ? b : 0] as const) : null;
     });
-    const position = snapshot.nodes.byRole("position");
-    // stored y up unless the column says otherwise; the label places are worked out y down, as Cytoscape draws
-    const down = (position?.meta.extra as { yAxis?: string } | undefined)?.yAxis === "down";
-    const nodeAt = Array.from({ length: snapshot.nodeCount }, (_, i) => {
-        const v = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : null;
-        return v === null ? null : ([v[0], down ? v[1] : -v[1]] as const);
-    });
     const { src, dst } = snapshot.edgeList();
-    return { source: src, target: dst, nodeSize, nodeBox, nodeAt };
+    return { source: src, target: dst, nodeSize, nodeBox };
 }
 
 /** Locked node sizes with no `NODE_SIZE` anywhere draw at Cytoscape's lexicon default. */
@@ -436,7 +420,6 @@ export function resolveCytoscape(
         out.width = own("NODE_WIDTH", "width");
         out.height = own("NODE_HEIGHT", "height");
     }
-    labelDress(target, out, one, n, elements.ends);
     if (target === "node") {
         squashHexagons(out);
         // the value as written: a chart is text, or an object in CX2; a size a number or its text
@@ -489,162 +472,6 @@ export function resolveCytoscape(
     }
     fillToolDefaults(target, out, n, options.defaults ?? null);
     return out;
-}
-
-/**
- * A visual property's value as written, a CX2 object as its JSON.
- * @param v - the value
- * @returns its text, or null
- */
-const rawText: CytoscapeValueParser = (v) => {
-    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
-        return String(v);
-    }
-    return typeof v === "object" && v !== null ? JSON.stringify(v) : null;
-};
-
-/**
- * Reads what Cytoscape draws of each element's label beyond its words, font and color: the box behind it (drawn only
- * with a `*_LABEL_BACKGROUND_SHAPE` other than NONE, the default, in its color and transparency), where it is placed
- * (`*_LABEL_POSITION` read whole: which point of the label's box is pinned to which point of the node, or of the
- * edge's line, and the offset) and how its lines are justified. Each column is kept only where some element needs it;
- * an edge's place is kept whenever it has one, since Cytoscape centers an edge's label on its line.
- * @param target - nodes or edges
- * @param out - the values per property, changed in place
- * @param one - reads one visual property of one element
- * @param n - the element count
- * @param ends - the edges' ends and their nodes' centers, when known
- */
-function labelDress(
-    target: StyleTarget,
-    out: Partial<Record<string, StyleColumn>>,
-    one: Resolver["one"],
-    n: number,
-    ends: CytoscapeElements["ends"],
-): void {
-    const vp = (name: string): string => `${target === "node" ? "NODE" : "EDGE"}_LABEL_${name}`;
-    const columns: Record<string, (StyleValue | null)[]> = {};
-    const put = (property: string, i: number, v: StyleValue | null): void => {
-        (columns[property] ??= new Array<StyleValue | null>(n).fill(null))[i] = v;
-    };
-    for (let i = 0; i < n; i++) {
-        labelBox(vp, one, i, put);
-        // read whole, quietly (the lexicon's reading of the same value notes a bad one), under a name of its own: a
-        // mapping is parsed once per visual property and neutral property
-        const placed = one(vp("POSITION"), rawText, "labelPlace", i);
-        const raw = typeof placed === "string" && placed.startsWith("{") ? (JSON.parse(placed) as unknown) : placed;
-        const place = cytoscapeLabelPlace(raw, { notes: new StyleNotes(), target, property: "labelPosition" });
-        if (place !== null) {
-            placeLabel(target, place, i, out, put, ends);
-        }
-    }
-    const kept = (property: string, v: StyleValue | null): boolean =>
-        v !== null && v !== 0 && (v !== "center" || (property === "labelPosition" && target === "edge"));
-    for (const [property, values] of Object.entries(columns)) {
-        if (values.some((v) => kept(property, v))) {
-            out[property] = values;
-        }
-    }
-}
-
-/**
- * The box Cytoscape draws behind one label, when its shape is not NONE: its color (`#B6B6B6` unset, the lexicon's
- * default) and its opacity.
- * @param vp - names a label visual property of the target
- * @param one - reads one visual property of one element
- * @param i - the element
- * @param put - sets one element's value of a property
- */
-function labelBox(
-    vp: (name: string) => string,
-    one: Resolver["one"],
-    i: number,
-    put: (property: string, i: number, v: StyleValue | null) => void,
-): void {
-    const shape = one(vp("BACKGROUND_SHAPE"), rawText, "labelBackgroundShape", i);
-    if (typeof shape !== "string" || shape.trim().toUpperCase() === "NONE") {
-        return;
-    }
-    put("labelBackground", i, one(vp("BACKGROUND_COLOR"), colorParser, "labelBackground", i) ?? "#b6b6b6");
-    const [t, o] = [vp("BACKGROUND_TRANSPARENCY"), vp("BACKGROUND_OPACITY")];
-    const opacity =
-        one(t, opacityParser(t), "labelBackgroundOpacity", i) ?? one(o, opacityParser(o), "labelBackgroundOpacity", i);
-    put("labelBackgroundOpacity", i, opacity ?? 1);
-}
-
-/**
- * Where one label is placed, from its Cytoscape label position: its neutral `labelPosition`, offsets, shifts and
- * line justification. A node's label is pinned against the node's box. An edge's is pinned to a point of its drawn
- * line, the middle unless the anchor's horizontal letter names an end (W the source's, E the target's; its vertical
- * letter changes nothing, measured on Cytoscape 3.10.5's SVG), from the line's middle, where it is centered.
- * @param target - nodes or edges
- * @param place - the label position
- * @param i - the element
- * @param out - the values per property (the node sizes are read)
- * @param put - sets one element's value of a property
- * @param ends - the edges' ends and their nodes' centers, when known
- */
-function placeLabel(
-    target: StyleTarget,
-    place: CytoscapeLabelPlace,
-    i: number,
-    out: Partial<Record<string, StyleColumn>>,
-    put: (property: string, i: number, v: StyleValue | null) => void,
-    ends: CytoscapeElements["ends"],
-): void {
-    let move: ReturnType<typeof cytoscapeLabelMove>;
-    if (target === "node") {
-        const [w, h] = [out.width?.[i], out.height?.[i]];
-        move = cytoscapeLabelMove(place, typeof w === "number" ? w : 0, typeof h === "number" ? h : 0);
-        put("labelPosition", i, cytoscapeLabelBase(place));
-    } else {
-        const [ax, ay] = lineEnd(ends, i, place.node[0]);
-        move = {
-            offset: [ax + place.offset[0], ay + place.offset[1]],
-            shift: [halfBack(place.label[0]), halfBack(place.label[1])],
-        };
-        put("labelPosition", i, "center");
-    }
-    put("labelOffsetX", i, num6(move.offset[0]));
-    put("labelOffsetY", i, num6(move.offset[1]));
-    put("labelShiftX", i, move.shift[0]);
-    put("labelShiftY", i, move.shift[1]);
-    put("labelTextAlign", i, place.justify);
-}
-
-/**
- * How far from the middle of an edge's drawn line one of its ends is, on screen (y down): the line between its two
- * nodes' centers, cut where it meets each node's ellipse; 0 for the middle, or where the centers are not known.
- * @param ends - the edges' ends, their nodes' centers and boxes
- * @param e - the edge
- * @param side - -1 for the source's end, 1 for the target's, 0 for the middle
- * @returns the offset from the line's middle
- */
-function lineEnd(ends: CytoscapeElements["ends"], e: number, side: number): readonly [number, number] {
-    const [si, ti] = [ends?.source[e], ends?.target[e]];
-    const [s, t] = [si === undefined ? null : ends?.nodeAt?.[si], ti === undefined ? null : ends?.nodeAt?.[ti]];
-    if (side === 0 || s === null || s === undefined || t === null || t === undefined) {
-        return [0, 0];
-    }
-    const length = Math.hypot(t[0] - s[0], t[1] - s[1]);
-    if (length === 0) {
-        return [0, 0];
-    }
-    const [ux, uy] = [(t[0] - s[0]) / length, (t[1] - s[1]) / length];
-    // where the line leaves a node's ellipse, along it from the center
-    const reach = (node: number | undefined): number => {
-        const box = node === undefined ? null : ends?.nodeBox?.[node];
-        if (box === null || box === undefined) {
-            return 0;
-        }
-        const [a, b] = [box[0] / 2, box[1] / 2];
-        return a === 0 || b === 0 ? 0 : (a * b) / Math.hypot(b * ux, a * uy);
-    };
-    const from = reach(si);
-    const to = length - reach(ti);
-    // the drawn line's middle and the end asked for, both measured along the line from the source's center
-    const along = (side < 0 ? from : to) - (from + to) / 2;
-    return [ux * along, uy * along];
 }
 
 /** How tall a regular hexagon is for its width. */
@@ -841,11 +668,21 @@ export const bendParser: CytoscapeValueParser = (raw) => {
  * An `EDGE_BEND` value as the neutral `bends`: Cytoscape keeps each handle as `cos,sin,ratio`, the handle at the
  * source center plus `ratio` times the source-to-target vector turned by the angle (y down), handles separated by
  * `|`. Relative to the same line, y up, that is `ratio * cos` along it and `-ratio * sin` across it.
- * @param raw - the value
+ * @param input - the value: an `EDGE_BEND` text, or CX2's `EDGE_CONTROL_POINTS` objects
  * @param site - where it was read
  * @returns the bends, or null for an edge without handles or a value that is not handles
  */
-const bendsParser: CytoscapeValueParser = (raw, site) => {
+const bendsParser: CytoscapeValueParser = (input, site) => {
+    // CX2's EDGE_CONTROL_POINTS: one object per handle, whose `sin` Cytoscape fills with EDGE_BEND's first number and
+    // `cos` with its second (it reads them back the same way: specimen-edges-lines bend-one-handle bends)
+    const raw = Array.isArray(input)
+        ? input
+              .map((h: unknown) => {
+                  const o = (h ?? {}) as Record<string, unknown>;
+                  return `${Number(o.sin)},${Number(o.cos)},${Number(o.ratio)}`;
+              })
+              .join("|")
+        : input;
     if (typeof raw !== "string" || !bendParser(raw, site)) {
         return null;
     }

@@ -84,6 +84,41 @@ describe("reading CX2 styles", () => {
         expect(report.issues.map((i) => i.code)).not.toContain("W_STYLES_NOT_IMPORTED");
     });
 
+    it("reads EDGE_CONTROL_POINTS bypasses as the bends Cytoscape draws, `sin` holding EDGE_BEND's first number", async () => {
+        // Cytoscape 3.10's CX2 writer names EDGE_BEND's `cos,sin,ratio` sin, cos, ratio; reading the file back, it bends
+        // { sin: 0, cos: 1 } across the line, as XGMML's "0.0,1.0,0.5" (specimen-edges-lines bend-one-handle)
+        const file = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 1 }, { id: 2 }] },
+            {
+                edges: [
+                    { id: 0, s: 1, t: 2 },
+                    { id: 1, s: 1, t: 2 },
+                    { id: 2, s: 2, t: 1 },
+                ],
+            },
+            {
+                edgeBypasses: [
+                    { id: 0, v: { EDGE_CONTROL_POINTS: [{ sin: 0.0, cos: 1.0, ratio: 0.5 }] } },
+                    {
+                        id: 1,
+                        v: {
+                            EDGE_CONTROL_POINTS: [
+                                { sin: 0.7071, cos: -0.7071, ratio: 0.3 },
+                                { sin: 0.7071, cos: 0.7071, ratio: 0.7 },
+                            ],
+                        },
+                    },
+                ],
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(file);
+        const ex = styles as ExtractedStyles;
+        expect(resolveStyles(ex, "edge", "bends", snapshot)).toEqual(["0,-0.5", "0.2121,0.2121 0.495,-0.495", null]);
+        expect(resolveStyles(ex, "edge", "curved", snapshot).slice(0, 2)).toEqual([true, true]);
+    });
+
     it("maps the edge weight a file's mapping reads, when the import keeps it only as the graph's weights", async () => {
         const file = JSON.stringify([
             { CXVersion: "2.0", hasFragments: false },

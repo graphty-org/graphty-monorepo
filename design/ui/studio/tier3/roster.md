@@ -127,15 +127,14 @@ are reached by the participant's own `--upload` (`tasks.md`, "Rules").
 ## Who takes which task in round 1
 
 56 sessions, the most a round may spend. The core tasks (T39, T40, T47, T48) run at 6, three per
-dataset; seven tasks at 4, two per dataset; T44 and T51 at 2, one per dataset, reported but not
-judged (`criteria.md`: a task under 4 sessions does not hold bar 1, so neither can pass the study
-from round 1). No persona takes both halves of one task. Sam's sessions start `empty --keys`; his
+dataset; eight tasks at 4, two per dataset (T38, T41, T43, T45, T46, T49, T50, T51). No persona takes both halves of one task. Sam's sessions start `empty --keys`; his
 T48 A puts the file chooser and a folder's picker under the keyboard (bar 7).
 
 **Not in round 1:** T37 (a first look): every session already records its first move after the
 sample or file opened, and T38 reads the node and tie counts from the screen; it waits for a later
-round. T42 (a number at or over a line): its two slots go to T51; it runs at 4 in round 2, two per
-dataset, because the study cannot pass while a task is unjudged.
+round. T42 (a number at or over a line) and T44 (names on the drawing): their slots go to T51,
+which is judged in round 1; both run at 4 in round 2, two per dataset, because the study cannot
+pass while a task is unjudged.
 
 | Task half                                        | n      | Participants        |
 | ------------------------------------------------ | ------ | ------------------- |
@@ -143,14 +142,12 @@ dataset, because the study cannot pass while a task is unjudged.
 | T38 own file, sources (B)                        | 2      | Ruth, Elena         |
 | T39 one color, Les Miserables (A)                | 3      | Elena, Tom, Sam     |
 | T39 one color, College football (B)              | 3      | Dev, Nadia, Ruth    |
-| T40 letters in a name, Les Miserables (A)        | 3      | Ruth, Nadia, Sam    |
+| T40 letters in a name, Les Miserables (A)        | 3      | Ruth, Tom, Sam      |
 | T40 letters in a name, yeast genes (B)           | 3      | Maren, Dev, Grace   |
 | T41 two facts, volunteers (A)                    | 2      | Nadia, Tom          |
 | T41 two facts, sources (B)                       | 2      | Grace, Alex         |
 | T43 bigger for more, volunteers (A)              | 2      | Maren, Elena        |
 | T43 bigger for more, sources (B)                 | 2      | Dev, Nadia          |
-| T44 names, Les Miserables (A)                    | 1      | Alex                |
-| T44 names, volunteers (B)                        | 1      | Tom                 |
 | T45 ties apart, neighbors (A)                    | 2      | Alex, Grace         |
 | T45 ties apart, Les Miserables (B)               | 2      | Tom, Dev            |
 | T46 one cluster red, Les Miserables (A)          | 2      | Dev, Nadia          |
@@ -163,8 +160,8 @@ dataset, because the study cannot pass while a task is unjudged.
 | T49 put it back, karate club (B)                 | 2      | Alex, Ruth          |
 | T50 a colleague's project, lesmis-poster (A)     | 2      | Tom, Elena          |
 | T50 a colleague's project, volunteers-thanks (B) | 2      | Ruth, Dev           |
-| T51 each kind its own color, volunteers (A)      | 1      | Elena               |
-| T51 each kind its own color, sources (B)         | 1      | Grace               |
+| T51 each kind its own color, volunteers (A)      | 2      | Elena, Nadia        |
+| T51 each kind its own color, sources (B)         | 2      | Grace, Alex         |
 | **Total**                                        | **56** |                     |
 
 Sessions per persona: Dev 8, Elena 8, Ruth 7, Grace 7, Nadia 7, Alex 7, Tom 6, Sam 4, Maren 2.
@@ -176,6 +173,11 @@ the start each task names (`tasks.md`, "Rules"; the table above, "Where each ses
 Run order: the core tasks first (T39, T40, T47, T48), then the rest; at most 4 sessions at once.
 
 ## Change log
+
+- 2026-10-19 (fourth review, before the freeze): T51 runs at 4 and is judged in round 1; T44
+  joins T42 in round 2. Nadia and Alex add T51 A and B; Tom takes Nadia's T40 A; Alex's and Tom's
+  T44 seats go. Every persona keeps its count, the newcomers keep 43 of 56, and no one has both
+  halves of a task. Every session still starts `empty`, Sam's `empty --keys`.
 
 - 2026-10-17 (second review, before the freeze): Maren off T39 (bar 4 measures newcomers): she
   takes Ruth's T43 A and Ruth takes her T39 B. Alex off T40 B, so a core half no longer rests on

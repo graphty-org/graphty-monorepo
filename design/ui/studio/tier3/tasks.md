@@ -154,7 +154,9 @@ category column, read back from the key: T51.
   the busiest stand out at a glance. Tell us who gave the most."
 - **Prompt B (sources):** "This is your first time using this program, and it has just opened. A reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this computer. Bring them into the program. Draw each source bigger the more they gave in political donations, so the biggest donors stand out at a glance. Tell us who gave the most."
 - **Measures:** whether a newcomer finds a way to make a look follow a number.
-- **Kept on purpose:** `hours`, `donations` -- as T42.
+- **Kept on purpose:** `hours`, `donations` -- as T42. `draw` -- the everyday verb for what the
+  picture shows; the app says "drawn" in the spoken names of unset color lines, and the wording
+  check (which joins draw, drawn and drawing) reports each screen on the route that says it.
 
 ### T44. Names on the drawing (two datasets)
 
@@ -168,6 +170,8 @@ category column, read back from the key: T51.
   default font naming no fallback; both are open owner decisions (`../owner-decisions.md`).
 - **Kept on purpose:** `cosette`, `lucy`, `grant` -- data; `board` -- the food bank's board, and a
   value of the file's `role` column.
+- **Round 1:** not run; its two sessions go to T51, which is judged in round 1. It runs at 4 in
+  round 2 (`criteria.md`, round plan).
 
 ### T45. Ties apart from the people (two datasets)
 
@@ -206,7 +210,8 @@ category column, read back from the key: T51.
   holds a different color for each cluster is left alone. A route through the whole drawing's own
   look also passes and is recorded.
 - **Kept on purpose:** `cube`, `ball` -- everyday words; the app's names for these looks are Box
-  and Icosphere, which the prompt avoids. `conference` -- data, as T46.
+  and Icosphere, which the prompt avoids. `conference` -- data, as T46. `draw` -- as T43; a
+  participant who reads the folder's unset color line by its spoken name is recorded.
 
 ### T48. Cluster colors on only some people (two datasets)
 
@@ -240,13 +245,15 @@ category column, read back from the key: T51.
 - **Prompt A (lesmis-poster):** "This is your first time using this program, and it has just
   opened. A colleague sent you their project, lesmis-poster.graphty.json, which is on this
   computer. Open it. Some characters are orange. Tell us which characters are orange and
-  what they have in common that made the project draw them orange."
+  what they have in common that made the project color them orange."
 - **Prompt B (volunteers-thanks):** "This is your first time using this program, and it has just
   opened. A colleague sent you their project, volunteers-thanks.graphty.json, which is on this
   computer. Open it. Some people are green. Tell us how many people are green and what
-  they have in common that made the project draw them green."
+  they have in common that made the project color them green."
 - **Measures:** finding what one look applies to, and reading why, from a project the participant
   did not make.
+- **Words:** the prompt says "color them", not "draw them": T50's route reads "Why this look",
+  where every unset color line's spoken name says "drawn".
 - **Kept on purpose:** `project` -- what the colleague sent is a project file; the start screen
   says "Open project or file", and a newcomer has no other word for it.
 
@@ -263,7 +270,7 @@ category column, read back from the key: T51.
 - **Measures:** coloring by a category, one color per value (the commonest first styling act:
   "color by role"), and whether the key or the panel tells a newcomer which color is which.
 - **Kept on purpose:** `board`, `staff`, `volunteer`, `company`, `agency`, `people` -- the file's own
-  values, as T38.
+  values, as T38. `draw` -- as T43.
 
 ## Detours the dry run walks (facilitator side, never shown to a participant)
 
@@ -312,6 +319,11 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-19 (fourth review, before the freeze): T50 asks what "made the project color them"
+  orange or green, not "draw them": its route reads "Why this look", where every unset color
+  line's spoken name says "drawn". `draw` is kept on purpose in T43, T47 and T51 with its reason.
+  T44 is not run in round 1; its two sessions go to T51. T41's "missing" stays in both halves.
 
 - 2026-10-18 (pilots on build 6dd0b00bd7): the T41/T48 detour line says an unfinished card is
   dropped with a notice after a click on the drawing too. No prompt was wrong.

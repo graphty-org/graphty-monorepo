@@ -5,37 +5,39 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-18 (third review of the tier 3 criteria; refrozen for build 52cb47a85a).
-Summarized on 2026-10-17 and again on 2026-10-18; the full earlier text is in this file's git
+Last updated: 2026-10-19 (fourth review of the tier 3 criteria; frozen on build 1fa51e2b0b).
+Summarized on 2026-10-17, 2026-10-18 and 2026-10-19; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-10-18) NO PARTICIPANT SESSION HAS RUN. Tier 3 is in dry-run pass 5 on build 52cb47a85a
-  (started 22:04, T37 and T38 walked). Passes 1-4 found 344, 217, 151, 129 fix-now defects; about
-  41% of pass 4's came from pass 3's fixes. Round 1 starts only when a pass meets the exit test.
-- (2026-10-18) EXIT TEST (criteria preflight 4): no blocking defect on a success path or listed
-  detour; regressions of the last pass's fixes under 10%; no reversed decision in
-  `tier3/decided.md`. At about 40% regressions, stop full passes and fix shared parts first.
-- (2026-10-18) `tier3/decided.md` now exists: every triage cites it; a complaint against it is (n);
-  a reversal needs a new dated entry. Seeded with the three flip-flops (dimmed "+" not a Tab stop;
-  Escape on the inspector clears the selection; a card's remove button in drawn order).
-- (2026-10-18) A pass is incomplete while any planned half lacks its three walks. Owed on
-  52cb47a85a first: T39 A and B, T41 B, T46 A (all three ways), T37 A and T43 B by keyboard.
-  At most four pilots at once.
-- (2026-10-18) Owed before preflight 6 passes: `WALKS3` in `tool/bars.mjs` must walk five new
-  screens (find with results, a node's Memberships and "Why this look", a node's own Style tab
-  with Fill "+", the open shape list, a sample with the key on). Engineer work.
+- (2026-10-19) NO PARTICIPANT SESSION HAS RUN, and the dry run's exit test is NOT met. Criteria
+  frozen on 1fa51e2b0b (same app code as 52cb47a85a). Pass 5 stopped at 23:51 on 2026-10-18 after
+  33 walks; it is finished, not restarted.
+- (2026-10-19) Owed walks, in order: T46 A to T50 B (all three each; pass 4's blockers live
+  there), T39 A keyboard and detours, T41 B keyboard, T43, T45, T51 (A and B). No T37, T42, T44.
+- (2026-10-19) BLOCKER on T40 B's success path: typing straight after "Starts with" reopens the
+  match menu and the letters are lost. Fix in its shared part, refreeze, re-walk T40 B and T50 A.
+  "Add a condition" needing two clicks: triage against the exit test.
+- (2026-10-19) Design engineer owes: `WALKS3` five screens + "Starts with" typing check +
+  `spoken.json`; `wording.mjs` joins irregular forms; `gateCheck` keyed by half folder with three
+  walks (`keyboardOnlyMode: true` for one) and build equivalence. Each with a planted case.
+- (2026-10-19) A docs-only commit never refreezes: walks count on any commit whose diff of
+  graphty, graphty-element, compact-mantine and the lockfile against the named build is empty.
+- (2026-10-19) Round 1: T51 at 4 (judged), T44 and T42 at 4 in round 2, T37 later. Still 56.
+- (2026-10-19) Bar 5 is not scored when the walk skipped a success-path screen; bar 7 confirms by a
+  `--keys` repro or two Sam sessions; selected styled nodes graded by the style tree's color.
+- (2026-10-18) EXIT TEST (preflight 4): no blocking defect on a success path or listed detour;
+  regressions of the last pass's fixes under 10%; no reversed decision in `tier3/decided.md`.
+  At about 40% regressions, stop full passes and fix shared parts first.
 - (2026-10-18) Owed before round 1: reference values of every community analysis on T46-T48, read
-  twice on the frozen build, written into `answers.md` (preflight 5).
-- (2026-10-18) Bars now: bar 4 at most 10 steps (fixed number); bar 5 confirms only by a scripted
-  repro or a measurement, never a second expert; T49 graded by the drawing.
-- (2026-10-18) Pass 4 blockers fixed in 52cb47a85a, to be re-walked by name: an unset line cannot
-  take the default it shows (6 rows); "cube" in the shape list picks Cylinder; ArrowDown, Enter in
-  a colleague's open rule rewrites it.
+  twice; a method that does not repeat is graded against the session's own `styles.json`.
+- (2026-10-18) Pass 4 blockers fixed in 52cb47a85a, still never re-walked: an unset line cannot
+  take the default it shows; "cube" in the shape list picks Cylinder; ArrowDown, Enter in a
+  colleague's open rule rewrites it.
 - (2026-10-17) Most repeated (b), unchanged since r1-1: what names a node; where "who" and "draw by"
   live; hover names; Enter in find; a card's count read as the layer's; "and" between cards; how a
-  selection looks while styled; canvas keyboard walk. These go to the sessions, not the freeze loop.
+  selection looks while styled; canvas keyboard walk. These go to the sessions.
 - (2026-10-17) Round 1 questions to read first: is the purple <<Layer>> token read as a column; does
   anyone click a chit; is the collapsed picker found unprompted; is Escape expected to cancel; are
   edges sought on the Node tab; is a chip's count read as the total; what B halves type for
@@ -87,6 +89,23 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b.** Taken: bar 2 states
+  T49's exception (researcher); bar 5 unscored when the walk skipped a success-path screen, and
+  experts/audit count only via repro or measurement (user advocate); bar 6 checks typing after
+  "Starts with" (all three; T40 B walk lost `GAL`); bar 7 confirmed by a `--keys` repro or two Sam
+  sessions (red team); selected styled nodes graded by the tree's color, a misleading tint is a
+  key-and-drawing finding (user advocate); `spoken.json` for accessible names, live-region text and
+  notices, irregular forms joined, round 1 wording baseline = `tasks.md`'s kept lists (all three);
+  docs-only commits do not refreeze (researcher; 1fa51e2b0b reset the count for nothing); the dry
+  run walks only planned halves, blockers first, a stopped pass is finished (researcher, user
+  advocate: 9 of 33 walks went to unplanned T37/T42); gate keyed by half with three walks
+  (red team; I read `gateCheck`: it keys by `basename(dir)`, the walk folder, confirmed); a
+  non-repeating community method graded against the session's own run (researcher); card types
+  reported with their domain count (researcher); T51 to 4, T44 to round 2 (user advocate; T51
+  answers question 6, T44 none); T50 "color them", `draw` kept in T43/T47/T51 (all three);
+  "Owed before round 1" list in every freeze entry (red team). Not taken: T41 B "missing" in one
+  half only (mixes wording with data; echoes no screen word); T51 B on College football's
+  conferences (unpiloted half, new reference values, B changed a day ago).
 - **2026-10-18, third review of the tier 3 criteria, refrozen.** Taken: the exit test and
   `decided.md` (all three reviewers; "nothing new" never comes at ~130 a pass); a pass incomplete
   while a half lacks a walk (four halves skipped in pass 4); bar 4 at most 10 as a fixed number
@@ -119,44 +138,12 @@ history.
   graph's edge table says "Node A" and "Node B". Kept (b), again: node names, a node's own Style
   tab styling one node, where the color of everything lives, the key's lines leading anywhere,
   Enter in find, a card's count, "and" between cards, Escape in a card, live count while typing.
-- **2026-10-17, dry run r1-1 and r1-2 triages** (full text in git history and the dry-run files).
-  A committed color box selects on a click; find's hint shows the plain `donations >= 10000`; F6
-  answers long Tab walks; the toolbar is entered at its first item (compact-mantine `Toolbar
-startAt`, additive); Everything is not narrowed; Escape in a style field keeps focus there;
-  wheel zoom toward the pointer and a palette covering the group count are additive element
-  options. All settled ones are now in `tier3/decided.md`.
-- **2026-10-17, second review of the tier 3 criteria, then frozen.** Taken (researcher, user
-  advocate, red team):
-    - T47 and T48 hold bar 1 only on the folder or several route; T48 gets `Route: folder | several |
-one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks could pass with the
-      bulk edit never used; the earlier "one by one counts" was my own call and it hid exactly what
-      question 3 asks.
-    - T47 A asks for cubes, as B. Reason: "clearly bigger" had no threshold, its key asked for "the
-      same for all" which the prompt never said, and the halves then tested two properties, not one
-      on two domains. T43 already tests bigger.
-    - Question 3 also reads T46 (the folder's color is the trap there), with a `Token:` grade line on
-      T46 and T47. Reason: T47's prompt states the token's meaning, so leaving it alone there proves
-      nothing.
-    - Bar 4 over pointer sessions; non-S/SD counts as never. Reason: Sam's Tab presses are another
-      unit; an all-wrong-color drawing was counted as styled.
-    - Bar 6: both themes (`REAL_SCHEME`, new in `real.mjs`; `bars.mjs --tier 3 --scheme`), a typed
-      check after adding a text card, a Color line and a Shape line (fails today, see Top of mind),
-      and the screens success paths cross that the walk missed (color and size bound to data and
-      their popovers, the "Color from each layer" dialog, an Edge tab condition at rest, a colleague's
-      project and its layer, the filtered analysis list whose descriptions join the vocabulary).
-    - Audit checklist written, with key-and-drawing agreement on every last screenshot as severity 3.
-      Only confirmed severity 3-4 feeds a bar; the any-severity count is a measure over the same
-      screens. Expert plus session on one problem counts once.
-    - Bar 1's counts written out (4 sessions need 4 of 4; 6 need 5 of 6, 2 of 3 per half).
-    - Roster: Maren off T39 (to T43 A), Alex off T40 B (to T38 A), Tom off T51 B (to T49 A); Ruth,
-      Grace fill. Every count unchanged.
-    - Words: T48 A "circles"; "one another" for "each other" (the groups analysis's description says
-      "each other"); T37 "the most ties to others" (its "connected" keep was false: an Analyze card is
-      "Most connected"). `wording.mjs` now lists kept words that are on screen.
-    - Not taken, with reasons: the stall rule reading the any-severity count (grows with screens
-      walked); T45 halves given one card type (the task is picking ties on the Edge tab in both); a
-      newcomer on T44 A (unjudged at 2, runs at 4 in round 2); failing on a kept word newly on screen
-      (read and re-justify instead); renumbering `bars.mjs` (the criteria name its numbers instead).
+- **2026-10-17, dry run r1-1 and r1-2 triages and the second criteria review** (full text in git
+  history, the dry-run files and the criteria change log). Settled behaviors are in
+  `tier3/decided.md`. The review made T47/T48 hold bar 1 only on the folder or several route (my
+  "one by one counts" hid what question 3 asks), T47 A ask for cubes, question 3 read T46 with a
+  `Token:` line, bar 4 count pointer sessions only, bar 6 walk both themes, and the audit check
+  key-and-drawing agreement on every last screenshot.
 - **2026-10-17, first review of the first-use styling drafts.** T48 core at 6 (bulk meets picking);
   T47's route recorded; T37's slots to T48, T42's to T51; unjudged tasks never pass; bar 4 ends at
   every node in one new color; bar 8's limits only fall; the dry run has no pass cap (owner's "until
@@ -192,6 +179,13 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-19 (criteria review) -- Worked: reading `gateCheck` before taking the red team's gate
+  claim (it was right: `basename(dir)` is the walk folder) and diffing the app paths between
+  52cb47a85a and 1fa51e2b0b (empty) before writing the docs-only rule. Worked: recounting the
+  roster by script after the T51 swap (56; every persona's count held). Did not work: naming a
+  new build for a docs-only commit on 2026-10-18; it reset the dry run's count and spent a night's
+  walks on halves already walked. Did not work: my 2026-10-18 note that the gate "already refuses
+  a half with no pilot": true only for a pilot directly under the half folder.
 - 2026-10-18 (criteria review) -- Worked: checking each reviewer claim against the tool before
   writing a rule: `real.mjs` gateCheck already refuses a half with no pilot on the frozen build,
   `score.mjs` already accepts `Route: around` outside the bulk routes, and the stemmer keeps
@@ -240,6 +234,10 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Thinking
 
+- **2026-10-19, criteria review:** a rule the tool does not enforce is a wish. Three of this
+  review's findings were rules already written (three walks, keyboard walk, five walk screens)
+  that the gate or the walk never checked. When I write a preflight rule, name the script line
+  that refuses it and the planted case that proves it, or list it as owed.
 - **2026-10-18, criteria review:** an exit rule that cannot be met is not a rule; everyone just
   keeps going. "Repeat until nothing new" read as rigor and produced four passes with no stop.
   An exit test must name what is tolerated (polish, off-path confusion) as well as what is not,
@@ -281,8 +279,8 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 - Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
-- Tier 3 reviews (2026-10-17): `notes/{researcher,user,redteam}.md` (commits 05f4ee91a, 863ebb9a8,
-  de16901f7); my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.
+- Tier 3 reviews: `notes/{researcher,user,redteam}.md` (2026-10-17: 05f4ee91a, 863ebb9a8,
+  de16901f7; 2026-10-19: c1ebeeff4, 34b1e3ce0, 881ad2550); stopped pass 5 in `tier3/rounds/r1/pilot/`; my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.
 - Tier 3 design: `tier3/design.md`, `tier3/bulk-edit-plan.md`, `tier3/decisions-round-6.md`,
   `tier3/owner-feedback-1.md`, `tier3/decide/`, `tier3/iterations/{1,2,3}/`, `tier3/style-catalog.md`.
 - Tier 2: `tier2/criteria.md` (frozen), `tier2/rounds/round-{1..5}/`, `tier2/dry-run-*.md`.

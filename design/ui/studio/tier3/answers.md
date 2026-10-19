@@ -55,6 +55,12 @@ These override any line below that says otherwise.
   rule. A style tree that then differs from the start (the Color line removed, a `revision`
   changed) is recorded as a finding about the design, never as an F or a false "done": the screen
   cannot show the difference.
+- **T46 to T48, a method whose two runs differ** (preflight 5 marks it in Reference values): the
+  session is graded against its own run. The target group and its count are read from that
+  session's `styles.json`, never from a fixed number.
+- **A styled node left selected** (the find-box detours on T40 A, T40 B and T50 A) is graded by
+  its color in the style tree, not by how its selection ring tints it. A tint that makes it read
+  as a color the key does not say is recorded for the audit as a key-and-drawing disagreement.
 
 ## Facts no briefing may hold
 

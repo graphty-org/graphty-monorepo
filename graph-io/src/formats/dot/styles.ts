@@ -75,6 +75,7 @@ export { STYLE_BLOCK_NAME as DOT_STYLE_BLOCK_ATTRIBUTE } from "../../styles/io/b
  * @category Built-in formats
  */
 export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "graphviz",
     node: Object.freeze([
         "fill",
         "fillOpacity",

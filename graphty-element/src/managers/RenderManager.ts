@@ -20,6 +20,7 @@ import { OrbitInputController } from "../cameras/OrbitInputController";
 import { TwoDCameraController } from "../cameras/TwoDCameraController";
 import { InputController } from "../cameras/TwoDInputController";
 import type { GraphBackgroundConfig } from "../config/GraphStyle";
+import { useBundledStandardShaders } from "../meshes/bundledStandardShaders";
 import { reportCaught } from "../session/project/strict";
 import type { EventManager } from "./EventManager";
 import { everyFrameAnimationsOn } from "./everyFrameAnimations";
@@ -376,6 +377,7 @@ export class RenderManager implements Manager {
 
         // Create scene
         this.scene = new Scene(this.engine);
+        useBundledStandardShaders(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);

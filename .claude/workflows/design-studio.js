@@ -350,6 +350,51 @@ async function pilotAll(tag, phaseName, prevRound, sameAs) {
     return res;
 }
 
+// Fix one group of units in order, then re-walk what its commits touch and revert the group when
+// the re-walk finds a regression.
+async function fixGroup(g, tag, phaseName) {
+    const r = [];
+    for (const u of g.items)
+        r.push(
+            await slot(() =>
+                agent(
+                    `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem. If the unit names a shared component ("shared"), fix it there (compact-mantine or the shared app part) with a test in that component, never with a patch on one screen, and check every screen that uses it. Follow the binding decisions in ${DECIDED}. Add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
+                    {
+                        label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80),
+                        phase: phaseName,
+                        schema: DONE,
+                    },
+                ),
+            ),
+        );
+    const fixed = r.filter((d) => d && d.done && d.commit);
+    if (!fixed.length) return r;
+    const ids = g.items.map((u) => u.id).join(", ");
+    const chk = await slot(() =>
+        agent(
+            `${RULES}\n${asRole("engineer")}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path.`,
+            { label: `${tag}: re-walk ${ids}`.slice(0, 80), phase: phaseName, schema: CHECK },
+        ),
+    );
+    if (chk && !chk.ok) {
+        log(`${tag}: fix group ${ids} rejected by its re-walk: ${(chk.problems || []).join("; ").slice(0, 400)}`);
+        await agent(
+            `${RULES}\nThe targeted re-walk rejected fix group ${ids}. In ${ST}, git revert --no-edit these commits, newest first, each as a signed commit through the hooks copy: ${fixed
+                .map((d) => d.commit)
+                .reverse()
+                .join(
+                    " ",
+                )}. Then append to ${REJECTED} the group, its units and these regressions, so the next triage refixes it in the shared part: ${JSON.stringify(chk.problems || [])}. Commit that file. Return the revert commits.`,
+            { label: `${tag}: revert ${ids}`.slice(0, 80), phase: phaseName, effort: "low" },
+        );
+        fixed.forEach((d) => {
+            d.done = false;
+            d.problems = "rejected by the targeted re-walk";
+        });
+    }
+    return r;
+}
+
 // Implement units: graph packages first, then compact-mantine, then the app; within a layer, groups
 // with disjoint files run in parallel and each group's units run in order. After each group, a
 // targeted re-walk of only the routes its diff touches rejects (reverts) a group that regresses:
@@ -375,52 +420,7 @@ async function implement(units, tag, phaseName) {
                 fs.forEach((x) => g.files.add(x));
             } else groups.push({ files: fs, items: [u] });
         }
-        const done = await parallel(
-            groups.map((g) => async () => {
-                const r = [];
-                for (const u of g.items)
-                    r.push(
-                        await slot(() =>
-                            agent(
-                                `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem. If the unit names a shared component ("shared"), fix it there (compact-mantine or the shared app part) with a test in that component, never with a patch on one screen, and check every screen that uses it. Follow the binding decisions in ${DECIDED}. Add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
-                                {
-                                    label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80),
-                                    phase: phaseName,
-                                    schema: DONE,
-                                },
-                            ),
-                        ),
-                    );
-                const fixed = r.filter((d) => d && d.done && d.commit);
-                if (!fixed.length) return r;
-                const ids = g.items.map((u) => u.id).join(", ");
-                const chk = await slot(() =>
-                    agent(
-                        `${RULES}\n${asRole("engineer")}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path.`,
-                        { label: `${tag}: re-walk ${ids}`.slice(0, 80), phase: phaseName, schema: CHECK },
-                    ),
-                );
-                if (chk && !chk.ok) {
-                    log(
-                        `${tag}: fix group ${ids} rejected by its re-walk: ${(chk.problems || []).join("; ").slice(0, 400)}`,
-                    );
-                    await agent(
-                        `${RULES}\nThe targeted re-walk rejected fix group ${ids}. In ${ST}, git revert --no-edit these commits, newest first, each as a signed commit through the hooks copy: ${fixed
-                            .map((d) => d.commit)
-                            .reverse()
-                            .join(
-                                " ",
-                            )}. Then append to ${REJECTED} the group, its units and these regressions, so the next triage refixes it in the shared part: ${JSON.stringify(chk.problems || [])}. Commit that file. Return the revert commits.`,
-                        { label: `${tag}: revert ${ids}`.slice(0, 80), phase: phaseName, effort: "low" },
-                    );
-                    fixed.forEach((d) => {
-                        d.done = false;
-                        d.problems = "rejected by the targeted re-walk";
-                    });
-                }
-                return r;
-            }),
-        );
+        const done = await parallel(groups.map((g) => () => fixGroup(g, tag, phaseName)));
         out.push(...done.flat().filter(Boolean));
     }
     const failed = out.filter((d) => !d.done);
@@ -468,6 +468,38 @@ async function landPass(label, phaseName, always) {
     log(`${label}: ${BRANCH} at ${r.sha} landed on golden`);
 }
 
+// One dry-run triage: classify the pilots' defects, commit the evidence, and log the counts.
+async function dryRunTriage(tag, phaseName, d, defects) {
+    const triage = await agent(
+        `${RULES}\n${asRole("director")}\nDRY RUN pass ${d} before the ${tag} sessions. Piloting every ${NAME} task on the frozen build (success path, commonest detours, and by keyboard) found the ${defects.length} defects below. The study's sessions must be spent learning what users need, not tripping over implementation flaws.
+FIRST read ${DECIDED}, the tier's BINDING DECISIONS (each a behavior -- what Enter, Escape or Tab does on a control, whether a disabled control is a Tab stop, what a count shows mid-edit -- with its date, reason and evidence; create it with a one-line header if missing), every earlier triage ${T}/dry-run-*.md, ${REJECTED} if it exists, and git log of the previous pass's fix commits.
+Classify every defect into exactly one class:
+(n) DECIDED -- it asks for something other than a decided behavior: no change, cite the entry. A decision is reversed only by a NEW entry in decided.md naming the entry it reverses, the new evidence and the reason; count it under reversals.
+(a) FIX NOW -- BLOCKING (the participant cannot finish the task) or CONFUSING (the participant would go wrong or doubt the result) on a task's path: a control that does nothing or gives no feedback, a button enabled when it should not be, focus left behind or falling to the page, a key (Enter, Escape, Tab) that does nothing where a person expects it to, a missing or duplicate screen-reader name, typing landing in the wrong field, broken values, raw internal text on screen, a missing unit, a defect met on a detour, a pass left incomplete.
+(c) COSMETIC -- does not block or confuse (spacing, alignment, a clipped label whose meaning still reads, an inconsistent but working component): append it to ${BACKLOG}; it is fixed later in batches with tests, never in this loop.
+(b) DESIGN QUESTION the study exists to answer (where something should live, what users expect, naming a concept users have not seen): leave it for the sessions.
+For every (a) defect record its origin: new; regression (caused by the previous pass's fixes); repeat (an earlier triage already sent the same problem to fix); instance (another screen showing a defect of a shared part already seen on another screen or in another pass). Every behavior this triage settles goes into decided.md as an entry, and the units cite it.${A.dryRunExtra ? " " + A.dryRunExtra : ""}
+Group the (a) defects into units, one coherent fix each, with the package that owns it, files, acceptance naming the pilot screenshot, and "routes": the task routes and controls the change touches, for the targeted re-walk. A defect seen on two screens or in two passes (regression, repeat or instance) is ONE unit fixed once in the shared component (compact-mantine or the shared app part), named in "shared", with a test there -- never one patch per screen.
+Write the triage to ${T}/dry-run-${tag}-${d}.md (every defect, its class, its origin, the decided.md entry it cites, the reason). Return the units; counts { fix_now, blocking, regressions, repeats, instances } over the (a) defects, plus reversals (new decided.md entries that reverse one) and cosmetic (rows sent to the backlog); and "insights": two sentences for the owner on what the dry run found.\n\nDEFECTS:\n${defects.join("\n")}`,
+        { label: `${tag}: dry run triage ${d}`, phase: phaseName, schema: UNITS, effort: "high" },
+    );
+    if (triage?.insights) log(`${tag} dry run ${d}: ${triage.insights}`);
+    // The pilot reports, the triage, the decisions and the backlog are evidence: commit them now.
+    await commitDocs(
+        `docs(workspace): ${NAME} ${tag} dry run ${d} triage and pilot reports`,
+        `${tag}: commit triage ${d}`,
+        phaseName,
+    );
+    const units = triage?.units || [];
+    const c = triage?.counts || {};
+    const fixNow = c.fix_now ?? units.length;
+    const regressions = c.regressions || 0;
+    log(
+        `${tag} dry run ${d}: ${fixNow} fix now (${c.blocking || 0} blocking), ${regressions} regressions, ${c.repeats || 0} repeats, ${c.instances || 0} more instances of a shared part, ${c.reversals || 0} reversed decisions, ${c.cosmetic || 0} to the backlog`,
+    );
+    return { units, c, fixNow, regressions };
+}
+
 // The dry run: participants' time goes to learning what users need, never to rediscovering
 // implementation flaws. Pilot every task, fix what blocks or confuses a participant, re-walk what
 // each fix touched, land, freeze again and re-pilot. Tier 3's four passes went 344, 217, 151 and 129
@@ -482,33 +514,7 @@ async function dryRun(tag, phaseName, pilots, prevRound) {
             log(`${tag}: dry run clean`);
             return {};
         }
-        const triage = await agent(
-            `${RULES}\n${asRole("director")}\nDRY RUN pass ${d} before the ${tag} sessions. Piloting every ${NAME} task on the frozen build (success path, commonest detours, and by keyboard) found the ${defects.length} defects below. The study's sessions must be spent learning what users need, not tripping over implementation flaws.
-FIRST read ${DECIDED}, the tier's BINDING DECISIONS (each a behavior -- what Enter, Escape or Tab does on a control, whether a disabled control is a Tab stop, what a count shows mid-edit -- with its date, reason and evidence; create it with a one-line header if missing), every earlier triage ${T}/dry-run-*.md, ${REJECTED} if it exists, and git log of the previous pass's fix commits.
-Classify every defect into exactly one class:
-(n) DECIDED -- it asks for something other than a decided behavior: no change, cite the entry. A decision is reversed only by a NEW entry in decided.md naming the entry it reverses, the new evidence and the reason; count it under reversals.
-(a) FIX NOW -- BLOCKING (the participant cannot finish the task) or CONFUSING (the participant would go wrong or doubt the result) on a task's path: a control that does nothing or gives no feedback, a button enabled when it should not be, focus left behind or falling to the page, a key (Enter, Escape, Tab) that does nothing where a person expects it to, a missing or duplicate screen-reader name, typing landing in the wrong field, broken values, raw internal text on screen, a missing unit, a defect met on a detour, a pass left incomplete.
-(c) COSMETIC -- does not block or confuse (spacing, alignment, a clipped label whose meaning still reads, an inconsistent but working component): append it to ${BACKLOG}; it is fixed later in batches with tests, never in this loop.
-(b) DESIGN QUESTION the study exists to answer (where something should live, what users expect, naming a concept users have not seen): leave it for the sessions.
-For every (a) defect record its origin: new; regression (caused by the previous pass's fixes); repeat (an earlier triage already sent the same problem to fix); instance (another screen showing a defect of a shared part already seen on another screen or in another pass). Every behavior this triage settles goes into decided.md as an entry, and the units cite it.${A.dryRunExtra ? " " + A.dryRunExtra : ""}
-Group the (a) defects into units, one coherent fix each, with the package that owns it, files, acceptance naming the pilot screenshot, and "routes": the task routes and controls the change touches, for the targeted re-walk. A defect seen on two screens or in two passes (regression, repeat or instance) is ONE unit fixed once in the shared component (compact-mantine or the shared app part), named in "shared", with a test there -- never one patch per screen.
-Write the triage to ${T}/dry-run-${tag}-${d}.md (every defect, its class, its origin, the decided.md entry it cites, the reason). Return the units; counts { fix_now, blocking, regressions, repeats, instances } over the (a) defects, plus reversals (new decided.md entries that reverse one) and cosmetic (rows sent to the backlog); and "insights": two sentences for the owner on what the dry run found.\n\nDEFECTS:\n${defects.join("\n")}`,
-            { label: `${tag}: dry run triage ${d}`, phase: phaseName, schema: UNITS, effort: "high" },
-        );
-        if (triage?.insights) log(`${tag} dry run ${d}: ${triage.insights}`);
-        // The pilot reports, the triage, the decisions and the backlog are evidence: commit them now.
-        await commitDocs(
-            `docs(workspace): ${NAME} ${tag} dry run ${d} triage and pilot reports`,
-            `${tag}: commit triage ${d}`,
-            phaseName,
-        );
-        const units = triage?.units || [];
-        const c = triage?.counts || {};
-        const fixNow = c.fix_now ?? units.length;
-        const regressions = c.regressions || 0;
-        log(
-            `${tag} dry run ${d}: ${fixNow} fix now (${c.blocking || 0} blocking), ${regressions} regressions, ${c.repeats || 0} repeats, ${c.instances || 0} more instances of a shared part, ${c.reversals || 0} reversed decisions, ${c.cosmetic || 0} to the backlog`,
-        );
+        const { units, c, fixNow, regressions } = await dryRunTriage(tag, phaseName, d, defects);
         if (!units.length) {
             log(`${tag}: dry run left only open design questions, decided behaviors and cosmetic backlog`);
             return {};

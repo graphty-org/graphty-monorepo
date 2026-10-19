@@ -112,26 +112,37 @@ const VIZ_COLUMNS: Readonly<Record<StyleTarget, readonly string[]>> = {
 };
 
 /**
- * A `viz:color` `hex` value as channels: r, g and b 0..255 and an alpha 0..1. Reads `#rgb`, `#rgba`, `#rrggbb` and
- * `#rrggbbaa` (alpha last), with or without the `#`.
+ * A `viz:color` `hex` value as channels: r, g and b 0..255 and an alpha 0..1, read the way Gephi reads it: Java's
+ * `Color.decode`, which parses the text as one integer (`Integer.decode`: `#` or `0x` hexadecimal, a leading `0`
+ * octal, otherwise decimal; a leading sign allowed) and keeps its low 24 bits, opaque. So `#rrggbb` is the color it
+ * names, but `#f80` is `#000f80`, `#4daf4a80` is `#af4a80` and `984ea3` is not a color at all (Gephi draws that node
+ * as if it had no color: `gexf-specimen-node-fills-borders`, `color-hex-short`, `color-hex-alpha`, `color-hex-nohash`).
  * @param hex - the attribute's value
- * @returns `[r, g, b, a]`, or null when it is not a hex color
+ * @returns `[r, g, b, 1]`, or null when Java cannot read it as an int
  */
 export function canonVizColor(hex: string): [number, number, number, number] | null {
-    const text = hex.trim();
-    if (!/^#?([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(text)) {
+    const m = /^([+-]?)(?:(0x|0X|#)([0-9a-fA-F]+)|(0[0-7]+)|([0-9]+))$/.exec(hex.trim());
+    if (m === null) {
         return null;
     }
-    const c = canonColor(text.startsWith("#") ? text : `#${text}`, "css", {
-        notes: new StyleNotes(),
-        target: "node",
-        property: "fill",
-    });
-    if (c === null) {
+    const [, sign, , hexDigits, octal, decimal] = m;
+    let v: number;
+    if (hexDigits !== undefined) {
+        v = Number.parseInt(hexDigits, 16);
+    } else if (octal !== undefined) {
+        v = Number.parseInt(octal, 8);
+    } else {
+        v = Number.parseInt(decimal, 10);
+    }
+    if (sign === "-") {
+        v = -v;
+    }
+    // Integer.decode accepts -2^31 .. 2^31 - 1 only
+    if (v < -2147483648 || v > 2147483647) {
         return null;
     }
-    const n = Number.parseInt(c.color.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, c.alpha];
+    const n = v & 0xffffff;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1];
 }
 
 /**

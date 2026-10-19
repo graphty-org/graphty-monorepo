@@ -255,6 +255,18 @@
         <viz:size value="14"/>
         <viz:shape value="disc"/>
       </node>
+      <node id="color-hex-and-rgb">
+        <viz:color r="255" g="0" b="0" hex="#0000ff"/>
+        <viz:position x="1104" y="259"/>
+        <viz:size value="18"/>
+        <viz:shape value="disc"/>
+      </node>
+      <node id="cap-color-hex-and-rgb" label="rgb+hex=255,0,0+#0000ff">
+        <viz:color r="255" g="255" b="255"/>
+        <viz:position x="1104" y="219"/>
+        <viz:size value="14"/>
+        <viz:shape value="disc"/>
+      </node>
     </nodes>
     <edges>
     </edges>

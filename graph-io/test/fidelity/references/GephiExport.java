@@ -93,7 +93,10 @@ public class GephiExport {
         ImportController ic = Lookup.getDefault().lookup(ImportController.class);
         Container c = ic.importFile(new File(a[0]));
         if (flags.contains("noscale")) c.getLoader().setAutoScale(false);
-        ic.process(c, new DefaultProcessor(), ws);
+        // into a new workspace, as Gephi's File > Open does: the processor then sets up the graph model the file
+        // needs (timestamps instead of intervals, a dynamic weight column), which an existing workspace refuses
+        ic.process(c, new DefaultProcessor(), null);
+        ws = pc.getCurrentWorkspace();
         PreviewController prc = Lookup.getDefault().lookup(PreviewController.class);
         PreviewModel m = prc.getModel();
         m.getProperties().putValue(PreviewProperty.SHOW_NODE_LABELS, flags.contains("labels"));

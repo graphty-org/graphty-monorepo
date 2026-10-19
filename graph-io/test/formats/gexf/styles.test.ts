@@ -177,7 +177,7 @@ describe("GEXF styles: reading", () => {
         expect(styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
     });
 
-    it("reads alpha, #rgb, #rrggbbaa and sizes, leaves out the shapes Gephi does not draw, and clamps an alpha above 1 with a note", async () => {
+    it("reads alpha, hex as Gephi's Color.decode (#rgb is 0x000rgb, #rrggbbaa keeps its last six digits) and sizes, leaves out the shapes Gephi does not draw, and clamps an alpha above 1 with a note", async () => {
         const { snapshot, styles, report } = await load(
             `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph><nodes>
             <node id="a"><viz:color r="255" g="0" b="0" a="0.5"/><viz:size value="4"/><viz:shape value="square"/></node>
@@ -187,7 +187,7 @@ describe("GEXF styles: reading", () => {
             </nodes><edges><edge source="a" target="b"><viz:thickness value="3"/><viz:shape value="dashed"/></edge>
             </edges></graph></gexf>`,
         );
-        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ff0000", "#00ff00", "#0000ff", "#010203"]);
+        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ff0000", "#0000f0", "#00ff80", "#010203"]);
         // Gephi draws nodes opaque; their alpha goes into their edges' mix (a 128 and b 255 make 191)
         expect(resolveStyles(styles, "node", "fillOpacity", snapshot)).toEqual([null, null, null, null]);
         expect(resolveStyles(styles, "edge", "opacity", snapshot)).toEqual([191 / 255]);

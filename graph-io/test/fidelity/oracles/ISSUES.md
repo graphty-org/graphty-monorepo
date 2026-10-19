@@ -449,18 +449,36 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
       `viz:position` elements the one listed LAST in the file is drawn, not the latest in time
       (`color-timed-last-earlier`, blue 3-5 then red 1-3, is red).
     - GEXF 1.1draft and 1.2draft files (namespaces `http://www.gexf.net/1.1draft`, `.../1.2draft` and their viz
-      modules) are drawn exactly like 1.3 (`gexf-specimen-node-fills-borders-p8`, `-p9`).
+      modules) are drawn exactly like 1.3 (`gexf-specimen-node-fills-borders-p8`, `-p9`; edges in 1.2draft:
+      `gexf-specimen-edges-lines-p14`, which shows the same parallel-edge gap as the 1.3 sheet).
+    - `timerepresentation="timestamp"` is drawn static the same way (`gexf-specimen-node-sizes-opacity-p5`): every
+      node with a `timestamp`, `timestamps` or a timestamped `<spell>` is drawn, and of several timestamped
+      `viz:color` / `viz:size` values the one listed last in the file is drawn (`color-timestamped-last-earlier`,
+      blue @4 then red @1, is red). graph-io matches it.
 - Gephi's own rules (facts the importer must copy):
     - A node with no `viz:size` is size 10 (20 across); `viz:size value="0"` is also drawn as size 10.
     - A node with no `viz:color` is black. A node with no `viz:position` is placed at (0, 0) with autoscale off.
     - `hex` colors are read with Java's `Color.decode` on the digits: `#rrggbb` (either case) is right, but `#rgb`
       is read as the number 0xrgb (`#f80` is drawn #000f80), `#rrggbbaa` keeps only its last six digits (`#4daf4a80`
-      is drawn #af4a80), and hex without `#` is black (`gexf-specimen-node-fills-borders`).
+      is drawn #af4a80), and hex without `#` is black (`gexf-specimen-node-fills-borders`). A value too big for a
+      Java int (`#FF000080`) is no color either. When a `viz:color` has both `hex` and `r`/`g`/`b`, `hex` wins
+      (`color-hex-and-rgb`: r=255 with hex #0000ff is blue). graph-io now reads hex exactly this way
+      (`canonVizColor` in `graph-io/src/formats/gexf/styles.ts`); the conformance fixture
+      `authored/rgba-hex-1.3.gexf` expects Gephi's reading.
     - Parallel edges of one kind are merged into one edge whose weight is their sum (`parallel-same`, weight 3); in an
       undirected graph a reverse pair is merged the same way (`reverse-pair`). Edges of different `kind` stay apart
       and are drawn on top of each other.
     - When the smallest edge weight is 0 or less, every edge's weight is raised by |smallest| + 1
       (`gexf-specimen-edges-lines-p13`: weights 1, 4, 0, -2 are drawn 4, 7, 3, 1).
+    - A dynamic edge weight (`<attributes class="edge" mode="dynamic">` with `<attribute id="weight"
+      title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-edges-lines-p15`): Gephi draws
+      each edge at the value of its EARLIEST interval, whatever order they are listed in (`weight-timed` and
+      `weight-timed-last-earlier`, 8 over 1-2 and 1 over 2-3, both draw 8), and an edge with no timed value has
+      weight 0 -- its static `weight` XML attribute is not read (`weight-static-4`) -- so the rule above then adds 1
+      to every edge (drawn 9, 9, 5, 1, 1). **Open gap:** graph-io matches the weight attribute by its title only
+      ("Weight" is not "weight"), keeps it as a plain dynamic column, and draws every edge at weight 1 (the static
+      attribute where there is one). Fixing it needs the weight matched as Gephi matches it (id or title) and the
+      earliest timed value resolved into the drawn width in `graph-io/src/formats/gexf/styles.ts`.
     - In a `defaultedgetype="directed"` graph an edge with `type="undirected"` is dropped (`gexf-specimen-arrows`,
       `type-undirected` has no edge); `type="mutual"` is drawn as one directed edge with one arrowhead. In an
       undirected graph every edge is undirected, whatever its type (`-p6`). A `mutual` graph is drawn as a directed
@@ -471,6 +489,9 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
 - Not drawable: `<viz:color hex="..." a="...">` (hex with an alpha attribute) and r/g/b with a channel missing make
   Gephi's GEXF importer throw ("Color parameter outside of expected range: Green") and open nothing, so no sheet
   holds them (`gexf-gephi-vocabulary.json`, `notCovered`).
+- The oracle route imports each file into a new workspace, as Gephi's File > Open does
+  (`references/GephiExport.java`): an existing workspace refused a timestamped graph ("TimestampSet does not match
+  the column type IntervalSet") and a dynamic weight column; every earlier oracle is byte-identical either way.
 - Gephi's Preview values that never reach the SVG, so no page sets them: `background-color` (the SVG export draws
   no background), `margin` (pads the canvas only), and the code-only `edge.arc-curveness` / `edge.bezier-curveness`;
   `node.scale.factor`, `edge.scale.factor`, `node.label.scale` and `edge.label.scale` are overwritten by

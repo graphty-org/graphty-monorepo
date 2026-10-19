@@ -360,6 +360,17 @@
             "varies": "node.label.customFont=true node.label.font=DejaVu Serif,bolditalic,12"
         },
         {
+            "id": "specimen-labels-p24",
+            "file": "specimen-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "node.label.customFont": "true",
+                "node.label.font": "DejaVu Serif,plain,24"
+            },
+            "varies": "node.label.customFont=true node.label.font=DejaVu Serif,plain,24"
+        },
+        {
             "id": "specimen-edges-lines",
             "file": "specimen-edges-lines.gexf",
             "preview": {
@@ -718,6 +729,18 @@
             "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,bolditalic,14"
         },
         {
+            "id": "specimen-edge-labels-p15",
+            "file": "specimen-edge-labels.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false",
+                "edge.label.show": "true",
+                "edge.label.customFont": "true",
+                "edge.label.font": "DejaVu Serif,plain,20"
+            },
+            "varies": "edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,plain,20"
+        },
+        {
             "id": "specimen-groups",
             "file": "specimen-groups.gexf",
             "preview": {
@@ -771,6 +794,33 @@
                 "node.label.avoidOverlap": "false"
             },
             "varies": "mode=dynamic: time intervals and timed viz values"
+        },
+        {
+            "id": "specimen-edges-lines-p14",
+            "file": "specimen-edges-lines-gexf12.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "GEXF 1.2draft namespaces"
+        },
+        {
+            "id": "specimen-edges-lines-p15",
+            "file": "specimen-edges-lines-dynamic-weight.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "dynamic edge weight (timed attvalues)"
+        },
+        {
+            "id": "specimen-node-sizes-opacity-p5",
+            "file": "specimen-node-sizes-opacity-timestamps.gexf",
+            "preview": {
+                "node.label.show": "true",
+                "node.label.avoidOverlap": "false"
+            },
+            "varies": "timerepresentation=timestamp: timestamps and timestamped viz values"
         }
     ]
 }

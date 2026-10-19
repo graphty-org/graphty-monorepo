@@ -75,7 +75,7 @@ const VERSIONS = {
  * @returns the attribute text, starting with a space when non-empty
  */
 const span = (t) =>
-    (t.start === undefined ? "" : ` start="${t.start}"`) + (t.end === undefined ? "" : ` end="${t.end}"`);
+    ["start", "end", "timestamp", "timestamps"].map((k) => (t[k] === undefined ? "" : ` ${k}="${t[k]}"`)).join("");
 /**
  * One viz:color element.
  * @param c - [r,g,b,a?] | { hex, a? }, with an optional time interval as c.start / c.end on the object form
@@ -93,15 +93,19 @@ const vizColor = (c, t = {}) =>
  * One sheet's GEXF text.
  * @param nodes - [{ id, x, y, label?, color?: [r,g,b,a?] | { hex, a? }, size?, shape?, uri?, z?, pos?: false, children?, pid?,
  *   parents?: [id], start?, end?, spells?: [{ start, end }], colors? / sizes? / positions?: [{ value, start, end }] (timed viz values, written in order) }]
- * @param edges - [{ id, source, target, type?, kind?, label?, weight?, color?, thickness?, shape?, start?, end? }]
+ * @param edges - [{ id, source, target, type?, kind?, label?, weight?, color?, thickness?, shape?, start?, end?,
+ *   timestamps?, attvalues?: [{ for, value, start?, end? }] }]
  * @param defaultedgetype - the graph's default edge type
  * @param about - the sheet's description, written into <meta>
- * @param [opts] - { version: a VERSIONS key (default 1.3), dynamic: true for mode="dynamic" timeformat="double" }
+ * @param [opts] - { version: a VERSIONS key (default 1.3), dynamic: true for mode="dynamic" timeformat="double",
+ *   timestamps: true for timerepresentation="timestamp", attributes: <attributes> element lines }
  * @returns the file's text
  */
 function gexf(nodes, edges, defaultedgetype, about, opts = {}) {
     const v = VERSIONS[opts.version ?? "1.3"];
-    const mode = opts.dynamic ? 'mode="dynamic" timeformat="double"' : 'mode="static"';
+    const mode = opts.dynamic
+        ? `mode="dynamic" timeformat="double"${opts.timestamps ? ' timerepresentation="timestamp"' : ""}`
+        : 'mode="static"';
     const L = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         `<gexf xmlns="${v.ns}" xmlns:viz="${v.viz}" version="${v.version}">`,
@@ -110,6 +114,7 @@ function gexf(nodes, edges, defaultedgetype, about, opts = {}) {
         `    <description>${esc(about)}</description>`,
         "  </meta>",
         `  <graph ${mode} defaultedgetype="${defaultedgetype}">`,
+        ...(opts.attributes ?? []).map((l) => `    ${l}`),
         "    <nodes>",
     ];
     const writeNode = (n, indent) => {
@@ -156,9 +161,16 @@ function gexf(nodes, edges, defaultedgetype, about, opts = {}) {
     L.push("    </nodes>", "    <edges>");
     for (const e of edges) {
         const attrs = [`id="${esc(e.id)}"`, `source="${esc(e.source)}"`, `target="${esc(e.target)}"`];
-        for (const k of ["type", "kind", "label", "weight", "start", "end"])
+        for (const k of ["type", "kind", "label", "weight", "start", "end", "timestamp", "timestamps"])
             if (e[k] !== undefined) attrs.push(`${k}="${esc(e[k])}"`);
         const viz = [];
+        if (e.attvalues) {
+            viz.push(
+                "<attvalues>",
+                ...e.attvalues.map((v) => `  <attvalue for="${esc(v.for)}" value="${esc(v.value)}"${span(v)}/>`),
+                "</attvalues>",
+            );
+        }
         if (e.color !== undefined) viz.push(vizColor(e.color));
         if (e.thickness !== undefined) viz.push(`<viz:thickness value="${e.thickness}"/>`);
         if (e.shape !== undefined) viz.push(`<viz:shape value="${e.shape}"/>`);
@@ -313,6 +325,12 @@ SHEETS["specimen-node-fills-borders"] = {
         { id: "color-hex-alpha", prop: "hex", value: "#4daf4a80", node: { color: { hex: "#4daf4a80" } } },
         { id: "color-hex-nohash", prop: "hex", value: "984ea3", node: { color: { hex: "984ea3" } } },
         { id: "color-rgb-a-1", prop: "rgba", value: "0,0,255,1", node: { color: [0, 0, 255, 1] } },
+        {
+            id: "color-hex-and-rgb",
+            prop: "rgb+hex",
+            value: "255,0,0+#0000ff",
+            node: { color: { r: 255, g: 0, b: 0, hex: "#0000ff" } },
+        },
     ]),
 };
 
@@ -380,54 +398,55 @@ SHEETS["specimen-labels"] = {
     ),
 };
 
+const EDGE_LINE_SPECS = [
+    { id: "default", prop: "edge", value: "unset" },
+    ...[0.5, 1, 2, 4, 8].map((v) => ({
+        id: `weight-${String(v).replace(".", "-")}`,
+        prop: "weight",
+        value: v,
+        edge: { weight: v },
+    })),
+    ...[1, 4, 8].map((v) => ({ id: `thickness-${v}`, prop: "thickness", value: v, edge: { thickness: v } })),
+    { id: "color-red", prop: "rgb", value: "255,0,0", edge: { color: RED } },
+    { id: "color-blue", prop: "rgb", value: "0,0,255", edge: { color: BLUE } },
+    { id: "color-hex", prop: "hex", value: "#00a000", edge: { color: { hex: "#00a000" } } },
+    { id: "color-alpha-0-5", prop: "a", value: 0.5, edge: { color: [...RED, 0.5] } },
+    { id: "end-colors", prop: "ends", value: "red,blue", ends: { s: { color: RED }, t: { color: BLUE } } },
+    ...SCHEMA["viz:shape (edge)"].map((v) => ({ id: `shape-${v}`, prop: "shape", value: v, edge: { shape: v } })),
+    { id: "self-loop", prop: "loop", value: "self", loop: true },
+    {
+        id: "parallel-same",
+        prop: "parallel",
+        value: "2 same",
+        more: (c, s, t) => ({
+            nodes: [],
+            edges: [{ id: "parallel-same-2", source: s, target: t, ...NEUTRAL_EDGE_VIZ }],
+        }),
+    },
+    {
+        id: "parallel-kind",
+        prop: "parallel",
+        value: "2 kinds",
+        edge: { kind: "a" },
+        more: (c, s, t) => ({
+            nodes: [],
+            edges: [{ id: "parallel-kind-2", source: s, target: t, kind: "b", ...NEUTRAL_EDGE_VIZ }],
+        }),
+    },
+    {
+        id: "reverse-pair",
+        prop: "pair",
+        value: "a-b b-a",
+        more: (c, s, t) => ({
+            nodes: [],
+            edges: [{ id: "reverse-pair-2", source: t, target: s, ...NEUTRAL_EDGE_VIZ }],
+        }),
+    },
+];
 SHEETS["specimen-edges-lines"] = {
     about: "Edges: weight (which Gephi draws as width), viz:thickness, viz:color, viz:shape, end node colors (Gephi mixes them), self-loops and parallel edges.",
     defaultedgetype: "undirected",
-    ...edgeSheet([
-        { id: "default", prop: "edge", value: "unset" },
-        ...[0.5, 1, 2, 4, 8].map((v) => ({
-            id: `weight-${String(v).replace(".", "-")}`,
-            prop: "weight",
-            value: v,
-            edge: { weight: v },
-        })),
-        ...[1, 4, 8].map((v) => ({ id: `thickness-${v}`, prop: "thickness", value: v, edge: { thickness: v } })),
-        { id: "color-red", prop: "rgb", value: "255,0,0", edge: { color: RED } },
-        { id: "color-blue", prop: "rgb", value: "0,0,255", edge: { color: BLUE } },
-        { id: "color-hex", prop: "hex", value: "#00a000", edge: { color: { hex: "#00a000" } } },
-        { id: "color-alpha-0-5", prop: "a", value: 0.5, edge: { color: [...RED, 0.5] } },
-        { id: "end-colors", prop: "ends", value: "red,blue", ends: { s: { color: RED }, t: { color: BLUE } } },
-        ...SCHEMA["viz:shape (edge)"].map((v) => ({ id: `shape-${v}`, prop: "shape", value: v, edge: { shape: v } })),
-        { id: "self-loop", prop: "loop", value: "self", loop: true },
-        {
-            id: "parallel-same",
-            prop: "parallel",
-            value: "2 same",
-            more: (c, s, t) => ({
-                nodes: [],
-                edges: [{ id: "parallel-same-2", source: s, target: t, ...NEUTRAL_EDGE_VIZ }],
-            }),
-        },
-        {
-            id: "parallel-kind",
-            prop: "parallel",
-            value: "2 kinds",
-            edge: { kind: "a" },
-            more: (c, s, t) => ({
-                nodes: [],
-                edges: [{ id: "parallel-kind-2", source: s, target: t, kind: "b", ...NEUTRAL_EDGE_VIZ }],
-            }),
-        },
-        {
-            id: "reverse-pair",
-            prop: "pair",
-            value: "a-b b-a",
-            more: (c, s, t) => ({
-                nodes: [],
-                edges: [{ id: "reverse-pair-2", source: t, target: s, ...NEUTRAL_EDGE_VIZ }],
-            }),
-        },
-    ]),
+    ...edgeSheet(EDGE_LINE_SPECS),
 };
 
 /**
@@ -706,6 +725,116 @@ SHEETS["specimen-node-sizes-opacity-dynamic"] = {
     })(),
 };
 
+/** The edges sheet in GEXF 1.2draft, the version most files in the wild use (1.2draft has no hex colors). */
+SHEETS["specimen-edges-lines-gexf12"] = {
+    about: "The edges sheet written in GEXF 1.2draft (namespace http://www.gexf.net/1.2draft and its viz module): weight, viz:thickness, viz:color, viz:shape, loops and parallel edges. 1.2draft has no hex colors.",
+    varies: "GEXF 1.2draft namespaces",
+    defaultedgetype: "undirected",
+    version: "1.2draft",
+    ...edgeSheet(EDGE_LINE_SPECS.filter((s) => s.id !== "color-hex")),
+};
+
+/**
+ * A dynamic edge weight: the attribute "weight" declared mode="dynamic" with timed attvalues. Gephi then reads every
+ * edge's weight from its attvalues (an edge's static weight attribute is not read).
+ */
+SHEETS["specimen-edges-lines-dynamic-weight"] = {
+    about: "A dynamic GEXF whose edge weight is a dynamic attribute (<attributes class=edge mode=dynamic>, attribute id weight) with timed attvalues, and edges with only a static weight attribute or none.",
+    varies: "dynamic edge weight (timed attvalues)",
+    defaultedgetype: "undirected",
+    dynamic: true,
+    attributes: [
+        '<attributes class="edge" mode="dynamic">',
+        '  <attribute id="weight" title="Weight" type="float"/>',
+        "</attributes>",
+    ],
+    ...(() => {
+        const timed = (...vs) => vs.map(([value, start, end]) => ({ for: "weight", value, start, end }));
+        return edgeSheet([
+            { id: "default", prop: "edge", value: "unset" },
+            { id: "weight-static-4", prop: "weight", value: "4, no attvalues", edge: { weight: 4 } },
+            {
+                id: "weight-timed",
+                prop: "weights",
+                value: "8 1-2, 1 2-3",
+                edge: { weight: undefined, attvalues: timed([8, 1, 2], [1, 2, 3]) },
+            },
+            {
+                id: "weight-timed-last-earlier",
+                prop: "weights",
+                value: "1 2-3, 8 1-2",
+                edge: { weight: undefined, attvalues: timed([1, 2, 3], [8, 1, 2]) },
+            },
+            {
+                id: "weight-timed-one",
+                prop: "weights",
+                value: "4 1-3",
+                edge: { weight: undefined, attvalues: timed([4, 1, 3]) },
+            },
+        ]);
+    })(),
+};
+
+/** A dynamic graph in timerepresentation="timestamp": element timestamps and timestamped viz values. */
+SHEETS["specimen-node-sizes-opacity-timestamps"] = {
+    about: "A dynamic GEXF with timerepresentation=timestamp (timeformat=double): nodes and edges with timestamp / timestamps, a timestamped spell, and viz values listed several times with their own timestamps.",
+    varies: "timerepresentation=timestamp: timestamps and timestamped viz values",
+    defaultedgetype: "undirected",
+    dynamic: true,
+    timestamps: true,
+    ...(() => {
+        const at = (value, timestamp) => ({ value, timestamp });
+        const sheet = nodeSheet(
+            [
+                { id: "default", prop: "timestamps", value: "none" },
+                { id: "node-timestamp", prop: "timestamp", value: "2", node: { timestamp: 2 } },
+                { id: "node-timestamps", prop: "timestamps", value: "[1,3]", node: { timestamps: "[1,3]" } },
+                {
+                    id: "node-spell-timestamp",
+                    prop: "spell timestamp",
+                    value: "5",
+                    node: { spells: [{ timestamp: 5 }] },
+                },
+                {
+                    id: "color-timestamped",
+                    prop: "colors",
+                    value: "red @1, blue @4",
+                    node: { color: undefined, colors: [at(RED, 1), at(BLUE, 4)] },
+                },
+                {
+                    id: "color-timestamped-last-earlier",
+                    prop: "colors",
+                    value: "blue @4, red @1",
+                    node: { color: undefined, colors: [at(BLUE, 4), at(RED, 1)] },
+                },
+                {
+                    id: "size-timestamped",
+                    prop: "sizes",
+                    value: "6 @1, 18 @2",
+                    node: { size: undefined, sizes: [at(6, 1), at(18, 2)] },
+                    radius: 18,
+                },
+            ],
+            undefined,
+            8,
+        );
+        const c = cells(8)[7];
+        sheet.nodes.push(
+            endNode("edge-timestamps-s", c.source),
+            endNode("edge-timestamps-t", c.target),
+            captionNode("edge-timestamps", c.x, captionY(c, END_SIZE), caption("edge timestamps", "[2]")),
+        );
+        sheet.edges.push({
+            id: "edge-timestamps",
+            source: "edge-timestamps-s",
+            target: "edge-timestamps-t",
+            timestamps: "[2]",
+            ...NEUTRAL_EDGE_VIZ,
+        });
+        return sheet;
+    })(),
+};
+
 // ------------------------------------------------------------------ the pages: each file under each Preview setting
 
 /** The Preview every page starts from: Gephi's defaults with node labels shown and label overlap avoidance off. */
@@ -755,6 +884,8 @@ const PAGES = {
             "node.label.customFont": "true",
             "node.label.font": `DejaVu Serif,${st},12`,
         })),
+        // a plain custom font, at a size other than the default's
+        { "node.label.customFont": "true", "node.label.font": "DejaVu Serif,plain,24" },
     ],
     "specimen-edges-lines": [
         {},
@@ -806,12 +937,16 @@ const PAGES = {
             "edge.label.customFont": "true",
             "edge.label.font": `DejaVu Serif,${st},14`,
         })),
+        { "edge.label.show": "true", "edge.label.customFont": "true", "edge.label.font": "DejaVu Serif,plain,20" },
     ],
     "specimen-groups": [{}],
     "specimen-node-fills-borders-gexf12": [{}],
     "specimen-node-fills-borders-gexf11": [{}],
     "specimen-node-sizes-opacity-dynamic": [{}],
     "specimen-images-charts": [{}, { "node.per.node.opacity": "true" }],
+    "specimen-edges-lines-gexf12": [{}],
+    "specimen-edges-lines-dynamic-weight": [{}],
+    "specimen-node-sizes-opacity-timestamps": [{}],
 };
 
 /** Preview properties no page sets, and why. */
@@ -847,6 +982,8 @@ for (const [key, sheet] of Object.entries(SHEETS)) {
         gexf(sheet.nodes, sheet.edges, sheet.defaultedgetype, sheet.about, {
             version: sheet.version,
             dynamic: sheet.dynamic,
+            timestamps: sheet.timestamps,
+            attributes: sheet.attributes,
         }),
     );
     const category = CATEGORIES.find((c) => key === c || key.startsWith(`${c}-`));
@@ -934,8 +1071,6 @@ vocab.notCovered = {
         'Gephi 0.11.3\'s GEXF importer throws on <viz:color hex=... a=...> ("Color parameter outside of expected range: Green") and opens nothing, so no sheet holding it has an oracle',
     "viz:color r/g/b with a channel missing":
         "schema-valid but Gephi throws the same way; left out for the same reason",
-    "dynamic attribute values (attvalue start/end, such as a timed weight)":
-        "a file declaring a dynamic edge attribute 'weight' with timed attvalues was refused by Gephi Toolkit 0.11.3's DefaultProcessor (ProcessorConfigurationException: Processor configuration does not match existing workspace configuration), so it has no oracle; other attributes are data, not style",
     "Preview simple values background-color and margin":
         "not drawn into the SVG: Gephi's SVG export has no background, and margin only pads the canvas, which the comparator fits on the anchors",
     "Preview simple values edge.arc-curveness and edge.bezier-curveness":
@@ -946,6 +1081,11 @@ vocab.schema["dynamics (mode=dynamic, start/end, spells, timed viz values)"] = O
     .flatMap((k) => specimenIds(k).map((id) => `${k}#${id}`))
     .filter((s) => !/#(cap-|anchor-)/.test(s));
 vocab.schema["node parents"] = covering(/^group-parents$/);
+vocab.schema["timerepresentation=timestamp (timestamp, timestamps, timestamped viz values)"] = Object.keys(SHEETS)
+    .filter((k) => SHEETS[k].timestamps)
+    .flatMap((k) => specimenIds(k).map((id) => `${k}#${id}`))
+    .filter((s) => !/#(cap-|anchor-)/.test(s));
+vocab.schema["dynamic edge weight (attvalue start/end)"] = covering(/^weight-timed/);
 vocab.schema["GEXF version (namespaces)"] = Object.fromEntries(
     Object.keys(VERSIONS).map((ver) => [ver, Object.keys(SHEETS).filter((k) => (SHEETS[k].version ?? "1.3") === ver)]),
 );

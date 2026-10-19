@@ -76,6 +76,10 @@ export const NodeSizesOpacityP4: StoryObj = {
     ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p4", FILES),
     name: "node-sizes-opacity-p4 (mode=dynamic: time intervals and timed viz values)",
 };
+export const NodeSizesOpacityP5: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-node-sizes-opacity-p5", FILES),
+    name: "node-sizes-opacity-p5 (timerepresentation=timestamp: timestamps and timestamped viz values)",
+};
 export const Labels: StoryObj = { ...specimenStory(FORMAT, "specimen-labels", FILES), name: "labels" };
 export const LabelsP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-labels-p2", FILES),
@@ -165,6 +169,10 @@ export const LabelsP23: StoryObj = {
     ...specimenStory(FORMAT, "specimen-labels-p23", FILES),
     name: "labels-p23 (node.label.customFont=true node.label.font=DejaVu Serif,bolditalic,12)",
 };
+export const LabelsP24: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-labels-p24", FILES),
+    name: "labels-p24 (node.label.customFont=true node.label.font=DejaVu Serif,plain,24)",
+};
 export const EdgesLines: StoryObj = { ...specimenStory(FORMAT, "specimen-edges-lines", FILES), name: "edges-lines" };
 export const EdgesLinesP2: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines-p2", FILES),
@@ -213,6 +221,14 @@ export const EdgesLinesP12: StoryObj = {
 export const EdgesLinesP13: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edges-lines-p13", FILES),
     name: "edges-lines-p13 (weights 0 and -2 on one sheet)",
+};
+export const EdgesLinesP14: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines-p14", FILES),
+    name: "edges-lines-p14 (GEXF 1.2draft namespaces)",
+};
+export const EdgesLinesP15: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines-p15", FILES),
+    name: "edges-lines-p15 (dynamic edge weight (timed attvalues))",
 };
 export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
 export const ArrowsP2: StoryObj = {
@@ -291,6 +307,10 @@ export const EdgeLabelsP13: StoryObj = {
 export const EdgeLabelsP14: StoryObj = {
     ...specimenStory(FORMAT, "specimen-edge-labels-p14", FILES),
     name: "edge-labels-p14 (edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,bolditalic,14)",
+};
+export const EdgeLabelsP15: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edge-labels-p15", FILES),
+    name: "edge-labels-p15 (edge.label.show=true edge.label.customFont=true edge.label.font=DejaVu Serif,plain,20)",
 };
 export const Groups: StoryObj = { ...specimenStory(FORMAT, "specimen-groups", FILES), name: "groups" };
 export const ImagesCharts: StoryObj = {

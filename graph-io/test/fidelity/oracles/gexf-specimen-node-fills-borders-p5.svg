@@ -62,6 +62,9 @@
         <circle fill-opacity="1.0" fill="#0000ff" r="16.56" cx="992.0"
                 class="id_color-rgb-a-1" cy="-259.0" stroke="#0000ff"
                 stroke-opacity="1.0" stroke-width="2.8799999"/>
+        <circle fill-opacity="1.0" fill="#0000ff" r="16.56" cx="1104.0"
+                class="id_color-hex-and-rgb" cy="-259.0" stroke="#0000ff"
+                stroke-opacity="1.0" stroke-width="2.8799999"/>
         <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="96.0"
                 class="id_cap-default" cy="-629.0" stroke="#ffffff"
                 stroke-opacity="1.0" stroke-width="2.24"/>
@@ -118,6 +121,9 @@
                 stroke-opacity="1.0" stroke-width="2.24"/>
         <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="992.0"
                 class="id_cap-color-rgb-a-1" cy="-219.0" stroke="#ffffff"
+                stroke-opacity="1.0" stroke-width="2.24"/>
+        <circle fill-opacity="1.0" fill="#ffffff" r="12.88" cx="1104.0"
+                class="id_cap-color-hex-and-rgb" cy="-219.0" stroke="#ffffff"
                 stroke-opacity="1.0" stroke-width="2.24"/>
         <circle fill-opacity="1.0" fill="#c8c8c8" r="2.76" cx="20.0"
                 class="id_anchor-nw" cy="-880.0" stroke="#c8c8c8"
@@ -230,6 +236,11 @@
               fill="#000000" font-family="Dialog" style="text-anchor: middle;"
               class="id_cap-color-rgb-a-1">
             rgba=0,0,255,1
+        </text>
+        <text font-size="8" x="1104.0" y="-216.09525" fill-opacity="1.0"
+              fill="#000000" font-family="Dialog" style="text-anchor: middle;"
+              class="id_cap-color-hex-and-rgb">
+            rgb+hex=255,0,0+#0000ff
         </text>
     </g>
 </svg>

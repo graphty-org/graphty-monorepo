@@ -2841,8 +2841,9 @@ class GexfReader implements XmlHandler {
 
     /**
      * `<viz:color r g b a hex>` as rgba in 0..1 (design section 5.5: role color, f32 x4). `hex` is read as
-     * `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa`; a channel outside 0..255 or an alpha outside 0..1 is clamped and
-     * reported, as Gephi clamps it.
+     * Gephi reads it (Java's `Color.decode`: `canonVizColor`), and wins over `r` / `g` / `b` when both are written, as Gephi
+     * reads it (`gexf-specimen-node-fills-borders`, `color-hex-and-rgb`); a channel outside 0..255 or an alpha
+     * outside 0..1 is clamped and reported, as Gephi clamps it.
      * @param attrs - the element's attributes
      * @param name - the element name as written
      * @param where - the element's location
@@ -2851,12 +2852,12 @@ class GexfReader implements XmlHandler {
     private vizColor(attrs: ReadonlyMap<string, string>, name: string, where: IssueLocation): number[] {
         const hex = attrs.get("hex");
         let rgba: number[];
-        if (hex !== undefined && !attrs.has("r")) {
+        if (hex !== undefined) {
             const c = canonVizColor(hex);
             if (c === null) {
                 throw new GraphFormatError(
                     "E_COLUMN_TYPE",
-                    `viz hex="${hex}" is not a #RRGGBB, #RGB or #RRGGBBAA color`,
+                    `viz hex="${hex}" is not a color Gephi reads (a #-prefixed hexadecimal, 0x, octal or decimal integer)`,
                     { attribute: "hex" },
                 );
             }

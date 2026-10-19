@@ -32,6 +32,10 @@ const metas = import.meta.glob<Record<string, unknown>>("../../../../graph-io/te
     import: "default",
     eager: true,
 });
+const specimenPages = import.meta.glob<{ pages: { id: string; names?: Record<string, string> }[] }>(
+    "../../../../graph-io/test/fidelity/specimens/*/pages.json",
+    { import: "default", eager: true },
+);
 const idOf = (path: string): string => path.replace(/^.*\//, "").replace(/\.(svg|png|oracle\.json)$/, "");
 const pathOf = (table: Record<string, unknown>, id: string): string | undefined =>
     Object.keys(table).find((p) => idOf(p) === id);
@@ -76,7 +80,44 @@ export async function oraclePngUrl(id: string): Promise<string | undefined> {
  */
 export function oracleFormatOptions(meta: Record<string, unknown>, format: string): Record<string, unknown> {
     const preview = meta.previewProperties;
+    if (format === "pajek" && meta.program === "Pajek") {
+        return { pajekDraw: pajekDrawOf(meta) };
+    }
     return format === "gexf" && typeof preview === "object" && preview !== null ? { gephiPreview: preview } : {};
+}
+
+/**
+ * How Pajek drew a sample (graphty-element's Pajek reader takes it as `pajekDraw`): its Draw window's size, the ini
+ * options of a specimen page, and the partition and vectors its `E 1 DRAW <partition> <vector> <vector2>` macro drew.
+ * @param meta - the oracle's metadata
+ * @returns the draw settings
+ */
+function pajekDrawOf(meta: Record<string, unknown>): Record<string, unknown> {
+    const canvas = meta.canvas as { widthPx?: number; heightPx?: number } | undefined;
+    const draw = /\bDRAW (\d+) (\d+) (\d+)/.exec(typeof meta.command === "string" ? meta.command : "");
+    return {
+        ...(canvas?.widthPx === undefined ? {} : { width: canvas.widthPx }),
+        ...(canvas?.heightPx === undefined ? {} : { height: canvas.heightPx }),
+        ...(typeof meta.ini === "object" && meta.ini !== null ? { ini: meta.ini } : {}),
+        ...(draw === null ? {} : { partition: Number(draw[1]), vector: Number(draw[2]), vector2: Number(draw[3]) }),
+    };
+}
+
+/**
+ * The setting ids of a specimen sheet whose format ids its nodes by number (Pajek): `pages.json` `names`, vertex
+ * number -> setting id (`anchor-*`, `cap-*`, a specimen's own id), so both sides name each node by its setting.
+ * @param id - the sample
+ * @returns the names, empty for a sheet without them
+ */
+export function specimenNames(id: string): ReadonlyMap<string, string> {
+    for (const [path, file] of Object.entries(specimenPages)) {
+        const format = /specimens\/([^/]+)\/pages\.json$/.exec(path)?.[1];
+        const page = file.pages.find((p) => `${format ?? ""}-${p.id}` === id);
+        if (page?.names !== undefined) {
+            return new Map(Object.entries(page.names));
+        }
+    }
+    return new Map();
 }
 
 /**
@@ -147,6 +188,8 @@ export interface OracleComparison {
     meta: Record<string, unknown>;
     association: Association;
     graphty: PScene;
+    /** Each node id the comparison renamed to its specimen setting (`specimenNames`). */
+    names: ReadonlyMap<string, string>;
     /** The SVG's rendered size. */
     width: number;
     height: number;
@@ -183,16 +226,19 @@ export async function compareWithOracle(
             return cap === undefined ? [] : [[String(r.id), cap] as const];
         }),
     );
-    const named = namedCaptions(unmutated, captionOf);
+    // a sheet whose vertices are numbers names each by its setting, on both sides, once the oracle is associated
+    const names = specimenNames(id);
+    const numbers = new Map([...names].map(([k, v]) => [v, k]));
+    const named = namedCaptions(namedCaptions(unmutated, captionOf), names);
     const graphty = mutate === undefined ? named : mutate(structuredClone(named));
     const svgPath = pathOf(svgs, id);
     if (svgPath === undefined) {
         throw new Error(`${id} has no oracle SVG`);
     }
     const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
-    const associated = await associateOracle(id, meta, prims, { width, height }, graphty);
+    const associated = await associateOracle(id, meta, prims, { width, height }, namedCaptions(graphty, numbers));
     // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
-    const association = { ...associated, scene: namedCaptions(associated.scene, captionOf) };
+    const association = { ...associated, scene: namedCaptions(namedCaptions(associated.scene, captionOf), names) };
     const report = compareOracle(
         id,
         association.scene,
@@ -221,5 +267,5 @@ export async function compareWithOracle(
             scores[p] = Math.round(rate * 10000) / 10000;
         }
     }
-    return { report, scores, meta, association, graphty, width, height };
+    return { report, scores, meta, association, graphty, names, width, height };
 }

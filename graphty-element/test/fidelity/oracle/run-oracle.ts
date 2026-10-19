@@ -108,7 +108,10 @@ async function matchPositions(element: Graphty, first: OracleComparison, mirror:
     }
     const world = new Map<string, { key: string | number; at: Pt }>();
     for (const [key, node] of element.graph.getDataManager().nodes) {
-        world.set(String(key), { key, at: [node.mesh.position.x, node.mesh.position.y] });
+        world.set(first.names.get(String(key)) ?? String(key), {
+            key,
+            at: [node.mesh.position.x, node.mesh.position.y],
+        });
     }
     const finite = (p: Pt): boolean => Number.isFinite(p[0]) && Number.isFinite(p[1]);
     const drawn = first.graphty.nodes.filter((n) => {

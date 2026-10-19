@@ -34,6 +34,28 @@ Participants never see this file. Tasks: `tasks.md`. Bars: `criteria.md`. Partic
   a new name drawn too small at the default framing, and the default label font naming no fallback
   (open owner decisions, `../owner-decisions.md`).
 
+## Rules settled before round 1 (2026-10-18)
+
+These override any line below that says otherwise.
+
+- **T46 to T48, any community analysis counts.** The prompts ask the program to work out circles
+  or clusters and never name one method, so a run of any community analysis the analysis list
+  offers (Louvain, Leiden, Label propagation, Markov, Spectral, Hierarchical) is the clusters the
+  task means. Where a task below says "Louvain", read "the community analysis the participant
+  ran"; each method's group sizes and target count are read twice on the frozen build
+  (`criteria.md`, preflight 5) and graded against. A per-node ranking (Clustering coefficient) is
+  not a clustering: F.
+- **T48 B, a run while a filter step is on**, then the step turned off: `Route: around`. It ends on
+  the target look and count but is not the bulk edit, so it never counts toward the bulk route
+  bar.
+- **T44 A, `id` as the name:** accepted (S), as below; it is the name with its spaces dropped
+  (`MlleVaubois`), and the reader reads who each node is.
+- **T49 is graded by the drawing.** Success: the change was made (as below), and the last
+  `colors` in `styles-steps.jsonl` with `graph: true` equal the first's; S or SD by the usual
+  rule. A style tree that then differs from the start (the Color line removed, a `revision`
+  changed) is recorded as a finding about the design, never as an F or a false "done": the screen
+  cannot show the difference.
+
 ## Facts no briefing may hold
 
 What a task asks a participant to find. `real.mjs --brief` refuses a briefing that holds one;
@@ -837,7 +859,7 @@ path meets on this build:
 ## T51. Each kind its own color
 
 - **Success (S):** three distinct colors on `role` (A) or `kind` (B), every node of a value in its
-  value's color; the color named for the board (A) or the agencies (B) read from the key or the
+  value's color; the color named for the board (A) or the companies (B) read from the key or the
   panel at or before the step it is said; the ties and every other look unchanged. A color named
   from the drawing alone, with no look at the key or the panel, is SD if right and F if wrong.
 - **Stacks that count:** a color bound to `role` (A) or `kind` (B), one color per value, on
@@ -849,7 +871,7 @@ path meets on this build:
   hand-made layer over a binding on Everything (B: an "Agencies" layer in red, then Everything
   bound to `kind`) draws the agencies red; the key lists "Color: Agencies" red and, under "kind",
   "agency ... covered by Agencies", and the Color line says "Covered by Agencies on 4 of 24":
-  grade the color named against the drawing; green is F.
+  grade the color named against the drawing.
 - **Success path (A, 6 steps):** 1. "No thanks". 2. "Open project or file", volunteers.graphml. 3.
   Load. 4. Everything (Style open). 5. The link icon beside Color (tooltip "Node color by
   attribute"; a popover with the same title opens with nothing highlighted, listing the file's
@@ -865,8 +887,9 @@ path meets on this build:
   are read in the dialog ("board, green, 3 nodes") or from the key.
 - **Reference values (6dd0b00bd7, the same as ed4351b258):** A: volunteer orange, staff sky blue
   (the screen reader says "blue"), board green (`#009E73`; the screen reader says "green"). B:
-  person orange, company sky blue, agency green (`#009E73`, "green"). B's key reads "Color: kind".
-  The key shows three lines in three distinct colors on both. Accept green or teal.
+  person orange, company sky blue (`#56B4E9`; the screen reader says "blue"), agency green
+  (`#009E73`, "green"). B's key reads "Color: kind". The key shows three lines in three distinct
+  colors on both. Accept green or teal on A; sky blue, light blue or blue on B.
 - **Detours on this build:** a color typed on Everything makes every node one color with no key
   line; the find box's "role is board (3)" selects the 3 (rows by id), and styling them makes the
   hand-picked layer above (its name and key line, "3 nodes", never say board; after Enter on its

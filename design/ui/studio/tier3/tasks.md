@@ -184,15 +184,19 @@ category column, read back from the key: T51.
 
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of the characters of Les Miserables. Have the program work
-  out the circles of characters who appear together, each circle drawn in its own color. Then make
+  out the circles of characters who appear together, each circle in its own color. Then make
   the circle Javert belongs to bright red, while every other circle keeps its own color. Tell us
   how many characters are in Javert's circle."
 - **Prompt B (College football):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of American college football teams. Have the program work
-  out clusters of teams that often play one another, each cluster drawn in its own color --
+  out clusters of teams that often play one another, each cluster in its own color --
   not the conferences in the file, the program's own clusters. Then make Nebraska's cluster
   bright red, while every other cluster keeps its own color. Tell us how many teams are in it."
-- **Kept on purpose:** `javert`, `nebraska`, `conference` -- data.
+- **Kept on purpose:** `javert`, `nebraska`, `conference` -- data. `circle` (A) and `cluster` (B,
+  also T47 B and T48 B) -- the everyday words for what the program works out; `cluster` is also
+  the trade's word, and the analysis filter matches it to the community analyses, so what each B
+  participant types into that filter is recorded and reported as prompted, with A as the
+  unprompted reading.
 
 ### T47. Every cluster at once, colors kept (two datasets)
 
@@ -235,11 +239,11 @@ category column, read back from the key: T51.
 
 - **Prompt A (lesmis-poster):** "This is your first time using this program, and it has just
   opened. A colleague sent you their project, lesmis-poster.graphty.json, which is on this
-  computer. Open it. Some characters are drawn in orange. Tell us which characters are orange and
+  computer. Open it. Some characters are orange. Tell us which characters are orange and
   what they have in common that made the project draw them orange."
 - **Prompt B (volunteers-thanks):** "This is your first time using this program, and it has just
   opened. A colleague sent you their project, volunteers-thanks.graphty.json, which is on this
-  computer. Open it. Some people are drawn in green. Tell us how many people are green and what
+  computer. Open it. Some people are green. Tell us how many people are green and what
   they have in common that made the project draw them green."
 - **Measures:** finding what one look applies to, and reading why, from a project the participant
   did not make.
@@ -255,7 +259,7 @@ category column, read back from the key: T51.
 - **Prompt B (sources):** "This is your first time using this program, and it has just opened. A
   reporter colleague's sources for her waterfront zoning story, sources.graphml, are on this
   computer. Bring them into the program. Draw people, companies and agencies each in a different
-  color, and tell us which color stands for the agencies."
+  color, and tell us which color stands for the companies."
 - **Measures:** coloring by a category, one color per value (the commonest first styling act:
   "color by role"), and whether the key or the panel tells a newcomer which color is which.
 - **Kept on purpose:** `board`, `staff`, `volunteer`, `company`, `agency`, `people` -- the file's own

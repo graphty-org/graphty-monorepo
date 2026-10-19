@@ -1,6 +1,6 @@
 The study runs on build 52cb47a85a served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d3-52cb47a85a
 
-Frozen on 2026-10-17 for the tier 3 rounds.
+Frozen on 2026-10-18 for the tier 3 rounds.
 
 # Success criteria and round plan: first use and styling (tier 3)
 
@@ -52,7 +52,9 @@ last screenshot, the saved and downloaded files, the transcript and the scripted
 (`styles-start.json`, `styles.json`, `styles-steps.jsonl`), never from the participant's own
 rating. Every `grade.md` starts with the three lines `Grade:`, `False done:` and `Wrong turns:`,
 which `../tool/score.mjs` reads; a T47 or T48 success adds `Route:`, and every T46 and T47
-session adds `Token:` (`answers.md`). Severity 0-4 (Nielsen). Confirmed = two or more participants, or
+session adds `Token:` (`answers.md`). The grading calls settled before round 1 (any community
+analysis on T46 to T48, T48 B's filtered run, T44 A's `id`, T49 by the drawing) are in
+`answers.md`, "Rules settled before round 1". Severity 0-4 (Nielsen). Confirmed = two or more participants, or
 one participant plus a scripted repro (a `real.mjs` walk under the round's `repro/`) for a build
 defect. A severity 4 needs a wrong conclusion a reader would act on, a task that cannot be done, or
 a participant who leaves. Graders are never told the outcome to look for. A give-up the persona
@@ -76,16 +78,16 @@ round's sessions; a task it did not re-run carries its sessions from the last ro
 allowed only when no fix touched it. Bars 6, 7 and 8 are measured afresh on every round's frozen
 build. A bar not scored in a round does not hold in that round.
 
-| #   | Bar                            | Target                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Scored by                                                                                 |
-| --- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| 1   | Task success                   | Each task run at 4 or more sessions: at least 80% S or SD, and each dataset half at least 2 of 3. In counts: 4 sessions need 4 of 4 (2 of 2 per half); 6 need 5 of 6 with at least 2 of 3 in each half; so one F fails a 4-session task. A task run at fewer than 4 sessions does not hold bar 1; the study cannot pass while any task is unjudged. T47 and T48 hold only when at least half their S/SD sessions went by the bulk route (`Route: folder` or `several`) | `../tool/score.mjs` (T47's and T48's from the graders' `Route:` line)                     |
-| 2   | False "done"                   | 0 sessions where the participant said done while the last screen or the style tree showed otherwise                                                                                                                                                                                                                                                                                                                                                                    | `../tool/score.mjs` (from the graders' `False done:` line)                                |
-| 3   | Wrong turns                    | Each task's median wrong turns at most 2                                                                                                                                                                                                                                                                                                                                                                                                                               | `../tool/score.mjs` (from the graders' `Wrong turns:` line)                               |
-| 4   | Time to the first styled graph | On T39 (one color for the whole drawing, from the empty start), over the pointer sessions (not Sam's `--keys`, whose key presses are another unit; reported apart, for bar 7), the median steps from `01.png` to the first screenshot where every node shows one new color: at most 12, twice the answer key's 6. A session that never gets there, or is not graded S or SD (a wrong color), counts as never. Minutes between the two screenshots are a trend only     | `../tool/score.mjs` (from `styles-steps.jsonl`'s `colors`)                                |
-| 5   | Severity 3 and 4 problems open | 0 confirmed, from the sessions, the expert walkthroughs and the screenshot audit together (one problem found by both an expert and a session counts once)                                                                                                                                                                                                                                                                                                              | Counted in the round's `insights.md` after the skeptic check                              |
-| 6   | Accessibility                  | On every tier 3 screen of the scripted walk, at 1440 x 900 and 900 x 700, in the dark and the light theme: axe-core 0 serious or critical (`wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`); no two reachable controls share an accessible name; focus never falls to the page after any action the walk lists; and after adding a text card, a Color line and a Shape line, a value typed with no click first is written (focus lands where the next input goes)          | `../tool/bars.mjs --tier 3 --scheme dark` and `--scheme light` (printed there as "bar 8") |
-| 7   | Keyboard                       | Sam's keyboard-only sessions (started `empty --keys`): at least 3 of 4 S or SD, and 0 confirmed places a keyboard user cannot reach, operate or leave                                                                                                                                                                                                                                                                                                                  | The graders' grades of Sam's sessions; the accessibility expert's walk                    |
-| 8   | Words at rest                  | On each tier 3 screen whose words `bars.mjs` counts, no count above its count in `../tool/bars-limits.json` (`tier3`)                                                                                                                                                                                                                                                                                                                                                  | `../tool/bars.mjs --tier 3` (printed there as "bar 9 (b)")                                |
+| #   | Bar                            | Target                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Scored by                                                                                 |
+| --- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | Task success                   | Each task run at 4 or more sessions: at least 80% S or SD, and each dataset half at least 2 of 3. In counts: 4 sessions need 4 of 4 (2 of 2 per half); 6 need 5 of 6 with at least 2 of 3 in each half; so one F fails a 4-session task. A task run at fewer than 4 sessions does not hold bar 1; the study cannot pass while any task is unjudged. T47 and T48 hold only when at least half their S/SD sessions went by the bulk route (`Route: folder` or `several`)                                                                                                                                               | `../tool/score.mjs` (T47's and T48's from the graders' `Route:` line)                     |
+| 2   | False "done"                   | 0 sessions where the participant said done while the last screen or the style tree showed otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `../tool/score.mjs` (from the graders' `False done:` line)                                |
+| 3   | Wrong turns                    | Each task's median wrong turns at most 2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `../tool/score.mjs` (from the graders' `Wrong turns:` line)                               |
+| 4   | Time to the first styled graph | On T39 (one color for the whole drawing, from the empty start), over the pointer sessions (not Sam's `--keys`, whose key presses are another unit; reported apart, for bar 7), the median steps from `01.png` to the first screenshot where every node shows one new color: at most 10, twice the answer key's 5 (the T39 path on every build since 58556989e8). The limit is a number: a fix that shortens the key does not move it; only a change-log entry does. A session that never gets there, or is not graded S or SD (a wrong color), counts as never. Minutes between the two screenshots are a trend only | `../tool/score.mjs` (from `styles-steps.jsonl`'s `colors`)                                |
+| 5   | Severity 3 and 4 problems open | 0 confirmed, from the sessions, the expert walkthroughs and the screenshot audit together (one problem found by both an expert and a session counts once)                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Counted in the round's `insights.md` after the skeptic check                              |
+| 6   | Accessibility                  | On every tier 3 screen of the scripted walk, at 1440 x 900 and 900 x 700, in the dark and the light theme: axe-core 0 serious or critical (`wcag2a`, `wcag2aa`, `wcag21aa`, `wcag22aa`); no two reachable controls share an accessible name; focus never falls to the page after any action the walk lists; and after adding a text card, a Color line and a Shape line, a value typed with no click first is written (focus lands where the next input goes)                                                                                                                                                        | `../tool/bars.mjs --tier 3 --scheme dark` and `--scheme light` (printed there as "bar 8") |
+| 7   | Keyboard                       | Sam's keyboard-only sessions (started `empty --keys`): at least 3 of 4 S or SD, and 0 confirmed places a keyboard user cannot reach, operate or leave                                                                                                                                                                                                                                                                                                                                                                                                                                                                | The graders' grades of Sam's sessions; the accessibility expert's walk                    |
+| 8   | Words at rest                  | On each tier 3 screen whose words `bars.mjs` counts, no count above its count in `../tool/bars-limits.json` (`tier3`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `../tool/bars.mjs --tier 3` (printed there as "bar 9 (b)")                                |
 
 **Bar 6, the screens and actions** (`../tool/bars.mjs`, `WALKS3`): the start screen; a sample just
 opened; Everything's Node and Edge tabs; a new layer with its picker open; the add-a-condition
@@ -96,7 +98,12 @@ layer with an Edge tab condition at rest; a file read before loading; a category
 number and a has-no-value card; a layer with four conditions at rest; a color bound to a category
 column, with its key, and that color's popover; the size popover before a column is picked and
 after; a run's folder with its picker open and a card added to every layer; the "Color from each
-layer" dialog the purple token opens; a colleague's project just opened, and its layer selected.
+layer" dialog the purple token opens; a colleague's project just opened, and its layer selected; the find box with a name typed and its
+results; a node's inspector showing its Memberships and "Why this look"; a node's own Style tab
+with its Fill "+"; the open shape list; a sample just opened with the key switched on. (The last
+five were added 2026-10-18: each sits on a core or study-question task's success path or a
+blocking trap, and bars 6 and 8, the experts and the audit read only the walk; preflight 6 does
+not pass until `WALKS3` walks them.)
 Focus is checked after: adding a layer, adding a card, Done in the picker, adding a color, Undo,
 Escape from the line and text menus, running a groups analysis, Done in an Edge tab picker, Load,
 adding a yes/no card, Escape from a card's menu, Done after four cards, picking a column for a
@@ -128,39 +135,44 @@ every round:
 - overlap, and anything that runs off the panel or the window at 900 x 700;
 - contrast below 4.5:1 for text or 3:1 for controls and focus rings, and a control with no
   visible focus ring;
-- the purple "Layer" token readable in both themes;
+- the purple "Layer" token's text at 4.5:1 or more against its background in both themes,
+  measured;
 - **key and drawing agree**: on every session's last screenshot, the key's colors and values, the
   picker's count and the colors on the drawing say the same thing. A disagreement (a key that is
   stale, two values in one color where the key says each has its own) is a severity 3, confirmed
   by that session plus a scripted repro.
 
-Each finding is confirmed by a scripted repro or a second expert. Only a confirmed severity 3 or 4
+Each finding is confirmed by a scripted repro (a `real.mjs` walk under the round's `repro/`) or a
+measurement (a contrast ratio, a pixel box, a count read by script), never by a second expert's
+reading: every expert is the same model reading the same picture, so a second reading is not
+independent. Only a confirmed severity 3 or 4
 feeds a bar: it counts against bar 5 like one found in a session, once even when a session also
 hit it. The number of confirmed findings of any severity is a measure, not a gate (below), and is
 compared between rounds only over the same set of screens.
 
 ## Measures reported every round (not gates)
 
-| Measure                                                                                                                    | Why                                                                   |
-| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| All sessions' success together (target 85%)                                                                                | The earlier tiers' target                                             |
-| Minutes to the first styled graph, per task (a trend: the clock holds the model's thinking)                                | Question 1                                                            |
-| Steps against the success path, median per task                                                                            | Where success is costly                                               |
-| Which card types were used, by whom, and which were looked for and not found                                               | Question 2; a card type nobody reaches is a candidate for removal     |
-| Touches of the purple "Layer" token on T46 and T47 (`Token:`) and what followed; picker opened on a folder or on one layer | Question 3                                                            |
-| T47 and T48 successes by route (folder, several, one by one, around, cover), from grade.md's `Route:`                      | Question 3, bar 1 and the stall rule count only folder and several    |
-| Picker opened unprompted on a single layer (T38, T40, T41, T45), and the step it was opened                                | Shows whether the collapsed picker is found                           |
-| Escape pressed in the picker or a card, and whether the step note expected it to cancel                                    | Escape keeps edits by design                                          |
-| Edges or ties looked for on the Node tab first (T45)                                                                       | Tests the split into Node and Edge tabs                               |
-| Which color the participant named for a kind, and where they read it (T51)                                                 | Question 6                                                            |
-| How a change was reversed (arrow, Control+Z, typed back, layer removed)                                                    | Question 4                                                            |
-| Whether the layer's conditions were read before T50's answer, per half (A's names give away the rule)                      | Question 5                                                            |
-| First move after the sample or file opened, and the second place looked                                                    | Where a newcomer looks first; the second place is the stronger signal |
-| Script errors, console errors and failed requests on a success path (target 0)                                             | Each is a bug report                                                  |
-| What worked, per task                                                                                                      | A report of failures alone does not say what to keep                  |
-| Bar 1 over the newcomers alone (all but Alex and Maren), per task; a half that holds only because of them is named         | Their findings never stand in for newcomers (`score.mjs` reports it)  |
-| Sam's steps to the first styled graph on T39, in key presses                                                               | Bar 7's evidence; left out of bar 4                                   |
-| Confirmed findings of any severity (sessions, experts, audit), against last round over the same screens                    | The trend under bar 5; a rise is explained in `insights.md`           |
+| Measure                                                                                                                                                                          | Why                                                                         |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| All sessions' success together (target 85%)                                                                                                                                      | The earlier tiers' target                                                   |
+| Minutes to the first styled graph, per task (a trend: the clock holds the model's thinking)                                                                                      | Question 1                                                                  |
+| Steps against the success path, median per task                                                                                                                                  | Where success is costly                                                     |
+| Which card types were used, by whom, and which were looked for and not found                                                                                                     | Question 2; a card type nobody reaches is a candidate for removal           |
+| Touches of the purple "Layer" token on T46 and T47 (`Token:`) and what followed; picker opened on a folder or on one layer                                                       | Question 3                                                                  |
+| T47 and T48 successes by route (folder, several, one by one, around, cover), from grade.md's `Route:`                                                                            | Question 3, bar 1 and the stall rule count only folder and several          |
+| Picker opened unprompted on a single layer (T38, T40, T41, T45), and the step it was opened                                                                                      | Shows whether the collapsed picker is found                                 |
+| Escape pressed in the picker or a card, and whether the step note expected it to cancel                                                                                          | Escape keeps edits by design                                                |
+| Edges or ties looked for on the Node tab first (T45)                                                                                                                             | Tests the split into Node and Edge tabs                                     |
+| Which color the participant named for a kind, and where they read it (T51)                                                                                                       | Question 6                                                                  |
+| How a change was reversed (arrow, Control+Z, typed back, layer removed)                                                                                                          | Question 4                                                                  |
+| Whether the layer's conditions were read before T50's answer, per half (A's names give away the rule)                                                                            | Question 5                                                                  |
+| First move after the sample or file opened, and the second place looked                                                                                                          | Where a newcomer looks first; the second place is the stronger signal       |
+| Script errors, console errors and failed requests on a success path (target 0)                                                                                                   | Each is a bug report                                                        |
+| What worked, per task                                                                                                                                                            | A report of failures alone does not say what to keep                        |
+| Bar 1 over the newcomers alone (all but Alex and Maren), per task; a half that holds only because of them is named                                                               | Their findings never stand in for newcomers (`score.mjs` reports it)        |
+| What each T46 to T48 participant typed into the analysis filter, per half; a word the prompt gave (B's "clusters") reported as prompted, A's "circles" as the unprompted reading | The B halves keep "clusters" on purpose (`tasks.md`); the filter matches it |
+| Sam's steps to the first styled graph on T39, in key presses                                                                                                                     | Bar 7's evidence; left out of bar 4                                         |
+| Confirmed findings of any severity (sessions, experts, audit), against last round over the same screens                                                                          | The trend under bar 5; a rise is explained in `insights.md`                 |
 
 ## Round plan
 
@@ -207,12 +219,25 @@ compared between rounds only over the same set of screens.
 4. **Dry run on the frozen build:** every task's success path in `answers.md`, both halves, ends on
    its success state; each also walks its detours (`tasks.md`, "Detours the dry run walks") and the
    success path again by keyboard, noting focus and screen-reader names. Pilots start from the real
-   start and get everywhere by clicking or keys, never by URL. Defects found are fixed, the build
-   frozen again and the dry run repeated until a pass finds nothing new. If the fourth pass still
-   finds something, round 1 does not start: the Director reports the remaining defects and the
-   study waits for their fixes.
+   start and get everywhere by clicking or keys, never by URL. A pass is complete only when every
+   task half the round plans has all three walks on the frozen build; a walk skipped for any
+   reason (no browser slot free, a pilot that returned nothing) is run again, never read as
+   clean. Each pass is triaged against `decided.md`, the tier's binding decisions: a complaint
+   against a decided behavior is no change, and a reversal needs a new entry there with its reason
+   and evidence. Blocking and confusing defects are fixed (a defect on two screens or in two passes
+   once, in its shared part); cosmetic ones go to `backlog.md`; every fix row records its origin
+   (new, a regression of the last pass's fixes, a repeat, another instance of one shared part).
+   The build is frozen again and the dry run repeated until a pass meets the **exit test**: no
+   blocking defect on any task's success path or listed detours; regressions of the last pass's
+   fixes under 10% of the fix list; no reversed decision. A pass at about 40% regressions stops
+   the full passes: the shared parts are fixed first and the routes they touch walked again, then
+   a full pass. Confusing moments off the success paths that remain go to the sessions, which
+   exist to find them.
 5. Every reference value in `answers.md` is read on the frozen build; the run-dependent ones
-   (Louvain's clusters) are run twice to show they repeat.
+   (the clusters) are run twice to show they repeat. T46 to T48 accept any community analysis the
+   analysis list offers (Louvain, Leiden, Label propagation, Markov, Spectral, Hierarchical), so
+   each one's group sizes, and the target group's count, are read twice on the frozen build and
+   written into `answers.md`.
 6. `node ../tool/bars.mjs <round>/bars --tier 3 --scheme dark --dist <frozen build>`, and again
    into `<round>/bars-light` with `--scheme light`, each with every planted case caught and no MISS
    line (read the MISS lines, not only the exit code); bar 8's limits are recorded on the round 1
@@ -220,7 +245,10 @@ compared between rounds only over the same set of screens.
 7. **Wording:** `node ../tool/wording.mjs tasks.md <round>/bars/vocabulary.json` reports 0 shared
    words not kept on purpose, after a planted echo was caught. Its "kept, on screen" lines are saved
    to `<round>/bars/wording.txt` and read against the last round's: a kept word newly on screen is
-   re-justified in `tasks.md` or its task is reported as primed.
+   re-justified in `tasks.md` or its task is reported as primed. The check reads screens at rest
+   only: notices, the undo notice, live-region text and accessible names are not in its
+   vocabulary, so the experts read them against the prompts (every unset color line's name says
+   "drawn", which T46 and T50 no longer say).
 8. **Briefings:** `real.mjs --brief` writes every planned session's briefing; each is read for
    priming (persona playing rules, the briefing's tool text) before the round.
 9. **Gate:** `real.mjs --gate <round>` writes the "Gate evidence" section of the round's `plan.md`
@@ -256,6 +284,43 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-18 (third review by the researcher, the user advocate and the red team; frozen for the
+  round 1 build 52cb47a85a; no session has run):
+    - Preflight 4's "until a pass finds nothing new" is replaced by an exit test (no blocking
+      defect on a success path or listed detour, regressions under 10%, no reversed decision),
+      triage against the new `decided.md`, and a pass incomplete while any planned half lacks its
+      three walks. Reason: four passes found 344, 217, 151 and 129 defects; 41% to 55% of pass 4's
+      came from pass 3's fixes or survived them, and three behaviors flipped between triages
+      (a dimmed "+" as a Tab stop, Escape in the inspector, a card's remove button in the Tab
+      order). Pass 4 skipped T39 A and B, T41 B and T46 A. The fourth-pass stop is gone: it named a
+      pass already past. The gate (`real.mjs --gate`) already refuses a half with no pilot on the
+      frozen build.
+    - Bar 4: at most 10, twice the key's 5, as a fixed number. Reason: the key's T39 path was 5 on
+      every build since 58556989e8, so "twice the key's 6" gave a false reason and 12 was 2.4 times
+      the key. The red team's "keep 12, drop the derivation" was taken in part: the limit no longer
+      follows the key.
+    - Bar 5: an expert or audit finding is confirmed by a scripted repro or a measurement, not a
+      second expert (the same model is not independent); the Layer token check is a measured
+      4.5:1.
+    - Bar 6: five screens on success paths and blocking traps join the walk (find with results, a
+      node's Memberships and "Why this look", a node's own Style tab, the open shape list, a sample
+      with the key on).
+    - Grading, settled in `answers.md`: T46 to T48 accept any community analysis, with reference
+      values read for each (the prompts never name Louvain); T48 B's filtered run is
+      `Route: around` (no bulk credit); T44 A keeps `id`; T49 is graded by the drawing, and a
+      style tree that differs is a finding about the design, not an F or a false done (which also
+      makes the hand comparison with `revision` ignored unnecessary for the grade).
+    - Wording (`tasks.md`): T46 and T50 drop "drawn", which every unset color line's name now says;
+      "clusters" (B of T46 to T48) and "circles" (A) are kept with their reason, and what B typed
+      into the analysis filter is a new measure. T51 B asks for the companies, not the agencies,
+      so its halves no longer share one answer (both were green) and B tests sky blue.
+    - Not taken: moving T51 B to `neighbors.csv`'s tie kinds (it moves the task to the Edge tab,
+      a second property, in an unjudged 2-session task; the companies change fixes the shared
+      answer with one word); rewording the B halves' "clusters" (it is the everyday word; the
+      halves are reported apart instead). Recorded as limits for the report: volunteers and
+      sources share one data shape, and in T46 to T48 the A/B difference cannot be split between
+      the wording and the dataset.
 
 - 2026-10-18 (round 1 build refrozen; no bar changed): the study build is now 52cb47a85a, frozen
   in `.study-builds/tier3-r1d3-52cb47a85a`; it replaces build 6dd0b00bd7

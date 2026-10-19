@@ -5,45 +5,45 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-18 (fourth tier 3 dry run, r1-4, triaged). Summarized from 42 KB
-on 2026-10-17; the full earlier text is in this file's git history.
+Last updated: 2026-10-18 (third review of the tier 3 criteria; refrozen for build 52cb47a85a).
+Summarized on 2026-10-17 and again on 2026-10-18; the full earlier text is in this file's git
+history.
 
 ## Top of mind
 
-- (2026-10-18) DRY RUN r1-4 TRIAGED (`tier3/dry-run-r1-4.md`; r1-3 is the pass on 5bd16cda6e and
-  stays): 283 lines from the pilots on build 6dd0b00bd7 (clean tree), 14 fix groups; round 1 waits
-  for a new frozen build and a re-pilot. Severity 3s: an unset line cannot take the color it shows
-  (T48, T49); "cube" in the shape list applies Cylinder; opening a colleague's rule and pressing
-  ArrowDown, Enter rewrites it, and the card shows the old value after Undo; Enter on Memberships
-  drops focus on the separator.
-- (2026-10-18) Most spread (a) on 6dd0b00bd7: Enter in a new Color box sends focus to the "+" it
-  just disabled (nine tasks); the Hovered layer stuck at 1 after the pointer leaves the canvas (nine
-  tasks; hover ends only on a canvas pointer event); disabled "+" as Tab stops (five).
-- (2026-10-18) Two r1-3 fixes did not land or did not hold on 6dd0b00bd7: the find box still shows
-  `graphty.degree` / `results.degree.value`, and focus after "Remove node color" still goes to
-  Effects' "+". Re-pilot each of last pass's groups by name, not only the new list.
-- (2026-10-18) Pilot gaps on 6dd0b00bd7: T39A, T39B, T41B never ran (browser slots full; a start
-  waits with no deadline), T46A returned nothing, T37A and T43B keyboard walks missing. Start at
-  most four pilots at once, these first.
-- (2026-10-18) r1-3 (build 5bd16cda6e) was frozen from a dirty worktree; never freeze from a dirty
-  tree again (6dd0b00bd7 was clean).
-- (2026-10-17) Long Tab walks (8 to 20) are (n): F6 reaches the inspector in one press. Whether a
-  keyboard participant finds F6 is a round 1 question.
-- (2026-10-17) Most repeated (b), unchanged since r1-1: what names a node (ids everywhere); where
-  "who" and "draw by" live (Data place, Highest, summaries); hover names; what Enter in find takes;
-  a card's or chip's count read as the layer's; "and" between cards; how a selection looks while
-  it is styled; canvas keyboard walk.
-- (2026-10-17) Questions to read first in round 1: does anyone read the purple <<Layer>> token as a
-  column named Layer; does anyone click a chit; is the collapsed picker found unprompted; is Escape
-  expected to cancel; are edges sought on the Node tab; is a chip's count read as the total.
-- (2026-10-16) The combined Style panel spec is DECIDED in `tier3/design.md`, "2026-10-16 -- The
-  combined Style panel": tabs Node/Edge; Paints control deleted; one card per field; presence is a
-  Match option; Escape keeps edits, "Done" only; bulk: shared cards edit all, differing cards read
-  <<Layer>> and are not written in bulk; Add ANDs into every layer. If anyone rebuilds a split row,
-  child rows, "Follow parent" or app-side pairing of node and edge parts, stop it.
-- (2026-10-13) PUSH BLOCKED by 213 SonarQube findings on this branch's lines; most vanish by merging
-  `design/studio-tier1` (conflicts in five files). Needs an engineer unit with the owner's leave to
-  merge the base. No bypass trailer.
+- (2026-10-18) NO PARTICIPANT SESSION HAS RUN. Tier 3 is in dry-run pass 5 on build 52cb47a85a
+  (started 22:04, T37 and T38 walked). Passes 1-4 found 344, 217, 151, 129 fix-now defects; about
+  41% of pass 4's came from pass 3's fixes. Round 1 starts only when a pass meets the exit test.
+- (2026-10-18) EXIT TEST (criteria preflight 4): no blocking defect on a success path or listed
+  detour; regressions of the last pass's fixes under 10%; no reversed decision in
+  `tier3/decided.md`. At about 40% regressions, stop full passes and fix shared parts first.
+- (2026-10-18) `tier3/decided.md` now exists: every triage cites it; a complaint against it is (n);
+  a reversal needs a new dated entry. Seeded with the three flip-flops (dimmed "+" not a Tab stop;
+  Escape on the inspector clears the selection; a card's remove button in drawn order).
+- (2026-10-18) A pass is incomplete while any planned half lacks its three walks. Owed on
+  52cb47a85a first: T39 A and B, T41 B, T46 A (all three ways), T37 A and T43 B by keyboard.
+  At most four pilots at once.
+- (2026-10-18) Owed before preflight 6 passes: `WALKS3` in `tool/bars.mjs` must walk five new
+  screens (find with results, a node's Memberships and "Why this look", a node's own Style tab
+  with Fill "+", the open shape list, a sample with the key on). Engineer work.
+- (2026-10-18) Owed before round 1: reference values of every community analysis on T46-T48, read
+  twice on the frozen build, written into `answers.md` (preflight 5).
+- (2026-10-18) Bars now: bar 4 at most 10 steps (fixed number); bar 5 confirms only by a scripted
+  repro or a measurement, never a second expert; T49 graded by the drawing.
+- (2026-10-18) Pass 4 blockers fixed in 52cb47a85a, to be re-walked by name: an unset line cannot
+  take the default it shows (6 rows); "cube" in the shape list picks Cylinder; ArrowDown, Enter in
+  a colleague's open rule rewrites it.
+- (2026-10-17) Most repeated (b), unchanged since r1-1: what names a node; where "who" and "draw by"
+  live; hover names; Enter in find; a card's count read as the layer's; "and" between cards; how a
+  selection looks while styled; canvas keyboard walk. These go to the sessions, not the freeze loop.
+- (2026-10-17) Round 1 questions to read first: is the purple <<Layer>> token read as a column; does
+  anyone click a chit; is the collapsed picker found unprompted; is Escape expected to cancel; are
+  edges sought on the Node tab; is a chip's count read as the total; what B halves type for
+  "clusters".
+- (2026-10-16) The combined Style panel spec is DECIDED (`tier3/design.md`, "2026-10-16"). If anyone
+  rebuilds a split row, child rows, "Follow parent" or app-side node/edge pairing, stop it.
+- (2026-10-13) PUSH BLOCKED by 213 SonarQube findings on the studio branch's lines; most vanish by
+  merging `design/studio-tier1`. Needs an engineer unit with the owner's leave. No bypass trailer.
 - Owner items open: the default label font fallback; the five tier 3 breaking items
   (`owner-decisions.md`). Words at rest never rise. A severity 4 needs a wrong conclusion a reader
   would act on.
@@ -87,6 +87,20 @@ on 2026-10-17; the full earlier text is in this file's git history.
 
 ## Decisions and reasons
 
+- **2026-10-18, third review of the tier 3 criteria, refrozen.** Taken: the exit test and
+  `decided.md` (all three reviewers; "nothing new" never comes at ~130 a pass); a pass incomplete
+  while a half lacks a walk (four halves skipped in pass 4); bar 4 at most 10 as a fixed number
+  (key 5 on five builds; researcher and user advocate said 10, red team said stop the derivation
+  moving, so both); bar 5 confirmed by repro or measurement only (a second expert is the same
+  model); Layer token at a measured 4.5:1; five walk screens (user advocate; my own 2026-10-17 note
+  that the walk decides what the study can see); any community analysis on T46-T48 (all three);
+  T48 B filtered run is `Route: around`; T44 A keeps `id`; T49 graded by the drawing (my r1-2
+  call, now written into the key); "drawn" out of T46 and T50 (every unset color line's name says
+  it); "clusters" kept with a measure of what B typed; T51 B asks for companies (both halves
+  answered green). Not taken: T51 B to neighbors' tie kinds (moves the task to edges in an
+  unjudged 2-session task; one word fixes the shared answer); rewording "clusters". Limits for the
+  report: volunteers and sources share one data shape; T46-T48's A/B difference mixes wording and
+  dataset.
 - **2026-10-18, dry run r1-4 triage.** Team calls, reversible: Tab in a list with letters typed and
   an option highlighted takes it (refines "Tab closes a pop-out"; two pilots lost a nearly made
   condition); an existing card opens with its suggestion list closed (T50A rewrote a colleague's
@@ -105,26 +119,12 @@ on 2026-10-17; the full earlier text is in this file's git history.
   graph's edge table says "Node A" and "Node B". Kept (b), again: node names, a node's own Style
   tab styling one node, where the color of everything lives, the key's lines leading anywhere,
   Enter in find, a card's count, "and" between cards, Escape in a card, live count while typing.
-- **2026-10-17, dry run r1-2 triage.** Team calls, reversible: a committed color box selects on a
-  click (reverses r1-1, which called the caret platform behavior before its own fix kept focus in
-  the box after Enter and Escape; twelve tasks then hit a glued color); find's hint shows the plain
-  `donations >= 10000` the box already reads (r1-1 left the backtick hint as a design question, but
-  the plain form works, so the backticks are polish); F6 answers the long Tab walks; the canvas
-  toolbar is entered at its first item (compact-mantine `Toolbar startAt`, additive); the rule check
-  names structural degree as a candidate (element, additive), since "No column named degree" sat
-  beside a Degree section. Both additive items in `owner-decisions.md`. Kept as (n): arrow cursor,
-  consent order and its leaving, Escape clearing a search before closing, a grid's one Tab stop,
-  Tab closing a pop-out, blanks sorting last, the T49 tree-versus-drawing difference (the key grades
-  the drawing).
-- **2026-10-17, dry run r1-1 triage.** Team calls, reversible: the base layer Everything is not
-  narrowed (a condition on it removed every other node from the drawing in four pilots; a reader
-  who wants fewer makes a layer); Escape in a style field keeps focus in the field everywhere (the
-  2026-10-13 "leaves the field" rule left focus on the page); arrow cursor over buttons stays
-  (compact-mantine sets it on purpose); wheel zoom toward the pointer as an additive element option
-  the app turns on; a palette that covers the group count instead of extending eight colors
-  (both recorded in `owner-decisions.md`). Classed (b) and left in: node names, hover names,
-  canvas keyboard walk, Enter in find, "at least", where Escape cancels, the Layer token, a
-  card's count read as the total, where a new layer lands beside a run's folder.
+- **2026-10-17, dry run r1-1 and r1-2 triages** (full text in git history and the dry-run files).
+  A committed color box selects on a click; find's hint shows the plain `donations >= 10000`; F6
+  answers long Tab walks; the toolbar is entered at its first item (compact-mantine `Toolbar
+startAt`, additive); Everything is not narrowed; Escape in a style field keeps focus there;
+  wheel zoom toward the pointer and a palette covering the group count are additive element
+  options. All settled ones are now in `tier3/decided.md`.
 - **2026-10-17, second review of the tier 3 criteria, then frozen.** Taken (researcher, user
   advocate, red team):
     - T47 and T48 hold bar 1 only on the folder or several route; T48 gets `Route: folder | several |
@@ -192,6 +192,13 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Tried: worked / did not work
 
+- 2026-10-18 (criteria review) -- Worked: checking each reviewer claim against the tool before
+  writing a rule: `real.mjs` gateCheck already refuses a half with no pilot on the frozen build,
+  `score.mjs` already accepts `Route: around` outside the bulk routes, and the stemmer keeps
+  "draw" and "drawn" apart, so only the "drawn" prompts needed rewording. Saved two tool changes.
+  Did not work (four builds running): logging "bar 4 still reads 6 against a key of 5" in each
+  change log and deferring it "between rounds" when no round came; a known wrong bar should be
+  fixed at the next freeze, not carried.
 - 2026-10-18 (r1-4) -- Worked: counting the input lines per task against my rows before writing
   the header (283 both); it catches a dropped line cheaply. Worked: reading `NodeBehavior.ts`
   before classing the stuck Hovered count: hover ends only in a canvas `onPrePointerObservable`
@@ -215,20 +222,10 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
   ("A rule set elsewhere" in `style/cards.ts`, "Row name" in five files) named the owning file
   before writing a unit. Did not work: three pilots could not write their report.md (the harness
   refused a subagent's Write); their findings survived only in the returned text.
-- 2026-10-17 -- Ran `bars.mjs --tier 3 --scheme dark` on build 6ddcb6c7c with the new walk. Worked:
-  every new screen of the own-file and folder walks (color and size bound to data, their popovers,
-  the "Color from each layer" dialog, adding a shape) reached with no MISS; the planted typing case
-  was caught. Expected MISS: "a colleague's layer selected" (the T50 blocker). Did not work at
-  first: the text card's recovery pressed Escape, which closes the picker and drops the unfinished
-  card, so the rest of the first-use walk was lost; fixed to click into the field, and the text and
-  color recoveries were walked by hand after. The Edge tab card move is walked only by hand so far.
-
-- 2026-10-17 -- Worked: walking the reviewers' proposed screens myself with `real.mjs` before
-  writing them into the walk. It found the T50 blocker (raw row id, empty Style tab) and confirmed
-  all three focus defects in minutes, and caught that `--expect Box` passes while the shape grid is
-  open (the expectation must hold only when the value is written: Escape first). Worked: `real.mjs
---type` refuses to type when nothing takes text, so a typing check never fires a single-key
-  shortcut by accident.
+- 2026-10-17 -- Worked: running `bars.mjs` on new walk screens and walking reviewers' proposed
+  screens by hand with `real.mjs` before adding them (found the T50 blocker; `--expect Box` passes
+  while the shape grid is open, so expect only after Escape). Did not work: a recovery that pressed
+  Escape dropped the unfinished card and lost the rest of the walk.
 - 2026-10-17 -- Did not work: my own first-review call that "one by one" counts toward T47's route
   bar. Two reviewers showed it lets the core bulk task pass with the bulk edit never used.
 - 2026-10-11..13 -- Worked: relaunching from the main script; the gate inside `real.mjs --start`
@@ -243,6 +240,10 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Thinking
 
+- **2026-10-18, criteria review:** an exit rule that cannot be met is not a rule; everyone just
+  keeps going. "Repeat until nothing new" read as rigor and produced four passes with no stop.
+  An exit test must name what is tolerated (polish, off-path confusion) as well as what is not,
+  and the tolerated part must have a destination (the backlog, the sessions).
 - **2026-10-18, r1-4:** the count fell again (324 to 283) but the severity 3s moved to new places,
   each next to an earlier fix: "+" waiting at the default (r1-3) made an unset line that cannot
   take the default; the card opening its list (focus where the next keystroke belongs) made a
@@ -278,7 +279,7 @@ one by one | cover` (`score.mjs` ROUTE_TASKS). Reason: both core bulk tasks coul
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews (2026-10-17): `notes/{researcher,user,redteam}.md` (commits 05f4ee91a, 863ebb9a8,
   de16901f7); my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

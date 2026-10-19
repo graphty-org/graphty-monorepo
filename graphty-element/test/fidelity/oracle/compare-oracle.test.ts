@@ -9,7 +9,15 @@
 import { assert, describe, it } from "vitest";
 
 import { associate, diskColor, type RasterDrawing, rasterScene, shapeOf, stackedTexts } from "./associate";
-import { clipToNodes, compareOracle, curvatureOf, medianSpacing, outerOf, withoutCaptions } from "./compare-oracle";
+import {
+    clipToNodes,
+    compareOracle,
+    curvatureOf,
+    medianSpacing,
+    namedCaptions,
+    outerOf,
+    withoutCaptions,
+} from "./compare-oracle";
 import {
     boxOfPoints,
     outlinePaintedAsFill,
@@ -889,6 +897,22 @@ describe("oracle comparison", () => {
             withoutCaptions(g).texts.map((t) => t.content),
             ["note"],
         );
+    });
+
+    it("leaves out a caption node a sheet ids by number once it is named by its cap-* attribute", () => {
+        // a GML sheet ids its caption node 5 and keeps "cap-fill-red" in its comment; the program draws it as a node
+        const o = { ...graphtyScene(), side: "oracle" as const };
+        o.nodes = [...o.nodes, { ...o.nodes[0], id: "5", label: text("fill=red", 50, 50) }];
+        const captionOf = new Map([["5", "cap-fill-red"]]);
+        assert.include(
+            withoutCaptions(o).nodes.map((n) => n.id),
+            "5",
+        );
+        assert.deepEqual(
+            withoutCaptions(namedCaptions(o, captionOf)).nodes.map((n) => n.id),
+            ["a", "b", "c"],
+        );
+        assert.strictEqual(namedCaptions(o, new Map()), o);
     });
 
     it("leaves out the box a program draws tight around a caption's words, and keeps other shapes", () => {

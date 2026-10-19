@@ -11,7 +11,7 @@ import type { Graphty } from "../../../index.js";
 import { readDrawn } from "../drawn-scene";
 import { extractScene } from "../extract-scene";
 import { associate, type Association, diskColor, type RasterDrawing, rasterScene } from "./associate";
-import { compareOracle, ORACLE_PROPERTIES, type OracleReport } from "./compare-oracle";
+import { compareOracle, namedCaptions, ORACLE_PROPERTIES, type OracleReport } from "./compare-oracle";
 import { drawnPrimitives } from "./drawn-primitives";
 import type { PScene } from "./primitives";
 import { pngPixels } from "./raster";
@@ -183,16 +183,16 @@ export async function compareWithOracle(
             return cap === undefined ? [] : [[String(r.id), cap] as const];
         }),
     );
-    unmutated.texts.forEach((t) => {
-        t.owner = t.owner === undefined ? undefined : (captionOf.get(t.owner) ?? t.owner);
-    });
-    const graphty = mutate === undefined ? unmutated : mutate(structuredClone(unmutated));
+    const named = namedCaptions(unmutated, captionOf);
+    const graphty = mutate === undefined ? named : mutate(structuredClone(named));
     const svgPath = pathOf(svgs, id);
     if (svgPath === undefined) {
         throw new Error(`${id} has no oracle SVG`);
     }
     const { width, height, prims } = readSvgPrimitives(await svgs[svgPath]());
-    const association = await associateOracle(id, meta, prims, { width, height }, graphty);
+    const associated = await associateOracle(id, meta, prims, { width, height }, graphty);
+    // the oracle's nodes take graphty's ids, so a caption the program drew as a node is named a caption there too
+    const association = { ...associated, scene: namedCaptions(associated.scene, captionOf) };
     const report = compareOracle(
         id,
         association.scene,

@@ -971,6 +971,27 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
 }
 
 /**
+ * A scene whose caption nodes are named as captions: a specimen sheet whose format ids its nodes otherwise (Cytoscape
+ * desktop by SUID, GML and Pajek by number) keeps `cap-*` in another attribute, so its caption nodes, their edges and
+ * the texts they own take that name, and `withoutCaptions` leaves them out on whichever side drew them as nodes.
+ * @param scene - either side
+ * @param captionOf - each caption node's id and its `cap-*` name
+ * @returns the scene with the captions renamed
+ */
+export function namedCaptions(scene: PScene, captionOf: ReadonlyMap<string, string>): PScene {
+    if (captionOf.size === 0) {
+        return scene;
+    }
+    const name = (id: string): string => captionOf.get(id) ?? id;
+    return {
+        ...scene,
+        nodes: scene.nodes.map((n) => (captionOf.has(n.id) ? { ...n, id: name(n.id) } : n)),
+        edges: scene.edges.map((e) => ({ ...e, source: name(e.source), target: name(e.target) })),
+        texts: scene.texts.map((t) => (t.owner === undefined ? t : { ...t, owner: name(t.owner) })),
+    };
+}
+
+/**
  * Pairs the oracle's nodes with graphty's: by id, then by unique label text for the rest. A specimen sheet's caption
  * nodes are left out on both sides first.
  * @param oracleScene - the oracle scene

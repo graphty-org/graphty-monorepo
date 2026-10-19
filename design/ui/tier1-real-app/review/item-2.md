@@ -110,11 +110,7 @@ export type ColumnEncodingSpec = Omit<EncodingSpec, "run" | "field"> & { readonl
 
 /** OPEN UNION of the reasons a column cannot be drawn on a channel. */
 export type EncodingRefusalCode =
-    | "too-many-values"
-    | "no-values"
-    | "not-plottable"
-    | "time-unsupported"
-    | (string & {});
+    "too-many-values" | "no-values" | "not-plottable" | "time-unsupported" | (string & {});
 
 export type EncodingProposal =
     | { readonly ok: true; readonly binding: Extract<Binding, { by: Path }> }

@@ -480,6 +480,43 @@ function engineForLayout(type: string): string {
 }
 
 /**
+ * The options a layout is built with: the caller's, plus the dimension options its engine declares
+ * for the graph's 2D/3D mode (`getOptionsForDimension`, for a third party's engine too).
+ *
+ * In 3D the caller's own keys win, so a 3D view may be laid out in 2D. In 2D the dimension options
+ * win, because a 2D view draws only a 2D layout: a 3D one would be flattened onto the plane, its
+ * nodes overlapping. The caller's values they replaced come back as `overridden`, to be reported.
+ * @param callerOpts - The caller's options, validated.
+ * @param dimensionOpts - The engine's dimension options, or null when it declares none.
+ * @param dimension - The graph's 2D/3D mode.
+ * @returns The merged options, and the caller's values a 2D view replaced, if any.
+ */
+export function withDimensionOptions(
+    callerOpts: Readonly<Record<string, unknown>>,
+    dimensionOpts: object | null,
+    dimension: 2 | 3,
+): {
+    options: Record<string, unknown>;
+    overridden?: { requested: Record<string, unknown>; used: Record<string, unknown> };
+} {
+    const options: Record<string, unknown> = { ...callerOpts };
+    const requested: Record<string, unknown> = {};
+    const used: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(dimensionOpts ?? {})) {
+        const asked = options[key];
+        if (asked === undefined) {
+            options[key] = value;
+        } else if (dimension === 2 && asked !== value) {
+            options[key] = value;
+            requested[key] = asked;
+            used[key] = value;
+        }
+    }
+
+    return Object.keys(used).length === 0 ? { options } : { options, overridden: { requested, used } };
+}
+
+/**
  * What a layout manager reads of the session to scope a layout. `Graph` hands its session's in.
  */
 interface LayoutScopeSource {
@@ -1163,20 +1200,14 @@ export class LayoutManager implements Manager {
         // dimension options below are the element's to add and are not the layout's to declare,
         // so validating after the merge would refuse the element's own key.
         const callerOpts = resolveLayoutOptions(type, engineClass.descriptor, opts);
-        const layoutOpts: Record<string, unknown> = { ...callerOpts };
-
-        // The layout's dimension options follow the graph's 2D/3D mode unless the caller set them.
+        // The layout's dimension options follow the graph's 2D/3D mode; in 3D the caller may
+        // choose otherwise, in 2D never: see `withDimensionOptions`.
         const { dimension } = how;
-        const dimensionOpts = LayoutEngine.getOptionsForDimensionByType(driver, dimension);
-
-        if (dimensionOpts) {
-            // Merge dimension options, but don't override user-provided options
-            for (const [key, value] of Object.entries(dimensionOpts)) {
-                if (!(key in layoutOpts)) {
-                    layoutOpts[key] = value;
-                }
-            }
-        }
+        const { options: layoutOpts, overridden } = withDimensionOptions(
+            callerOpts,
+            LayoutEngine.getOptionsForDimensionByType(driver, dimension),
+            dimension,
+        );
 
         // A layout the element drives through `@graphty/layout`'s simulation seam declares which
         // simulation it is, and is the one kind of engine `LayoutEngine.get` cannot build: it
@@ -1263,6 +1294,9 @@ export class LayoutManager implements Manager {
         }
 
         this.warnIgnoredOptions(type, engineClass, callerOpts);
+        if (overridden !== undefined) {
+            this.warnLayout(type, { code: "W_DIMENSION_OVERRIDDEN", params: overridden });
+        }
 
         // Kept so that a failure during set-up leaves the element exactly as it found it: the
         // engine that was working is still the one working, and it is still configured the way the

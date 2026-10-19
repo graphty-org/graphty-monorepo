@@ -1,9 +1,9 @@
 # Data management requirements
 
 Status: proposed, 2026-10-19. This document ranks what the graphty app and graphty-element must
-do to get data into a graph and keep it in shape. It covers loading several sources, combining
-them, setting column roles and types, filtering, cleaning, and repeating the same steps on new
-data. It also decides which of those jobs belong on the first, always-visible layer of the app and
+do to get data into a graph and keep it in shape. It covers loading several sources (files, and
+network sources such as databases and web APIs), combining them, setting column roles and types,
+filtering, cleaning, and repeating the same steps on new data. It also decides which of those jobs belong on the first, always-visible layer of the app and
 which wait one step in.
 
 See [data-management-evidence.md](data-management-evidence.md) for every source, the full persona
@@ -23,6 +23,12 @@ that first load:
   text, and there is no date type (`graph-io/src/common/text.ts`, lines 1-13).
 - Filters, saved sets, cleanup and "do last month's analysis on this month's file" have no
   surface, or only half of one.
+- Network sources work in graphty-element but not in the app. The element connects to NDEx, Neo4j,
+  Amazon Neptune and JSON web APIs, expands a node's neighborhood from the server, collapses it,
+  pages capped loads and keeps passwords out of saved files (`graph-io/src/sources/`, and
+  `data.import({ source, config })` with its companions in the session API). The app's "Open
+  network data" dialog still says these sources are "on the way". The element marks this surface
+  experimental, and nothing refreshes a load yet.
 - Six design generations describe data management and disagree on tiers, defaults and verbs. The
   evidence appendix lists the contradictions.
 
@@ -42,28 +48,51 @@ They are design hypotheses, not measured users, and the design-studio results ci
 from simulated sessions. Where persona evidence and competitor products disagree, the competitors
 break the tie.
 
-| Data job                            | Personas who do it | Every session for                                                                                      | Blocking for                                                 |
-| ----------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| Load one file                       | 13 of 14           | explorer, analyst, fraud, intelligence, security, supply chain, marketing, recommender, lab researcher | all but knowledge engineer                                   |
-| Filter or hide                      | 12                 | analyst, expert, fraud, intelligence, security, genomics                                               | analyst, security                                            |
-| Export data                         | 11                 | genomics, recommender                                                                                  | expert, marketing, recommender                               |
-| Check what loaded                   | 10                 | explorer, analyst, expert, genomics, knowledge engineer                                                | analyst, knowledge engineer                                  |
-| Set id, source, target, weight      | 10                 | security, recommender, lab researcher                                                                  | explorer, analyst, supply chain, recommender, lab researcher |
-| Join a table onto nodes             | 9                  | genomics                                                                                               | genomics, bioinformatics                                     |
-| Repeat steps on new data            | 9                  | --                                                                                                     | -- (often for five)                                          |
-| Set time, kind, place               | 9                  | fraud, security                                                                                        | --                                                           |
-| Preview before loading              | 8                  | explorer, analyst, knowledge engineer, lab researcher                                                  | genomics, lab researcher                                     |
-| Select by condition                 | 8                  | explorer, fraud, intelligence, security                                                                | fraud                                                        |
-| Node table plus edge table          | 8                  | --                                                                                                     | supply chain                                                 |
-| Add a second file                   | 7                  | --                                                                                                     | intelligence, knowledge engineer                             |
-| Fix a column's type                 | 7                  | --                                                                                                     | --                                                           |
-| Replace with newer data             | 6                  | --                                                                                                     | supply chain                                                 |
-| Load from a database or list of ids | 6                  | genomics                                                                                               | genomics                                                     |
-| Merge duplicate nodes               | 6                  | knowledge engineer                                                                                     | knowledge engineer                                           |
-| Merge or compare two graphs         | 5                  | --                                                                                                     | --                                                           |
+| Data job                              | Personas who do it | Every session for                                                                                      | Blocking for                                                 |
+| ------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Load one file                         | 13 of 14           | explorer, analyst, fraud, intelligence, security, supply chain, marketing, recommender, lab researcher | all but knowledge engineer                                   |
+| Filter or hide                        | 12                 | analyst, expert, fraud, intelligence, security, genomics                                               | analyst, security                                            |
+| Export data                           | 11                 | genomics, recommender                                                                                  | expert, marketing, recommender                               |
+| Check what loaded                     | 10                 | explorer, analyst, expert, genomics, knowledge engineer                                                | analyst, knowledge engineer                                  |
+| Set id, source, target, weight        | 10                 | security, recommender, lab researcher                                                                  | explorer, analyst, supply chain, recommender, lab researcher |
+| Join a table onto nodes               | 9                  | genomics                                                                                               | genomics, bioinformatics                                     |
+| Repeat steps on new data              | 9                  | --                                                                                                     | -- (often for five)                                          |
+| Set time, kind, place                 | 9                  | fraud, security                                                                                        | --                                                           |
+| Preview before loading                | 8                  | explorer, analyst, knowledge engineer, lab researcher                                                  | genomics, lab researcher                                     |
+| Select by condition                   | 8                  | explorer, fraud, intelligence, security                                                                | fraud                                                        |
+| Node table plus edge table            | 8                  | --                                                                                                     | supply chain                                                 |
+| Add a second file                     | 7                  | --                                                                                                     | intelligence, knowledge engineer                             |
+| Fix a column's type                   | 7                  | --                                                                                                     | --                                                           |
+| Replace with newer data               | 6                  | --                                                                                                     | supply chain                                                 |
+| Load from a server or list of ids     | 6                  | genomics, knowledge engineer, security                                                                 | genomics, knowledge engineer                                 |
+| Expand a neighborhood from the server | 6                  | fraud                                                                                                  | fraud                                                        |
+| Merge duplicate nodes                 | 6                  | knowledge engineer                                                                                     | knowledge engineer                                           |
+| Merge or compare two graphs           | 5                  | --                                                                                                     | --                                                           |
 
 The jobs in the bottom third of the table are rare for most personas but blocking for one or two
 specialists. That is the shape progressive disclosure is for.
+
+For five personas the data is not a file at all, so connecting to their source is a primary job
+even though it is rare across the whole set:
+
+- **Genomics** "starts from a gene list copied out of a spreadsheet, not from a graph file" and
+  pulls the network from STRING (`genomics-cytoscape-user.yaml`, lines 26-27).
+- **The knowledge engineer** "writes SPARQL or Cypher queries" and extracts entities "from source
+  systems (databases, documents, APIs)"; the graph is 10,000 to 10,000,000 nodes and must be kept
+  up to date as the sources change (`knowledge-engineer.yaml`, line 25; workflow W13, lines 26, 42
+  and 89). A graph that size is queried, not opened.
+- **Cybersecurity** "builds graphs from SIEM events" and turns a hypothesis "into a graph
+  query" over 100,000 or more nodes (`cybersecurity-analyst.yaml`, line 23; workflow W07, lines 34
+  and 50).
+- **Fraud** starts each of 50 or more daily alerts from one flagged account in a graph of 10,000 to
+  1,000,000 nodes and views its 1-2 hop neighborhood first (`fraud-analyst.yaml`, line 6; workflow
+  W06, lines 50 and 65). That is expanding from the server, every session.
+- **Intelligence** begins from seed entities and merges records from several systems, and three
+  of the workflows it takes part in (W05, W09 and W17) need neighborhood expansion (workflow W09,
+  lines 22 and 56). Its persona file names no server, and classified systems may not allow a
+  browser to connect, so for this persona expansion is likely primary and connecting is a judgment.
+
+These are design personas, not measured users. The evidence appendix, section C, has the cells.
 
 ## Ranked requirements
 
@@ -187,45 +216,107 @@ name, the reader confirms only weight roles and mismatched measurement levels, e
 listed before anything runs, and one undo reverses it. _Test:_ a recipe needing `padj` on a table
 without it lists "column padj not found" before any step runs.
 
+#### Primary for readers whose data lives on a server
+
+Requirements 23 to 27 are first-layer jobs for the five personas whose data sits in a database or a
+web service rather than in a file: fraud, intelligence, cybersecurity, the knowledge engineer and
+genomics (see "Who does what with data"). graphty-element can already do each of them; the app
+cannot yet. Its "Open network data" dialog (`graphty/src/workspace/start/NetworkDataDialog.tsx`)
+lists NDEx, Neo4j and a web API as "on the way" and opens only a graph file at a web address, which
+is requirement 4's URL door.
+
+**23. Connect to a source and test the connection** (both; element yes, app no). The reader picks a
+source, fills in its fields (endpoint, database, sign-in), and tests it before loading anything.
+The test answers in neutral facts: reachable or not, whether sign-in worked, and why not (a refused
+sign-in, a browser blocking the request, a server on the local network). The fields come from the
+source's descriptor, so the app draws one form for every source and builds no client. The built-in
+sources are NDEx, Cypher (Neo4j and Amazon Neptune) and a REST mapping for any JSON API, with
+OpenAlex as a preset and STRING and deps.dev as sample mappings. There is no SPARQL source yet.
+Element today: `data.testSource`, `sourceDescriptors()` in `./catalog`, the six built-in sources in
+`graph-io/src/sources/`. _Test:_ a Neo4j endpoint with a wrong password reports a refused sign-in
+before any data loads; the same form with the right one reports success; the app holds no
+source-specific code.
+
+**24. Choose what to load: browse or query** (both; element yes, app no). For a repository the
+reader searches and picks (an NDEx network by name); for a database the reader writes a query or
+picks labels and relationship types; for a web API the reader fills its parameters. The load is one
+undo step, like any other load. Element today: `data.listSource` returns neutral rows to choose
+from, and `data.import({ source, config })` loads. _Test:_ an NDEx search for "TP53" lists networks
+with their node and edge counts, and choosing one draws it; one undo removes it.
+
+**25. Expand a node's neighborhood from its source, and collapse it** (both; element yes, app no).
+From a node that a source brought, the reader fetches its neighbors from the server, to a chosen
+depth, direction and relationship type, and with a limit on new nodes. New nodes appear beside the
+seed and the layout continues. Each node says whether it has more to show (`_source.expansion` and
+`_source.hidden`), which the app can style with its own layer. Collapse removes what that node's
+expansions added and nothing another load also brought or the reader edited. Element today:
+`data.expand`, `data.collapse`, and `behavior.expand` to expand on click or double-click (off by
+default). _Test:_ in a Neo4j graph, expanding one account with a limit of 50 adds at most 50 nodes
+and marks the account "partial"; expanding again continues where it stopped; collapse restores the
+graph; each is one undo step.
+
+**26. A query that returns too much says what it left out and offers More** (both; element yes, app
+no). Every load and expansion takes size limits (nodes, edges, bytes, requests, time). The element
+picks no limit, since the right one depends on the consumer's screen and machine, so the app sets
+them. A capped load keeps what came first, reports the cap it reached and whether more remains, and
+"Load more" fetches the next page. Element today: `limits` and `onLimit` in `SourceLoadOptions`, and
+`data.more()`. _Test:_ a query matching 40,000 nodes with the app's 5,000-node limit loads 5,000,
+says more remain, and one "Load more" adds the next page.
+
+**27. A reopened project asks before it queries, and asks for sign-in only when it must** (both;
+element yes, app no). Opening a saved project shows its saved rows at once, offline, and runs no
+query by itself, because a shared file could otherwise run a stored query against a database on
+the reader's machine. Each waiting load names its source, its endpoint, whether it has a query,
+whether the server is on the local network and whether sign-in is needed. The reader approves each
+one. A password is never in the project file, its undo history or its events; the file records only
+which kind of sign-in, for which origin and user name. A credential the reader chose to remember on
+this device is found by source and origin, so the reader is asked only when none is remembered, and
+remembered credentials are listed and removable. Element today: `data.pendingSourceLoads`,
+`data.runPendingSourceLoad`, the `./credentials` entry point (`CredentialStore`), and the
+`graphty-sources` project member. _Test:_ a saved Neo4j project reopened in a new browser shows its
+graph, lists one waiting load that needs sign-in, and fetches nothing until approved; searching the
+saved file for the password finds nothing.
+
 ### Secondary: one step in
 
-- **23. Filters become an ordered list of steps once there are two, each switchable and showing what it removed** (element; no). _Done when:_ switching off step 1 restores its elements; both steps survive reopening.
-- **24. Sources list with counts; once there are two sources, an element's details name its source** (element; no). _Done when:_ three loads list three sources; an edge names its source.
-- **25. Cleanup offers in the load report: blank ids, padded spaces, case-only id variants, mixed types, self-loops, missing weights** (both; partly). _Done when:_ "Acme " and 40 blank ids show two offers; undo restores the originals.
-- **26. Merge exact and case- or space-variant duplicate nodes, approved per group, with a rule per attribute** (element; no). _Done when:_ three spellings of Acme merge; undo restores three nodes.
-- **27. Graph properties: how parallel edges combine, self-loops, two-mode, "treat as undirected" when mostly reciprocal** (element; partly). _Done when:_ merging with sum adds weights and a count column.
-- **28. Time as a start and end with a unit; unreadable times counted** (element; partly). _Done when:_ 7 unreadable values counted.
-- **29. Name, reapply and combine saved filters and sets; one list to rename, delete or export saved items** (app; element done). _Done when:_ a saved filter reapplies after reopening.
-- **30. Export only what is shown, a set or the selection, and leave out chosen columns** (element; no). _Done when:_ "showing 140 of 900" exports 140 nodes.
-- **31. The list of data steps in order, with undo per step and a methods paragraph** (element; partly). _Done when:_ five steps listed; the text names files, settings and counts.
-- **32. Rename (everything that reads the column follows), delete, fill empty values** (element; no). _Done when:_ a style and a filter keep working after a rename.
-- **33. Hide and reorder table columns, remembered** (app; partly). _Done when:_ the same five columns show after reopening.
-- **34. Change a role after loading, as one undo step** (element; no). _Done when:_ changing the weight column reruns runs; undo restores it.
-- **35. Edit a cell, add or remove a node or edge, marked as edited** (both; element verbs exist). _Done when:_ edits survive reopening and undo singly.
-- **36. Keep only the largest group; save a set as a subnetwork** (element; no). _Done when:_ the full network stays reachable.
-- **37. One event table makes several kinds of node; two columns share one id space** (element; no). _Done when:_ an auth log gives users and hosts as two kinds.
-- **38. Paste a gene list, pick species and confidence, get the STRING network** (both; unmerged branch). _Done when:_ "287 found, 13 not found".
-- **39. Import a list of ids (or a GMT file) as a saved set** (element; no). _Done when:_ "47 matched, 3 not in graph".
-- **40. Join a table onto edges by edge id or by source and target** (element; no). _Done when:_ "380 of 400 edges matched".
-- **41. A file over the drawing limit offers a way through (busiest N nodes) instead of a bare refusal** (element; refusal only). _Done when:_ size, limit and the left-out count are shown.
-- **42. Draw a file's own colors and sizes as a removable style layer** (element; unverified). _Done when:_ removing the layer restores the default.
+- **28. Filters become an ordered list of steps once there are two, each switchable and showing what it removed** (element; no). _Done when:_ switching off step 1 restores its elements; both steps survive reopening.
+- **29. Sources list with counts, each naming its file or its source and query; once there are two sources, an element's details name its source** (element; partly: network loads are listed by `data.loads()` with their query, endpoint and time, and each node carries `_source.loads`; file loads are not listed, and a file merge still overwrites the one `data.source()`). _Done when:_ two files and one Neo4j query list three sources, the query among them; an edge names its source.
+- **30. Cleanup offers in the load report: blank ids, padded spaces, case-only id variants, mixed types, self-loops, missing weights** (both; partly). _Done when:_ "Acme " and 40 blank ids show two offers; undo restores the originals.
+- **31. Merge exact and case- or space-variant duplicate nodes, approved per group, with a rule per attribute** (element; no). _Done when:_ three spellings of Acme merge; undo restores three nodes.
+- **32. Graph properties: how parallel edges combine, self-loops, two-mode, "treat as undirected" when mostly reciprocal** (element; partly). _Done when:_ merging with sum adds weights and a count column.
+- **33. Time as a start and end with a unit; unreadable times counted** (element; partly). _Done when:_ 7 unreadable values counted.
+- **34. Name, reapply and combine saved filters and sets; one list to rename, delete or export saved items** (app; element done). _Done when:_ a saved filter reapplies after reopening.
+- **35. Export only what is shown, a set or the selection, and leave out chosen columns** (element; no). _Done when:_ "showing 140 of 900" exports 140 nodes.
+- **36. The list of data steps in order, with undo per step and a methods paragraph** (element; partly). _Done when:_ five steps listed; the text names files, settings and counts.
+- **37. Rename (everything that reads the column follows), delete, fill empty values** (element; no). _Done when:_ a style and a filter keep working after a rename.
+- **38. Hide and reorder table columns, remembered** (app; partly). _Done when:_ the same five columns show after reopening.
+- **39. Change a role after loading, as one undo step** (element; no). _Done when:_ changing the weight column reruns runs; undo restores it.
+- **40. Edit a cell, add or remove a node or edge, marked as edited** (both; element verbs exist). _Done when:_ edits survive reopening and undo singly.
+- **41. Keep only the largest group; save a set as a subnetwork** (element; no). _Done when:_ the full network stays reachable.
+- **42. One event table makes several kinds of node; two columns share one id space** (element; no). _Done when:_ an auth log gives users and hosts as two kinds.
+- **43. Paste a gene list, pick species and confidence, get the STRING network** (both; element partly: the REST source's STRING mapping loads a network from a list of identifiers and a species, but reports no found and not-found counts; app no). _Done when:_ "287 found, 13 not found".
+- **44. Import a list of ids (or a GMT file) as a saved set** (element; no). _Done when:_ "47 matched, 3 not in graph".
+- **45. Join a table onto edges by edge id or by source and target** (element; no). _Done when:_ "380 of 400 edges matched".
+- **46. A file over the drawing limit offers a way through (busiest N nodes) instead of a bare refusal** (element; refusal only). _Done when:_ size, limit and the left-out count are shown.
+- **47. Draw a file's own colors and sizes as a removable style layer** (element; unverified). _Done when:_ removing the layer restores the default.
+- **48. Refresh a source load: say whether the source changed since it loaded, and re-run its query and expansions, applying only the difference as one undo step** (element; no: the load record keeps what a refresh needs, but there is no `refresh` or `revalidate`). _Done when:_ an NDEx network edited upstream reads "changed", a refresh reports nodes added, removed and updated, and a value the reader edited is kept unless the reader takes the source's.
 
 ### Advanced: for experts
 
-- **43. Save the current steps as a recipe that names columns, never node ids** (element).
-- **44. A column computed from an expression in the existing JMESPath dialect** (element).
-- **45. Similar-name duplicate groups (IBM, I.B.M.), approved one at a time** (element).
-- **46. A mapping table that translates ids between systems before a join** (element).
-- **47. Configured sources (NDEx, Cypher, SPARQL, REST); credentials never in the project file** (both).
-- **48. Remove one source, keeping elements another source also supplied** (element).
-- **49. Project a two-mode graph onto one kind with a stated weighting** (element).
+- **49. Save the current steps as a recipe that names columns, never node ids** (element).
+- **50. A column computed from an expression in the existing JMESPath dialect** (element).
+- **51. Similar-name duplicate groups (IBM, I.B.M.), approved one at a time** (element).
+- **52. A mapping table that translates ids between systems before a join** (element).
+- **53. A new source with no code: a REST mapping for any JSON API, recorded with the load so a reopened project reads it the same way; or a custom source an extension registers** (element; yes: the `rest` source and `registerSource` in `./extend`; app no).
+- **54. Remove one source, keeping elements another source also supplied** (element; no: collapse removes one expansion, but there is no `removeLoad`).
+- **55. Project a two-mode graph onto one kind with a stated weighting** (element).
+- **56. Union, intersection and difference of two named graphs** (element; no). Unblocked: a project can hold several named graphs (owner decision, 2026-10-19).
+- **57. Earlier data, compared after Replace** (element; no). Served by keeping the earlier data as another named graph ("September") and comparing it with requirement 56, so no separate versioning mechanism is needed.
 
 ### Later: blocked on something else
 
-- **50. Latitude, longitude and country roles.** Waiting for a map view; nothing reads a place yet.
-- **51. Load only a time window, a neighborhood or the strongest ties.** Deferred because the too-large path covers the urgent half.
-- **52. Union, intersection and difference of two named graphs.** Waiting for several graphs per project.
-- **53. Earlier data versions, compared after Replace.** Waiting for the project file's version decision.
+- **58. Latitude, longitude and country roles.** Waiting for a map view; nothing reads a place yet.
+- **59. Load only a time window or the strongest ties from a file.** Deferred because the too-large path covers the urgent half; for network sources the source's own filters and requirement 25's expansion already load only part.
 
 ## Progressive disclosure for data
 
@@ -238,13 +329,20 @@ box and the condition card are always on the toolbar, Replace data is a visible 
 and autosave are always there. Inside a project, a second file offers Add, Add columns to nodes and
 Replace with the match line visible before committing.
 
+**First screen for server data.** "Open network data" sits beside Open on the start screen and in
+the Data place. It lists the registered sources, draws each one's fields from its descriptor, and
+offers Test before Load. A database source opens on a query box, a repository on a search. Once a
+graph came from a source, a node's menu offers Expand and Collapse, a capped load shows what it
+left out with Load more, and a reopened project lists its waiting loads to approve.
+
 **One step in.** Ordered filter steps, the sources list, cleanup and duplicate offers (which appear
 in the load report only when found), graph properties, time spans, column edits, re-mapping, cell
 edits, saved items, export scope, the step list, subnetworks, event tables, gene lists, id lists,
-edge joins, the too-large path and file styles.
+edge joins, the too-large path, file styles and refreshing a source load.
 
-**Expert.** Writing recipes, expressions, similar-name duplicates, id mapping tables, configured
-sources, removing a source and projections.
+**Expert.** Writing recipes, expressions, similar-name duplicates, id mapping tables, defining a
+new source by a REST mapping, removing a source, projections, and set operations and comparisons
+across named graphs.
 
 **The one condition card.** A filter, a style layer's target, a saved set and an algorithm's or
 export's scope are all the same card: a list of conditions that must all hold, each built from an
@@ -305,28 +403,85 @@ the card into three shapes, which the architecture rules forbid.
 - **Two `design/designloom/capabilities/` records are corrected.** `data-import.yaml` no longer
   refuses a file over 100 MB without a way through. `saved-filters.yaml` stores saved filters in the
   project, as the element's rule sets, not in browser storage.
+- **`design/designloom/capabilities/neighborhood-expansion.yaml`** keeps its jobs (expand, depth,
+  type filters, collapse, tracking which expansion brought a node), now served by the element's
+  `data.expand` and `data.collapse`. Its 500-node warning and 2,000-node block become settings the
+  app passes, not element behavior.
+- **`design/graph-io/network-sources-design.md`** says "Nothing here is implemented". Most of it has
+  landed on `golden`; what has not is refresh and revalidation, removing one load, the persistent
+  source cache and a SPARQL source.
 
 The framework documents in `design/ui/framework/` (top tasks, graph conventions, element needs, task
 flows, decisions) stay in force; this document applies them to data.
 
-## Decisions for the owner
+## Decisions
 
-These are the only one-way doors. Everything else here is additive and can be built without
-approval.
+The root `CLAUDE.md` gives additive API changes to the team and keeps for the owner only breaking
+changes and formats that are published to consumers. So most of what this plan needs is decided
+here, one open question remains with the owner, and one the owner has settled.
 
-1. **Widen `ColumnRole` with a node or edge kind and a skip choice.** It is a closed union returned
-   by `DraftColumn.suggested` (`graphty-element/src/session/types.ts`, line 1147). Adding members
-   can break a consumer's exhaustive switch, so this is either a breaking change or a new open-union
-   field beside it.
-2. **Rename the published weight meaning "strength" to "similarity" and store the role on the
-   attribute.** `design/ui/framework/graph-conventions.md` (line 88) already asks for it. It is
-   breaking.
-3. **The published filter-step shape: one kind of step or two.** Decision 25 in
-   `design/ui/framework/one-way-doors.md` recommends one.
-4. **What a project file records beyond the recipe format:** several sources and each element's
-   source (decision 29), the saved step log (decision 9), and data versions and checkpoints
-   (decisions 28 and 95).
-5. **Whether a project holds several named graphs.** `design/documents/container.md` allows one
-   data member today. Comparing graphs, kept subnetworks and data versions all depend on it.
-6. **A measurement level per attribute, including a date kind** (decision 20). Column types and
-   time roles depend on it.
+### Decided by the owner
+
+- **A project can hold several named graphs** (2026-10-19). This unblocks set operations across
+  graphs (requirement 56), and it serves earlier data (requirement 57): after Replace, the old data
+  can be kept as another named graph ("September") and compared, so no separate versioning
+  mechanism is needed. Its file form is part of the open question below.
+
+### Open for the owner: what a project file records
+
+This is a one-way door because saved project files will exist in the wild and must be read
+forever, so whatever a field means in the first release it must mean in every later one. The
+container (`design/documents/container.md`) is already built to grow: new member kinds are
+additive, a reader skips a kind it does not know, and a kind listed in `requires` makes an older
+reader refuse the file instead of misreading it. The recommendation:
+
+- **Several graphs:** several data members, each with an id and a name. A file holding more than
+  one lists the data kind in `requires`, so a reader that knows only "at most one data member
+  applies" (container rule today) refuses the file instead of silently showing one graph.
+- **Sources:** one sources member listing each source: a file (its name and a content hash), a URL,
+  or a network source id with its query or configuration, plus the import mapping and options used,
+  when it loaded, and which graph it went into. Never a credential, only the name of a credential
+  slot the reader is asked to fill on open. Network loads already have such a record, the
+  `graphty-sources` member (on `golden`, experimental, not yet released); the recommendation is to
+  make it the one sources member and add files and URLs to it before it ships.
+- **Which source each element came from:** a reserved attribute column on the element data, holding
+  a list of source indexes, not a separate table, so it survives export and costs nothing when there
+  is one source. Network loads already write such a column, `_source.loads`, holding load keys.
+- **Step log:** the existing recipe member. Every data operation is a recipe command
+  (requirement 1), so there is no new step-log format.
+- **Data:** embedded by default, so a project opens offline and private data never has to be
+  fetched again. A "steps only" save that re-reads the sources is an option for large or shared
+  projects.
+- **Checkpoints and versions:** not in the format now; named graphs cover them.
+
+### Decided here
+
+These are additive, so the team decides them; each lands without the owner's approval.
+
+1. **Column roles gain a node or edge kind and a skip choice by a new field, not by widening
+   `ColumnRole`.** `ColumnRole` is a closed union that `DraftColumn.suggested` returns, so a new
+   member would break a consumer's exhaustive switch. Instead `DraftColumn` gains a new field typed
+   as an open union (`ColumnRole` plus `"kind"`, `"skip"` and any string), and the table mapping
+   gains optional `kind` and `skip` entries; `suggested` keeps returning only today's members.
+   Reason: the same capability with no break. The cleaner version, widening `ColumnRole` itself,
+   can ride in the grouped graphty-element major the owner has on hold.
+2. **A date is a time measurement with an optional unit and format, not a new kind.** `Measurement`
+   is already an open union that includes `"time"`, and a measurement declaration is an input, so
+   optional fields on it break nothing. Reason: column types and time roles (requirements 17 and 33) need it now, and no published value changes meaning.
+3. **The weight meaning "similarity" is accepted beside "strength".** Every input that takes a
+   weight meaning accepts both, meaning the same thing, and values read back keep saying
+   `"strength"` so no consumer's switch breaks; the role is also stored on the attribute, a new
+   field. `"strength"` is deprecated and removed in the next planned graphty-element major, when
+   read-back values switch to `"similarity"`. Reason: `design/ui/framework/graph-conventions.md`
+   (line 88) asks for the clearer word, and deprecation now is cheaper than a major of its own.
+4. **Ordered filter steps take one kind of step.** Nothing about filter steps is published: the
+   published API has one filter per session (`session.visibility.filter`, a rule tree, set by
+   `visibility.set`) plus one time window (`setWindow`), and `graphty-element/api/` on `golden` has
+   no `FilterStep`. So the list of steps is a new, additive shape, and the team takes decision 25
+   of `design/ui/framework/one-way-doors.md`: one kind, every step bounding every computation.
+   Reason: it removes a hidden mode in which the same nodes behave two ways depending on the route
+   taken. How steps are saved in a project file follows the step-log answer above.
+5. **Network-source limits default to none in the element and are set by the app.** Reason: the
+   right cap depends on the consumer's screen and machine, so it is a consumer's choice; the
+   500-node warning and 2,000-node block in `design/designloom/capabilities/neighborhood-expansion.yaml`
+   become the app's settings for requirements 25 and 26, not element defaults.

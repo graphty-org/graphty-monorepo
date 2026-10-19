@@ -437,6 +437,10 @@ export interface ChannelValues {
     "edge.arrowHeadTextStyle": LabelStyle;
     "edge.arrowHeadTextSize": number;
     "edge.arrowHeadTextLetterSize": number;
+    "edge.arrowHeadTextFont": string;
+    "edge.arrowHeadTextColor": ColorValue;
+    "edge.arrowHeadTextWeight": LabelWeightValue;
+    "edge.arrowHeadTextOpacity": number;
     "edge.arrowHeadTextDistance": number;
     "edge.arrowTail": ArrowValue;
     "edge.arrowTailSize": number;
@@ -450,6 +454,10 @@ export interface ChannelValues {
     "edge.arrowTailTextStyle": LabelStyle;
     "edge.arrowTailTextSize": number;
     "edge.arrowTailTextLetterSize": number;
+    "edge.arrowTailTextFont": string;
+    "edge.arrowTailTextColor": ColorValue;
+    "edge.arrowTailTextWeight": LabelWeightValue;
+    "edge.arrowTailTextOpacity": number;
     "edge.arrowTailTextDistance": number;
     "edge.arrowMiddleHead": ArrowValue;
     "edge.arrowMiddleHeadSize": number;
@@ -522,6 +530,8 @@ export type ColorChannel =
     | "edge.arrowTailColor"
     | "edge.arrowMiddleHeadColor"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowHeadTextColor"
+    | "edge.arrowTailTextColor"
     | "edge.outlineColor"
     | "edge.underlayColor"
     | "edge.overlayColor"
@@ -747,7 +757,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextDistance"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -892,6 +902,49 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
             accepts: "number",
             min: 0,
             stylePath: `arrow${end}.text.letterSize`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextFont"),
+            plainName: `Arrow ${end} Caption Font`,
+            shortName: `${end} caption font`,
+            group: "arrows",
+            accepts: "text",
+            stylePath: `arrow${end}.text.font`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextColor"),
+            plainName: `Arrow ${end} Caption Color`,
+            shortName: `${end} caption color`,
+            group: "arrows",
+            accepts: "color",
+            stylePath: `arrow${end}.text.textColor`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextWeight"),
+            plainName: `Arrow ${end} Caption Weight`,
+            shortName: `${end} caption weight`,
+            group: "arrows",
+            accepts: "enum",
+            values: LABEL_WEIGHT_VALUES,
+            stylePath: `arrow${end}.text.fontWeight`,
+            renderable: true,
+            caveat: ARROW_CAPTION_CAVEAT,
+        },
+        {
+            ...id("TextOpacity"),
+            plainName: `Arrow ${end} Caption Opacity`,
+            shortName: `${end} caption opacity`,
+            group: "arrows",
+            accepts: "number",
+            min: 0,
+            max: 1,
+            stylePath: `arrow${end}.text.textOpacity`,
             renderable: true,
             caveat: ARROW_CAPTION_CAVEAT,
         },

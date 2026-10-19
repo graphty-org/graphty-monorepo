@@ -497,6 +497,10 @@ function channelPlans(
             : { nearest: (value: StyleValue) => typeof value === "string" && nearest.has(value) }),
     });
     const label = (field: string): ChannelPlan => id(`${kind}.${field}` as Channel);
+    // an edge's end captions are drawn in its label's face, color, weight and opacity, as every program draws its
+    // source and target labels (Cytoscape.js, Graphviz's headlabel and taillabel); graphty writes its own captions
+    const captions = (field: "Color" | "Font" | "Weight" | "Opacity"): ChannelPlan[] =>
+        graphty ? [] : [id(`edge.arrowHeadText${field}`), id(`edge.arrowTailText${field}`)];
     // a label's place, one field of its label style, so each element keeps its own however many places the file uses
     const location = (target: StyleTarget): ChannelPlan => ({
         channel: `${target}.labelLocation`,
@@ -764,7 +768,7 @@ function channelPlans(
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
-        ["labelColor", [label("labelColor")]],
+        ["labelColor", [label("labelColor"), ...captions("Color")]],
         // Another program draws an edge's end labels in its label's font size (Cytoscape.js, Graphviz); graphty
         // writes its own captions' sizes apart.
         [
@@ -779,8 +783,8 @@ function channelPlans(
                       ]),
             ],
         ],
-        ["labelFont", [label("labelFont")]],
-        ["labelWeight", [label("labelWeight")]],
+        ["labelFont", [label("labelFont"), ...captions("Font")]],
+        ["labelWeight", [label("labelWeight"), ...captions("Weight")]],
         ["labelTextAlign", [label("labelTextAlign")]],
         ["labelPosition", [location("edge")]],
         ["labelItalic", [label("labelItalic")]],
@@ -792,7 +796,7 @@ function channelPlans(
         ["labelOutlineWidth", [labelLength("edge.labelOutlineWidth")]],
         ["labelBorderColor", [label("labelBorder")]],
         ["labelBorderWidth", [labelLength("edge.labelBorderWidth", false)]],
-        ["labelOpacity", [label("labelOpacity")]],
+        ["labelOpacity", [label("labelOpacity"), ...captions("Opacity")]],
         ["labelBackgroundOpacity", [label("labelBackgroundOpacity")]],
         // moved in the scene's units, as a wrap width is
         ["labelOffsetX", [length("edge.labelOffsetX", factors.node * SCENE_PER_UNIT.node)]],

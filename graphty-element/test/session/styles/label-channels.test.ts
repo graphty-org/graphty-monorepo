@@ -14,7 +14,7 @@
 import { assert, describe, it } from "vitest";
 
 import type { LayerSpec, Path } from "../../../src/catalog/types";
-import { NodeStyle } from "../../../src/config";
+import { EdgeStyle, NodeStyle } from "../../../src/config";
 import { StylePainter } from "../../../src/managers/StylePainter";
 import { labelFieldOf } from "../../../src/session/styles/channels";
 import { createStylesApi, type RepaintContext, type SessionStylesApi } from "../../../src/session/styles/index";
@@ -329,6 +329,30 @@ describe("label field channels take a rule", () => {
             [0, 1, 2].map((i) => drawnLabel(held, i).location),
             ["inside-top-left", "bottom-right", "top"],
         );
+    });
+
+    it("draws an end caption in its own face, color, weight and opacity", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "captions",
+            target: "edge",
+            selector: { match: "everything" },
+            set: {
+                "edge.arrowHeadText": "T",
+                "edge.arrowHeadTextFont": "DejaVu Sans",
+                "edge.arrowHeadTextColor": "#ff0000",
+                "edge.arrowHeadTextWeight": "bold",
+                "edge.arrowHeadTextOpacity": 0.5,
+            },
+        });
+        await held.paintAll();
+
+        const text = EdgeStyle.parse(held.painter.edgePaint(0)?.style).arrowHead?.text;
+        assert.strictEqual(text?.text, "T");
+        assert.strictEqual(text?.font, "DejaVu Sans");
+        assert.strictEqual(String(text?.textColor).toLowerCase(), "#ff0000");
+        assert.strictEqual(text?.fontWeight, "bold");
+        assert.strictEqual(text?.textOpacity, 0.5);
     });
 
     it("draws a line round the label's box as labelBorder and labelBorderWidth say", async () => {

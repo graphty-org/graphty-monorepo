@@ -172,6 +172,10 @@ const DECLARED = [
     "edge.arrowHeadTextStyle",
     "edge.arrowHeadTextSize",
     "edge.arrowHeadTextLetterSize",
+    "edge.arrowHeadTextFont",
+    "edge.arrowHeadTextColor",
+    "edge.arrowHeadTextWeight",
+    "edge.arrowHeadTextOpacity",
     "edge.arrowHeadTextDistance",
     "edge.arrowTail",
     "edge.arrowTailSize",
@@ -185,6 +189,10 @@ const DECLARED = [
     "edge.arrowTailTextStyle",
     "edge.arrowTailTextSize",
     "edge.arrowTailTextLetterSize",
+    "edge.arrowTailTextFont",
+    "edge.arrowTailTextColor",
+    "edge.arrowTailTextWeight",
+    "edge.arrowTailTextOpacity",
     "edge.arrowTailTextDistance",
     "edge.arrowMiddleHead",
     "edge.arrowMiddleHeadSize",
@@ -255,9 +263,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ten node channels and ninety-four edge channels", () => {
+    it("splits into one hundred and ten node channels and one hundred and two edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 110);
-        assert.strictEqual(channelsFor("edge").length, 94);
+        assert.strictEqual(channelsFor("edge").length, 102);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -542,11 +550,19 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowHeadTextStyle",
         "edge.arrowHeadTextSize",
         "edge.arrowHeadTextLetterSize",
+        "edge.arrowHeadTextFont",
+        "edge.arrowHeadTextColor",
+        "edge.arrowHeadTextWeight",
+        "edge.arrowHeadTextOpacity",
         "edge.arrowHeadTextDistance",
         "edge.arrowTailText",
         "edge.arrowTailTextStyle",
         "edge.arrowTailTextSize",
         "edge.arrowTailTextLetterSize",
+        "edge.arrowTailTextFont",
+        "edge.arrowTailTextColor",
+        "edge.arrowTailTextWeight",
+        "edge.arrowTailTextOpacity",
         "edge.arrowTailTextDistance",
         "edge.label",
         "edge.labelStyle",
@@ -693,7 +709,7 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the twenty-five that carry a colour, and the type says the same twenty-five", () => {
+    it("are the twenty-seven that carry a colour, and the type says the same twenty-seven", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -713,7 +729,9 @@ describe("colour channels", () => {
             "edge.underlayColor",
             "edge.overlayColor",
             "edge.arrowHeadColor",
+            "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
+            "edge.arrowTailTextColor",
             "edge.arrowMiddleHeadColor",
             "edge.arrowMiddleTailColor",
             "edge.labelColor",

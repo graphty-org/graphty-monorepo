@@ -11,7 +11,7 @@ import type { EdgeStyleConfig } from "../config/EdgeStyle";
  * ponytail: each distinct piece color is a batch of its own (one draw call), shared by every edge
  * that draws it; many edges in many different gradients would want one ramp-textured batch instead.
  */
-export const GRADIENT_PIECES = 64;
+const GRADIENT_PIECES = 64;
 
 /**
  * A color as `#rrggbb`, or null for text no CSS color parser reads.

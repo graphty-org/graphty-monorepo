@@ -13,7 +13,7 @@ const config: StorybookConfig = {
         disableTelemetry: true,
     },
     async viteFinal(config) {
-        const path = await import("path");
+        const path = await import("node:path");
         const { mergeConfig } = await import("vite");
 
         // Host, port and HTTPS come from the `storybook` npm script's CLI flags (--host, --https,

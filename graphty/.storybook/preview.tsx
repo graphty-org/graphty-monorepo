@@ -38,13 +38,17 @@ function hasErudaFlag(read: () => string): boolean {
 if (
     !/[?&]chromatic=true/.test(globalThis.location.search) &&
     !navigator.webdriver &&
-    (hasErudaFlag(() => window.location.search) || hasErudaFlag(() => window.parent.location.search))
+    (hasErudaFlag(() => globalThis.location.search) || hasErudaFlag(() => globalThis.parent.location.search))
 ) {
-    void import("eruda").then(({ default: eruda }) => {
-        eruda.init();
-        eruda.show("console");
-        pinErudaTopRight(eruda);
-    });
+    void showEruda(); // NOSONAR(S7785): fire and forget on purpose; awaiting would hold every story until eruda loads
+}
+
+/** Load the eruda console and show it pinned top right, without making the preview wait for it. */
+async function showEruda(): Promise<void> {
+    const { default: eruda } = await import("eruda");
+    eruda.init();
+    eruda.show("console");
+    pinErudaTopRight(eruda);
 }
 
 /**

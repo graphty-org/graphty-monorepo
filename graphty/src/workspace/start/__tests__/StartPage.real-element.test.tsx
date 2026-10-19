@@ -130,6 +130,19 @@ function highlighted(session: GraphSession, node: string): string | undefined {
     return session.styles.explain({ node }).merged["node.haloColor"]?.hex;
 }
 
+/**
+ * How many halos the element draws now, read from its scene: the cached halo source meshes sit
+ * there too, hidden, so being enabled and visible is what tells a drawn halo from them.
+ * @param element - the hero's element.
+ * @returns the number of halos on screen.
+ */
+function drawnHalos(element: Element): number {
+    return element.graph
+        .getScene()
+        .meshes.filter((mesh) => mesh.name.startsWith("graphty-selection-halo") && mesh.isVisible && mesh.isEnabled())
+        .length;
+}
+
 beforeAll(async () => {
     await page.viewport(1440, 900);
 });
@@ -174,14 +187,12 @@ describe("the start page's graph", () => {
 
     it("shows a clicked node's card with its connections, community and links", async () => {
         const { element, session } = await startPage();
-        const at = element.nodeScreenPosition("Valjean");
-        assert.isTrue(at?.visible, "Valjean is on screen");
-
-        await userEvent.click(element, { position: { x: at?.x ?? 0, y: at?.y ?? 0 } });
+        await userEvent.click(element, { position: pointOn(element, "Valjean") });
         await session.styles.settled();
         await element.waitForStableFrame();
 
         assert.deepEqual([...session.selection.nodes].map(String), ["Valjean"]);
+        assert.equal(drawnHalos(element), 1, "the clicked node is drawn with a halo");
         const card = await screen.findByRole("dialog", { name: "Node details" });
         assert.isNotNull(within(card).getByText("Valjean"));
         assert.match(card.textContent ?? "", /36 connections/);
@@ -191,6 +202,15 @@ describe("the start page's graph", () => {
         assert.match(card.textContent ?? "", /Linked to .+ and 32 more/);
         // The rest of the graph stays faded while the card is open.
         assert.isTrue(faded(session, "Napoleon"));
+
+        // With the pointer off the graph the clicked node keeps its halo.
+        await userEvent.hover(screen.getByRole("heading", { level: 1 }));
+        await waitFor(() => {
+            assert.isNull(session.selection.hovered);
+        });
+        await session.styles.settled();
+        await element.waitForStableFrame();
+        assert.equal(drawnHalos(element), 1, "the clicked node keeps its halo off hover");
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {

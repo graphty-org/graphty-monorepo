@@ -1331,8 +1331,9 @@ export class Node {
 
         // A HALO OF OPACITY 0 IS NOT DRAWN AT ALL. Drawn invisible it still covered the node in
         // the depth and stencil buffers, so an outline on a selected node (`node.outline`) was
-        // painted over the whole node instead of around it.
-        if (!wanted || (kind === "halo" && this.selectionStyle().opacity === 0)) {
+        // painted over the whole node instead of around it. The halo's OWN look: a layer's
+        // halo is drawn even while the selection's own halo is hidden at opacity 0.
+        if (!wanted || (kind === "halo" && look.opacity === 0)) {
             if (existing && !existing.isDisposed()) {
                 existing.setEnabled(false);
             }

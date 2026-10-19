@@ -200,6 +200,29 @@ describe("a hover layer's halo in 3D", () => {
         );
     });
 
+    it("draws the layer's halo on a clicked node while the selection's own halo is hidden", async () => {
+        const element = await mounted();
+        // The selection draws no halo of its own; a layer marks the hovered node, or with none
+        // hovered the clicked one.
+        element.selectionStyle = { opacity: 0 };
+        await element.session.styles.add({
+            name: "highlight the focused node",
+            target: "node",
+            selector: { match: "hover", orSelected: true },
+            set: { "node.haloColor": "#00BCD4", "node.haloOpacity": 0.5 },
+        });
+        await applied(element);
+
+        await click(element, at(element, "box"));
+        await applied(element);
+        assert.strictEqual(element.getSelectedNode()?.id, "box", "the click selected the box");
+        assertHaloAround(element, "box", DEFAULT_SCALE);
+
+        await pointTo(element, { x: WIDTH - 5, y: 5 });
+        assert.isNull(element.session.selection.hovered, "the pointer left the node");
+        assertHaloAround(element, "box", DEFAULT_SCALE);
+    });
+
     it("draws nothing on hover without a halo layer", async () => {
         const element = await mounted();
         const before = element.graph

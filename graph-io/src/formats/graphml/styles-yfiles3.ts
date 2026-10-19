@@ -27,6 +27,7 @@ import {
     treeChildren,
     treeText,
     valueColumns,
+    type YedOutline,
     type YedRead,
 } from "./styles-yed.js";
 
@@ -357,18 +358,22 @@ const BLACK = "#FF000000";
 const FLOWCHART_FILL = "#FFB7C9E3";
 
 /**
- * yFiles for HTML 2.6 ShapeNodeShape names the neutral shapes do not spell, read as the shape the common table gives
- * their sibling (TRAPEZ2 as TRAPEZ, STAR5_UP as STAR5); PILL, a stadium, is a rectangle with half-circle ends.
+ * yFiles for HTML 2.6 ShapeNodeShape names the neutral shapes do not spell, as the shape yFiles documents them as:
+ * SHEARED_RECTANGLE sheared to the right and SHEARED_RECTANGLE2 to the left, TRAPEZ smaller at the bottom and TRAPEZ2
+ * at the top, TRIANGLE2 pointing to the bottom, FAT_ARROW an arrow pointing to the right and FAT_ARROW2 to the left
+ * (ShapeNodeShape API docs). A mirrored or turned shape is the polygon of its corners (`x,y` fractions of the half
+ * sizes, y up). STAR5_UP is a star; PILL, a stadium, is a rectangle with half-circle ends.
  */
-const SHAPES_26: ReadonlyMap<string, string> = new Map([
-    ["sheared-rectangle", "parallelogram"],
-    ["sheared-rectangle2", "parallelogram"],
-    ["trapez", "trapezoid"],
-    ["trapez2", "trapezoid"],
-    ["star5-up", "star"],
-    ["triangle2", "triangle"],
-    ["fat-arrow2", "parallelogram"],
-    ["pill", "round-rectangle"],
+const SHAPES_26: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
+    ["sheared-rectangle", { shape: "parallelogram" }],
+    ["sheared-rectangle2", { shape: "polygon", points: "-0.5,-1 1,-1 0.5,1 -1,1" }],
+    ["trapez", { shape: "polygon", points: "-0.5,-1 0.5,-1 1,1 -1,1" }],
+    ["trapez2", { shape: "trapezoid" }],
+    ["star5-up", { shape: "star" }],
+    ["triangle2", { shape: "polygon", points: "-1,1 0,-1 1,1" }],
+    ["fat-arrow", { shape: "polygon", points: "-1,-1 0.6,-1 1,0 0.6,1 -1,1 -0.6,0" }],
+    ["fat-arrow2", { shape: "polygon", points: "-0.6,-1 1,-1 0.6,0 1,1 -0.6,1 -1,0" }],
+    ["pill", { shape: "round-rectangle" }],
 ]);
 
 /** ShapeNodeStyle's ROUND_RECTANGLE corner size (ShapeNodeShape API docs: "The corner size is 10"). */
@@ -508,6 +513,10 @@ function readNodeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
     );
     putStroke(strokeOf(refs, prop(style, "stroke")), put, at);
     put("shape", nodeShapeOf(style, at));
+    const points = SHAPES_26.get(shapeKey(treeAttr(style.e, "shape")) ?? "")?.points;
+    if (points !== undefined) {
+        put("shapePoints", points);
+    }
     const cornerSize = style.tag === "RectangleNodeStyle" ? treeAttr(style.e, "cornerSize") : undefined;
     if (cornerSize !== undefined) {
         put("cornerRadius", canonNumber(cornerSize, at("cornerRadius")));
@@ -560,7 +569,7 @@ function unwrapped(refs: References, first: Resolved): Resolved {
 function nodeShapeOf(style: StyleObject, at: SiteOf): string | null {
     const shape = treeAttr(style.e, "shape");
     if (shape !== undefined) {
-        return SHAPES_26.get(shapeKey(shape) ?? "") ?? canonEnum("shape", shape, "yfiles3", at("shape"));
+        return SHAPES_26.get(shapeKey(shape) ?? "")?.shape ?? canonEnum("shape", shape, "yfiles3", at("shape"));
     }
     if (style.tag === "RectangleNodeStyle") {
         return treeAttr(style.e, "cornerSize") === undefined ? "rectangle" : "round-rectangle";

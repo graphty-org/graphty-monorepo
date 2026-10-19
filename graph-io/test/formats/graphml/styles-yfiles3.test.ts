@@ -57,9 +57,21 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
     it("reads the 2.6 ShapeNodeShape names and ROUND_RECTANGLE's corner of 10", async () => {
         const { node } = await sheet("specimen-node-shapes-p2.graphml");
         expect(node("shape", "v2-shape-sheared-rectangle")).toBe("parallelogram");
-        expect(node("shape", "v2-shape-sheared-rectangle2")).toBe("parallelogram");
-        expect(node("shape", "v2-shape-trapez")).toBe("trapezoid");
         expect(node("shape", "v2-shape-trapez2")).toBe("trapezoid");
+        // the mirrored and turned ones as yFiles documents them, not as their sibling: SHEARED_RECTANGLE2 sheared to
+        // the left, TRAPEZ smaller at the bottom, TRIANGLE2 pointing down, FAT_ARROW right and FAT_ARROW2 left (y up)
+        const corners: Record<string, string> = {
+            "v2-shape-sheared-rectangle2": "-0.5,-1 1,-1 0.5,1 -1,1",
+            "v2-shape-trapez": "-0.5,-1 0.5,-1 1,1 -1,1",
+            "v2-shape-triangle2": "-1,1 0,-1 1,1",
+            "v2-shape-fat-arrow": "-1,-1 0.6,-1 1,0 0.6,1 -1,1 -0.6,0",
+            "v2-shape-fat-arrow2": "-0.6,-1 1,-1 0.6,0 1,1 -0.6,1 -1,0",
+        };
+        for (const [id, points] of Object.entries(corners)) {
+            expect(node("shape", id), id).toBe("polygon");
+            expect(node("shapePoints", id), id).toBe(points);
+        }
+        expect(node("shapePoints", "v2-shape-trapez2")).toBeNull();
         expect(node("shape", "v2-shape-star5-up")).toBe("star");
         expect(node("shape", "v2-shape-pill")).toBe("round-rectangle");
         expect(node("cornerRadius", "v2-shape-pill")).toBe(

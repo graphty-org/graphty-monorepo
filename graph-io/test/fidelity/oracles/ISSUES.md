@@ -2053,3 +2053,51 @@ Still open, and why:
 - Cytoscape.js end-label rotation (`source-text-rotation`, `target-text-rotation`), `*-text-margin-*` and
   `text-justification` on edge labels: graph-io does not read the rotations and margins of end labels yet, and
   graphty-element's captions have no rotation or shift of their own.
+
+## Specimen sheets: partly placed files, Pajek sources, Graphviz stripes and wedges (fix round 2, rendering batch 3, 2026-10-19)
+
+Fixed:
+
+- A file that places some nodes and not others, with no edges (`gexf-specimen-node-sizes-opacity` and its pages,
+  `position-none`): graphty-element kept the file's positions only when the advised layout could hold nodes still,
+  and a graph with no edges is advised a ring, which cannot, so one unplaced node sent the whole sheet round a
+  circle (`frame.rotation` 160, every size and position failing). The import now lays out only the unplaced nodes
+  with the default force layout whenever the advised one cannot hold the placed nodes still
+  (`GraphSession` layout advice; `test/browser/file-positions.test.ts`). `gexf-specimen-node-sizes-opacity`: 23
+  failing elements to 0; `-p2`: 25 to 6 (the three `alpha-*` widths, Gephi's own size rule).
+- Pajek's source vertices drawn blank (`pajek-specimen-edge-labels`, `-p2`, every `*-s` vertex): graph-io's planner
+  explained the fill, border and size of every vertex by its in-degree (caption vertices 0, line ends 1), counted
+  on graph-io's snapshot, where a `*Edges` line of a file with `*Arcs` is stored as two directed rows and so gives
+  its source an in-degree of 1. graphty-element keeps one row per line and counts 0 there, so the sources took the
+  captions' white, borderless, 0.2-wide style. graph-io no longer offers a degree as an explanation when an
+  undirected edge is stored as a directed pair (`styles/plan/features.ts`, `test/styles/plan.test.ts`); the
+  vertices' styles come from their own columns. Every `node.*` row of both pages passes (56 vertices).
+- Graphviz `striped` and `wedged` (`dot-specimen-images-charts`): graphty-element drew the bands and slices in
+  Graphviz's order and sizes; the comparator read the oracle's node fill from its largest piece's box, which for
+  equal stripes is decided by rounding and for a wedge is the wedge's bounding box, not its area. A node filled in
+  pieces (two or more fills, none covering their union) is now read by its first piece, the first color of the list
+  (`oracle/associate.ts`, `compare-oracle-labels.test.ts`). graph-io now gives what sized colors leave to the last
+  color, as Graphviz's `parseSegs` does (`wedged-partial` `red;0.3:green;0.3` is red 0.3, green 0.7; it drew a third
+  of the pie empty), and reads `style="striped,rounded"` with square corners, as Graphviz draws it.
+
+Still open, and why:
+
+- `dot-specimen-images-charts` `wedged-partial` `node.fill`: the oracle's green piece covers the whole box (0.7 of
+  the pie), so it is read as the node's fill, while graphty reports the node's own fill (the list's first color,
+  under the pie). The drawing matches; the comparator reads a pie's fill differently on its two sides.
+- Cytoscape desktop's bar, line, box and heat strip charts (`{xgmml,cx,cx2,cys}-specimen-images-charts`, `-p2`,
+  `-p5`, `-p6`): graph-io reads only pie and ring charts and graphty-element has no chart of bars, lines or boxes
+  on a node's face (JFreeChart's layout: axes, margins, item labels). The face drawing in graphty-element
+  (`meshes/NodeDecorationMesh.ts` already draws colored polygon pieces) and graph-io's chart reader are both
+  needed; not started in this batch.
+- Gephi's `edge.radius` preview setting (`gexf-specimen-arrows-p4`, every curved edge: `edge.curve` 0.148 against
+  0.102, `edge.route` 0.185): Gephi stops each edge that many pixels short of its nodes, which trims the arc to its
+  flatter middle. graphty-element has no option for a gap between a node and its line's end (Cytoscape.js's
+  `source-distance-from-node` / `target-distance-from-node` need the same), and graph-io does not read the setting.
+- Gephi's curved edges between large nodes (`gexf-miserables`, 103 routes): `62.0->59.0` curves 0.125 in graphty
+  against 0.059; graphty's drawn arc starts farther from the node than its outline. The mechanism (where
+  `Edge.placeRoute` trims the arc's 7.5-degree pieces at the outline) is not isolated yet.
+- yEd arc, quad curve, bezier and spline edges (`yed-graphml-specimen-edges-lines`, `edge-bend-curve`): graphty's
+  curve through the control points bows deeper (`spline` 0.347 against 0.199). Not worked in this batch.
+- Graphviz edge routing and the layout of DOT files without positions: needs Graphviz's own layouts, which are not
+  merged into this branch (`feat/graphviz-layouts`).

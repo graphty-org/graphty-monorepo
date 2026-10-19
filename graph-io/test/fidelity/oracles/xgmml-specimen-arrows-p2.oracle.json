@@ -25,7 +25,7 @@
     "fonts": "the style's own font names, written into <text> as Java names them (for example Dialog.bold, SansSerif.plain); label wrapping was measured by Java with the JRE's fonts",
     "svgPostprocessing": "none: the SVG is Cytoscape's output byte for byte",
     "exportsAgreed": 3,
-    "loads": "two loads, each in a new session, drew different SVGs (a different fit: node positions or label extents differed); this oracle is one of them, and a regenerate may write the other",
+    "loads": "two loads, each in a new session, drew the same SVG (in any element order, numbers within 1 px)",
     "date": "2026-10-18",
     "regenerate": "CYREST_PORT=<port> node graph-io/test/fidelity/oracles/tools/cytoscape-desktop.mjs xgmml-specimen-arrows-p2 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/xgmml-specimen-arrows-p2.svg"
 }

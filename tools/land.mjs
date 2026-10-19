@@ -1136,13 +1136,14 @@ export function newestStableCut(ctx) {
  * @returns `{ sha }` or `{ error }`
  */
 function pickCut(ctx, given) {
-    let sha = newestStableCut(ctx);
-    if (sha) console.log(`land: the newest golden commit with a stable preview is ${sha.slice(0, 10)}`);
-    else if (given) {
+    let sha = null;
+    if (given) {
         const r = hasRef(ctx, ctx.main, given);
         if (r.status !== 0) return { error: `no commit ${given}` };
         sha = r.stdout;
-        console.log(`land: no golden commit since master has a stable preview; cutting ${given}`);
+        console.log(`land: cutting the commit given, ${given}`);
+    } else if ((sha = newestStableCut(ctx))) {
+        console.log(`land: the newest golden commit with a stable preview is ${sha.slice(0, 10)}`);
     } else {
         return {
             error:

@@ -1190,7 +1190,7 @@ Rules:
   `node tools/land.mjs revert <branch>`: it reverts that branch's land commit on golden and pushes
   through the push queue. Fix the change on its branch and land it again.
 - What ships is a cut, not golden's tip: `node tools/land.mjs cut [<commit>]` points `golden-cut` at the
-  newest golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
+  commit you name, or else the newest golden commit whose screenshot preview has no unstable or failed images and opens or refreshes the
   draft cut pull request into master; the golden pull request stays as an early look, and approvals that ship
   are made on the cut pull request. A landing that breaks golden gets one pipeline round to be fixed, then
   is reverted from golden and landed again once fixed.

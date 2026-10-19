@@ -278,7 +278,11 @@ const GENERIC_SHAPES: readonly (readonly [string, string])[] = [
     ["box", "rectangle"],
 ];
 
-/** yEd's label positions (`modelPosition` of the internal, sides and eight-position models). */
+/**
+ * yEd's label positions (`modelPosition` of the internal, sides, sandwich, corners and eight-position models). The
+ * internal model's `t` (inside the top of the box: a group's title) is `inside-top`; its other inside positions have
+ * no neutral value and read as the nearest side or corner.
+ */
 const YED_POSITIONS: ReadonlyMap<string, string> = new Map([
     ["c", "center"],
     ["t", "top"],
@@ -382,14 +386,78 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf)
             put("labelItalic", known[1]);
         }
     }
-    const position = node ? treeAttr(label, "modelPosition") : undefined;
-    if (position !== undefined) {
-        const known = YED_POSITIONS.get(position.trim().toLowerCase());
-        if (known === undefined) {
-            noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, position.slice(0, MAX_STYLE_VALUE_LENGTH));
-        }
-        put("labelPosition", known ?? null);
+    if (node) {
+        readLabelPosition(label, put, at);
     }
+}
+
+/**
+ * Reads a node label's position: a `custom` label from its `y:SmartNodeLabelModelParameter`, any other from its
+ * `modelPosition` (yEd's default model is `internal`).
+ * @param label - the label element
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelPosition(label: unknown, put: PutValue, at: SiteOf): void {
+    const model = treeAttr(label, "modelName")?.trim().toLowerCase() ?? "internal";
+    if (model === "custom") {
+        const smart = treeChild(treeChild(label, "ModelParameter"), "SmartNodeLabelModelParameter");
+        if (smart === undefined) {
+            noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, "custom");
+            return;
+        }
+        put("labelPosition", smartPosition(smart));
+        return;
+    }
+    const position = treeAttr(label, "modelPosition");
+    if (position === undefined) {
+        return;
+    }
+    const key = position.trim().toLowerCase();
+    const known = model === "internal" && key === "t" ? "inside-top" : YED_POSITIONS.get(key);
+    if (known === undefined) {
+        noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, position.slice(0, MAX_STYLE_VALUE_LENGTH));
+    }
+    put("labelPosition", known ?? null);
+}
+
+/**
+ * The nearest neutral position of a SmartNodeLabelModel placement. yEd puts the point `labelRatio` of the label
+ * (-0.5..0.5 of its size from its center) on the point `nodeRatio` of the node; the offsets are ignored. On each axis
+ * a node ratio below or above zero is that side, zero is the middle. A label on the node's top edge that hangs down
+ * into it (labelRatioY at or below zero) is `inside-top`; every other edge or corner placement is the outside side
+ * or corner, the nearest neutral value (an inside bottom or side has none).
+ * @param smart - the `y:SmartNodeLabelModelParameter` element
+ * @returns the position
+ */
+function smartPosition(smart: unknown): string {
+    const ratio = (name: string): number => {
+        const n = Number(treeAttr(smart, name));
+        return Number.isFinite(n) ? n : 0;
+    };
+    const h = sideOf(ratio("nodeRatioX"), "left", "right");
+    const v = sideOf(ratio("nodeRatioY"), "top", "bottom");
+    if (v === "top" && h === "" && ratio("labelRatioY") <= 0) {
+        return "inside-top";
+    }
+    if (v === "" || h === "") {
+        return v + h || "center";
+    }
+    return `${v}-${h}`;
+}
+
+/**
+ * One axis of a SmartNodeLabelModel node ratio.
+ * @param ratio - the ratio, -0.5..0.5
+ * @param low - the side below zero
+ * @param high - the side above zero
+ * @returns the side, or "" for the middle
+ */
+function sideOf(ratio: number, low: string, high: string): string {
+    if (ratio < 0) {
+        return low;
+    }
+    return ratio > 0 ? high : "";
 }
 
 /**
@@ -697,17 +765,21 @@ export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["crow", "crows_foot_many"],
 ]);
 
-/** yEd's label positions in the internal model, by neutral position. */
-const YED_MODEL_POSITIONS: ReadonlyMap<string, string> = new Map([
-    ["center", "c"],
-    ["top", "t"],
-    ["bottom", "b"],
-    ["left", "l"],
-    ["right", "r"],
-    ["top-left", "tl"],
-    ["top-right", "tr"],
-    ["bottom-left", "bl"],
-    ["bottom-right", "br"],
+/**
+ * yEd's label model and position by neutral position: the inside ones in the internal model, the outside sides and
+ * corners in the eight-position model.
+ */
+const YED_MODEL_POSITIONS: ReadonlyMap<string, readonly [string, string]> = new Map([
+    ["center", ["internal", "c"]],
+    ["inside-top", ["internal", "t"]],
+    ["top", ["eight_pos", "n"]],
+    ["bottom", ["eight_pos", "s"]],
+    ["left", ["eight_pos", "w"]],
+    ["right", ["eight_pos", "e"]],
+    ["top-left", ["eight_pos", "nw"]],
+    ["top-right", ["eight_pos", "ne"]],
+    ["bottom-left", ["eight_pos", "sw"]],
+    ["bottom-right", ["eight_pos", "se"]],
 ]);
 
 /**
@@ -812,8 +884,8 @@ function labelTree(get: GetValue, node: boolean, approximate: Approximate): Tree
         if (written === undefined) {
             approximate("labelPosition", position);
         }
-        label["@_modelName"] = "internal";
-        label["@_modelPosition"] = written ?? "c";
+        label["@_modelName"] = written?.[0] ?? "internal";
+        label["@_modelPosition"] = written?.[1] ?? "c";
     }
     label["#text"] = text;
     return label;

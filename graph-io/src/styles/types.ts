@@ -83,11 +83,21 @@ export type StyleArrowShape =
 export type StyleLabelWeight = "normal" | "bold";
 
 /**
- * Where a node's label sits relative to the node.
+ * Where a node's label sits relative to the node. The sides and corners are outside the node (`top` is above it);
+ * `inside-top` is inside the node, along its top edge (a group box's title).
  * @category Styles
  */
 export type StyleLabelPosition =
-    "center" | "top" | "bottom" | "left" | "right" | "top-left" | "top-right" | "bottom-left" | "bottom-right";
+    | "center"
+    | "top"
+    | "bottom"
+    | "left"
+    | "right"
+    | "top-left"
+    | "top-right"
+    | "bottom-left"
+    | "bottom-right"
+    | "inside-top";
 
 /**
  * The neutral node properties and the type of each value. Lengths are in the unit `FileStyles.units.length`

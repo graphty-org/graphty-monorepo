@@ -228,13 +228,31 @@ describe("JSON styles: reading", () => {
         expect(r.styles.styles.source.tool).toBe("sigma");
         expect(r.styles.styles.units.length).toBe("relative");
         expect(values(r, "node", "fill")).toEqual(["#ff0000", "#666666"]);
-        expect(values(r, "node", "fillOpacity")[0]).toBe(0.5);
+        expect(values(r, "node", "fillOpacity")[0]).toBe(127 / 255); // sigma keeps an alpha as a byte
         expect(values(r, "node", "width")).toEqual([8, 20]); // sigma draws size as a radius
         expect(values(r, "node", "label")[0]).toBe("A");
         // sigma 4 draws an element marked visibility "hidden" or hidden true: its default styles bind neither
         expect(values(r, "node", "visible")[1] ?? null).toBe(null);
         expect(values(r, "edge", "color")).toEqual(["#0000ff"]);
         expect(values(r, "edge", "width")).toEqual([2]);
+    });
+
+    it("reads colors and sizes with sigma.js's own rules: what it cannot read is black, a negative node size is no node", async () => {
+        // graphology-specimen-node-fills-borders, -edges-lines-p2 and -node-sizes-opacity, drawn by sigma 4.0.1
+        const colors = ["hsl(120,100%,25%)", "rgb( 25 , 130 , 196 )", "#f80c", "", "CornflowerBlue"];
+        const r = await load({
+            attributes: {},
+            options: { type: "directed" },
+            nodes: [
+                ...colors.map((color, i) => ({ key: `n${i}`, attributes: { color, size: 4 } })),
+                { key: "negative", attributes: { size: -10 } },
+            ],
+            edges: colors.map((color, i) => ({ source: "n0", target: `n${i}`, attributes: { color } })),
+        });
+        const read = ["#000000", "#000000", "#f80c00", "#000000", "#6495ed"];
+        expect(values(r, "node", "fill").slice(0, 5)).toEqual(read);
+        expect(values(r, "edge", "color")).toEqual(read);
+        expect(values(r, "node", "width")[5]).toBe(0);
     });
 
     it("draws no edge labels and puts node labels right of and over the nodes, thinned where they overlap, as sigma.js does", async () => {

@@ -405,6 +405,52 @@ function cssColor(text: string): { hex: StyleColor; alpha: number } | null {
     return hexColor(text, false) ?? cssFunction(text);
 }
 
+/** sigma.js's `rgb()` / `rgba()` reader: integer channels, no space before the `)` (sigma/utils parseColor). */
+const SIGMA_RGBA = /^\s*rgba?\s*\(\s*(\d*)\s*,\s*(\d*)\s*,\s*(\d*)(?:\s*,\s*(.*)?)?\)\s*$/;
+
+/**
+ * A color as sigma.js 4.0.1 reads it (sigma/utils parseColor), untrimmed: `transparent`, the 148 HTML color names in
+ * any case, `#rgb`, `#rrggbb` and `#rrggbbaa` (any other length is read two digits a channel, so `#f80c` is
+ * `#f80c00`), and `rgb()` / `rgba()` with integer channels. Anything else, the empty string included, is black.
+ * @param text - the value as the file has it
+ * @returns the color and its alpha, and whether sigma read it as a color (else it is black, or garbled)
+ */
+function sigmaColor(text: string): { color: StyleColor; alpha: number; read: boolean } {
+    const lower = text.toLowerCase();
+    if (lower === "transparent") {
+        return { color: "#000000", alpha: 0, read: true };
+    }
+    const named = CSS_COLORS.get(lower);
+    if (named !== undefined) {
+        return sigmaColor(named);
+    }
+    let rgb = [0, 0, 0];
+    let a = 1;
+    let read = false;
+    if (text.startsWith("#")) {
+        read = /^#(?:[\da-f]{3}|[\da-f]{6}|[\da-f]{8})$/i.test(text);
+        const at = text.length === 4 ? [1, 1, 2, 2, 3, 3] : [1, 2, 3, 4, 5, 6];
+        // parseInt reads a leading run of hex digits; NaN (no digit) is stored as 0
+        rgb = [0, 2, 4].map((k) => Number.parseInt(text.charAt(at[k]) + text.charAt(at[k + 1]), 16) || 0);
+        if (text.length === 9) {
+            a = Number.parseInt(text.slice(7, 9), 16) / 255;
+        }
+    } else {
+        const m = SIGMA_RGBA.exec(text);
+        if (m !== null) {
+            read = true;
+            rgb = [Number(m[1]), Number(m[2]), Number(m[3])];
+            if (m[4]) {
+                a = Number(m[4]);
+            }
+        }
+    }
+    // sigma packs each channel into a byte (ponytail: a channel over 255 wraps here; sigma lets it spill into the
+    // next channel)
+    const [r, g, b] = rgb.map((v) => v & 255);
+    return { color: rgbHex(r, g, b), alpha: ((a * 255) & 255) / 255, read };
+}
+
 /** One of Pajek's decimal color channels in `RGB(1,0.8,0)`: 0..1, no spaces (Pajek 6.02 manual p. 76). */
 const PAJEK_CHANNEL = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 
@@ -478,9 +524,11 @@ function channels(raw: object): { hex: StyleColor; alpha: number } | null {
 /**
  * A canonical color in the file's dialect, or null with a note.
  *
- * - CSS (`css`, `vis`, `graphology`, `cytoscape-js`, `graphty` and any dialect not listed): `#rgb`, `#rgba`,
+ * - CSS (`css`, `vis`, `cytoscape-js`, `graphty` and any dialect not listed): `#rgb`, `#rgba`,
  *   `#rrggbb`, `#rrggbbaa`, `rgb()`, `rgba()`, `hsl()`, `hsla()`, CSS names and `transparent`, resolved as
  *   graphty-element resolves them (out-of-range channels are gamut mapped).
+ * - `graphology`: sigma.js's own parser (see `sigmaColor`); a string it cannot read is BLACK, with a note, because
+ *   that is what sigma draws, and a value that is not a string is null (sigma throws on it).
  * - `graphviz`: Graphviz's own rules (see `graphvizColor`); an unknown color is BLACK, with a note, because that is
  *   what Graphviz draws. `x11`: the same names, and an unknown one is null.
  * - `java`, `gephi`, `cytoscape`: the `java.awt.Color` names first, then CSS; a `java` integer is an RGB value.
@@ -511,12 +559,30 @@ export function canonColor(
         const v = raw >>> 0;
         return { color: rgbHex((v >>> 16) & 255, (v >>> 8) & 255, v & 255), alpha: 1 };
     }
+    if (dialect === "graphology" && typeof raw === "string" && raw.trim() === "") {
+        // sigma draws a blank color black, where every other reader has no color
+        spendAt(site, 1);
+        noteAt(site, STYLE_ISSUE.BAD_VALUE, raw);
+        return { color: "#000000", alpha: 1 };
+    }
     const text = scalarText(raw, site);
     if (text === null) {
         return null;
     }
     if (dialect === "graphviz" || dialect === "x11") {
         return graphvizCanon(text, dialect === "x11" ? "x11" : "graphviz", site, options);
+    }
+    if (dialect === "graphology") {
+        if (typeof raw !== "string") {
+            // sigma throws while drawing a color that is not a string
+            noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
+            return null;
+        }
+        const c = sigmaColor(text);
+        if (!c.read) {
+            noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
+        }
+        return { color: c.color, alpha: c.alpha };
     }
     const c = textColor(text.trim(), dialect);
     if (c === null) {

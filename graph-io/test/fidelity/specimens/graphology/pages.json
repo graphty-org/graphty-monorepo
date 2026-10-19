@@ -62,6 +62,12 @@
             "specimens": 25
         },
         {
+            "id": "specimen-edges-lines-p2",
+            "file": "specimen-edges-lines-p2.json",
+            "settings": {},
+            "specimens": 15
+        },
+        {
             "id": "specimen-arrows",
             "file": "specimen-arrows.json",
             "settings": {},
@@ -120,7 +126,8 @@
         "a label's newline is drawn as a space (one line); leading and trailing spaces are kept",
         "a non-string label (a number or a boolean) or a non-string color (a number) makes sigma throw while drawing, so those specimens are not on the sheets",
         "colors: #rgb, #rrggbb, #rrggbbaa, rgb() and rgba() with integer channels, the 148 names of HTML_COLORS (any case) and transparent are read; rgb() with a space before ')', percent or decimal channels, hsl(), an unknown name and \"\" are drawn black; a 4-digit hex (#f80c) is read as #f80c00 (red)",
-        "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw nothing; a numeric string size is read as its number",
+        "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw no node, but an edge of size 0 or below is drawn minEdgeThickness wide; a numeric string size is read as its number",
+        "an edge without a key (graphology's serialization makes it optional) is drawn like any other, under the key graph.import generates",
         "edge sizes below 1.7 px are drawn 1.7 px wide (minEdgeThickness); parallel and reciprocal edges are drawn on top of each other (no parallel spread without a parallel path); a self loop is a small circle",
         "edge labels are drawn only with renderEdgeLabels on, over the line, clipped to the edge's length, and (edgeLabelAnchors nodeLabels) only where both end nodes show their labels; with edgeLabelAnchors allNodes also between unlabeled ends",
         "@sigma/export-image's temporary renderer reports 'Container has no width' once after the export when edge labels are on; the exported PNG is complete"

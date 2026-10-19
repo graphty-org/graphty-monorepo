@@ -83,6 +83,30 @@ describe("canonColor: CSS dialects, as graphty-element draws them", () => {
     ]);
 });
 
+describe("canonColor: graphology, as sigma.js 4.0.1 draws it (graphology-specimen-node-fills-borders)", () => {
+    colorTable([
+        ["red", "graphology", "#ff0000"],
+        ["CornflowerBlue", "graphology", "#6495ed"],
+        ["transparent", "graphology", "#000000", 0],
+        ["#f80", "graphology", "#ff8800"],
+        ["#E76F51", "graphology", "#e76f51"],
+        ["#1d3557cc", "graphology", "#1d3557", 0.8],
+        ["rgb(106,76,147)", "graphology", "#6a4c93"],
+        ["rgba(255,0,0,0.5)", "graphology", "#ff0000", 127 / 255],
+        ["rgba(0,128,0,0)", "graphology", "#008000", 0],
+        // what sigma cannot read is black (or read two hex digits a channel)
+        ["#f80c", "graphology", "#f80c00", 1, "W_STYLE_BAD_VALUE"],
+        ["rgb( 25 , 130 , 196 )", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["rgb(100%,50%,0%)", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["rgb(10.5,200.5,90.5)", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["hsl(120,100%,25%)", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["notacolor", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        [" red", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        ["", "graphology", "#000000", 1, "W_STYLE_BAD_VALUE"],
+        [12, "graphology", null, 1, "W_STYLE_BAD_VALUE"],
+    ]);
+});
+
 describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
     // Every expectation below was measured with `dot -Txdot`.
     colorTable([
@@ -385,8 +409,9 @@ describe("hostile values return null with a note and never throw", () => {
             for (const use of ["line", "fill", "edge"] as const) {
                 const s = site();
                 const c = canonColor(raw, dialect, s, { use });
-                // Graphviz draws an unknown color black; every other dialect gives no color.
-                if (dialect === "graphviz" && c !== null) {
+                // Graphviz and sigma (a graphology string) draw an unknown color black; every other dialect gives no
+                // color.
+                if ((dialect === "graphviz" || (dialect === "graphology" && typeof raw === "string")) && c !== null) {
                     expect(c.color).toBe("#000000");
                 } else if (!(dialect === "java" && raw === -1)) {
                     expect(c).toBeNull();

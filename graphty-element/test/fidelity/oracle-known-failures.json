@@ -20712,6 +20712,8 @@
             "background": []
         },
         "graphology-specimen-arrows": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20722,9 +20724,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-arrows-p2": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20735,9 +20743,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-arrows-p2@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20748,9 +20762,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-arrows@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20761,9 +20781,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edge-labels": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20775,9 +20801,15 @@
             "node.gradient": [],
             "node.stroke": [],
             "label.present": [],
-            "label.text": []
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edge-labels-p2": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20789,9 +20821,15 @@
             "node.gradient": [],
             "node.stroke": [],
             "label.present": [],
-            "label.text": []
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edge-labels-p2@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20803,9 +20841,15 @@
             "node.gradient": [],
             "node.stroke": [],
             "label.present": [],
-            "label.text": []
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edge-labels-p3": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20817,9 +20861,15 @@
             "node.gradient": [],
             "node.stroke": [],
             "label.present": [],
-            "label.text": []
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edge-labels-p3@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20831,9 +20881,15 @@
             "node.gradient": [],
             "node.stroke": [],
             "label.present": [],
-            "label.text": []
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edge-labels@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20845,9 +20901,15 @@
             "node.gradient": [],
             "node.stroke": [],
             "label.present": [],
-            "label.text": []
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edges-lines": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20858,9 +20920,53 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
+        },
+        "graphology-specimen-edges-lines-p2": {
+            "node.present": [],
+            "node.extra": [],
+            "node.position": [],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
+        },
+        "graphology-specimen-edges-lines-p2@matched": {
+            "node.present": [],
+            "node.extra": [],
+            "node.position": [],
+            "node.width": [],
+            "node.height": [],
+            "node.sizeToSpacing": [],
+            "node.sizeToExtent": [],
+            "node.shape": [],
+            "node.fill": [],
+            "node.fillOpacity": [],
+            "node.gradient": [],
+            "node.stroke": [],
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-edges-lines@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20871,9 +20977,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-images-charts": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20884,9 +20996,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-images-charts@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20897,9 +21015,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-labels": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20910,10 +21034,16 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": ["force-label-small", "label-grid-smaller", "label-size-below-threshold"],
-            "label.text": []
+            "label.present": ["force-label-small","label-grid-smaller","label-size-below-threshold"],
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-labels@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20924,23 +21054,35 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": ["force-label-small", "label-grid-smaller", "label-size-below-threshold"],
-            "label.text": []
+            "label.present": ["force-label-small","label-grid-smaller","label-size-below-threshold"],
+            "label.text": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders": {
+            "node.present": ["color-rgba-zero","color-transparent"],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["color-empty", "color-hex4", "color-hex8-alpha-33", "color-hex8-alpha-80", "color-hsl", "color-rgb-decimal", "color-rgb-percent", "color-rgb-spaces", "color-rgba-half", "color-unknown-name"],
-            "node.fillOpacity": ["color-hex4", "color-hex8-alpha-33", "color-hex8-alpha-80", "color-rgba-half"],
+            "node.fill": ["color-hex8-alpha-33","color-hex8-alpha-80","color-rgba-half"],
+            "node.fillOpacity": ["color-hex8-alpha-33","color-hex8-alpha-80","color-rgba-half"],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p2": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20951,9 +21093,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p2@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20964,9 +21112,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p3": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20977,9 +21131,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p3@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -20990,9 +21150,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p4": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21003,9 +21169,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p4@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21016,9 +21188,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p5": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21029,9 +21207,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p5@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21042,9 +21226,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p6": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21055,9 +21245,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders-p6@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21068,22 +21264,34 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-fills-borders@matched": {
+            "node.present": ["color-rgba-zero","color-transparent"],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["color-empty", "color-hex4", "color-hex8-alpha-33", "color-hex8-alpha-80", "color-hsl", "color-rgb-decimal", "color-rgb-percent", "color-rgb-spaces", "color-rgba-half", "color-unknown-name"],
-            "node.fillOpacity": ["color-hex4", "color-hex8-alpha-33", "color-hex8-alpha-80", "color-rgba-half"],
+            "node.fill": ["color-hex8-alpha-33","color-hex8-alpha-80","color-rgba-half"],
+            "node.fillOpacity": ["color-hex8-alpha-33","color-hex8-alpha-80","color-rgba-half"],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-shapes": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21094,9 +21302,15 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-shapes@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -21107,33 +21321,49 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-sizes-opacity": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
-            "node.width": ["size-0", "size-negative"],
-            "node.height": ["size-0", "size-negative"],
+            "node.width": ["size-0","size-negative"],
+            "node.height": ["size-0","size-negative"],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["color-alpha-half", "size-0-5", "size-1", "size-negative", "zindex-10"],
+            "node.fill": ["color-alpha-half","size-0-5","size-1","zindex-10"],
             "node.fillOpacity": ["color-alpha-half"],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "graphology-specimen-node-sizes-opacity@matched": {
+            "node.present": [],
+            "node.extra": [],
             "node.position": [],
-            "node.width": ["size-0", "size-negative"],
-            "node.height": ["size-0", "size-negative"],
+            "node.width": ["size-0","size-negative"],
+            "node.height": ["size-0","size-negative"],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": ["color-alpha-half", "size-0-5", "size-1", "size-negative", "zindex-10"],
+            "node.fill": ["color-alpha-half","size-0-5","size-1","zindex-10"],
             "node.fillOpacity": ["color-alpha-half"],
             "node.gradient": [],
             "node.stroke": [],
-            "label.present": []
+            "label.present": [],
+            "frame.mirror": [],
+            "frame.rotation": [],
+            "frame.zoom": [],
+            "background": []
         },
         "json-cyjs-graphmaker": {
             "node.present": [],

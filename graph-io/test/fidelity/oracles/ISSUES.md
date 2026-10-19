@@ -1048,3 +1048,49 @@ Still open:
 - `specimen-node-sizes-opacity` `size-0-5`, `size-1`: sigma's drawing of these is under 2 px, so the fill read off
   its raster is the anti-aliased white (`#ffffff`, `#e3e3e3`), not the node's `#c8c8c8`. A comparator limit of
   raster oracles on sub-pixel nodes, not an import difference.
+
+## Specimen sheets: graphology
+
+The graphology specimen sheets (`graph-io/test/fidelity/specimens/graphology/`, written by
+`generators/specimens/graphology.mjs` with graphology's own `graph.export()`) drawn by sigma.js 4.0.1
+(`tools/web/web-oracle.mjs sigma`, a raster oracle). sigma 4's default styles read only a node's `x`, `y`, `size`,
+`color`, `label` and an edge's `size`, `color`, `label`; groups and mappings are absent, and sigma v3's attributes
+(`type`, `hidden`, `forceLabel`, `zIndex`, `image`, `border*`) are drawn as if absent.
+
+Fixed in graph-io (2026-10-18):
+
+- Colors were read as CSS, so graphty drew a color sigma cannot read in that color. sigma's own parser reads only
+  `transparent`, its 148 names, `#rgb`, `#rrggbb`, `#rrggbbaa` and `rgb()` / `rgba()` with integer channels and no
+  space before `)`; anything else is black. `node-fills-borders` `color-hsl` (graphty green), `color-rgb-spaces`
+  (blue), `color-rgb-percent` (orange), `color-rgb-decimal` (green), `color-unknown-name`, `color-empty` (gray) and
+  `color-hex4` (`#f80c`, which sigma reads as `#f80c00`, graphty as translucent orange), and the same seven on
+  `edges-lines-p2`, are now drawn as sigma draws them.
+- `node-sizes-opacity` `size-negative`: sigma draws no node; graphty drew it 20 units wide (the default size). A
+  negative size is now a node of size 0.
+
+Still open:
+
+- Edges are not judged on any graphology or Gephi JSON sheet: `rasterScene` (graphty-element
+  `test/fidelity/oracle/associate.ts`) builds the oracle scene from the nodes of the oracle's `drawn` record only
+  (`edges: []`), though the record lists every edge sigma drew. Only the raster check (not asserted) sees
+  `edges-lines`, `edges-lines-p2`, `arrows`, `arrows-p2` and the three `edge-labels` pages. A comparator gap.
+  Seen by eye on `edges-lines-p2`: every color matches; `edge-size-negative` (and `edge-size-0`, `edge-size-0-5`
+  on `edges-lines`) sigma draws `minEdgeThickness` (1.7 px) wide in its color, graphty a hairline. graph-io maps
+  no minimum edge width because graphty-element has no screen-pixel minimum for an edge's width.
+- `node-fills-borders` `color-hex8-alpha-80`, `color-hex8-alpha-33`, `color-rgba-half`, `node-sizes-opacity`
+  `color-alpha-half`: graphty draws the color at its alpha, as sigma does; the raster scene reads the fill blended
+  over white with opacity 1, so `node.fill` and `node.fillOpacity` fail. A comparator limit of raster oracles.
+- `node-fills-borders` `color-transparent`, `color-rgba-zero`: neither program shows anything; the raster scene
+  keeps the invisible oracle node and graphty's side drops it, so `node.present` fails. A comparator limit.
+- `labels` `label-size-below-threshold`, `force-label-small`: sigma draws no label on a node drawn under 6 px
+  (`labelRenderedSizeThreshold`); graphty draws "Small" and "Forced". graphty-element has no label visibility
+  channel keyed to the node's drawn size (`node.labelMinScreenSize` is the letters' size), so graph-io has nothing
+  to map it to; the fix is that channel in graphty-element. Same row as Gephi JSON's `label-small-node`.
+- `labels` `label-grid-smaller`: sigma keeps one label per 100 px cell of its screen (the largest node's), so
+  "Small" is hidden beside "Big"; graphty's `labelAvoidOverlap` hides a label only where it overlaps another, and
+  these two do not. graphty-element needs sigma's grid rule as a label visibility option.
+- `node-sizes-opacity` `zindex`: two overlapping nodes; sigma draws the later one (blue) over the earlier (red), as
+  it ignores `zIndex`; graphty draws red over blue. graphty-element gives overlapping nodes at one depth no stable
+  order (the file's order, later on top); the fix is in graphty-element's node draw order.
+- `node-sizes-opacity` `size-0`, `size-0-5`, `size-1`: as on the Gephi JSON sheets, a comparator limit on zero and
+  sub-pixel nodes.

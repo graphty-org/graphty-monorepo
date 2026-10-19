@@ -1,8 +1,8 @@
 {
     "program": "sigma.js 4.0.1, graphology 0.26.0",
     "about": "Which specimen draws each entry of graphology-vocabulary.json and graphology.mjs's fixed lists (at most six named each), or why none does; written by graphology.mjs.",
-    "entries": 215,
-    "covered": 207,
+    "entries": 216,
+    "covered": 208,
     "sheets": [
         {
             "id": "specimen-node-shapes",
@@ -43,6 +43,10 @@
         {
             "id": "specimen-edges-lines",
             "specimens": 25
+        },
+        {
+            "id": "specimen-edges-lines-p2",
+            "specimens": 15
         },
         {
             "id": "specimen-arrows",
@@ -273,13 +277,25 @@
         "color.name:yellowgreen": ["specimen-node-fills-borders-p6#color-yellowgreen"],
         "color.syntax:name": [
             "specimen-node-fills-borders#color-name-red",
-            "specimen-node-fills-borders#color-unknown-name"
+            "specimen-node-fills-borders#color-unknown-name",
+            "specimen-edges-lines-p2#edge-color-unknown-name"
         ],
-        "color.syntax:name-mixed-case": ["specimen-node-fills-borders#color-name-mixed-case"],
+        "color.syntax:name-mixed-case": [
+            "specimen-node-fills-borders#color-name-mixed-case",
+            "specimen-edges-lines-p2#edge-color-name-mixed-case"
+        ],
         "color.syntax:transparent": ["specimen-node-fills-borders#color-transparent"],
-        "color.syntax:hex3": ["specimen-node-fills-borders#color-hex3", "specimen-node-fills-borders#color-hex4"],
+        "color.syntax:hex3": [
+            "specimen-node-fills-borders#color-hex3",
+            "specimen-node-fills-borders#color-hex4",
+            "specimen-edges-lines-p2#edge-color-hex3",
+            "specimen-edges-lines-p2#edge-color-hex4"
+        ],
         "color.syntax:hex6": ["specimen-node-fills-borders#color-hex6"],
-        "color.syntax:hex6-upper": ["specimen-node-fills-borders#color-hex6-upper"],
+        "color.syntax:hex6-upper": [
+            "specimen-node-fills-borders#color-hex6-upper",
+            "specimen-edges-lines-p2#edge-color-hex6-upper"
+        ],
         "color.syntax:hex8": [
             "specimen-node-fills-borders#color-hex8-alpha-80",
             "specimen-node-fills-borders#color-hex8-alpha-33"
@@ -289,12 +305,14 @@
             "specimen-node-fills-borders#color-rgb-spaces",
             "specimen-node-fills-borders#color-rgb-percent",
             "specimen-node-fills-borders#color-rgb-decimal",
-            "specimen-node-fills-borders#color-hsl"
+            "specimen-node-fills-borders#color-hsl",
+            "specimen-edges-lines-p2#edge-color-rgb"
         ],
         "color.syntax:rgba": [
             "specimen-node-fills-borders#color-rgba-half",
             "specimen-node-fills-borders#color-rgba-zero",
-            "specimen-node-sizes-opacity#color-alpha-half"
+            "specimen-node-sizes-opacity#color-alpha-half",
+            "specimen-edges-lines-p2#edge-color-rgba-zero"
         ],
         "setting.renderLabels": {
             "notDrawn": "a sigma setting, not part of the file; off it hides every label, captions included, so no sheet is drawn under it"
@@ -339,6 +357,7 @@
             "notDrawn": "every sheet allows self loops; disallowing them only rejects the file"
         },
         "edge.key:undirected": ["specimen-edges-lines#edge-undirected"],
+        "edge.key:absent": ["specimen-edges-lines-p2#edge-no-key"],
         "legacy.node.type:circle": ["specimen-node-shapes#type-circle"],
         "legacy.node.type:point": ["specimen-node-shapes#type-point"],
         "legacy.node.type:image": [

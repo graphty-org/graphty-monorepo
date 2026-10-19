@@ -53,6 +53,10 @@ export const NodeSizesOpacity: StoryObj = {
 };
 export const Labels: StoryObj = { ...specimenStory(FORMAT, "specimen-labels", FILES), name: "labels" };
 export const EdgesLines: StoryObj = { ...specimenStory(FORMAT, "specimen-edges-lines", FILES), name: "edges-lines" };
+export const EdgesLinesP2: StoryObj = {
+    ...specimenStory(FORMAT, "specimen-edges-lines-p2", FILES),
+    name: "edges-lines-p2",
+};
 export const Arrows: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows", FILES), name: "arrows" };
 export const ArrowsP2: StoryObj = { ...specimenStory(FORMAT, "specimen-arrows-p2", FILES), name: "arrows-p2" };
 export const EdgeLabels: StoryObj = { ...specimenStory(FORMAT, "specimen-edge-labels", FILES), name: "edge-labels" };

@@ -111,7 +111,7 @@ function liveVocabulary() {
  */
 const FIXED = {
     graphOptions: { type: ["mixed", "directed", "undirected"], multi: [true, false], allowSelfLoops: [true, false] },
-    edgeKeys: ["undirected"],
+    edgeKeys: ["undirected", "absent"],
     colorSyntaxes: ["name", "name-mixed-case", "transparent", "hex3", "hex6", "hex6-upper", "hex8", "rgb", "rgba"],
 };
 
@@ -471,6 +471,38 @@ const SHEETS = [
             },
         ],
     },
+    {
+        // the color syntaxes of node-fills-borders and the size edge cases of node-sizes-opacity, on an edge: graph-io
+        // reads an edge's keys on their own path, so each is drawn on an edge too
+        id: "specimen-edges-lines-p2",
+        specimens: [
+            edge("default", "nothing", "set", {}, ["edge.color", "edge.size"], { neutral: {} }),
+            ...[
+                ["edge-color-name-mixed-case", "CornflowerBlue", "color.syntax:name-mixed-case"],
+                ["edge-color-hex3", "#f80", "color.syntax:hex3"],
+                ["edge-color-hex6-upper", "#E76F51", "color.syntax:hex6-upper"],
+                ["edge-color-rgb", "rgb(106,76,147)", "color.syntax:rgb"],
+                ["edge-color-rgba-zero", "rgba(0,128,0,0)", "color.syntax:rgba"],
+                // what sigma's parser does not read: each is black (or garbled) in sigma
+                ["edge-color-hex4", "#f80c", "color.syntax:hex3"],
+                ["edge-color-rgb-spaces", "rgb( 25 , 130 , 196 )", "color.syntax:rgb"],
+                ["edge-color-rgb-percent", "rgb(100%,50%,0%)", "color.syntax:rgb"],
+                ["edge-color-hsl", "hsl(120,100%,25%)", "color.syntax:rgb"],
+                ["edge-color-unknown-name", "notacolor", "color.syntax:name"],
+                ["edge-color-empty", "", "edge.color"],
+            ].map(([id, value, covers]) =>
+                edge(id, "color", value, { color: value, size: 3 }, [covers, "edge.color"], {
+                    neutral: { size: 3, color: N.edgeColor },
+                }),
+            ),
+            edge("edge-size-negative", "size", -4, { size: -4 }, ["edge.size"]),
+            edge("edge-size-string", "size", '"6"', { size: "6" }, ["edge.size"]),
+            // graphology's serialization makes an edge's key optional (graph.import generates one); graph.export()
+            // always writes it, so the key is taken off this edge after the export
+            edge("edge-no-key", "key", "none", {}, ["edge.key:absent"]),
+        ],
+        stripKeys: ["edge-no-key"],
+    },
     ...[
         ["specimen-arrows", "directed"],
         ["specimen-arrows-p2", "undirected"],
@@ -571,7 +603,8 @@ const QUIRKS = [
     "a label's newline is drawn as a space (one line); leading and trailing spaces are kept",
     "a non-string label (a number or a boolean) or a non-string color (a number) makes sigma throw while drawing, so those specimens are not on the sheets",
     "colors: #rgb, #rrggbb, #rrggbbaa, rgb() and rgba() with integer channels, the 148 names of HTML_COLORS (any case) and transparent are read; rgb() with a space before ')', percent or decimal channels, hsl(), an unknown name and \"\" are drawn black; a 4-digit hex (#f80c) is read as #f80c00 (red)",
-    "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw nothing; a numeric string size is read as its number",
+    "size is a radius in position units (itemSizesReference positions); 0 and negative sizes draw no node, but an edge of size 0 or below is drawn minEdgeThickness wide; a numeric string size is read as its number",
+    "an edge without a key (graphology's serialization makes it optional) is drawn like any other, under the key graph.import generates",
     "edge sizes below 1.7 px are drawn 1.7 px wide (minEdgeThickness); parallel and reciprocal edges are drawn on top of each other (no parallel spread without a parallel path); a self loop is a small circle",
     "edge labels are drawn only with renderEdgeLabels on, over the line, clipped to the edge's length, and (edgeLabelAnchors nodeLabels) only where both end nodes show their labels; with edgeLabelAnchors allNodes also between unlabeled ends",
     "@sigma/export-image's temporary renderer reports 'Container has no width' once after the export when edge labels are on; the exported PNG is complete",
@@ -668,7 +701,9 @@ for (const sheet of SHEETS) {
     g.updateEachNodeAttributes((_, a) => ({ ...a, y: layout.canvas.height - a.y }));
     const file = `${sheet.file ?? sheet.id}.json`;
     if (!sheet.file || sheet.file === sheet.id) {
-        writeFileSync(join(out, file), `${JSON.stringify(g.export(), null, 4)}\n`);
+        const doc = g.export();
+        for (const e of doc.edges) if (sheet.stripKeys?.includes(e.key)) delete e.key;
+        writeFileSync(join(out, file), `${JSON.stringify(doc, null, 4)}\n`);
     }
     pages.push({ id: sheet.id, file, settings: sheet.settings ?? {}, specimens: sheet.specimens.length });
 }

@@ -383,14 +383,16 @@ function readSigmaRow(
         putColor(put, fill, opacity, i, color(i), site(fill));
     }
     if (size !== null) {
-        const v = canonNumber(size(i), site("width"));
+        const raw = size(i);
         if (target === "node") {
-            // sigma draws a node's size as its radius
+            // sigma draws a node's size as its radius, and a node of negative size not at all
+            // (graphology-specimen-node-sizes-opacity, size-negative)
+            const v = Number(raw) < 0 ? 0 : canonNumber(raw, site("width"));
             const d = v === null ? null : v * 2;
             put("width", i, d);
             put("height", i, d);
         } else {
-            put("width", i, v);
+            put("width", i, canonNumber(raw, site("width")));
         }
     }
     // sigma.js draws no edge labels unless its `renderEdgeLabels` setting is on, and a graphology
@@ -401,7 +403,7 @@ function readSigmaRow(
 }
 
 /**
- * A CSS color into a property and its opacity.
+ * A color as sigma.js reads it, into a property and its opacity.
  * @param put - the setter
  * @param property - the color property
  * @param opacity - its opacity property, or null when it has none
@@ -417,10 +419,11 @@ function putColor(
     raw: unknown,
     site: CanonSite,
 ): void {
-    if (raw === null || raw === undefined || raw === "") {
+    // sigma draws a missing color with its default, and any string it cannot read ("" too) black
+    if (raw === null || raw === undefined) {
         return;
     }
-    const c = canonColor(raw, "css", site);
+    const c = canonColor(raw, "graphology", site);
     if (c === null) {
         return;
     }

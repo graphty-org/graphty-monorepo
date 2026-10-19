@@ -91,6 +91,7 @@ Marking an issue always means both: `gh issue edit <n> --add-label in-progress` 
 - `pipeline-round: released -- <reason>` (with the `in-progress` label removed)
 - `pipeline-round: stranded branch <b> not landed -- <reason>`
 - `pipeline-round: asked owner -- <what>`
+- `pipeline-round: broke golden <branch> <cause>` (first seen; a landing gets one round from it before it is reverted)
 
 **Alive.** A marker's session is alive when this prints `alive` (session files outlive their sessions, and a pid can
 be reused, so the start time must match too):

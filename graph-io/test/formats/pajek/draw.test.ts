@@ -33,7 +33,7 @@ async function load(doc: string, pajekDraw?: Record<string, unknown>) {
     if (styles === null || styles === undefined) {
         throw new Error("no styles");
     }
-    const get = (target: "node" | "edge", property: string): unknown[] =>
+    const get = (target: "node" | "edge", property: string): readonly unknown[] =>
         resolveStyles(styles, target, property as never, snapshot);
     return { get, result };
 }
@@ -86,6 +86,17 @@ describe("Pajek's arrow size s and label angle la", () => {
     });
 });
 
+describe("Pajek's line colors written as numbers", () => {
+    it("reads no color from c written as fractions: the line keeps its carried or default color", async () => {
+        // pajek-1crn: `c 0.700 0.700 0.700` on the first edge is drawn in Pajek's teal; specimen-edges-lines:
+        // `c 0.7 0.2 0.2` after a line in black is drawn black
+        const { get } = await load(
+            "*Vertices 6\n1 a\n2 b\n3 c\n4 d\n5 e\n6 f\n*Edges\n1 2 1 c 0.700 0.700 0.700\n3 4 1 c Red\n5 6 1 c 0.7 0.2 0.2 p Solid\n",
+        );
+        expect(get("edge", "color")).toEqual(["#007091", "#ff0000", "#ff0000"]);
+    });
+});
+
 describe("Pajek's Draw window options (pajekDraw ini)", () => {
     const doc = [
         "*Vertices 3",
@@ -122,8 +133,11 @@ describe("Pajek's Draw window options (pajekDraw ini)", () => {
     });
 
     it("draws the SVG export's vertex and line opacity", async () => {
+        // pajek-specimen-node-sizes-opacity-p3: opacity 0.5 and stroke-opacity 0.5 on each vertex, its label opaque
         const { get } = await load(doc, { ini: { TransparencyofVertices: "0.50", TransparencyofLines: 0.25 } });
-        expect(get("node", "opacity")).toEqual([0.5, 0.5, 0.5]);
+        expect(get("node", "fillOpacity")).toEqual([0.5, 0.5, 0.5]);
+        expect(get("node", "borderOpacity")).toEqual([0.25, 0.25, 0.25]);
+        expect(get("node", "opacity")).toEqual([1, 1, 1]);
         expect(get("edge", "opacity")).toEqual([0.25]);
     });
 
@@ -132,6 +146,7 @@ describe("Pajek's Draw window options (pajekDraw ini)", () => {
         const g = await load(doc, { ini: { "Form10.ColorGradientLines": true } });
         expect(g.get("edge", "gradientColors")).toEqual(["#ff0000 #0000ff"]);
         expect(g.get("edge", "gradientKind")).toEqual(["linear"]);
+        expect(g.get("edge", "targetArrowColor")).toEqual(["#0000ff"]);
         // a flag given as off draws as without it
         expect((await load(doc, { ini: { "Form10.ColorGradientLines": "0" } })).get("edge", "gradientKind")).toEqual([
             null,

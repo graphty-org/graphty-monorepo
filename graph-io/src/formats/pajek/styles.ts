@@ -4,7 +4,7 @@
  * with Pajek's own defaults beneath (a #ffd9bc ellipse with a #660000 border, grey arcs with an arrow at the target,
  * teal edges). Colors are Pajek's: the dvips names and the ten Pajek adds, `GrayNN`, `RGBrrggbb`, `RGB(r,g,b)` and the
  * CMYK forms. Lengths are in PostScript points, the unit of Pajek's EPS and SVG export, where the drawing's [0,1] square
- * is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 20 times its `s_size`, `x_fact` and `y_fact`,
+ * is [0,500] (`PAJEK_POINTS_PER_UNIT`): a vertex is Pajek's normal size 20 times its `x_fact` and `y_fact`,
  * `bw` and `fos` are points as written, an arc is `w` wide and an edge twice `w`.
  *
  * Writing: the same parameters from what graphty draws, leaving out what Pajek draws by default; a color that is a
@@ -82,8 +82,8 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
 });
 
 /**
- * Pajek's normal vertex size, in points: what `x_fact` and `y_fact` multiply when a vertex sets no `s_size` (the
- * manual, p. 89, names `s_size` "default size" and `x_fact`/`y_fact` "magnification" without stating the value).
+ * Pajek's normal vertex size, in points: what `x_fact` and `y_fact` multiply (the manual, p. 89, names `x_fact` and
+ * `y_fact` "magnification" without stating the value).
  * Measured in Pajek 6.02's own SVG export (`test/fidelity/oracles/pajek-*.svg`): a vertex with no size parameter is
  * drawn 20 across, and `x_fact 1.54` 30.8, on the drawing's [0,500] square.
  */
@@ -289,28 +289,25 @@ function readLabelAngle(raw: unknown, put: Put, at: At): void {
 }
 
 /**
- * A vertex's width and height in points: the normal size times its `s_size`, `x_fact` and `y_fact`, each 1 when unset;
- * a vertex that sets none of the three is left to the default beneath. The manual (p. 89) calls `s_size` "default
- * size" without a unit; it is read as a factor, as the reference scene (`pajek_file.py`) and the corpus generator
- * (`gen_pajek.py`, `s_size` 1 to 3) read it.
+ * A vertex's width and height in points: the normal size times its `x_fact` and `y_fact`, each 1 when unset; a vertex
+ * that sets neither is left to the default beneath. The manual (p. 89) calls `s_size` "default size", but Pajek 6.02
+ * draws a vertex the same size whatever its `s_size` (`pajek-specimen-node-sizes-opacity`: `s_size` 0.5, 2 and 3 all
+ * drawn 36 across at `x_fact 1.8`), so it is not read.
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
  */
 function readSize(get: Param, put: Put, at: At): void {
-    const raw = get("s_size");
-    const s = raw === null ? 1 : canonNumber(raw, at("width"));
-    const size = s === null ? null : PAJEK_VERTEX_SIZE * s;
     for (const [key, property] of [
         ["x_fact", "width"],
         ["y_fact", "height"],
     ] as const) {
         const f = get(key);
-        if (f === null && raw === null) {
+        if (f === null) {
             continue;
         }
-        const factor = f === null ? 1 : canonNumber(f, at(property));
-        put(property, size === null || factor === null ? null : Number((size * factor).toPrecision(15)));
+        const factor = canonNumber(f, at(property));
+        put(property, factor === null ? null : Number((PAJEK_VERTEX_SIZE * factor).toPrecision(15)));
     }
 }
 
@@ -482,8 +479,20 @@ function readArrowPosition(raw: unknown, put: Put, at: At): void {
  * @returns the getter
  */
 function cells(table: GraphSnapshot["nodes"], i: number): Param {
-    return (key) => (table.has(key) ? plainCell(table.value(key, i)) : null);
+    return (key) => {
+        const v = table.has(key) ? plainCell(table.value(key, i)) : null;
+        // a color written as numbers (`c 0.700 0.700 0.700`) is no color to Pajek 6.02: the line keeps the color it
+        // carries from the line before, or Pajek's default (`pajek-1crn`, `pajek-specimen-edges-lines`
+        // `c-three-fractions`). ponytail: measured on lines; vertex colors are read the same way
+        return COLOR_PARAMS.has(key) && typeof v === "string" && NUMERIC_COLOR.test(v) ? null : v;
+    };
 }
+
+/** The parameters that hold a color. */
+const COLOR_PARAMS: ReadonlySet<string> = new Set(["ic", "bc", "lc", "c"]);
+
+/** A color written as numbers rather than a name or an RGB / CMYK form. */
+const NUMERIC_COLOR = /^[\d.]+(?: [\d.]+)*$/;
 
 /**
  * Whether each edge is an arc (directed).

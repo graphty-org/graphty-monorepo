@@ -283,10 +283,11 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         "",
     ].join("\n");
 
-    it("draws a vertex 20 points times s_size, x_fact and y_fact, and places its label by lr and lphi", async () => {
+    it("draws a vertex 20 points times x_fact and y_fact whatever its s_size, and places its label by lr and lphi", async () => {
+        // pajek-specimen-node-sizes-opacity: s_size 0.5, 2 and 3 are all drawn 36 across at x_fact 1.8
         const { snapshot, styles } = await load(doc);
-        expect(drawn(styles, snapshot, "node", "width")).toEqual([120, 40, 20, 20]);
-        expect(drawn(styles, snapshot, "node", "height")).toEqual([40, 40, 8, 20]);
+        expect(drawn(styles, snapshot, "node", "width")).toEqual([60, 20, 20, 20]);
+        expect(drawn(styles, snapshot, "node", "height")).toEqual([20, 20, 8, 20]);
         expect(drawn(styles, snapshot, "node", "borderWidth")).toEqual([0.5, 0.5, 0.5, 0.5]);
         expect(drawn(styles, snapshot, "node", "labelSize")).toEqual([8, 15, 15, 15]);
         expect(drawn(styles, snapshot, "node", "labelFont")).toEqual(["Courier", "Arial", "Arial", "Arial"]);

@@ -390,13 +390,13 @@ Tool values are elements drawn with the writing program's default.
 | json/vis-WorldCup2014.json.gz | ok | 736 | 9228 | 4 | 3 | 9645 | 90% | 0% | 716 | 24344 | 0 | W_STYLE_RAMP_ROUNDED |
 | json/vis-dot-to-graph-softmaint.json | ok | 213 | 269 | 5 | 3 | 202 | 100% | 0% | 0 | 4461 | 0 |  |
 | pajek/SamTseng_CATAR__Pajek_format.net | ok | 3 | 8 | 3 | 3 | 11 | 100% | 45% | 0 | 64 | 0 |  |
-| pajek/fidelity/1crn.net | ok | 327 | 337 | 7 | 2 | 363 | 0% | 0% | 0 | 4628 | 0 |  |
+| pajek/fidelity/1crn.net | ok | 327 | 337 | 7 | 1 | 363 | 0% | 0% | 0 | 4965 | 0 |  |
 | pajek/fidelity/c.net | ok | 65 | 125 | 3 | 2 | 0 | - | - | 0 | 1080 | 0 |  |
 | pajek/fidelity/football.net | ok | 35 | 118 | 2 | 4 | 138 | 50% | 50% | 0 | 1010 | 0 |  |
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 5 | 3 | 109 | 0% | 0% | 0 | 1903 | 0 |  |
 | pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 3 | 2 | 300 | 0% | 0% | 0 | 5964 | 0 |  |
 | pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 253 | 56% | 56% | 0 | 654 | 0 | W_STYLE_NOT_CARRIED |
-| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 261 | 100% | 0% | 0 | 1214 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 247 | 100% | 0% | 0 | 1226 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 9 | 3 | 29 | 55% | 14% | 0 | 202 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 3 | 12 | 100% | 25% | 0 | 107 | 0 | W_STYLE_BAD_VALUE |
 | pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 5 | 253 | 30% | 19% | 0 | 974 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |

@@ -1712,8 +1712,9 @@ class PajekParser {
             }
             seen.add(token);
             extras.keys.push(token);
-            // a color written as three fractions, `c 0.700 0.700 0.700` (Pajek's course data, 1CRN.NET),
-            // is the color `RGB(0.700,0.700,0.700)`; a key is never a number, so the reading is unambiguous
+            // a color written as three fractions, `c 0.700 0.700 0.700` (Pajek's course data, 1CRN.NET), is one
+            // value, kept as written; a key is never a number, so the reading is unambiguous. Pajek 6.02 reads no
+            // color from it (the style reader leaves the line its carried or default color)
             const triple = COLOR_KEYS.has(token) ? colorTriple(tokens, i + 1) : null;
             extras.values.push(triple ?? tokens[i + 1]);
             i += triple === null ? 2 : 4;
@@ -1815,11 +1816,11 @@ class PajekParser {
     }
 }
 
-/** The parameters that hold a color, which Pajek also reads as three fractions `r g b`. */
+/** The parameters that hold a color, which a file may also write as three fractions `r g b`. */
 const COLOR_KEYS: ReadonlySet<string> = new Set(["ic", "bc", "lc", "c"]);
 
 /**
- * A color written as three numbers from 0 to 1 at a row's tokens, as `RGB(r,g,b)`.
+ * A color written as three numbers from 0 to 1 at a row's tokens, as one value `r g b`.
  * @param tokens - the row's tokens
  * @param at - the first of the three
  * @returns the color text, or null when the three tokens are not such numbers
@@ -1827,7 +1828,7 @@ const COLOR_KEYS: ReadonlySet<string> = new Set(["ic", "bc", "lc", "c"]);
 function colorTriple(tokens: readonly string[], at: number): string | null {
     const parts = tokens.slice(at, at + 3);
     const fraction = (t: string): boolean => /^[01]?(?:\.\d+)?$/.test(t) && t !== "" && Number(t) <= 1;
-    return parts.length === 3 && parts.every(fraction) ? `RGB(${parts.join(",")})` : null;
+    return parts.length === 3 && parts.every(fraction) ? parts.join(" ") : null;
 }
 
 /**

@@ -297,14 +297,14 @@ describe("pajekImporter: vertex lines", () => {
         expect(label(snapshot, 0)).toBe("a");
     });
 
-    it("reads a color written as three fractions as one RGB color", async () => {
+    it("reads a color written as three fractions as one value, as written", async () => {
         const { snapshot, report } = await load(
             "*Vertices 2\n1 a ic 0.5 0.25 1 x_fact 2\n2 b\n*Edges\n1 2 1 c 0.700 0.700 0.700 w 2\n",
         );
         expect(report.issues).toEqual([]);
-        expect(snapshot.nodes.requireTyped("ic", "string").value(0)).toBe("RGB(0.5,0.25,1)");
+        expect(snapshot.nodes.requireTyped("ic", "string").value(0)).toBe("0.5 0.25 1");
         expect(snapshot.nodes.requireTyped("x_fact", "i32").value(0)).toBe(2);
-        expect(snapshot.edges.requireTyped("c", "string").value(0)).toBe("RGB(0.700,0.700,0.700)");
+        expect(snapshot.edges.requireTyped("c", "string").value(0)).toBe("0.700 0.700 0.700");
         expect(snapshot.edges.has("0.700")).toBe(false);
     });
 

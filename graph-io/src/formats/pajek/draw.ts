@@ -258,9 +258,17 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
             }
         }
     }
+    // SVG Opacity of Vertices: Pajek writes it as the vertex's opacity and its stroke-opacity both, so the fill is
+    // drawn at it and the border at its square (`pajek-specimen-node-sizes-opacity-p3`: 0.5 fills at 0.5, strokes at
+    // 0.25); the label is drawn opaque
     const opacity = iniNumber(draw, "TransparencyofVertices");
     if (opacity !== null && opacity < 1) {
-        column(node, "opacity", n).fill(Math.max(0, opacity));
+        const o = Math.max(0, opacity);
+        const fill = column(node, "fillOpacity", n);
+        fill.forEach((v, i) => {
+            fill[i] = (typeof v === "number" ? v : 1) * o;
+        });
+        column(node, "borderOpacity", n).fill(o * o);
     }
     const mark = iniNumber(draw, "Form8.MarkVerticesUsing");
     if (mark === 2) {
@@ -340,14 +348,20 @@ export function drawLines(draw: PajekDraw, snapshot: GraphSnapshot, node: Values
         column(edge, "curved", m).fill(false);
     }
     if (flag(draw, "Form10.ColorGradientLines")) {
-        // each line runs from its source vertex's fill to its target's (`pajek-specimen-edges-lines-p5`)
+        // each line runs from its source vertex's fill to its target's, and an arrowhead is its own end vertex's fill
+        // (`pajek-specimen-edges-lines-p5`)
         const fill = node.fill as (StyleValue | null)[] | undefined;
         const fillOf = (i: number): string => (typeof fill?.[i] === "string" ? fill[i] : VERTEX_FILL);
         const colors = column(edge, "gradientColors", m);
         const kind = column(edge, "gradientKind", m);
+        const sourceArrow = column(edge, "sourceArrowColor", m);
+        const targetArrow = column(edge, "targetArrowColor", m);
         for (let e = 0; e < m; e++) {
-            colors[e] = `${fillOf(snapshot.edgeSource(e))} ${fillOf(snapshot.edgeTarget(e))}`;
+            const [s, t] = [fillOf(snapshot.edgeSource(e)), fillOf(snapshot.edgeTarget(e))];
+            colors[e] = `${s} ${t}`;
             kind[e] = "linear";
+            sourceArrow[e] = s;
+            targetArrow[e] = t;
         }
     }
 }

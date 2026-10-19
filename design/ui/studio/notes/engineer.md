@@ -224,6 +224,10 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 - (2026-10-18) Worked: a document `focusin` listener logging `new Error().stack` names who moved
   focus. Staging only my hunks of a shared file: `git merge-file` into a private index (details
   and every older entry: `git show d714c8530:design/ui/studio/notes/engineer.md`, "Tried").
+- (2026-10-18) After a commit from a private index the shared index still holds the old blobs, so
+  `git status` shows my files staged backwards and another agent's commit would revert them. Put
+  HEAD's blobs back for my paths only: `git update-index --add --cacheinfo <mode>,<blob>,<path>`
+  from `git ls-tree HEAD -- <path>`. WORKED (status clean after).
 - (2026-10-18) Found, not fixed: graphty-element `real-input.test.ts` 3D wheel zoom-out symmetry
   fails every run (1.4045 vs 1.4366); needs its own unit.
 

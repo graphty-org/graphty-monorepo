@@ -4,6 +4,34 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-19 -- For the owner: should a value beyond a written domain be drawn past the range's end?
+
+graphty-element's continuous scales (linear, log, pow, sqrt and the rest) place a value between the
+two ends of the binding's domain and cut the place to the ends: a value above the domain is drawn
+as the range's upper end, a value below it as the lower end. This is documented
+(`BindingPreview.above`: "How many elements carry a number above the domain, painted as its upper
+end") and tested (`scales.test.ts`, "clamps a value outside the domain rather than running off the
+end of a palette"). It is the same for every channel, so size behaves as color does.
+
+In the graphty app, writing "Values to" sets an explicit domain, and "Clamp outliers" sets the
+other way to settle the extent, percentiles; the element takes one or the other, never both. So
+with "Values to" at 100,000 and "Clamp outliers" off, a node holding 250,000 is still drawn at the
+upper end of the size range, the same size as 100,000 and close to one holding 90,000. The switch
+being off does not mean "do not clamp"; the domain itself clamps.
+
+Drawing past the end changes what an existing API does and returns (every continuous binding with
+an explicit domain, and the documented `above` count), so it is not made. Ways forward:
+
+- an optional binding setting, for example `beyondDomain: "end" | "extend"`, default `"end"`
+  (today's behavior), where `"extend"` keeps placing a numeric channel's value on the same line
+  past the domain; a palette has no color past its end, so color would stay at the end either way.
+  This is additive and the team can build it if the owner wants the app to offer it; and the
+  app would then decide what its switch means and what it is called; or
+- keep the element as it is, and the app words its controls so that a written domain reads as the
+  range values are drawn across, with values outside it drawn at the ends.
+
+Until then a value beyond a written domain is drawn at the domain's end, as it always has been.
+
 ## 2026-10-19 -- Decided by the team: the key never moves the drawing (graphty app)
 
 Graphty app, no API change. This reverses the arrival frame in the entry below ("the key's room

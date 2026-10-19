@@ -148,11 +148,24 @@ function expected(
             va.map((v, i) => drawnLabelPosition(v, ha[i])),
         );
     }
+    if (target === "edge") {
+        // Cytoscape.js reports a haystack edge's arrows but draws none (its default curve style)
+        const curve = raw.get("curve-style");
+        for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
+            const col = values.get(p);
+            col?.forEach((v, i) => {
+                if (v !== null && v !== undefined && (curve?.[i] ?? "haystack") === "haystack") {
+                    col[i] = "none";
+                }
+            });
+        }
+    }
     const vis = raw.get("visibility") ?? [];
     const disp = raw.get("display") ?? [];
     values.set(
         "visible",
-        vis.map((v, i) => v !== "hidden" && disp[i] !== "none"),
+        // a node hidden by `visibility` keeps its edges: it is kept, drawn at opacity 0
+        vis.map((v, i) => (target === "node" ? disp[i] !== "none" : v !== "hidden" && disp[i] !== "none")),
     );
     return { values, errors, raw };
 }
@@ -531,6 +544,7 @@ describe("the cascade", () => {
                 {
                     selector: "edge",
                     style: {
+                        "curve-style": "straight",
                         "target-arrow-shape": "triangle",
                         "target-arrow-fill": "hollow",
                         "source-arrow-shape": "diamond",
@@ -565,6 +579,7 @@ describe("the cascade", () => {
                 {
                     selector: "#ab",
                     style: {
+                        "curve-style": "straight",
                         "mid-target-arrow-shape": "triangle-tee",
                         "mid-source-arrow-shape": "chevron",
                         "line-outline-width": 2,

@@ -108,7 +108,8 @@ const FONT_WEIGHTS: readonly (string | number)[] = [
     800,
     900,
 ];
-const CURVES = [
+/** Cytoscape.js's curve styles. */
+export const CYJS_CURVE_STYLES = [
     "bezier",
     "unbundled-bezier",
     "haystack",
@@ -140,6 +141,24 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["visibility", { property: "_visibility", type: "enum", enums: ["hidden", "visible"] }],
     ["display", { property: "_display", type: "enum", enums: ["element", "none"] }],
     ["opacity", { property: "opacity", type: "zeroOne" }],
+    ["text-transform", { property: "_transform", type: "enum", enums: ["none", "uppercase", "lowercase"] }],
+    ["text-rotation", { property: "_rotation", type: "text" }],
+];
+
+/** Cytoscape.js's `background-gradient-direction` values. */
+const GRADIENT_DIRECTIONS = [
+    "to-bottom",
+    "to-top",
+    "to-left",
+    "to-right",
+    "to-bottom-right",
+    "to-bottom-left",
+    "to-top-right",
+    "to-top-left",
+    "to-right-bottom",
+    "to-left-bottom",
+    "to-right-top",
+    "to-left-top",
 ];
 
 /**
@@ -305,6 +324,16 @@ function gradientColors(text: string, site: CanonSite): string | undefined {
 }
 
 /**
+ * Cytoscape.js's gradient stop colors (colors separated by spaces) as `#rrggbb` colors.
+ * @param text - the value
+ * @param site - where it was read
+ * @returns the colors, none when one does not parse (noted)
+ */
+export function gradientStopColors(text: string, site: CanonSite): string[] {
+    return gradientColors(text, site)?.split(" ") ?? [];
+}
+
+/**
  * Cytoscape.js's `line-gradient-stop-positions` (percentages or fractions separated by spaces) as fractions.
  * @param text - the value
  * @returns the fractions separated by spaces, or undefined when one is not a number
@@ -357,7 +386,15 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
         { property: "_halign", type: "enum", enums: ["left", "left-inside", "center", "right", "right-inside"] },
     ],
     ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
-    ["text-max-width", { property: "labelWrapWidth", type: "size" }],
+    // a width only `text-wrap: wrap` wraps at, so it is combined with the wrap afterward (`combineParts`)
+    ["text-max-width", { property: "_maxWidth", type: "size" }],
+    // the fill's gradient, combined afterward into `fill`, `fillGradient` and `fillGradientAngle`
+    [
+        "background-fill",
+        { property: "_backgroundFill", type: "enum", enums: ["solid", "linear-gradient", "radial-gradient"] },
+    ],
+    ["background-gradient-stop-colors", { property: "_backgroundStops", type: "text" }],
+    ["background-gradient-direction", { property: "_backgroundDirection", type: "enum", enums: GRADIENT_DIRECTIONS }],
     ...CYJS_FACE_PROPERTIES,
     ...LABEL,
 ]);
@@ -367,6 +404,8 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["line-color", { property: "color", type: "color" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["line-style", { property: "lineStyle", type: "enum", enums: ["solid", "dotted", "dashed"] }],
+    // the line's own opacity, combined afterward into `opacity`, which the line is drawn at
+    ["line-opacity", { property: "_lineOpacity", type: "zeroOne" }],
     ["line-outline-width", { property: "outlineWidth", type: "size" }],
     ["line-fill", { property: "gradientKind", type: "enum", enums: ["solid", "linear-gradient", "radial-gradient"] }],
     ["line-gradient-stop-colors", { property: "gradientColors", type: "text" }],
@@ -391,7 +430,7 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["source-arrow-fill", { property: "_sourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
     ["mid-target-arrow-fill", { property: "_midTargetArrowFill", type: "enum", enums: ["filled", "hollow"] }],
     ["mid-source-arrow-fill", { property: "_midSourceArrowFill", type: "enum", enums: ["filled", "hollow"] }],
-    ["curve-style", { property: "curved", type: "enum", enums: CURVES }],
+    ["curve-style", { property: "curved", type: "enum", enums: CYJS_CURVE_STYLES }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],

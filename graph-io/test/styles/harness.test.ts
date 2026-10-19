@@ -42,10 +42,6 @@ const results: StyleResult[] = [];
  */
 const KNOWN_FAILURES: ReadonlyMap<string, string> = new Map([
     [
-        "json/fidelity/cyjs-synth-nodes.json plans",
-        "a node whose size the stylesheet leaves unset gets the exceptions rule's width",
-    ],
-    [
         "json/fidelity/cyjs-synth-edges.json writes",
         "the written Cytoscape.js stylesheet does not read back as the same rules",
     ],

@@ -45,6 +45,7 @@ import { CYJS_DEFAULT_STYLESHEET, CYJS_PROPERTY_DEFAULTS } from "./defaults-tabl
 import { combineFace } from "./face.js";
 import {
     applyCyjsMapper,
+    CYJS_CURVE_STYLES,
     CYJS_THROWS,
     cyjsAliasOf,
     type CyjsFlat,
@@ -55,6 +56,7 @@ import {
     cyjsPropertyName,
     type CyjsPropertySpec,
     cyjsRendered,
+    gradientStopColors,
     parseCyjsValue,
 } from "./mappers.js";
 import { type CyjsCheck, type CyjsQuery, type CyjsSelector, parseCyjsSelector } from "./selector.js";
@@ -1334,6 +1336,16 @@ function evaluateTarget(
         forceLoopCurves(graph, cells.get("curve-style"));
     }
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
+    // a file read with Cytoscape.js's own defaults draws an edge no rule curves as a haystack (a file graphty wrote
+    // is read with graphty's)
+    if (kind === "edge" && input.toolDefaults !== false) {
+        const curves = drawnColumn(
+            { kind, els, cells, order, rendered: input.rendered, notes },
+            "curve-style",
+            CURVE_PART,
+        );
+        noArrowsOnHaystacks(curves, drawn);
+    }
     if (kind === "edge") {
         straightenUnpairedBeziers(graph, curveStyles(graph, cells, input.rendered), coreToOut, drawn.curved);
     }
@@ -1516,7 +1528,7 @@ function drawnValues(
         if (spec.property.startsWith("_")) {
             words.set(
                 spec.property,
-                col.map((v) => (typeof v === "string" ? v : null)),
+                col.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : null)),
             );
             continue;
         }
@@ -1907,30 +1919,223 @@ function combineParts(
     // `text-max-width` wraps a label only under `text-wrap: wrap`; unset there, it is 9999 (cytoscape.js 3.34.3
     // dist/cytoscape.cjs.js line 18484), which wraps nothing but the label's own line breaks.
     const wrap = words.get("_wrap");
-    if (kind === "node" && (wrap !== undefined || values.labelWrapWidth !== undefined)) {
-        const width = values.labelWrapWidth;
+    const maxWidth = words.get("_maxWidth");
+    if (kind === "node" && wrap !== undefined) {
         values.labelWrapWidth = Array.from({ length: n }, (_, i) =>
-            wrap?.[i] === "wrap" ? (width?.[i] ?? null) : null,
+            wrap[i] === "wrap" && typeof maxWidth?.[i] === "string" ? Number(maxWidth[i]) : null,
         );
     }
     if (kind === "node") {
         combineFace(n, words, values);
+        combineBackgroundGradient(n, words, values, notes);
     } else {
         combineArrowFills(n, words, values);
+        combineLineOpacity(n, words.get("_lineOpacity"), values);
     }
+    combineLabelText(kind, n, words, values);
+    combineVisibility(kind, n, words, values);
+}
+
+/**
+ * `visibility` with `display` into `visible`. Cytoscape.js leaves the edges of a node hidden with `visibility:
+ * hidden` drawn (only `display: none` takes them away), so such a node is kept and drawn at opacity 0, with no label.
+ * @param kind - the target
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values; changed in place
+ */
+function combineVisibility(
+    kind: StyleTarget,
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
     const vis = words.get("_visibility");
     const disp = words.get("_display");
-    if (vis !== undefined || disp !== undefined) {
-        const col = new Array<StyleValue | null>(n).fill(null);
-        for (let i = 0; i < n; i++) {
-            const a = vis?.[i] ?? null;
-            const b = disp?.[i] ?? null;
-            if (a === null && b === null) {
-                continue;
-            }
-            col[i] = a !== "hidden" && b !== "none";
+    if (vis === undefined && disp === undefined) {
+        return;
+    }
+    const col = new Array<StyleValue | null>(n).fill(null);
+    for (let i = 0; i < n; i++) {
+        const a = vis?.[i] ?? null;
+        const b = disp?.[i] ?? null;
+        if (a === null && b === null) {
+            continue;
         }
-        values.visible = col;
+        const keptInvisible = kind === "node" && a === "hidden" && b !== "none";
+        col[i] = keptInvisible || (a !== "hidden" && b !== "none");
+        if (keptInvisible) {
+            (values.opacity ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
+            (values.label ??= new Array<StyleValue | null>(n).fill(null))[i] = "";
+        }
+    }
+    values.visible = col;
+}
+
+/**
+ * The label's words as Cytoscape.js draws them: `text-transform`, and a node's `text-rotation` as `labelRotation`.
+ * @param kind - the target
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values; changed in place
+ */
+function combineLabelText(
+    kind: StyleTarget,
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const transform = words.get("_transform");
+    const { label } = values;
+    if (transform !== undefined && label !== undefined) {
+        for (let i = 0; i < n; i++) {
+            const text = label[i];
+            if (typeof text === "string" && transform[i] === "uppercase") {
+                label[i] = text.toUpperCase();
+            } else if (typeof text === "string" && transform[i] === "lowercase") {
+                label[i] = text.toLowerCase();
+            }
+        }
+    }
+    const rotation = words.get("_rotation");
+    if (kind === "node" && rotation !== undefined) {
+        values.labelRotation = rotation.map((r) => (r === null ? null : cyjsAngleDegrees(r)));
+    }
+}
+
+/**
+ * A Cytoscape.js angle (`30deg`, `0.5rad`, a number of radians) in degrees; `none` and `autorotate` (which turns
+ * only an edge's label) are 0.
+ * @param text - the value
+ * @returns the degrees, or null when it is not an angle
+ */
+function cyjsAngleDegrees(text: string): number | null {
+    const t = text.trim();
+    if (t === "none" || t === "autorotate") {
+        return 0;
+    }
+    const m = /^(-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(deg|rad)?$/i.exec(t);
+    if (m === null) {
+        return null;
+    }
+    const x = Number(m[1]);
+    const deg = m[2]?.toLowerCase() === "deg" ? x : (x * 180) / Math.PI;
+    return Math.round(deg * 1e6) / 1e6 + 0;
+}
+
+/**
+ * An edge's `line-opacity` times its `opacity`, which the line is drawn at (cytoscape.js 3.34.3 `drawEdge`:
+ * `effectiveLineOpacity`).
+ * @param n - the element count
+ * @param line - the line opacities, as text
+ * @param values - the values; changed in place
+ */
+function combineLineOpacity(
+    n: number,
+    line: readonly (string | null)[] | undefined,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    if (line === undefined) {
+        return;
+    }
+    const whole = values.opacity;
+    values.opacity = Array.from({ length: n }, (_, i) => {
+        const a = line[i] === null ? null : Number(line[i]);
+        const b = whole?.[i];
+        if (a === null || !Number.isFinite(a)) {
+            return b ?? null;
+        }
+        return Math.round(a * (typeof b === "number" ? b : 1) * 1e6) / 1e6;
+    });
+}
+
+/** Where each `background-gradient-direction` runs, in the neutral `fillGradientAngle` degrees. */
+const GRADIENT_ANGLES: ReadonlyMap<string, number> = new Map([
+    ["to-bottom", 90],
+    ["to-top", -90],
+    ["to-left", 180],
+    ["to-right", 0],
+    ["to-bottom-right", 45],
+    ["to-right-bottom", 45],
+    ["to-bottom-left", 135],
+    ["to-left-bottom", 135],
+    ["to-top-right", -45],
+    ["to-right-top", -45],
+    ["to-top-left", -135],
+    ["to-left-top", -135],
+]);
+
+/**
+ * A node's `background-fill: linear-gradient` as `fill` (its first stop), `fillGradient` (its last) and
+ * `fillGradientAngle`; stops between them are dropped and a radial gradient keeps its flat fill, noted.
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values; changed in place
+ * @param notes - where problems are noted
+ */
+function combineBackgroundGradient(
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+    notes: StyleNotes,
+): void {
+    const fill = words.get("_backgroundFill");
+    if (fill === undefined) {
+        return;
+    }
+    const stops = words.get("_backgroundStops");
+    const direction = words.get("_backgroundDirection");
+    for (let i = 0; i < n; i++) {
+        if (fill[i] === "radial-gradient") {
+            notes.add(STYLE_ISSUE.GRADIENT, "node", "fill", { sample: "radial-gradient", element: i });
+        }
+        if (fill[i] !== "linear-gradient") {
+            continue;
+        }
+        // Cytoscape.js's default stop colors are one gray, which draws flat
+        const colors = gradientStopColors(stops?.[i] ?? "#999", {
+            notes,
+            target: "node",
+            property: "fill",
+            element: i,
+        });
+        if (colors.length < 2) {
+            continue;
+        }
+        if (colors.length > 2) {
+            notes.add(STYLE_ISSUE.APPROXIMATED, "node", "fillGradient", { sample: stops?.[i] ?? "", element: i });
+        }
+        (values.fill ??= new Array<StyleValue | null>(n).fill(null))[i] = colors[0];
+        (values.fillGradient ??= new Array<StyleValue | null>(n).fill(null))[i] = colors.at(-1) ?? null;
+        (values.fillGradientAngle ??= new Array<StyleValue | null>(n).fill(null))[i] =
+            GRADIENT_ANGLES.get(direction?.[i] ?? "to-bottom") ?? 90;
+    }
+}
+
+/** The curve style read as Cytoscape.js's word. */
+const CURVE_PART: CyjsPropertySpec = { property: "_curve", type: "enum", enums: CYJS_CURVE_STYLES };
+
+/**
+ * Cytoscape.js draws no arrow on a `haystack` edge, its default curve style (cytoscape.js 3.34.3 `drawArrowheads`
+ * skips haystacks): each arrow of one is `none`.
+ * @param curves - each edge's curve style, null where no rule sets it
+ * @param values - the values; changed in place
+ */
+function noArrowsOnHaystacks(
+    curves: readonly (StyleValue | null | undefined)[],
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const n = curves.length;
+    for (const p of ["targetArrow", "sourceArrow", "midTargetArrow", "midSourceArrow"]) {
+        const col = values[p];
+        if (col === undefined) {
+            continue;
+        }
+        for (let i = 0; i < n; i++) {
+            if ((curves[i] ?? "haystack") === "haystack" && col[i] !== null) {
+                col[i] = "none";
+            }
+        }
     }
 }
 

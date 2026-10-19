@@ -16,6 +16,8 @@ import {
     boxOfPoints,
     compareIds,
     type DashClass,
+    dashClassOf,
+    isPattern,
     type PArrow,
     type PBox,
     type PEdge,
@@ -23,6 +25,7 @@ import {
     type PGradient,
     type PNode,
     type PScene,
+    type PStray,
     type PStroke,
     type Pt,
     type PText,
@@ -628,6 +631,23 @@ export function routeShape(o: readonly Pt[], g: readonly Pt[]): { gap: number; u
  */
 const sameLine = (a: DashClass, b: DashClass): boolean => a === b && a !== "other";
 
+/**
+ * graphty's line class at the oracle's scale: a dash array graphty drew (its measured elements and gaps) is read again
+ * with its lengths in oracle pixels, so the pixel floor under which a dash is a dot is the same on both sides however
+ * much smaller or larger graphty drew the graph.
+ * @param s - graphty's stroke
+ * @param scale - graphty pixels to oracle pixels
+ * @returns the class
+ */
+function lineClassAt(s: PStroke, scale: number): DashClass {
+    return s.dash !== null && s.dash.length >= 2 && !isPattern(s.dashClass)
+        ? dashClassOf(
+              s.dash.map((d) => d * scale),
+              s.width * scale,
+          )
+        : s.dashClass;
+}
+
 /** The places along a gradient its colors are compared at. */
 const RAMP_AT = [0, 0.25, 0.5, 0.75, 1] as const;
 
@@ -857,11 +877,23 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
             }
         }
     }
+    // a caption's own body: a shape drawn tight around its words (a program that ignores the file's "no fill" on
+    // a caption node still draws the box), part of the caption and left out with it
+    const inside = (b: PBox, t: PText): boolean => {
+        const [x, y] = boxMiddle(t.box);
+        return x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
+    };
+    const bodyOf = (s: PStray): boolean =>
+        s.kind !== "text" &&
+        [...dropped].some(
+            (t) => inside(s.box, t) && s.box.y1 - s.box.y0 <= 2 * Math.max(t.box.y1 - t.box.y0, t.sizePx),
+        );
     return {
         ...scene,
         nodes: scene.nodes.filter((n) => !ids.has(n.id)),
         edges: scene.edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
         texts: texts.filter((t) => !dropped.has(t)),
+        strays: scene.strays.filter((s) => !bodyOf(s)),
     };
 }
 
@@ -1389,9 +1421,9 @@ export function compareOracle(
                 "edge.dash",
                 "edge",
                 id,
-                sameLine(o.stroke.dashClass, g.stroke.dashClass) ? 0 : 1,
+                sameLine(o.stroke.dashClass, lineClassAt(g.stroke, lengthScale)) ? 0 : 1,
                 o.stroke.dashClass,
-                g.stroke.dashClass,
+                lineClassAt(g.stroke, lengthScale),
             );
             // a gradient along an edge runs against its own line: its direction is judged against its chord
             const og = o.stroke.gradient ?? null;

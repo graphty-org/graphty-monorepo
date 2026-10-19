@@ -778,6 +778,27 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("leaves out the box a program draws tight around a caption's words, and keeps other shapes", () => {
+        const g = { ...graphtyScene(), texts: [text("fill=red", 50, 50, 12, { owner: "cap-fill-red" })] };
+        const t = text("fill=red", 50, 50);
+        const mid: [number, number] = [(t.box.x0 + t.box.x1) / 2, (t.box.y0 + t.box.y1) / 2];
+        const shape = (h: number, at: [number, number]) => ({
+            index: 0,
+            tag: "path",
+            kind: "shape" as const,
+            box: { x0: at[0] - 40, y0: at[1] - h / 2, x1: at[0] + 40, y1: at[1] + h / 2 },
+            fill: "#ffffff",
+            stroke: null,
+            text: null,
+        });
+        // Cytoscape desktop draws a yEd caption's white box although the file says hasFill 0
+        const body = shape(13, mid);
+        const big = shape(80, mid);
+        const elsewhere = shape(13, [mid[0] + 200, mid[1]]);
+        const o = { ...graphtyScene(), side: "oracle" as const, texts: [t], strays: [body, big, elsewhere] };
+        assert.deepEqual(withoutCaptions(o, g).strays, [big, elsewhere]);
+    });
+
     it("sees a drawing that paints no background on white, and fails graphty's whitesmoke there", () => {
         const bare = oraclePrims({ named: true }).slice(1);
         assert.strictEqual(associate(bare, 400, 300, graphtyScene()).scene.background, "#ffffff");

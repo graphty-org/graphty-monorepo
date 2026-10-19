@@ -3,7 +3,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { findRecovered } from "./autosave/autosave";
-import { addSelectedCard } from "./canvas/selectedCard";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
 import { HelpDialogs } from "./frame/HelpDialogs";
@@ -56,8 +55,8 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
-    // Once a project's element is up: the selected node's card goes on, then a project opened
-    // from the start screen loads its sample or file.
+    // Once a project's element is up, a project opened from the start screen loads its sample or
+    // file.
     useEffect(() => {
         const { session, element: host } = element;
         if (session === null || host === null) {
@@ -67,13 +66,10 @@ export function Workspace({
         if (opening !== null) {
             store.set({ opening: null });
         }
-        const card = addSelectedCard(session).catch((error: unknown) => {
-            console.error("[workspace] graphty-element refused the selected card layer:", error);
-        });
         if (opening === null) {
             return;
         }
-        card.then(() => opening.load(session, host)).catch((error: unknown) => {
+        opening.load(session, host).catch((error: unknown) => {
             const reason = error instanceof Error ? error.message : String(error);
             store.set({ notice: { message: `${opening.name} could not be opened. ${reason}` } });
         });

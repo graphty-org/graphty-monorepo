@@ -94,6 +94,11 @@ const LINE_CLASS: Readonly<Record<string, DashClass>> = {
     "dash-dot": "dash-dot",
     sinewave: "sinewave",
     zigzag: "zigzag",
+    "forward-slash": "slashes",
+    "backward-slash": "slashes",
+    "vertical-slash": "slashes",
+    "separate-arrow": "arrows",
+    "contiguous-arrow": "arrows",
 };
 
 /** The patterns whose elements are dashes or dots, whose class the drawn element lengths and gaps decide. */

@@ -153,8 +153,24 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "database",
 ];
 
-/** The line styles a node border is drawn in. @public */
-export const NodeBorderStyles = z.enum(["solid", "dashed", "dotted", "double", "dash-dot"]);
+/**
+ * The line styles a node border is drawn in. Beside the dash patterns: a zigzag or a sine wave
+ * running round the node, short strokes across the ring (leaning either way or straight), or a ring of small
+ * arrows chasing each other round it (Cytoscape desktop's border line types). @public
+ */
+export const NodeBorderStyles = z.enum([
+    "solid",
+    "dashed",
+    "dotted",
+    "double",
+    "dash-dot",
+    "zigzag",
+    "sinewave",
+    "forward-slash",
+    "backward-slash",
+    "vertical-slash",
+    "separate-arrow",
+]);
 
 /**
  * Where a node border sits against the node's size: wholly outside it (the default), centered on

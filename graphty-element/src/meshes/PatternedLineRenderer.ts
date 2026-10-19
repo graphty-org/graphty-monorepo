@@ -31,10 +31,42 @@ import { PatternedLineMesh, type PatternedLineOptions } from "./PatternedLineMes
 // PATTERN TYPE DEFINITIONS
 // ==========================================
 
-export type PatternType = "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag";
+export type PatternType =
+    | "dot"
+    | "star"
+    | "box"
+    | "dash"
+    | "diamond"
+    | "dash-dot"
+    | "sinewave"
+    | "zigzag"
+    | "double"
+    | "forward-slash"
+    | "backward-slash"
+    | "vertical-slash"
+    | "separate-arrow"
+    | "contiguous-arrow";
+
+/**
+ * The shapes a pattern element is drawn as. The glyphs (`GLYPHS`) are drawn in units of the
+ * line's width: a slash, an arrow, a chevron on a bar, two parallel bars.
+ */
+export type PatternShapeType =
+    | "circle"
+    | "star"
+    | "box"
+    | "diamond"
+    | "sinewave-segment"
+    | "zigzag-segment"
+    | "forward-slash"
+    | "backward-slash"
+    | "vertical-slash"
+    | "arrow"
+    | "chevron"
+    | "double-bar";
 
 interface ShapeDefinition {
-    type: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment";
+    type: PatternShapeType;
     size?: number; // Base size multiplier (default 1.0)
     aspectRatio?: number; // For elongated shapes (default 1.0)
     points?: number; // For star (default 5)
@@ -102,7 +134,115 @@ export const PATTERN_DEFINITIONS: Record<PatternType, PatternDefinition> = {
         spacing: { min: 0, ideal: 0, max: 0 },
         connected: true, // Connected pattern - no gaps between segments
     },
+    // Glyph patterns (Cytoscape desktop's line types). A bar glyph (double, contiguous-arrow) is
+    // longer than the length it is spaced by, so neighbors overlap into one continuous line.
+    double: {
+        shapes: [{ type: "double-bar", size: 1, aspectRatio: 2 }],
+        spacing: { min: 0, ideal: 0, max: 0 },
+        connected: false,
+    },
+    "forward-slash": {
+        shapes: [{ type: "forward-slash", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "backward-slash": {
+        shapes: [{ type: "backward-slash", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "vertical-slash": {
+        shapes: [{ type: "vertical-slash", size: 1 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "separate-arrow": {
+        shapes: [{ type: "arrow", size: 1, aspectRatio: 2 }],
+        spacing: { min: 0.2, ideal: 0.5, max: 1 },
+        connected: false,
+    },
+    "contiguous-arrow": {
+        shapes: [{ type: "chevron", size: 1, aspectRatio: 2 }],
+        spacing: { min: 0, ideal: 0, max: 0 },
+        connected: false,
+    },
 };
+
+/** A flat polygon in a glyph's own plane: `[along, across]` points, in units of the line's width. */
+type GlyphPolygon = readonly (readonly [number, number])[];
+
+/**
+ * A thin bar from one point to another.
+ * @param x0 - Where it starts, along the line.
+ * @param z0 - Where it starts, across the line.
+ * @param x1 - Where it ends, along the line.
+ * @param z1 - Where it ends, across the line.
+ * @param thickness - How thick it is.
+ * @returns The bar's four corners.
+ */
+function bar(x0: number, z0: number, x1: number, z1: number, thickness: number): GlyphPolygon {
+    const length = Math.hypot(x1 - x0, z1 - z0) || 1;
+    const [nx, nz] = [(-(z1 - z0) / length) * (thickness / 2), ((x1 - x0) / length) * (thickness / 2)];
+    return [
+        [x0 + nx, z0 + nz],
+        [x1 + nx, z1 + nz],
+        [x1 - nx, z1 - nz],
+        [x0 - nx, z0 - nz],
+    ];
+}
+
+/**
+ * The glyph patterns' elements as polygons, in units of the line's width, centered on the origin
+ * with the line running along +x (toward the target).
+ */
+const GLYPHS: Readonly<Record<string, readonly GlyphPolygon[]>> = {
+    // a stroke two widths across the line, leaning half a width forward, back, or not at all; -z is
+    // the line's left (up on screen for a line drawn left to right), so "/" runs from +z back to -z ahead
+    "forward-slash": [bar(-0.5, 1, 0.5, -1, 0.3)],
+    "backward-slash": [bar(-0.5, -1, 0.5, 1, 0.3)],
+    "vertical-slash": [bar(0, -1, 0, 1, 0.3)],
+    // a shaft and a head, two widths long
+    arrow: [
+        bar(-1, 0, 0.3, 0, 0.3),
+        [
+            [0.3, 0.5],
+            [1, 0],
+            [0.3, -0.5],
+        ],
+    ],
+    // a bar four widths long (it overlaps its neighbors, two widths away, into one line) with a
+    // chevron pointing along it
+    // ponytail: overlapping bars draw darker where they overlap on a translucent line; join them
+    // into one strip if that is ever seen
+    chevron: [bar(-2, 0, 2, 0, 0.5), bar(-0.3, 0.8, 0.5, 0, 0.25), bar(-0.3, -0.8, 0.5, 0, 0.25)],
+    // two thin bars four widths long, a width apart at their outer edges
+    "double-bar": [bar(-2, 0.4, 2, 0.4, 0.2), bar(-2, -0.4, 2, -0.4, 0.2)],
+};
+
+/**
+ * A glyph's polygons as one mesh in the XZ plane (y = 0), each fanned from its first point.
+ * @param polygons - The polygons.
+ * @returns The geometry.
+ */
+function glyphGeometry(polygons: readonly GlyphPolygon[]): VertexData {
+    const positions: number[] = [];
+    const indices: number[] = [];
+
+    for (const polygon of polygons) {
+        const base = positions.length / 3;
+        for (const [x, z] of polygon) {
+            positions.push(x, 0, z);
+        }
+        for (let i = 1; i < polygon.length - 1; i++) {
+            indices.push(base, base + i, base + i + 1);
+        }
+    }
+
+    const vertexData = new VertexData();
+    vertexData.positions = positions;
+    vertexData.indices = indices;
+    return vertexData;
+}
 
 // ==========================================
 // RENDERER CLASS
@@ -210,7 +350,7 @@ export class PatternedLineRenderer {
         color: string,
         opacity: number,
         scene: Scene,
-        shapeType?: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
+        shapeType?: PatternShapeType,
         is2DMode?: boolean,
     ): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[pattern];
@@ -304,6 +444,11 @@ export class PatternedLineRenderer {
      * @returns VertexData for the pattern
      */
     private static getGeometryForPattern(pattern: PatternType): VertexData {
+        const glyph = GLYPHS[this.getDefaultShapeType(pattern)] as readonly GlyphPolygon[] | undefined;
+        if (glyph !== undefined) {
+            return glyphGeometry(glyph);
+        }
+
         switch (pattern) {
             case "dot":
                 return this.createCircleGeometry();
@@ -334,9 +479,12 @@ export class PatternedLineRenderer {
      * @param shapeType - The shape type
      * @returns VertexData for the shape
      */
-    private static getGeometryForShapeType(
-        shapeType: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
-    ): VertexData {
+    private static getGeometryForShapeType(shapeType: PatternShapeType): VertexData {
+        const glyph = GLYPHS[shapeType] as readonly GlyphPolygon[] | undefined;
+        if (glyph !== undefined) {
+            return glyphGeometry(glyph);
+        }
+
         switch (shapeType) {
             case "circle":
                 return this.createCircleGeometry();
@@ -738,10 +886,7 @@ export class PatternedLineRenderer {
      * @param shapeType - Optional specific shape type (for alternating patterns)
      * @returns The perpendicular diameter of the geometry
      */
-    static getGeometryDiameter(
-        pattern: PatternType,
-        shapeType?: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment",
-    ): number {
+    static getGeometryDiameter(pattern: PatternType, shapeType?: PatternShapeType): number {
         // Get pattern definition to look up aspectRatio
         const patternDef = PATTERN_DEFINITIONS[pattern];
 
@@ -774,6 +919,7 @@ export class PatternedLineRenderer {
                 // Zigzag with 90-degree corners: amplitude=0.25, diameter=0.5
                 return 0.5;
             default:
+                // the glyphs are drawn in units of the line's width
                 return 1;
         }
     }
@@ -783,9 +929,7 @@ export class PatternedLineRenderer {
      * @param pattern - The pattern type
      * @returns The default shape type for the pattern
      */
-    private static getDefaultShapeType(
-        pattern: PatternType,
-    ): "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment" {
+    private static getDefaultShapeType(pattern: PatternType): PatternShapeType {
         switch (pattern) {
             case "dot":
                 return "circle";
@@ -802,6 +946,16 @@ export class PatternedLineRenderer {
                 return "sinewave-segment";
             case "zigzag":
                 return "zigzag-segment";
+            case "double":
+                return "double-bar";
+            case "separate-arrow":
+                return "arrow";
+            case "contiguous-arrow":
+                return "chevron";
+            case "forward-slash":
+            case "backward-slash":
+            case "vertical-slash":
+                return pattern;
             default:
                 return "circle";
         }

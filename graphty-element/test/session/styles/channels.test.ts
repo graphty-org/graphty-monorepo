@@ -346,16 +346,32 @@ describe("what the element can really draw", () => {
         assert.deepEqual(CHANNEL_DESCRIPTORS["node.shape"].values, [...NodeShapes.options]);
     });
 
-    it("offers the nine line patterns the edge renderer has meshes for", () => {
+    it("offers the fifteen line patterns the edge renderer has meshes for", () => {
         const patterns = CHANNEL_DESCRIPTORS["edge.style"].values ?? [];
 
         assert.deepEqual(
             [...patterns],
-            ["solid", "dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"],
+            [
+                "solid",
+                "dot",
+                "star",
+                "box",
+                "dash",
+                "diamond",
+                "dash-dot",
+                "sinewave",
+                "zigzag",
+                "double",
+                "forward-slash",
+                "backward-slash",
+                "vertical-slash",
+                "separate-arrow",
+                "contiguous-arrow",
+            ],
         );
     });
 
-    it("publishes the same nine patterns from the catalogue that the control offers", () => {
+    it("publishes the same fifteen patterns from the catalogue that the control offers", () => {
         // EdgeLinePattern used to be a second list, written out by hand in src/catalog/types.ts:
         // nine names of which seven -- "dashed", "dotted", "dash-dot-dot", "long-dash",
         // "short-dash", "double", "wave" -- had never had a mesh, while seven the renderer does
@@ -372,11 +388,17 @@ describe("what the element can really draw", () => {
             "dash-dot",
             "sinewave",
             "zigzag",
+            "double",
+            "forward-slash",
+            "backward-slash",
+            "vertical-slash",
+            "separate-arrow",
+            "contiguous-arrow",
         ];
 
         assert.deepEqual([...patterns], fromTheCatalogue);
 
-        for (const invented of ["dashed", "dotted", "dash-dot-dot", "long-dash", "short-dash", "double", "wave"]) {
+        for (const invented of ["dashed", "dotted", "dash-dot-dot", "long-dash", "short-dash", "wave"]) {
             assert.notInclude(patterns, invented);
         }
     });

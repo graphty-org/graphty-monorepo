@@ -66,12 +66,18 @@ export const LINE_STYLES: ReadonlyMap<string, string> = new Map([
     ["dash-dot", "dash-dot"],
     ["zigzag", "zigzag"],
     ["sinewave", "sinewave"],
-    ["double", "solid"],
+    ["double", "double"],
     ["long-dash", "dash"],
+    // Cytoscape desktop's EDGE_LINE_TYPE strokes
+    ["other:forward-slash", "forward-slash"],
+    ["other:backward-slash", "backward-slash"],
+    ["other:vertical-slash", "vertical-slash"],
+    ["other:separate-arrow", "separate-arrow"],
+    ["other:contiguous-arrow", "contiguous-arrow"],
 ]);
 
 /** The line styles drawn as the nearest pattern rather than exactly. */
-export const LINE_STYLES_NEAREST: ReadonlySet<string> = new Set(["double", "long-dash"]);
+export const LINE_STYLES_NEAREST: ReadonlySet<string> = new Set(["long-dash"]);
 
 /** The element's node border style for each border style of a file. */
 export const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
@@ -80,6 +86,15 @@ export const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
     ["dotted", "dotted"],
     ["double", "double"],
     ["dash-dot", "dash-dot"],
+    ["zigzag", "zigzag"],
+    ["sinewave", "sinewave"],
+    // Cytoscape desktop's NODE_BORDER_LINE_TYPE strokes, which graph-io's border styles keep as other:
+    ["other:zigzag", "zigzag"],
+    ["other:sinewave", "sinewave"],
+    ["other:forward-slash", "forward-slash"],
+    ["other:backward-slash", "backward-slash"],
+    ["other:vertical-slash", "vertical-slash"],
+    ["other:separate-arrow", "separate-arrow"],
 ]);
 
 /** The border styles drawn as the nearest style rather than exactly: none, since every one has its own. */

@@ -1366,6 +1366,12 @@ export const EdgeStyle: z.ZodObject<{
             "dash-dot": "dash-dot";
             sinewave: "sinewave";
             zigzag: "zigzag";
+            double: "double";
+            "forward-slash": "forward-slash";
+            "backward-slash": "backward-slash";
+            "vertical-slash": "vertical-slash";
+            "separate-arrow": "separate-arrow";
+            "contiguous-arrow": "contiguous-arrow";
         }>>;
         animationSpeed: z.ZodOptional<z.ZodNumber>;
         width: z.ZodOptional<z.ZodNumber>;
@@ -3752,9 +3758,15 @@ export const NodeStyle: z.ZodObject<{
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
             "dash-dot": "dash-dot";
+            sinewave: "sinewave";
+            zigzag: "zigzag";
+            double: "double";
+            "forward-slash": "forward-slash";
+            "backward-slash": "backward-slash";
+            "vertical-slash": "vertical-slash";
+            "separate-arrow": "separate-arrow";
             dashed: "dashed";
             dotted: "dotted";
-            double: "double";
         }>>;
         position: z.ZodOptional<z.ZodEnum<{
             center: "center";
@@ -3769,9 +3781,15 @@ export const NodeStyle: z.ZodObject<{
         style: z.ZodOptional<z.ZodEnum<{
             solid: "solid";
             "dash-dot": "dash-dot";
+            sinewave: "sinewave";
+            zigzag: "zigzag";
+            double: "double";
+            "forward-slash": "forward-slash";
+            "backward-slash": "backward-slash";
+            "vertical-slash": "vertical-slash";
+            "separate-arrow": "separate-arrow";
             dashed: "dashed";
             dotted: "dotted";
-            double: "double";
         }>>;
         offset: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;

@@ -29,14 +29,29 @@ import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
-import { PatternedLineRenderer } from "./PatternedLineRenderer";
+import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
 /** The animated edge lines of each scene, behind one before-render observer; see {@link FrameRoster}. */
 const animatedEdgeFrames = new FrameRoster();
 
-const PATTERNED_TYPES = new Set(["dot", "star", "box", "dash", "diamond", "dash-dot", "sinewave", "zigzag"]);
+const PATTERNED_TYPES: ReadonlySet<string> = new Set<PatternType>([
+    "dot",
+    "star",
+    "box",
+    "dash",
+    "diamond",
+    "dash-dot",
+    "sinewave",
+    "zigzag",
+    "double",
+    "forward-slash",
+    "backward-slash",
+    "vertical-slash",
+    "separate-arrow",
+    "contiguous-arrow",
+]);
 
 interface EdgeMeshOptions {
     styleId: string;
@@ -278,7 +293,7 @@ void main() {
     static createPatternedLine(options: EdgeMeshOptions, style: EdgeStyleConfig, scene: Scene): PatternedLineMesh {
         // Edge.transformArrowCap() provides start/end already adjusted for node surfaces and arrows
         return PatternedLineRenderer.create(
-            style.line?.type as "dot" | "star" | "box" | "dash" | "diamond" | "dash-dot" | "sinewave" | "zigzag",
+            style.line?.type as PatternType,
             new Vector3(0, 0, -0.5), // Placeholder start (Edge.update() will set real positions)
             new Vector3(0, 0, 0.5), // Placeholder end (Edge.update() will set real positions)
             scene,

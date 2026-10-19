@@ -27,6 +27,7 @@ import {
     PATTERN_DEFINITIONS,
     type PatternDefinition,
     PatternedLineRenderer,
+    type PatternShapeType,
     type PatternType,
 } from "./PatternedLineRenderer";
 
@@ -523,7 +524,8 @@ export class PatternedLineMesh {
                 // These have 1:1 aspect ratio: rendered size = width
                 return this.width;
             default:
-                return this.width;
+                // a glyph is spaced by its aspect ratio in widths (an arrow, a chevron, two bars: 2)
+                return this.width * aspectRatio;
         }
     }
 
@@ -559,7 +561,7 @@ export class PatternedLineMesh {
         const patternDef = PATTERN_DEFINITIONS[this.pattern];
 
         // Phase 3: For multi-shape patterns, determine which shape to use based on index
-        let shapeType: "circle" | "star" | "box" | "diamond" | "sinewave-segment" | "zigzag-segment" | undefined;
+        let shapeType: PatternShapeType | undefined;
 
         if (patternDef.shapes.length > 1) {
             // Alternating pattern: use modulo to cycle through shapes

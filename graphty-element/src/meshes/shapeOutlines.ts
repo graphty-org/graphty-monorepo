@@ -629,7 +629,8 @@ const PATTERNS: Readonly<Record<string, readonly number[] | undefined>> = {
  * The ring lies OUTSIDE the outline, so it never covers the node's fill.
  * @param outline - The node's outline, counter-clockwise.
  * @param width - How wide the border is.
- * @param style - Its line style: solid, dashed, dotted or double.
+ * @param style - Its line style: solid, dashed, dotted, double, dash-dot, or one of the strokes
+ *   {@link strokedRing} draws (zigzag, sine wave, slashes, arrows).
  * @returns The pieces.
  */
 export function borderRing(outline: readonly Point2[], width: number, style: string): RingPiece[] {
@@ -640,6 +641,11 @@ export function borderRing(outline: readonly Point2[], width: number, style: str
             { inner: [...outline], outer: offsetOutline(outline, third), closed: true },
             { inner: offsetOutline(outline, third * 2), outer: offsetOutline(outline, width), closed: true },
         ];
+    }
+
+    const drawn = strokedRing(outline, width, style);
+    if (drawn !== null) {
+        return drawn;
     }
 
     const outer = offsetOutline(outline, width);
@@ -732,4 +738,124 @@ function slice(
         outer: distances.map((distance) => at(distance, outer)),
         closed: false,
     };
+}
+
+/** A point on a closed outline and the outline's direction there. */
+interface Station {
+    readonly at: Point2;
+    /** Unit tangent, along the outline. */
+    readonly along: Point2;
+    /** Unit normal, out of the outline (for a counter-clockwise outline). */
+    readonly out: Point2;
+}
+
+/**
+ * Evenly spaced stations round a closed outline, about `spacing` apart: a whole number of them,
+ * and a multiple of `multiple`, so a pattern of that many stations meets itself where it closes.
+ * @param outline - The outline, counter-clockwise.
+ * @param spacing - The wanted distance between stations.
+ * @param multiple - What the number of stations is a multiple of.
+ * @returns The stations.
+ */
+function stations(outline: readonly Point2[], spacing: number, multiple = 1): Station[] {
+    const lengths = cumulativeLengths(outline);
+    const perimeter = lengths.at(-1) ?? 0;
+    const count = multiple * Math.max(Math.ceil(3 / multiple), Math.round(perimeter / spacing / multiple));
+    const step = perimeter / count;
+
+    return Array.from({ length: count }, (_unused, k): Station => {
+        const distance = k * step;
+        const side = Math.max(0, lengths.findIndex((length) => length > distance) - 1);
+        const [x0, y0] = outline[side % outline.length];
+        const [x1, y1] = outline[(side + 1) % outline.length];
+        const span = lengths[side + 1] - lengths[side] || 1;
+        const t = (distance - lengths[side]) / span;
+        const [ox, oy] = unitNormal(x0, y0, x1, y1);
+
+        return { at: [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t], along: [-oy, ox], out: [ox, oy] };
+    });
+}
+
+/**
+ * A point moved from a station along its tangent and its normal.
+ * @param s - The station.
+ * @param along - How far along the outline.
+ * @param out - How far out of it.
+ * @returns The point.
+ */
+function moved(s: Station, along: number, out: number): Point2 {
+    return [s.at[0] + s.along[0] * along + s.out[0] * out, s.at[1] + s.along[1] * along + s.out[1] * out];
+}
+
+/** The borders drawn as strokes of their own rather than as a ring or dashes of one. */
+const STROKES: ReadonlySet<string> = new Set([
+    "zigzag",
+    "sinewave",
+    "forward-slash",
+    "backward-slash",
+    "vertical-slash",
+    "separate-arrow",
+]);
+
+/**
+ * A border drawn as a stroke running round the node in a band as wide as the border, centered on
+ * the band's middle (Cytoscape desktop's border line types):
+ *
+ * - zigzag and sinewave: one closed thin line waving from the band's inner edge to its outer edge
+ * - forward-slash, backward-slash and vertical-slash: short strokes across the band, leaning with
+ *   the outline's direction, against it, or straight across
+ * - separate-arrow: small arrows, each with its own shaft, chasing each other round the node
+ * @param outline - The node's outline, counter-clockwise.
+ * @param width - How wide the border is.
+ * @param style - Its line style.
+ * @returns The pieces, or null for a style that is not a stroke.
+ */
+export function strokedRing(outline: readonly Point2[], width: number, style: string): RingPiece[] | null {
+    if (!STROKES.has(style)) {
+        return null;
+    }
+
+    const middle = offsetOutline(outline, width / 2);
+    const half = width / 2;
+    const line = width * 0.15;
+
+    if (style === "zigzag" || style === "sinewave") {
+        // a zigzag turns at every station, a wave is drawn through eight stations a period
+        const wave = style === "sinewave";
+        const ring = stations(middle, wave ? width / 2 : width, wave ? 8 : 2);
+        const zig = (k: number): number => (k % 2 === 0 ? 1 : -1);
+        const swing = (k: number): number => (half - line) * (wave ? Math.sin((k / 8) * Math.PI * 2) : zig(k));
+
+        return [
+            {
+                inner: ring.map((s, k) => moved(s, 0, swing(k) - line)),
+                outer: ring.map((s, k) => moved(s, 0, swing(k) + line)),
+                closed: true,
+            },
+        ];
+    }
+
+    if (style === "separate-arrow") {
+        // an arrow two band widths long every four, its head a third of it
+        return stations(middle, width * 4).flatMap((s): RingPiece[] => [
+            {
+                inner: [moved(s, -width, -line), moved(s, width / 3, -line)],
+                outer: [moved(s, -width, line), moved(s, width / 3, line)],
+                closed: false,
+            },
+            {
+                inner: [moved(s, width / 3, -half), moved(s, width, 0)],
+                outer: [moved(s, width / 3, half), moved(s, width, 0)],
+                closed: false,
+            },
+        ]);
+    }
+
+    // a stroke across the band every band width, leaning half a band width either way or none
+    const lean = { "forward-slash": half, "backward-slash": -half, "vertical-slash": 0 }[style] ?? 0;
+    return stations(middle, width).map((s): RingPiece => ({
+        inner: [moved(s, -lean - line, -half), moved(s, lean - line, half)],
+        outer: [moved(s, -lean + line, -half), moved(s, lean + line, half)],
+        closed: false,
+    }));
 }

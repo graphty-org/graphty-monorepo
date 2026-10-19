@@ -106,6 +106,12 @@ export const EdgeLineTypes = z.enum([
     "dash-dot", // Alternating boxes and circles
     "sinewave", // Repeating wave period meshes
     "zigzag", // Repeating zigzag period meshes
+    "double", // Two thin parallel lines (Cytoscape desktop PARALLEL_LINES)
+    "forward-slash", // Short strokes across the line leaning forward, "/" (Cytoscape FORWARD_SLASH)
+    "backward-slash", // Short strokes across the line leaning back (Cytoscape BACKWARD_SLASH)
+    "vertical-slash", // Short strokes straight across the line, "|" (Cytoscape VERTICAL_SLASH)
+    "separate-arrow", // A row of small arrows, each with its own shaft (Cytoscape SEPARATE_ARROW)
+    "contiguous-arrow", // A line with chevrons along it, pointing to the target (Cytoscape CONTIGUOUS_ARROW)
 ]);
 
 const LineStyle = z.strictObject({

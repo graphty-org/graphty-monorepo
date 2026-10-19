@@ -120,6 +120,16 @@ function named(session: GraphSession, node: string): boolean {
     return session.styles.list().some((layer) => layer.id === winner?.layerId && layer.selector.match === "ids");
 }
 
+/**
+ * The highlight color a style layer of the start page gives a node now.
+ * @param session - the hero's session.
+ * @param node - the node.
+ * @returns the color, or undefined when no layer highlights it.
+ */
+function highlighted(session: GraphSession, node: string): string | undefined {
+    return session.styles.explain({ node }).merged["node.haloColor"]?.hex;
+}
+
 beforeAll(async () => {
     await page.viewport(1440, 900);
 });
@@ -149,6 +159,8 @@ describe("the start page's graph", () => {
         assert.isFalse(faded(session, "Myriel"));
         assert.isTrue(faded(session, "Valjean"));
         assert.equal(session.selection.size, 0, "pointing at a node selects nothing");
+        assert.isDefined(highlighted(session, "Napoleon"), "the pointed-at node is highlighted");
+        assert.isUndefined(highlighted(session, "Myriel"), "and only that one");
 
         // Off the graph, onto the headline over the page's left side.
         await userEvent.hover(screen.getByRole("heading", { level: 1 }));
@@ -157,6 +169,7 @@ describe("the start page's graph", () => {
         });
         await session.styles.settled();
         assert.isFalse(faded(session, "Valjean"));
+        assert.isUndefined(highlighted(session, "Napoleon"), "the highlight went with the pointer");
     });
 
     it("shows a clicked node's card with its connections, community and links", async () => {

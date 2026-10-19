@@ -22,8 +22,14 @@ export interface HeroSample {
 /** Framed for every angle it turns to, so the turning graph neither leaves the frame nor shrinks. */
 const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" } } as const;
 
-/** The clicked node is marked by the page's ring and its card, not by a halo over it. */
+/**
+ * The selection's own halo is hidden: the clicked node is marked by the page's highlight layer
+ * (which follows the pointer, and the clicked node only while nothing is pointed at) and its card.
+ */
 const HERO_SELECTION_STYLE = { opacity: 0 };
+
+/** How solid the highlight around the focused node is. */
+const HIGHLIGHT_OPACITY = 0.5;
 
 /** Every node's diameter, in scene units, while nothing sizes the nodes by a result. */
 const NODE_SIZE = 2.56;
@@ -139,7 +145,7 @@ function namesLayer(scheme: "light" | "dark", nodes: readonly NodeId[]): LayerSp
 
 /**
  * This page's look, drawn by graphty-element from style layers: shaded icospheres and plain
- * lines, and while a node is pointed at (or, with none pointed at, clicked) a ring on it, its
+ * lines, and while a node is pointed at (or, with none pointed at, clicked) a highlight around it, its
  * links drawn darker and everything it is not linked to faded. Presentation choices of the start
  * page.
  * @param scheme - The page's color scheme.
@@ -180,10 +186,11 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
             set: { "edge.color": look.hot, "edge.opacity": 1, "edge.width": EDGE_WIDTH * 1.25 },
         },
         {
-            name: "Ring the focused node",
+            // The selection's halo, in the node's own shape, in the page's color.
+            name: "Highlight the focused node",
             target: "node",
             selector: { match: "hover", orSelected: true },
-            set: { "node.outline": look.ring },
+            set: { "node.haloColor": look.ring, "node.haloOpacity": HIGHLIGHT_OPACITY },
         },
         {
             // A tooltip, not a label: graphty-element draws a tooltip over everything, so no

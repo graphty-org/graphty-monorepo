@@ -20,9 +20,17 @@ function overlayShown(): boolean {
 }
 
 /**
- * The inspector's fields, where every control edits what is selected or inspected: Escape there
- * belongs to the field (close, revert, step back), never to Clear selection, which would empty the
- * very thing the reader is editing. The inspector's tabs are not fields: Escape there still clears.
+ * A field: a control that holds a value the reader edits (a box, a list, a check box, a slider).
+ * A button, a heading or a row is not one.
+ */
+const FIELD =
+    'input, select, textarea, [contenteditable="true"], [role="combobox"], [role="textbox"], [role="spinbutton"], [role="slider"], [role="checkbox"], [role="switch"], [role="radio"], [role="listbox"]';
+
+/**
+ * Escape in one of the inspector's fields belongs to the field (close, revert, step back), never
+ * to Clear selection, which would empty the very thing the reader is editing. Anywhere else in
+ * the inspector -- its heading, its tabs, a button -- Escape clears the selection, as the canvas
+ * menu's Clear selection says.
  * @param event - the key press.
  * @param key - the command key it matched.
  * @returns true for Escape in one of the inspector's fields.
@@ -33,7 +41,7 @@ function inspectorEscape(event: KeyboardEvent, key: string): boolean {
         key === "Escape" &&
         target instanceof Element &&
         target.closest(".ws-right") !== null &&
-        target.closest("[role='tablist']") === null
+        target.closest(FIELD) !== null
     );
 }
 

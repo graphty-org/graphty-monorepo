@@ -50,6 +50,8 @@ const CommandTool = forwardRef<HTMLButtonElement, CommandToolProps>(function Com
         <ToolButton
             {...anchor}
             ref={ref}
+            // Where a region the command opened sends focus back to (Escape in the table).
+            data-command={commandId}
             // A button that shows words carries them in its name (WCAG 2.5.3): "View, 3D".
             label={shows === undefined ? command.label : `${command.label}, ${shows}`}
             icon={icon}
@@ -313,12 +315,23 @@ export function WorkspaceToolbar(): React.JSX.Element {
                             onTab={(back) => {
                                 const opener = openers.path ?? openers.analyze ?? anchors.current.analyze;
                                 // Back goes to the button it opened from; on goes to the next Tab
-                                // stop after it on the page, past the toolbar's other tools.
-                                const stops = tabStops(document).filter(
-                                    (stop) => stop.closest(".mantine-Popover-dropdown") === null,
-                                );
-                                const at = opener === null || opener === undefined ? -1 : stops.indexOf(opener);
-                                const target = back ? opener : (stops[at + 1] ?? stops[0]);
+                                // stop after it on the page, past the toolbar's other tools. Found
+                                // by page order, not by the opener's own place in the Tab order: a
+                                // toolbar tool the roving focus has left (Analyze while Table was
+                                // last used) or a key press from elsewhere is no Tab stop itself.
+                                const group = opener?.closest('[role="toolbar"]') ?? opener;
+                                const target = back
+                                    ? opener
+                                    : tabStops(document).find(
+                                          (stop) =>
+                                              stop.closest(".mantine-Popover-dropdown") === null &&
+                                              group !== null &&
+                                              group !== undefined &&
+                                              !group.contains(stop) &&
+                                              (group.compareDocumentPosition(stop) &
+                                                  Node.DOCUMENT_POSITION_FOLLOWING) !==
+                                                  0,
+                                      );
                                 target?.focus();
                                 close();
                             }}

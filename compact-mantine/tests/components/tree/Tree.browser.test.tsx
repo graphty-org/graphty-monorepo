@@ -656,6 +656,22 @@ describe("Tree: pointer", () => {
         await expect.poll(() => document.querySelector("[role=tooltip]")?.textContent).toBe("Collapse Frame");
     });
 
+    it("opens the caret's tooltip clear of the row's own name", async () => {
+        await renderThemed(<Tree items={ITEMS} />);
+        const hit = within(row("Frame")).getByTestId("tree-caret").querySelector<HTMLElement>(".cm-tree-caret-hit")!;
+        await userEvent.hover(hit);
+        await expect.poll(() => document.querySelector("[role=tooltip]")?.textContent).toBe("Expand Frame");
+        const name = row("Frame").querySelector(".cm-tree-name")!.getBoundingClientRect();
+        await expect
+            .poll(() => {
+                const bubble = document.querySelector("[role=tooltip]")!.getBoundingClientRect();
+                const width = Math.min(bubble.right, name.right) - Math.max(bubble.left, name.left);
+                const height = Math.min(bubble.bottom, name.bottom) - Math.max(bubble.top, name.top);
+                return width > 0 && height > 0;
+            })
+            .toBe(false);
+    });
+
     it("takes a click on the caret anywhere on the row's height", async () => {
         await renderThemed(<Tree items={ITEMS} />);
         await userEvent.hover(row("Frame"));

@@ -223,14 +223,14 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         );
     });
 
-    it("a section's + with nothing left to add stays a Tab stop and says why", async () => {
+    it("a section's + with nothing left to add is no Tab stop and says why", async () => {
         await openRings();
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));
         await userEvent.click(await inspector().findByRole("tab", { name: /^Node/ }));
         const add = await inspector().findByRole("button", { name: "Add to node shape" });
         assert.strictEqual(add.getAttribute("aria-disabled"), "true");
-        assert.strictEqual(add.tabIndex, 0, "every + is a Tab stop in screen order");
+        assert.strictEqual(add.tabIndex, -1, "a + that adds nothing is a dead stop");
         assert.strictEqual(add.getAttribute("aria-description"), "Everything in node shape is set");
     });
 

@@ -73,6 +73,12 @@ function isOwnHeading(element: Element, reference: Element): boolean {
     return element.matches(HEADINGS) && element.parentElement?.contains(reference) === true;
 }
 
+/** A row a trigger can sit inside, whose words name what the trigger acts on. */
+const OWN_ROWS = '[role="treeitem"]';
+
+/** A tree row's words: its name, count and description, text-only spans (never a control). */
+const ROW_WORDS = ".cm-tree-name, .cm-tree-count, .cm-tree-description";
+
 /** The covered area, in px^2, at which a side's penalty is halfway between its least and most. */
 const COVER_SCALE = 2000;
 
@@ -138,6 +144,34 @@ function coveredArea(bubble: Box, reference: Element, floating: HTMLElement): nu
             .find((hit) => !floating.contains(hit));
         if (top && (element.contains(top) || top.contains(element))) {
             area += width * height * (isOwnHeading(element, reference) ? OWN_HEADING_WEIGHT : 1);
+        }
+    }
+    return area + ownRowWords(bubble, reference);
+}
+
+/**
+ * How much the bubble would cover of the words of the row the trigger is part of (a tree row's
+ * caret or toggle, whose row counts as the trigger itself above), weighted as the trigger's own
+ * heading: "Expand Louvain" must not open over "Louvain".
+ * @param bubble - the bubble's box, in viewport pixels
+ * @param reference - the trigger
+ * @returns the weighted area covered
+ */
+function ownRowWords(bubble: Box, reference: Element): number {
+    const row = reference.closest(OWN_ROWS);
+    if (row === null || row === reference) {
+        return 0;
+    }
+    let area = 0;
+    for (const words of row.querySelectorAll(ROW_WORDS)) {
+        if (words.contains(reference)) {
+            continue;
+        }
+        const box = obstacleBox(words);
+        const width = Math.min(bubble.x + bubble.width, box.right) - Math.max(bubble.x, box.left);
+        const height = Math.min(bubble.y + bubble.height, box.bottom) - Math.max(bubble.y, box.top);
+        if (width > 1 && height > 1) {
+            area += width * height * OWN_HEADING_WEIGHT;
         }
     }
     return area;

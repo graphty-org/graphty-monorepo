@@ -182,8 +182,9 @@ export interface AddOption {
  * A section's "+", named for the kind and the section ("Add to node shape"), so a layer on nodes
  * and edges never has two controls with one name: a menu of what it can still add, or, with one
  * thing left, a button that adds it. With nothing
- * left it stays in place, disabled, saying so in its tooltip, and still a Tab stop, so a walk of
- * the panel meets every "+" in screen order and hears why this one adds nothing.
+ * left it stays in place, disabled, saying so in its tooltip on hover, and is no Tab stop: a "+"
+ * that adds nothing is a dead stop on a keyboard walk, and the lines it would add are already
+ * there, each one a stop of its own.
  * @param props - Component props
  * @param props.kind - nodes or edges
  * @param props.title - the section's title
@@ -214,6 +215,7 @@ export function AddButton({
             aria-disabled={full ? true : undefined}
             data-disabled={full ? true : undefined}
             aria-description={full ? reason : undefined}
+            tabIndex={full ? -1 : undefined}
             data-plus
         >
             <GLYPHS.add size={14} aria-hidden />

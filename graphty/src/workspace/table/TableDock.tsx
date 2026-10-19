@@ -6,6 +6,7 @@ import { ActionIcon, Button, Menu, Pill, Tabs, Text, Tooltip } from "@mantine/co
 import React, { useEffect, useRef, useState } from "react";
 
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
+import { isPanelEscape } from "../keys/keys";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -304,6 +305,22 @@ function tableKey(kind: RecordKind, members: Members | null): string {
 }
 
 /**
+ * Escape in the table's grid: focus goes to the toolbar's Table button. A cell's own control that
+ * used the Escape (a list it closed) keeps it.
+ * @param event - the key press inside the dock.
+ */
+function leaveGrid(event: React.KeyboardEvent): void {
+    if (!isPanelEscape(event) || !(event.target instanceof Element) || event.target.closest('[role="grid"]') === null) {
+        return;
+    }
+    const button = document.querySelector<HTMLElement>('[data-command="table.toggle"]');
+    if (button !== null) {
+        event.preventDefault();
+        button.focus();
+    }
+}
+
+/**
  * The table dock (tier1-design.md section 2.9): Nodes, Edges and one item tab per group run;
  * the count; the Columns chooser; the options menu with Export...; the sort caption. Canvas, table
  * and inspector share graphty-element's one selection.
@@ -400,7 +417,9 @@ export function TableDock(): React.JSX.Element {
     const count = groupRun === undefined ? recordCount(session, kind, scope) : countOf(groupRun.groups.length, "group");
 
     return (
-        <div className="ws-table" ref={root}>
+        // Escape in the grid leaves it for the toolbar's Table button, which opened it: a key that
+        // always does its job, where nothing in the grid has an Escape of its own.
+        <div className="ws-table" ref={root} onKeyDown={leaveGrid}>
             <div className="ws-table-strip">
                 <Tabs
                     className="ws-table-tabs"

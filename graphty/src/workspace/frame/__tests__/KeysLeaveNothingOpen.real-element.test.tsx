@@ -2,8 +2,8 @@
  * Keys that must close what they leave and land focus where the reader goes next, on the REAL
  * graphty-element and Les Miserables, by real keys: Done and Remove hand focus to the control that
  * takes the next step, Tab out of the Which picker and out of Filter analyses closes them, a card's
- * remove button and a full section's "+" are Tab stops, Escape in the inspector keeps the
- * selection, a disabled Undo says why, and the drawing is a named region.
+ * remove button is a Tab stop and a full section's "+" is not, Escape on an inspector button
+ * clears the selection, a disabled Undo says why, and the drawing is a named region.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -160,7 +160,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
     });
 
-    it("Escape in the inspector keeps the graph's selection", async () => {
+    it("Escape on a button in the inspector clears the graph's selection", async () => {
         const { session } = await openGraph();
         await session.selection.apply({
             nodes: session.data
@@ -168,14 +168,14 @@ describe("keys that close what they leave and land focus in the right place", ()
                 .slice(0, 2)
                 .map((node) => node.id),
         });
-        // The inspector shows the selection; on its Style tab, Add to node shape is a field's control.
+        // The inspector shows the selection; on its Style tab, Add to node shape is a button, not a field.
         const inspector = await screen.findByRole("complementary", { name: "Inspector" });
         await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
         const field = await within(inspector).findByRole("button", { name: "Add to node shape" });
         field.focus();
         await userEvent.keyboard("{Escape}");
         // The command runs on the key press itself, so the selection reads as it stands.
-        assert.strictEqual(session.selection.size, 2, "Escape cleared the selection");
+        assert.strictEqual(session.selection.size, 0, "Escape kept the selection");
     });
 
     it("Enter on Undo with nothing left to undo says so", async () => {
@@ -207,7 +207,7 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
     });
 
-    it("Tab from Add to node text reaches the full Fill +", async () => {
+    it("Tab from Add to node text passes over the full Fill +", async () => {
         await openGraph();
         await openRow("Everything");
         const text = await screen.findByRole("button", { name: "Add to node text" }, { timeout: TIMEOUT_MS });
@@ -215,7 +215,13 @@ describe("keys that close what they leave and land focus in the right place", ()
         assert.strictEqual(fill.getAttribute("aria-disabled"), "true", "Fill has nothing left to add");
         text.focus();
         await userEvent.keyboard("{Tab}");
-        assert.strictEqual(document.activeElement, fill, focused());
+        assert.notStrictEqual(document.activeElement, fill, focused());
+        assert.notStrictEqual(document.activeElement, document.body, "focus fell to the page");
+        // The pointer still hears why.
+        await userEvent.hover(fill);
+        // A hang guard: the tooltip waits its 1 s open delay, as long as findBy's default.
+        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        assert.strictEqual(tip.textContent, "Everything in node fill is set");
     });
 
     it("puts the drawing in a region named for it", async () => {

@@ -4,6 +4,28 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-18 -- Decided by the team: no dead Tab stops, and Escape always does its job (graphty app, compact-mantine)
+
+Graphty app and compact-mantine, no API change.
+
+- A section's "+" with nothing left to add is no longer a Tab stop. It keeps its place, its dimmed
+  look and its reason ("Everything in node fill is set") in its tooltip on hover and in its
+  description. A keyboard walk met two or three such stops per layer and heard nothing it could
+  act on; the lines it would add are each a stop of their own. This reverses the earlier call that
+  kept it a stop so a walk "hears why". A dimmed command button (Undo with nothing to undo) is a
+  different case: its command is still one the reader looks for, and it says why when pressed.
+- Escape in the inspector clears the selection everywhere but in a field (a box, a list, a check
+  box, a slider): on the inspector's heading, a tab or a button it does what the canvas menu's
+  "Clear selection Escape" says. In a field it stays the field's (close, revert, step back).
+  This narrows the earlier call that kept every Escape in the inspector away from Clear selection.
+- Escape in the table's grid moves focus to the toolbar's Table button, the control that opened
+  the grid; a second Escape then clears the selection as anywhere else.
+- Tab out of "Filter analyses" goes to the first Tab stop after the Analyze tool's toolbar in page
+  order, so it never wraps to Main menu when another tool holds the toolbar's roving stop.
+- compact-mantine: a tooltip on a control inside a tree row (its caret, its toggles) weighs the
+  row's own words as it weighs a section's own title, so "Expand Louvain" opens below the row
+  instead of over "Louvain".
+
 ## 2026-10-18 -- Decided by the team: focus put on a field by program draws its ring (compact-mantine)
 
 `focusWithRing(element)` is a new export of `@graphty/compact-mantine` (additive). A select

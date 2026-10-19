@@ -1189,9 +1189,12 @@ Rules:
 - `node tools/land.mjs status` shows golden against `origin/golden` and master, the landed changes
   not yet on master, the golden pull request's state, the lock holder and the newest preview log.
 - An issue labeled `in-progress` belongs to the session that labeled it (its comment names the
-  session and branch); other sessions skip it. The pipeline-round skill (`/loop 30m /pipeline-round`,
-  `.claude/skills/pipeline-round/SKILL.md`) is how alarms, golden and issues are kept moving
-  without the owner routing work.
+  session and branch); other sessions skip it. Two project skills keep work moving without the
+  owner routing it: `/loop 30m /pipeline-round` handles alarms, lands and ships golden and owns
+  landing failures but never starts issue work, and `/loop 30m /issue-round` starts issues (alone
+  or in groups of related ones) in background subagents but never lands. Run both for normal work
+  (two clients, or one `/loop` with issue-round second), only pipeline-round to drain, or only
+  issue-round to start work that waits for the next pipeline round to land it.
 
 ## Where a change takes effect
 

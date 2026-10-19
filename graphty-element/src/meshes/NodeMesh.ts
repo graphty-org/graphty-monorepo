@@ -676,6 +676,7 @@ export class NodeMesh {
             extents.y ?? extents.across,
             corner,
             shape.points,
+            shape.stretchPoints !== false,
         );
     }
 

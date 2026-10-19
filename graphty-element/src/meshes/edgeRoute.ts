@@ -202,6 +202,58 @@ export function roundCorners(flat: readonly number[]): number[] {
 }
 
 /**
+ * How far each piece of a curve through midpoints is pulled toward its bend: `4 (sqrt 2 - 1) / 3`, the pull that
+ * draws a quarter of an ellipse round a right-angled corner.
+ */
+const MIDPOINT_PULL = (4 * (Math.SQRT2 - 1)) / 3;
+
+/** How many points each piece of a curve through midpoints is drawn with, its start included. */
+const MIDPOINT_STEPS = 12;
+
+/**
+ * A polyline drawn as one smooth curve that uses its interior points as control points rather than passing
+ * through them (`line.bendCurve` "midpoints"): one cubic piece from each end, or from the middle of a segment
+ * between two bends, to the next, each of its two controls pulled from its own end toward the bend between them by
+ * {@link MIDPOINT_PULL}. It leaves each end along its first and last segments. Cytoscape desktop draws a curved
+ * edge through its handles this way (`GraphGraphics.computeCubicPolyEdgePath`).
+ * @param flat - The polyline, flat x, y, z, ends included.
+ * @returns The curve, the same ends.
+ */
+export function curveThroughMidpoints(flat: readonly number[]): number[] {
+    const n = flat.length / 3;
+    if (n < 3) {
+        return [...flat];
+    }
+
+    const at = (i: number, k: number): number => flat[3 * i + k];
+    // the pieces' ends: the polyline's ends and the middle of each segment between two bends
+    const knot = (j: number, k: number): number => {
+        if (j === 0 || j === n - 2) {
+            return at(j === 0 ? 0 : n - 1, k);
+        }
+
+        return (at(j, k) + at(j + 1, k)) / 2;
+    };
+    const out = [flat[0], flat[1], flat[2]];
+    for (let j = 0; j < n - 2; j++) {
+        for (let s = 1; s <= MIDPOINT_STEPS; s++) {
+            const t = s / MIDPOINT_STEPS;
+            const u = 1 - t;
+            for (let k = 0; k < 3; k++) {
+                const from = knot(j, k);
+                const to = knot(j + 1, k);
+                const bend = at(j + 1, k);
+                const c1 = from + (bend - from) * MIDPOINT_PULL;
+                const c2 = to + (bend - to) * MIDPOINT_PULL;
+                out.push(u * u * u * from + 3 * u * u * t * c1 + 3 * u * t * t * c2 + t * t * t * to);
+            }
+        }
+    }
+
+    return out;
+}
+
+/**
  * How far from a node's center a segment leaving it in a direction crosses its surface: its
  * radius when it is round, else where the ray leaves its box.
  * @param dir - The unit direction.
@@ -235,6 +287,46 @@ const BUNDLE_STEPS = 24;
  * At this resolution a piece's middle strays from the true curve by under 2% of its length.
  */
 const ARC_TURN_PER_PIECE = Math.PI / 24;
+
+/**
+ * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
+ * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
+ * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
+ * from one end to the other.
+ * @param src - The source node's center.
+ * @param dst - The target node's center.
+ * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
+ *     least 0.5 (a half circle).
+ * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ */
+export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+    const dx = dst.x - src.x;
+    const dy = dst.y - src.y;
+    const chord = Math.hypot(dx, dy);
+    if (chord < 1e-9) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const r = Math.max(radius, 0.5) * chord;
+    // the circle's center is to the right of the chord's middle, so the arc bows to its left
+    const back = Math.sqrt(Math.max(0, r * r - (chord / 2) ** 2));
+    const cx = (src.x + dst.x) / 2 + (dy / chord) * back;
+    const cy = (src.y + dst.y) / 2 - (dx / chord) * back;
+    const from = Math.atan2(src.y - cy, src.x - cx);
+    let turn = Math.atan2(dst.y - cy, dst.x - cx) - from;
+    turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
+    const pieces = Math.min(BUNDLE_STEPS, Math.max(2, Math.ceil(Math.abs(turn) / ARC_TURN_PER_PIECE - 1e-9)));
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const a = from + turn * t;
+        out.push(cx + r * Math.cos(a), cy + r * Math.sin(a), src.z + (dst.z - src.z) * t);
+    }
+
+    out.splice(0, 3, src.x, src.y, src.z);
+    out.splice(-3, 3, dst.x, dst.y, dst.z);
+    return out;
+}
 
 /**
  * How many pieces a fanned edge's arc is drawn with: enough that no piece turns more, on average,

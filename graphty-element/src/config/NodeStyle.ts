@@ -214,6 +214,12 @@ export const NodeStyle = z.strictObject({
             // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
             // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
             points: z.string().optional(),
+            // Whether a "polygon" node's corners are stretched about its center until the farthest
+            // on each axis reach its sides (unset or true), or drawn exactly where they say, as
+            // fractions of its half width and half height (false): a regular polygon whose corners
+            // lie on the ellipse inside the node's box stays that size, as OGDF draws its
+            // triangles, pentagons, hexagons and octagons. Other shapes ignore it.
+            stretchPoints: z.boolean().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and

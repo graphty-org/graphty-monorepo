@@ -176,6 +176,24 @@ const LineStyle = z.strictObject({
      */
     fanned: z.boolean().optional(),
     /**
+     * How a curved line (`bezier`) is drawn through its bends: unset or "corners", straight
+     * through each bend with its corner rounded; "midpoints", one smooth curve that uses the bends
+     * as its control points rather than passing through them, running from the middle of each
+     * segment to the next, pulled toward the bend between them, and leaving each end along its
+     * first and last segments (as Cytoscape desktop draws a curved edge through its handles, and
+     * the loops it draws itself). A file's rule arrives here through its style layer.
+     */
+    bendCurve: z.enum(["corners", "midpoints"]).optional(),
+    /**
+     * The curve a curved line (`bezier`) is drawn as when it does not fan out of a bundle: unset,
+     * the element's own bow; a number, an arc of the circle through both node centers whose radius
+     * is this many times the distance between them (at least 0.5, a half circle), bowing to the
+     * left of the line's direction and cut off where it leaves each node (as Gephi draws a curved
+     * edge: its arc curveness 1.2 is a radius of 1 / 1.2). A file's rule arrives here through its
+     * style layer.
+     */
+    arcRadius: z.number().min(0.5).optional(),
+    /**
      * Where the line leaves its source node, when not where the line from the node's center crosses
      * its outline: `x,y` from the node's center as fractions of its half width and half height, y up
      * (`"1,0"` is the middle of its right side, `"0,1"` the middle of its top). Relative to the node's

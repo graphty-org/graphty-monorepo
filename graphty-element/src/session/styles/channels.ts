@@ -256,6 +256,8 @@ export type NodeImageRepeatValue = NonNullable<NonNullable<NodeStyleConfig["imag
 export type NodeImageClipValue = NonNullable<NonNullable<NodeStyleConfig["image"]>["clip"]>;
 /** Which way a node's stripes follow one another. */
 export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["stripes"]>["direction"]>;
+/** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
+export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
 
 /** A line style a node border can be drawn in. */
@@ -331,6 +333,7 @@ export interface ChannelValues {
     "node.outerBorderOffset": number;
     "node.cornerRadius": number;
     "node.shapePoints": string;
+    "node.shapeStretchPoints": boolean;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
@@ -380,6 +383,8 @@ export interface ChannelValues {
     "edge.bends": string;
     "edge.fanSpacing": number;
     "edge.fanned": boolean;
+    "edge.bendCurve": EdgeBendCurveValue;
+    "edge.arcRadius": number;
     "edge.sourcePort": string;
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
@@ -584,6 +589,7 @@ const EDGE_GRADIENT_CAVEAT =
 
 /** How an edge's gradient runs, or that it has none. */
 const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
+const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -1831,6 +1837,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "grows to hold its label (`node.labelFit`) grows by as far as its corners reach past 1. Other " +
             "shapes ignore it.",
     },
+    "node.shapeStretchPoints": {
+        channel: "node.shapeStretchPoints",
+        target: "node",
+        plainName: "Node Polygon Stretch",
+        shortName: "Stretch points",
+        group: "shape",
+        default: true,
+        accepts: "boolean",
+        stylePath: "shape.stretchPoints",
+        renderable: true,
+        caveat:
+            'Whether a "polygon" node\'s corners (`node.shapePoints`) are stretched so the farthest reach ' +
+            "the node's sides (true), or drawn exactly where they say, as fractions of its half width and " +
+            "half height (false), so a regular polygon inside the ellipse of the node's box keeps its size. " +
+            "Other shapes ignore it.",
+    },
     "node.labelFit": {
         channel: "node.labelFit",
         target: "node",
@@ -2089,6 +2111,39 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Whether a curved edge spreads apart from the other curved edges between the same two " +
             "nodes. Left unset, it does; false draws it as its own curve, bowing to the left of its " +
             "direction, so two edges joined either way round bow apart.",
+    },
+    "edge.bendCurve": {
+        channel: "edge.bendCurve",
+        target: "edge",
+        plainName: "Edge Bend Curve",
+        shortName: "Bend curve",
+        group: "line",
+        default: "corners",
+        accepts: "enum",
+        values: EDGE_BEND_CURVE_VALUES,
+        stylePath: "line.bendCurve",
+        renderable: true,
+        caveat:
+            'How a curved edge is drawn through its bends: "corners" runs straight through each bend ' +
+            'and rounds its corner; "midpoints" draws one smooth curve that uses the bends as control ' +
+            "points, from the middle of each segment to the next. A straight edge or one without bends " +
+            "ignores it.",
+    },
+    "edge.arcRadius": {
+        channel: "edge.arcRadius",
+        target: "edge",
+        plainName: "Edge Arc Radius",
+        shortName: "Arc radius",
+        group: "line",
+        accepts: "number",
+        min: 0.5,
+        stylePath: "line.arcRadius",
+        renderable: true,
+        caveat:
+            "Draws a curved edge that does not fan out of a bundle as an arc of the circle through both " +
+            "node centers, with this many times the distance between them as its radius (0.5 is a half " +
+            "circle; larger is flatter). Left unset, the edge keeps the element's own bow. A straight " +
+            "edge ignores it.",
     },
     "edge.sourcePort": {
         channel: "edge.sourcePort",

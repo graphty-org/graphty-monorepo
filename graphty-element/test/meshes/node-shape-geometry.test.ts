@@ -168,6 +168,20 @@ describe("flat shape outlines", () => {
         assert.deepEqual(boxOf(flatShapeOutline("polygon", 4, 2, undefined, "1,1 x,2 0,0")), { width: 4, height: 2 });
     });
 
+    test("a polygon not stretched keeps its corners where they say, inside the ellipse of its box", () => {
+        // OGDF's hexagon in a 48 x 36 box: its corners on the box's ellipse, so 48 wide and 36 * sqrt(3) / 2 high
+        const hexagon = "1,0 0.5,0.866 -0.5,0.866 -1,0 -0.5,-0.866 0.5,-0.866";
+        const box = boxOf(flatShapeOutline("polygon", 48, 36, undefined, hexagon, false));
+        assert.closeTo(box.width, 48, 1e-9);
+        assert.closeTo(box.height, 36 * 0.866, 1e-9);
+        // stretched, the same corners fill the box
+        assert.closeTo(boxOf(flatShapeOutline("polygon", 48, 36, undefined, hexagon)).height, 36, 1e-9);
+        // a regular triangle stays off-center in its box, its base above the box's bottom
+        const triangle = flatShapeOutline("polygon", 48, 36, undefined, "0,1 0.866,-0.5 -0.866,-0.5", false);
+        assert.closeTo(Math.min(...triangle.map(([, y]) => y)), -9, 1e-9);
+        assert.closeTo(Math.max(...triangle.map(([x]) => x)), 24 * 0.866, 1e-9);
+    });
+
     test("a node with no body takes up its box and has no face", () => {
         const outline = flatShapeOutline("none", 4, 1);
         assert.deepEqual(boxOf(outline), { width: 4, height: 1 });

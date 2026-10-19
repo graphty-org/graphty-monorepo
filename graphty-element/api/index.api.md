@@ -1374,6 +1374,11 @@ export const EdgeStyle: z.ZodObject<{
         bends: z.ZodOptional<z.ZodString>;
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
+        bendCurve: z.ZodOptional<z.ZodEnum<{
+            corners: "corners";
+            midpoints: "midpoints";
+        }>>;
+        arcRadius: z.ZodOptional<z.ZodNumber>;
         sourcePort: z.ZodOptional<z.ZodString>;
         targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
@@ -3675,6 +3680,7 @@ export const NodeStyle: z.ZodObject<{
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
         points: z.ZodOptional<z.ZodString>;
+        stretchPoints: z.ZodOptional<z.ZodBoolean>;
         labelFit: z.ZodOptional<z.ZodEnum<{
             inside: "inside";
             bounds: "bounds";

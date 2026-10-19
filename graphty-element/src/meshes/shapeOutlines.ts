@@ -412,6 +412,8 @@ function database(halfWidth: number, halfHeight: number): Point2[] {
  * @param cornerRadius - A round-rectangle's largest corner radius, in the box's units.
  * @param points - A polygon's corners (`shape.points`); a polygon without usable ones is drawn as a
  *   rectangle.
+ * @param stretch - Whether a polygon's corners are stretched to reach the box's sides (`shape.stretchPoints`), or
+ *   drawn where they say.
  * @returns The outline, counter-clockwise, or an empty list for a shape that is not flat.
  */
 export function flatShapeOutline(
@@ -420,6 +422,7 @@ export function flatShapeOutline(
     height: number,
     cornerRadius?: number,
     points?: string,
+    stretch = true,
 ): Point2[] {
     const halfWidth = width / 2;
     const halfHeight = height / 2;
@@ -432,7 +435,7 @@ export function flatShapeOutline(
 
         // Stretched about its center, not its box: the corners stay where they are around the
         // node's position, the farthest on each axis reaching the node's side.
-        const [reachX, reachY] = polygonReach(corners);
+        const [reachX, reachY] = stretch ? polygonReach(corners) : [1, 1];
 
         return corners.map(([x, y]): Point2 => [(x / reachX) * halfWidth, (y / reachY) * halfHeight]);
     }
@@ -452,7 +455,7 @@ export function flatShapeOutline(
         // ponytail: a radius set above a tenth is drawn at the tenth, where Cytoscape.js draws a set
         // `corner-radius` as given; let a set radius pass when a file needs it
         return roundCorners(
-            flatShapeOutline(sharp, width, height, undefined, points),
+            flatShapeOutline(sharp, width, height, undefined, points, stretch),
             Math.min(Math.min(width, height) / 10, cornerRadius ?? Infinity),
         );
     }

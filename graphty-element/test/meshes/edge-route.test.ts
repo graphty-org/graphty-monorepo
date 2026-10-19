@@ -7,6 +7,8 @@ import { assert, describe, it } from "vitest";
 
 import {
     bendPoints,
+    centerArc,
+    curveThroughMidpoints,
     fanArc,
     fanArcPieces,
     fanOffset,
@@ -82,6 +84,58 @@ describe("edge route geometry", () => {
         }
         // a polyline with no interior point is unchanged
         assert.deepEqual(roundCorners([0, 0, 0, 1, 1, 1]), [0, 0, 0, 1, 1, 1]);
+    });
+
+    it("draws a curve through midpoints as an elliptical quarter round one right-angled bend", () => {
+        // Cytoscape desktop's curved edge through one handle: from (1, 0) round the bend at the origin to (0, 1)
+        const out = curveThroughMidpoints([1, 0, 0, 0, 0, 0, 0, 1, 0]);
+        assert.deepEqual(out.slice(0, 3), [1, 0, 0]);
+        assert.deepEqual(out.slice(-3), [0, 1, 0]);
+        // every point lies on the unit circle round (1, 1), so the curve never reaches the bend
+        for (let i = 0; i < out.length; i += 3) {
+            assert.closeTo(Math.hypot(out[i] - 1, out[i + 1] - 1), 1, 3e-4);
+        }
+    });
+
+    it("draws a curve through midpoints through the middle of each segment between two bends", () => {
+        // Cytoscape desktop's self-loop: out of the node to the left, round the handles left of and above it, back in
+        const flat = [-1, 0, 0, -3, 0, 0, 0, 3, 0, 0, 1, 0];
+        const out = curveThroughMidpoints(flat);
+        const pts = Array.from({ length: out.length / 3 }, (_, i) => [out[3 * i], out[3 * i + 1]]);
+        assert.deepEqual(pts[0], [-1, 0]);
+        assert.deepEqual(pts.at(-1), [0, 1]);
+        // the middle of the two bends is on the curve, the bends themselves are not
+        assert.isTrue(pts.some(([x, y]) => Math.hypot(x + 1.5, y - 1.5) < 1e-9));
+        for (const [bx, by] of [
+            [-3, 0],
+            [0, 3],
+        ]) {
+            assert.isAbove(Math.min(...pts.map(([x, y]) => Math.hypot(x - bx, y - by))), 0.5);
+        }
+        // it leaves each end along its first and last segments
+        assert.closeTo(pts[1][1], 0, 0.05);
+        assert.isBelow(pts[1][0], -1);
+        // a polyline with no interior point is unchanged
+        assert.deepEqual(curveThroughMidpoints([0, 0, 0, 1, 1, 1]), [0, 0, 0, 1, 1, 1]);
+    });
+
+    it("draws an arc of the circle through both centers, bowing to the left, as Gephi curves an edge", () => {
+        // Gephi's arc curveness 1.2: a radius of the distance over 1.2, so the arc bows a sixth of the distance
+        const out = centerArc(at(0, 0, 0), at(12, 0, 4), 1 / 1.2);
+        const pts = Array.from({ length: out.length / 3 }, (_, i) => [out[3 * i], out[3 * i + 1], out[3 * i + 2]]);
+        assert.deepEqual(pts[0], [0, 0, 0]);
+        assert.deepEqual(pts.at(-1), [12, 0, 4]);
+        // the circle's center is below the chord's middle, at 8 (the radius 10, half the chord 6)
+        for (const [x, y] of pts) {
+            assert.closeTo(Math.hypot(x - 6, y + 8), 10, 1e-9);
+            assert.isAtLeast(y, -1e-9);
+        }
+        assert.closeTo(Math.max(...pts.map(([, y]) => y)), 2, 0.01);
+        // the other way round bows to the other side
+        const back = centerArc(at(12, 0, 0), at(0, 0, 0), 1 / 1.2);
+        assert.isBelow(Math.min(...back.filter((_, i) => i % 3 === 1)), -1.9);
+        // centers that meet are joined straight
+        assert.deepEqual(centerArc(at(1, 1, 0), at(1, 1, 5), 1), [1, 1, 0, 1, 1, 5]);
     });
 
     it("leaves a round node at its radius and a box where the ray crosses its side", () => {

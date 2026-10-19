@@ -133,6 +133,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.borderPosition": "mesh",
     "node.cornerRadius": "mesh",
     "node.shapePoints": "mesh",
+    "node.shapeStretchPoints": "mesh",
     // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
     // Node keys the mesh by them as well, since nodes of one style differ by their label's box.
     "node.labelFit": "mesh",
@@ -250,6 +251,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // Per edge like a route, and read by the same placement.
     "edge.fanSpacing": "content",
     "edge.fanned": "content",
+    "edge.bendCurve": "content",
+    "edge.arcRadius": "content",
     "edge.sourcePort": "content",
     "edge.targetPort": "content",
 

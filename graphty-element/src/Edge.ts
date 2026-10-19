@@ -15,6 +15,8 @@ import { gradientPieceColors } from "./meshes/edgeGradient";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
+    centerArc,
+    curveThroughMidpoints,
     fanArc,
     fanOffset,
     fanSlot,
@@ -333,6 +335,9 @@ export class Edge {
 
     /** The `line.fanned` the edge's arc was last placed with. See {@link syncContent}. */
     private drawnFanned?: boolean;
+
+    /** The `line.arcRadius` the edge's curve was last placed with. See {@link syncContent}. */
+    private drawnArcRadius?: number;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -1175,8 +1180,9 @@ export class Edge {
             rebuilt = true;
         }
 
-        if (style.line?.fanned !== this.drawnFanned) {
+        if (style.line?.fanned !== this.drawnFanned || style.line?.arcRadius !== this.drawnArcRadius) {
             this.drawnFanned = style.line?.fanned;
+            this.drawnArcRadius = style.line?.arcRadius;
             rebuilt = true;
         }
 
@@ -1264,7 +1270,7 @@ export class Edge {
      */
     private static routeKey(style: EdgeStyleConfig): string {
         const { line } = style;
-        return [line?.bends, line?.sourcePort, line?.targetPort].map((t) => t ?? "").join("|");
+        return [line?.bends, line?.sourcePort, line?.targetPort, line?.bendCurve].map((t) => t ?? "").join("|");
     }
 
     /**
@@ -1558,7 +1564,8 @@ export class Edge {
         }
 
         if (count < 2 || !this.fans) {
-            return EdgeMesh.createBezierLine(src, dst);
+            const arc = this.drawnStyle?.line?.arcRadius;
+            return arc === undefined ? EdgeMesh.createBezierLine(src, dst) : centerArc(src, dst, arc);
         }
 
         const slot = fanSlot(
@@ -1734,8 +1741,23 @@ export class Edge {
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
-        this.placeRun(batch, this.drawnStyle?.line?.bezier === true ? roundCorners(flat) : flat);
+        this.placeRun(batch, Edge.curveThroughBends(this.drawnStyle?.line, flat));
         return true;
+    }
+
+    /**
+     * A line through its bends as its style draws it: straight segments, or a curve when the line is curved, with
+     * its corners rounded or through the segments' midpoints (`line.bendCurve`).
+     * @param line - The line's style.
+     * @param flat - The line's points, flat x, y, z, ends included.
+     * @returns The points it is drawn through.
+     */
+    private static curveThroughBends(line: EdgeStyleConfig["line"], flat: number[]): number[] {
+        if (line?.bezier !== true) {
+            return flat;
+        }
+
+        return line.bendCurve === "midpoints" ? curveThroughMidpoints(flat) : roundCorners(flat);
     }
 
     /**

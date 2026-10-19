@@ -99,6 +99,7 @@ const DECLARED = [
     "node.stripeSize",
     "node.cornerRadius",
     "node.shapePoints",
+    "node.shapeStretchPoints",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
@@ -120,6 +121,8 @@ const DECLARED = [
     "edge.bends",
     "edge.fanSpacing",
     "edge.fanned",
+    "edge.bendCurve",
+    "edge.arcRadius",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
@@ -196,9 +199,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into eighty node channels and sixty-five edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 80);
-        assert.strictEqual(channelsFor("edge").length, 65);
+    it("splits into eighty-one node channels and sixty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 81);
+        assert.strictEqual(channelsFor("edge").length, 67);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -431,6 +434,8 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanSpacing",
         // Unset, a bundle's curved edges fan apart.
         "edge.fanned",
+        // Unset, a curved edge keeps the element's own bow.
+        "edge.arcRadius",
         "edge.sourcePort",
         "edge.targetPort",
         // Unset, a line is painted in its color.

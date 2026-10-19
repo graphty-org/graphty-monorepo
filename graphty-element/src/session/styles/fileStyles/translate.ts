@@ -531,6 +531,7 @@ function channelPlans(
             ["borderOpacity", [id("node.borderOpacity")]],
             ["cornerRadius", [length("node.cornerRadius")]],
             ["shapePoints", [id("node.shapePoints")]],
+            ["shapePointsStretch", [id("node.shapeStretchPoints")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",
@@ -659,6 +660,9 @@ function channelPlans(
         // Drawn in the scene's units, in proportion to the nodes it spaces the edges by.
         ["fanSpacing", [length("edge.fanSpacing", factors.node * SCENE_PER_UNIT.node)]],
         ["fanned", [id("edge.fanned")]],
+        ["bendCurve", [table("edge.bendCurve", BEND_CURVES)]],
+        // a multiple of the distance between the nodes: no unit to convert
+        ["arcRadius", [id("edge.arcRadius")]],
         ["sourcePort", [id("edge.sourcePort")]],
         ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],
@@ -706,6 +710,12 @@ function withCornerCap(rule: StyleRule, tool: StyleTool | null): StyleRule {
     }
     return { ...rule, set: { ...rule.set, cornerRadius: cap } };
 }
+
+/** The element's curve through bends for each neutral one. */
+const BEND_CURVES: ReadonlyMap<string, string> = new Map([
+    ["corners", "corners"],
+    ["midpoints", "midpoints"],
+]);
 
 /** The element's gradient kind for each neutral one. */
 const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([

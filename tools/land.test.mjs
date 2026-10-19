@@ -4,7 +4,7 @@
 //   node tools/land.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, beforeEach, describe, it } from "node:test";
@@ -159,6 +159,45 @@ describe("the lock", () => {
         );
         assert.equal(readLock(lock).pid, process.pid);
         release();
+    });
+
+    const queue = `${lock}.queue`;
+    const quiet = { pollMs: 5, onWait: () => {}, onQueue: () => {} };
+
+    it("grants it to waiters in the order they asked for it", async () => {
+        mkdirSync(lock, { recursive: true });
+        write(lock, "owner.json", JSON.stringify({ pid: process.ppid, host: (await import("node:os")).hostname() }));
+        const order = [];
+        const places = [];
+        // The last to ask looks most often, so plain polling would let it in first.
+        const waiter = (name, pollMs, onQueue = () => {}) =>
+            acquireLock(lock, { command: "land", branch: name }, { ...quiet, pollMs, onQueue }).then((release) => {
+                order.push(name);
+                release();
+            });
+        const all = [waiter("a", 30), waiter("b", 10), waiter("c", 1, (n) => places.push(n))];
+        rmSync(lock, { recursive: true });
+        await Promise.all(all);
+        assert.deepEqual(order, ["a", "b", "c"]);
+        assert.equal(places[0], 3, "the last to ask starts third in line");
+        assert.deepEqual(readdirSync(queue), []);
+    });
+
+    it("skips and removes the ticket of a waiter that is gone", async () => {
+        mkdirSync(queue, { recursive: true });
+        const dead = join(queue, `${"1".padStart(20, "0")}-${2 ** 22 + 1}.json`);
+        write(queue, dead.slice(queue.length + 1), "{}\n");
+        const release = await acquireLock(lock, { command: "land" }, quiet);
+        assert.equal(readLock(lock).pid, process.pid);
+        assert.ok(!existsSync(dead));
+        release();
+    });
+
+    it("removes a waiter's ticket once it holds the lock", async () => {
+        const release = await acquireLock(lock, { command: "land" }, quiet);
+        const tickets = readdirSync(queue);
+        release();
+        assert.deepEqual(tickets, []);
     });
 });
 

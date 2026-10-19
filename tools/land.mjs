@@ -46,7 +46,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { hostname } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const GOLDEN = "golden";
@@ -129,31 +129,107 @@ function stale(dir, owner) {
 }
 
 /**
- * Takes the exclusive lock, waiting while another process holds it.
+ * Takes the exclusive lock, waiting while another process holds it. Waiters queue in the order they
+ * asked, each with a ticket file in `<dir>.queue/`, and only the oldest live ticket tries the lock.
  * ponytail: one lock for every landing, revert and ship; per-branch locks only if landings must overlap.
  * @param dir the lock directory (made with mkdir, which is atomic)
  * @param info what to record about this holder (the command and branch)
- * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting
+ * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting;
+ * `onQueue(position)` when this waiter's place in line (1 = next) is first known and when it changes
  * @returns a function that releases it
  */
 export async function acquireLock(dir, info, opts = {}) {
     const pollMs = opts.pollMs ?? 15_000;
-    const onWait = opts.onWait ?? ((o) => console.log(`land: waiting for the lock, held by ${describeOwner(o)}`));
+    const tell = waitReporter(opts);
     mkdirSync(dirname(dir), { recursive: true });
-    let seen = "";
-    for (;;) {
-        const release = tryLock(dir, info);
-        if (release) return release;
-        const owner = readLock(dir) ?? {};
-        if (stale(dir, owner)) {
-            removeStaleLock(dir, owner);
-            continue;
+    const ticket = enqueue(dir, info);
+    try {
+        for (;;) {
+            const position = queuePosition(ticket.file);
+            const release = position === 1 ? tryLock(dir, info) : null;
+            if (release) return release;
+            const owner = readLock(dir);
+            if (owner && stale(dir, owner)) {
+                removeStaleLock(dir, owner);
+                continue;
+            }
+            tell(owner, position);
+            await new Promise((r) => setTimeout(r, pollMs));
         }
-        const key = `${owner.pid}:${owner.since}`;
-        if (key !== seen) onWait(owner);
-        seen = key;
-        await new Promise((r) => setTimeout(r, pollMs));
+    } finally {
+        ticket.drop();
     }
+}
+
+/**
+ * Says who holds the lock, once per holder, and this waiter's place in line, once per change.
+ * @param opts acquireLock's options (`onWait`, `onQueue`)
+ * @returns a function of the holder (or null) and the place in line
+ */
+function waitReporter(opts) {
+    const onWait = opts.onWait ?? ((o) => console.log(`land: waiting for the lock, held by ${describeOwner(o)}`));
+    const onQueue = opts.onQueue ?? ((n) => console.log(`land: number ${n} in line for the lock`));
+    let seen = "";
+    let place = 0;
+    return (owner, position) => {
+        if (position !== place) onQueue(position);
+        place = position;
+        const key = owner ? `${owner.pid}:${owner.since}` : "";
+        if (key && key !== seen) onWait(owner);
+        seen = key;
+    };
+}
+
+const QUEUE_SIGNALS = { SIGINT: 130, SIGTERM: 143 };
+
+/**
+ * Puts this waiter's ticket in the queue next to the lock. It is removed when the lock is taken, and
+ * on exit or SIGINT/SIGTERM while waiting.
+ * ponytail: tickets are ordered by process.hrtime, the machine-wide monotonic clock, so there is no
+ * clock skew between processes; the lock is in one checkout on one machine, so hosts never mix.
+ * @param dir the lock directory
+ * @param info what to record about this waiter
+ * @returns `{ file, drop }`: the ticket and a function that removes it
+ */
+function enqueue(dir, info) {
+    const queue = `${dir}.queue`;
+    mkdirSync(queue, { recursive: true });
+    const file = join(queue, `${String(process.hrtime.bigint()).padStart(20, "0")}-${process.pid}.json`);
+    const owner = { ...info, pid: process.pid, host: hostname(), since: new Date().toISOString() };
+    writeFileSync(file, `${JSON.stringify(owner)}\n`);
+    const remove = () => rmSync(file, { force: true });
+    const signals = Object.entries(QUEUE_SIGNALS).map(([signal, code]) => [
+        signal,
+        () => {
+            remove();
+            process.exit(code);
+        },
+    ]);
+    process.once("exit", remove);
+    for (const [signal, handler] of signals) process.once(signal, handler);
+    const drop = () => {
+        remove();
+        process.off("exit", remove);
+        for (const [signal, handler] of signals) process.off(signal, handler);
+    };
+    return { file, drop };
+}
+
+/**
+ * This waiter's place in line among the live tickets; a ticket whose process is gone is removed.
+ * @param file this waiter's ticket
+ * @returns 1 for the oldest live ticket, 2 for the next, and so on
+ */
+function queuePosition(file) {
+    const queue = dirname(file);
+    const mine = basename(file);
+    const live = [];
+    for (const name of readdirSync(queue).sort()) {
+        const pid = Number(/-(\d+)\.json$/.exec(name)?.[1]);
+        if (name === mine || (pid && alive(pid))) live.push(name);
+        else rmSync(join(queue, name), { force: true });
+    }
+    return live.indexOf(mine) + 1;
 }
 
 /**

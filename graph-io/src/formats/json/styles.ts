@@ -989,6 +989,38 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         if (scale !== undefined) {
             put("arrowSize", canonNumber(scale, site("arrowSize")));
         }
+        visArrowImages(layer.arrows, put, site);
+    }
+}
+
+/**
+ * The pictures of vis.js `image` arrows (`{ to: { type: "image", src, imageWidth, imageHeight } }`), each with the
+ * size it is drawn at where the file gives one (vis-network 9.1.9 `Image.draw`: `imageWidth` across the line,
+ * `imageHeight` along it, else the picture's own).
+ * @param arrows - the `arrows` value
+ * @param put - the row's setter
+ * @param site - where its values are read
+ */
+function visArrowImages(arrows: unknown, put: PutRow, site: (property: string) => CanonSite): void {
+    if (!isJsonObject(arrows)) {
+        return;
+    }
+    for (const [name, property] of [
+        ["to", "targetArrow"],
+        ["from", "sourceArrow"],
+        ["middle", "midTargetArrow"],
+    ] as const) {
+        const a = arrows[name];
+        if (!isJsonObject(a) || a.type !== "image" || typeof a.src !== "string" || a.src === "") {
+            continue;
+        }
+        put(`${property}Image`, a.src);
+        if (a.imageWidth !== undefined) {
+            put(`${property}ImageWidth`, canonNumber(a.imageWidth, site(`${property}ImageWidth`)));
+        }
+        if (a.imageHeight !== undefined) {
+            put(`${property}ImageHeight`, canonNumber(a.imageHeight, site(`${property}ImageHeight`)));
+        }
     }
 }
 

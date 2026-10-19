@@ -90,6 +90,16 @@ describe("Cytoscape's arrows", () => {
         expect(v.sourceArrowWidth).toEqual([0.8, 1.5]);
     });
 
+    it("keeps which side of the line a half arrow is on: HALF_TOP as half, HALF_BOTTOM as its mirror", async () => {
+        const doc = cx2(
+            { EDGE_TARGET_ARROW_SHAPE: "HALF_TOP", EDGE_SOURCE_ARROW_SHAPE: "HALF_BOTTOM" },
+            { EDGE_TARGET_ARROW_SHAPE: "half-bottom", EDGE_SOURCE_ARROW_SHAPE: "half-top" },
+        );
+        const v = await edgeValues("cx2", doc, ["targetArrow", "sourceArrow"]);
+        expect(v.targetArrow).toEqual(["half", "other:half-bottom"]);
+        expect(v.sourceArrow).toEqual(["other:half-bottom", "half"]);
+    });
+
     it("states no proportion for a file of arrows drawn in their shapes' own", async () => {
         const v = await edgeValues("cx2", cx2({ EDGE_TARGET_ARROW_SHAPE: "DELTA", EDGE_SOURCE_ARROW_SHAPE: "T" }), [
             "targetArrowLength",

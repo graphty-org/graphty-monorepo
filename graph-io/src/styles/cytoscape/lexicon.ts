@@ -102,7 +102,8 @@ const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["circle", "circle"],
     ["t", "tee"],
     ["half_top", "half"],
-    ["half_bottom", "half"],
+    // the half arrow on the line's other side from HALF_TOP's
+    ["half_bottom", "other:half-bottom"],
     ["square", "square"],
     ["delta_short_1", "triangle"],
     ["delta_short_2", "triangle"],
@@ -130,7 +131,7 @@ const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["open-square", "other:open-square"],
     ["open-delta", "triangle-open"],
     ["half-top", "half"],
-    ["half-bottom", "half"],
+    ["half-bottom", "other:half-bottom"],
 ]);
 
 /**

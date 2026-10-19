@@ -200,7 +200,7 @@ const CX2_ARROWS = {
 const NEAR_ARROWS = { crow: "vee", inverted: "triangle" };
 
 /** The Cytoscape arrow names no canonical arrow names, which Cytoscape's readers keep as `other:` values. */
-const CY_OTHER_ARROWS: ReadonlySet<string> = new Set(["open-square", "open-half-circle", "half-circle"]);
+const CY_OTHER_ARROWS: ReadonlySet<string> = new Set(["open-square", "open-half-circle", "half-circle", "half-bottom"]);
 /** The Cytoscape line types no canonical line style names. */
 const CY_OTHER_LINES: ReadonlySet<string> = new Set([
     "backward-slash",

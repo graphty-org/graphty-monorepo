@@ -415,6 +415,36 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "outlineColor")[2]).toBe("#ffd700");
     });
 
+    it("reads vis.js's image arrows: each end's picture and the size it is drawn at", async () => {
+        const src = "data:image/svg+xml;utf8,%3Csvg%3E%3C%2Fsvg%3E";
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }],
+            edges: [
+                {
+                    from: "a",
+                    to: "b",
+                    arrows: { to: { enabled: true, type: "image", src, imageWidth: 28, imageHeight: 12 } },
+                },
+                {
+                    from: "b",
+                    to: "c",
+                    arrows: {
+                        from: { enabled: true, type: "image", src },
+                        middle: { enabled: true, type: "image", src },
+                    },
+                },
+            ],
+        });
+        expect(values(r, "edge", "targetArrow")[0]).toBe("other:image");
+        expect(values(r, "edge", "targetArrowImage")).toEqual([src, null]);
+        expect(values(r, "edge", "targetArrowImageWidth")).toEqual([28, null]);
+        expect(values(r, "edge", "targetArrowImageHeight")).toEqual([12, null]);
+        expect(values(r, "edge", "sourceArrowImage")).toEqual([null, src]);
+        expect(values(r, "edge", "midTargetArrowImage")).toEqual([null, src]);
+        // no size of its own: drawn at its picture's
+        expect(values(r, "edge", "sourceArrowImageWidth")).toEqual([null, null]);
+    });
+
     it("sizes vis.js dots by value over the scaling range, else vis-network's default size 25, and boxes by label", async () => {
         const r = await load({
             nodes: [

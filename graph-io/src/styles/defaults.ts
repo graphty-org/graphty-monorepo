@@ -177,6 +177,7 @@ const CYTOSCAPE_ARROWHEAD: ToolArrowhead = {
         "circle-open": { length: 0.5, aspect: 1 },
         // HALF_TOP's barb: 1.135 long and 1 to one side of its line
         half: { length: 0.5675, aspect: 0.881 },
+        "other:half-bottom": { length: 0.5675, aspect: 0.881 },
         tee: { length: 0.1, aspect: 10 },
         // a square's outline, and a half circle (half a CIRCLE deep, as wide)
         "other:open-square": { length: 0.5, aspect: 1 },

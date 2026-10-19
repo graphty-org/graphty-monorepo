@@ -392,6 +392,27 @@ export interface EdgeStyleValues {
     readonly midTargetArrowColor: StyleColor;
     /** The color of the arrow at the middle pointing toward the source. */
     readonly midSourceArrowColor: StyleColor;
+    /**
+     * The picture an `other:image` target arrow draws, a URL or a data URL (vis-network `arrows.to.src` of type
+     * `image`), standing on its line with its top edge across the arrow's point.
+     */
+    readonly targetArrowImage: string;
+    /** The picture an `other:image` source arrow draws, as `targetArrowImage` says. */
+    readonly sourceArrowImage: string;
+    /** The picture an `other:image` middle arrow pointing toward the target draws, as `targetArrowImage` says. */
+    readonly midTargetArrowImage: string;
+    /** How wide across its line an image target arrow is drawn (vis-network `imageWidth`); absent, its picture's own. */
+    readonly targetArrowImageWidth: number;
+    /** How long along its line an image target arrow is drawn (vis-network `imageHeight`); absent, its picture's own. */
+    readonly targetArrowImageHeight: number;
+    /** How wide an image source arrow is drawn, as `targetArrowImageWidth` says. */
+    readonly sourceArrowImageWidth: number;
+    /** How long an image source arrow is drawn, as `targetArrowImageHeight` says. */
+    readonly sourceArrowImageHeight: number;
+    /** How wide an image middle arrow is drawn, as `targetArrowImageWidth` says. */
+    readonly midTargetArrowImageWidth: number;
+    /** How long an image middle arrow is drawn, as `targetArrowImageHeight` says. */
+    readonly midTargetArrowImageHeight: number;
     /** Whether the edge is drawn curved. */
     readonly curved: boolean;
     /**

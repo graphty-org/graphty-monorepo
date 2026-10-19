@@ -80,28 +80,34 @@ describe("vis-network edge routes", () => {
     });
 
     it("draws a self-loop as vis-network's circle on the node's outline, of selfReference.size at its angle", async () => {
-        const node = { id: "a", x: 0, y: 0, shape: "dot", size: 10, borderWidth: 1 };
         const r = await load({
-            nodes: [node],
+            nodes: [
+                { id: "a", x: 0, y: 0, shape: "dot", size: 10, borderWidth: 1 },
+                { id: "b", x: 100, y: 0, shape: "square", size: 10, borderWidth: 1 },
+            ],
             edges: [
                 { from: "a", to: "a" },
                 { from: "a", to: "a", selfReference: { size: 25, angle: Math.PI / 2 } },
+                { from: "b", to: "b" },
             ],
             options: { physics: false },
         });
         const bends = values(r, "edge", "bends") as string[];
-        // pi / 4: the center 10 / cos(pi / 4) + 1 out; the first corner the one facing the node, 20 left of it and 20
-        // below, and again last, so the curve runs the whole circle
-        const reach = 10 / Math.cos(Math.PI / 4) + 1;
-        const c = Math.cos(Math.PI / 4) * reach;
         const round = (v: number): number => Math.round(v * 1e4) / 1e4;
+        // a dot's outline is its size from its center, border left out (Dot.distanceToBorder): the center 10 out at
+        // pi / 4; the first corner the one facing the node, 20 left of the center and 20 below, and again last, so the
+        // curve runs the whole circle
+        const c = Math.cos(Math.PI / 4) * 10;
         const first = bends[0].split(" ");
         expect(first).toHaveLength(5);
         expect(first[0]).toBe(`${round((c - 20) / 10)},${round((c - 20) / 10)}`);
         expect(first[4]).toBe(first[0]);
-        // straight up: the center 11 above the node, the first corner 25 sqrt 2 straight below it
-        expect(bends[1].split(" ")[0]).toBe(`0,${round((11 - 25 * Math.SQRT2) / 10)}`);
-        expect(values(r, "edge", "bendCurve")).toEqual(["midpoints", "midpoints"]);
+        // straight up: the center 10 above the node, the first corner 25 sqrt 2 straight below it
+        expect(bends[1].split(" ")[0]).toBe(`0,${round((10 - 25 * Math.SQRT2) / 10)}`);
+        // a square's outline is its box plus its border (NodeBase._distanceToBorder): 10 sqrt 2 + 1 out at pi / 4
+        const q = Math.cos(Math.PI / 4) * (10 * Math.SQRT2 + 1);
+        expect(bends[2].split(" ")[0]).toBe(`${round((q - 20) / 10)},${round((q - 20) / 10)}`);
+        expect(values(r, "edge", "bendCurve")).toEqual(["midpoints", "midpoints", "midpoints"]);
     });
 });
 

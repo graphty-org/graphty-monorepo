@@ -1447,6 +1447,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
 
     // what vis-network draws per node: its own keys over its group over options.nodes
     const node = valuesOf(n);
+    const shapes: string[] = [];
     const records = nodeRecords(snapshot);
     const rawShape = (layer: VisLayer): string | null => (typeof layer.shape === "string" ? layer.shape : null);
     const range = visValueRange(n, (i) => {
@@ -1459,6 +1460,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
         const own = records(i);
         const group = g === null ? {} : (groupLayers.get(g) ?? {});
         const shape = rawShape(own) ?? rawShape(group) ?? rawShape(nodeDefaults) ?? "ellipse";
+        shapes.push(shape);
         const site = (property: string): CanonSite => ({
             notes,
             target: "node",
@@ -1505,7 +1507,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const toolNode = toolDefaults("vis-network")?.node;
     const borderOf = (i: number): StyleValue =>
         node.values.borderColor?.[i] ?? (toolNode?.borderColor?.value as StyleValue | undefined) ?? "#2b7ce9";
-    const geometry = visGeometry(snapshot, node.values);
+    const geometry = visGeometry(snapshot, node.values, shapes);
     const edge = visEdges(snapshot, visLayer(options.edges, "edge"), borderOf, geometry, notes, context);
     const values = { node: node.values, edge: edge.values };
     exactFromBlock(snapshot, src.block, values, visWritten(snapshot, values.edge));
@@ -1882,17 +1884,21 @@ function visEdges(
 interface VisGeometry {
     /** A node's position as vis-network draws it (`parseInt` of `x` and `y`, y down), or null. */
     readonly at: (i: number) => readonly [number, number] | null;
-    /** A node's half width, half height and border width, or null for a node sized by its label. */
-    readonly box: (i: number) => readonly [number, number, number] | null;
+    /** A node's half width, half height, border width and vis-network shape, or null for a node sized by its label. */
+    readonly box: (i: number) => VisBox | null;
 }
+
+/** A node's half width, half height, border width and vis-network shape. */
+type VisBox = readonly [number, number, number, string];
 
 /**
  * vis.js: the positions and boxes of the nodes, for the routes of their edges.
  * @param snapshot - the graph
  * @param nodeValues - the node values read so far (sizes and border widths)
+ * @param shapes - each node's vis-network shape
  * @returns the geometry
  */
-function visGeometry(snapshot: GraphSnapshot, nodeValues: Values): VisGeometry {
+function visGeometry(snapshot: GraphSnapshot, nodeValues: Values, shapes: readonly string[]): VisGeometry {
     const whole = (v: unknown): number => {
         if (typeof v === "string") {
             return Number.parseInt(v, 10);
@@ -1909,7 +1915,7 @@ function visGeometry(snapshot: GraphSnapshot, nodeValues: Values): VisGeometry {
         box: (i) => {
             const [w, h] = [num(nodeValues.width?.[i]), num(nodeValues.height?.[i])];
             const bw = nodeValues.borderWidth?.[i];
-            return w === null || h === null ? null : [w / 2, h / 2, typeof bw === "number" ? bw : 1];
+            return w === null || h === null ? null : [w / 2, h / 2, typeof bw === "number" ? bw : 1, shapes[i]];
         },
     };
 }
@@ -2146,15 +2152,15 @@ function visRoute(defaults: VisLayer, own: VisLayer, s: number, t: number, g: Vi
 
 /**
  * vis.js: a self-loop, vis-network's circle (9.1.9 `EdgeBase._getCircleData`, `getSelfRefCoordinates`) of radius
- * `selfReference.size` (or the older `selfReferenceSize`; 20) centered where the node's box, border included, meets
+ * `selfReference.size` (or the older `selfReferenceSize`; 20) centered on the node's outline (visToBorder) along
  * the ray at `selfReference.angle` (pi / 4, counterclockwise from the right). Written as bends at the corners of the
  * square round the circle, drawn through their midpoints, which run along the circle.
  * @param defaults - `options.edges`
  * @param own - the edge's own keys
- * @param box - the node's half width, half height and border width, or null when unknown
+ * @param box - the node's half width, half height, border width and shape, or null when unknown
  * @returns the loop's values, none for a node whose size is not known here
  */
-function visLoop(defaults: VisLayer, own: VisLayer, box: readonly [number, number, number] | null): Row {
+function visLoop(defaults: VisLayer, own: VisLayer, box: VisBox | null): Row {
     if (box === null) {
         return {};
     }
@@ -2165,8 +2171,8 @@ function visLoop(defaults: VisLayer, own: VisLayer, box: readonly [number, numbe
     const radius =
         pick(field(own, "size"), own.selfReferenceSize, field(defaults, "size"), defaults.selfReferenceSize) ?? 20;
     const angle = pick(field(own, "angle"), field(defaults, "angle")) ?? Math.PI / 4;
-    const [hw, hh, bw] = box;
-    const reach = Math.min(Math.abs(hw / Math.cos(angle)), Math.abs(hh / Math.sin(angle))) + bw;
+    const [hw, hh] = box;
+    const reach = visToBorder(box, angle);
     // the circle's center relative to the node's, y up
     const [cx, cy] = [Math.cos(angle) * reach, Math.sin(angle) * reach];
     // the corners of the square round the circle, the first the one facing the node and again last, so the curve
@@ -2178,6 +2184,25 @@ function visLoop(defaults: VisLayer, own: VisLayer, box: readonly [number, numbe
         corners.push(`${fraction(x / hw)},${fraction(y / hh)}`);
     }
     return { curved: true, bendCurve: "midpoints", bends: corners.join(" ") };
+}
+
+/**
+ * vis-network 9.1.9's `distanceToBorder` of a node, how far from its center its outline is along a ray: a dot its
+ * size, a circle or circularImage half its width, an ellipse its ellipse, all with no border; every other shape its
+ * box plus its border width (NodeBase._distanceToBorder, Box).
+ * @param box - the node's half width, half height, border width and shape
+ * @param angle - the ray, counterclockwise from the right
+ * @returns the distance
+ */
+function visToBorder(box: VisBox, angle: number): number {
+    const [hw, hh, bw, shape] = box;
+    if (shape === "dot" || shape === "circle" || shape === "circularImage") {
+        return hw;
+    }
+    if (shape === "ellipse") {
+        return (hw * hh) / Math.hypot(Math.sin(angle) * hw, Math.cos(angle) * hh);
+    }
+    return Math.min(Math.abs(hw / Math.cos(angle)), Math.abs(hh / Math.sin(angle))) + bw;
 }
 
 /** The vis.js keys the reader reads, per target. */

@@ -1943,8 +1943,18 @@ Where graphty now draws what yEd draws and the stand-in does not (floors lowered
 - A group header label's `backgroundColor` (`groups`, `groups-p2`): graphty draws it as a box round the words; yEd
   draws it as a bar across the group (`autoSizePolicy="node_width"`), which the neutral label box cannot say yet, and
   draw.io as a header path that is not read as the label's box.
-- `stray.extra` on stm32-func (15), synthetic-nodes (2) and `images-charts` (5): the `y:ImageNode` pictures graphty
-  draws, for which draw.io draws an empty box.
+- `stray.extra` on stm32-func (15), synthetic-nodes (2) and `images-charts` (5): pictures graphty draws on
+  `y:ImageNode` and `y:SVGNode` nodes, for most of which draw.io draws an empty box. Two of them are not that, and the
+  floor of 0 must not be read as accepting them:
+    - synthetic-nodes `image-node` ("image icon"): its `y:Resource` PNG is corrupt (the IDAT chunk's CRC and its zlib
+      checksum are both wrong), so no program can draw the picture. graphty draws a solid black square in its place:
+      graphty-element draws a picture that fails to decode as black instead of leaving it out. That is an extra
+      element, open in graphty-element.
+    - synthetic-nodes `svg-node` ("svg icon"): draw.io draws this picture too, as an `<image>`, yet it is counted as an
+      extra. Why the comparator does not pair the two is open.
+  Not a stray but related: `images-charts` `default` ("ImageNode=nothing set") has no `y:Image` and no `y:Fill`, and
+  graphty fills it with yEd's default ShapeNode fill (#FFCC00). Whether yEd paints an ImageNode's fill at all is the
+  open question in `readPicture` (styles-yed.ts); a drawing by yEd decides it.
 - Raster regions fall by 0.01 to 0.04 (labels drawn in Dialog's sans-serif face with their boxes, where draw.io draws
   its own face and no box).
 

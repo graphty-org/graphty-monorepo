@@ -139,7 +139,9 @@
             "labelSize": 14,
             "labelFont": "Times-Roman"
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": [
             {
                 "kind": "labelFromId"
@@ -174,7 +176,9 @@
             "labelFont": "Dialog",
             "labelSize": 12
         },
-        "graph": {},
+        "graph": {
+            "background": "#ffffff"
+        },
         "derived": []
     },
     "yfiles3": {
@@ -207,18 +211,38 @@
             "width": 10,
             "height": 10,
             "shape": "ellipse",
+            "opacity": 1,
+            "labelColor": "#000000",
+            "labelFont": "Arial",
+            "labelSize": 12,
             "labelPosition": "center"
         },
         "edge": {
+            "curved": true,
             "sourceArrow": "none",
-            "targetArrow": "none"
+            "targetArrow": "none",
+            "arrowSize": 1,
+            "opacity": 1
         },
         "graph": {
             "background": "#ffffff"
         },
         "derived": [
             {
-                "kind": "colorFromSourceNode"
+                "kind": "labelFromColumn",
+                "column": "label"
+            },
+            {
+                "kind": "colorFromEndNodes"
+            },
+            {
+                "kind": "borderFromFill",
+                "darken": 0.498,
+                "widthFactor": 0.08
+            },
+            {
+                "kind": "labelSizeFromWidth",
+                "factor": 1.2
             },
             {
                 "kind": "widthFromWeight"

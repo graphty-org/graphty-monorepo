@@ -1,3 +1,4 @@
+import { PANEL_INK } from "@graphty/compact-mantine";
 import { Box, Button, Checkbox, Divider, Group, Modal, Select, Stack, Text } from "@mantine/core";
 import { AlertCircle, CheckCircle, Zap } from "lucide-react";
 import { RefObject, useCallback, useEffect, useState } from "react";
@@ -332,9 +333,9 @@ export function RunAlgorithmModal({
                     }}
                 />
 
-                {/* Error Display */}
+                {/* Error Display: the modal is dark in both schemes, so the error reads the dark-scheme ink */}
                 {error && (
-                    <Group gap="xs" style={{ color: "var(--mantine-color-red-5)" }}>
+                    <Group gap="xs" style={{ colorScheme: "dark", color: PANEL_INK.DANGER_TEXT }}>
                         <AlertCircle size={16} />
                         <Text size="sm">{error}</Text>
                     </Group>

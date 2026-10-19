@@ -203,6 +203,18 @@ const STYLE: StylesheetJson = [
     },
     { selector: "edge.proposed[color]", style: { "line-color": "data(color)" } },
     { selector: "edge.proposed[label]", style: { label: "data(label)", "font-size": sized(9, 9), color: "#1f2937" } },
+    // an edge numbered by the step a run added it (a spanning tree's order)
+    {
+        selector: "edge.step[label]",
+        style: {
+            label: "data(label)",
+            "font-size": sized(9, 9),
+            color: "#1f2937",
+            "text-background-color": "#ffffff",
+            "text-background-opacity": 0.8,
+            "text-background-padding": "1px",
+        },
+    },
     // a short label on an edge, such as its weight in a hand-built example ("tag", as for nodes)
     {
         selector: "edge[tag]",

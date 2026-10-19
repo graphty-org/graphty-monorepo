@@ -630,7 +630,7 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                                     <Box
                                                         title="Connection successful"
                                                         data-testid={`ai-test-ok-${entry.type}`}
-                                                        style={{ display: "flex", color: PANEL_INK.SUCCESS }}
+                                                        style={{ display: "flex", color: PANEL_INK.SUCCESS_TEXT }}
                                                     >
                                                         <UiGlyph name="check" size={PANEL_GRID.GLYPH} />
                                                     </Box>
@@ -647,7 +647,10 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                                 <Box
                                                     component="span"
                                                     data-testid={`ai-test-error-${entry.type}`}
-                                                    style={{ fontSize: READING_FONT_SIZE, color: PANEL_INK.WARNING }}
+                                                    style={{
+                                                        fontSize: READING_FONT_SIZE,
+                                                        color: PANEL_INK.WARNING_TEXT,
+                                                    }}
                                                 >
                                                     {test.message}
                                                 </Box>
@@ -664,7 +667,7 @@ export function AiProviderSettings(props: AiProviderSettingsProps): React.JSX.El
                                                 h={PANEL_GRID.CONTROL_HEIGHT}
                                                 px={PANEL_GRID.TRAIL_GAP}
                                                 radius="sm"
-                                                c={PANEL_INK.DANGER}
+                                                c={PANEL_INK.DANGER_TEXT}
                                                 data-testid={`ai-remove-key-${entry.type}`}
                                                 style={{ fontSize: READING_FONT_SIZE }}
                                                 onClick={() => {

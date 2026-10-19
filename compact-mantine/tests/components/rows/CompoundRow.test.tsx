@@ -246,7 +246,7 @@ describe("CompoundRow", () => {
             // starts its value at, so a segment with a glyph adds no leading
             // padding (Figma's paint row: hex text at x+24).
             const [leading, trailing] = screen.getAllByTestId("compound-segment");
-            expect(leading.style.paddingInlineStart).toBe("0");
+            expect(leading.style.paddingInlineStart).toBe("0px");
             expect(leading.getAttribute("style")).toContain("padding-block: 0");
             expect(screen.getByTestId("compound-segment-slot")).toHaveStyle({ width: "24px" });
             // A later segment without a glyph: 1px seam + 7px = text 8px in.

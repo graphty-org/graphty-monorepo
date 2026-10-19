@@ -1,3 +1,4 @@
+import { PANEL_INK } from "@graphty/compact-mantine";
 import { Button, Divider, Group, Modal, Radio, Select, Stack, Text } from "@mantine/core";
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -206,9 +207,9 @@ export function RunLayoutsModal({
 
                 {/* Required Fields Warning */}
                 {requiredFieldWarning && (
-                    <Group gap="xs" style={{ color: "var(--mantine-color-yellow-5)" }}>
+                    <Group gap="xs" style={{ color: PANEL_INK.WARNING_TEXT }}>
                         <AlertTriangle size={16} />
-                        <Text size="sm" c="yellow.5">
+                        <Text size="sm" c={PANEL_INK.WARNING_TEXT}>
                             {requiredFieldWarning}
                         </Text>
                     </Group>

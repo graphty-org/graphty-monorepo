@@ -1360,7 +1360,20 @@ const VIS_KEYS: Readonly<Record<StyleTarget, readonly string[]>> = {
         "widthConstraint",
         "heightConstraint",
     ],
-    edge: ["color", "width", "value", "scaling", "dashes", "arrows", "hidden", "label", "title", "font", "background"],
+    edge: [
+        "color",
+        "width",
+        "value",
+        "scaling",
+        "dashes",
+        "arrows",
+        "hidden",
+        "label",
+        "title",
+        "font",
+        "background",
+        "smooth",
+    ],
 };
 
 /**

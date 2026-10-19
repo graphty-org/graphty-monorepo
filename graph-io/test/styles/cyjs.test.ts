@@ -443,6 +443,72 @@ describe("the cascade", () => {
         expect(unset.node.values.labelWrapWidth ?? [null, null, null, null]).toEqual([null, null, null, null]);
     });
 
+    it("reads middle arrows, outlines, line gradients and end label offsets, and writes them back", async () => {
+        const doc = {
+            elements: SMALL.elements,
+            style: [
+                {
+                    selector: "node",
+                    style: {
+                        "outline-width": 3,
+                        "outline-color": "red",
+                        "outline-offset": 4,
+                        "outline-style": "dashed",
+                    },
+                },
+                {
+                    selector: "#ab",
+                    style: {
+                        "mid-target-arrow-shape": "triangle-tee",
+                        "mid-source-arrow-shape": "chevron",
+                        "line-outline-width": 2,
+                        "line-fill": "radial-gradient",
+                        "line-gradient-stop-colors": "rgb(228, 26, 28) gold #377eb8",
+                        "line-gradient-stop-positions": "0% 25% 100%",
+                        "source-text-offset": 30,
+                        "target-arrow-shape": "triangle-backcurve",
+                    },
+                },
+            ],
+        };
+        const r = evaluateCytoscapeJs(doc);
+        expect(r.node.values.outerBorderWidth?.[0]).toBe(3);
+        expect(r.node.values.outerBorderColor?.[0]).toBe("#ff0000");
+        // Cytoscape.js grows the outline's path by its offset across, so the outline starts half of it out
+        expect(r.node.values.outerBorderOffset?.[0]).toBe(2);
+        expect(r.node.values.outerBorderStyle?.[0]).toBe("dashed");
+        const edge = (p: StyleProperty): unknown => r.edge.values[p]?.[0];
+        expect(edge("midTargetArrow")).toBe("other:triangle-tee");
+        expect(edge("midSourceArrow")).toBe("other:chevron");
+        expect(edge("targetArrow")).toBe("vee");
+        expect(edge("outlineWidth")).toBe(2);
+        expect(edge("gradientKind")).toBe("radial");
+        expect(edge("gradientColors")).toBe("#e41a1c #ffd700 #377eb8");
+        expect(edge("gradientStops")).toBe("0 0.25 1");
+        expect(edge("sourceLabelOffset")).toBe(30);
+
+        const s = await snapshotOf(doc);
+        const ex = extract(doc, s);
+        // the edge with none of them set is drawn in its color: Cytoscape.js's line-fill is solid
+        expect(resolveStyles(ex, "edge", "gradientKind", s)[1]).toBe("none");
+        const em = toCytoscapeStylesheet(ex);
+        const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
+        for (const [target, property] of [
+            ["node", "outerBorderOffset"],
+            ["node", "outerBorderStyle"],
+            ["edge", "midTargetArrow"],
+            ["edge", "outlineWidth"],
+            ["edge", "gradientKind"],
+            ["edge", "gradientColors"],
+            ["edge", "gradientStops"],
+            ["edge", "sourceLabelOffset"],
+        ] as const) {
+            expect(resolveStyles(back, target, property, s), `${target} ${property}`).toEqual(
+                resolveStyles(ex, target, property, s),
+            );
+        }
+    });
+
     it("reads a stylesheet given as text as it reads the same sheet given as an array", () => {
         const text = `node { width: 20; background-color: #336699 }
             .big { width: 50 }

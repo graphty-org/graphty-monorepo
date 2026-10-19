@@ -129,6 +129,13 @@ const ARROWS_TO_CYJS: ReadonlyMap<string, string> = new Map([
     ["circle", "circle"],
     ["square", "square"],
 ]);
+/** Cytoscape.js's `line-fill` for each neutral gradient kind. */
+const LINE_FILLS: ReadonlyMap<string, string> = new Map([
+    ["none", "solid"],
+    ["linear", "linear-gradient"],
+    ["radial", "radial-gradient"],
+]);
+
 /** The Cytoscape.js property each neutral arrow is written to. */
 const ARROW_PROPERTY = {
     sourceArrow: "source-arrow-shape",
@@ -168,6 +175,18 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "fanSpacing":
         case "labelWrapWidth":
             return typeof value === "number" ? numberToCyjs(property, value) : null;
+        case "gradientKind": {
+            const fill = LINE_FILLS.get(String(value));
+            return fill === undefined ? null : exact({ "line-fill": fill });
+        }
+        case "gradientStops":
+            return exact({
+                "line-gradient-stop-positions": String(value)
+                    .trim()
+                    .split(/\s+/)
+                    .map((s) => `${num6(Number(s) * 100)}%`)
+                    .join(" "),
+            });
         case "outerBorderOffset":
             // drawn half its value out (see the reader)
             return typeof value === "number" ? exact({ "outline-offset": num6(value * 2) }) : null;

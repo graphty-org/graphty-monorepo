@@ -268,6 +268,36 @@ describe("JSON styles: reading", () => {
         expect(values(r, "edge", "arrowSize")).toEqual([2, 0.5, null]);
     });
 
+    it("reads vis.js's middle arrows, its curve arrows and an edge background drawn only under a smooth edge", async () => {
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }],
+            edges: [
+                { from: "a", to: "b", arrows: { middle: { enabled: true, type: "bar" } } },
+                { from: "b", to: "c", arrows: { to: { enabled: true, type: "curve" } }, smooth: false },
+                {
+                    from: "c",
+                    to: "d",
+                    width: 2,
+                    arrows: { from: { enabled: true, type: "inv_curve" } },
+                    background: { enabled: true, color: "#ffd700", size: 9 },
+                },
+                {
+                    from: "d",
+                    to: "a",
+                    smooth: { enabled: false },
+                    arrows: "middle",
+                    background: { enabled: true, size: 9 },
+                },
+            ],
+        });
+        expect(values(r, "edge", "midTargetArrow")).toEqual(["tee", null, null, "triangle"]);
+        expect(values(r, "edge", "targetArrow")[1]).toBe("other:curve");
+        expect(values(r, "edge", "sourceArrow")[2]).toBe("other:inv-curve");
+        // the band under the line, its outline beyond the line's own width; none under a straight edge
+        expect(values(r, "edge", "outlineWidth")).toEqual([null, null, 7, 0]);
+        expect(values(r, "edge", "outlineColor")[2]).toBe("#ffd700");
+    });
+
     it("sizes vis.js dots by value over the scaling range, else vis-network's default size 25, and boxes by label", async () => {
         const r = await load({
             nodes: [

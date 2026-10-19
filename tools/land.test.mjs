@@ -39,6 +39,8 @@ let previews;
 let pushResult; // an exit code, or a function of the context that returns one
 let pushes;
 let duringPush; // runs once inside the next push, as if the gate were running
+let installed = null; // the lockfile golden's node_modules were last installed from
+let installs = [];
 let ctx;
 const golden = join(repo, ".worktrees/golden-local");
 const run = async (...argv) => {
@@ -100,6 +102,10 @@ before(() => {
         },
         preview: (_ctx, pr) => previews.push(pr),
         addWorktree: (c, base) => git(c.main, "worktree", "add", "-q", "-b", "golden", c.golden, base),
+        install: (c) => {
+            installed = readFileSync(join(c.golden, "pnpm-lock.yaml"), "utf8");
+            installs.push(installed.trim());
+        },
         lockOptions: { pollMs: 10 },
     });
 });
@@ -110,6 +116,7 @@ beforeEach(() => {
     pushResult = 0;
     pushes = 0;
     duringPush = null;
+    installs = [];
 });
 
 /**
@@ -406,6 +413,22 @@ describe("landing several branches", () => {
         assert.match(r.out, /multi\/e\s+gate failure, log: tmp\/push-gate-logs\/x\.log/);
         assert.equal(gh.filter((a) => isEdit(a)).length, 1);
         assert.deepEqual(previews, [7]);
+    });
+
+    it("installs each half's own lockfile, so a half without the lockfile change is not blamed", async () => {
+        branch("multi/lock1", { "pnpm-lock.yaml": "1\n" }, "chore: lock 1");
+        assert.equal((await run("land", "multi/lock1")).code, 0);
+        branch("multi/n", { "mn.txt": "n\n" }, "feat: mn", "origin/golden");
+        branch("multi/o", { "bad.txt": "o\n" }, "feat: mo", "origin/golden");
+        branch("multi/p", { "pnpm-lock.yaml": "2\n" }, "chore: lock 2", "origin/golden");
+        // As the gate's first check: node_modules must match the checkout's lockfile.
+        const lockGate = (c) => (readFileSync(join(c.golden, "pnpm-lock.yaml"), "utf8") !== installed ? 1 : badGate(c));
+        pushResult = lockGate;
+        const r = await run("land", "multi/n", "multi/o", "multi/p");
+        assert.equal(r.code, 3, r.out);
+        assert.match(r.out, /multi\/n\s+landed\n\s+multi\/o\s+gate failure.*\n\s+multi\/p\s+landed/);
+        // lock1; the whole batch (2); n and o (back to 1); p (2).
+        assert.deepEqual(installs, ["1", "2", "1", "2"]);
     });
 
     it("exits 5 when a conflict and a gate failure each keep a branch out, golden as it was", async () => {

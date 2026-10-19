@@ -379,9 +379,12 @@ function installIfNeeded(ctx) {
     const installed = existsSync(installedFile(ctx)) ? readFileSync(installedFile(ctx), "utf8").trim() : "";
     if (installed === blob.stdout) return;
     console.log("land: pnpm-lock.yaml changed; pnpm install --frozen-lockfile");
+    ctx.install(ctx);
+    markInstalled(ctx);
+}
+function defaultInstall(ctx) {
     const r = spawnSync("pnpm", ["install", "--frozen-lockfile"], { cwd: ctx.golden, env: ctx.env, stdio: "inherit" });
     if (r.status !== 0) throw new Error("pnpm install --frozen-lockfile failed in the golden worktree");
-    markInstalled(ctx);
 }
 
 /**
@@ -734,10 +737,7 @@ export async function landMany(ctx, branches, opts = {}) {
         const what = git(ctx, ctx.golden, ["diff", "--stat", before, "HEAD"]);
         console.log(`land: dry run -- would push to golden:\n${log}\n${what}`);
     }
-    if (!opts.dryRun && merged.length) {
-        installIfNeeded(ctx);
-        await landGroup(ctx, run, merged, before);
-    }
+    if (!opts.dryRun && merged.length) await landGroup(ctx, run, merged, before);
     if (run.pushed) announce(ctx, goldenHead(ctx));
     else git(ctx, ctx.golden, ["reset", "-q", "--hard", start]);
     return summarize(run, branches);
@@ -783,6 +783,9 @@ async function landGroup(ctx, run, list, merged) {
     const base = merged ?? goldenHead(ctx);
     const group = merged ? list : mergeEach(ctx, run, list);
     if (!group.length) return;
+    // Each group's own lockfile: a half without the branch that changed it would fail the gate's
+    // node_modules check in a second, and blame a branch that never touched the lockfile.
+    installIfNeeded(ctx);
     const r = await pushGolden(ctx, base, run.pushed ? base : run.start);
     if (r.code === 0) {
         run.pushed = true;
@@ -1043,6 +1046,7 @@ export function context(cwd, overrides = {}) {
         gh: defaultGh,
         preview: defaultPreview,
         addWorktree: defaultAddWorktree,
+        install: defaultInstall,
         ...base,
     };
 }

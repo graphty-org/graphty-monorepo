@@ -317,7 +317,9 @@ const STADIUM = [
  * its name after `com.yworks.` without a `.withShadow` suffix, lowercase. Matched whole, before the words below:
  * "data" is a parallelogram, but "storedData" and "directData" are not. A shape no neutral one names is the polygon
  * yEd draws it as (curves as short segments); the lines some draw inside (predefined process, internal storage) are
- * not drawn.
+ * not drawn. Left out until a drawing by yEd itself shows them (ISSUES.md): the BPMN artifact, whose `type` property
+ * picks among a data object, a data store, a message and others, and the SBGN nucleic acid feature and perturbing
+ * agent, which draw.io, the stand-in, draws as plain boxes.
  */
 const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedOutline>([
     ["flowchart.process", { shape: "rectangle" }],
@@ -383,7 +385,6 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
     ["entityrelationship.relationship", { shape: "diamond" }],
     ["entityrelationship.attribute", { shape: "ellipse" }],
     ["bpmn.conversation", { shape: "hexagon" }],
-    ["bpmn.artifact", { shape: "polygon", points: "-1,-1 1,-1 1,0.6 0.6,1 -1,1" }],
     ["sbgn.unspecifiedentity", { shape: "ellipse" }],
     ["sbgn.simplechemical", { shape: "ellipse" }],
     ["sbgn.emptyset", { shape: "ellipse" }],
@@ -394,20 +395,7 @@ const YED_CONFIGURATIONS: ReadonlyMap<string, YedOutline> = new Map<string, YedO
     ["sbgn.submap", { shape: "rectangle" }],
     ["sbgn.unitofinformation", { shape: "rectangle" }],
     ["sbgn.statevariable", { shape: "polygon", points: STADIUM }],
-    ["sbgn.perturbingagent", { shape: "polygon", points: "-1,1 -0.7,0 -1,-1 1,-1 0.7,0 1,1" }],
     ["sbgn.tag", { shape: "polygon", points: "-1,1 -1,-1 0.6,-1 1,0 0.6,1" }],
-    [
-        "sbgn.nucleicacidfeature",
-        {
-            shape: "polygon",
-            points: [
-                "-1,1",
-                ...arcPoints(-0.75, -0.6, 0.25, 0.4, Math.PI, 3 * HALF_PI, 6),
-                ...arcPoints(0.75, -0.6, 0.25, 0.4, 3 * HALF_PI, 2 * Math.PI, 6),
-                "1,1",
-            ].join(" "),
-        },
-    ],
 ]);
 
 /**

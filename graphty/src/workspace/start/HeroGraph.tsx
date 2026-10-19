@@ -25,6 +25,9 @@ const HERO_LAYOUT_BEHAVIOR = { camera: { fitBounds: "turning" } } as const;
 /** The clicked node is marked by the page's ring and its card, not by a halo over it. */
 const HERO_SELECTION_STYLE = { opacity: 0 };
 
+/** Every node's diameter, in scene units, while nothing sizes the nodes by a result. */
+const NODE_SIZE = 2.56;
+
 /** The layout seed, so the start page draws the same picture on every visit. */
 const HERO_SEED = 9;
 
@@ -150,7 +153,7 @@ function lookLayers(scheme: "light" | "dark"): LayerSpec[] {
             target: "node",
             selector: { match: "everything" },
             // Lit and faceted in 3D; graphty-element draws every node flat in 2D.
-            set: { "node.shape": "icosphere", "node.sizeMode": "diameter", "node.size": 1.6 },
+            set: { "node.shape": "icosphere", "node.sizeMode": "diameter", "node.size": NODE_SIZE },
         },
         {
             name: "Plain lines",
@@ -711,7 +714,7 @@ async function showKeyPlayers(session: GraphSession, mine: Picked): Promise<Foun
     if (result === null) {
         return null;
     }
-    await session.styles.encode({ run: run.id, channel: "node.size", range: [1, 4] });
+    await session.styles.encode({ run: run.id, channel: "node.size", range: [NODE_SIZE * 0.625, NODE_SIZE * 2.5] });
     const top = result.summary().top[0];
     if (top === undefined) {
         return { said: {}, nodes: [] };

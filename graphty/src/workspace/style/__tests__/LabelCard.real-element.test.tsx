@@ -3,7 +3,7 @@
  * "+", opens its settings popover, switches the shadow off, adds a row from the data list, gives
  * it words, moves it up from the keyboard, closes the popover with Escape, and the node's label
  * reads the card's lines; "-" removes the card, and "+" swaps a label for a card and back. A line
- * written by hand (the selected-node card's Community line) is shown as written and kept.
+ * written by hand (a Community line in a card a project file saved) is shown as written and kept.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -14,9 +14,9 @@ import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { SELECTED_CARD_TEMPLATE_ID } from "../../canvas/selectedCard";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { CARD_LOOK } from "../cardLook";
 
 /** A hang guard for the element coming up and painting, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -221,32 +221,31 @@ describe("the Label section's card row on the real element", () => {
 
     it("keeps a line written by hand and shows it as written", async () => {
         const { session, store } = await opened();
-        let card: ReturnType<GraphSession["styles"]["list"]>[number] | undefined;
-        await waitFor(
-            () => {
-                card = session.styles
-                    .list()
-                    .find((l) => l.source.by === "template" && l.source.templateId === SELECTED_CARD_TEMPLATE_ID);
-                assert.isDefined(card);
+        const community = "Community {results.louvain.group|rank} of {results.louvain.group|count}";
+        // A card layer as a project file saved it, its third line written by hand.
+        const card = await session.styles.add({
+            name: "Selected card",
+            target: "node",
+            selector: { match: "member", of: "selection" },
+            set: { "node.labelStyle": { enabled: true, ...CARD_LOOK } },
+            encode: {
+                "node.label": {
+                    template: ["<bold>{data.id}</bold>", "Connections: {results.degree.value}", community],
+                },
             },
-            { timeout: TIMEOUT_MS },
-        );
-        if (card === undefined) {
-            throw new Error("no card layer");
-        }
+        });
         store.set({ inspected: { kind: "layer-row", id: card.id } });
         await waitFor(async () => {
             assert.isNotNull(within(await labelSection()).getByRole("button", { name: "Card settings" }));
         });
         const settings = await openSettings();
-        const community = "Community {results.louvain.group|rank} of {results.louvain.group|count}";
         assert.isNotNull(within(settings).getByLabelText(`Card row 3, written by hand: ${community}`));
 
         // An edit elsewhere on the card keeps the hand-written line exactly.
         await userEvent.click(within(settings).getByRole("button", { name: "Add card row" }));
         await pick("name");
         await waitFor(() => {
-            const bound = session.styles.get(card?.id ?? "")?.encode?.["node.label"];
+            const bound = session.styles.get(card.id)?.encode?.["node.label"];
             const lines = bound !== undefined && "template" in bound ? bound.template : [];
             assert.lengthOf(lines, 4);
             assert.equal(lines[2], community);

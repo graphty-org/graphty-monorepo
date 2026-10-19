@@ -115,7 +115,7 @@ describe("DOT styles: Graphviz's rules", () => {
         expect(shown("c")).toBe("#0000ff");
         expect(shown("g")).toBe("#d3d3d3");
         expect(shown("p")).toBe("#000000");
-        expect(shown("pc")).toBe("#00ff00");
+        expect(shown("pc")).toBe("#008000");
         expect(byId(styles, snapshot, "width").get("p")).toBe(3.6);
         expect(codes(styles)).toContain("W_STYLE_UNFILLED");
     });
@@ -128,7 +128,7 @@ describe("DOT styles: Graphviz's rules", () => {
             off [shape=ellipse, style=striped, fillcolor="red:blue"];
         }`);
         const get = (p: string, id: string): unknown => byId(styles, snapshot, p).get(id) ?? null;
-        expect(get("stripeColors", "s")).toBe("#ff0000 #00ff00 #0000ff");
+        expect(get("stripeColors", "s")).toBe("#ff0000 #008000 #0000ff");
         expect(get("stripeSizes", "s")).toBe("0.333333 0.333333 0.333333");
         expect(get("stripeDirection", "s")).toBe("right");
         // counter-clockwise from 3 o'clock is the same pie, reversed, clockwise from there
@@ -158,7 +158,8 @@ describe("DOT styles: Graphviz's rules", () => {
         const border = byId(styles, snapshot, "borderColor");
         const borderWidth = byId(styles, snapshot, "borderWidth");
         expect(fill.get("a")).toBe("#2171b5");
-        expect(border.get("a")).toBe("#000000");
+        // red is no blues9 color, but Graphviz's SVG writes an SVG name as it is, whatever the scheme
+        expect(border.get("a")).toBe("#ff0000");
         // the graph's scheme applies to bgcolor only: 7 is no X11 color, so Graphviz draws it black
         expect(fill.get("b")).toBe("#000000");
         expect(fill.get("c")).toBe("#000000");
@@ -167,7 +168,7 @@ describe("DOT styles: Graphviz's rules", () => {
         // a fill list is a gradient from its first color; an outline list "red;0.3:blue" is no color, drawn black
         expect(fill.get("e")).toBe("#ff0000");
         expect(border.get("e")).toBe("#000000");
-        expect(byId(styles, snapshot, "labelColor").get("e")).toBe("#00ff00");
+        expect(byId(styles, snapshot, "labelColor").get("e")).toBe("#008000");
         expect(border.get("f")).toBe("#beaed4");
         expect(drawn(styles, snapshot, "edge", "color")[0]).toBe("#ff0000");
         expect(drawn(styles, snapshot, "edge", "opacity")[1]).toBe(0);
@@ -311,7 +312,7 @@ two", fontsize=20]; c [margin="0.5,0.25"]; d [margin=0.1]; p [shape=plain];
         expect(["cluster_a", "cluster_b", "cluster_d"].map((id) => border.get(id))).toEqual([
             "#ff0000",
             "#0000ff",
-            "#00ff00",
+            "#008000",
         ]);
         const shape = byId(styles, snapshot, "shape");
         expect(shape.get("cluster_a")).toBe("rectangle");
@@ -368,7 +369,48 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(get("labelFont").get("cluster_a")).toBe("Times, serif");
     });
 
-    it("places a cluster's label at its top, centered, unless labelloc and labeljust (its own or inherited) move it", async () => {
+    it("reads a bare name SVG knows as Graphviz's SVG draws it: gray #808080, purple #800080, not X11's", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            a [style=filled, fillcolor=gray, color=Purple];
+            b [style=filled, fillcolor="/x11/gray", color=" purple"];
+            c [style=filled, fillcolor="green:maroon", colorscheme=blues9, color=crimson];
+            a -> b [color=gray];
+        }`);
+        const fill = byId(styles, snapshot, "fill");
+        const border = byId(styles, snapshot, "borderColor");
+        // Graphviz -Tsvg writes fill="gray" and stroke="Purple", which an SVG reader draws as the CSS colors
+        expect([fill.get("a"), border.get("a")]).toEqual(["#808080", "#800080"]);
+        // a scheme-prefixed name, or one after blanks, is resolved by Graphviz and written as its X11 value
+        expect([fill.get("b"), border.get("b")]).toEqual(["#c0c0c0", "#a020f0"]);
+        // whatever the scheme: Graphviz checks the SVG names before the object's scheme
+        expect([fill.get("c"), border.get("c")]).toEqual(["#008000", "#dc143c"]);
+        expect(drawn(styles, snapshot, "edge", "color")[0]).toBe("#808080");
+    });
+
+    it("reads a filled color list as a linear gradient from its first color to its second, at -gradientangle", async () => {
+        const { snapshot, styles } = await load(`digraph {
+            node [style=filled];
+            a [fillcolor="yellow:purple", gradientangle=90];
+            b [fillcolor="#00ff00:#0000ff", gradientangle=315];
+            c [color="red;0.3:blue"];
+            r [style=radial, fillcolor="white:orange"];
+            s [shape=box, style=striped, fillcolor="red:blue"];
+            subgraph cluster_g { style=filled; fillcolor="red:blue"; gradientangle=180; g }
+        }`);
+        const get = (p: string): Map<string, unknown> => byId(styles, snapshot, p);
+        const [fill, second, angle] = ["fill", "fillGradient", "fillGradientAngle"].map(get);
+        expect(["a", "b", "c", "cluster_g"].map((id) => [fill.get(id), second.get(id), angle.get(id)])).toEqual([
+            // Graphviz turns counter-clockwise from left to right; the neutral angle clockwise on screen
+            ["#ffff00", "#800080", -90],
+            ["#00ff00", "#0000ff", 45],
+            ["#ff0000", "#0000ff", 0],
+            ["#ff0000", "#0000ff", -180],
+        ]);
+        // a radial gradient is drawn flat in its first color; stripes are bands, never a gradient
+        expect([second.get("r"), second.get("s")]).toEqual([null, null]);
+    });
+
+    it("places a cluster's label inside its box at the top, centered, unless labelloc and labeljust (its own or inherited) move it", async () => {
         const { snapshot, styles } = await load(`digraph {
             subgraph cluster_a { label="A"; a }
             subgraph cluster_b { label="B"; labelloc=b; labeljust=r; b; subgraph cluster_c { label="C"; c } }
@@ -376,10 +418,10 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         }`);
         const position = byId(styles, snapshot, "labelPosition");
         expect(["cluster_a", "cluster_b", "cluster_c", "cluster_d"].map((id) => position.get(id))).toEqual([
-            "top",
-            "bottom-right",
-            "bottom-right",
-            "top-left",
+            "inside-top",
+            "inside-bottom-right",
+            "inside-bottom-right",
+            "inside-top-left",
         ]);
     });
 
@@ -747,6 +789,27 @@ const GRAPHVIZ = hasGraphviz();
  * @param gv.edges - the edges in file order
  * @returns the differences
  */
+/**
+ * The five names whose SVG and X11 colors differ, X11 value to SVG value. The golden values are `-Txdot`'s, which
+ * resolves every name in X11; Graphviz's SVG writes these names as they are, drawn as SVG's colors, and graph-io
+ * reads them that way.
+ */
+const SVG_OF_X11: ReadonlyMap<string, string> = new Map([
+    ["#c0c0c0", "#808080"],
+    ["#00ff00", "#008000"],
+    ["#b03060", "#800000"],
+    ["#a020f0", "#800080"],
+]);
+
+/**
+ * Whether graphty's color is what Graphviz draws: the golden color, or the SVG color of the golden X11 one.
+ * @param ours - graphty's color
+ * @param golden - the golden (xdot) color
+ * @returns true when they agree
+ */
+const sameColor = (ours: unknown, golden: string | null): boolean =>
+    ours === golden || (golden !== null && ours === SVG_OF_X11.get(golden));
+
 function compareWithGraphviz(
     ex: ExtractedStyles,
     snapshot: GraphSnapshot,
@@ -785,10 +848,10 @@ function compareWithGraphviz(
             fill: fillOpacity[i] === 0 ? null : fill[i],
             outline: borderWidth[i] === 0 && !thinnest ? null : border[i],
         };
-        if (ours.fill !== g.fill) {
+        if (!sameColor(ours.fill, g.fill)) {
             out.push(`node ${id} fill: graphty ${String(ours.fill)}, Graphviz ${String(g.fill)}`);
         }
-        if (ours.outline !== g.outline) {
+        if (!sameColor(ours.outline, g.outline)) {
             out.push(`node ${id} outline: graphty ${String(ours.outline)}, Graphviz ${String(g.outline)}`);
         }
         const markup =
@@ -804,7 +867,7 @@ function compareWithGraphviz(
             if (text !== (g.label ?? "")) {
                 out.push(`node ${id} label: graphty ${JSON.stringify(text)}, Graphviz ${JSON.stringify(g.label)}`);
             }
-            if (g.label !== null && g.labelColor !== null && labelColor[i] !== g.labelColor) {
+            if (g.label !== null && g.labelColor !== null && !sameColor(labelColor[i], g.labelColor)) {
                 out.push(`node ${id} label color: graphty ${String(labelColor[i])}, Graphviz ${g.labelColor}`);
             }
         }
@@ -862,7 +925,7 @@ function compareWithGraphviz(
             continue;
         }
         const ours = opacity[e] === 0 ? null : color[e];
-        if (g.color !== null && ours !== g.color) {
+        if (g.color !== null && !sameColor(ours, g.color)) {
             out.push(`edge ${g.key} color: graphty ${String(ours)}, Graphviz ${g.color}`);
         }
         const style = ["dashed", "dotted"].includes(String(line[e])) ? line[e] : "solid";

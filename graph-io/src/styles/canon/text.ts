@@ -126,7 +126,8 @@ function entity(body: string): string | undefined {
 
 /**
  * The text an HTML-like label shows: tags dropped, `<br/>` as a line break, entities decoded, outer blanks trimmed.
- * Notes `W_STYLE_HTML_LABEL` at the site, since the markup is lost.
+ * A table's rows are lines and the cells of a row are parted by a space, as Graphviz lays them out; text in a table
+ * outside its cells is not drawn. Notes `W_STYLE_HTML_LABEL` at the site, since the markup is lost.
  * @param html - the label, with or without its outer `<` and `>`
  * @param site - where it was read
  * @returns the label's text
@@ -137,6 +138,9 @@ export function htmlLabelText(html: string, site: CanonSite): string {
     noteAt(site, STYLE_ISSUE.HTML_LABEL, html);
     const body = html.startsWith("<") && html.endsWith(">") ? html.slice(1, -1) : html;
     let out = "";
+    // the open tables and cells, innermost last: text is drawn outside every table or inside a cell
+    const open: ("table" | "td")[] = [];
+    const lineHasText = (): boolean => out.slice(out.lastIndexOf("\n") + 1).trim() !== "";
     let i = 0;
     while (i < body.length) {
         const c = body[i];
@@ -145,16 +149,25 @@ export function htmlLabelText(html: string, site: CanonSite): string {
             if (close < 0) {
                 break;
             }
-            if (/^<br\b/i.test(body.slice(i, i + 4))) {
+            const tag = /^<(\/?)(br|table|tr|td)\b/i.exec(body.slice(i, i + 7));
+            const name = tag?.[2].toLowerCase();
+            if (name === "br" || (name === "tr" && tag?.[1] === "" && lineHasText())) {
                 out += "\n";
+            } else if ((name === "table" || name === "td") && tag?.[1] === "/") {
+                open.pop();
+            } else if (name === "table" || name === "td") {
+                if (name === "td" && lineHasText()) {
+                    out += " ";
+                }
+                open.push(name);
             }
             i = close + 1;
         } else if (c === "&") {
             const [text, next] = entityAt(body, i);
-            out += text;
+            out += open.at(-1) === "table" ? "" : text;
             i = next;
         } else {
-            out += c;
+            out += open.at(-1) === "table" ? "" : c;
             i++;
         }
     }

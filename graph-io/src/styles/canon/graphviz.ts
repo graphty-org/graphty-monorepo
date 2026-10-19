@@ -12,6 +12,10 @@
  *   scheme knows no names at all.
  * - `transparent`, `none` and `invis` are `#fffffe` with alpha 0, whatever the scheme.
  * - An unknown color is drawn BLACK.
+ * - A bare name SVG knows (`gray`, `purple`, `green`, `maroon`, `crimson` ...), not in a `/scheme/` and with no
+ *   leading blanks, is drawn as the SVG color, whatever the scheme: Graphviz's SVG output writes such a name as it is
+ *   (`fill="gray"`, gvrender_resolve_color) and every SVG reader draws it as CSS does, so `gray` is #808080 there,
+ *   not X11's #c0c0c0. The SVG drawing is the one we read Graphviz by.
  * - A color list (`red:blue`, `red;0.3:blue`): an outline or a font color draws the text before the first `:` as one
  *   color, so `red:blue` is red and `red;0.3:blue` is black (`red;0.3` is not a color). A fill draws a gradient and
  *   an edge draws one line per color; both start with the first entry's color, its `;fraction` dropped. A value
@@ -164,10 +168,17 @@ function schemeColor(name: string, scheme: string): string | undefined {
  * @param raw - the value, at most 256 characters
  * @param scheme - the object's `colorscheme`, or null
  * @param use - an outline or font color (`line`), a fill, or an edge's line color
+ * @param svgNames - whether a bare SVG name is drawn as SVG's color, as Graphviz's SVG output draws it (false: as
+ * every other Graphviz output draws it)
  * @returns the color and how it was read
  * @category Styles
  */
-export function graphvizColor(raw: string, scheme: string | null, use: GraphvizColorUse): GraphvizColor {
+export function graphvizColor(
+    raw: string,
+    scheme: string | null,
+    use: GraphvizColorUse,
+    svgNames = true,
+): GraphvizColor {
     let text = raw.replace(/^[ \t\r\n]+/, "");
     let list: GraphvizColor["list"] = null;
     const colon = text.indexOf(":");
@@ -182,7 +193,13 @@ export function graphvizColor(raw: string, scheme: string | null, use: GraphvizC
         }
     }
     const sc = scheme === null || scheme.trim() === "" ? "x11" : scheme.toLowerCase();
-    const resolved = text === "" ? null : resolveOne(text, sc);
+    const svgName = svgNames && raw.startsWith(text) ? CSS_COLORS.get(text.toLowerCase()) : undefined;
+    let resolved: { hex: string; alpha: number } | null = null;
+    if (svgName !== undefined) {
+        resolved = { hex: svgName, alpha: 1 };
+    } else if (text !== "") {
+        resolved = resolveOne(text, sc);
+    }
     return resolved === null
         ? { hex: "#000000", alpha: 1, unknown: true, list }
         : { hex: resolved.hex, alpha: resolved.alpha, unknown: false, list };

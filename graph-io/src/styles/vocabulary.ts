@@ -52,7 +52,7 @@ export const STYLE_PROPERTIES: {
         ["height", "number"],
         ["borderWidth", "number"],
         ["cornerRadius", "number"],
-        ["fillGradientAngle", "number"],
+        ["fillGradientAngle", "signed"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],

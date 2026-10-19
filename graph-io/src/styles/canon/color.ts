@@ -623,10 +623,11 @@ function graphvizCanon(
     site: CanonSite,
     options: CanonColorOptions,
 ): CanonColor | null {
-    const g = graphvizColor(text, dialect === "x11" ? null : (options.scheme ?? null), options.use ?? "line");
+    const x11 = dialect === "x11";
+    const g = graphvizColor(text, x11 ? null : (options.scheme ?? null), options.use ?? "line", !x11);
     if (g.unknown) {
         noteAt(site, STYLE_ISSUE.BAD_VALUE, text);
-        if (dialect === "x11") {
+        if (x11) {
             return null;
         }
     }

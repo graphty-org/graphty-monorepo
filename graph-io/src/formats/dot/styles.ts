@@ -148,6 +148,7 @@ const NODE_ATTRIBUTES: readonly string[] = [
     "skew",
     "orientation",
     "penwidth",
+    "gradientangle",
     "fontname",
     "fontsize",
     "fontcolor",
@@ -539,13 +540,15 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
 }
 
 /**
- * Where a cluster's label sits: at the top unless `labelloc` is `b`, centered unless `labeljust` is `l` or `r`, as
- * Graphviz draws it inside the cluster's box.
+ * Where a cluster's label sits: inside the cluster's box (Graphviz grows the box to hold it), at the top unless
+ * `labelloc` is `b`, centered unless `labeljust` is `l` or `r`.
  * @param get - the cluster's attributes
  * @returns the position
  */
-function clusterLabelPosition(get: Attr): "top" | "top-left" | "top-right" | "bottom" | "bottom-left" | "bottom-right" {
-    const loc = (get("labelloc") ?? "").trim().toLowerCase().startsWith("b") ? "bottom" : "top";
+function clusterLabelPosition(
+    get: Attr,
+): `inside-${"top" | "top-left" | "top-right" | "bottom" | "bottom-left" | "bottom-right"}` {
+    const loc = (get("labelloc") ?? "").trim().toLowerCase().startsWith("b") ? "inside-bottom" : "inside-top";
     const just = (get("labeljust") ?? "").trim().toLowerCase();
     if (just.startsWith("l")) {
         return `${loc}-left`;
@@ -563,6 +566,40 @@ function readClusterFill(n: NodeRead): void {
     const bg = nonEmpty(get("bgcolor"));
     const raw = filled ? (nonEmpty(get("fillcolor")) ?? n.color ?? bg ?? "lightgrey") : bg;
     readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
+    if (!tokens.includes("radial") && !tokens.includes("striped")) {
+        readFillGradient(n, raw);
+    }
+}
+
+/**
+ * Reads a linear gradient fill (`fillcolor="a:b"`, `gradientangle`): Graphviz runs it from the list's first color to
+ * its second, `gradientangle` degrees counter-clockwise from left to right (0 by default), which is the neutral
+ * angle's clockwise turn negated. A second color left out is black; colors after the second are not drawn. A first
+ * color's `;fraction` makes Graphviz switch colors at that fraction, which graphty draws as a smooth gradient.
+ * @param n - the node or cluster
+ * @param raw - its fill color value
+ */
+function readFillGradient(n: NodeRead, raw: string | null): void {
+    const colon = raw === null ? -1 : raw.indexOf(":");
+    if (raw === null || colon < 0) {
+        return;
+    }
+    const second = raw
+        .slice(colon + 1)
+        .split(":")[0]
+        .split(";")[0];
+    const c = canonColor(second === "" ? "black" : second, "graphviz", n.at("fillGradient"), {
+        scheme: n.scheme,
+        use: "fill",
+    });
+    if (c === null) {
+        return;
+    }
+    n.put("fillGradient", c.color);
+    const angle = Number(nonEmpty(n.get("gradientangle")) ?? "0");
+    // within -180..180: the neutral angle turns clockwise on screen, Graphviz's counter-clockwise
+    const turned = Number.isFinite(angle) ? (((-angle % 360) + 540) % 360) - 180 : 0;
+    n.put("fillGradientAngle", num6(turned) + 0);
 }
 
 /**
@@ -575,6 +612,9 @@ function readNodeFill(n: NodeRead): void {
     if (isFilled(n)) {
         const raw = fillcolor ?? n.color ?? (point ? "black" : "lightgrey");
         readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
+        if (n.tokens.includes("filled") && !n.tokens.includes("radial")) {
+            readFillGradient(n, raw);
+        }
     } else if (fillcolor !== null) {
         noteAt(n.at("fill"), STYLE_ISSUE.UNFILLED, fillcolor.slice(0, MAX_STYLE_VALUE_LENGTH));
     }

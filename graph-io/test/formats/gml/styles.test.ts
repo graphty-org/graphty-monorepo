@@ -212,7 +212,8 @@ describe("GML styles: who wrote the file", () => {
         expect(node$("borderStyle")[0]).toBe("dashed");
         expect(node$("shape")).toEqual(["rectangle", "polygon", "ellipse"]);
         expect(node$("visible")[2]).toBe(false);
-        expect(node$("labelColor")[1]).toBe("#00ff00");
+        // a bare SVG name, as Graphviz's SVG draws it: green is #008000
+        expect(node$("labelColor")[1]).toBe("#008000");
         expect(node$("label")[1]).toBe("a\nb");
         // arrow "first" is gv2gml's dir=forward (the head's arrow), "last" dir=back
         expect(edge$("targetArrow")).toEqual(["diamond-open", "none", "triangle"]);

@@ -112,7 +112,9 @@ describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
     colorTable([
         ["red", "graphviz", "#ff0000"],
         ["RED", "graphviz", "#ff0000"],
-        ["gray", "graphviz", "#c0c0c0"],
+        // Graphviz's SVG writes a bare SVG name as it is, drawn as SVG's gray; "/x11/gray" is X11's
+        ["gray", "graphviz", "#808080"],
+        ["/x11/gray", "graphviz", "#c0c0c0"],
         ["bisque4", "graphviz", "#8b7d6b"],
         ["none", "graphviz", "#fffffe", 0],
         ["NONE", "graphviz", "#fffffe", 0],
@@ -150,11 +152,13 @@ describe("canonColor: Graphviz, as dot 2.43 draws it", () => {
 
     describe("with a color scheme", () => {
         colorTable([["3", "graphviz", "#c6dbef"]], { scheme: "Blues9" });
-        colorTable([["red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "blues9" });
+        // an SVG name is drawn whatever the scheme; any other name is looked up in the scheme alone
+        colorTable([["red", "graphviz", "#ff0000"]], { scheme: "blues9" });
+        colorTable([["peachpuff1", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "blues9" });
         colorTable([["//4", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "accent3" });
         colorTable([["1", "graphviz", "#7fc97f"]], { scheme: "accent3" });
         colorTable([["gray", "graphviz", "#808080"]], { scheme: "svg" });
-        colorTable([["red", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "nosuch" });
+        colorTable([["peachpuff1", "graphviz", "#000000", 1, "W_STYLE_BAD_VALUE"]], { scheme: "nosuch" });
         colorTable([["none", "graphviz", "#fffffe", 0]], { scheme: "blues9" });
     });
 
@@ -353,6 +357,19 @@ describe("text", () => {
         expect(htmlLabelText("<<b>bold</b><br/>x &amp; y &#65;&#x42; &bogus;>", s)).toBe("bold\nx & y AB &bogus;");
         expect(s.notes.list()[0].code).toBe("W_STYLE_HTML_LABEL");
         expect(s.notes.list()[0].elements).toEqual([2]);
+    });
+
+    it("reads an HTML-like table's rows as lines and a row's cells parted by a space, as Graphviz lays them out", () => {
+        const table =
+            '<<TABLE BORDER="2">\n  <TR><TD>A</TD><TD BGCOLOR="pink">B</TD></TR>\n  <TR><TD COLSPAN="2">wide</TD></TR></TABLE>>';
+        expect(htmlLabelText(table, site())).toBe("A B\nwide");
+        // a table inside a cell, and text beside a table
+        expect(
+            htmlLabelText(
+                "<x<TABLE><TR><TD>h</TD></TR><TR><TD><TABLE><TR><TD>p</TD><TD>q</TD></TR></TABLE></TD></TR></TABLE>>",
+                site(),
+            ),
+        ).toBe("x\nh\np q");
     });
 
     it("joins a record label's fields with ' | ' and notes it", () => {

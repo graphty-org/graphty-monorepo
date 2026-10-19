@@ -7,6 +7,7 @@
  * tests each get their own.
  */
 
+import type { AutosaveEntry, Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
@@ -67,7 +68,17 @@ export interface WorkspaceState {
      * What to load once the element of a project that was just opened has come up (a sample or
      * a file from the start screen), with the name it is known by; run once, then cleared.
      */
-    readonly opening: { readonly name: string; readonly load: (session: GraphSession) => Promise<void> } | null;
+    readonly opening: {
+        readonly name: string;
+        readonly load: (session: GraphSession, element: GraphtyElement) => Promise<void>;
+    } | null;
+    /**
+     * Whether graphty-element keeps the reader's work in the browser (its autosave). The
+     * application turns it on; stories and tests leave it off, so one never reopens another's work.
+     */
+    readonly autosave: boolean;
+    /** Work kept from an earlier visit that the start screen offers to restore, or null. */
+    readonly recovered: AutosaveEntry | null;
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */
@@ -93,6 +104,8 @@ const INITIAL: WorkspaceState = {
     singleKeyShortcuts: true,
     notice: null,
     opening: null,
+    autosave: false,
+    recovered: null,
 };
 
 /** The store. */

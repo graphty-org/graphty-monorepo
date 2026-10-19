@@ -189,7 +189,9 @@ export function CardContents({
                 <Text size="xs" fw={600} pl={4}>
                     Card contents
                 </Text>
-                <Popover opened={adding} onChange={setAdding} position="left-start" trapFocus>
+                {/* Lists and menus here open in the Card settings popover's own tree, so a click in
+                    one is not a click outside that closes it (Mantine's rule for nested popovers). */}
+                <Popover opened={adding} onChange={setAdding} position="left-start" trapFocus withinPortal={false}>
                     <Popover.Target>
                         <Tooltip label="Add card row">
                             <ActionIcon
@@ -301,7 +303,7 @@ function CardRow({
     const value = row === null ? "" : (sourceName(session, { by: row.path }) ?? row.path);
 
     const menu = (
-        <Menu position="bottom-end">
+        <Menu position="bottom-end" withinPortal={false}>
             <Menu.Target>
                 <Tooltip label={`${place} actions`}>
                     <ActionIcon variant="subtle" size="sm" aria-label={`${place} actions`}>
@@ -342,7 +344,7 @@ function CardRow({
     );
 
     const picker = (
-        <Popover opened={picking} onChange={setPicking} position="left-start" trapFocus>
+        <Popover opened={picking} onChange={setPicking} position="left-start" trapFocus withinPortal={false}>
             <Popover.Target>
                 <Button
                     size="compact-xs"

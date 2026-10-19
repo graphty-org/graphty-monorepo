@@ -196,15 +196,23 @@ export async function writeLines(
 }
 
 /**
- * Removes one line from the layer that sets it. The reader's Everything layer is removed when
- * nothing is left on it. One undoable step of the element's.
+ * Removes one line, or several together, from the layer that sets it. The reader's Everything
+ * layer is removed when nothing is left on it. One undoable step of the element's.
  * @param session - the element's session.
  * @param layer - the layer that sets the line.
- * @param channel - the channel.
+ * @param channel - the channel, or the channels.
  */
-export async function removeLine(session: GraphSession, layer: Layer, channel: Channel): Promise<void> {
-    const set = without(layer.set, channel);
-    const encode = without(layer.encode, channel);
+export async function removeLine(
+    session: GraphSession,
+    layer: Layer,
+    channel: Channel | readonly Channel[],
+): Promise<void> {
+    const channels = typeof channel === "string" ? [channel] : channel;
+    let { set, encode } = layer;
+    for (const c of channels) {
+        set = without(set, c);
+        encode = without(encode, c);
+    }
     if (set === undefined && encode === undefined && layer.userData?.[EVERYTHING_KEY] === true) {
         await session.styles.remove(layer.id);
         return;

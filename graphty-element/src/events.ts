@@ -444,7 +444,8 @@ export interface LayoutChangedEvent {
 /**
  * Emitted when a layout could not do everything it was asked.
  * The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does
- * not take (`W_UNKNOWN_OPTION`). It carries a warning code and its parameters, never a sentence.
+ * not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options
+ * (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
  */
 export interface LayoutWarningEvent {
     type: "layout-warning";

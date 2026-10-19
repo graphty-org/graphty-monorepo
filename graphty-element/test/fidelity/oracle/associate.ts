@@ -1972,10 +1972,47 @@ function matchBodies(
     return out;
 }
 
-/** A raster oracle's own account of its drawing (`drawn` in its metadata): each node it drew. */
+/**
+ * A raster oracle's own account of its drawing (`drawn` in its metadata): each node it drew and, where the record
+ * has them, each edge, with the paint the program itself parsed from the display color (`fill`, `#rrggbb`, and
+ * `alpha`, which it blends with) and an edge's width in the raster's pixels.
+ */
 export interface RasterDrawing {
-    nodes: { id: string; x: number; y: number; r: number; label: string | null }[];
+    nodes: {
+        id: string;
+        x: number;
+        y: number;
+        r: number;
+        label: string | null;
+        fill?: string | null;
+        alpha?: number | null;
+    }[];
+    edges?: {
+        id: string;
+        source: string;
+        target: string;
+        fill?: string | null;
+        alpha?: number | null;
+        width?: number;
+        label?: string | null;
+    }[];
 }
+
+/** A label the raster oracle names but does not place: only its words are judged (`labelGeometry: false`). */
+const wordsAt = (content: string, x: number, y: number): PText => ({
+    content,
+    x,
+    y,
+    box: { x0: x, y0: y, x1: x, y1: y },
+    sizePx: 0,
+    family: "",
+    weight: 400,
+    style: "normal",
+    anchor: "start",
+    rotation: 0,
+    color: "#000000",
+    opacity: 1,
+});
 
 /**
  * The most common color among the pixels of a disk: a node's fill read off a raster, robust to an
@@ -2013,9 +2050,10 @@ export function diskColor(
 
 /**
  * The scene of a raster oracle (the program has no vector output: sigma's WebGL drawing), from
- * the program's own account of where it drew each node and which labels it drew, with each fill
- * and the background read off its pixels; a node painted over by a later one is not in it. Labels carry their words
- * only; no edge is read.
+ * the program's own account of where it drew each node and which labels it drew, with each fill the program's own
+ * parse of its color where the record has one (else read off its pixels) and the background read off its pixels; a
+ * node painted over by a later one is not in it. Labels carry their words only. Edges are read only from a record
+ * that carries their paint.
  * @param drawing - the program's account
  * @param width - the raster's width
  * @param height - the raster's height
@@ -2031,54 +2069,84 @@ export function rasterScene(
     const colors = drawing.nodes.map((n) => fillAt(n.x, n.y, 0.5 * n.r));
     // The program draws its nodes in order, each over the ones before (sigma: the graph's order). A node whose box
     // lies inside a later one's, which shows its color over the node, is painted over: by the rule graphty's side
-    // counts a node an opaque node in front holds as not drawn.
+    // counts a node an opaque node in front holds as not drawn. Where the program recorded its paint, the later node
+    // covers it when that paint is opaque; else when the pixels show the same color over both (one see-through node
+    // over another shows a blend of the two).
+    const covers = (i: number, j: number): boolean => {
+        const m = drawing.nodes[j];
+        return typeof m.fill === "string" ? m.alpha === 1 : colors[i] !== null && colors[i] === colors[j];
+    };
     const seen = drawing.nodes.filter((n, i) =>
         drawing.nodes.slice(i + 1).every((m, k) => {
             const inside = Math.abs(m.x - n.x) + n.r <= m.r + 1 && Math.abs(m.y - n.y) + n.r <= m.r + 1;
-            return !(inside && colors[i] !== null && colors[i] === colors[i + 1 + k]);
+            return !(inside && covers(i, i + 1 + k));
         }),
     );
-    const nodes = seen.map((n): PNode => {
-        const color = colors[drawing.nodes.indexOf(n)];
+    // The program's own paint where it recorded one: the pixels hold the color blended over the page (an alpha) or
+    // another node's color (a node drawn over it), so they say what shows, not what the node was given. A node drawn
+    // fully transparent shows nothing, as on graphty's side, unless its label is drawn.
+    const shows = (n: RasterDrawing["nodes"][number]): boolean => n.alpha !== 0 || n.label !== null;
+    const nodes = seen.filter(shows).map((n): PNode => {
+        const color = typeof n.fill === "string" ? n.fill : colors[drawing.nodes.indexOf(n)];
+        const opacity = typeof n.fill === "string" && typeof n.alpha === "number" ? n.alpha : 1;
         return {
             id: n.id,
             cx: n.x,
             cy: n.y,
-            w: 2 * n.r,
-            h: 2 * n.r,
+            // a node of no size, or of a negative one (sigma: scaleSize of a negative size), is drawn as nothing
+            w: Math.max(0, 2 * n.r),
+            h: Math.max(0, 2 * n.r),
             shape: "ellipse",
-            fill: color === null ? null : { color, opacity: 1, gradient: null },
+            fill: color === null || n.r <= 0 ? null : { color, opacity, gradient: null },
             stroke: null,
-            label:
-                n.label === null
-                    ? null
-                    : {
-                          content: n.label,
-                          x: n.x,
-                          y: n.y,
-                          box: { x0: n.x, y0: n.y, x1: n.x, y1: n.y },
-                          sizePx: 0,
-                          family: "",
-                          weight: 400,
-                          style: "normal",
-                          anchor: "start",
-                          rotation: 0,
-                          color: "#000000",
-                          opacity: 1,
-                      },
+            label: n.label === null ? null : wordsAt(n.label, n.x, n.y),
         };
     });
+    // Each edge the program recorded with its paint and width, a straight line between its nodes' centers (sigma.js
+    // draws every edge type it reads as one); none drawn fully transparent. A record without them (an older oracle)
+    // judges no edge, and then what graphty draws besides nodes cannot be told extra.
+    const painted = drawing.nodes.some((n) => typeof n.fill === "string");
+    const at = new Map(drawing.nodes.map((n) => [n.id, n]));
+    const edges = (painted ? (drawing.edges ?? []) : [])
+        .filter((e) => typeof e.fill === "string" && e.alpha !== 0 && at.has(e.source) && at.has(e.target))
+        .map((e): PEdge => {
+            const [s, t] = [at.get(e.source), at.get(e.target)] as [
+                RasterDrawing["nodes"][number],
+                RasterDrawing["nodes"][number],
+            ];
+            return {
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                points: [
+                    [s.x, s.y],
+                    [t.x, t.y],
+                ],
+                stroke: {
+                    color: e.fill as string,
+                    opacity: typeof e.alpha === "number" ? e.alpha : 1,
+                    width: e.width ?? Number.NaN,
+                    dash: null,
+                    dashClass: "solid",
+                },
+                arrows: [],
+                label:
+                    typeof e.label === "string" && e.label !== ""
+                        ? wordsAt(e.label, (s.x + t.x) / 2, (s.y + t.y) / 2)
+                        : null,
+            };
+        });
     return {
         side: "oracle",
         width,
         height,
         background: fillAt(0, 0, 0.5),
         nodes: nodes.sort((a, b) => compareIds(a.id, b.id)),
-        edges: [],
+        edges: edges.sort((a, b) => compareIds(a.id, b.id)),
         groups: [],
         texts: [],
         strays: [],
         labelGeometry: false,
-        nodesOnly: true,
+        nodesOnly: !painted,
     };
 }

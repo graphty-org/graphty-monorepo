@@ -421,8 +421,8 @@ try {
     } else {
         await page.addScriptTag({
             content: await bundle(
-                `import Graph from "graphology"; import Sigma from "sigma"; import { toBlob } from "@sigma/export-image";
-                 globalThis.Graph = Graph; globalThis.Sigma = Sigma; globalThis.sigmaToBlob = toBlob;`,
+                `import Graph from "graphology"; import Sigma from "sigma"; import { parseColor } from "sigma/utils"; import { toBlob } from "@sigma/export-image";
+                 globalThis.Graph = Graph; globalThis.Sigma = Sigma; globalThis.sigmaToBlob = toBlob; globalThis.sigmaParseColor = parseColor;`,
             ),
         });
         // Gephi's JSON export (id/label/x/y/size/color at the top level) is sigma v1's shape; graphology
@@ -459,18 +459,61 @@ try {
                 // display data and its own size scaling), and which labels it chose to draw: the pixels
                 // alone cannot be told apart node by node.
                 const shown = s.getNodeDisplayedLabels();
+                // the color sigma draws: its own parser's reading of the display color (a channel it cannot read is
+                // 0, as its float packing makes it), and that color's alpha, which sigma blends with
+                const paint = (c) => {
+                    let p;
+                    try {
+                        p = globalThis.sigmaParseColor(String(c));
+                    } catch {
+                        return { fill: null, alpha: null };
+                    }
+                    const hex = [p.r, p.g, p.b].map((v) => (Number(v) | 0).toString(16).padStart(2, "0")).join("");
+                    return { fill: `#${hex}`, alpha: Number.isFinite(p.a) ? p.a : 1 };
+                };
                 const nodes = g.nodes().flatMap((key) => {
                     const d = s.getNodeDisplayData(key);
                     if (d === undefined || d.hidden) return [];
                     const at = s.framedGraphToViewport(d);
                     const r = s.scaleSize(d.size);
-                    return [{ id: key, x: at.x, y: at.y, r, label: shown.has(key) ? (d.label ?? null) : null }];
+                    return [
+                        {
+                            id: key,
+                            x: at.x,
+                            y: at.y,
+                            r,
+                            label: shown.has(key) ? (d.label ?? null) : null,
+                            ...paint(d.color),
+                        },
+                    ];
                 });
-                // and each edge it drew: its display color and size (sigma draws no edge of a hidden end node)
+                // and each edge it drew: its display color and size, and its width in the PNG's pixels, as sigma's edge
+                // shader computes it: max(size, minEdgeThickness * sizeRatio) * correctionRatio / sizeRatio in framed
+                // graph units (sizeRatio = 1 / scaleSize()), times the pixels one framed unit spans -- which is half of
+                // max(scaleSize(size), minEdgeThickness) on a 1200 x 900 canvas, measured off the PNG (size 20: 9.55 px
+                // drawn, 9.66 here); sigma draws no edge of a hidden end node. An edge's label is drawn only under
+                // renderEdgeLabels.
+                const minWidth = s.getSetting("minEdgeThickness");
+                const [o0, o1] = [s.framedGraphToViewport({ x: 0, y: 0 }), s.framedGraphToViewport({ x: 1, y: 0 })];
+                const pxPerUnit = Math.hypot(o1.x - o0.x, o1.y - o0.y);
+                const edgeWidth = (size) => Math.max(s.scaleSize(size), minWidth) * s.correctionRatio * pxPerUnit;
+                const edgeLabels = s.getSetting("renderEdgeLabels");
                 const edges = g.edges().flatMap((key) => {
                     const d = s.getEdgeDisplayData(key);
                     if (d === undefined || d.visibility === "hidden") return [];
-                    return [{ id: key, source: g.source(key), target: g.target(key), color: d.color, size: d.size }];
+                    return [
+                        {
+                            id: key,
+                            source: g.source(key),
+                            target: g.target(key),
+                            color: d.color,
+                            ...paint(d.color),
+                            type: d.type ?? null,
+                            size: d.size,
+                            width: edgeWidth(d.size),
+                            label: edgeLabels && d.label ? d.label : null,
+                        },
+                    ];
                 });
                 return {
                     png: globalThis.btoa(bin),
@@ -534,7 +577,7 @@ const meta = {
     ...(result.drawn
         ? {
               drawn: {
-                  about: "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); its fill is read off the PNG",
+                  about: "sigma's own account of its drawing, for a raster oracle: each node it drew, at sigma.framedGraphToViewport(display data) with radius sigma.scaleSize(size) in the PNG's pixels, and the label text of each node in sigma.getNodeDisplayedLabels(); each edge it drew, with its display color and size, its width in the PNG's pixels (max(sigma.scaleSize(size), minEdgeThickness) * sigma.correctionRatio * the pixels one framed graph unit spans, as sigma's edge shader draws it) its display type, and its label when renderEdgeLabels is on; each node's and edge's fill and alpha as sigma's own parseColor reads the display color (sigma blends with that alpha)",
                   nodes: result.drawn.nodes,
                   edges: result.drawn.edges,
               },

@@ -756,6 +756,97 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("takes a raster oracle's recorded paint over its pixels, and judges its recorded edges", () => {
+        // sigma.js's record: "half" drawn at alpha 0.5 (its pixels show the color blended with white), "gone" fully
+        // transparent, "under" wholly inside the opaque "b" drawn after it, and two edges, one fully transparent
+        const drawing = {
+            nodes: [
+                { id: "under", x: 200, y: 200, r: 3, label: null, fill: "#00ffff", alpha: 1 },
+                { id: "half", x: 100, y: 100, r: 10, label: null, fill: "#ff0000", alpha: 0.5 },
+                { id: "none", x: 300, y: 250, r: -5, label: null, fill: "#ff0000", alpha: 1 },
+                { id: "gone", x: 300, y: 100, r: 10, label: null, fill: "#000000", alpha: 0 },
+                { id: "b", x: 200, y: 200, r: 10, label: null, fill: "#0000ff", alpha: 1 },
+            ],
+            edges: [
+                { id: "e", source: "half", target: "b", fill: "#00ff00", alpha: 1, width: 1.7, label: "E" },
+                { id: "hidden", source: "gone", target: "b", fill: "#00ff00", alpha: 0, width: 1.7, label: null },
+            ],
+        };
+        // the pixels show "b" over "under" blended with something drawn across it: not "b"'s own color
+        const scene = rasterScene(drawing, 400, 300, (_x, _y, r) => (r < 2 ? "#ccffff" : "#ff8080"));
+        assert.deepEqual(
+            scene.nodes.map((n) => [n.id, n.w, n.fill?.color, n.fill?.opacity]),
+            [
+                ["b", 20, "#0000ff", 1],
+                ["half", 20, "#ff0000", 0.5],
+                // sigma draws a node of negative size as nothing
+                ["none", 0, undefined, undefined],
+            ],
+        );
+        assert.deepEqual(
+            scene.edges.map((e) => [e.id, e.points, e.stroke?.color, e.stroke?.width, e.label?.content]),
+            [
+                [
+                    "e",
+                    [
+                        [100, 100],
+                        [200, 200],
+                    ],
+                    "#00ff00",
+                    1.7,
+                    "E",
+                ],
+            ],
+        );
+        assert.strictEqual(scene.nodesOnly, false);
+        // a self-loop the record names by its one node has no route to judge, but is judged present and painted
+        const node = (id: string, x: number, y: number): (typeof drawing.nodes)[number] => ({
+            id,
+            x,
+            y,
+            r: 20,
+            label: id.toUpperCase(),
+            fill: "#ff0000",
+            alpha: 1,
+        });
+        const paint = { fill: "#0000ff", alpha: 1, width: 2, label: null };
+        const loops = rasterScene(
+            {
+                nodes: [node("a", 100, 100), node("b", 300, 100), node("c", 200, 250)],
+                edges: [
+                    { id: "e1", source: "a", target: "b", ...paint },
+                    { id: "e2", source: "b", target: "c", ...paint },
+                    { id: "loop", source: "a", target: "a", ...paint },
+                ],
+            },
+            400,
+            300,
+            () => "#ff0000",
+        );
+        const g = graphtyScene();
+        const [ax, ay] = [g.nodes[0].cx, g.nodes[0].cy];
+        g.edges.push({
+            id: "loop",
+            source: "a",
+            target: "a",
+            points: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((k): Pt => {
+                const t = (k / 8) * 2 * Math.PI;
+                return [ax + 30 * Math.sin(t), ay - 50 - 30 * Math.cos(t) + 30];
+            }),
+            stroke: { color: "#0000ff", opacity: 1, width: 4, dash: null, dashClass: "solid" },
+            arrows: [],
+            label: null,
+        });
+        const judged = compareOracle("t", loops, g);
+        assert.strictEqual(judged.properties["edge.present"].pass, 3);
+        assert.strictEqual(judged.properties["edge.color"].n, 3);
+        assert.strictEqual(judged.properties["edge.route"].n, 2);
+        assert.strictEqual(judged.properties["edge.curve"].n, 2);
+        // an older record, with no paint, still judges nodes only
+        const old = rasterScene({ nodes: [{ id: "a", x: 1, y: 1, r: 1, label: null }], edges: [] }, 4, 4, () => null);
+        assert.strictEqual(old.nodesOnly, true);
+    });
+
     it("reads the positioned tspan lines of one SVG text as separate lines", () => {
         // the parts of an Element the reader looks at (this project runs without a DOM)
         const el = (name: string, text: string, attrs: string[] = [], children: Element[] = []): Element =>

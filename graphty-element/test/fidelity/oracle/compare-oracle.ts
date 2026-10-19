@@ -1462,7 +1462,9 @@ export function compareOracle(
         const flipped = oid(g.source) !== o.source;
         const framed = fit !== null && !(transform?.unrelatedLayout ?? false);
         const [vo, vg] = visible(o, g);
-        if (framed) {
+        // a route of no length is no route: a raster oracle records a self-loop by its one node, not the loop it drew
+        const routed = pathLength(o.points) > 0;
+        if (framed && routed) {
             const { gap, near } = routeGap(o, g);
             j.add("edge.route", "edge", id, Math.max(0, gap / near - 1), R(near), R(gap));
         }
@@ -1470,7 +1472,9 @@ export function compareOracle(
         const oc = curvatureOf(vo);
         const gc = curvatureOf(vg);
         const bend = Math.max(T.curvature, T.curveShare * oc);
-        j.add("edge.curve", "edge", id, Math.max(0, Math.abs(gc - oc) - bend) / bend, R(oc), R(gc));
+        if (routed) {
+            j.add("edge.curve", "edge", id, Math.max(0, Math.abs(gc - oc) - bend) / bend, R(oc), R(gc));
+        }
         if (o.stroke !== null && g.stroke !== null) {
             j.add(
                 "edge.color",

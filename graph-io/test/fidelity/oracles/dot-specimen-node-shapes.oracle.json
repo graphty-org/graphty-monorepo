@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-node-shapes",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-node-shapes.gv",
-    "sha256": "b8731f4db386327c8526d28a87b85e00d6acc8d3005cb0723c290cf7b0aaad68",
+    "sha256": "a66ca2fa88e031b3cae93c6ff3d45481995ae6678308b43f99e6564cd5fae910",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-node-shapes && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-node-shapes.svg"
 }

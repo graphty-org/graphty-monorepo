@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-node-fills-borders",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-node-fills-borders.gv",
-    "sha256": "79c0bd7ddd8a1bca915087bf3129148306ba78310b7429686feefe34c08b6af3",
+    "sha256": "13c1b64077a68dd3c10483b7976fc6953737a0ff7039fa9dbab30f44977d90c9",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-node-fills-borders && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-node-fills-borders.svg"
 }

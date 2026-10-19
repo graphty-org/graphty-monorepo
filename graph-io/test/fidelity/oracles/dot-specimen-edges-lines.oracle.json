@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-edges-lines",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-edges-lines.gv",
-    "sha256": "77a6a633baa954a3df19c2eb551ac375cda190dd06c732b28cc8e6373d86dc15",
+    "sha256": "f70c157a451acfe76904f75b88f6dc4818e09ca4b2c7fb97722745658233f5d0",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-edges-lines && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-edges-lines.svg"
 }

@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-groups-p4",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-groups-p4.gv",
-    "sha256": "660a47b61b018b0895b281016a1a1925ec3559947f5ee7dca27aceae554e5bae",
+    "sha256": "0ad66fecc04e440afea7eb142b83ebf6e05445a04d569717a20710e642b5f287",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-groups-p4 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-groups-p4.svg"
 }

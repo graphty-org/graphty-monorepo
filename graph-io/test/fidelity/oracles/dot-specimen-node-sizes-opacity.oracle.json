@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-node-sizes-opacity",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-node-sizes-opacity.gv",
-    "sha256": "4b59084f13e7e4b95035a270584b3c757af8228381c981da94e50c0f4b6abb14",
+    "sha256": "aa8441b2a457dabd13bb9080026eda4f6812f588a2d5ba0daf89a63f9f8aada6",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -20,6 +20,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-node-sizes-opacity && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-node-sizes-opacity.svg"
 }

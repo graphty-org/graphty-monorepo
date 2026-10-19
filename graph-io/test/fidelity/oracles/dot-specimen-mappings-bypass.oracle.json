@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-mappings-bypass",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-mappings-bypass.gv",
-    "sha256": "706e43e4a3dcc11970833997620a8f056e06a82bd1aee1f20ff3cb4e15b1ccd4",
+    "sha256": "7e43e369238e94c8a0522e8a3f3c2656ef43c17dc89ae500245865afa8870778",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-mappings-bypass && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-mappings-bypass.svg"
 }

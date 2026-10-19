@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-arrows-p3",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-arrows-p3.gv",
-    "sha256": "4e18abd2ff7397cbc0947d4be62b92a4a35c94cdee1896f2153221fc08466266",
+    "sha256": "c6e92d065e12e49a539982979efe203f38ca65799c6ce2a56e2259524c6dd4f1",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-arrows-p3 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-arrows-p3.svg"
 }

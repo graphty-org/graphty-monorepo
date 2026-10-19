@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-images-charts",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-images-charts.gv",
-    "sha256": "3852d2ccaebf3214827264f911b5beff7e0d2f5cdd01def0000f0cf5d39de3c5",
+    "sha256": "cae57f94bdf1a099ad7df416bd3375449b348f212ce2ceec757c763542ea6a8d",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-images-charts && RASTER_IMAGE_DIR=graph-io/test/fidelity/specimens/dot node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-images-charts.svg"
 }

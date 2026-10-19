@@ -161,34 +161,41 @@
 <text xml:space="preserve" text-anchor="middle" x="676.33" y="-286.5" font-family="DejaVu Sans" font-size="10.00" fill="#000000">colorscheme</text>
 </g>
 <g id="clust29" class="cluster">
-<title>cluster&#45;nested</title>
+<title>cluster&#45;label&#45;html</title>
 <polygon fill="none" stroke="#505050" points="793,-216 793,-300 933,-300 933,-216 793,-216"/>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-286.5" font-family="DejaVu Sans" font-size="10.00" fill="#000000">nested</text>
+<text xml:space="preserve" text-anchor="start" x="855.87" y="-287.5" font-family="DejaVu Sans" font-weight="bold" font-size="10.00" fill="#000000">b</text>
+<text xml:space="preserve" text-anchor="start" x="863.37" y="-287.5" font-family="DejaVu Sans" font-style="italic" font-size="10.00" fill="#000000">i</text>
+<text xml:space="preserve" text-anchor="start" x="866.37" y="-287.5" font-family="DejaVu Sans" font-size="10.00" fill="#e41a1c">r</text>
 </g>
 <g id="clust30" class="cluster">
-<title>cluster&#45;nested&#45;inner</title>
-<polygon fill="none" stroke="#505050" points="805,-224 805,-276 921,-276 921,-224 805,-224"/>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-262.5" font-family="DejaVu Sans" font-size="10.00" fill="#000000">inner</text>
+<title>cluster&#45;nested</title>
+<polygon fill="none" stroke="#505050" points="979.67,-216 979.67,-300 1119.67,-300 1119.67,-216 979.67,-216"/>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-286.5" font-family="DejaVu Sans" font-size="10.00" fill="#000000">nested</text>
 </g>
 <g id="clust31" class="cluster">
-<title>attr&#45;cluster&#45;true</title>
-<polygon fill="none" stroke="#505050" points="979.67,-216 979.67,-300 1119.67,-300 1119.67,-216 979.67,-216"/>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-286.5" font-family="DejaVu Sans" font-size="10.00" fill="#000000">cluster&#45;attr</text>
+<title>cluster&#45;nested&#45;inner</title>
+<polygon fill="none" stroke="#505050" points="991.67,-224 991.67,-276 1107.67,-276 1107.67,-224 991.67,-224"/>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-262.5" font-family="DejaVu Sans" font-size="10.00" fill="#000000">inner</text>
 </g>
-<g id="clust33" class="cluster">
-<title>cluster&#45;lp</title>
-<polygon fill="none" stroke="#505050" points="233,-79.33 233,-163.33 373,-163.33 373,-79.33 233,-79.33"/>
-<text xml:space="preserve" text-anchor="middle" x="273" y="-152.21" font-family="DejaVu Sans" font-size="10.00" fill="#000000">lp</text>
+<g id="clust32" class="cluster">
+<title>attr&#45;cluster&#45;true</title>
+<polygon fill="none" stroke="#505050" points="46.33,-79.33 46.33,-163.33 186.33,-163.33 186.33,-79.33 46.33,-79.33"/>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-149.83" font-family="DejaVu Sans" font-size="10.00" fill="#000000">cluster&#45;attr</text>
 </g>
 <g id="clust34" class="cluster">
-<title>cluster&#45;lhead</title>
+<title>cluster&#45;lp</title>
 <polygon fill="none" stroke="#505050" points="419.67,-79.33 419.67,-163.33 559.67,-163.33 559.67,-79.33 419.67,-79.33"/>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-149.83" font-family="DejaVu Sans" font-size="10.00" fill="#000000">lhead</text>
+<text xml:space="preserve" text-anchor="middle" x="459.67" y="-152.21" font-family="DejaVu Sans" font-size="10.00" fill="#000000">lp</text>
 </g>
 <g id="clust35" class="cluster">
-<title>cluster&#45;ltail</title>
+<title>cluster&#45;lhead</title>
 <polygon fill="none" stroke="#505050" points="606.33,-79.33 606.33,-163.33 746.33,-163.33 746.33,-79.33 606.33,-79.33"/>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-149.83" font-family="DejaVu Sans" font-size="10.00" fill="#000000">ltail</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-149.83" font-family="DejaVu Sans" font-size="10.00" fill="#000000">lhead</text>
+</g>
+<g id="clust36" class="cluster">
+<title>cluster&#45;ltail</title>
+<polygon fill="none" stroke="#505050" points="793,-79.33 793,-163.33 933,-163.33 933,-79.33 793,-79.33"/>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-149.83" font-family="DejaVu Sans" font-size="10.00" fill="#000000">ltail</text>
 </g>
 <!-- anchor&#45;nw -->
 <g id="node1" class="node">
@@ -490,87 +497,97 @@
 <title>cap&#45;colorscheme</title>
 <text xml:space="preserve" text-anchor="middle" x="676.33" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">colorscheme=blues9 color=7</text>
 </g>
-<!-- nested&#45;n -->
+<!-- label&#45;html&#45;n -->
 <g id="node61" class="node">
-<title>nested&#45;n</title>
+<title>label&#45;html&#45;n</title>
 <ellipse fill="#c8c8c8" stroke="#505050" cx="863" cy="-242" rx="10" ry="10"/>
 </g>
-<!-- cap&#45;nested -->
+<!-- cap&#45;label&#45;html -->
 <g id="node62" class="node">
-<title>cap&#45;nested</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">nested clusters</text>
+<title>cap&#45;label&#45;html</title>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">label=&lt;&lt;B&gt;b&lt;/B&gt;&lt;I&gt;i&lt;/I&gt;&gt;</text>
 </g>
-<!-- cluster&#45;attr&#45;n -->
+<!-- nested&#45;n -->
 <g id="node63" class="node">
-<title>cluster&#45;attr&#45;n</title>
+<title>nested&#45;n</title>
 <ellipse fill="#c8c8c8" stroke="#505050" cx="1049.67" cy="-242" rx="10" ry="10"/>
 </g>
-<!-- cap&#45;cluster&#45;attr -->
+<!-- cap&#45;nested -->
 <g id="node64" class="node">
-<title>cap&#45;cluster&#45;attr</title>
-<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">subgraph cluster=true</text>
+<title>cap&#45;nested</title>
+<text xml:space="preserve" text-anchor="middle" x="1049.67" y="-199.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">nested clusters</text>
 </g>
-<!-- plain&#45;subgraph&#45;n -->
+<!-- cluster&#45;attr&#45;n -->
 <g id="node65" class="node">
-<title>plain&#45;subgraph&#45;n</title>
+<title>cluster&#45;attr&#45;n</title>
 <ellipse fill="#c8c8c8" stroke="#505050" cx="116.33" cy="-105.33" rx="10" ry="10"/>
 </g>
-<!-- cap&#45;plain&#45;subgraph -->
+<!-- cap&#45;cluster&#45;attr -->
 <g id="node66" class="node">
-<title>cap&#45;plain&#45;subgraph</title>
-<text xml:space="preserve" text-anchor="middle" x="116.33" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">subgraph (not a cluster)</text>
+<title>cap&#45;cluster&#45;attr</title>
+<text xml:space="preserve" text-anchor="middle" x="116.33" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">subgraph cluster=true</text>
 </g>
-<!-- lp&#45;n -->
+<!-- plain&#45;subgraph&#45;n -->
 <g id="node67" class="node">
-<title>lp&#45;n</title>
+<title>plain&#45;subgraph&#45;n</title>
 <ellipse fill="#c8c8c8" stroke="#505050" cx="303" cy="-105.33" rx="10" ry="10"/>
 </g>
-<!-- cap&#45;lp -->
+<!-- cap&#45;plain&#45;subgraph -->
 <g id="node68" class="node">
-<title>cap&#45;lp</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">lp stored</text>
+<title>cap&#45;plain&#45;subgraph</title>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">subgraph (not a cluster)</text>
 </g>
-<!-- lhead&#45;n -->
+<!-- lp&#45;n -->
 <g id="node69" class="node">
-<title>lhead&#45;n</title>
+<title>lp&#45;n</title>
 <ellipse fill="#c8c8c8" stroke="#505050" cx="489.67" cy="-105.33" rx="10" ry="10"/>
 </g>
-<!-- lhead&#45;o -->
+<!-- cap&#45;lp -->
 <g id="node70" class="node">
+<title>cap&#45;lp</title>
+<text xml:space="preserve" text-anchor="middle" x="489.67" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">lp stored</text>
+</g>
+<!-- lhead&#45;n -->
+<g id="node71" class="node">
+<title>lhead&#45;n</title>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="676.33" cy="-105.33" rx="10" ry="10"/>
+</g>
+<!-- lhead&#45;o -->
+<g id="node72" class="node">
 <title>lhead&#45;o</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="402.33" cy="-65.33" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="589" cy="-65.33" rx="6" ry="6"/>
 </g>
 <!-- lhead&#45;o&#45;&gt;lhead&#45;n -->
 <g id="lhead" class="edge">
 <title>lhead&#45;o&#45;&gt;lhead&#45;n</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M408.06,-67.96C420.26,-73.54 449.28,-86.84 469.21,-95.96"/>
-<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="467.6,-99.08 478.15,-100.06 470.52,-92.71 467.6,-99.08"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M594.73,-67.96C606.92,-73.54 635.95,-86.84 655.88,-95.96"/>
+<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="654.27,-99.08 664.82,-100.06 657.18,-92.71 654.27,-99.08"/>
 </g>
 <!-- cap&#45;lhead -->
-<g id="node71" class="node">
+<g id="node73" class="node">
 <title>cap&#45;lhead</title>
-<text xml:space="preserve" text-anchor="middle" x="489.67" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">lhead=cluster</text>
+<text xml:space="preserve" text-anchor="middle" x="676.33" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">lhead=cluster</text>
 </g>
 <!-- ltail&#45;n -->
-<g id="node72" class="node">
+<g id="node74" class="node">
 <title>ltail&#45;n</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="676.33" cy="-105.33" rx="10" ry="10"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="863" cy="-105.33" rx="10" ry="10"/>
 </g>
 <!-- ltail&#45;o -->
-<g id="node73" class="node">
+<g id="node75" class="node">
 <title>ltail&#45;o</title>
-<ellipse fill="#c8c8c8" stroke="#505050" cx="589" cy="-65.33" rx="6" ry="6"/>
+<ellipse fill="#c8c8c8" stroke="#505050" cx="775.67" cy="-65.33" rx="6" ry="6"/>
 </g>
 <!-- ltail&#45;n&#45;&gt;ltail&#45;o -->
 <g id="ltail" class="edge">
 <title>ltail&#45;n&#45;&gt;ltail&#45;o</title>
-<path fill="none" stroke="#505050" stroke-width="1.5" d="M666.99,-101.05C652.4,-94.37 624,-81.36 605.8,-73.03"/>
-<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="607.3,-69.86 596.75,-68.88 604.39,-76.23 607.3,-69.86"/>
+<path fill="none" stroke="#505050" stroke-width="1.5" d="M853.65,-101.05C839.06,-94.37 810.67,-81.36 792.47,-73.03"/>
+<polygon fill="#505050" stroke="#505050" stroke-width="1.5" points="793.97,-69.86 783.42,-68.88 791.05,-76.23 793.97,-69.86"/>
 </g>
 <!-- cap&#45;ltail -->
-<g id="node74" class="node">
+<g id="node76" class="node">
 <title>cap&#45;ltail</title>
-<text xml:space="preserve" text-anchor="middle" x="676.33" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">ltail=cluster</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-62.41" font-family="DejaVu Sans" font-size="9.00" fill="#000000">ltail=cluster</text>
 </g>
 </g>
 </svg>

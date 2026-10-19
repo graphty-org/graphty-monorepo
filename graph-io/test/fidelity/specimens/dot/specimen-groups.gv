@@ -3,7 +3,7 @@
 // Positions are pinned (pos "x,y!", points, y up). Drawn with:
 //   neato -n2 -Tsvg -Gsize="12.5,9.375!" <file>   (graph-io/test/fidelity/oracles/tools/graphviz.mjs)
 digraph "specimen-groups" {
-  graph [layout="neato", pad="0.2361", compound="true"];
+  graph [layout="neato", pad="0.2361", bb="17,17,1183,883", compound="true"];
   "anchor-nw" [shape="box", width="0.0833", height="0.0833", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="20,880!"];
   "anchor-ne" [shape="box", width="0.0833", height="0.0833", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="1180,880!"];
   "anchor-sw" [shape="box", width="0.0833", height="0.0833", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="20,20!"];
@@ -148,41 +148,46 @@ digraph "specimen-groups" {
     "colorscheme-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="693.3333,259!"];
   }
   "cap-colorscheme" [shape="plain", label="colorscheme=blues9 color=7", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="693.3333,219!"];
+  subgraph "cluster-label-html" {
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label=<<B>b</B><I>i</I><FONT COLOR="#e41a1c">r</FONT>>, bb="810,233,950,317"];
+    "label-html-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="880,259!"];
+  }
+  "cap-label-html" [shape="plain", label="label=<<B>b</B><I>i</I>>", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="880,219!"];
   subgraph "cluster-nested" {
-    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="nested", bb="810,233,950,317"];
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="nested", bb="996.6667,233,1136.6667,317"];
     subgraph "cluster-nested-inner" {
-      graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="inner", bb="822,241,938,293"];
-      "nested-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="880,259!"];
+      graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="inner", bb="1008.6667,241,1124.6667,293"];
+      "nested-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="1066.6667,259!"];
     }
   }
-  "cap-nested" [shape="plain", label="nested clusters", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="880,219!"];
+  "cap-nested" [shape="plain", label="nested clusters", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="1066.6667,219!"];
   subgraph "attr-cluster-true" {
-    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="cluster-attr", cluster="true", bb="996.6667,233,1136.6667,317"];
-    "cluster-attr-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="1066.6667,259!"];
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="cluster-attr", cluster="true", bb="63.3333,96.3333,203.3333,180.3333"];
+    "cluster-attr-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="133.3333,122.3333!"];
   }
-  "cap-cluster-attr" [shape="plain", label="subgraph cluster=true", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="1066.6667,219!"];
+  "cap-cluster-attr" [shape="plain", label="subgraph cluster=true", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="133.3333,82.3333!"];
   subgraph "plain-subgraph" {
-    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="plain-subgraph", bb="63.3333,96.3333,203.3333,180.3333"];
-    "plain-subgraph-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="133.3333,122.3333!"];
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="plain-subgraph", bb="250,96.3333,390,180.3333"];
+    "plain-subgraph-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="320,122.3333!"];
   }
-  "cap-plain-subgraph" [shape="plain", label="subgraph (not a cluster)", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="133.3333,82.3333!"];
+  "cap-plain-subgraph" [shape="plain", label="subgraph (not a cluster)", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="320,82.3333!"];
   subgraph "cluster-lp" {
-    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="lp", lp="290,172.3333", bb="250,96.3333,390,180.3333"];
-    "lp-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="320,122.3333!"];
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="lp", lp="476.6667,172.3333", bb="436.6667,96.3333,576.6667,180.3333"];
+    "lp-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="506.6667,122.3333!"];
   }
-  "cap-lp" [shape="plain", label="lp stored", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="320,82.3333!"];
+  "cap-lp" [shape="plain", label="lp stored", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="506.6667,82.3333!"];
   subgraph "cluster-lhead" {
-    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="lhead", bb="436.6667,96.3333,576.6667,180.3333"];
-    "lhead-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="506.6667,122.3333!"];
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="lhead", bb="623.3333,96.3333,763.3333,180.3333"];
+    "lhead-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="693.3333,122.3333!"];
   }
-  "lhead-o" [shape="circle", width="0.1667", height="0.1667", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="419.3333,82.3333!"];
+  "lhead-o" [shape="circle", width="0.1667", height="0.1667", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="606,82.3333!"];
   "lhead-o" -> "lhead-n" [id="lhead", color="#505050", penwidth="1.5", style="solid", dir="forward", arrowhead="normal", arrowtail="none", arrowsize="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", lhead="cluster-lhead"];
-  "cap-lhead" [shape="plain", label="lhead=cluster", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="506.6667,82.3333!"];
+  "cap-lhead" [shape="plain", label="lhead=cluster", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="693.3333,82.3333!"];
   subgraph "cluster-ltail" {
-    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="ltail", bb="623.3333,96.3333,763.3333,180.3333"];
-    "ltail-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="693.3333,122.3333!"];
+    graph [style="solid", color="#505050", penwidth="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", labelloc="t", labeljust="c", label="ltail", bb="810,96.3333,950,180.3333"];
+    "ltail-n" [shape="ellipse", width="0.2778", height="0.2778", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="880,122.3333!"];
   }
-  "ltail-o" [shape="circle", width="0.1667", height="0.1667", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="606,82.3333!"];
+  "ltail-o" [shape="circle", width="0.1667", height="0.1667", fixedsize="true", style="filled", fillcolor="#c8c8c8", color="#505050", penwidth="1", label="", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", pos="792.6667,82.3333!"];
   "ltail-n" -> "ltail-o" [id="ltail", color="#505050", penwidth="1.5", style="solid", dir="forward", arrowhead="normal", arrowtail="none", arrowsize="1", fontname="DejaVu Sans", fontsize="10", fontcolor="#000000", ltail="cluster-ltail"];
-  "cap-ltail" [shape="plain", label="ltail=cluster", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="693.3333,82.3333!"];
+  "cap-ltail" [shape="plain", label="ltail=cluster", fontname="DejaVu Sans", fontsize="9", fontcolor="#000000", pos="880,82.3333!"];
 }

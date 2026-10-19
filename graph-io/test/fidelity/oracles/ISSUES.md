@@ -364,12 +364,11 @@ Open comparator gaps found on 2026-10-18 (not fixed)
   Cytoscape.js `text-background-*` and Cytoscape desktop's label backgrounds are dropped on import, though
   graphty-element's labels can draw one; 3 of 45 labels on cytoscapejs-specimen-edge-labels and 93 of 122 on
   cx-syn-mappings fail `label.background`).
-- Found by the planted-defect test (2026-10-18, not fixed): every DOT specimen sheet is drawn by `neato -n2`,
-  which reads the pinned `pos` as points, but the files carry no `bb`, so graph-io reads them as neato's input
-  inches (`dotPositions()`): in the fitted frame every DOT specimen node is drawn at 1/72 of its size, every node
-  size, fill and outline fails, and the defects planted on them test nothing (dot-specimen-labels,
-  dot-specimen-groups, dot-specimen-node-shapes). The sheets need a `bb` (or `pos` in inches) to say what
-  Graphviz drew. Also untestable by design: edges and label geometry on the sigma.js raster oracles (graphology,
+- FIXED (2026-10-18): every DOT specimen sheet is drawn by `neato -n2`, which reads the pinned `pos` as
+  points, but the files carried no `bb`, so graph-io read them as neato's input inches (`dotPositions()`) and
+  drew every DOT specimen node at 1/72 of its size; every node size, fill and outline failed, and the defects
+  planted on them tested nothing. The sheets now carry the root `bb` Graphviz's own laid-out output writes (the
+  corner anchors' box), which leaves every Graphviz drawing byte for byte the same. Also untestable by design: edges and label geometry on the sigma.js raster oracles (graphology,
   Gephi JSON), and a mirror on a sheet where only its four corner anchors pair (yed-live-graphml-specimen-images-charts:
   draw.io names no node, and four symmetric corners pair the same mirrored or not).
 
@@ -862,6 +861,56 @@ Open:
 - The comparator cannot see setting ids on GML (ids must be integers; the id is in each element's `comment`, or an
   OGDF node's `template`), so captions are judged as nodes and every Cytoscape caption's text, which Cytoscape
   measures with Java's fonts, shows as a label offset of 6 to 9 px.
+
+## Specimen sheets: Graphviz DOT
+
+The DOT sheets (`graph-io/test/fidelity/specimens/dot/`) are written by `generators/specimens/graphviz.py` from
+Graphviz's own documentation and drawn by Graphviz 14.1.2 (`neato -n2` at the stored positions,
+`tools/graphviz.mjs`). Every sheet carries the root `bb` of a laid-out file, so graph-io reads its positions as
+points (the entry above). With node sizes judged at last, these gaps show. All are graph-io or graphty-element
+defects, open:
+
+- Node defaults: the `default` specimen (a node with nothing set: Graphviz's 0.75 x 0.5 inch ellipse sized to its
+  label) is drawn at the wrong width on every DOT page (`node.width`; `dot-specimen-groups-p2` and the other
+  one-setting pages, `dot-specimen-mappings-bypass` `default`).
+- `rankdir=LR` and `rankdir=RL` (`dot-specimen-node-shapes-p3`, `-p4`): Graphviz turns a record's fields even at
+  pinned positions (`a|b|c` stacks top to bottom, `{a|{b|c}}` puts a left of b over c). graphty lays the fields out
+  unturned (`label.text`, `label.lines` on all four records).
+- `quantum=0.5` (`dot-specimen-node-sizes-opacity-p4`): Graphviz rounds a node sized to its label up to a multiple
+  of half an inch (`quantum-label`, `quantum-box`); graphty draws them unrounded (`node.width`, `node.height`).
+- `rotate=90`, `landscape=true`, `orientation=landscape` on the root graph (`dot-specimen-groups-p9` to `-p11`):
+  Graphviz turns the whole drawing a quarter turn; graphty draws it unturned (`frame.rotation`).
+- `ratio=2` (`dot-specimen-groups-p12`): Graphviz stretches the stored positions to twice as tall as wide; graphty
+  keeps them (`node.position`, `node.width`, `node.height` on every node of the page).
+- The root graph's HTML-like label (`dot-specimen-groups-p8`): not drawn (`stray.present` 0/3, the words
+  "graph", "label", "html").
+- A cluster with an HTML-like label (`dot-specimen-groups` `label-html`): graphty draws a node named
+  `cluster-label-html` and no group box (`node.extra`, `group.present`); the same happens to the cluster with an
+  empty label in `dot-specimen-mappings-bypass` (`cluster-defaults`).
+- `splines=none` and its alias `splines=""` (`dot-specimen-edges-lines-p7`, `-p10`): Graphviz draws no edge;
+  graphty draws all nine (`edge.extra` 0/9). The aliases `splines=true` and `splines=false`
+  (`dot-specimen-edges-lines-p8`, `-p9`) draw exactly what `spline` and `line` draw, and graphty fails the same rows
+  there as on `-p2` and `-p6` (the self-loop, the edge around an obstacle, the edge between ports).
+- HTML-like `<TABLE STYLE>` and `<TD STYLE>` values `dashed`, `dotted`, `solid`, `invis` and `invisible`
+  (`dot-specimen-labels-p3`): shapes.html documents only ROUNDED and RADIAL, but Graphviz 14.1.2 draws these five
+  (an unknown value warns "Illegal value ... for STYLE"; these do not). graphty draws none of the borders and
+  sizes the tables wrongly (`node.width`, `node.height`, `node.stroke`, `label.text`), and draws the text of an
+  invisible table, which Graphviz hides (`label.present`).
+- Revealed by the unit fix on specimens that existed before: `arrowsize=0` (`dot-specimen-arrows-p2`): Graphviz
+  still draws a head, graphty none (`edge.arrow`); the `curve`, `lcurve` and `rcurve` tails draw an arrow in graphty
+  where the oracle shows none (`edge.arrow`), and every curve tail is routed differently (`edge.route`); the half
+  arrows `olnormal` and `ornormal` are filled in graphty and hollow in Graphviz (`dot-specimen-arrows`,
+  `edge.arrowFill`); the two parallel edges under `splines=polyline` take other routes (`dot-specimen-edges-lines-p3`,
+  `edge.route`); and the raster edge region falls under `splines=curved`, `ortho` and `none` (`raster.edge` on
+  `dot-specimen-edges-lines-p4`, `-p5`, `-p7`). Their floors were recorded while the nodes were drawn at 1/72 of their
+  size and meant nothing; they stay below them until fixed.
+
+Not drawn on any sheet, with the reason (`NOT_DRAWN` and `NOT_SWEPT` in the generator): 112 of Graphviz's 177
+attributes draw nothing at pinned positions (layout-engine parameters; output metadata such as URL, tooltip, id and
+class; layers; page, size, dpi, viewport and the other whole-drawing placements; font and image search paths;
+charset; bitmap, xdot and 3D output settings; write-only layout results), the HTML-like HREF, ID, TARGET, TITLE and
+TOOLTIP, and the full color tables (10 of 680 X11 names, 4 of 147 SVG names, 3 of 265 Brewer schemes) and
+multi-shape arrows (8 of 3,111,696), whose lookup belongs in unit tests.
 
 ## Specimen sheets: what graphty-element now draws, and the rows still open (rendering round 1, 2026-10-18)
 

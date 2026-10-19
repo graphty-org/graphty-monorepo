@@ -1,7 +1,7 @@
 {
     "sample": "dot-specimen-labels",
     "file": "graph-io/test/fidelity/specimens/dot/specimen-labels.gv",
-    "sha256": "8258a355eb3505ab3009da043898b30b0fe8903b77fdbadb55770c63120dcd90",
+    "sha256": "115eab5a06aa76195be3f79b97dbc627e631ef1b74f26bbef2e28b286114efa9",
     "program": "Graphviz",
     "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
     "engine": "neato -n2",
@@ -18,6 +18,6 @@
     },
     "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
     "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-19",
     "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs dot-specimen-labels && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/dot-specimen-labels.svg"
 }

@@ -54,6 +54,14 @@ def pt(x, y):
     return f"{num(x)},{num(H - y)}"
 
 
+# The root graph's bounding box, as Graphviz's own laid-out output (-Tdot) writes it: the corner anchors' outer edges,
+# in points, y up. A pinned pos="x,y!" alone is neato INPUT, read in inches; the bb says the file is laid out, so
+# its positions are points, as neato -n2 draws them (graph-io's DOT reader decides the unit by it).
+_ax = [v for a in ANCHORS for v in (a["x"] - a["size"] / 2, a["x"] + a["size"] / 2)]
+_ay = [H - v for a in ANCHORS for v in (a["y"] - a["size"] / 2, a["y"] + a["size"] / 2)]
+ROOT_BB = f"{num(min(_ax))},{num(min(_ay))},{num(max(_ax))},{num(max(_ay))}"
+
+
 def q(v):
     """A DOT value: an HTML label as <...>; otherwise a quoted string whose backslash escapes (\\n, \\l, \\N ...)
     are Graphviz's own, so only double quotes are escaped."""
@@ -127,7 +135,7 @@ class Sheet:
                 "// Positions are pinned (pos \"x,y!\", points, y up). Drawn with:",
                 "//   neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" <file>   (graph-io/test/fidelity/oracles/tools/graphviz.mjs)",
                 f"{self.kind} {q(self.id)} {{",
-                f"  graph [{attrs({'layout': 'neato', 'pad': PAD, **self.graph})}];"]
+                f"  graph [{attrs({'layout': 'neato', 'pad': PAD, 'bb': ROOT_BB, **self.graph})}];"]
         for a in ANCHORS:
             s = inch(a["size"])
             self.emit(f"{q(a['id'])} [{attrs({**NODE, 'shape': 'box', 'width': s, 'height': s, 'pos': pos(a['x'], a['y'])})}];")
@@ -230,6 +238,17 @@ def node_shapes():
     p.node("doublecircle-peripheries-3", "doublecircle peripheries=3", shape="doublecircle", peripheries="3")
     p.node("point-width", "point width=0.2", shape="point", width=inch(14), height=inch(14))
     p.write()
+    # rankdir is a layout setting, but it also turns record fields: under LR or RL a record's top-level fields stack
+    # vertically, even at pinned positions (neato -n2). One page per value that turns them.
+    for n, v in enumerate(("LR", "RL")):
+        r = Sheet(f"specimen-node-shapes-p{n + 3}", f"rankdir={v} (a graph setting): record fields are turned",
+                  graph={"rankdir": v}, columns=5)
+        r.node("default", "default")
+        r.node("shape-record", f"rankdir={v} record a|b|c", shape="record", label="a|b|c", **big)
+        r.node("shape-mrecord", f"rankdir={v} Mrecord a|b|c", shape="Mrecord", label="a|b|c", **big)
+        r.node("record-nested", f"rankdir={v} {{a|{{b|c}}}}", shape="record", label="{a|{b|c}}", **big)
+        r.node("record-ports", f"rankdir={v} <p1> a|<p2> b", shape="record", label="<p1> a|<p2> b", **big)
+        r.write()
 
 
 # ------------------------------------------------------------------------------------------------ fills, borders
@@ -361,6 +380,16 @@ def sizes_opacity():
         p.custom("edge-through-node", f"outputorder={v} edge across a node", through(p))
         p.custom("zorder", f"outputorder={v} red then blue", overlap("zorder", "zorder-b"))
         p.write()
+    # quantum rounds a sized-to-label node's width and height up to a multiple of it (a graph setting)
+    qp = Sheet("specimen-node-sizes-opacity-p4", "quantum=0.5 (a graph setting): node sizes rounded up to 0.5 inch",
+               graph={"quantum": "0.5"}, columns=4)
+    qp.node("default", "default")
+    qp.node("quantum-label", "quantum=0.5 fixedsize=false + label", fixedsize="false", label="a longer label",
+            width="0", height="0")
+    qp.node("quantum-box", "quantum=0.5 box label=m", shape="box", fixedsize="false", label="m", width="0",
+            height="0")
+    qp.node("quantum-fixed", "quantum=0.5 fixedsize=true w=0.61", width=inch(44), height=inch(44))
+    qp.write()
 
 
 def through(sheet):
@@ -484,6 +513,12 @@ def labels():
            label=table('<TR><TD ALIGN="TEXT" WIDTH="90">wide line<BR ALIGN="LEFT"/>x<BR ALIGN="RIGHT"/></TD></TR>'),
            **tb)
     t.node("html-td-port-cell", "<TD PORT=p> (no mark)", label=table('<TR><TD PORT="p">a</TD><TD>b</TD></TR>'), **tb)
+    # shapes.html documents only ROUNDED and RADIAL for STYLE, but Graphviz also draws these (an unknown value warns
+    # "Illegal value ... for STYLE"; these do not), so the program's own list is drawn
+    for v in HTML_STYLE_UNDOCUMENTED:
+        t.node(f"html-table-style-{v}", f"<TABLE STYLE={v}>", label=table(style=v), **tb)
+        t.node(f"html-td-style-{v}", f"<TD STYLE={v}>",
+               label=table(f'<TR><TD STYLE="{v}">a</TD><TD>b</TD></TR>'), **tb)
     t.write()
     f = Sheet("specimen-labels-p4", "forcelabels=false (a graph setting): an external label that would overlap "
               "another node is dropped", graph={"forcelabels": "false"}, columns=4)
@@ -645,11 +680,15 @@ def edges_lines():
     s.custom("pos-arrow-endpoint", "pos with e,x,y", arrow_pos)
     s.write()
 
-    # one page per splines value: the same few routing problems drawn under each
-    for v in [x for x in VOCAB["splines"] if x not in ('""', "false", "true")]:
-        p = Sheet(f"specimen-edges-lines-p{2 + ['spline', 'polyline', 'curved', 'ortho', 'line', 'none'].index(v)}",
+    # one page per splines value: the same few routing problems drawn under each. true, false and "" are the
+    # documented aliases of spline, line and none; files use them as often as the names, so they get pages too.
+    order = ["spline", "polyline", "curved", "ortho", "line", "none", "true", "false", '""']
+    if sorted(order) != sorted(VOCAB["splines"]):
+        raise SystemExit(f"splines values changed: {sorted(VOCAB['splines'])}")
+    for v in order:
+        p = Sheet(f"specimen-edges-lines-p{2 + order.index(v)}",
                   f"splines={v} (a graph setting): straight, around an obstacle, loops, parallels, ports",
-                  graph={"splines": v}, columns=4)
+                  graph={"splines": "" if v == '""' else v}, columns=4)
         routes(p, v)
         p.write()
 
@@ -890,6 +929,7 @@ def groups():
                                                         "gradientangle": "90"}),
         ("style-invis", "style=invis", {"style": "invis"}),
         ("colorscheme", "colorscheme=blues9 color=7", {"colorscheme": "blues9", "color": "7"}),
+        ("label-html", "label=<<B>b</B><I>i</I>>", {"label": Html('<B>b</B><I>i</I><FONT COLOR="#e41a1c">r</FONT>')}),
     ]:
         s.custom(sid, cap, cluster(s, sid, cap, over))
     s.custom("nested", "nested clusters", cluster(s, "nested", "", {}, nested=True))
@@ -923,6 +963,15 @@ def groups():
                                                                             "bgcolor": "white:#a0c0ff"}),
         ("graph-label-right", "the root graph's label at the right (labeljust=r)", {"label": "graph-label",
                                                                                    "labeljust": "r"}),
+        ("graph-label-html", "the root graph's HTML-like label", {
+            "label": Html('<B>graph</B> <I>label</I> <FONT COLOR="#e41a1c">html</FONT>'), "labelloc": "t"}),
+        # the whole drawing turned a quarter turn counterclockwise; the three spellings Graphviz documents
+        ("rotate-90", "rotate=90: the whole drawing turned", {"rotate": "90"}),
+        ("landscape-true", "landscape=true: the same as rotate=90", {"landscape": "true"}),
+        ("orientation-landscape", "orientation=landscape on the root graph: the same as rotate=90",
+         {"orientation": "landscape"}),
+        # ratio stretches the stored positions to the given height / width before size scales the drawing
+        ("ratio-2", "ratio=2: positions stretched to twice as tall as wide", {"ratio": "2"}),
     ]):
         p = Sheet(f"specimen-groups-p{n + 2}", about, graph=g)
         p.node("default", "default")
@@ -1010,7 +1059,9 @@ def mappings_bypass():
         ("style", "filled,dashed"), ("width", inch(56)), ("fontcolor", "#e41a1c"), ("fontsize", "16"),
         ("label", "lbl"), ("peripheries", "2"),
     ]
-    items = []
+    # the sheet's one specimen with nothing set: declared before the neutral node [] statement, so Graphviz's own
+    # defaults apply
+    items = [("node", "default", "default", None, None)]
     for k, v in pairs:
         items.append(("node", f"default-{k}", f"node [{k}={v}]", k, v))
         items.append(("node", f"element-{k}", f"element {k}={v}", k, v))
@@ -1043,7 +1094,11 @@ def mappings_bypass():
     # and puts the default back.
     lines.append(f"node [{attrs(neutral_node)}];")
     lines.append(f"edge [{attrs(neutral_edge)}];")
+    pre = []
     for (kind, sid, cap, k, v), c in zip(items + extra, cl):
+        if sid == "default":
+            pre += [f"{q(sid)} [pos={q(pos(c['x'], c['y']))}];", capl(sid, cap, c)]
+            continue
         use(s.id, {k: 1})
         back = neutral_node if kind == "node" else neutral_edge
         if sid.startswith("default-") and kind == "node" and sid not in ("default-after", "default-colorscheme",
@@ -1114,13 +1169,13 @@ def mappings_bypass():
             f"// Graphviz DOT style specimen sheet {s.id}: {s.about}",
             "// Positions are pinned (pos \"x,y!\", points, y up). Drawn with:",
             "//   neato -n2 -Tsvg -Gsize=\"12.5,9.375!\" <file>   (graph-io/test/fidelity/oracles/tools/graphviz.mjs)",
-            f"digraph {q(s.id)} {{", f"  graph [{attrs({'layout': 'neato', 'pad': PAD})}];"]
+            f"digraph {q(s.id)} {{", f"  graph [{attrs({'layout': 'neato', 'pad': PAD, 'bb': ROOT_BB})}];"]
     anchors = []
     for a in ANCHORS:
         z = inch(a["size"])
         anchors.append(f"{q(a['id'])} [{attrs({'shape': 'box', 'width': z, 'height': z, 'pos': pos(a['x'], a['y'])})}];")
     # The anchors take the neutral node defaults (declared first) plus their own shape and size.
-    body = lines[:2] + anchors + lines[2:]
+    body = pre + lines[:2] + anchors + lines[2:]
     with open(os.path.join(OUT, s.id + ".gv"), "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(head + ["  " + x for x in body] + ["}", ""]))
     SHEETS.append(s)
@@ -1134,13 +1189,22 @@ NOT_DRAWN = {
                  "dimen", "diredgeconstraints", "epsilon", "esep", "group", "len", "levels", "levelsgap",
                  "maxiter", "mclimit", "mindist", "minlen", "mode", "model", "newrank", "nodesep", "normalize",
                  "nslimit", "nslimit1", "oneblock", "ordering", "overlap", "overlap_scaling", "overlap_shrink",
-                 "pack", "packmode", "pin", "quadtree", "rank", "rankdir", "ranksep", "remincross",
+                 "pack", "packmode", "pin", "quadtree", "rank", "ranksep", "remincross",
                  "repulsiveforce", "root", "rotation", "samehead", "sametail", "searchsize", "sep", "smoothing",
-                 "sortv", "start", "voro_margin", "weight", "TBbalance", "area", "inputscale", "label_scheme",
-                 "mclimit", "notranslate", "ratio", "center", "landscape", "rotate", "size", "page", "pagedir",
-                 "dpi", "resolution", "viewport", "quantum", "fontnames", "fontpath", "imagepath", "charset",
-                 "truecolor", "xdotversion", "z", "vertices", "rects", "lheight", "lwidth", "layout", "pad",
-                 "margin_graph")},
+                 "sortv", "start", "voro_margin", "weight", "TBbalance", "area", "label_scheme")},
+    "inputscale": "scales input positions for neato's own layout; neato -n2 draws a pinned file identically with or "
+                  "without it (checked with Graphviz 14.1.2)",
+    **{a: "places, pages or scales the whole drawing uniformly (or, for viewport, picks the part of it shown); no "
+          "element looks different, and the comparison fits the frame on the corner anchors"
+       for a in ("center", "size", "page", "pagedir", "dpi", "resolution", "viewport", "notranslate", "pad")},
+    **{a: "where Graphviz finds or how it names fonts and image files; every specimen font is pinned and every image "
+          "sits beside its sheet" for a in ("fontnames", "fontpath", "imagepath")},
+    "charset": "how the file's bytes are decoded; specimen files are ASCII, and decoding is graph-io's byte layer, "
+               "covered by its conformance tests",
+    **{a: "a bitmap, xdot or 3D (VRML) output setting, not drawn in SVG" for a in ("truecolor", "xdotversion", "z")},
+    **{a: "written by Graphviz's layout output, never read as a style" for a in ("vertices", "rects", "lheight",
+                                                                                 "lwidth")},
+    "layout": "which layout engine runs; every specimen is drawn by neato -n2 at its stored positions",
     **{a: "output metadata (links, tooltips, ids, comments, classes): no drawn mark"
        for a in ("URL", "href", "target", "tooltip", "edgeURL", "edgehref", "edgetarget", "edgetooltip",
                  "headURL", "headhref", "headtarget", "headtooltip", "tailURL", "tailhref", "tailtarget",
@@ -1149,7 +1213,8 @@ NOT_DRAWN = {
     "layer": "layers select which output page an element is drawn on; one-page SVG output draws every layer",
     "layers": "see layer", "layerlistsep": "see layer", "layerselect": "see layer", "layersep": "see layer",
     "_background": "an xdot drawing string, written by -Txdot output, not read from a hand-written file's style",
-    "bb": "write only for the root graph; specimens store it for clusters (specimen-groups)",
+    "bb": "draws nothing: every sheet writes the root bb its laid-out output would carry, so a reader takes the "
+          "positions as points (see ROOT_BB), and clusters are drawn at their stored bb (specimen-groups)",
     "shapefile": "deprecated since Graphviz 2.x in favor of image (specimen-images-charts covers image)",
     "samplepoints": "only for -Tcmap/imap output, not SVG",
     "linelength": "only for -Tdot/-Tplain output line wrapping",
@@ -1157,6 +1222,8 @@ NOT_DRAWN = {
 }
 # HTML-like label attributes that draw nothing (shapes.html#html): links, tooltips and ids are output metadata.
 HTML_NOT_DRAWN = {"HREF", "ID", "TARGET", "TITLE", "TOOLTIP"}
+# STYLE values on <TABLE> and <TD> that Graphviz draws but shapes.html does not list (it documents ROUNDED and RADIAL)
+HTML_STYLE_UNDOCUMENTED = ("dashed", "dotted", "solid", "invis", "invisible")
 NOT_SWEPT = {
     "x11 color names": "every X11 name is a lookup in Graphviz's color table; 10 representative names (numbered, "
                        "gray/grey, case) are drawn, the table itself belongs in a unit test against the vocabulary",

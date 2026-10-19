@@ -317,6 +317,7 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         expect(get("edge", "width")).toEqual([0.5, 8, 1]);
         expect(get("edge", "curved")).toEqual([true, true, true]);
         expect(get("edge", "label")).toEqual([null, null, null]);
+        expect(get("node", "labelAvoidOverlap")).toEqual([true, true, true]);
     });
 
     it("draws the node border, opacity and labels as the settings say", async () => {
@@ -353,7 +354,8 @@ describe("GEXF styles: Gephi's Preview settings (the gephiPreview option)", () =
         expect(labels("node", "labelFont")[0]).toBe("DejaVu Serif");
         expect(labels("node", "labelWeight")[0]).toBe("bold");
         expect(labels("node", "labelItalic")[0]).toBe(true);
-        expect(labels("node", "labelAvoidOverlap")).toEqual([false, false, false]);
+        // overlap avoidance off: nothing turns it on (Gephi's default turns it on for every node)
+        expect(labels("node", "labelAvoidOverlap")).toEqual([null, null, null]);
         const hidden = await loadWith({ "node.label.show": "false" });
         expect(hidden("node", "label")).toEqual([null, null, null]);
     });

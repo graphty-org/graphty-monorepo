@@ -248,8 +248,7 @@
             "height": 20,
             "shape": "ellipse",
             "borderPosition": "inside",
-            "labelPosition": "center",
-            "labelAvoidOverlap": true
+            "labelPosition": "center"
         },
         "edge": {
             "sourceArrow": "none",

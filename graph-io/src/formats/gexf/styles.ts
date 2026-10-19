@@ -58,6 +58,9 @@ const GEPHI_NODE_FILL = "#000000";
 /** The style column marking directed edges, which Gephi draws with an arrow at the target. */
 const DIRECTED_KEY = "directed";
 
+/** The style column marking the nodes whose labels Gephi hides where they overlap (node.label.avoidOverlap). */
+const AVOID_OVERLAP_KEY = "label-avoid-overlap";
+
 /** The style column marking the edges Gephi does not draw (dropped, or merged into a parallel edge). */
 const HIDDEN_KEY = "gephi-hidden";
 
@@ -716,10 +719,25 @@ function nodeLabelRules(
     }
     labelOutline(node, "node", channels, sizes, preview);
     const font = preview.font("node");
-    everyElement(node, "node", "preview-label", {
-        ...fontValues(font, preview.on("node.label.customFont")),
-        ...(preview.on("node.label.avoidOverlap") ? {} : { labelAvoidOverlap: false }),
-    });
+    everyElement(node, "node", "preview-label", fontValues(font, preview.on("node.label.customFont")));
+    // ponytail: Gephi hides a label that would cover a cell of a 10-unit grid an earlier one took, the larger font
+    // first (DefaultPreset node.label.avoidOverlap true, overlapGridSize 10; NodeLabelRenderer.preProcess); avoiding
+    // overlap, larger first, is that test without the grid's rounding. A rule only while it is on: graphty-element
+    // has no value that turns a lower rule's overlap avoidance off again.
+    if (preview.on("node.label.avoidOverlap")) {
+        node.columns.set(
+            AVOID_OVERLAP_KEY,
+            sizes.map(() => true),
+        );
+        node.rules.push({
+            id: "node.tool.label-avoid-overlap",
+            target: "node",
+            role: "group",
+            origin: "tool",
+            where: { has: { style: AVOID_OVERLAP_KEY } },
+            set: { labelAvoidOverlap: true },
+        });
+    }
 }
 
 /**

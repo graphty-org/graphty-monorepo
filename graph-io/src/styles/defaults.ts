@@ -564,12 +564,6 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         "center",
                         `${GEPHI} NodeLabelRenderer.java (a label is drawn centered on its node)`,
                     ),
-                    // ponytail: Gephi hides a label that would cover a cell of a 10-unit grid an earlier one took,
-                    // the larger font first; avoiding overlap, larger first, is that test without the grid's rounding.
-                    labelAvoidOverlap: v(
-                        true,
-                        `${GEPHI} DefaultPreset.java (node.label.avoidOverlap true, node.label.overlapGridSize 10); NodeLabelRenderer.preProcess`,
-                    ),
                 },
                 edge: {
                     sourceArrow: v("none", `${GEPHI} DefaultPreset.java line 62`),

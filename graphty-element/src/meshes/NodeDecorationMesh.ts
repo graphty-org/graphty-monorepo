@@ -200,8 +200,11 @@ function buildGlyph(
     return mesh;
 }
 
-/** A colored piece, with the box a reader of the drawing gives it where that is not its outline's. */
-type Placed = ColorPiece & { readonly box?: PieceBox };
+/**
+ * A colored piece, with the box a reader of the drawing gives it where that is not its outline's; `line` marks part
+ * of the node's own line work (a database's rim), which a reader counts with the node's outline, not as a piece.
+ */
+type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean };
 
 /**
  * The pieces a node draws in color over its face: its stripes, cut to its outline, and over them
@@ -227,7 +230,7 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
     return [
         ...bands,
         ...pieSlices(o.pie, face.width, face.height, NodeMesh.extentPerSize(o.shape)),
-        ...(rim === null ? [] : [rim]),
+        ...(rim === null ? [] : [{ ...rim, line: true }]),
     ];
 }
 
@@ -317,7 +320,9 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
     mesh.hasVertexAlpha = pieces.some((p) => p.opacity < 1);
     mesh.material = flatMaterial("node-decoration", scene);
     const metadata: NodeDecorationMetadata = {
-        nodePieces: pieces.map((p) => ({ kind: "shape", box: p.box ?? boxOf(p.outline) })),
+        nodePieces: pieces
+            .filter((p) => p.line !== true)
+            .map((p) => ({ kind: "shape", box: p.box ?? boxOf(p.outline) })),
     };
     mesh.metadata = metadata;
     return mesh;

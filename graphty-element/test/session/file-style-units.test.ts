@@ -446,3 +446,28 @@ describe("a vis-network file's border widths", () => {
         session.dispose();
     });
 });
+
+describe("a file whose nodes are sized by their labels alone", () => {
+    it("draws its median label at the element's own label size, not its edges at the element's edge width", async () => {
+        // vis-network's default nodes: ellipses grown to hold their 14 px labels, with no size of their own
+        const doc = JSON.stringify({
+            nodes: [
+                { id: "a", label: "alpha" },
+                { id: "b", label: "beta" },
+                { id: "c", label: "gamma" },
+            ],
+            edges: [
+                { from: "a", to: "b" },
+                { from: "b", to: "c" },
+            ],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file", layout: "recommended" });
+        await vi.waitFor(() => {
+            assert.lengthOf(session.history.pending, 0);
+        });
+        // the element's own label is 48 px
+        assert.approximately(fontSize(session, { node: "a" }), 48, 0.5);
+        session.dispose();
+    });
+});

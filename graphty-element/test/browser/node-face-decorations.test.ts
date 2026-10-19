@@ -210,3 +210,21 @@ describe("a node's glyph", () => {
         assert.lengthOf(faced.decorationPieces, 0);
     });
 });
+
+describe("a database node's rim", () => {
+    test("is drawn across its face in its border's color, as part of its outline rather than a piece over it", async () => {
+        const { faced } = await oneNode({
+            "node.shape": "database",
+            "node.borderWidth": 0.2,
+            "node.borderColor": "#2b7ce9",
+        });
+        assert.lengthOf(faced.decorations, 1, "the rim is drawn");
+        const colors = faced.decorations[0].sourceMesh.getVerticesData(VertexBuffer.ColorKind);
+        assert(colors, "the rim carries its color");
+        assert.deepEqual(
+            [...colors.slice(0, 3)].map((c) => Math.round(c * 255)),
+            [0x2b, 0x7c, 0xe9],
+        );
+        assert.lengthOf(faced.decorationPieces, 0);
+    });
+});

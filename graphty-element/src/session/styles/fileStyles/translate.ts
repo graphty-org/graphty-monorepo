@@ -1056,6 +1056,9 @@ export const SCENE_PER_UNIT = {
  */
 const LABEL = { perScene: 48, line: 1.33, margin: 10 } as const;
 
+/** The element's own label size (`sizePx`) when the base styles give none (RichTextStyle's `fontSize`). */
+const DEFAULT_LABEL_PX = 48;
+
 /**
  * How tall a label of a `sizePx` draws its letters, in scene units: the inverse of `labelSizePx`.
  * @param sizePx - The label's `sizePx`.
@@ -1133,10 +1136,19 @@ function lengthFactors(input: TranslateInput): LengthFactors {
     const nodeMedian = median(sides);
     const nodeBase = typeof base.node["node.size"] === "number" ? base.node["node.size"] : 1;
     const edgeBase = typeof base.edge["edge.width"] === "number" ? base.edge["edge.width"] : 1;
-    const scene =
-        nodeMedian === null
-            ? (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN)
-            : (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
+    // Nodes sized by their labels alone (vis-network's box, ellipse and circle; Cytoscape.js's width: label) give
+    // no side: their median label is drawn at the element's own label size, so such a node comes out about the
+    // size of the element's own node with its label, as a file that sizes its nodes does.
+    const labelMedian = nodeMedian === null ? median(resolved("node", "labelSize")) : null;
+    const labelBase = typeof base.node["node.labelSize"] === "number" ? base.node["node.labelSize"] : DEFAULT_LABEL_PX;
+    let scene: number;
+    if (nodeMedian !== null) {
+        scene = (nodeBase * SCENE_PER_UNIT.node) / nodeMedian;
+    } else if (labelMedian !== null && sides.some((side) => side === 0)) {
+        scene = labelLetterHeight(labelBase) / labelMedian;
+    } else {
+        scene = (edgeBase * SCENE_PER_UNIT.edge) / (median(resolved("edge", "width")) ?? Number.NaN);
+    }
     // No length to scale by, or a degenerate median (1e-320, 1e308): the file's units are kept.
     if (!(Number.isFinite(scene) && scene > 0)) {
         return KEPT;

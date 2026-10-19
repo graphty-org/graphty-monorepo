@@ -1349,6 +1349,9 @@ function evaluateTarget(
             edgeRoutes(graph, read, curves, env.nodes, drawn);
         }
     }
+    if (kind === "node") {
+        nodeSizes(graph, { kind, els, cells, order, rendered: input.rendered, notes }, drawn);
+    }
     if (kind === "edge") {
         straightenUnpairedBeziers(graph, curveStyles(graph, cells, input.rendered), coreToOut, drawn.curved);
     }
@@ -2239,6 +2242,49 @@ function routeSettings(
         loopDirection: text("loopDirection"),
         loopSweep: text("loopSweep"),
     };
+}
+
+/** A padding read as Cytoscape.js spells it. */
+const TEXT_PART: CyjsPropertySpec = { property: "_text", type: "text" };
+
+/**
+ * A node's size as Cytoscape.js draws it: a node that is no compound parent is drawn `padding` larger on every side
+ * (cytoscape.js 3.34.3 draws its shape `width() + 2 * padding()` across).
+ * @param graph - the core's elements
+ * @param read - the nodes' cells
+ * @param values - the nodes' values; changed in place
+ */
+function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+    const padding = drawnColumn(read, "padding", TEXT_PART);
+    const n = read.order.length;
+    for (let k = 0; k < n; k++) {
+        const core = read.order[k];
+        const pad = core < 0 || graph.children[core].length > 0 ? 0 : paddingOf(padding[k]);
+        if (pad <= 0) {
+            continue;
+        }
+        for (const p of ["width", "height"]) {
+            const v = values[p]?.[k];
+            (values[p] ??= new Array<StyleValue | null>(n).fill(null))[k] = (typeof v === "number" ? v : 30) + 2 * pad;
+        }
+    }
+}
+
+/**
+ * A node's padding in pixels. A percentage is relative only on a compound parent; on any other node Cytoscape.js
+ * draws its fraction as pixels (`padding()` returns the property's `pfValue`, 0.2 for `20%`).
+ * @param text - the padding as Cytoscape.js spells it, or null
+ * @returns the pixels, 0 for none
+ */
+function paddingOf(text: StyleValue | null | undefined): number {
+    if (typeof text !== "string") {
+        return 0;
+    }
+    const x = Number.parseFloat(text);
+    if (!Number.isFinite(x) || x <= 0) {
+        return 0;
+    }
+    return text.trim().endsWith("%") ? x / 100 : x;
 }
 
 /** The curve style read as Cytoscape.js's word. */

@@ -183,3 +183,17 @@ describe("Cytoscape.js edge routes", () => {
         expect(y).toBeGreaterThan(0);
     });
 });
+
+describe("Cytoscape.js node sizes", () => {
+    it("draws a padded node larger by its padding on every side", () => {
+        const v = evaluateCytoscapeJs(
+            doc({ width: 36, height: 36 }, {}, [
+                { data: { id: "b" }, style: { padding: "6px" } },
+                { data: { id: "c" }, style: { padding: "20%" } },
+            ]),
+        ).node.values;
+        expect([v.width?.[0], v.height?.[0]]).toEqual([48, 48]);
+        // a percentage is drawn as its fraction in pixels on a node that holds no others
+        expect(v.width?.[1]).toBeCloseTo(36.4, 6);
+    });
+});

@@ -377,6 +377,8 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["corner-radius", { property: "cornerRadius", type: "size" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["height", { property: "height", type: "nodeSize" }],
+    // a node is drawn this much larger on every side (`nodeSizes`)
+    ["padding", { property: "_padding", type: "text" }],
     [
         "text-valign",
         { property: "_valign", type: "enum", enums: ["top", "top-inside", "center", "bottom", "bottom-inside"] },

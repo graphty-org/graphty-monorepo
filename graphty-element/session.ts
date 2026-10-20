@@ -229,6 +229,7 @@ export type {
 } from "./src/session";
 export { LOAD_ROLES } from "./src/session";
 export {
+    EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,

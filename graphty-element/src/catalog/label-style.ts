@@ -152,6 +152,13 @@ export interface LabelStyle {
      */
     declutter?: LabelDeclutterOrder;
     /**
+     * This node label is not drawn while its node is drawn smaller than this many pixels across on
+     * screen (the smaller of its width and height), as sigma.js hides the label of a node drawn
+     * under its `labelRenderedSizeThreshold`. Decided again whenever the camera moves. Unset or 0,
+     * the node's size never hides its label. Node labels only.
+     */
+    minNodeScreenSize?: number;
+    /**
      * Whether the label is drawn over every node and edge, as a program that draws its labels on
      * a layer of their own does. Unset or false, a label sorts by depth with the graph, so a node
      * nearer the camera covers it.
@@ -303,6 +310,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     lineHeight: 0,
     minScreenSize: 0,
     declutter: 0,
+    minNodeScreenSize: 0,
     onTop: 0,
     textAlign: 0,
     opacity: 0,

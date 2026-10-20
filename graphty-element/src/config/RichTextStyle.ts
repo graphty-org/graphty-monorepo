@@ -86,6 +86,8 @@ export const RichTextStyle = z.strictObject({
     // Whether this node label is hidden where it overlaps a label kept first, and which is kept
     // first; unset, only the graph's `labels.declutter` behavior hides labels.
     declutter: z.enum(["degree", "size"]).optional(),
+    // Below how many screen pixels across its node is drawn this node label is hidden; unset, never.
+    minNodeScreenSize: z.number().min(0).optional(),
     // Whether the label is drawn over the whole graph instead of sorting by depth with it.
     onTop: z.boolean().optional(),
 

@@ -309,6 +309,7 @@ export interface ChannelValues {
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
     "node.labelDeclutter": LabelDeclutterOrder;
+    "node.labelMinNodeScreenSize": number;
     "node.labelRotation": number;
     "node.labelBackground": ColorValue;
     "node.labelOutline": ColorValue;
@@ -404,6 +405,7 @@ export interface ChannelValues {
     "node.stripeSize": number;
     "edge.color": ColorValue;
     "edge.width": number;
+    "edge.minScreenWidth": number;
     "edge.opacity": number;
     "edge.outlineColor": ColorValue;
     "edge.outlineWidth": number;
@@ -1035,7 +1037,11 @@ const LABEL_FIELD_OF_SUFFIX = {
 
 /** A label style field one channel writes on its own. */
 export type LabelFieldName =
-    (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX] | "declutter" | "textAlign" | "location";
+    | (typeof LABEL_FIELD_OF_SUFFIX)[keyof typeof LABEL_FIELD_OF_SUFFIX]
+    | "declutter"
+    | "minNodeScreenSize"
+    | "textAlign"
+    | "location";
 
 /** Every way `labelTextAlign` lines up a label's lines. */
 const LABEL_TEXT_ALIGN_VALUES: readonly LabelTextAlign[] = ["left", "center", "right"];
@@ -1267,6 +1273,28 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
 const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 
 /**
+ * A node label field channel: an edge label belongs to no node, so an
+ * `edge.labelMinNodeScreenSize` would paint nothing.
+ */
+const NODE_LABEL_MIN_NODE_SCREEN_SIZE: ChannelDescriptor = {
+    channel: "node.labelMinNodeScreenSize",
+    target: "node",
+    plainName: "Node Label Min Node Screen Size",
+    default: 0,
+    shortName: "Label min node screen size",
+    group: "text",
+    stylePath: "label.minNodeScreenSize",
+    renderable: true,
+    accepts: "number",
+    min: 0,
+    caveat:
+        "Hides the label while its node is drawn smaller than this many screen pixels across (the smaller of " +
+        "its width and height), as sigma.js hides the label of a node drawn under its " +
+        "`labelRenderedSizeThreshold`. Decided again whenever the camera moves. Unset or 0, the node's size " +
+        "never hides its label.",
+};
+
+/**
  * Where a label field channel writes: the label style channel it lands in and the field.
  * @param channel - Any channel.
  * @returns The style channel and the field, or undefined for a channel that is not a label field.
@@ -1274,6 +1302,10 @@ const LABEL_WEIGHT_VALUES: readonly LabelWeightValue[] = ["normal", "bold"];
 export function labelFieldOf(channel: Channel): { readonly into: Channel; readonly field: LabelFieldName } | undefined {
     if (channel === "node.labelDeclutter") {
         return { into: "node.labelStyle", field: "declutter" };
+    }
+
+    if (channel === "node.labelMinNodeScreenSize") {
+        return { into: "node.labelStyle", field: "minNodeScreenSize" };
     }
 
     if (channel === "node.labelLocation" || channel === "edge.labelLocation") {
@@ -1547,6 +1579,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     },
     ...labelFieldChannels("node"),
     "node.labelDeclutter": NODE_LABEL_DECLUTTER,
+    "node.labelMinNodeScreenSize": NODE_LABEL_MIN_NODE_SCREEN_SIZE,
     "node.labelTextAlign": labelTextAlignChannel("node"),
     "node.labelLocation": labelLocationChannel("node"),
     "node.tooltip": {
@@ -2438,6 +2471,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         min: 0,
         stylePath: "line.width",
         renderable: true,
+    },
+    "edge.minScreenWidth": {
+        channel: "edge.minScreenWidth",
+        target: "edge",
+        plainName: "Edge Min Screen Width",
+        default: 0,
+        shortName: "Min screen width",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.minScreenWidth",
+        renderable: true,
+        caveat:
+            "The fewest screen pixels wide the line is drawn, at any zoom: a line whose `edge.width` comes to " +
+            "less on screen, a width of 0 included, is drawn this wide, as sigma.js draws every edge at least " +
+            "its `minEdgeThickness`. Unset or 0, the line is drawn at its width alone.",
     },
     "edge.opacity": {
         channel: "edge.opacity",

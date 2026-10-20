@@ -955,6 +955,7 @@ export const EdgeStyle: z.ZodObject<{
                 size: "size";
                 degree: "degree";
             }>>;
+            minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
             onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             textOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1174,6 +1175,7 @@ export const EdgeStyle: z.ZodObject<{
                 size: "size";
                 degree: "degree";
             }>>;
+            minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
             onTop: z.ZodOptional<z.ZodBoolean>;
             textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
             textOpacity: z.ZodOptional<z.ZodNumber>;
@@ -1411,6 +1413,7 @@ export const EdgeStyle: z.ZodObject<{
         }>>;
         animationSpeed: z.ZodOptional<z.ZodNumber>;
         width: z.ZodOptional<z.ZodNumber>;
+        minScreenWidth: z.ZodOptional<z.ZodNumber>;
         patternCount: z.ZodOptional<z.ZodNumber>;
         waveAmplitude: z.ZodOptional<z.ZodNumber>;
         wavePeriod: z.ZodOptional<z.ZodNumber>;
@@ -1495,6 +1498,7 @@ export const EdgeStyle: z.ZodObject<{
             size: "size";
             degree: "degree";
         }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOpacity: z.ZodOptional<z.ZodNumber>;
@@ -4059,6 +4063,7 @@ export const NodeStyle: z.ZodObject<{
             size: "size";
             degree: "degree";
         }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOpacity: z.ZodOptional<z.ZodNumber>;
@@ -4238,6 +4243,7 @@ export const NodeStyle: z.ZodObject<{
             size: "size";
             degree: "degree";
         }>>;
+        minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
         onTop: z.ZodOptional<z.ZodBoolean>;
         textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
         textOpacity: z.ZodOptional<z.ZodNumber>;
@@ -4887,6 +4893,7 @@ export const RichTextStyle: z.ZodObject<{
         size: "size";
         degree: "degree";
     }>>;
+    minNodeScreenSize: z.ZodOptional<z.ZodNumber>;
     onTop: z.ZodOptional<z.ZodBoolean>;
     textColor: z.ZodOptional<z.ZodDefault<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>>;
     textOpacity: z.ZodOptional<z.ZodNumber>;

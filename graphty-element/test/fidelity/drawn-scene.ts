@@ -899,20 +899,22 @@ export interface DrawnEdge {
 function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
     const flat = (mesh.metadata as { lineWidth?: number } | null)?.lineWidth;
     mesh.computeWorldMatrix(true);
-    if (typeof flat === "number") {
-        return flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at);
-    }
     const material = mesh.material as unknown as {
         _floats?: Record<string, number>;
         options?: { defines?: string[] };
     } | null;
+    // the join shader never draws a line under `minWidth` pixels (line.minScreenWidth)
+    const min = material?._floats?.minWidth ?? 0;
+    if (typeof flat === "number") {
+        return Math.max(flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at), min);
+    }
     const width = material?._floats?.width;
     if (typeof width !== "number") {
         return 0;
     }
     // a line whose width is in world units (a joined line through bends drawn at the file's width), not pixels
     const world = material?.options?.defines?.includes("#define WORLD_WIDTH") === true;
-    return world ? width * p.pxPerWorld(at) : width / 2 / p.point(at).w;
+    return Math.max(world ? width * p.pxPerWorld(at) : width / 2 / p.point(at).w, min);
 }
 
 /**

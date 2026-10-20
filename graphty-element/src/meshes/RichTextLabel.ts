@@ -169,6 +169,7 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "letterSize"
     | "wrapTrailingSpace"
     | "minScreenSize"
+    | "minNodeScreenSize"
     | "declutter"
     | "rotation"
     | "textOpacity"
@@ -607,7 +608,7 @@ export class RichTextLabel {
             this._setupDepthFading();
         }
 
-        if ((this.options.minScreenSize ?? 0) > 0) {
+        if ((this.options.minScreenSize ?? 0) > 0 || (this.options.minNodeScreenSize ?? 0) > 0) {
             this.stopMinScreenSize = minScreenSizeFrames.join(this.scene, () => {
                 const camera = this.scene.activeCamera;
                 if (this.mesh && camera) {
@@ -1638,13 +1639,27 @@ export class RichTextLabel {
     }
 
     /**
-     * Whether the label's style hides it at its current size on screen (`minScreenSize`).
+     * Whether the label's style hides it at its current size on screen: its letters drawn smaller
+     * than `minScreenSize` pixels, or the mesh it is attached to drawn smaller across than
+     * `minNodeScreenSize` pixels.
      * @param camera - The camera the frame is drawn from.
-     * @returns True when its letters are drawn smaller than `minScreenSize` pixels.
+     * @returns True when either is too small.
      */
     public tooSmall(camera: Camera): boolean {
         const min = this.options.minScreenSize ?? 0;
-        return min > 0 && this.screenFontPx(camera) < min;
+        if (min > 0 && this.screenFontPx(camera) < min) {
+            return true;
+        }
+
+        const minTarget = this.options.minNodeScreenSize ?? 0;
+        const target = this.options.attachTo;
+        if (minTarget <= 0 || !(target instanceof AbstractMesh)) {
+            return false;
+        }
+
+        const { extendSizeWorld, centerWorld } = target.getBoundingInfo().boundingBox;
+        const across = 2 * Math.min(extendSizeWorld.x, extendSizeWorld.y);
+        return across * pixelsPerUnit(camera, centerWorld) < minTarget;
     }
 
     /**

@@ -182,6 +182,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // if a continuous glow encoding ever shows up in a profile.
     "node.glowStrength": "mesh",
     "edge.width": "mesh",
+    "edge.minScreenWidth": "mesh",
     "edge.style": "mesh",
     "edge.patternCount": "mesh",
     "edge.waveAmplitude": "mesh",
@@ -267,6 +268,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelMinScreenSize": "content",
     "node.labelOnTop": "content",
     "node.labelDeclutter": "content",
+    "node.labelMinNodeScreenSize": "content",
     "node.labelTextAlign": "content",
     "node.labelLocation": "content",
     "node.labelRotation": "content",

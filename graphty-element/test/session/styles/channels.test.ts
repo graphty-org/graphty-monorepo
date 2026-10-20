@@ -54,6 +54,7 @@ const DECLARED = [
     "node.labelShiftX",
     "node.labelShiftY",
     "node.labelDeclutter",
+    "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
     "node.labelLocation",
     "node.tooltip",
@@ -139,6 +140,7 @@ const DECLARED = [
     "node.gradientDirection",
     "edge.color",
     "edge.width",
+    "edge.minScreenWidth",
     "edge.opacity",
     "edge.outlineColor",
     "edge.outlineWidth",
@@ -267,9 +269,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and twelve node channels and one hundred and four edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 112);
-        assert.strictEqual(channelsFor("edge").length, 104);
+    it("splits into one hundred and thirteen node channels and one hundred and five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 113);
+        assert.strictEqual(channelsFor("edge").length, 105);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

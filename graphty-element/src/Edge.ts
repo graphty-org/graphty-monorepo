@@ -109,6 +109,16 @@ function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType 
 }
 
 /**
+ * Whether an edge drawn in this style draws no line: a width of 0 (#2067) with no
+ * `line.minScreenWidth` to draw it at.
+ * @param style - The style, or undefined for one not yet painted.
+ * @returns True when the line is never placed.
+ */
+function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
+    return (style?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === 0 && !((style?.line?.minScreenWidth ?? 0) > 0);
+}
+
+/**
  * The frame each node mesh's world matrix was last recomputed for.
  *
  * Keyed on the MESH rather than on the node, so a node that is given a new mesh -- a reshape --
@@ -801,7 +811,7 @@ export class Edge {
      * @returns Whether the line was laid along its bends.
      */
     private placeLine(src: Vector3, dst: Vector3): boolean {
-        const drawsLine = this.lineBatch !== null && this.drawnStyle?.line?.width !== 0;
+        const drawsLine = this.lineBatch !== null && !drawsNoLine(this.drawnStyle);
         const bent =
             drawsLine && this.lineBatch !== null && this.lineRoute !== null && this.placeBent(this.lineBatch, src, dst);
         const route = !bent && drawsLine ? this.bundleRoute(src, dst) : null;
@@ -1535,7 +1545,7 @@ export class Edge {
      */
     transformEdgeMesh(srcPoint: Vector3, dstPoint: Vector3): void {
         // A line of width 0 is never placed, so it stays the zero matrix it was acquired as.
-        if (this.drawnStyle?.line?.width === 0) {
+        if (drawsNoLine(this.drawnStyle)) {
             return;
         }
 

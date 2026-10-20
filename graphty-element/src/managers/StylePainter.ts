@@ -144,6 +144,7 @@ const RICH_TEXT_KEYS = {
     color: "textColor",
     lineHeight: "lineHeight",
     minScreenSize: "minScreenSize",
+    minNodeScreenSize: "minNodeScreenSize",
     declutter: "declutter",
     onTop: "onTop",
     textAlign: "textAlign",

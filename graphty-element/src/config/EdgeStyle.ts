@@ -127,8 +127,13 @@ export const EdgeLineTypes = z.enum([
 const LineStyle = z.strictObject({
     type: EdgeLineTypes.optional(),
     animationSpeed: z.number().min(0).optional(),
-    /** 0 draws no line; the arrow caps and the label are still drawn (Edge.createLine). */
+    /** 0 draws no line, unless `minScreenWidth` is set; the arrow caps and the label are still drawn (Edge.createLine). */
     width: z.number().nonnegative().optional(),
+    /**
+     * The fewest screen pixels wide the line is drawn, at any zoom: a line whose `width` comes to less
+     * on screen, 0 included, is drawn this wide. Unset or 0, the line is drawn at its width alone.
+     */
+    minScreenWidth: z.number().nonnegative().optional(),
     /**
      * How many pattern elements (dots, dashes, ...) to draw along a patterned edge.
      *

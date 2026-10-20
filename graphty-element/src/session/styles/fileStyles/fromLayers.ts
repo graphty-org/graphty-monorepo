@@ -201,6 +201,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         // Screen pixels: never scaled with the file's lengths.
         ["node.labelMinScreenSize", plan(number, "labelMinScreenSize")],
         ["node.labelOnTop", plan(flag, "labelOnTop")],
+        ["node.labelMinNodeScreenSize", plan(number, "labelMinNodeScreenSize")],
         // Only the size order has a neutral spelling (Gephi's and sigma.js's).
         ["node.labelDeclutter", plan((value) => (value === "size" ? true : null), "labelAvoidOverlap")],
         ["node.shape", plan(table(SHAPE_OF), "shape")],
@@ -211,6 +212,8 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.color", plan(color, "color")],
         ["edge.opacity", plan(opacity, "opacity")],
         ["edge.width", plan(number, "width")],
+        // Screen pixels: never scaled with the file's lengths.
+        ["edge.minScreenWidth", plan(number, "minScreenWidth")],
         ["edge.style", plan(table(LINE_OF), "lineStyle")],
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],

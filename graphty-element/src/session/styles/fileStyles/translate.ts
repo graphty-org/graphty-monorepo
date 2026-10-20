@@ -683,6 +683,7 @@ function channelPlans(
             ["labelFitSquare", [id("node.labelFitSquare")]],
             // Screen pixels, so never scaled by the file's lengths.
             ["labelMinScreenSize", [id("node.labelMinScreenSize")]],
+            ["labelMinNodeScreenSize", [id("node.labelMinNodeScreenSize")]],
             ["labelOnTop", [id("node.labelOnTop")]],
             [
                 "labelAvoidOverlap",
@@ -701,6 +702,8 @@ function channelPlans(
         ["color", [id("edge.color")]],
         ["opacity", [id("edge.opacity")]],
         ["width", [length("edge.width")]],
+        // Screen pixels, so never scaled by the file's lengths.
+        ["minScreenWidth", [id("edge.minScreenWidth")]],
         // in the line's own width units, as its width is
         ["outlineWidth", [length("edge.outlineWidth")]],
         ["outlineColor", [id("edge.outlineColor")]],

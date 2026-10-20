@@ -478,6 +478,7 @@ void main() {
                             color: options.color,
                             opacity: style.line?.opacity ?? 1,
                             worldWidth: true,
+                            minScreenWidth: style.line?.minScreenWidth,
                             pattern: {
                                 kind: lineType,
                                 elementLength: lineType === "dash" ? width * 3 : width,
@@ -504,6 +505,7 @@ void main() {
                         options.color,
                         style.line?.opacity ?? 1,
                         scene,
+                        style.line?.minScreenWidth,
                     ),
                 scene,
             );
@@ -791,6 +793,7 @@ void main() {
                     width: options.width * 20, // Scale factor to match GreasedLine sizing
                     color: options.color,
                     opacity: style.line?.opacity,
+                    minScreenWidth: style.line?.minScreenWidth,
                 },
                 scene,
             );

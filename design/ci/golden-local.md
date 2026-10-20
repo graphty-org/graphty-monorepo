@@ -347,6 +347,17 @@ this machine. Sessions work in parallel on their own branches and worktrees, and
 step is one at a time. A session that finds the lock held is told who holds it and waits in the
 background, not in a model turn.
 
+Waiters queue first come, first served, except `--priority` (on `land`, `revert` and `cut`): a priority
+waiter goes ahead of every ordinary one, behind earlier priority waiters, and never interrupts the
+landing that holds the lock. It is only for fixes that unblock the pipeline: a red master, a broken
+golden, a fix a cut is blocked on.
+
+Every run executes the same version of `land.mjs`: whichever checkout's copy a session calls, it re-runs
+the live copy in `.worktrees/land-live` (as `push-queue.sh` does with `.worktrees/gate-live`) and passes its
+exit code through. A session on an older copy once skipped the queue this way. A new version goes live
+with `tools/live.sh land <branch>`, after land's tests pass; without a live copy the called copy runs
+itself and says so.
+
 ### 4.9 Failure handling
 
 | Failure                                               | What happens                                                                                                                                                                                                                                      |

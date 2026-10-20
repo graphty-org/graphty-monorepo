@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { after, before, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
@@ -185,6 +186,33 @@ describe("the lock", () => {
         assert.deepEqual(order, ["a", "b", "c"]);
         assert.equal(places[0], 3, "the last to ask starts third in line");
         assert.deepEqual(readdirSync(queue), []);
+    });
+
+    it("lets priority waiters in first, each lane in its own arrival order, never ahead of the holder", async () => {
+        mkdirSync(lock, { recursive: true });
+        write(lock, "owner.json", JSON.stringify({ pid: process.ppid, host: (await import("node:os")).hostname() }));
+        const order = [];
+        const waiter = (name, priority) =>
+            acquireLock(lock, { command: "land", branch: name }, { ...quiet, priority }).then((release) => {
+                order.push(name);
+                release();
+            });
+        const all = [waiter("a", false), waiter("p1", true), waiter("b", false), waiter("p2", true)];
+        assert.equal(readLock(lock).pid, process.ppid, "the holder keeps the lock");
+        rmSync(lock, { recursive: true });
+        await Promise.all(all);
+        assert.deepEqual(order, ["p1", "p2", "a", "b"]);
+    });
+
+    it("--priority puts a landing's ticket in the priority lane", async () => {
+        mkdirSync(lock, { recursive: true });
+        write(lock, "owner.json", JSON.stringify({ pid: process.ppid, host: (await import("node:os")).hostname() }));
+        const taking = acquireLock(lock, { command: "land" }, { ...quiet, priority: true });
+        const seen = readdirSync(queue);
+        rmSync(lock, { recursive: true });
+        (await taking)();
+        assert.equal(seen.length, 1);
+        assert.match(seen[0], /^0-\d{20}-\d+\.json$/);
     });
 
     it("skips and removes the ticket of a waiter that is gone", async () => {
@@ -603,5 +631,56 @@ describe("the main checkout", () => {
         } finally {
             git(repo, "checkout", "--", "a.txt");
         }
+    });
+});
+
+describe("the live copy", () => {
+    const tool = fileURLToPath(new URL("./land.mjs", import.meta.url));
+    const live = join(dir, "live");
+    const record = join(dir, "live-record.json");
+    // Runs this checkout's land.mjs as a session would, with LAND_LIVE naming the live worktree.
+    const cli = (liveDir, ...args) =>
+        spawnSync(process.execPath, [tool, ...args], {
+            cwd: repo,
+            env: { ...env, LAND_LIVE: liveDir, LAND_TEST_SEEN: "yes" },
+            encoding: "utf8",
+        });
+
+    it("runs the live copy with the same arguments, directory and environment, and passes its exit code through", () => {
+        mkdirSync(join(live, "tools"), { recursive: true });
+        write(
+            join(live, "tools"),
+            "land.mjs",
+            "import { writeFileSync } from 'node:fs';\n" +
+                `writeFileSync(${JSON.stringify(record)}, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd(), ` +
+                "seen: process.env.LAND_TEST_SEEN, mark: process.env.LAND_LIVE_COPY }));\nprocess.exit(7);\n",
+        );
+        const r = cli(live, "land", "feat/x", "--priority");
+        assert.equal(r.status, 7, r.stderr);
+        const seen = JSON.parse(readFileSync(record, "utf8"));
+        assert.deepEqual(seen.argv, ["land", "feat/x", "--priority"]);
+        assert.equal(seen.cwd, repo);
+        assert.equal(seen.seen, "yes");
+        assert.equal(seen.mark, join(live, "tools/land.mjs"));
+    });
+
+    it("runs itself with one warning line when there is no live copy", () => {
+        const r = cli(join(dir, "no-live-here"), "nonsense");
+        assert.equal(r.status, 1, r.stderr);
+        const lines = r.stderr.trim().split("\n");
+        assert.match(lines[0], /^land: no live copy at .*no-live-here.*; running .*land\.mjs instead$/);
+        assert.match(lines[1], /usage: node tools\/land\.mjs/);
+        assert.equal(lines.length, 2);
+    });
+
+    it("never loops: a live copy that is this tool itself runs once", () => {
+        const copy = join(dir, "live-real");
+        mkdirSync(join(copy, "tools"), { recursive: true });
+        writeFileSync(join(copy, "tools/land.mjs"), readFileSync(tool));
+        // The copy would hand off to LAND_LIVE, i.e. to itself, if the hand-off mark did not stop it.
+        const r = cli(copy, "nonsense");
+        assert.equal(r.status, 1, r.stderr);
+        assert.equal(r.stderr.match(/usage:/g).length, 1, r.stderr);
+        assert.doesNotMatch(r.stderr, /no live copy/);
     });
 });

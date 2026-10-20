@@ -8,6 +8,12 @@
 //   node tools/land.mjs cut [<commit>]              point golden-cut at a known-good golden commit, open its pull request
 //   node tools/land.mjs ship                        mark the cut pull request ready, with auto-merge
 //   node tools/land.mjs status                      golden, its pull request, the lock, the newest preview
+//   --priority (land, revert, cut)                  wait ahead of every ordinary landing: only for fixes that
+//                                                   unblock the pipeline (a red master, a broken golden, a blocked cut)
+//
+// Every run executes one copy of this tool, the live copy in <main checkout>/.worktrees/land-live (put a new
+// version there with `tools/live.sh land <branch>`), whichever checkout's copy was called: it re-runs the live
+// copy with the same arguments and passes its exit code through. Without a live copy it runs itself and says so.
 //
 // Golden is the local branch `golden` in the worktree <main checkout>/.worktrees/golden-local (made on
 // first use), pushed to `golden` on GitHub after every landing. One landing, revert or ship runs at a
@@ -48,12 +54,13 @@ import {
     openSync,
     readdirSync,
     readFileSync,
+    realpathSync,
     renameSync,
     rmSync,
     statSync,
     writeFileSync,
 } from "node:fs";
-import { hostname } from "node:os";
+import { constants as osConstants, hostname } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -147,14 +154,15 @@ function stale(dir, owner) {
  * @param dir the lock directory (made with mkdir, which is atomic)
  * @param info what to record about this holder (the command and branch)
  * @param [opts] `pollMs` between looks (15 s); `onWait(owner)` once per holder seen waiting;
- * `onQueue(position)` when this waiter's place in line (1 = next) is first known and when it changes
+ * `onQueue(position)` when this waiter's place in line (1 = next) is first known and when it changes;
+ * `priority: true` to wait ahead of every ordinary waiter (never ahead of the holder)
  * @returns a function that releases it
  */
 export async function acquireLock(dir, info, opts = {}) {
     const pollMs = opts.pollMs ?? 15_000;
     const tell = waitReporter(opts);
     mkdirSync(dirname(dir), { recursive: true });
-    const ticket = enqueue(dir, info);
+    const ticket = enqueue(dir, info, opts.priority);
     try {
         for (;;) {
             const position = queuePosition(ticket.file);
@@ -197,16 +205,20 @@ const QUEUE_SIGNALS = { SIGINT: 130, SIGTERM: 143 };
 /**
  * Puts this waiter's ticket in the queue next to the lock. It is removed when the lock is taken, and
  * on exit or SIGINT/SIGTERM while waiting.
- * ponytail: tickets are ordered by process.hrtime, the machine-wide monotonic clock, so there is no
- * clock skew between processes; the lock is in one checkout on one machine, so hosts never mix.
+ * Tickets sort by name: a rank (0 priority, 1 ordinary), then process.hrtime, so priority tickets go
+ * first and each rank keeps its arrival order.
+ * ponytail: process.hrtime is the machine-wide monotonic clock, so there is no clock skew between
+ * processes; the lock is in one checkout on one machine, so hosts never mix.
  * @param dir the lock directory
  * @param info what to record about this waiter
+ * @param [priority] true for the priority lane
  * @returns `{ file, drop }`: the ticket and a function that removes it
  */
-function enqueue(dir, info) {
+function enqueue(dir, info, priority = false) {
     const queue = `${dir}.queue`;
     mkdirSync(queue, { recursive: true });
-    const file = join(queue, `${String(process.hrtime.bigint()).padStart(20, "0")}-${process.pid}.json`);
+    const rank = priority ? 0 : 1;
+    const file = join(queue, `${rank}-${String(process.hrtime.bigint()).padStart(20, "0")}-${process.pid}.json`);
     const owner = { ...info, pid: process.pid, host: hostname(), since: new Date().toISOString() };
     writeFileSync(file, `${JSON.stringify(owner)}\n`);
     const remove = () => rmSync(file, { force: true });
@@ -1327,7 +1339,8 @@ export function context(cwd, overrides = {}) {
 }
 
 const USAGE =
-    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] | ship | status";
+    "usage: node tools/land.mjs land <branch> [<branch> ...] [--dry-run] | revert <branch> | cut [<commit>] | ship | status" +
+    " (land, revert and cut also take --priority)";
 
 /**
  * Runs one command under the lock.
@@ -1339,17 +1352,21 @@ export async function main(argv, ctx = context(process.cwd())) {
     const [command, ...branches] = argv.filter((a) => !a.startsWith("--"));
     const branch = branches[0];
     const dryRun = argv.includes("--dry-run");
+    // The priority lane: only for fixes that unblock the pipeline (a red master, a broken golden, a blocked cut).
+    const lockOptions = { ...ctx.lockOptions, priority: argv.includes("--priority") && command !== "ship" };
     if (command === "status") return status(ctx);
-    if (command === "cut") return cutLocked(ctx, branch);
+    if (command === "cut") return cutLocked(ctx, branch, lockOptions);
     if (!["land", "revert", "ship"].includes(command) || (command !== "ship" && !branch)) return fail(USAGE);
-    const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, ctx.lockOptions);
+    const release = await acquireLock(ctx.lock, { command, branch: branches.join(" ") }, lockOptions);
     const onInt = onSignal(ctx, "SIGINT", 130);
     const onTerm = onSignal(ctx, "SIGTERM", 143);
     ctx.release = () => {
         process.off("SIGINT", onInt).off("SIGTERM", onTerm);
         release();
     };
-    process.once("SIGINT", onInt).once("SIGTERM", onTerm);
+    // on, not once: a second copy of the signal (the process group's and the hand-off's) must not kill
+    // this process half way through putting golden back.
+    process.on("SIGINT", onInt).on("SIGTERM", onTerm);
     try {
         ensureGolden(ctx);
         if (git(ctx, ctx.golden, ["status", "--porcelain", "--untracked-files=no"])) {
@@ -1366,8 +1383,8 @@ export async function main(argv, ctx = context(process.cwd())) {
 }
 
 // The cut under its own lock: its push runs the gate without holding up landings.
-async function cutLocked(ctx, given) {
-    const release = await acquireLock(ctx.cutLock, { command: "cut", branch: given ?? "" }, ctx.lockOptions);
+async function cutLocked(ctx, given, lockOptions) {
+    const release = await acquireLock(ctx.cutLock, { command: "cut", branch: given ?? "" }, lockOptions);
     try {
         return await cut(ctx, given);
     } finally {
@@ -1389,6 +1406,59 @@ const onSignal = (ctx, signal, code) => () => {
     process.exit(code);
 };
 
+// ---------------------------------------------------------------- the live copy
+
+const LIVE_MARK = "LAND_LIVE_COPY";
+
+/**
+ * The live copy's land.mjs: `$LAND_LIVE/tools/land.mjs` when LAND_LIVE names its worktree (tests), else
+ * the one in <main checkout>/.worktrees/land-live, found from this file's own repository.
+ * @param [env] the environment
+ * @returns its path, or null when this file is in no repository
+ */
+export function liveCopy(env = process.env) {
+    if (env.LAND_LIVE) return join(env.LAND_LIVE, "tools/land.mjs");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const r = spawnSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+        cwd: here,
+        env,
+        encoding: "utf8",
+    });
+    return r.status === 0 ? join(dirname(r.stdout.trim()), ".worktrees/land-live/tools/land.mjs") : null;
+}
+
+/**
+ * Hands the run to the live copy, so every session runs the same version of this tool whichever
+ * checkout's copy it called: the live copy runs with the same arguments, environment and working
+ * directory, and its exit code is passed through. It does not hand off when this file is the live copy,
+ * or when it was itself started by a hand-off (LAND_LIVE_COPY is set), so it never loops.
+ * @param argv the arguments after the script
+ * @param [env] the environment
+ * @returns the live copy's exit code, or null when this copy should run itself
+ */
+export async function handOff(argv, env = process.env) {
+    if (env[LIVE_MARK]) return null;
+    const self = fileURLToPath(import.meta.url);
+    const live = liveCopy(env);
+    if (!live || !existsSync(live)) {
+        console.error(`land: no live copy at ${live ?? ".worktrees/land-live"}; running ${self} instead`);
+        return null;
+    }
+    if (realpathSync(live) === realpathSync(self)) return null;
+    const child = spawn(process.execPath, [live, ...argv], { stdio: "inherit", env: { ...env, [LIVE_MARK]: live } });
+    // A signal sent to this process alone reaches the live copy, which cleans up golden and the lock.
+    const forward = (signal) => child.kill(signal);
+    const signals = ["SIGINT", "SIGTERM", "SIGHUP"];
+    for (const s of signals) process.on(s, forward);
+    return new Promise((resolve) =>
+        child.on("close", (code, signal) => {
+            for (const s of signals) process.off(s, forward);
+            resolve(code ?? 128 + (osConstants.signals[signal] ?? 0));
+        }),
+    );
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    process.exitCode = await main(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    process.exitCode = (await handOff(argv)) ?? (await main(argv));
 }

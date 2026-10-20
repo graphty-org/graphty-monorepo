@@ -1176,6 +1176,13 @@ After every fetch, `land`, `revert`, `ship` and `status` also fast-forward the m
 master to `origin/master`, so new sessions read current instructions; when it is on another
 branch, has uncommitted changes or has commits master lacks, they leave it alone and print a warning.
 
+Every `node tools/land.mjs ...`, from any checkout or worktree, hands itself to one live copy,
+`.worktrees/land-live/tools/land.mjs`, with the same arguments, so every session runs the same version
+(without the live copy it runs itself and prints one line saying so); a new version goes live with
+`tools/live.sh land <branch>`. `--priority` (on `land`, `revert` and `cut`) waits ahead of every
+ordinary landing, never interrupting the one running; use it only for fixes that unblock the pipeline:
+a red master, a broken golden, a fix a cut is blocked on.
+
 Rules:
 
 - Do not open pull requests for your changes, do not push your branch to master, and do not open a
@@ -1217,7 +1224,7 @@ Rules:
 
 Before shipping a change, ask where it takes effect, because that decides how it ships:
 
-- **On this machine** -- the visual-review server, the push queue and the pre-push gate,
+- **On this machine** -- the visual-review server, the push queue and the pre-push gate, the land tool,
   design studio builds, the XR sandbox, dev servers and local watchers. Put it into the running copy
   at once with `tools/live.sh <tool> <branch-or-commit>`, and land the branch in parallel as the
   record. live.sh merges the branch (never rebases) into the tool's live worktree, runs the

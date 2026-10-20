@@ -130165,13 +130165,11 @@
             ],
             "edge.curve": [
                 "2->0#g0",
-                "20->16#g0",
                 "20->18#g0",
                 "21->18#g0",
                 "21->20#g0",
                 "21->22#g0",
                 "22->16#g0",
-                "22->20#g0",
                 "23->16#g0",
                 "23->18#g0",
                 "26->11#g0",
@@ -130261,29 +130259,8 @@
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": [
-                "20->16#g0@source"
-            ],
-            "stray.present": [
-                "path#0",
-                "path#1",
-                "path#10",
-                "path#11",
-                "path#12",
-                "path#13",
-                "path#14",
-                "path#2",
-                "path#3",
-                "path#4",
-                "path#5",
-                "path#6",
-                "path#7",
-                "path#8",
-                "path#9",
-                "text#15",
-                "text#16",
-                "text#17"
-            ],
+            "edge.arrow": [],
+            "stray.present": [],
             "frame.zoom": [],
             "background": []
         },
@@ -130511,7 +130488,6 @@
             ],
             "edge.route": [
                 "2->0#g0",
-                "20->16#g0",
                 "20->18#g0",
                 "21->18#g0",
                 "21->20#g0",
@@ -130591,13 +130567,11 @@
             ],
             "edge.curve": [
                 "2->0#g0",
-                "20->16#g0",
                 "20->18#g0",
                 "21->18#g0",
                 "21->20#g0",
                 "21->22#g0",
                 "22->16#g0",
-                "22->20#g0",
                 "23->16#g0",
                 "23->18#g0",
                 "26->11#g0",
@@ -130703,7 +130677,6 @@
                 "21->22#g0",
                 "22->16#g0",
                 "22->18#g0",
-                "22->20#g0",
                 "23->11#g0",
                 "23->12#g0",
                 "23->16#g0",
@@ -130923,29 +130896,8 @@
             "edge.opacity": [],
             "edge.dash": [],
             "edge.gradient": [],
-            "edge.arrow": [
-                "20->16#g0@source"
-            ],
-            "stray.present": [
-                "path#0",
-                "path#1",
-                "path#10",
-                "path#11",
-                "path#12",
-                "path#13",
-                "path#14",
-                "path#2",
-                "path#3",
-                "path#4",
-                "path#5",
-                "path#6",
-                "path#7",
-                "path#8",
-                "path#9",
-                "text#15",
-                "text#16",
-                "text#17"
-            ],
+            "edge.arrow": [],
+            "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -131693,7 +131645,6 @@
                 "graphty:217",
                 "graphty:218",
                 "graphty:219",
-                "graphty:22",
                 "graphty:220",
                 "graphty:221",
                 "graphty:222",
@@ -131822,7 +131773,6 @@
                 "Terrance Hirsch->Susan Colwell#g0"
             ],
             "edge.curve": [
-                "Gary Frampton->Ginger Palmer#g0",
                 "Marc Martin-ez->Mark Pearson#g0"
             ],
             "edge.color": [
@@ -131848,7 +131798,6 @@
             "edge.gradient": [],
             "edge.arrow": [
                 "April Ortiz-cloninger->Jonathan Yudman#g0@target",
-                "Gary Frampton->Ginger Palmer#g0@target",
                 "Lori Brede->Christina Kelly#g0@target",
                 "Marc Martin-ez->Mark Pearson#g0@source",
                 "Marc Martin-ez->Mark Pearson#g0@target",
@@ -132531,7 +132480,6 @@
                 "graphty:144",
                 "graphty:145",
                 "graphty:147",
-                "graphty:148",
                 "graphty:149",
                 "graphty:15",
                 "graphty:150",
@@ -132597,7 +132545,6 @@
                 "graphty:217",
                 "graphty:218",
                 "graphty:219",
-                "graphty:22",
                 "graphty:220",
                 "graphty:221",
                 "graphty:222",
@@ -132749,7 +132696,6 @@
             "edge.dash": [],
             "edge.gradient": [],
             "edge.arrow": [
-                "Gary Frampton->Ginger Palmer#g0@target",
                 "Lori Brede->Christina Kelly#g0@target",
                 "Lori Brede->Josh Atwood#g0@target",
                 "Marc Martin-ez->Mark Pearson#g0@source",
@@ -133142,7 +133088,6 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [
-                "17",
                 "2"
             ],
             "node.strokeWidth": [],
@@ -133157,8 +133102,6 @@
             "label.color": [],
             "label.rotation": [],
             "label.offset": [
-                "2",
-                "29",
                 "4"
             ],
             "label.opacity": [],
@@ -133166,8 +133109,6 @@
             "label.lines": [],
             "label.align": [],
             "label.anchor": [
-                "2",
-                "29",
                 "4"
             ],
             "label.alongLine": [
@@ -133177,7 +133118,6 @@
             "label.outline": [],
             "label.background": [],
             "label.backgroundBox": [
-                "27",
                 "edge:54->64#g0"
             ],
             "label.backgroundBorder": [],
@@ -133187,7 +133127,6 @@
                 "graphty:13"
             ],
             "edge.route": [
-                "2->3#g0",
                 "27->39#g0",
                 "28->40#g0",
                 "3->4#g0",
@@ -133261,7 +133200,6 @@
             "node.fillOpacity": [],
             "node.gradient": [],
             "node.stroke": [
-                "17",
                 "2"
             ],
             "node.strokeWidth": [],
@@ -133276,8 +133214,6 @@
             "label.color": [],
             "label.rotation": [],
             "label.offset": [
-                "2",
-                "29",
                 "4"
             ],
             "label.opacity": [],
@@ -133285,8 +133221,6 @@
             "label.lines": [],
             "label.align": [],
             "label.anchor": [
-                "2",
-                "29",
                 "4"
             ],
             "label.alongLine": [
@@ -133296,7 +133230,6 @@
             "label.outline": [],
             "label.background": [],
             "label.backgroundBox": [
-                "27",
                 "edge:54->64#g0"
             ],
             "label.backgroundBorder": [],
@@ -133306,14 +133239,12 @@
                 "graphty:13"
             ],
             "edge.route": [
-                "2->3#g0",
                 "27->39#g0",
                 "28->40#g0",
                 "3->4#g0",
                 "4->5#g0",
                 "55->55#g0",
-                "8->9#g0",
-                "9->10#g0"
+                "8->9#g0"
             ],
             "edge.curve": [
                 "55->55#g0"
@@ -148584,9 +148515,7 @@
             "label.background": [],
             "label.backgroundBorder": [],
             "edge.present": [],
-            "edge.extra": [
-                "graphty:50"
-            ],
+            "edge.extra": [],
             "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
@@ -148602,8 +148531,7 @@
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
             "stray.present": [
-                "path#0",
-                "path#2"
+                "path#0"
             ],
             "frame.mirror": [],
             "frame.rotation": [],
@@ -148641,9 +148569,7 @@
             "label.background": [],
             "label.backgroundBorder": [],
             "edge.present": [],
-            "edge.extra": [
-                "graphty:50"
-            ],
+            "edge.extra": [],
             "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
@@ -148659,8 +148585,7 @@
             "edge.arrowWidth": [],
             "edge.arrowToSpacing": [],
             "stray.present": [
-                "path#0",
-                "path#2"
+                "path#0"
             ],
             "frame.mirror": [],
             "frame.rotation": [],
@@ -148696,14 +148621,10 @@
             "label.offLine": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBox": [
-                "edge:font-background-s->font-background-t#g0"
-            ],
+            "label.backgroundBox": [],
             "label.backgroundBorder": [],
             "edge.present": [],
-            "edge.extra": [
-                "graphty:43"
-            ],
+            "edge.extra": [],
             "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
@@ -148713,35 +148634,12 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.label": [
-                "draw-threshold-s->draw-threshold-t#g0",
-                "font-bold-color-s->font-bold-color-t#g0",
-                "font-bold-face-s->font-bold-face-t#g0",
-                "font-bold-mod-s->font-bold-mod-t#g0",
-                "font-bold-size-s->font-bold-size-t#g0",
                 "font-bold-vadjust-s->font-bold-vadjust-t#g0",
-                "font-boldital-color-s->font-boldital-color-t#g0",
-                "font-boldital-face-s->font-boldital-face-t#g0",
-                "font-boldital-mod-s->font-boldital-mod-t#g0",
-                "font-boldital-size-s->font-boldital-size-t#g0",
                 "font-boldital-vadjust-s->font-boldital-vadjust-t#g0",
-                "font-ital-color-s->font-ital-color-t#g0",
-                "font-ital-face-s->font-ital-face-t#g0",
-                "font-ital-mod-s->font-ital-mod-t#g0",
-                "font-ital-size-s->font-ital-size-t#g0",
                 "font-ital-vadjust-s->font-ital-vadjust-t#g0",
-                "font-mono-color-s->font-mono-color-t#g0",
-                "font-mono-face-s->font-mono-face-t#g0",
-                "font-mono-mod-s->font-mono-mod-t#g0",
-                "font-mono-size-s->font-mono-size-t#g0",
-                "font-mono-vadjust-s->font-mono-vadjust-t#g0",
-                "font-multi-html-s->font-multi-html-t#g0",
-                "font-multi-markdown-s->font-multi-markdown-t#g0",
-                "font-multi-true-s->font-multi-true-t#g0"
+                "font-mono-vadjust-s->font-mono-vadjust-t#g0"
             ],
-            "stray.present": [
-                "path#0",
-                "text#25"
-            ],
+            "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -148786,12 +148684,7 @@
             "edge.dash": [],
             "edge.gradient": [],
             "edge.arrow": [],
-            "edge.label": [
-                "font-bold-shorthand-s->font-bold-shorthand-t#g0",
-                "font-boldital-shorthand-s->font-boldital-shorthand-t#g0",
-                "font-ital-shorthand-s->font-ital-shorthand-t#g0",
-                "font-mono-shorthand-s->font-mono-shorthand-t#g0"
-            ],
+            "edge.label": [],
             "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
@@ -148837,12 +148730,7 @@
             "edge.dash": [],
             "edge.gradient": [],
             "edge.arrow": [],
-            "edge.label": [
-                "font-bold-shorthand-s->font-bold-shorthand-t#g0",
-                "font-boldital-shorthand-s->font-boldital-shorthand-t#g0",
-                "font-ital-shorthand-s->font-ital-shorthand-t#g0",
-                "font-mono-shorthand-s->font-mono-shorthand-t#g0"
-            ],
+            "edge.label": [],
             "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
@@ -148878,14 +148766,10 @@
             "label.offLine": [],
             "label.outline": [],
             "label.background": [],
-            "label.backgroundBox": [
-                "edge:font-background-s->font-background-t#g0"
-            ],
+            "label.backgroundBox": [],
             "label.backgroundBorder": [],
             "edge.present": [],
-            "edge.extra": [
-                "graphty:43"
-            ],
+            "edge.extra": [],
             "edge.route": [],
             "edge.curve": [],
             "edge.color": [],
@@ -148895,35 +148779,12 @@
             "edge.gradient": [],
             "edge.arrow": [],
             "edge.label": [
-                "draw-threshold-s->draw-threshold-t#g0",
-                "font-bold-color-s->font-bold-color-t#g0",
-                "font-bold-face-s->font-bold-face-t#g0",
-                "font-bold-mod-s->font-bold-mod-t#g0",
-                "font-bold-size-s->font-bold-size-t#g0",
                 "font-bold-vadjust-s->font-bold-vadjust-t#g0",
-                "font-boldital-color-s->font-boldital-color-t#g0",
-                "font-boldital-face-s->font-boldital-face-t#g0",
-                "font-boldital-mod-s->font-boldital-mod-t#g0",
-                "font-boldital-size-s->font-boldital-size-t#g0",
                 "font-boldital-vadjust-s->font-boldital-vadjust-t#g0",
-                "font-ital-color-s->font-ital-color-t#g0",
-                "font-ital-face-s->font-ital-face-t#g0",
-                "font-ital-mod-s->font-ital-mod-t#g0",
-                "font-ital-size-s->font-ital-size-t#g0",
                 "font-ital-vadjust-s->font-ital-vadjust-t#g0",
-                "font-mono-color-s->font-mono-color-t#g0",
-                "font-mono-face-s->font-mono-face-t#g0",
-                "font-mono-mod-s->font-mono-mod-t#g0",
-                "font-mono-size-s->font-mono-size-t#g0",
-                "font-mono-vadjust-s->font-mono-vadjust-t#g0",
-                "font-multi-html-s->font-multi-html-t#g0",
-                "font-multi-markdown-s->font-multi-markdown-t#g0",
-                "font-multi-true-s->font-multi-true-t#g0"
+                "font-mono-vadjust-s->font-mono-vadjust-t#g0"
             ],
-            "stray.present": [
-                "path#0",
-                "text#25"
-            ],
+            "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -148946,11 +148807,7 @@
             "node.strokeDash": [],
             "label.present": [],
             "edge.present": [],
-            "edge.extra": [
-                "graphty:48",
-                "graphty:49",
-                "graphty:52"
-            ],
+            "edge.extra": [],
             "edge.route": [
                 "self-reference-angle-s->self-reference-angle-s#g0",
                 "self-reference-front-s->self-reference-front-s#g0"
@@ -148962,9 +148819,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [
-                "dashes-wide-s->dashes-wide-t#g0"
-            ],
+            "edge.dash": [],
             "edge.gradient": [],
             "edge.outline": [],
             "edge.arrow": [],
@@ -149264,11 +149119,7 @@
             "node.strokeDash": [],
             "label.present": [],
             "edge.present": [],
-            "edge.extra": [
-                "graphty:48",
-                "graphty:49",
-                "graphty:52"
-            ],
+            "edge.extra": [],
             "edge.route": [
                 "self-reference-angle-s->self-reference-angle-s#g0",
                 "self-reference-front-s->self-reference-front-s#g0"
@@ -149280,9 +149131,7 @@
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
-            "edge.dash": [
-                "dashes-wide-s->dashes-wide-t#g0"
-            ],
+            "edge.dash": [],
             "edge.gradient": [],
             "edge.outline": [],
             "edge.arrow": [],
@@ -149306,15 +149155,10 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": [
-                "default"
-            ],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
-            "node.stroke": [
-                "default",
-                "group-border"
-            ],
+            "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [],
@@ -149391,15 +149235,10 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": [
-                "default"
-            ],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
-            "node.stroke": [
-                "default",
-                "group-border"
-            ],
+            "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [],
@@ -149476,15 +149315,10 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": [
-                "default"
-            ],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
-            "node.stroke": [
-                "default",
-                "group-border"
-            ],
+            "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [],
@@ -149561,15 +149395,10 @@
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [],
-            "node.fill": [
-                "default"
-            ],
+            "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
-            "node.stroke": [
-                "default",
-                "group-border"
-            ],
+            "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [],
@@ -149639,15 +149468,7 @@
         },
         "vis-network-specimen-images-charts": {
             "node.present": [],
-            "node.extra": [
-                "graphty:icon",
-                "graphty:icon-code",
-                "graphty:icon-color",
-                "graphty:icon-face",
-                "graphty:icon-size",
-                "graphty:icon-weight",
-                "graphty:icon-weight-number"
-            ],
+            "node.extra": [],
             "node.position": [],
             "node.width": [
                 "image-background"
@@ -149677,15 +149498,7 @@
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": [
-                "text#10",
-                "text#4",
-                "text#5",
-                "text#6",
-                "text#7",
-                "text#8",
-                "text#9"
-            ],
+            "stray.present": [],
             "stray.extra": [
                 "graphty:annotation-image#0",
                 "graphty:annotation-image#3",
@@ -149701,15 +149514,7 @@
         },
         "vis-network-specimen-images-charts@matched": {
             "node.present": [],
-            "node.extra": [
-                "graphty:icon",
-                "graphty:icon-code",
-                "graphty:icon-color",
-                "graphty:icon-face",
-                "graphty:icon-size",
-                "graphty:icon-weight",
-                "graphty:icon-weight-number"
-            ],
+            "node.extra": [],
             "node.position": [],
             "node.width": [
                 "image-background"
@@ -149739,15 +149544,7 @@
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": [
-                "text#10",
-                "text#4",
-                "text#5",
-                "text#6",
-                "text#7",
-                "text#8",
-                "text#9"
-            ],
+            "stray.present": [],
             "stray.extra": [
                 "graphty:annotation-image#0",
                 "graphty:annotation-image#3",
@@ -149776,52 +149573,24 @@
             "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": [
-                "font-bold-color",
-                "font-multi-boldital",
-                "font-multi-html",
-                "font-multi-markdown",
-                "font-multi-true"
-            ],
-            "label.text": [
-                "font-align-right"
-            ],
+            "label.present": [],
+            "label.text": [],
             "label.size": [],
             "label.weight": [],
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
             "label.offset": [
-                "font-align-center",
-                "font-align-left",
-                "font-align-right",
-                "font-size-6",
-                "font-vadjust-neg",
-                "font-vadjust-pos",
-                "label-multiline"
+                "font-size-6"
             ],
             "label.opacity": [],
             "label.family": [],
-            "label.lines": [
-                "font-align-right"
-            ],
-            "label.align": [
-                "font-align-left"
-            ],
-            "label.anchor": [
-                "font-align-center",
-                "font-align-left",
-                "font-align-right",
-                "font-vadjust-neg",
-                "label-multiline"
-            ],
-            "label.outline": [
-                "font-stroke-default-color"
-            ],
+            "label.lines": [],
+            "label.align": [],
+            "label.anchor": [],
+            "label.outline": [],
             "label.background": [],
-            "label.backgroundBox": [
-                "font-background"
-            ],
+            "label.backgroundBox": [],
             "label.backgroundBorder": [],
             "stray.present": [
                 "text#0"
@@ -149833,10 +149602,7 @@
         },
         "vis-network-specimen-labels-p2": {
             "node.present": [],
-            "node.extra": [
-                "graphty:label-icon",
-                "graphty:label-text-shape"
-            ],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -149850,26 +149616,9 @@
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [
-                "draw-threshold",
-                "font-bold-face",
-                "font-bold-mod",
-                "font-bold-shorthand",
-                "font-bold-size",
                 "font-bold-vadjust",
-                "font-boldital-color",
-                "font-boldital-face",
-                "font-boldital-mod",
-                "font-boldital-size",
                 "font-boldital-vadjust",
-                "font-ital-color",
-                "font-ital-face",
-                "font-ital-mod",
-                "font-ital-size",
                 "font-ital-vadjust",
-                "font-mono-color",
-                "font-mono-face",
-                "font-mono-mod",
-                "font-mono-size",
                 "font-mono-vadjust"
             ],
             "label.text": [],
@@ -149886,9 +149635,7 @@
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": [
-                "text#38"
-            ],
+            "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -149896,10 +149643,7 @@
         },
         "vis-network-specimen-labels-p2@matched": {
             "node.present": [],
-            "node.extra": [
-                "graphty:label-icon",
-                "graphty:label-text-shape"
-            ],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
             "node.height": [],
@@ -149913,26 +149657,9 @@
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [
-                "draw-threshold",
-                "font-bold-face",
-                "font-bold-mod",
-                "font-bold-shorthand",
-                "font-bold-size",
                 "font-bold-vadjust",
-                "font-boldital-color",
-                "font-boldital-face",
-                "font-boldital-mod",
-                "font-boldital-size",
                 "font-boldital-vadjust",
-                "font-ital-color",
-                "font-ital-face",
-                "font-ital-mod",
-                "font-ital-size",
                 "font-ital-vadjust",
-                "font-mono-color",
-                "font-mono-face",
-                "font-mono-mod",
-                "font-mono-size",
                 "font-mono-vadjust"
             ],
             "label.text": [],
@@ -149949,9 +149676,7 @@
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": [
-                "text#38"
-            ],
+            "stray.present": [],
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
@@ -149972,11 +149697,7 @@
             "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": [
-                "font-boldital-shorthand",
-                "font-ital-shorthand",
-                "font-mono-shorthand"
-            ],
+            "label.present": [],
             "label.text": [],
             "label.size": [],
             "label.weight": [],
@@ -150012,11 +149733,7 @@
             "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": [
-                "font-boldital-shorthand",
-                "font-ital-shorthand",
-                "font-mono-shorthand"
-            ],
+            "label.present": [],
             "label.text": [],
             "label.size": [],
             "label.weight": [],
@@ -150052,52 +149769,24 @@
             "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
-            "label.present": [
-                "font-bold-color",
-                "font-multi-boldital",
-                "font-multi-html",
-                "font-multi-markdown",
-                "font-multi-true"
-            ],
-            "label.text": [
-                "font-align-right"
-            ],
+            "label.present": [],
+            "label.text": [],
             "label.size": [],
             "label.weight": [],
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
             "label.offset": [
-                "font-align-center",
-                "font-align-left",
-                "font-align-right",
-                "font-size-6",
-                "font-vadjust-neg",
-                "font-vadjust-pos",
-                "label-multiline"
+                "font-size-6"
             ],
             "label.opacity": [],
             "label.family": [],
-            "label.lines": [
-                "font-align-right"
-            ],
-            "label.align": [
-                "font-align-left"
-            ],
-            "label.anchor": [
-                "font-align-center",
-                "font-align-left",
-                "font-align-right",
-                "font-vadjust-neg",
-                "label-multiline"
-            ],
-            "label.outline": [
-                "font-stroke-default-color"
-            ],
+            "label.lines": [],
+            "label.align": [],
+            "label.anchor": [],
+            "label.outline": [],
             "label.background": [],
-            "label.backgroundBox": [
-                "font-background"
-            ],
+            "label.backgroundBox": [],
             "label.backgroundBorder": [],
             "stray.present": [
                 "text#0"
@@ -150142,13 +149831,9 @@
             "edge.present": [],
             "edge.extra": [],
             "edge.route": [
-                "edge-bypass-arrows-s->edge-bypass-arrows-t#g0",
-                "edge-default-s->edge-default-t#g0",
-                "edge-global-arrows-s->edge-global-arrows-t#g0"
-            ],
-            "edge.curve": [
                 "edge-default-s->edge-default-t#g0"
             ],
+            "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -150258,13 +149943,9 @@
             "edge.present": [],
             "edge.extra": [],
             "edge.route": [
-                "edge-bypass-arrows-s->edge-bypass-arrows-t#g0",
-                "edge-default-s->edge-default-t#g0",
-                "edge-global-arrows-s->edge-global-arrows-t#g0"
-            ],
-            "edge.curve": [
                 "edge-default-s->edge-default-t#g0"
             ],
+            "edge.curve": [],
             "edge.color": [],
             "edge.width": [],
             "edge.opacity": [],
@@ -150355,10 +150036,7 @@
             "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
-            "node.stroke": [
-                "color-hex-alpha",
-                "color-rgba"
-            ],
+            "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [],
@@ -150441,10 +150119,7 @@
             "node.fill": [],
             "node.fillOpacity": [],
             "node.gradient": [],
-            "node.stroke": [
-                "color-hex-alpha",
-                "color-rgba"
-            ],
+            "node.stroke": [],
             "node.strokeWidth": [],
             "node.strokeDash": [],
             "label.present": [],
@@ -150513,17 +150188,10 @@
         },
         "vis-network-specimen-node-shapes": {
             "node.present": [],
-            "node.extra": [
-                "graphty:shape-icon",
-                "graphty:shape-text",
-                "graphty:shape-text-label"
-            ],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
-            "node.height": [
-                "shape-hexagon",
-                "shape-hexagon-label-below"
-            ],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [
@@ -150546,40 +150214,15 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": [
-                "shape-box-multiline",
-                "shape-database-label",
-                "shape-database-long"
-            ],
+            "label.offset": [],
             "label.opacity": [],
             "label.family": [],
             "label.lines": [],
-            "label.anchor": [
-                "shape-box-multiline",
-                "shape-database-label",
-                "shape-database-long"
-            ],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": [
-                "text#0",
-                "text#1",
-                "text#10",
-                "text#11",
-                "text#12",
-                "text#13",
-                "text#14",
-                "text#15",
-                "text#16",
-                "text#2",
-                "text#3",
-                "text#4",
-                "text#6",
-                "text#7",
-                "text#8",
-                "text#9"
-            ],
+            "stray.present": [],
             "stray.extra": [
                 "graphty:annotation-image#0"
             ],
@@ -150590,17 +150233,10 @@
         },
         "vis-network-specimen-node-shapes@matched": {
             "node.present": [],
-            "node.extra": [
-                "graphty:shape-icon",
-                "graphty:shape-text",
-                "graphty:shape-text-label"
-            ],
+            "node.extra": [],
             "node.position": [],
             "node.width": [],
-            "node.height": [
-                "shape-hexagon",
-                "shape-hexagon-label-below"
-            ],
+            "node.height": [],
             "node.sizeToSpacing": [],
             "node.sizeToExtent": [],
             "node.shape": [
@@ -150623,40 +150259,15 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": [
-                "shape-box-multiline",
-                "shape-database-label",
-                "shape-database-long"
-            ],
+            "label.offset": [],
             "label.opacity": [],
             "label.family": [],
             "label.lines": [],
-            "label.anchor": [
-                "shape-box-multiline",
-                "shape-database-label",
-                "shape-database-long"
-            ],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
-            "stray.present": [
-                "text#0",
-                "text#1",
-                "text#10",
-                "text#11",
-                "text#12",
-                "text#13",
-                "text#14",
-                "text#15",
-                "text#16",
-                "text#2",
-                "text#3",
-                "text#4",
-                "text#6",
-                "text#7",
-                "text#8",
-                "text#9"
-            ],
+            "stray.present": [],
             "stray.extra": [
                 "graphty:annotation-image#0"
             ],
@@ -150695,20 +150306,14 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": [
-                "margin-sides",
-                "width-constraint-max"
-            ],
+            "label.offset": [],
             "label.opacity": [],
             "label.family": [],
             "label.lines": [
                 "width-constraint-max"
             ],
             "label.align": [],
-            "label.anchor": [
-                "margin-sides",
-                "width-constraint-max"
-            ],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],
@@ -150802,20 +150407,14 @@
             "label.style": [],
             "label.color": [],
             "label.rotation": [],
-            "label.offset": [
-                "margin-sides",
-                "width-constraint-max"
-            ],
+            "label.offset": [],
             "label.opacity": [],
             "label.family": [],
             "label.lines": [
                 "width-constraint-max"
             ],
             "label.align": [],
-            "label.anchor": [
-                "margin-sides",
-                "width-constraint-max"
-            ],
+            "label.anchor": [],
             "label.outline": [],
             "label.background": [],
             "label.backgroundBorder": [],

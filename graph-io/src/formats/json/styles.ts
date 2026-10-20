@@ -1123,9 +1123,11 @@ function visLabelValues(
         }
     }
     // vis-network wraps a label's lines at `widthConstraint.maximum` (or a number), margins not taken off:
-    // Label.adjustSizes subtracts them only under constrainWidth, which nothing sets
+    // Label.adjustSizes subtracts them only under constrainWidth, which nothing sets. LabelSplitter keeps each blank
+    // as a word of its own and joins words with a blank (getLongestFit), so a blank between two words counts three.
     if (typeof layer.wrapWidth === "number" && Number.isFinite(layer.wrapWidth) && layer.wrapWidth > 0) {
         put("labelWrapWidth", layer.wrapWidth);
+        put("labelWrapSpaceCount", 3);
     }
     if (layer.title !== undefined) {
         put("tooltip", canonText(layer.title, site("tooltip")));
@@ -2421,6 +2423,17 @@ function visLoop(defaults: VisLayer, own: VisLayer, box: VisBox | null): Row {
     const reach = visToBorder(box, angle);
     // the circle's center relative to the node's, y up
     const [cx, cy] = [Math.cos(angle) * reach, Math.sin(angle) * reach];
+    const behind = [field(own, "renderBehindTheNode"), field(defaults, "renderBehindTheNode")].find(
+        (v) => typeof v === "boolean",
+    );
+    if (behind === false) {
+        return visFrontArc(cx, cy, radius, angle, box);
+    }
+    // the node's farthest reach from its center: its radius when round, its corner otherwise
+    const round = box[3] === "dot" || box[3] === "circle" || box[3] === "circularImage";
+    if (reach + (round ? hw : Math.hypot(hw, hh)) < radius) {
+        return visRing(cx, cy, radius, angle, box);
+    }
     // the corners of the square round the circle, the first the one facing the node and again last, so the curve
     // through their midpoints runs the whole circle and its ends, out of and back into the node, bulge as it does
     const corners: string[] = [];
@@ -2430,6 +2443,80 @@ function visLoop(defaults: VisLayer, own: VisLayer, box: VisBox | null): Row {
         corners.push(`${fraction(x / hw)},${fraction(y / hh)}`);
     }
     return { curved: true, bendCurve: "midpoints", bends: corners.join(" ") };
+}
+
+/** How many points a vis-network self-loop's circle is written through where it does not meet its node. */
+const VIS_RING_STEPS = 96;
+
+/**
+ * vis.js: a self-loop whose circle holds its whole node, so meets it nowhere (a small node, or a large
+ * `selfReference.size`): the circle alone, written as points round it from the side facing the node and back to it,
+ * the first and the last the same point, which graphty draws as that closed ring with no line to the node.
+ * @param cx - the circle's center across from the node's, y up
+ * @param cy - and up from it
+ * @param radius - its radius
+ * @param angle - the ray its center is on, counterclockwise from the right
+ * @param box - the node's half width and half height
+ * @returns the loop's values
+ */
+function visRing(cx: number, cy: number, radius: number, angle: number, box: VisBox): Row {
+    const [hw, hh] = box;
+    const points: string[] = [];
+    for (let k = 0; k <= VIS_RING_STEPS; k++) {
+        const a = angle + Math.PI + (2 * Math.PI * (k % VIS_RING_STEPS)) / VIS_RING_STEPS;
+        points.push(`${fraction((cx + radius * Math.cos(a)) / hw)},${fraction((cy + radius * Math.sin(a)) / hh)}`);
+    }
+    return { curved: false, bends: points.join(" ") };
+}
+
+/**
+ * vis.js: a self-loop drawn in front of its node (`selfReference.renderBehindTheNode: false`): only the arc of its
+ * circle between the two points vis-network 9.1.9 searches for (Edge._circle, `_findBorderPositionCircle`: ten
+ * halvings of a "position" between the angle and the angle plus pi, read as a fraction of a turn), clockwise on screen
+ * from the first to the second, written as points along it.
+ * @param cx - the circle's center across from the node's, y up
+ * @param cy - and up from it
+ * @param radius - its radius
+ * @param angle - `selfReference.angle`
+ * @param box - the node's half width, half height, border width and shape
+ * @returns the loop's values
+ */
+function visFrontArc(cx: number, cy: number, radius: number, angle: number, box: VisBox): Row {
+    // on screen, y down, the node's center at the origin
+    const [x, y] = [cx, -cy];
+    const search = (direction: -1 | 1): [number, number] => {
+        let [low, high] = [angle, angle + Math.PI];
+        let pos: [number, number] = [x, y];
+        for (let iteration = 0; low <= high && iteration < 10; iteration++) {
+            const middle = (low + high) * 0.5;
+            const turn = middle * 2 * Math.PI;
+            pos = [x + radius * Math.cos(turn), y - radius * Math.sin(turn)];
+            const difference = visToBorder(box, Math.atan2(-pos[1], -pos[0])) - Math.hypot(pos[0], pos[1]);
+            if (Math.abs(difference) < 0.05) {
+                break;
+            }
+            if (difference > 0 === direction > 0) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+        return pos;
+    };
+    const [from, to] = [search(-1), search(1)];
+    const start = Math.atan2(from[1] - y, from[0] - x);
+    let end = Math.atan2(to[1] - y, to[0] - x);
+    if (end < start) {
+        end += 2 * Math.PI;
+    }
+    const [hw, hh] = box;
+    const steps = Math.max(2, Math.ceil(((end - start) / (2 * Math.PI)) * VIS_RING_STEPS));
+    const points: string[] = [];
+    for (let k = 0; k <= steps; k++) {
+        const a = start + ((end - start) * k) / steps;
+        points.push(`${fraction((x + radius * Math.cos(a)) / hw)},${fraction(-(y + radius * Math.sin(a)) / hh)}`);
+    }
+    return { curved: false, bends: points.join(" ") };
 }
 
 /**

@@ -102,12 +102,37 @@ describe("vis-network edge routes", () => {
         expect(first).toHaveLength(5);
         expect(first[0]).toBe(`${round((c - 20) / 10)},${round((c - 20) / 10)}`);
         expect(first[4]).toBe(first[0]);
-        // straight up: the center 10 above the node, the first corner 25 sqrt 2 straight below it
-        expect(bends[1].split(" ")[0]).toBe(`0,${round((10 - 25 * Math.SQRT2) / 10)}`);
+        // straight up, 25 across: the center 10 above the node and the circle round the whole node, meeting it
+        // nowhere, so it is written as the circle itself from its bottom, 15 below the node's center, round and back
+        const ring = bends[1].split(" ");
+        expect(ring).toHaveLength(97);
+        expect(ring[0]).toBe("0,-1.5");
+        expect(ring[96]).toBe(ring[0]);
+        expect(ring[24]).toBe("2.5,1");
         // a square's outline is its box plus its border (NodeBase._distanceToBorder): 10 sqrt 2 + 1 out at pi / 4
         const q = Math.cos(Math.PI / 4) * (10 * Math.SQRT2 + 1);
         expect(bends[2].split(" ")[0]).toBe(`${round((q - 20) / 10)},${round((q - 20) / 10)}`);
-        expect(values(r, "edge", "bendCurve")).toEqual(["midpoints", "midpoints", "midpoints"]);
+        expect(values(r, "edge", "bendCurve")).toEqual(["midpoints", null, "midpoints"]);
+        expect(values(r, "edge", "curved")).toEqual([true, false, true]);
+    });
+
+    it("draws a circle in front of its node (renderBehindTheNode: false) as the arc vis-network searches for", async () => {
+        const r = await load({
+            nodes: [{ id: "a", x: 0, y: 0, shape: "dot", size: 8 }],
+            edges: [{ from: "a", to: "a", selfReference: { renderBehindTheNode: false } }],
+            options: { physics: false },
+        });
+        // vis-network-specimen-edges-lines `self-reference-front`: an arc of the circle of 20 centered 8 out at pi / 4,
+        // part of the way round, every point outside the node
+        const points = (values(r, "edge", "bends")[0] as string).split(" ").map((p) => p.split(",").map(Number));
+        const c = Math.cos(Math.PI / 4);
+        for (const [x, y] of points) {
+            expect(Math.hypot(x * 8 - c * 8, y * 8 - c * 8)).toBeCloseTo(20, 2);
+            expect(Math.hypot(x * 8, y * 8)).toBeGreaterThan(8);
+        }
+        expect(points.length).toBeGreaterThan(10);
+        expect(points.length).toBeLessThan(97);
+        expect(values(r, "edge", "curved")).toEqual([false]);
     });
 });
 
@@ -144,6 +169,10 @@ describe("vis-network nodes", () => {
         });
         expect(values(r, "node", "labelWrapWidth")[0]).toBe(50);
         expect(values(r, "edge", "labelWrapWidth")[0]).toBe(30);
+        // vis-network keeps each blank as a word and joins words with a blank, so a blank counts three
+        expect(values(r, "node", "labelWrapSpaceCount")[0]).toBe(3);
+        expect(values(r, "edge", "labelWrapSpaceCount")[0]).toBe(3);
+        expect(values(r, "node", "labelWrapSpaceCount")[1]).toBeNull();
         expect(values(r, "node", "labelSize")[2]).toBe(24);
         const v = await load({
             nodes: [

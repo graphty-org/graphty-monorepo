@@ -649,16 +649,17 @@ function readClusterFill(n: NodeRead): void {
     const bg = nonEmpty(get("bgcolor"));
     const raw = filled ? (nonEmpty(get("fillcolor")) ?? n.color ?? bg ?? "lightgrey") : bg;
     readColor(raw, n.scheme, "fill", "fill", "fillOpacity", n.put, n.at);
-    if (!tokens.includes("radial") && !tokens.includes("striped")) {
+    if (!tokens.includes("striped")) {
         readFillGradient(n, raw);
     }
 }
 
 /**
- * Reads a linear gradient fill (`fillcolor="a:b"`, `gradientangle`): Graphviz runs it from the list's first color to
+ * Reads a gradient fill (`fillcolor="a:b"`, `gradientangle`): Graphviz runs it from the list's first color to
  * its second, `gradientangle` degrees counter-clockwise from left to right (0 by default), which is the neutral
- * angle's clockwise turn negated, from 0 up to 360. A second color left out is black; colors after the second are not drawn. A first
- * color's `;fraction` makes Graphviz switch colors at that fraction, which graphty draws as a smooth gradient.
+ * angle's clockwise turn negated, from 0 up to 360. `style=radial` runs it out from the middle instead. A second color
+ * left out is black; colors after the second are not drawn. A first color's `;fraction` makes Graphviz switch colors
+ * at that fraction, which its SVG writes as stops at the fraction less 0.001 and at the fraction.
  * @param n - the node or cluster
  * @param raw - its fill color value
  */
@@ -666,6 +667,15 @@ function readFillGradient(n: NodeRead, raw: string | null): void {
     const colon = raw === null ? -1 : raw.indexOf(":");
     if (raw === null || colon < 0) {
         return;
+    }
+    const radial = n.tokens.includes("radial");
+    if (radial) {
+        // ponytail: a radial gradientangle moves Graphviz's focus off the middle; graphty's radial ramp has no focus
+        n.put("fillGradientKind", "radial");
+    }
+    const frac = Number(raw.slice(0, colon).split(";")[1]);
+    if (frac > 0 && frac < 1) {
+        n.put("fillGradientStops", `${String(num6(frac - 0.001))} ${String(num6(frac))}`);
     }
     const second = raw
         .slice(colon + 1)
@@ -679,6 +689,9 @@ function readFillGradient(n: NodeRead, raw: string | null): void {
         return;
     }
     n.put("fillGradient", c.color);
+    if (radial) {
+        return;
+    }
     const angle = Number(nonEmpty(n.get("gradientangle")) ?? "0");
     // 0 up to 360: the neutral angle turns clockwise on screen, Graphviz's counter-clockwise
     const turned = Number.isFinite(angle) ? ((-angle % 360) + 360) % 360 : 0;
@@ -699,7 +712,7 @@ function readNodeFill(n: NodeRead): void {
         const banded =
             (n.tokens.includes("striped") && BOX_LIKE.has(n.shape)) ||
             (n.tokens.includes("wedged") && ELLIPSE_LIKE.has(n.shape));
-        if (n.tokens.includes("filled") && !n.tokens.includes("radial") && !banded) {
+        if ((n.tokens.includes("filled") || n.tokens.includes("radial")) && !banded) {
             readFillGradient(n, raw);
         }
     } else if (fillcolor !== null) {

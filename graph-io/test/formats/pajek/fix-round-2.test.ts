@@ -151,8 +151,10 @@ describe("Pajek line label places (lp, lr, lphi, la)", () => {
         const y = get("edge", "labelOffsetY") as number[];
         expect(x[0]).toBeCloseTo(0.3 * 76, 3);
         expect(x[1]).toBeCloseTo(38 - 20, 3);
-        expect(x[2]).toBeCloseTo(0, 3);
-        expect(y[2]).toBeCloseTo(-12 - 3.465, 3);
+        // turned 45 counterclockwise about its baseline point, its middle 3.465 above it in its own frame
+        const half = 3.465 * Math.SQRT1_2;
+        expect(x[2]).toBeCloseTo(-half, 3);
+        expect(y[2]).toBeCloseTo(-12 - half, 3);
         expect(y[0]).toBeCloseTo(-3.465, 3);
         // a level line's label turned by la; a line straight down (90 degrees on screen) turns its label with it
         expect(get("edge", "labelRotation")).toEqual([0, 0, 315, 90]);
@@ -179,14 +181,32 @@ describe("Pajek Bezier lines (a1, k1, a2, k2)", () => {
         // pajek-specimen-edges-lines-p2 `3 4`: M 170 128.5 C 213.66 165.14 202.34 91.86 246 128.5 on a line 76 long:
         // the first control 0.5745 along and 0.4821 to the right, the second 0.4255 along and 0.4821 to the left
         const { get } = await load(doc, { width: 1200, height: 900, ini: { "Form8.withLabels1": "" } });
-        expect(get("edge", "bends")).toEqual(["0.5745,-0.4821 0.4255,0.4821", null, null]);
-        expect(get("edge", "bendCurve")).toEqual(["bezier", null, null]);
-        expect(get("edge", "curved")).toEqual([true, null, null]);
+        // the loop `5 5` is the same route of a line 500 long to the right, both its ends on its node (10 across half)
+        const loop = "-9.6418,11.4907 9.6418,11.4907";
+        expect(get("edge", "bends")).toEqual(["0.5745,-0.4821 0.4255,0.4821", null, loop]);
+        expect(get("edge", "bendCurve")).toEqual(["bezier", null, "bezier"]);
+        expect(get("edge", "curved")).toEqual([true, null, true]);
         // its label is turned along the curve at its middle (`pajek-specimen-edge-labels` `on-bezier`: rotate(-48.57))
         expect(get("edge", "labelRotation")[0]).toBeCloseTo(360 - 48.57, 1);
-        // Straight Lines draws the curve straight
+        // Straight Lines draws the curve straight, and a loop still round (`pajek-specimen-edges-lines-p4`)
         const straight = await load(doc, { ini: { "Form10.StraightLinesOnly1": "" } });
-        expect(straight.get("edge", "bends")).toEqual([null, null, null]);
+        expect(straight.get("edge", "bends")).toEqual([null, null, loop]);
+        expect(straight.get("edge", "curved")).toEqual([false, false, true]);
+    });
+
+    it("draws a loop with no route parameters up from its node, as Pajek's SVG export does", async () => {
+        // pajek-specimen-edges-lines-p2 `loop`: a cubic from the center of a vertex 12 across, its controls 74.9 out
+        // at 70 and 110 degrees up from the right; its label turned along the loop's top, right to left (179.97)
+        const { get } = await load('*Vertices 1\n1 a 0.5 0.5 0.5 x_fact 0.6 y_fact 0.6\n*Arcs\n1 1 1 l "Ab"\n', {
+            width: 1200,
+            height: 900,
+            ini: { "Form8.withLabels1": "" },
+        });
+        expect(get("edge", "bends")).toEqual(["4.2753,11.7462 -4.2753,11.7462"]);
+        expect(get("edge", "bendCurve")).toEqual(["bezier"]);
+        expect(get("edge", "labelRotation")[0]).toBeCloseTo(180, 1);
+        // an arc's head is drawn at the node's center, under it: none shows
+        expect(get("edge", "targetArrow")).toEqual(["none"]);
     });
 });
 

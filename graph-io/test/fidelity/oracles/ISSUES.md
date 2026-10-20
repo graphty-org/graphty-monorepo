@@ -2742,3 +2742,68 @@ Still open, and why:
   oracle holds only the two lines of its label the canvas shows. Not an import gap.
 - Chart pieces Cytoscape draws (bar, line, box, heat strip; the `60x30` image placeholder text): `stray.present` on the
   `images-charts` pages, graphty-element-render (`node-custom-graphics`), not in this round.
+
+## Specimen sheets: node gradients, wrap rules, end captions, groups and loops (fix round 3, rendering batch 1, 2026-10-19)
+
+graphty-element now draws, as style options with channels, and graph-io maps the files onto them:
+
+- Gradient fills through any number of colors at their stops, linear or radial (`node.gradientColors`,
+  `node.gradientStops`, `node.gradientKind`; graph-io `fillGradientColors`, `fillGradientStops`, `fillGradientKind`):
+  Cytoscape.js `background-fill: radial-gradient`, `background-gradient-stop-colors` with three stops and
+  `background-gradient-stop-positions` (`cytoscapejs-specimen-node-fills-borders`, `-mappings-bypass-p2`), Graphviz
+  `style=radial` (with and without `gradientangle`) and a weighted first color `red;0.3:blue`
+  (`dot-specimen-node-fills-borders`): every `node.gradient` row passes.
+- Wrap rules (`labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, node and edge): Cytoscape.js
+  `text-wrap: ellipsis` and `text-overflow-wrap: anywhere` (`cytoscapejs-specimen-labels-p2` `label.text`, offset and
+  anchor pass) and vis-network's `widthConstraint.maximum`, which counts a blank between words three times
+  (vis-network's LabelSplitter keeps each blank as a word and joins words with a blank):
+  `vis-network-specimen-node-sizes-opacity` `width-constraint-max` lines, width and height pass.
+- End captions turned and moved (`edge.arrowHeadTextRotation`, `-TextOffsetX`, `-TextOffsetY` and the tail's;
+  graph-io `sourceLabelRotation`, `sourceLabelOffsetX` / `-Y` and the target's): Cytoscape.js `source-` /
+  `target-text-rotation` (angle or autorotate) and `-text-margin-*`; `target-text-rotation-45deg`,
+  `-autorotate`, `target-text-margin-*` pass. An edge label with `text-justification` left or right is centered line
+  by line and moved half its width, as Cytoscape.js draws an edge's lines (its text is always centered):
+  `text-justification-left` passes.
+- An edge to a group drawn as a region ends at the region's outline, as Cytoscape.js ends an edge to a compound node
+  (`cytoscapejs-specimen-groups` `edge-to-group`: cropped side by side, drawn alike; graphty used to run it from the
+  region's middle across a member). Its `edge.extra` row stays: the oracle reader pairs no edge with a compound node, so
+  the oracle's short line is left a stray (comparator, `comparator-edge-association`).
+- Pajek loops are Pajek's Bezier route (a line 500 points long, `a1 -70 k1 0.3 a2 -70 k2 0.3` by default, measured on
+  `pajek-specimen-edges-lines-p2`), drawn round under Straight Lines and with no visible head; a turned line label's
+  middle sits above its baseline in its own frame: `pajek-specimen-edges-lines-p2`, `-p4`, `pajek-specimen-edge-labels`
+  and `-p2` pass.
+- vis-network loops whose circle holds the whole node are that circle, which graphty-element draws as a closed ring
+  with no line out from the node (a loop whose bends close on themselves and all lie outside its node); one drawn in
+  front of its node (`renderBehindTheNode: false`) is the arc vis-network searches for (Edge._circle).
+
+Still open, and why:
+
+- Cytoscape.js `border-style: double` and `outline-style: double` (`node-fills-borders`: `node.strokeDash`,
+  `node.ring`, the outline's width): oracle. Cytoscape.js draws a double border as one stroke and then erases its
+  middle third with `globalCompositeOperation = "destination-out"` (cytoscape.js 3.34.3 `drawBorder` / `drawOutline`);
+  the svgcanvas replay does not record composite operations (its `.oracle.json` says so), so the oracle's SVG holds a
+  solid 3.87 stroke under a 1.29 one of the same color. graphty draws the double ring Cytoscape.js's canvas shows.
+- Cytoscape.js end labels (`edge-labels` `source-text-margin-x-10`, `source-text-margin-y-neg-10`,
+  `source-text-rotation-none`, `-autorotate`, `-45deg`): comparator (`comparator-edge-association`). Cropped side by
+  side the captions are drawn alike; the oracle reader hangs each source label on the neighboring edge (the label at
+  x 414.9 of `source-text-margin-x-10`, whose node is at 400.9, is given to `source-text-margin-y-neg-10`, whose node is
+  at 509.1, and the reverse), and gives `source-text-rotation-none`'s caption, which lies over its node, to the node.
+- Gephi's self-loop (`gexf-specimen-arrows`, `edge-labels` ..., `edge.curve` 0.646 against 0.436): comparator
+  (`comparator-occlusion`). Gephi's SVG draws the whole circle, starting 3.05 from the node's center under its fill
+  (r 3.68), so its path is 5.3 across; graphty draws the same circle cut at the node's outline. The part that differs is
+  under the opaque node.
+- vis-network `selfReference.angle` and the default loop in the position-matched view (`edge.curve` o=2078.8): comparator.
+  `curvatureOf` calls a path a loop only when its ends are under 1e-9 apart; vis-network's closed circle ends a float's
+  error apart (2078.8), and graphty's ring does too once its node is moved (15.9 in the matched view, 1 in the plain one).
+- vis-network `self-reference-front` (`renderBehindTheNode: false`, `edge.route` 1.82 against 0.10, was 2.31):
+  graph-io now writes vis-network's searched arc, but on a node the circle never meets the search stops short of the
+  node and graphty runs a line from the node's outline to each end of the arc, which vis-network does not draw.
+  Dropping the legs for every loop whose bends lie outside its node also dropped them from Cytoscape.js's loops
+  (whose splines end at the node), so the rule is limited to closed rings; an open detached arc needs a neutral way to
+  say "no legs" (graphty-element-render, `loop-geometry`).
+- Cytoscape.js `loop-direction: 90deg` (`edges-lines-p2`, `edge.curve` 2.79 against 1.84): the loop's size and shape
+  match (38.2 across and 20.5 to either side on both, in the oracle's frame), but graphty's line leaves the node 3.6 px
+  past its outline (cropped at 12x: a gap between the node and both legs) where Cytoscape.js's touches it. The cut is
+  `Edge.leaveNode` from the first bend outside the node; why it lands that far out on this sheet (its nodes have the
+  inset border another round is changing) was not found. graphty-element-render.
+- Pajek `edges-lines-p5` (Color as Gradient of End Vertices) still fails rows of its own; the loops pass there.

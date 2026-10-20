@@ -58,6 +58,7 @@ import {
     type CyjsPropertySpec,
     cyjsRendered,
     gradientStopColors,
+    gradientStops,
     parseCyjsValue,
 } from "./mappers.js";
 import { cyjsRoute, type CyjsRouteEdge, type CyjsRouteNode } from "./routes.js";
@@ -1776,6 +1777,12 @@ const CYJS_EDGE_ONLY: ReadonlySet<string> = new Set([
     "target-label",
     "source-text-offset",
     "target-text-offset",
+    "source-text-margin-x",
+    "source-text-margin-y",
+    "target-text-margin-x",
+    "target-text-margin-y",
+    "source-text-rotation",
+    "target-text-rotation",
 ]);
 
 /**
@@ -1899,8 +1906,8 @@ function neutralOfCell(spec: CyjsPropertySpec, name: string, c: Cell, site: Cano
 }
 
 /**
- * Combines the label alignments into `labelPosition`, `text-wrap` with `text-max-width` into `labelWrapWidth` and
- * `visibility` with `display` into `visible`.
+ * Combines the label alignments into `labelPosition`, `text-wrap` with `text-max-width` and `text-overflow-wrap` into
+ * `labelWrapWidth`, `labelWrapEllipsis` and `labelWrapAnywhere`, and `visibility` with `display` into `visible`.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
@@ -1931,12 +1938,22 @@ function combineParts(
     }
     // `text-max-width` wraps a label only under `text-wrap: wrap`; unset there, it is 9999 (cytoscape.js 3.34.3
     // dist/cytoscape.cjs.js line 18484), which wraps nothing but the label's own line breaks.
+    // `text-wrap: ellipsis` cuts the label at the same width instead (3.34.3 line 25254), and
+    // `text-overflow-wrap: anywhere` breaks a wrapped one between any two letters (line 25204).
     const wrap = words.get("_wrap");
     const maxWidth = words.get("_maxWidth");
+    const overflow = words.get("_overflowWrap");
     if (wrap !== undefined) {
+        const cut = (i: number): boolean => wrap[i] === "wrap" || wrap[i] === "ellipsis";
         values.labelWrapWidth = Array.from({ length: n }, (_, i) =>
-            wrap[i] === "wrap" && typeof maxWidth?.[i] === "string" ? Number(maxWidth[i]) : null,
+            cut(i) && typeof maxWidth?.[i] === "string" ? Number(maxWidth[i]) : null,
         );
+        if (wrap.includes("ellipsis")) {
+            values.labelWrapEllipsis = wrap.map((w) => (w === "ellipsis" ? true : null));
+        }
+        if (overflow?.includes("anywhere") === true) {
+            values.labelWrapAnywhere = wrap.map((w, i) => (w === "wrap" && overflow[i] === "anywhere" ? true : null));
+        }
     }
     if (kind === "node") {
         combineFace(n, words, values);
@@ -1946,7 +1963,7 @@ function combineParts(
         combineLineOpacity(n, words.get("_lineOpacity"), values);
     }
     combineDashes(kind, n, words, values);
-    combineLabelText(n, words, values);
+    combineLabelText(kind, n, words, values);
     combineLabelDress(kind, n, words, values, notes, whole);
     combineVisibility(kind, n, words, values);
 }
@@ -2096,12 +2113,16 @@ function combineVisibility(
 }
 
 /**
- * The label's words as Cytoscape.js draws them: `text-transform`, and a node's `text-rotation` as `labelRotation`.
+ * The label's words as Cytoscape.js draws them: `text-transform`, `text-justification`, and `text-rotation` (an
+ * edge's end labels' `source-` / `target-text-rotation` too) as `labelRotation`, `sourceLabelRotation` and
+ * `targetLabelRotation`.
+ * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
  * @param values - the values; changed in place
  */
 function combineLabelText(
+    kind: StyleTarget,
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
     values: Record<string, (StyleValue | null)[]>,
@@ -2121,7 +2142,9 @@ function combineLabelText(
     // cytoscape.js 3.34.3 `labelJustification`: auto lines the lines up against the node, a label beside it on the
     // left to its right edge
     const justification = words.get("_justification");
-    if (justification !== undefined) {
+    if (justification !== undefined && kind === "edge") {
+        combineEdgeJustification(n, justification, words.get("_wrap"), values);
+    } else if (justification !== undefined) {
         const halign = words.get("_halign");
         const AUTO: Readonly<Record<string, string>> = { left: "right", right: "left", "left-inside": "left" };
         values.labelTextAlign = justification.map((j, i) => {
@@ -2133,9 +2156,40 @@ function combineLabelText(
         });
     }
     // an edge's `autorotate` follows its line, which the routes work out (`autorotateLabels`)
-    const rotation = words.get("_rotation");
-    if (rotation !== undefined) {
-        values.labelRotation = rotation.map((r) => (r === null ? null : cyjsAngleDegrees(r)));
+    const rotations: readonly (readonly [string, string])[] = [
+        ["_rotation", "labelRotation"],
+        ["_sourceRotation", "sourceLabelRotation"],
+        ["_targetRotation", "targetLabelRotation"],
+    ];
+    for (const [part, property] of rotations) {
+        const rotation = words.get(part);
+        if (rotation !== undefined) {
+            values[property] = rotation.map((r) => (r === null ? null : cyjsAngleDegrees(r)));
+        }
+    }
+}
+
+/**
+ * An edge label's `text-justification` as Cytoscape.js draws it: every line centered (an edge's text is always
+ * centered, cytoscape.js 3.34.3 `setupTextStyle`), the block moved half its width left for `left` and right for
+ * `right`, and only for a wrapped label (`drawText`), as `labelShiftX`.
+ * @param n - the element count
+ * @param justification - each edge's justification
+ * @param wrap - each edge's `text-wrap`
+ * @param values - the values; changed in place
+ */
+function combineEdgeJustification(
+    n: number,
+    justification: readonly (string | null)[],
+    wrap: readonly (string | null)[] | undefined,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const SHIFT: Readonly<Record<string, number>> = { left: -0.5, right: 0.5 };
+    for (let i = 0; i < n; i++) {
+        const shift = wrap?.[i] === "wrap" ? SHIFT[justification[i] ?? ""] : undefined;
+        if (shift !== undefined) {
+            (values.labelShiftX ??= new Array<StyleValue | null>(n).fill(null))[i] = shift;
+        }
     }
 }
 
@@ -2234,6 +2288,20 @@ function labelBorder(
 }
 
 /**
+ * An autorotated label's turn: along the line between two centers, kept upright (cytoscape.js 3.34.3
+ * `lineAngleFromDelta`: atan(dy / dx), a vertical line turned to +90 whichever way it runs), from 0 up to 360.
+ * @param a - the source's center
+ * @param b - the target's center
+ * @returns the degrees
+ */
+function lineDegrees(a: readonly [number, number], b: readonly [number, number]): number {
+    const dx = b[0] - a[0];
+    const angle = Math.atan((b[1] - a[1]) / dx);
+    const turn = ((dx === 0 ? Math.abs(angle) : angle) * 180) / Math.PI;
+    return Number.isFinite(turn) ? Math.round((((turn % 360) + 360) % 360) * 1e6) / 1e6 + 0 : 0;
+}
+
+/**
  * A Cytoscape.js angle (`30deg`, `0.5rad`, a number of radians) in degrees; `none` and `autorotate` (which turns
  * only an edge's label) are 0.
  * @param text - the value
@@ -2297,8 +2365,10 @@ const GRADIENT_ANGLES: ReadonlyMap<string, number> = new Map([
 ]);
 
 /**
- * A node's `background-fill: linear-gradient` as `fill` (its first stop), `fillGradient` (its last) and
- * `fillGradientAngle`; stops between them are dropped and a radial gradient keeps its flat fill, noted.
+ * A node's `background-fill: linear-gradient` or `radial-gradient` as `fill` (its first stop), `fillGradient` (its
+ * last), `fillGradientAngle` (a linear one's direction), `fillGradientKind`, `fillGradientColors` (every stop, when
+ * there are more than two) and `fillGradientStops` (`background-gradient-stop-positions`, when there is one per
+ * color, as Cytoscape.js uses them).
  * @param n - the element count
  * @param words - the parts by internal name
  * @param values - the values; changed in place
@@ -2315,12 +2385,12 @@ function combineBackgroundGradient(
         return;
     }
     const stops = words.get("_backgroundStops");
+    const positions = words.get("_backgroundPositions");
     const direction = words.get("_backgroundDirection");
+    const col = (name: string): (StyleValue | null)[] => (values[name] ??= new Array<StyleValue | null>(n).fill(null));
     for (let i = 0; i < n; i++) {
-        if (fill[i] === "radial-gradient") {
-            notes.add(STYLE_ISSUE.GRADIENT, "node", "fill", { sample: "radial-gradient", element: i });
-        }
-        if (fill[i] !== "linear-gradient") {
+        const radial = fill[i] === "radial-gradient";
+        if (fill[i] !== "linear-gradient" && !radial) {
             continue;
         }
         // Cytoscape.js's default stop colors are one gray, which draws flat
@@ -2333,13 +2403,20 @@ function combineBackgroundGradient(
         if (colors.length < 2) {
             continue;
         }
+        col("fill")[i] = colors[0];
+        col("fillGradient")[i] = colors.at(-1) ?? null;
         if (colors.length > 2) {
-            notes.add(STYLE_ISSUE.APPROXIMATED, "node", "fillGradient", { sample: stops?.[i] ?? "", element: i });
+            col("fillGradientColors")[i] = colors.join(" ");
         }
-        (values.fill ??= new Array<StyleValue | null>(n).fill(null))[i] = colors[0];
-        (values.fillGradient ??= new Array<StyleValue | null>(n).fill(null))[i] = colors.at(-1) ?? null;
-        (values.fillGradientAngle ??= new Array<StyleValue | null>(n).fill(null))[i] =
-            GRADIENT_ANGLES.get(direction?.[i] ?? "to-bottom") ?? 90;
+        const placed = gradientStops(positions?.[i] ?? "");
+        if (placed !== undefined && placed.split(" ").length === colors.length) {
+            col("fillGradientStops")[i] = placed;
+        }
+        if (radial) {
+            col("fillGradientKind")[i] = "radial";
+        } else {
+            col("fillGradientAngle")[i] = GRADIENT_ANGLES.get(direction?.[i] ?? "to-bottom") ?? 90;
+        }
     }
 }
 
@@ -2404,6 +2481,10 @@ function edgeRoutes(
         };
     };
     const rotations = drawnColumn(read, "text-rotation", TEXT_PART);
+    const endRotations: readonly (readonly [string, (StyleValue | null | undefined)[]])[] = [
+        ["sourceLabelRotation", drawnColumn(read, "source-text-rotation", TEXT_PART)],
+        ["targetLabelRotation", drawnColumn(read, "target-text-rotation", TEXT_PART)],
+    ];
     const ends = [drawnColumn(read, "source-endpoint", TEXT_PART), drawnColumn(read, "target-endpoint", TEXT_PART)];
     const loops = new Map<string, number>();
     let routed: (StyleValue | null)[] | null = null;
@@ -2416,13 +2497,19 @@ function edgeRoutes(
             continue;
         }
         if (rotations[k] === "autorotate" && !loop) {
-            // along the line between the centers, kept upright (cytoscape.js 3.34.3 `lineAngleFromDelta`: atan(dy / dx),
-            // a vertical line turned to +90 whichever way it runs)
-            const dx = tgt.center[0] - src.center[0];
-            const angle = Math.atan((tgt.center[1] - src.center[1]) / dx);
-            const turn = ((dx === 0 ? Math.abs(angle) : angle) * 180) / Math.PI;
-            const deg = Number.isFinite(turn) ? Math.round((((turn % 360) + 360) % 360) * 1e6) / 1e6 + 0 : 0;
-            (values.labelRotation ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = deg;
+            (values.labelRotation ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = lineDegrees(
+                src.center,
+                tgt.center,
+            );
+        }
+        // an end label's autorotate turns it as the main label's does (cytoscape.js 3.34.3 `calculateLabelAngle`)
+        for (const [property, column] of endRotations) {
+            if (column[k] === "autorotate" && !loop) {
+                (values[property] ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = lineDegrees(
+                    src.center,
+                    tgt.center,
+                );
+            }
         }
         const edge = routeSettings(words, k, curves[k]);
         let index = 0;

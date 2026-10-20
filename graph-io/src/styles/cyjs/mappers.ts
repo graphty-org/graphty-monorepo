@@ -152,6 +152,7 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["opacity", { property: "opacity", type: "zeroOne" }],
     ["text-transform", { property: "_transform", type: "enum", enums: ["none", "uppercase", "lowercase"] }],
     ["text-wrap", { property: "_wrap", type: "enum", enums: ["none", "wrap", "ellipsis"] }],
+    ["text-overflow-wrap", { property: "_overflowWrap", type: "enum", enums: ["whitespace", "anywhere"] }],
     // how the lines line up; `auto` follows the horizontal alignment (`combineLabelText`)
     ["text-justification", { property: "_justification", type: "enum", enums: ["auto", "left", "center", "right"] }],
     // a width only `text-wrap: wrap` wraps at, so it is combined with the wrap afterward (`combineParts`)
@@ -372,7 +373,7 @@ export function gradientStopColors(text: string, site: CanonSite): string[] {
  * @param text - the value
  * @returns the fractions separated by spaces, or undefined when one is not a number
  */
-function gradientStops(text: string): string | undefined {
+export function gradientStops(text: string): string | undefined {
     const stops = text
         .trim()
         .split(/\s+/)
@@ -427,12 +428,14 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
         "text-halign",
         { property: "_halign", type: "enum", enums: ["left", "left-inside", "center", "right", "right-inside"] },
     ],
-    // the fill's gradient, combined afterward into `fill`, `fillGradient` and `fillGradientAngle`
+    // the fill's gradient, combined afterward into `fill`, `fillGradient`, `fillGradientAngle` and the other
+    // `fillGradient*` properties
     [
         "background-fill",
         { property: "_backgroundFill", type: "enum", enums: ["solid", "linear-gradient", "radial-gradient"] },
     ],
     ["background-gradient-stop-colors", { property: "_backgroundStops", type: "text" }],
+    ["background-gradient-stop-positions", { property: "_backgroundPositions", type: "text" }],
     ["background-gradient-direction", { property: "_backgroundDirection", type: "enum", enums: GRADIENT_DIRECTIONS }],
     ...CYJS_FACE_PROPERTIES,
     ...LABEL,
@@ -497,6 +500,13 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["target-label", { property: "targetLabel", type: "text" }],
     ["source-text-offset", { property: "sourceLabelOffset", type: "size" }],
     ["target-text-offset", { property: "targetLabelOffset", type: "size" }],
+    ["source-text-margin-x", { property: "sourceLabelOffsetX", type: "signedSize" }],
+    ["source-text-margin-y", { property: "sourceLabelOffsetY", type: "signedSize" }],
+    ["target-text-margin-x", { property: "targetLabelOffsetX", type: "signedSize" }],
+    ["target-text-margin-y", { property: "targetLabelOffsetY", type: "signedSize" }],
+    // an angle, or autorotate along the line, which the routes work out (`autorotateLabels`)
+    ["source-text-rotation", { property: "_sourceRotation", type: "text" }],
+    ["target-text-rotation", { property: "_targetRotation", type: "text" }],
     ...LABEL,
 ]);
 

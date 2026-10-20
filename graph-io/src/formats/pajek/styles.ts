@@ -492,8 +492,17 @@ const PAJEK_BASELINE_TO_MIDDLE = 0.3465;
  * @param directed - whether the line is an arc
  * @param labels - whether its label is drawn (`drawsLineLabels`)
  * @param run - the line from its source's center to its target's, in drawn units, y down, or null when unplaced
+ * @param loop - for a loop on a placed node, receives its control points; null for any other line
  */
-function readLine(get: Param, put: Put, at: At, directed: boolean, labels = true, run: Run | null = null): void {
+function readLine(
+    get: Param,
+    put: Put,
+    at: At,
+    directed: boolean,
+    labels = true,
+    run: Run | null = null,
+    loop: ((controls: LoopControls) => void) | null = null,
+): void {
     readColor(get("c"), "color", "opacity", put, at);
     readNumber(
         get("w"),
@@ -514,11 +523,20 @@ function readLine(get: Param, put: Put, at: At, directed: boolean, labels = true
     // an arrowhead is 6 x `s` long and 5 x `s` wide; `s` 1, Pajek's normal size, is 6 long (the pajek tool arrowhead)
     readNumber(get("s"), "arrowSize", put, at);
     readArrowPosition(get("ap"), put, at);
+    // a loop is drawn as the Bezier route of a line PAJEK_POINTS_PER_UNIT long to the right, its two ends on the node
+    const line = loop === null ? get : loopParam(get);
+    const controls = loop === null ? null : readLoop(line, put, loop);
     if (labels) {
         readText(get("l"), "label", put, at);
-        readLineLabelPlace(get, put, at, run);
+        if (controls === null) {
+            readLineLabelPlace(get, put, at, run);
+        } else {
+            readLineLabelPlace(line, put, at, [PAJEK_POINTS_PER_UNIT, 0], loopTop(controls));
+        }
     }
-    readBezier(get, put, run);
+    if (loop === null) {
+        readBezier(get, put, run);
+    }
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
     readFont(get("font"), put, at);
@@ -527,19 +545,118 @@ function readLine(get: Param, put: Put, at: At, directed: boolean, labels = true
 /** A line from its source's center to its target's, in drawn units, y down. */
 type Run = readonly [dx: number, dy: number];
 
+/** A loop's two Bezier control points, each from its node's center in drawn units, y down. */
+type LoopControls = readonly [readonly [number, number], readonly [number, number]];
+
+/**
+ * The route parameters Pajek 6.02's SVG export draws a loop with where the line sets none (`pajek-specimen-edges-lines-p2`
+ * `loop` and `loop-arc`, `pajek-specimen-edge-labels` `on-loop`: a cubic from the node's center up and back, its control
+ * points 74.9 out at 70 and 110 degrees up from the right).
+ */
+const LOOP_DEFAULTS: Readonly<Record<string, number>> = { a1: -70, k1: 0.3, a2: -70, k2: 0.3 };
+
+/**
+ * A loop's route parameters: the line's own, Pajek's loop defaults for any it leaves out.
+ * @param get - the line's parameters
+ * @returns the parameters with the defaults
+ */
+function loopParam(get: Param): Param {
+    return (key) => get(key) ?? (key in LOOP_DEFAULTS ? LOOP_DEFAULTS[key] : null);
+}
+
+/**
+ * A loop's route (manual p. 90: "if arc is a loop (arc to itself) bezier loop will be drawn"), as Pajek 6.02's SVG
+ * export draws it: the Bezier route of a line PAJEK_POINTS_PER_UNIT long running right, both its ends on the node
+ * (`a1 -130 k1 0.6 a2 -130 k2 0.6`: control points 150 out at 130 and 50 degrees up from the right, measured on
+ * `pajek-specimen-edges-lines-p2` `loop-bezier`). Its bends are written once the nodes' sizes are known
+ * (`layLoops`). ponytail: measured in one Draw window (1200 x 900) and one vertex size; whether Pajek scales a loop
+ * with either was not measured.
+ * @param get - the line's parameters, with the loop defaults
+ * @param put - receives the values
+ * @param loop - receives the control points
+ * @returns the control points, or null when the line's parameters give none
+ */
+function readLoop(get: Param, put: Put, loop: (controls: LoopControls) => void): LoopControls | null {
+    const run: Run = [PAJEK_POINTS_PER_UNIT, 0];
+    const controls = bezierControls(get, run);
+    if (controls === null) {
+        return null;
+    }
+    const [[a1, l1], [a2, l2]] = controls;
+    const L = PAJEK_POINTS_PER_UNIT;
+    // along the line is right, left of it up: the second point is measured back from the line's far end, the node
+    const [c1, c2]: LoopControls = [
+        [a1 * L, -l1 * L],
+        [(a2 - 1) * L, -l2 * L],
+    ];
+    loop([c1, c2]);
+    put("curved", true);
+    put("bendCurve", "bezier");
+    // an arc's head is drawn where the loop comes back to its node's center, under the node
+    // (`pajek-specimen-edges-lines-p2` `loop-arc`, `s 1 a A`: no head shows)
+    put("targetArrow", "none");
+    return [c1, c2];
+}
+
+/**
+ * The way a loop runs at its top, where its label is drawn (`lp` 0.5): from its first control point to its second
+ * (`pajek-specimen-edge-labels` `on-loop`: 179.97). ponytail: a label elsewhere on the loop (`lp`) is turned as at
+ * its top.
+ * @param controls - the loop's control points
+ * @returns the direction, in degrees clockwise on screen
+ */
+function loopTop(controls: LoopControls): number {
+    const [c1, c2] = controls;
+    return (Math.atan2(c2[1] - c1[1], c2[0] - c1[0]) * 180) / Math.PI;
+}
+
+/**
+ * Writes each loop's control points as its bends, fractions of its node's half width and half height, y up, once the
+ * nodes are sized, and draws it round whatever the Draw window does to the other lines.
+ * @param snapshot - the graph
+ * @param loops - each loop's control points by edge
+ * @param node - the node values, sized
+ * @param edge - the edge values; changed in place
+ */
+function layLoops(
+    snapshot: GraphSnapshot,
+    loops: ReadonlyMap<number, LoopControls>,
+    node: ValueColumns,
+    edge: ValueColumns,
+): void {
+    const fraction = (x: number): string => String(Math.round(x * 1e4) / 1e4 || 0);
+    for (const [e, controls] of loops) {
+        const v = snapshot.edgeSource(e);
+        const half = (property: string): number => {
+            const size = node[property]?.[v];
+            return (typeof size === "number" && size > 0 ? size : PAJEK_VERTEX_SIZE) / 2;
+        };
+        const [hw, hh] = [half("width"), half("height")];
+        const column = (property: string): (StyleValue | null)[] =>
+            (edge[property] ??= new Array<StyleValue | null>(snapshot.edgeCount).fill(null));
+        column("bends")[e] = controls.map(([x, y]) => `${fraction(x / hw)},${fraction(-y / hh)}`).join(" ");
+        // Export Line Default / Straight Lines straightens every other line; a loop is still drawn round
+        // (`pajek-specimen-edges-lines-p4`)
+        column("curved")[e] = true;
+        column("bendCurve")[e] = "bezier";
+    }
+}
+
 /**
  * Where Pajek 6.02's SVG export draws a line's label (`pajek-specimen-edge-labels`): its middle at `lp` from the
  * terminal vertex, a fraction of the line up to 1 (0.5 by default, 0.2 near the target) and a distance beyond it
  * (`lp 20` 20 from the target), moved by `lr` at `lphi` degrees counterclockwise (`lr 12 lphi 90` 12 above), its
  * baseline through that point, and turned along the line and `la` degrees counterclockwise from it (`la 45` drawn
  * rotate(-45) on a level line; `la 405` as `la 45`). graphty hangs a line's label on the line's middle, so the place is
- * an offset from there. ponytail: a straight line's angle; Pajek turns a curve's label along the curve.
+ * an offset from there, the words' middle above the baseline in the label's own turned frame.
  * @param get - the line's parameters
  * @param put - receives the values
  * @param at - the sites
  * @param run - the line, or null when unplaced
+ * @param direction - the line's direction at the label, in degrees clockwise on screen, where `run` does not give it
+ * (a loop)
  */
-function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null): void {
+function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null, direction?: number): void {
     const length = run === null ? 0 : Math.hypot(run[0], run[1]);
     if (run === null || length === 0) {
         return;
@@ -562,11 +679,14 @@ function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null): void
     const along = 0.5 - (lp <= 1 ? lp : lp / length);
     const t = (lphi * Math.PI) / 180;
     const round = (v: number): number => Number(v.toFixed(9)) + 0;
+    const turn = (((direction ?? lineDirection(get, run, along + 0.5)) - la) % 360) + 360;
+    // the baseline runs through the point; the words' middle is above it in the label's own turned frame
+    const up = (turn * Math.PI) / 180;
+    const rise = PAJEK_BASELINE_TO_MIDDLE * size;
     put("labelPosition", "center");
-    put("labelOffsetX", round(along * run[0] + lr * Math.cos(t)));
-    put("labelOffsetY", round(along * run[1] - lr * Math.sin(t) - PAJEK_BASELINE_TO_MIDDLE * size));
-    const angle = lineDirection(get, run, along + 0.5) - la;
-    put("labelRotation", round(((angle % 360) + 360) % 360));
+    put("labelOffsetX", round(along * run[0] + lr * Math.cos(t) + rise * Math.sin(up)));
+    put("labelOffsetY", round(along * run[1] - lr * Math.sin(t) - rise * Math.cos(up)));
+    put("labelRotation", round(turn % 360));
 }
 
 /**
@@ -575,7 +695,7 @@ function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null): void
  * point is `k1` / 2 of the line's length from the source, turned `a1` degrees clockwise on screen from the line, and
  * whose second is `k2` / 2 of it back from the target, turned `a2` degrees counterclockwise (`a1 40 k1 1.5 a2 -40 k2
  * 1.5` an S, `a2 40` a bow). A negative `k1` is one of Pajek's oval, circular arc or double routes, which its SVG export
- * draws straight, and a loop is left to graphty's own. ponytail: a line that sets only some of the four reads the
+ * draws straight. A loop is `readLoop`'s. ponytail: a line that sets only some of the four reads the
  * others as 0 and 1; Pajek's values for them were not measured.
  * @param get - the line's parameters
  * @param put - receives the values
@@ -753,6 +873,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
     const place = places(snapshot);
     // Pajek stretches the file's 0..1 to its Draw window one axis at a time, 500 x 500 without one
     const window = draw ?? { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT };
+    const loops = new Map<number, LoopControls>();
     const runOf = (e: number): Run | null => {
         const [s, t] = [place(snapshot.edgeSource(e)), place(snapshot.edgeTarget(e))];
         return s === null || t === null ? null : [(t[0] - s[0]) * window.width, (t[1] - s[1]) * window.height];
@@ -772,7 +893,16 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
             if (target === "node") {
                 readVertex(get, put, at, place(i));
             } else {
-                readLine(get, put, at, directed[i], labels, runOf(i));
+                // a loop on a placed node: an unplaced one is laid out by graphty, which draws its own loop, and a
+                // file graphty wrote keeps its routes in its block
+                const run = runOf(i);
+                const loop =
+                    run !== null && block === null && snapshot.edgeSource(i) === snapshot.edgeTarget(i)
+                        ? (controls: LoopControls): void => {
+                              loops.set(i, controls);
+                          }
+                        : null;
+                readLine(get, put, at, directed[i], labels, run, loop);
                 readLineValue(lineValue(i), get, put);
             }
         }
@@ -789,6 +919,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         drawVertices(draw, snapshot, node);
         drawLines(draw, snapshot, node, edge);
     }
+    layLoops(snapshot, loops, node, edge);
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge }, labels);
     }

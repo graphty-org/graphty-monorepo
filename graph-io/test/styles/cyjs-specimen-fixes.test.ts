@@ -95,6 +95,17 @@ describe("Cytoscape.js labels", () => {
             expect(rule.set?.labelWrapWidth).toBeUndefined();
         }
     });
+
+    it("reads text-overflow-wrap: anywhere on a wrapped label as a break between any two letters", () => {
+        const at = (style: Record<string, unknown>): unknown => {
+            const v = evaluateCytoscapeJs(doc({ "text-max-width": "40px", ...style })).node.values;
+            return v.labelWrapAnywhere?.[0] ?? null;
+        };
+        expect(at({ "text-wrap": "wrap", "text-overflow-wrap": "anywhere" })).toBe(true);
+        expect(at({ "text-wrap": "wrap", "text-overflow-wrap": "whitespace" })).toBeNull();
+        // a label Cytoscape.js does not wrap breaks nowhere
+        expect(at({ "text-wrap": "none", "text-overflow-wrap": "anywhere" })).toBeNull();
+    });
 });
 
 describe("Cytoscape.js nodes", () => {
@@ -131,6 +142,24 @@ describe("Cytoscape.js nodes", () => {
             }).angle,
         ).toBe(225);
         expect(at({ "background-fill": "solid", "background-gradient-stop-colors": stops }).to).toBeUndefined();
+    });
+
+    it("reads a radial gradient, every stop color and the stop positions Cytoscape.js places them at", () => {
+        const at = (style: Record<string, unknown>): unknown[] => {
+            const v = evaluateCytoscapeJs(doc(style)).node.values;
+            return [v.fill?.[0], v.fillGradientKind?.[0], v.fillGradientColors?.[0], v.fillGradientStops?.[0]];
+        };
+        const three = "cyan magenta yellow";
+        expect(at({ "background-fill": "radial-gradient", "background-gradient-stop-colors": three })).toEqual([
+            "#00ffff",
+            "radial",
+            "#00ffff #ff00ff #ffff00",
+            undefined,
+        ]);
+        const placed = { "background-fill": "linear-gradient", "background-gradient-stop-colors": three };
+        expect(at({ ...placed, "background-gradient-stop-positions": "0% 20% 100%" })[3]).toBe("0 0.2 1");
+        // Cytoscape.js spaces the colors evenly unless there is one position per color
+        expect(at({ ...placed, "background-gradient-stop-positions": "0% 100%" })[3]).toBeUndefined();
     });
 });
 

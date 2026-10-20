@@ -158,6 +158,19 @@ export interface NodeStyleValues {
      * the top-left corner to the bottom-right one. Unset, 0.
      */
     readonly fillGradientAngle: number;
+    /**
+     * Every color a gradient fill runs through, from its start to its end, `#rrggbb` separated by spaces (Cytoscape.js
+     * `background-gradient-stop-colors`), in place of `fill` and `fillGradient` for the gradient. Unset, the gradient
+     * runs from `fill` into `fillGradient`.
+     */
+    readonly fillGradientColors: string;
+    /**
+     * Where each color of a gradient fill sits, fractions from 0 to 1 separated by spaces, one per color
+     * (`fillGradientColors`, else `fill` and `fillGradient`); absent, evenly spaced.
+     */
+    readonly fillGradientStops: string;
+    /** How a gradient fill runs: `linear` across the node (`fillGradientAngle`), or `radial` out from its middle. */
+    readonly fillGradientKind: string;
     /** The border (outline) color. */
     readonly borderColor: StyleColor;
     /** The label's text color. */
@@ -186,6 +199,22 @@ export interface NodeStyleValues {
      * every word but a line's last). Unset or false, only the words count, as a browser wraps text.
      */
     readonly labelWrapTrailingSpace: boolean;
+    /**
+     * Whether a line wider than `labelWrapWidth` is cut to fit with an ellipsis after it, in place of wrapping
+     * (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
+     */
+    readonly labelWrapEllipsis: boolean;
+    /**
+     * Whether a line may break between any two letters, filling each line to `labelWrapWidth`, not only at spaces
+     * (Cytoscape.js `text-overflow-wrap: anywhere`). Unset or false, only at spaces.
+     */
+    readonly labelWrapAnywhere: boolean;
+    /**
+     * How many blanks one blank between two words counts as when a line is measured against `labelWrapWidth`; it
+     * is still drawn once (vis-network joins a line's words and blanks each with a blank, so it counts three).
+     * Unset, one.
+     */
+    readonly labelWrapSpaceCount: number;
     /** Whether and how the node grows to hold its label; unset, `width` and `height` are its size. */
     readonly labelFit: StyleLabelFit;
     /** The space between the label's box and the node's sides, left and right each, when it grows to fit the label. */
@@ -633,6 +662,12 @@ export interface EdgeStyleValues {
     readonly labelItalic: boolean;
     /** The width the label's lines wrap at (a length); see the node's. */
     readonly labelWrapWidth: number;
+    /** Whether a line wider than `labelWrapWidth` is cut with an ellipsis; see the node's. */
+    readonly labelWrapEllipsis: boolean;
+    /** Whether a line may break between any two letters; see the node's. */
+    readonly labelWrapAnywhere: boolean;
+    /** How many blanks a blank between two words counts as against `labelWrapWidth`; see the node's. */
+    readonly labelWrapSpaceCount: number;
     /** Where the label sits against the line's middle: `center` on the line, `top` above it. */
     readonly labelPosition: StyleLabelPosition;
     /** How far right of where `labelPosition` puts it the label is drawn (a length). */
@@ -683,6 +718,21 @@ export interface EdgeStyleValues {
     readonly sourceLabelOffset: number;
     /** Where the target end's label sits, as `sourceLabelOffset` says, from where the line meets the target node. */
     readonly targetLabelOffset: number;
+    /**
+     * How far the source end's label is moved right of where it sits, on the screen (a length; Cytoscape.js
+     * `source-text-margin-x`).
+     */
+    readonly sourceLabelOffsetX: number;
+    /** How far the source end's label is moved down, on the screen (a length; `source-text-margin-y`). */
+    readonly sourceLabelOffsetY: number;
+    /** How far the target end's label is moved right, on the screen (a length; `target-text-margin-x`). */
+    readonly targetLabelOffsetX: number;
+    /** How far the target end's label is moved down, on the screen (a length; `target-text-margin-y`). */
+    readonly targetLabelOffsetY: number;
+    /** How far the source end's label is turned, in degrees clockwise about its middle; unset, level. */
+    readonly sourceLabelRotation: number;
+    /** How far the target end's label is turned, in degrees clockwise about its middle; unset, level. */
+    readonly targetLabelRotation: number;
     /** The label is not drawn while its letters are drawn smaller than this many screen pixels; see the node's. */
     readonly labelMinScreenSize: number;
     /** Whether the label is drawn over every node and edge; see the node's. */

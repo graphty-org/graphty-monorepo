@@ -160,7 +160,8 @@ describe("Pajek styles: Pajek's rules", () => {
             "1-1": "solid",
         });
         // arcs get Pajek's arrow at the target; edges (each kept as a pair) none
-        expect(byEdge("targetArrow")).toMatchObject({ "1-1": "triangle", "4-2": "triangle", "1-2": "none" });
+        // the loop 1-1 is an arc too, but its head is drawn under its node, where the loop comes back to the center
+        expect(byEdge("targetArrow")).toMatchObject({ "1-1": "none", "4-2": "triangle", "1-2": "none" });
         expect(new Set(drawn(styles, snapshot, "edge", "sourceArrow"))).toEqual(new Set(["none"]));
     });
 

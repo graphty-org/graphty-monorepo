@@ -493,8 +493,9 @@ describe("the cascade", () => {
                 { selector: "#b", style: { "text-wrap": "ellipsis" } },
             ],
         });
-        // a and c are .big: they wrap at 80; b truncates rather than wraps; d does not wrap at all.
-        expect(r.node.values.labelWrapWidth).toEqual([80, null, 80, null]);
+        // a and c are .big: they wrap at 80; b is cut at 80 with an ellipsis rather than wrapped; d does not wrap.
+        expect(r.node.values.labelWrapWidth).toEqual([80, 80, 80, null]);
+        expect(r.node.values.labelWrapEllipsis).toEqual([null, true, null, null]);
         // Wrapped with no width of its own, a label breaks only at its own line breaks.
         const unset = evaluateCytoscapeJs({
             elements: SMALL.elements,

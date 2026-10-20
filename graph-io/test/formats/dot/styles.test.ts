@@ -482,9 +482,17 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             ["#ff0000", "#0000ff", 0],
             ["#ff0000", "#0000ff", 180],
         ]);
-        // a radial gradient is drawn flat in its first color; stripes are bands, never a gradient
-        // with filled too, Graphviz draws the bands and no gradient
-        expect(["r", "s", "sf", "wf"].map((id) => second.get(id))).toEqual([null, null, null, null]);
+        // a weighted first color switches at its fraction: Graphviz's SVG stops at the fraction less 0.001 and at it
+        expect(get("fillGradientStops").get("c")).toBe("0.299 0.3");
+        // style=radial runs out from the middle, with no angle
+        expect([fill.get("r"), second.get("r"), get("fillGradientKind").get("r"), angle.get("r")]).toEqual([
+            "#ffffff",
+            "#ffa500",
+            "radial",
+            null,
+        ]);
+        // stripes are bands, never a gradient; with filled too, Graphviz draws the bands and no gradient
+        expect(["s", "sf", "wf"].map((id) => second.get(id))).toEqual([null, null, null]);
     });
 
     it("places a cluster's label inside its box at the top, centered, unless labelloc and labeljust (its own or inherited) move it", async () => {

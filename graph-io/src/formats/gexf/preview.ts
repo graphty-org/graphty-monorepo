@@ -36,8 +36,10 @@ const GEPHI_PREVIEW: Readonly<Record<string, string>> = Object.freeze({
     "node.label.max-char": "30",
     "node.label.outline.size": "0.0",
     "node.label.outline.color": "#ffffff",
+    "node.label.outline.opacity": "80.0",
     "node.label.box": "false",
     "node.label.box.color": "parent",
+    "node.label.box.opacity": "100.0",
     "edge.label.show": "false",
     "edge.label.customFont": "false",
     "edge.label.font": "Dialog,plain,10",
@@ -46,6 +48,7 @@ const GEPHI_PREVIEW: Readonly<Record<string, string>> = Object.freeze({
     "edge.label.max-char": "30",
     "edge.label.outline.size": "0.0",
     "edge.label.outline.color": "#ffffff",
+    "edge.label.outline.opacity": "80.0",
 });
 
 /** A Java Font as Gephi's Preview writes it: `Family,style,size`. */
@@ -156,24 +159,28 @@ export function dependantColor(mode: string, parent: readonly number[]): number[
 }
 
 /**
- * The labels drawn: none when `<target>.label.show` is off, each cut when `<target>.label.shorten` is on, and with its
- * line breaks left out, as Java's `drawString` draws a label on one line with nothing for a break ("line one\nline
- * two" is drawn "line oneline two": Gephi Toolkit 0.11.3's preview and PNG export, `gexf-specimen-labels`).
+ * The labels drawn: none when `<target>.label.show` is off, each cut when `<target>.label.shorten` is on, and, unless
+ * the file keeps its own values, with its line breaks left out, as Java's `drawString` draws a label on one line with
+ * nothing for a break ("line one\nline two" is drawn "line oneline two": Gephi Toolkit 0.11.3's preview and PNG
+ * export, `gexf-specimen-labels`).
  * @param labels - each element's label, or undefined when none has one
  * @param preview - the settings
  * @param target - "node" or "edge"
+ * @param kept - whether the file keeps its own values (a `graphty.styles` block): its line breaks are drawn
  * @returns the labels drawn, or undefined for none
  */
 export function drawnLabels(
     labels: readonly (StyleValue | null)[] | undefined,
     preview: GephiPreview,
     target: "node" | "edge",
+    kept = false,
 ): (StyleValue | null)[] | undefined {
     if (labels === undefined || !preview.on(`${target}.label.show`)) {
         return undefined;
     }
     const max = preview.on(`${target}.label.shorten`) ? preview.num(`${target}.label.max-char`) : Infinity;
-    return labels.map((l) => (typeof l === "string" ? shortened(l, max).replaceAll(/[\r\n]/g, "") : l));
+    const drawn = (l: string): string => (kept ? l : l.replaceAll(/[\r\n]/g, ""));
+    return labels.map((l) => (typeof l === "string" ? drawn(shortened(l, max)) : l));
 }
 
 /**

@@ -1316,9 +1316,9 @@ export const YED_LINES: ReadonlyMap<string, string> = new Map([
 /** yEd's arrows, by the neutral arrow each draws exactly. */
 export const YED_ARROWS: ReadonlyMap<string, string> = new Map([
     ["none", "none"],
-    ["triangle", "standard"],
+    ["triangle", "delta"],
     ["triangle-open", "white_delta"],
-    ["vee", "concave"],
+    ["vee", "standard"],
     ["tee", "t_shape"],
     ["diamond", "diamond"],
     ["diamond-open", "white_diamond"],
@@ -1603,7 +1603,7 @@ function polyLineEdgeTree(get: GetValue, path: unknown, approximate: Approximate
     const target = get("targetArrow");
     if (source !== null || target !== null) {
         const arrow = (property: string, value: StyleValue | null): string =>
-            typeof value === "string" ? yedSpelled(YED_ARROWS, value, "standard", property, approximate) : "none";
+            typeof value === "string" ? yedSpelled(YED_ARROWS, value, "delta", property, approximate) : "none";
         edge["y:Arrows"] = { "@_source": arrow("sourceArrow", source), "@_target": arrow("targetArrow", target) };
     }
     const label = labelTree(get, false, approximate);

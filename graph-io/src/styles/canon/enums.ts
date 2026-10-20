@@ -231,11 +231,20 @@ const GRAPHVIZ: Partial<Record<StyleEnumKind, Aliases>> = {
     arrow: { "other:curve": ["curve"], "other:inv-curve": ["icurve"] },
 };
 
+/**
+ * yEd's (yFiles for Java's) STANDARD arrow is "a triangle with impressed bottom side", a notched arrow; its DELTA is the
+ * plain triangle (https://docs.yworks.com/yfiles/doc/api/y/view/Arrow.html).
+ */
+const YED: Partial<Record<StyleEnumKind, Aliases>> = {
+    arrow: { vee: ["standard"] },
+};
+
 /** Per-dialect overrides; a dialect not listed reads the common table alone. */
 const OVERRIDES: ReadonlyMap<string, Partial<Record<StyleEnumKind, Aliases>>> = new Map([
     ["vis", VIS],
     ["graphviz", GRAPHVIZ],
     ["cytoscape-js", CYJS],
+    ["yed", YED],
 ]);
 
 const OPEN: ReadonlySet<StyleEnumKind> = new Set<StyleEnumKind>(["shape", "borderStyle", "lineStyle", "arrow"]);

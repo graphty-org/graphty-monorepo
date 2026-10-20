@@ -651,17 +651,19 @@ function readEdgeArrow(
 
 /**
  * yFiles 3.0 renamed 2.6's DEFAULT arrow to STEALTH and CIRCLE to ELLIPSE
- * (https://docs.yfiles.com/yfiles-html/api/ArrowType/); each is read as its 2.6 name is.
+ * (https://docs.yfiles.com/yfiles-html/api/ArrowType/); each is read as its 2.6 name is. STEALTH is "an arrow that is
+ * notched on the side opposite its tip": a vee.
  */
 const RENAMED_ARROWS: ReadonlyMap<string, string> = new Map([
-    ["DEFAULT", "triangle"],
-    ["STEALTH", "triangle"],
+    ["DEFAULT", "vee"],
+    ["STEALTH", "vee"],
     ["ELLIPSE", "circle"],
 ]);
 
-/** The filled arrows whose `{x:Null}` fill draws them as their open outline. */
+/** The filled arrows whose `{x:Null}` fill draws them as their open outline (a stealth's as the open triangle's). */
 const HOLLOW_ARROWS: ReadonlyMap<string, string> = new Map([
     ["triangle", "triangle-open"],
+    ["vee", "triangle-open"],
     ["diamond", "diamond-open"],
     ["circle", "circle-open"],
 ]);

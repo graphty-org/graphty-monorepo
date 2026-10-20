@@ -1659,7 +1659,7 @@ function edgeGraphics(get: Get, approximate: Approximate): Rec {
     for (const property of ["sourceArrow", "targetArrow"]) {
         const arrow = get(property);
         if (typeof arrow === "string") {
-            g[property] = yedSpelled(YED_ARROWS, arrow, "standard", property, approximate);
+            g[property] = yedSpelled(YED_ARROWS, arrow, "delta", property, approximate);
         }
     }
     const curved = get("curved");

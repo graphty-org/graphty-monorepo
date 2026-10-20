@@ -934,7 +934,7 @@
       <data key="d10">#642c6b</data>
       <data key="d11">9</data>
       <data key="d12">dashed</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#642C6B" type="dashed" width="9"/>
@@ -974,7 +974,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#BD93C8" type="line" width="8.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1010,7 +1010,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#012F8D" type="dashed" width="4.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1034,7 +1034,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#C95071" type="line" width="9.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1054,7 +1054,7 @@
       <data key="d10">#8675d9</data>
       <data key="d11">1.5</data>
       <data key="d12">dotted</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#8675D9" type="dotted" width="1.5"/>
@@ -1066,7 +1066,7 @@
       <data key="d10">#48f418</data>
       <data key="d11">12</data>
       <data key="d12">dotted</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#48F418" type="dotted" width="12"/>
@@ -1094,7 +1094,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#CA7763" type="dashed" width="10"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1102,7 +1102,7 @@
       <data key="d10">#48caa6</data>
       <data key="d11">13.5</data>
       <data key="d12">dotted</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#48CAA6" type="dotted" width="13.5"/>
@@ -1162,7 +1162,7 @@
       <data key="d10">#28b371</data>
       <data key="d11">0.5</data>
       <data key="d12">solid</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#28B371" type="line" width="0.5"/>
@@ -1198,7 +1198,7 @@
       <data key="d10">#e1c132</data>
       <data key="d11">4</data>
       <data key="d12">solid</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#E1C132" type="line" width="4"/>
@@ -1210,7 +1210,7 @@
       <data key="d10">#e16484</data>
       <data key="d11">6.5</data>
       <data key="d12">dashed</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#E16484" type="dashed" width="6.5"/>
@@ -1222,7 +1222,7 @@
       <data key="d10">#cbe353</data>
       <data key="d11">14.5</data>
       <data key="d12">dotted</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#CBE353" type="dotted" width="14.5"/>
@@ -1250,7 +1250,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#434F84" type="dotted" width="10"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1262,7 +1262,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#36B0F0" type="line" width="12.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1270,7 +1270,7 @@
       <data key="d10">#cbdd37</data>
       <data key="d11">11.5</data>
       <data key="d12">dashed</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#CBDD37" type="dashed" width="11.5"/>
@@ -1298,7 +1298,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#7D7AB1" type="dotted" width="13.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1310,7 +1310,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#AC4A32" type="dotted" width="12"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1334,7 +1334,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#609F5A" type="dotted" width="9"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1354,7 +1354,7 @@
       <data key="d10">#f2108b</data>
       <data key="d11">12</data>
       <data key="d12">solid</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#F2108B" type="line" width="12"/>
@@ -1370,7 +1370,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#51E399" type="dashed" width="6.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1430,7 +1430,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#99173E" type="line" width="8.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1454,7 +1454,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#872504" type="line" width="0.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1474,7 +1474,7 @@
       <data key="d10">#adbdb0</data>
       <data key="d11">9.5</data>
       <data key="d12">dotted</data>
-      <data key="d13">triangle</data>
+      <data key="d13">vee</data>
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#ADBDB0" type="dotted" width="9.5"/>
@@ -1502,7 +1502,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#03ABAA" type="dotted" width="6.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>
@@ -1514,7 +1514,7 @@
       <data key="d14">
         <y:PolyLineEdge>
           <y:LineStyle color="#F16790" type="dotted" width="6.5"/>
-          <y:Arrows source="none" target="standard"/>
+          <y:Arrows source="none" target="delta"/>
         </y:PolyLineEdge>
       </data>
     </edge>

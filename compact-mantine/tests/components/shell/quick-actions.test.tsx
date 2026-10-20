@@ -40,19 +40,6 @@ describe("QuickActions", () => {
         expect(option.querySelector(".cm-qa-row-label")).toHaveTextContent("<Layer>");
     });
 
-    it("reads a section's heading with its first row, which is all the search field points at", async () => {
-        renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
-        // The first row of each section is described by its heading; the rest are not.
-        expect(screen.getByRole("option", { name: "Make an image" })).toHaveAccessibleDescription("Image editing");
-        expect(screen.getByRole("option", { name: "Boost resolution" })).not.toHaveAccessibleDescription(
-            /Image editing/,
-        );
-        expect(screen.getByRole("option", { name: /^Frame/ })).toHaveAccessibleDescription("Design tools");
-        // A search lists its results flat, with no headings to read.
-        await userEvent.type(screen.getByRole("combobox"), "ima");
-        expect(screen.getByRole("option", { name: "Make an image" })).not.toHaveAccessibleDescription(/Image editing/);
-    });
-
     it("highlights the first row on open, exposed through aria-activedescendant", () => {
         renderShell(<QuickActions actions={ACTIONS} onRun={vi.fn()} />);
         const first = screen.getByRole("option", { name: "Ink Wireframe" });

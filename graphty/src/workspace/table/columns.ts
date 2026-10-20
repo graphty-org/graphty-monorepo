@@ -16,7 +16,6 @@ import {
     type SummaryGroup,
 } from "@graphty/graphty-element/session";
 
-import { ID_NAME } from "../inspector/words";
 import { runName } from "../runWords";
 
 /** Which records a table holds. */
@@ -42,7 +41,7 @@ export interface TableColumnChoice {
 
 /** The key columns: frozen on the left, always shown. */
 const KEYS: Readonly<Record<RecordKind, readonly TableColumnChoice[]>> = {
-    node: [{ id: "id", header: ID_NAME, group: "key", numeric: false }],
+    node: [{ id: "id", header: "Id", group: "key", numeric: false }],
     edge: [
         { id: "source", header: "From", group: "key", numeric: false },
         { id: "target", header: "To", group: "key", numeric: false },

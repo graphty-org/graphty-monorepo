@@ -195,10 +195,6 @@ describe("the Data page on the real element", () => {
         );
         assert.isNotNull(within(tables).getByText("les-miserables.gml"), "a graph file is one row named after it");
         assert.isNotNull(screen.getAllByText("Set by the file")[0]);
-        // The file sets every role: each reads as its value, never as a box that looks empty.
-        const roles = screen.getByRole("group", { name: "Column roles" });
-        assert.isEmpty(within(roles).queryAllByRole("combobox"));
-        assert.isNotNull(within(roles).getByText("Key"));
         await waitFor(() => {
             assert.equal(document.activeElement, loadButton());
         });

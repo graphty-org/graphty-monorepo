@@ -274,19 +274,6 @@ describe("CompactColorInput", () => {
             expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color opacity" }));
         });
 
-        it("lets a click on its label put focus in the hex box, as any field's label does", async () => {
-            render(
-                <TestWrapper>
-                    <CompactColorInput defaultColor="#FF0000" label="Background color" showOpacity={false} />
-                </TestWrapper>,
-            );
-            const box = screen.getByRole("textbox", { name: /^Background color, / });
-            await userEvent.click(screen.getByText("Background color"));
-            expect(box).toHaveFocus();
-            // The label is the hex box's, and its words start the box's own name.
-            expect(screen.getByText("Background color").tagName).toBe("LABEL");
-        });
-
         it("renders no group when there is no label to name it with", () => {
             render(
                 <TestWrapper>

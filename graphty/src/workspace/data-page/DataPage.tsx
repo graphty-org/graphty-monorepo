@@ -1041,24 +1041,6 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
             {table.columns.map((column) => {
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
-                const type = (
-                    <Text size="xs" c="dimmed">
-                        {TYPE_WORDS[column.type] ?? column.type}
-                    </Text>
-                );
-                if (table.fixed) {
-                    // The file sets every role: each is a value to read, never a box that looks empty.
-                    return (
-                        <div key={column.name} className="dp-role">
-                            <Input.Wrapper labelElement="div" label={column.name} size="xs">
-                                <Text size="sm">
-                                    {options.find((option) => option.value === (own ?? "auto"))?.label}
-                                </Text>
-                            </Input.Wrapper>
-                            {type}
-                        </div>
-                    );
-                }
                 return (
                     <div key={column.name} className="dp-role">
                         <StyleSelect
@@ -1067,12 +1049,16 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             value={chosen}
                             defaultValue={own ?? "auto"}
                             options={options}
+                            disabled={table.fixed}
+                            disabledReason={table.fixed ? "Set by the file." : undefined}
                             onChange={(value) => {
                                 const role = value === undefined || value === "auto" ? undefined : (value as PageRole);
                                 page.setChoices(setRole(draft, table, column.name, role, page.choices));
                             }}
                         />
-                        {type}
+                        <Text size="xs" c="dimmed">
+                            {TYPE_WORDS[column.type] ?? column.type}
+                        </Text>
                     </div>
                 );
             })}

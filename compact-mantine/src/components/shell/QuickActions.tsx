@@ -365,14 +365,14 @@ export function QuickActions({
                 role="listbox"
                 aria-label={name}
             >
-                {sections.map(([section, list], place) => (
+                {sections.map(([section, list]) => (
                     <div className="cm-qa-group" role="group" aria-label={section || undefined} key={section}>
                         {section ? (
-                            <div className="cm-qa-group-title" id={`${id}-section-${String(place)}`} aria-hidden="true">
+                            <div className="cm-qa-group-title" aria-hidden="true">
                                 {section}
                             </div>
                         ) : null}
-                        {list.map((action, at) => (
+                        {list.map((action) => (
                             <div
                                 key={action.value}
                                 id={optionId(action.value)}
@@ -385,18 +385,10 @@ export function QuickActions({
                                 // "degree, 1 to 36". A second line below stays its description.
                                 // Never the two halves of a middle cut, which accname would join with a space.
                                 aria-label={action["aria-label"] ?? nameOf(action)}
-                                // The highlighted row is all a screen reader reads from the search
-                                // field, never the group around it: a section's first row also
-                                // says its heading, so arrowing into "Does not fit" is heard.
                                 aria-describedby={
-                                    [
-                                        section && at === 0 ? `${id}-section-${String(place)}` : undefined,
-                                        action.description && !inName(action)
-                                            ? `${optionId(action.value)}-description`
-                                            : undefined,
-                                    ]
-                                        .filter((ref) => ref !== undefined)
-                                        .join(" ") || undefined
+                                    action.description && !inName(action)
+                                        ? `${optionId(action.value)}-description`
+                                        : undefined
                                 }
                                 title={truncate === "middle" ? action.label : undefined}
                                 // A reason a row cannot run goes under its name whole, never cut at the line's end.

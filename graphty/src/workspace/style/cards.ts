@@ -16,7 +16,7 @@ import {
     selectorRule,
 } from "@graphty/graphty-element/session";
 
-import { edgeName, ID_NAME } from "../inspector/words";
+import { edgeName } from "../inspector/words";
 import { countName, readableName, valueFact, valueName } from "./words";
 
 /** What a layer's rule picks, as graphty-element's layer holds it. */
@@ -115,7 +115,7 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
     return (
         session.data
             .readableValues()
-            // A data column that only spells each node's id is the node id, listed once as Id.
+            // A data column that only spells each node's id is the node id, listed once as Node id.
             .filter((value) => value.on === side && value.end === undefined && value.holdsNodeIds !== true)
             .map((value) => fieldOf(session, value))
     );
@@ -129,7 +129,7 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
  */
 function fieldOf(session: GraphSession, value: ReadableValue): CardField {
     if (value.path === "id") {
-        return { path: "id", on: value.on, kind: "name", name: ID_NAME, group: "Structure" };
+        return { path: "id", on: value.on, kind: "name", name: "Node id", group: "Structure" };
     }
     const groups: Record<ReadableValue["from"], FieldGroup> = { element: "Structure", data: "Data", run: "Results" };
     return {

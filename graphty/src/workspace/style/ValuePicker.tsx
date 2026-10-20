@@ -4,7 +4,6 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
 import { GLYPHS, VALUE_GLYPHS } from "../glyphs";
-import { ID_NAME } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataChoice, propose, type Target } from "./row";
 import { useStyleVersion } from "./useStyleVersion";
@@ -92,7 +91,7 @@ interface Entry {
  * Everything the picker offers, in the element's order (`data.readableValues`): the data's
  * columns, then each finished run's fields under the run's name, named as the rule editor names
  * them (`readableName`). The node id is left out: it drives no property. A data column that only
- * spells each node's id is listed last, as "Id" under Structure, as Add a condition lists it.
+ * spells each node's id is listed last, as "Node id" under Structure, as Add a condition lists it.
  * Without `ranks`, a run's rank and percentile are left out too.
  * @param session - the element's session.
  * @param target - nodes or edges.
@@ -126,7 +125,7 @@ function entriesOf(session: GraphSession, target: Target, inUse: readonly string
         }
         const Glyph = VALUE_GLYPHS[value.kind];
         const { name, group } =
-            value.holdsNodeIds === true ? { name: ID_NAME, group: "Structure" } : readableName(session, value);
+            value.holdsNodeIds === true ? { name: "Node id", group: "Structure" } : readableName(session, value);
         (value.holdsNodeIds === true ? ids : entries).push({
             key: value.path,
             name,

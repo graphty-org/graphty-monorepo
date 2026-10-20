@@ -356,7 +356,7 @@ describe("bulk editing a run's folder of group layers, after the first pilot", (
             groups.length <= 6 ? groups.length : 5,
         );
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color:/ }));
+        await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
         assert.isNotNull(
             await within(fill).findByRole("button", { name: /^Pick node color/ }),
             "a swatch to pick from",

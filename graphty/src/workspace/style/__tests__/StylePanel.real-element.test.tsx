@@ -497,11 +497,6 @@ describe("the Style tab's rows on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        // The binding's Combine box is named by its label and says its value (WCAG 2.5.3).
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node size: / }));
-        const binding = await screen.findByRole("group", { name: "Size binding" });
-        within(binding).getByRole("combobox", { name: /^Combine, .*Replace/ });
-        await userEvent.keyboard("{Escape}");
         await userEvent.click(within(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }));
         await waitFor(() => {
             const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
@@ -516,12 +511,12 @@ describe("the Style tab's rows on the real element", () => {
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         await varyBy("Node color", "code");
-        // The way back to one color is the field's own button; its tooltip and its name say the same words.
-        await userEvent.hover(within(styleTab()).getByRole("button", { name: /^Stop varying node color by data/ }));
+        // The way back to one color is the field's own button, and its tooltip says so.
+        await userEvent.hover(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
             assert.include(
                 screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
-                "Stop varying node color by data: use one color for all",
+                "Stop varying by data: use one color for all",
             );
         });
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
@@ -538,7 +533,7 @@ describe("the Style tab's rows on the real element", () => {
         });
         assert.isNull(within(popover).queryByRole("button", { name: /^Use one color/ }), "not in the popover");
         await userEvent.keyboard("{Escape}");
-        await userEvent.click(within(styleTab()).getByRole("button", { name: /^Stop varying node color by data/ }));
+        await userEvent.click(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
             assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
             assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");

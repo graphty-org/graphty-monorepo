@@ -166,7 +166,7 @@ describe("vary by data on several layers", () => {
         within(fill).getByRole("button", { name: /^Node color: from each layer, 2 layers/ });
         // "One value for all" (the field's detach), then a typed Fill writes to both.
         await userEvent.hover(fill);
-        await userEvent.click(within(fill).getByRole("button", { name: /^Give all 2 layers one node color:/ }));
+        await userEvent.click(within(fill).getByRole("button", { name: "Give all 2 layers one node color" }));
         await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
         await userEvent.keyboard("009E73{Enter}");
         await waitFor(() => {

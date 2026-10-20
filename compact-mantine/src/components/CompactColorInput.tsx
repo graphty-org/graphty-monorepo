@@ -325,7 +325,6 @@ export function CompactColorInput({
     // What names the controls: the drawn label, else the undrawn name.
     const name = label ?? ariaLabel;
     const labelId = useId();
-    const hexId = useId();
 
     // Plain inputs, so every control takes aria-describedby directly.
     const annotation = useControlAnnotation({ name: label, disabled, disabledReason });
@@ -631,7 +630,6 @@ export function CompactColorInput({
 
                 <input
                     ref={hexRef}
-                    id={hexId}
                     className="cm-paint-input cm-paint-hex"
                     type="text"
                     autoComplete="off"
@@ -779,11 +777,9 @@ export function CompactColorInput({
             aria-labelledby={labelId}
             title={annotation.title}
         >
-            {/* A label for the hex box, as any field's: a click on it puts focus in the box. The
-                box keeps its own fuller name, which starts with these words. */}
-            <label id={labelId} htmlFor={hexId} data-testid="compact-color-input-label" className="cm-paint-label">
+            <div id={labelId} data-testid="compact-color-input-label" className="cm-paint-label">
                 {label}
-            </label>
+            </div>
             {controls}
         </div>
     );

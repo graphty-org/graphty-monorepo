@@ -190,7 +190,7 @@ describe("one line per property", () => {
         assert.equal(pill?.getBoundingClientRect().width, before, "open, the pill keeps its width");
         await userEvent.keyboard("{Escape}");
 
-        await userEvent.click(within(line).getByRole("button", { name: /^Stop varying node color by data/ }));
+        await userEvent.click(within(line).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
             const fixed = field(screen.getByTestId("style-tab"), "node.color");
             assert.isFalse(fixed.hasAttribute("data-bound"), "one value now");

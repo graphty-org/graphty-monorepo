@@ -386,7 +386,7 @@ describe("focus after a style line is written or removed", () => {
         });
         await session.styles.settled();
         await openStyle("Paint");
-        await userEvent.click(await screen.findByRole("button", { name: /^Stop varying node color by data/ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
             assert.lengthOf(written(session, "node.color"), 1, "one color again");
         });

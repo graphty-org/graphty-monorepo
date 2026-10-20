@@ -137,7 +137,7 @@ export function SampleItems(): React.JSX.Element {
                         leftSection={
                             <GLYPHS.check size={14} aria-hidden style={{ visibility: open ? "visible" : "hidden" }} />
                         }
-                        rightSection={open ? "Already open" : sample.size}
+                        rightSection={open ? "Open now" : sample.size}
                         aria-current={open ? "true" : undefined}
                         onClick={() => {
                             workspace.run(sampleCommandId(sample));

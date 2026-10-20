@@ -1511,8 +1511,6 @@ export function CardBody({
             return (
                 <MatchSelect
                     name={card.field.name}
-                    // A yes-or-no card's select holds the value itself: named by the column alone.
-                    spoken={card.field.name}
                     value={card.match}
                     data={[{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, ...PRESENCE]}
                     onChange={(match) => {
@@ -1564,7 +1562,6 @@ function fixedText(leaf: RuleTree): string {
  * A card's Match select.
  * @param props - Component props
  * @param props.name - the field's name
- * @param props.spoken - its accessible name, when not "<name>: how to match"
  * @param props.value - the chosen value
  * @param props.data - the choices
  * @param props.onChange - takes the card as edited
@@ -1572,13 +1569,11 @@ function fixedText(leaf: RuleTree): string {
  */
 function MatchSelect({
     name,
-    spoken = `${name}: how to match`,
     value,
     data,
     onChange,
 }: Readonly<{
     name: string;
-    spoken?: string;
     value: string;
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
@@ -1598,7 +1593,7 @@ function MatchSelect({
             ref={input}
             size="xs"
             // Named for what it chooses beside the card's column; the select says its own value.
-            aria-label={spoken}
+            aria-label={`${name}: how to match`}
             allowDeselect={false}
             data={[...data]}
             value={value}

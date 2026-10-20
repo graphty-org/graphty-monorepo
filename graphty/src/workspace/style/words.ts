@@ -25,7 +25,7 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
-import { formatNumber, ID_NAME } from "../inspector/words";
+import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
 
 /** Where a label sits, as the element names it. */
@@ -603,7 +603,7 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
  */
 export function attributeName(session: GraphSession, path: string): string {
     if (path === "id") {
-        return ID_NAME;
+        return "Node id";
     }
     return session.data.attributes().find((a) => a.path === path)?.plainName ?? path;
 }

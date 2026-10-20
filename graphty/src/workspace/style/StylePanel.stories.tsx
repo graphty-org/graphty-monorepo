@@ -315,7 +315,7 @@ export const BulkReceipt: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.hover(fill);
-    await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color:/ }));
+    await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
     await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
     await userEvent.keyboard("0072B2{Enter}");
     await waitFor(() => {

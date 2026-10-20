@@ -761,14 +761,12 @@ export function Field({
         // A bound field's Stop varying sits where its vary glyph sat (Figma's detach on a variable
         // field). It is the one way back to a single value, so its words say what it does.
         const one = descriptor.accepts === "color" ? "one color" : "one value";
-        // The tooltip and the name say the same words.
-        const stopName = `Stop varying ${name.toLowerCase()} by data: use ${one} for all`;
         varySlot = (
-            <Tooltip label={stopName}>
+            <Tooltip label={`Stop varying by data: use ${one} for all`}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"
-                    aria-label={stopName}
+                    aria-label={`Stop varying ${name.toLowerCase()} by data`}
                     onClick={() => {
                         // A property set for a few groups goes back to the one value the rest have.
                         const value = own.binding?.otherwise ?? startingValue(descriptor, session, own.layer.selector);
@@ -788,9 +786,9 @@ export function Field({
         // Several layers each on its own value: the same detach, giving them all the top one's.
         const { value } = spread[0];
         const words = valueWords(descriptor, value);
-        const oneName = `Give all ${String(reached)} layers one ${name.toLowerCase()}: ${words}`;
+        const oneName = `Give all ${String(reached)} layers one ${name.toLowerCase()}`;
         varySlot = (
-            <Tooltip label={oneName}>
+            <Tooltip label={`One value for all: use ${words} for all ${String(reached)} layers`}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"

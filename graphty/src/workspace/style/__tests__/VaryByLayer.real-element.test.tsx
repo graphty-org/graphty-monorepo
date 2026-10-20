@@ -619,7 +619,7 @@ describe("vary by layer", () => {
         await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
         const byLayer = await screen.findByRole("dialog", { name: "Color from each layer" });
         await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^Id\b/ }));
+        await userEvent.click(await screen.findByRole("option", { name: /^Node id\b/ }));
         const popover = await screen.findByRole("dialog", { name: /^Color by / });
         await within(popover).findByRole("grid", { name: /groups$/ });
         assert.isNull(within(fill).queryByRole("group", { name: /in each layer/ }), "no per-layer preview");

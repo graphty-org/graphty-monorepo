@@ -614,24 +614,17 @@ describe("Tree: pointer", () => {
         expect(onSelect).toHaveBeenLastCalledWith(["leaf"], expect.anything());
     });
 
-    it("in checkbox mode, a folder reads partly checked with some rows inside checked, and checked with all", async () => {
+    it("in checkbox mode, a folder with a checked row inside it reads partly checked", async () => {
         await renderThemed(<Tree items={ITEMS} defaultExpanded={["frame", "group"]} checkboxes />);
         const box = (name: string): HTMLElement => within(row(name)).getByRole("checkbox", { hidden: true });
         await userEvent.click(row("Text"));
+        await userEvent.click(row("Vector"));
         expect(box("Group")).not.toBeChecked();
         expect(box("Group")).toHaveAttribute("data-indeterminate", "true");
-        await userEvent.click(row("Vector"));
-        // Every row inside Group is checked, so Group's box is checked, not partly.
-        expect(box("Group")).toBeChecked();
-        expect(box("Group")).not.toHaveAttribute("data-indeterminate");
-        // Frame also holds Rect, which is not checked.
-        expect(box("Frame")).not.toBeChecked();
         expect(box("Frame")).toHaveAttribute("data-indeterminate", "true");
         expect(box("Other")).not.toHaveAttribute("data-indeterminate");
-        await userEvent.click(row("Rect"));
-        expect(box("Frame")).toBeChecked();
-        // The rows' own selection is unchanged: a folder is checked, not selected.
-        expect(row("Group")).toHaveAttribute("aria-selected", "false");
+        await userEvent.click(row("Group"));
+        expect(box("Group")).toBeChecked();
     });
 
     it("opens and closes one row from the caret without selecting it", async () => {

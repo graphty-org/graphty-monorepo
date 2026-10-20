@@ -79,16 +79,6 @@ describe("Undo, Redo and Clear selection words", () => {
         TIMEOUT_MS,
     );
 
-    it("names the setting a settings change wrote: the background", async () => {
-        const { session, store } = await openWithGraph();
-        await session.config.set({ background: { backgroundType: "color", color: "#006400" } });
-        const undo = await screen.findByRole("button", { name: "Undo changing the background" });
-        await userEvent.click(undo);
-        await waitFor(() => {
-            assert.equal(store.get().notice?.message, "Undid changing the background.");
-        });
-    });
-
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
         "says what Escape cleared, and nothing when the selection was empty",

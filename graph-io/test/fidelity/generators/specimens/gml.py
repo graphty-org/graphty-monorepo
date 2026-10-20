@@ -27,8 +27,11 @@ the label, so every node would show its setting id.) Anchors are `anchor-*`, cap
 specimen's end nodes `<edge id>-s` and `<edge id>-t`.
 
 Oracles: a graphlet sheet (the GML draft's own keys) is drawn by OGDF (oracles/tools/ogdf.mjs, route ogdf-draw: the
-sheet as written, read by GraphIO::readGML and drawn by GraphIO::drawSVG), except edges-lines, whose draft Line holding
-only its two end points crashes OGDF's reader, so gml2gv still stands in for it. No program that writes yEd's GML can
+sheet as written, read by GraphIO::readGML and drawn by GraphIO::drawSVG; a Line holding only an edge's two end points,
+which crashes OGDF's reader, is dropped from the copy OGDF reads, the draft's straight edge either way). OGDF draws only
+part of the draft's keys, so each graphlet sheet is also drawn by the two stand-ins (standIns: Cytoscape desktop's GML
+reader and gml2gv | neato -n2, into oracles/stand-ins/), and specimens/gml/judges.json says which of them, or the
+draft itself, judges each property of each setting. No program that writes yEd's GML can
 be automated here (yEd's license forbids it), so a yed sheet's oracle is a stand-in, drawn by the reader that reads
 its keys: Cytoscape desktop's GML reader (fills, borders, shapes, sizes, arrows, groups) or Graphviz's gml2gv |
 neato -n2 (labels, lines, bends, edge labels). The cytoscape sheets are Cytoscape's own dialect, which Cytoscape
@@ -190,6 +193,8 @@ class Sheet:
         if flavor not in CREATOR:
             raise SystemExit(f"{sid}: unknown flavor {flavor}")
         self.id, self.about, self.flavor, self.route = sid, about, flavor, route
+        # a sheet of the draft's keys is drawn by both stand-ins too: OGDF draws only part of them (judges.json)
+        self.stand_ins = [CY, GV] if route == OGD else []
         self.directed, self.columns = directed, columns
         px = {CY: CY_LABEL_PX, OG: OG_LABEL_PX, OGD: OG_LABEL_PX, GE: GE_LABEL_PX}
         self.cap_px = cap_px or px.get(route, GV_LABEL_PX)
@@ -581,7 +586,7 @@ def labels():
 
 def edges_lines():
     s = Sheet("specimen-edges-lines", "edge fill, width, Line bends, loops, parallels, smooth, stipple (GML draft and "
-                                      "Tk)", "graphlet", GV)
+                                      "Tk)", "graphlet", OGD)
     s.edge("default", "(nothing set)")
     for c, tag in [("#FF0000", "#rrggbb"), ("blue", "name")]:
         s.edge(f"fill-{slug(c)}", f"fill={c}", {"fill": c}, tags=[f"edge.graphics.fill:{tag}"])
@@ -1107,13 +1112,15 @@ def main():
         if len(s.items) > LAYOUT["maxSpecimens"]:
             raise SystemExit(f"{s.id}: {len(s.items)} specimens")
     routes = {s.id: {"route": s.route, "flavor": s.flavor, "directed": s.directed, "specimens": len(s.items),
-                     "about": s.about} for s in SHEETS}
+                     "about": s.about, **({"standIns": s.stand_ins} if getattr(s, "stand_ins", None) else {})} for s in SHEETS}
     with open(os.path.join(OUT, "oracle-routes.json"), "w", encoding="ascii", newline="\n") as f:
         json.dump({"about": "Which program draws each GML sheet's oracle (written by "
                             f"{GENERATOR}): cytoscape-gml (Cytoscape desktop's GML reader), gml2gv "
                             "(gml2gv | neato -n2), ogdf (OGDF's own GraphIO::drawSVG of its own GraphIO::writeGML of the sheet), "
                             "ogdf-draw (OGDF's GraphIO::readGML and GraphIO::drawSVG of the sheet as written), gephi (Gephi's own Preview) or graphviz (Graphviz's "
-                            "own drawing of the DOT file its gv2gml converted to the sheet).", "sheets": routes}, f,
+                            "own drawing of the DOT file its gv2gml converted to the sheet). standIns: the programs that also draw the "
+                            "sheet into oracles/stand-ins/, for the settings its oracle does not draw (judges.json).",
+                   "sheets": routes}, f,
                   indent=2)
         f.write("\n")
     total = sum(len(s.items) for s in SHEETS)

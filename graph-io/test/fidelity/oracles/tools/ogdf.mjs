@@ -5,7 +5,11 @@
 //   route "ogdf"       a sheet written in OGDF's dialect: read and written again by OGDF's GraphIO::readGML /
 //                      writeGML, so the committed sheet is OGDF's own writing, then drawn by GraphIO::drawSVG
 //   route "ogdf-draw"  a sheet of the GML draft's own keys (plain GML, no Creator): read as written by
-//                      GraphIO::readGML and drawn by GraphIO::drawSVG, OGDF's reading of the draft
+//                      GraphIO::readGML and drawn by GraphIO::drawSVG, OGDF's reading of the draft. One change is
+//                      made to the copy OGDF reads, recorded in the oracle.json: a Line holding only two points (the
+//                      draft's straight edge, its two end points) is left out, which the draft says means the same
+//                      straight line (A.4, Line, note 1); OGDF's reader crashes on such a Line (GmlParser pops the
+//                      end points, then reads the back of the empty list)
 //
 //   node ogdf.mjs [sample-id ...]      (no ids: every sheet whose route is ogdf or ogdf-draw)
 //
@@ -15,7 +19,8 @@
 // Then run rasterize.mjs on the written SVGs for the PNGs.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import console from "node:console";
@@ -101,7 +106,18 @@ for (const [sheet, r] of Object.entries(routes)) {
         execFileSync("mv", [`${file}.tmp`, file]);
     }
     const svg = join(oracles, `${id}.svg`);
-    execFileSync(bin, ["draw", file, svg, String(margin), `${width}px`, `${height}px`, font]);
+    // a Line of two points alone (the draft's straight edge) left out of the copy OGDF reads: OGDF crashes on it
+    const twoPointLine = /\n(\t+)Line\n\1\[\n(\1\tpoint\n\1\t\[\n[^\]]*\]\n){2}\1\]\n/g;
+    const text = readFileSync(file, "utf8");
+    const dropped = own ? 0 : (text.match(twoPointLine) ?? []).length;
+    const work = mkdtempSync(join(tmpdir(), "ogdf-draw-"));
+    const read = dropped === 0 ? file : join(work, `${sheet}.gml`);
+    if (dropped > 0) writeFileSync(read, text.replace(twoPointLine, "\n"));
+    try {
+        execFileSync(bin, ["draw", read, svg, String(margin), `${width}px`, `${height}px`, font]);
+    } finally {
+        rmSync(work, { recursive: true, force: true });
+    }
     const meta = {
         sample: id,
         file: relative(repo, file),
@@ -126,6 +142,14 @@ for (const [sheet, r] of Object.entries(routes)) {
               "GML) lists it key by key.",
         canvas: { widthPx: width, heightPx: height },
         fonts: `OGDF's default font family "${font}" is written into the SVG; rasterize.mjs draws it with visual-fonts/ (Liberation Sans, Arial's metric twin)`,
+        ...(dropped > 0
+            ? {
+                  preprocessing:
+                      `${dropped} Line holding only its edge's two end points left out of the copy OGDF reads (the ` +
+                      "draft's straight edge, which the draft says an omitted Line also means: A.4, Line, note 1); " +
+                      "OGDF's reader crashes on it",
+              }
+            : {}),
         svgPostprocessing: "none: the SVG is OGDF's output byte for byte",
         date: new Date().toISOString().slice(0, 10),
         regenerate: `node ${relative(repo, fileURLToPath(import.meta.url))} ${id} && node ${relative(repo, join(here, "rasterize.mjs"))} ${relative(repo, svg)}`,

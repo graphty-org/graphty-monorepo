@@ -183,7 +183,8 @@ describe("GraphML styles: yEd", () => {
             "inside-bottom-left",
             "center",
         ]);
-        // inside, the label is as far from the sides it is against as its stored box says; a header band says nothing
+        // inside, the label is as far from the sides it is against as its stored box says; a header band says
+        // nothing; below the node, 4 from it
         expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)).toEqual([
             null,
             null,
@@ -193,15 +194,67 @@ describe("GraphML styles: yEd", () => {
             2,
             null,
         ]);
-        expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([
+        expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
+    });
+
+    it("keeps an outside label's distance from its node and a free label's offset, from the stored box", async () => {
+        // a 40 x 26 node and a 22.6 x 17 label, as yEd writes them on the labels-p2 specimen sheet
+        const node = (id: string, label: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="26" width="40" x="0" y="0"/>` +
+            `<y:NodeLabel width="22.6" height="17" ${label}>${id}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("sides-s", 'modelName="sides" modelPosition="s" x="8.7" y="30"'),
+            node("sides-w", 'modelName="sides" modelPosition="w" x="-26.6" y="4.5"'),
+            node("corners-se", 'modelName="corners" modelPosition="se" x="44" y="30"'),
+            node("sandwich-n", 'modelName="sandwich" modelPosition="n" x="8.7" y="-21"'),
+            node("free-above", 'modelName="free" modelPosition="anywhere" x="30" y="-18"'),
+            node("free-over", 'modelName="free" modelPosition="anywhere" x="12" y="2"'),
+            node("internal-c", 'modelName="internal" modelPosition="c" x="8.7" y="4.5"'),
+            node("turned-s", 'modelName="sides" modelPosition="s" x="8.7" y="30" rotationAngle="90"'),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual([
+            "bottom",
+            "left",
+            "bottom-right",
+            "top",
+            "top",
+            "center",
+            "center",
+            "bottom",
+        ]);
+        // yEd's 4-point distance across the side, the box's middle along it (a free label's offset on both axes)
+        expect(resolveStyles(styles, "node", "labelOffsetX", snapshot)).toEqual([
             null,
+            -4,
+            4,
             null,
+            21.3,
+            3.3,
             null,
-            null,
-            null,
-            -2,
             null,
         ]);
+        expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([4, null, 4, -4, -1, -2.5, null, null]);
+    });
+
+    it("turns node and edge labels by yEd's rotationAngle, clockwise on screen", async () => {
+        const doc = [
+            YED_HEAD,
+            '<node id="a"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>' +
+                '<y:NodeLabel rotationAngle="90.0">a</y:NodeLabel></y:ShapeNode></data></node>',
+            '<node id="b"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="100" y="0"/>' +
+                '<y:NodeLabel rotationAngle="-90">b</y:NodeLabel></y:ShapeNode></data></node>',
+            '<node id="c"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="200" y="0"/>' +
+                '<y:NodeLabel rotationAngle="0.0">c</y:NodeLabel></y:ShapeNode></data></node>',
+            '<edge id="e" source="a" target="b"><data key="d10"><y:PolyLineEdge>' +
+                '<y:EdgeLabel rotationAngle="45.0">e</y:EdgeLabel></y:PolyLineEdge></data></edge>',
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelRotation", snapshot)).toEqual([90, 270, null]);
+        expect(resolveStyles(styles, "edge", "labelRotation", snapshot)).toEqual([45]);
     });
 
     it("finds the positions of UML class nodes and of yFiles 3 NodeGeometry", async () => {

@@ -22,7 +22,7 @@ import {
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber } from "../../styles/canon/number.js";
+import { canonNumber, canonSigned } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -553,11 +553,70 @@ function readLabelLook(label: unknown, node: boolean, put: PutValue, at: SiteOf,
             put("labelItalic", known[1]);
         }
     }
+    readRotation(label, put, at);
     if (node) {
         const position = nodeLabelPosition(label, geometry, at);
         put("labelPosition", position);
         readInsideInset(label, geometry, position, put);
+        readOutsideOffset(label, geometry, position, put);
     }
+}
+
+/**
+ * Reads a label's `rotationAngle`: yEd is a Java2D program, whose angles turn clockwise on screen (y down), as the
+ * neutral `labelRotation` does.
+ * @param label - the label element
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readRotation(label: unknown, put: PutValue, at: SiteOf): void {
+    const angle = canonSigned(treeAttr(label, "rotationAngle"), at("labelRotation"));
+    if (angle === null) {
+        return;
+    }
+    const turn = ((angle % 360) + 360) % 360;
+    put("labelRotation", turn === 0 ? null : turn);
+}
+
+/**
+ * How far from where its position puts it a label outside its node, or placed freely, is drawn: yEd writes every
+ * label's box as it draws it, so an outside label keeps its model's distance from the node (4 by default) and a
+ * free label its offset. Across the side it is beside, the label is moved by the gap between the node and its box;
+ * along that side (and on both axes for a free label over the node), by how far its box's middle is from the node's.
+ * A turned label's box is not its words' box, so it is left where its position puts it.
+ * @param label - the label element
+ * @param geometry - the node's `y:Geometry`
+ * @param position - where the label is placed
+ * @param put - receives the values
+ */
+function readOutsideOffset(label: unknown, geometry: unknown, position: string | null, put: PutValue): void {
+    const model = treeAttr(label, "modelName");
+    const free = position === "center" && model !== undefined && model !== "internal";
+    if (position === null || position.startsWith("inside-") || (position === "center" && !free)) {
+        return;
+    }
+    if (Number(treeAttr(label, "rotationAngle") ?? 0) % 360 !== 0) {
+        return;
+    }
+    const num = (o: unknown, k: string): number => Number(treeAttr(o, k) ?? Number.NaN);
+    const [x, y, w, h] = ["x", "y", "width", "height"].map((k) => num(label, k));
+    const [nw, nh] = [num(geometry, "width"), num(geometry, "height")];
+    if (![x, y, w, h, nw, nh].every(Number.isFinite)) {
+        return;
+    }
+    const signed = (value: number): number | null => {
+        const r = Math.round(value * 1000) / 1000;
+        return r === 0 ? null : r;
+    };
+    // across a side: the gap between the node and the box; along it: the box's middle against the node's
+    const offset = (lo: number, size: number, extent: number, before: boolean, after: boolean): number | null => {
+        if (before) {
+            return signed(lo + size);
+        }
+        return after ? signed(lo - extent) : signed(lo + size / 2 - extent / 2);
+    };
+    put("labelOffsetX", offset(x, w, nw, position.includes("left"), position.includes("right")));
+    put("labelOffsetY", offset(y, h, nh, position.includes("top"), position.includes("bottom")));
 }
 
 /**

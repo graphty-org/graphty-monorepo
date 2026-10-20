@@ -71,6 +71,10 @@ const EDGES = [
 const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> = {
     "edge.fanSpacing": { "edge.curvature": true },
     "edge.fanned": { "edge.curvature": true },
+    // An arc radius bends only a curved edge that does not fan out of its bundle, and a bend curve only a
+    // curved edge that has a bend to curve through: the table's own caveats say each ignores a straight edge.
+    "edge.arcRadius": { "edge.curvature": true, "edge.fanned": false },
+    "edge.bendCurve": { "edge.curvature": true, "edge.bends": "0.5,0.5" },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
     "node.gradientKind": { "node.gradientColor": "#00ff00" },

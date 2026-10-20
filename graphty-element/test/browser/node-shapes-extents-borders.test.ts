@@ -151,6 +151,18 @@ function rightmostCrossing(outline: readonly Point2[]): number {
     return crossing;
 }
 
+/**
+ * How wide an outline is at its widest, across or up.
+ * @param outline - The outline.
+ * @returns The larger of its width and height.
+ */
+function outlineWidth(outline: readonly Point2[]): number {
+    const xs = outline.map(([x]) => x);
+    const ys = outline.map(([, y]) => y);
+
+    return Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+}
+
 /** The frame as RGBA bytes, its size, and how many device pixels a CSS pixel is. */
 interface Frame {
     data: Uint8Array;
@@ -240,7 +252,11 @@ describe.each(["2d", "3d"] as const)("flat node shapes in %s (#2318)", (viewMode
 
         for (const shape of FLAT_NODE_SHAPES) {
             const { x, y, z } = sizeOf(meshOf(element, shape));
-            assert.approximately(Math.max(x, y), NODE_EXTENT_PER_SIZE, 1e-6, `${shape} is one node wide`);
+            // a rounded polygon keeps inside its sharp twin's box, as Cytoscape.js draws it, so it is
+            // as wide as its own outline: test/meshes/node-shape-geometry.test.ts holds it to that box
+            const outline = flatShapeOutline(shape, NODE_EXTENT_PER_SIZE, NODE_EXTENT_PER_SIZE);
+            const wide = /^round-(?!rectangle)/.test(shape) ? outlineWidth(outline) : NODE_EXTENT_PER_SIZE;
+            assert.approximately(Math.max(x, y), wide, 1e-6, `${shape} is one node wide`);
 
             assert.isBelow(z, 0.1, `${shape} is drawn flat in ${viewMode}`);
 
@@ -458,8 +474,11 @@ describe("one extent for every shape (#2495)", () => {
         const rasterised = new Map<string, number>();
 
         // a rounded polygon keeps inside its sharp twin's box, as Cytoscape.js draws it, so it is
-        // smaller across than the rest: test/meshes/node-shape-geometry.test.ts holds it to that box
-        for (const shape of NodeShapes.options.filter((name) => !/^round-(?!rectangle)/.test(name))) {
+        // smaller across than the rest: test/meshes/node-shape-geometry.test.ts holds it to that box.
+        // "none" is Pajek's bodiless vertex, which draws only its label: it has no pixels to count.
+        for (const shape of NodeShapes.options.filter(
+            (name) => !/^round-(?!rectangle)/.test(name) && name !== "none",
+        )) {
             const layer = await element.session.styles.add(layerFor(["probe"], { "node.shape": shape }));
             await operationQueueOf(element.graph).waitForCompletion();
             const red = pixelsOf(await frameOf(element), isTouchedByRed);

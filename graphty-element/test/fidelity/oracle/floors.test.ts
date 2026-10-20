@@ -37,12 +37,15 @@ describe("oracle floors", () => {
         );
     });
 
-    it("lets a property at a floor of 0 go unjudged, and fails one above 0 that is no longer judged", () => {
+    it("lets a property at a floor of 0, or a stray property, go unjudged, and fails another that is no longer judged", () => {
         const stored = empty();
         stored.floors.s = { "node.fill": 0.5, "stray.present": 0 };
         const check = checkScored("s", scored(0.5, {}), false, stored, "2026-10-18");
         assert.deepEqual(check.dropped, []);
-        stored.floors.s["stray.present"] = 0.2;
+        // a stray property with no stray left to judge is at its best, whatever its floor
+        stored.floors.s["stray.present"] = 0.9;
+        assert.deepEqual(checkScored("s", scored(0.5, {}), false, stored, "2026-10-18").dropped, []);
+        stored.floors.s["edge.label"] = 0.2;
         assert.lengthOf(checkScored("s", scored(0.5, {}), false, stored, "2026-10-18").dropped, 1);
     });
 

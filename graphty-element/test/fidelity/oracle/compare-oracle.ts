@@ -1935,6 +1935,9 @@ export function compareOracle(
         ...graphty.groups.map((g) => g.label),
         ...graphty.texts,
     ].flatMap((t) => (t === null || t.content === "" ? [] : [{ words: norm(t.content), box: toO(t.box) }]));
+    // what the program drew off its canvas is drawn nowhere a reader sees (vis-network's edge label in a text font,
+    // drawn beyond the canvas's right edge)
+    const onCanvas = (b: PBox): boolean => b.x1 >= 0 && b.y1 >= 0 && b.x0 <= oracle.width && b.y0 <= oracle.height;
     const strays = [
         ...oracle.strays.map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
         ...[...oracle.texts, ...annotatedTexts].map((t) => ({
@@ -1944,20 +1947,22 @@ export function compareOracle(
             stroke: null,
             text: t.content,
         })),
-    ].map((s, i) => {
-        const matched =
-            gAnn.some((b) => iou(toBox(b), toBox(s.box)) >= T.strayIoU) ||
-            (s.text !== null && textDrawn(s.text, s.box, gTexts));
-        j.add(
-            "stray.present",
-            "stray",
-            `${s.tag}#${String(i)}`,
-            matched ? 0 : 1,
-            s.text ?? s.fill ?? s.stroke,
-            matched,
-        );
-        return { ...s, matched };
-    });
+    ]
+        .filter((s) => onCanvas(s.box))
+        .map((s, i) => {
+            const matched =
+                gAnn.some((b) => iou(toBox(b), toBox(s.box)) >= T.strayIoU) ||
+                (s.text !== null && textDrawn(s.text, s.box, gTexts));
+            j.add(
+                "stray.present",
+                "stray",
+                `${s.tag}#${String(i)}`,
+                matched ? 0 : 1,
+                s.text ?? s.fill ?? s.stroke,
+                matched,
+            );
+            return { ...s, matched };
+        });
     // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),

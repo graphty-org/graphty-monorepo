@@ -101,9 +101,9 @@ export function checkScored(
         if (rate !== undefined && rate >= floor - EPSILON) {
             return [];
         }
-        // a property no longer judged at a floor of 0 asked for nothing: every element it judged failed, and now there
-        // is none to judge (a sheet whose every oracle shape is now associated has no stray left)
-        if (rate === undefined && floor <= 0) {
+        // a property no longer judged at a floor of 0 asked for nothing; and a stray property with no stray left to
+        // judge is at its best (a sheet whose every oracle shape and text is now associated)
+        if (rate === undefined && (floor <= 0 || p.startsWith("stray."))) {
             return [];
         }
         const drop = stored.allowedDrops[`${key}/${p}`];

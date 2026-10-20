@@ -1360,6 +1360,70 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             arcs.push({ p, piece: edge });
         }
     }
+    // A self-loop a program draws as a whole circle on its node's outline (vis-network's selfReference) is a closed
+    // stroked shape, or a path whose ends meet, with no end on the node: where graphty draws a loop on that node and no line was found for it, the circle
+    // centered off the node that crosses its outline is the loop.
+    const loopsFound = (id: string): number => geoEdges.get(`${id}->${id}`) ?? 0;
+    const loopsWanted = (id: string): number => guide.edges.filter((e) => e.source === id && e.target === id).length;
+    const ringed = (p: Prim): boolean => {
+        const [a, b] = [p.points[0], p.points.at(-1) ?? p.points[0]];
+        // a closed shape, or an open path whose ends meet (an arc drawn all the way round)
+        return p.kind === "shape" ? p.closed : p.kind === "path" && Math.hypot(b[0] - a[0], b[1] - a[1]) < 1;
+    };
+    for (const p of free()) {
+        if (!ringed(p) || p.fill !== null || p.stroke === null || p.corners !== 0 || p.points.length < 5) {
+            continue;
+        }
+        const c: Pt = [cx(p.box), cy(p.box)];
+        const n = nodeList.find(
+            (m) =>
+                guideLoops.has(m.id) &&
+                loopsFound(m.id) < loopsWanted(m.id) &&
+                // centered off the node, on or beyond its outline
+                Math.hypot(c[0] - m.cx, c[1] - m.cy) > 0.4 * Math.min(m.w, m.h) &&
+                Math.hypot(c[0] - m.cx, c[1] - m.cy) <= (Math.max(bw(p.box), bh(p.box)) + Math.max(m.w, m.h)) / 2,
+        );
+        if (n === undefined) {
+            continue;
+        }
+        take(p);
+        // run the circle from its point nearest the node's center round to it again, so the part the node covers is at
+        // both ends of the route, where a route is cut at the node's outline, as a loop leaving and re-entering it
+        const ring = p.points.slice(0, -1);
+        const nearest = ring.reduce(
+            (best, q, i) =>
+                Math.hypot(q[0] - n.cx, q[1] - n.cy) < Math.hypot(ring[best][0] - n.cx, ring[best][1] - n.cy)
+                    ? i
+                    : best,
+            0,
+        );
+        const around = [...ring.slice(nearest), ...ring.slice(0, nearest), ring[nearest]];
+        // and the way round graphty's loop on that node runs: a route is judged point by point along it
+        const wanted = guide.edges.find((e) => e.source === n.id && e.target === n.id);
+        const turn = (pts: readonly Pt[]): number =>
+            Math.sign(
+                pts.reduce(
+                    (sum, [x0, y0], i) => sum + x0 * pts[(i + 1) % pts.length][1] - pts[(i + 1) % pts.length][0] * y0,
+                    0,
+                ),
+            );
+        const route = wanted !== undefined && turn(wanted.points) * turn(around) < 0 ? around.reverse() : around;
+        const key = `${n.id}->${n.id}`;
+        const k = loopsFound(n.id);
+        geoEdges.set(key, k + 1);
+        const edge: PEdge = {
+            id: `${key}#g${String(k)}`,
+            source: n.id,
+            target: n.id,
+            points: route,
+            stroke: p.stroke,
+            arrows: [],
+            label: null,
+        };
+        withPieces.push(edge);
+        drawnAt.set(edge, p.index);
+        edges.push(edge);
+    }
     // A solid line drawn under a narrower one along the same route between the same nodes is that edge's outline
     // (Cytoscape.js's line outline, vis-network's edge background): one edge with a band under its line, not two.
     for (const under of [...edges]) {
@@ -2003,8 +2067,11 @@ export function stackedTexts(texts: readonly Prim[]): Prim[] {
                   const dy = b === null ? 0 : b.y - a.y;
                   return (
                       b !== null &&
-                      // one under another: the same anchor, or (each line centered on its own) the same middle
-                      (Math.abs(b.x - a.x) <= 0.5 * a.sizePx || Math.abs(cx(q.box) - cx(p.box)) <= a.sizePx) &&
+                      // one under another: the same anchor, or (each line centered on its own) the same middle, or
+                      // (lines flush right, vis-network's font.align right) the same right edge
+                      (Math.abs(b.x - a.x) <= 0.5 * a.sizePx ||
+                          Math.abs(cx(q.box) - cx(p.box)) <= a.sizePx ||
+                          Math.abs(q.box.x1 - p.box.x1) <= 0.5 * a.sizePx) &&
                       Math.abs(b.sizePx - a.sizePx) <= 0.1 * a.sizePx &&
                       dy > 0.5 * a.sizePx &&
                       dy <= 1.6 * a.sizePx
@@ -2063,7 +2130,11 @@ function besideTexts(texts: readonly Prim[]): Prim[] {
         let content = first.text?.content ?? "";
         for (let next = beside(first); next !== undefined && run.length < 8 && !run.includes(next);) {
             const last = run[run.length - 1];
-            const apart = next.box.x0 - last.box.x1 > size(last) / 6;
+            // a blank a text keeps at its side (SVG's " x", whose box starts at its blank) is a space too
+            const apart =
+                next.box.x0 - last.box.x1 > size(last) / 6 ||
+                last.text?.blank?.after === true ||
+                next.text?.blank?.before === true;
             content = `${content}${apart ? " " : ""}${next.text?.content ?? ""}`;
             run = [...run, next];
             const box = union(run.map((q) => q.box));

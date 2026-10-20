@@ -132,6 +132,14 @@ class CanvasPathContext extends Context {
         }
     }
     __applyCurrentDefaultPath() { this.__pathHere(); return super.__applyCurrentDefaultPath(); }
+    // A canvas draws every blank of a text it fills or strokes; an SVG <text> collapses blanks at its ends and runs
+    // of them unless its white space is kept, so vis-network's multi-font block " x" (a space, then the word) drew
+    // "x" against the block before it.
+    __applyText(text, x, y, action) {
+        super.__applyText(text, x, y, action);
+        const el = this.__currentElement;
+        if (el && el.nodeName === "text" && /^\\s|\\s$|\\s\\s/.test(String(text))) el.setAttribute("xml:space", "preserve");
+    }
     // A canvas reads a gradient's coordinates in the transform current when it paints; svgcanvas writes
     // them untransformed while it writes every path already transformed. Cytoscape.js builds a node's
     // gradient around the origin after translating to the node, so its gradients landed at (0, 0).
@@ -554,7 +562,7 @@ writeFileSync(svgPath, result.svg);
 
 const metaPath = join(outDir, `${id}.oracle.json`);
 const CONTEXT_NOTE =
-    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
+    "The svgcanvas context is corrected where it departs from a canvas (SVG_CONTEXT in web-oracle.mjs): the current path survives save() and fillText(), a text keeps its blanks (xml:space), a Path2D argument is replayed, gradients and 1-wide or dashed strokes follow the transform, and a text outline is not scaled twice; each was checked against Chromium's own screenshot of the same drawing. A shadow (shadowColor, shadowBlur, shadowOffsetX / Y) is recorded as an feDropShadow filter in device pixels. Not recorded: globalCompositeOperation (a Cytoscape.js double border draws as one ring); a glyph the pinned fonts lack (a vis-network icon) rasterizes as a box where Chromium draws nothing.";
 const svgSha256 = sha(result.svg);
 const old = existsSync(metaPath) ? JSON.parse(readFileSync(metaPath, "utf8")) : null;
 const meta = {

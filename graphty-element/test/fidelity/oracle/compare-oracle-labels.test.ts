@@ -557,6 +557,44 @@ describe("what the association reads as a label's own and a node's own", () => {
         assert.deepEqual(compareOracle("t", o, guide).failures, { "label.background": ["a"] });
     });
 
+    it("reads a whole circle on a node's outline as that node's self-loop where graphty draws one, run as graphty's", () => {
+        const prims = drawing(() => []);
+        // vis-network's loop: an arc drawn all the way round, centered off the node, its ends meeting
+        const ring = [...circle(125, 75, 30), circle(125, 75, 30)[0]];
+        prims.push(prim({ kind: "path", closed: false, points: ring, stroke: stroke("#555555", 1) }));
+        // graphty's loop on a, the other way round
+        const loop = [...circle(125, 75, 30)].reverse();
+        const withLoop: PScene = {
+            ...guide,
+            edges: [
+                {
+                    id: "l",
+                    source: "a",
+                    target: "a",
+                    points: loop,
+                    stroke: stroke("#555555", 1),
+                    arrows: [],
+                    label: null,
+                },
+            ],
+        };
+        const { scene: o } = associate(prims, 600, 400, withLoop);
+        const [e] = o.edges;
+        assert.deepEqual([e?.source, e?.target], ["a", "a"]);
+        assert.lengthOf(o.strays, 0);
+        // the route starts at the circle's point nearest the node's center and turns the way graphty's does
+        const near = (q: Pt): number => Math.hypot(q[0] - 100, q[1] - 100);
+        assert.isAtMost(near(e.points[0]), Math.min(...ring.map(near)) + 1e-9);
+        const turn = (pts: readonly Pt[]): number =>
+            Math.sign(
+                pts.reduce(
+                    (sum, [x, y], i) => sum + x * pts[(i + 1) % pts.length][1] - pts[(i + 1) % pts.length][0] * y,
+                    0,
+                ),
+            );
+        assert.strictEqual(turn(e.points), turn(loop));
+    });
+
     it("reads a box behind an edge label near the edge's end as the label's background, not an arrowhead", () => {
         const prims = drawing(() => []);
         prims.push(
@@ -717,6 +755,15 @@ describe("a label wrapped into stacked lines", () => {
                 hint: null,
             };
         };
+        // lines flush right: "wide line" over "ab", their right edges one under another
+        const right = (content: string, y: number, w: number): Prim => {
+            const t = text(content, 200 - w / 2, y, {}, w);
+            return { ...line(content, y), box: t.box, text: t };
+        };
+        assert.include(
+            stackedTexts([right("wide line", 100, 40), right("ab", 112, 12)]).map((p) => p.text?.content),
+            "wide line ab",
+        );
         const stacked = stackedTexts([line("Two", 100), line("longer lines", 112)]).at(-1)?.text;
         assert.strictEqual(stacked?.content, "Two longer lines");
         assert.deepEqual(stacked?.box, { x0: 85, y0: 95, x1: 115, y1: 117 });
@@ -751,6 +798,13 @@ describe("a label drawn as runs side by side", () => {
         assert.notInclude(
             out.map((p) => p.text?.content),
             "B I M far",
+        );
+        // a run whose text keeps its blank before its word (" x" drawn as "x" from where the blank starts)
+        const x = run("x", 107, 6);
+        x.text = { ...(x.text as PText), blank: { before: true, after: false } };
+        assert.include(
+            stackedTexts([run("B", 100, 7), x]).map((p) => p.text?.content),
+            "B x",
         );
     });
 });

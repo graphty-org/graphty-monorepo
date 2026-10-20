@@ -538,6 +538,58 @@ export type GraphtyErrorCode =
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
      */
+    /**
+     * A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+     */
+    | "E_MODEL_FETCH"
+    /**
+     * A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`.
+     */
+    | "E_MODEL_URL_BLOCKED"
+    /**
+     * A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+     */
+    | "E_MODEL_TOO_LARGE"
+    /**
+     * A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+     */
+    | "E_MODEL_STRUCTURE"
+    /**
+     * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+     */
+    | "E_MODEL_FORMAT_UNSUPPORTED"
+    /**
+     * No model format matches the bytes or the name. `params.fileName`.
+     */
+    | "E_MODEL_FORMAT_UNKNOWN"
+    /**
+     * Two different main files in one set, or two paths that differ only in case. `params.candidates`; settle it with `add`'s `main` option.
+     */
+    | "E_MODEL_AMBIGUOUS"
+    /**
+     * A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. `params.name`, `params.referencedBy`.
+     */
+    | "E_MODEL_MISSING_FILE"
+    /**
+     * A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+     */
+    | "E_MODEL_EXTERNAL_URL"
+    /**
+     * A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+     */
+    | "E_MODEL_DECODER_UNAVAILABLE"
+    /**
+     * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+     */
+    | "E_MODEL_ZIP"
+    /**
+     * An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+     */
+    | "E_MODEL_NAME_TAKEN"
+    /**
+     * An asset id the session holds no accepted model for. `details.id`.
+     */
+    | "E_MODEL_UNKNOWN_ASSET"
     | "E_INTERNAL";
 
 /**
@@ -594,7 +646,14 @@ export type GraphtyWarningCode =
      * event. `params.requested` holds the options as given and `params.used` the values used, by
      * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
      */
-    | "W_DIMENSION_OVERRIDDEN";
+    | "W_DIMENSION_OVERRIDDEN"
+    /**
+     * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+     * `node.modelSourceUp` turns it.
+     */
+    | "W_MODEL_UP_GUESSED"
+    /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+    | "W_MODEL_HAS_ANIMATIONS";
 
 /**
  * Every code, as a lookup table.
@@ -688,6 +747,19 @@ const CODE_TABLE = {
     E_SOURCE_UNSUPPORTED: "E_SOURCE_UNSUPPORTED",
     E_SOURCE_INVALID: "E_SOURCE_INVALID",
     E_CREDENTIAL_NOT_STORABLE: "E_CREDENTIAL_NOT_STORABLE",
+    E_MODEL_FETCH: "E_MODEL_FETCH",
+    E_MODEL_URL_BLOCKED: "E_MODEL_URL_BLOCKED",
+    E_MODEL_TOO_LARGE: "E_MODEL_TOO_LARGE",
+    E_MODEL_STRUCTURE: "E_MODEL_STRUCTURE",
+    E_MODEL_FORMAT_UNSUPPORTED: "E_MODEL_FORMAT_UNSUPPORTED",
+    E_MODEL_FORMAT_UNKNOWN: "E_MODEL_FORMAT_UNKNOWN",
+    E_MODEL_AMBIGUOUS: "E_MODEL_AMBIGUOUS",
+    E_MODEL_MISSING_FILE: "E_MODEL_MISSING_FILE",
+    E_MODEL_EXTERNAL_URL: "E_MODEL_EXTERNAL_URL",
+    E_MODEL_DECODER_UNAVAILABLE: "E_MODEL_DECODER_UNAVAILABLE",
+    E_MODEL_ZIP: "E_MODEL_ZIP",
+    E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
+    E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

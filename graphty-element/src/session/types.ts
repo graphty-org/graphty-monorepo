@@ -50,6 +50,7 @@ import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
 import type { LoadReport } from "../data/report";
 import type { GraphtyError } from "../errors/GraphtyError";
+import type { AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
@@ -2178,6 +2179,12 @@ export interface GraphSession {
      * a note's text exactly as given and never interprets it.
      */
     readonly notes: NotesApi;
+    /**
+     * The 3D model files a style layer can draw nodes as: add one (a URL, a File, a folder, a
+     * .zip or bytes), wait for one, read what it holds, remove it. Adding checks the files and
+     * draws nothing; assets are not commands, so they are kept out of the history and recipes.
+     */
+    readonly assets: AssetsApi;
     /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command

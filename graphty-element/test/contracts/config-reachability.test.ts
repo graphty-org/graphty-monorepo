@@ -198,6 +198,10 @@ function probeValue(descriptor: ChannelDescriptor, run: 0 | 1): unknown {
             return run === 0 ? low + (high - low) * 0.25 : low + (high - low) * 0.75;
         }
         case "text":
+            // A gradient's stops are numbers, one per colour: the node's own colour alone takes one.
+            if (descriptor.channel === "node.gradientStops") {
+                return run === 0 ? "0.25" : "0.75";
+            }
             return run === 0 ? "probe-one" : "probe-two";
         case "boolean":
             return run === 0;

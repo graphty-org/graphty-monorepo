@@ -168,6 +168,9 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "wrapWidth"
     | "letterSize"
     | "wrapTrailingSpace"
+    | "wrapEllipsis"
+    | "wrapAnywhere"
+    | "wrapSpaceCount"
     | "minScreenSize"
     | "minNodeScreenSize"
     | "declutter"
@@ -1319,7 +1322,13 @@ export class RichTextLabel {
             letterSize === undefined || letterSize <= 0
                 ? (wrapWidth * oneLinePx) / this.lineHeightInWorld()
                 : (wrapWidth * fontSize) / letterSize;
-        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, this.options.wrapTrailingSpace === true);
+        const { wrapTrailingSpace, wrapEllipsis, wrapAnywhere, wrapSpaceCount } = this.options;
+        this.parsedContent = wrapLines(ctx, this.parsedContent, widthPx, {
+            trailingSpace: wrapTrailingSpace === true,
+            ellipsis: wrapEllipsis === true,
+            anywhere: wrapAnywhere === true,
+            spaceCount: wrapSpaceCount,
+        });
     }
 
     private lineHeightInWorld(): number {

@@ -73,6 +73,16 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "edge.fanned": { "edge.curvature": true },
     // A direction turns a gradient; with no second colour the fill is flat whichever way it runs.
     "node.gradientDirection": { "node.gradientColor": "#00ff00" },
+    "node.gradientKind": { "node.gradientColor": "#00ff00" },
+    // Stops place colours, three of them so the middle one has somewhere to move.
+    "node.gradientStops": { "node.gradientColors": "#ff0000 #00ff00 #0000ff" },
+    // A wrap option changes only a label wider than its wrap width; the blank count only one with blanks.
+    "node.labelWrapEllipsis": { "node.labelWrapWidth": 0.05 },
+    "node.labelWrapAnywhere": { "node.labelWrapWidth": 0.05 },
+    "node.labelWrapSpaceCount": { "node.label": "a b c d e f g h", "node.labelWrapWidth": 3 },
+    "edge.labelWrapEllipsis": { "edge.labelWrapWidth": 0.05 },
+    "edge.labelWrapAnywhere": { "edge.labelWrapWidth": 0.05 },
+    "edge.labelWrapSpaceCount": { "edge.label": "a b c d e f g h", "edge.labelWrapWidth": 3 },
     // A minimum screen size hides only a label drawn smaller than it: letters a pixel or two tall
     // are, at this canvas and zoom, under the probe's 4 px.
     "node.labelMinScreenSize": { "node.labelSize": 1 },
@@ -138,6 +148,13 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             // So is a port: the middle of the node's top, where an unported line never ends.
             if (descriptor.channel === "edge.sourcePort" || descriptor.channel === "edge.targetPort") {
                 return "0,1";
+            }
+            // A gradient's colors and stops are lists of their own.
+            if (descriptor.channel === "node.gradientColors") {
+                return "#ff0000 #00ff00 #0000ff";
+            }
+            if (descriptor.channel === "node.gradientStops") {
+                return "0 0.1 1";
             }
             return "CHANNEL PROBE WORDS";
         case "boolean":

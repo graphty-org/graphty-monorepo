@@ -180,26 +180,88 @@ export function measureLine(
     return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent };
 }
 
+/** How a label's lines are fitted to its wrap width. */
+export interface WrapOptions {
+    /** Whether the spaces after a word must fit too (`wrapTrailingSpace`). */
+    trailingSpace?: boolean;
+    /** Cut a line that does not fit, with an ellipsis after it, in place of wrapping (`wrapEllipsis`). */
+    ellipsis?: boolean;
+    /** Break between any two letters, not only at spaces (`wrapAnywhere`). */
+    anywhere?: boolean;
+    /** How many blanks a blank counts as against the width (`wrapSpaceCount`); unset, one. */
+    spaceCount?: number;
+}
+
+/** How wide a piece of text is in a style, in a canvas's pixels. */
+type Measure = (text: string, style: TextSegment["style"]) => number;
+
 /**
  * Break lines that run past a width at the spaces between their words, keeping each word's
  * style. A word wider than the width keeps a line of its own; a line that fits is kept as it is.
  * @param ctx - A canvas to measure on.
  * @param lines - The lines, each a list of styled segments.
  * @param width - The widest a line may be, in the canvas's pixels.
- * @param trailingSpace - Whether the spaces after a word must fit too (`wrapTrailingSpace`).
+ * @param options - How the lines are fitted.
  * @returns The lines, wrapped.
  */
 export function wrapLines(
     ctx: CanvasRenderingContext2D,
     lines: TextSegment[][],
     width: number,
-    trailingSpace = false,
+    options: WrapOptions = {},
 ): TextSegment[][] {
-    const measure = (text: string, style: TextSegment["style"]): number => {
+    const measure: Measure = (text, style) => {
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return ctx.measureText(text).width;
     };
-    return lines.flatMap((line) => wrapLine(line, width, measure, trailingSpace));
+    return options.ellipsis === true
+        ? lines.map((line) => ellipsize(line, width, measure))
+        : lines.flatMap((line) => wrapLine(line, width, measure, options));
+}
+
+const ELLIPSIS = "\u2026";
+
+/**
+ * Cut a line wider than a width to the most letters that still fit with an ellipsis after them, as
+ * Cytoscape.js's `text-wrap: ellipsis` does; a line narrower than the width is kept as it is.
+ * @param line - The line's styled segments.
+ * @param width - The widest it may be, in the canvas's pixels.
+ * @param measure - How wide a piece of text is in a style.
+ * @returns The line, cut.
+ */
+function ellipsize(line: TextSegment[], width: number, measure: Measure): TextSegment[] {
+    if (line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
+        return line;
+    }
+    const out: TextSegment[] = [];
+    let used = 0;
+    for (const seg of line) {
+        let kept = "";
+        for (const ch of seg.text) {
+            if (used + measure(kept + ch, seg.style) + measure(ELLIPSIS, seg.style) > width) {
+                pushKept(out, kept, seg.style);
+                out.push({ text: ELLIPSIS, style: seg.style });
+                return out;
+            }
+            kept += ch;
+        }
+        pushKept(out, kept, seg.style);
+        used += measure(kept, seg.style);
+    }
+    // every letter fit beside an ellipsis: Cytoscape.js then draws none
+    return out;
+}
+
+/**
+ * Add a segment's kept letters to a line, when there are any.
+ * @param out - The line.
+ * @param text - The letters.
+ * @param style - Their style.
+ */
+function pushKept(out: TextSegment[], text: string, style: TextSegment["style"]): void {
+    if (text !== "") {
+        out.push({ text, style });
+    }
 }
 
 const SPACES = /^\s+$/;
@@ -210,17 +272,16 @@ const SPACES = /^\s+$/;
  * @param pieces - The line's words and spaces.
  * @param i - The word's place among them.
  * @param measure - How wide a piece of text is in a style.
+ * @param anywhere - Whether the line breaks between any two letters, each followed by a zero-width break.
  * @returns The width.
  */
-function spaceAfter(
-    pieces: readonly TextSegment[],
-    i: number,
-    measure: (text: string, style: TextSegment["style"]) => number,
-): number {
+function spaceAfter(pieces: readonly TextSegment[], i: number, measure: Measure, anywhere: boolean): number {
     const next = pieces[i + 1];
-    return next !== undefined && SPACES.test(next.text)
-        ? measure(next.text, next.style)
-        : measure(" ", pieces[i].style);
+    if (next !== undefined && SPACES.test(next.text)) {
+        return measure(next.text, next.style);
+    }
+    // broken anywhere, a letter is followed by a zero-width break, as Cytoscape.js joins them
+    return anywhere ? 0 : measure(" ", pieces[i].style);
 }
 
 /**
@@ -228,15 +289,12 @@ function spaceAfter(
  * @param line - The line's styled segments.
  * @param width - The widest a line may be, in the canvas's pixels.
  * @param measure - How wide a piece of text is in a style.
- * @param trailingSpace - Whether a word must fit with the spaces after it.
+ * @param options - How the line is fitted: trailing spaces, breaks anywhere, what a blank counts as.
  * @returns The line, wrapped into one or more lines.
  */
-function wrapLine(
-    line: TextSegment[],
-    width: number,
-    measure: (text: string, style: TextSegment["style"]) => number,
-    trailingSpace: boolean,
-): TextSegment[][] {
+function wrapLine(line: TextSegment[], width: number, measure: Measure, options: WrapOptions): TextSegment[][] {
+    const anywhere = options.anywhere === true;
+    const blanks = options.spaceCount ?? 1;
     const out: TextSegment[][] = [];
     let current: TextSegment[] = [];
     let used = 0;
@@ -244,12 +302,14 @@ function wrapLine(
         text
             .split(/(\s+)/)
             .filter((piece) => piece !== "")
+            // broken anywhere, every letter is a word of its own
+            .flatMap((piece) => (anywhere && !SPACES.test(piece) ? Array.from(piece) : [piece]))
             .map((piece) => ({ text: piece, style })),
     );
     for (const [i, piece] of pieces.entries()) {
         const space = SPACES.test(piece.text);
-        const span = measure(piece.text, piece.style);
-        const after = trailingSpace && !space ? spaceAfter(pieces, i, measure) : 0;
+        const span = measure(piece.text, piece.style) * (space ? blanks : 1);
+        const after = options.trailingSpace === true && !space ? spaceAfter(pieces, i, measure, anywhere) : 0;
         if (!space && used > 0 && used + span + after > width) {
             // Spaces left at the end of a broken line are dropped.
             while (current.length > 0 && SPACES.test(current.at(-1)?.text ?? "")) {

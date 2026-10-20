@@ -553,6 +553,9 @@ function channelPlans(
             ["fill", [id("node.color")]],
             ["fillGradient", [id("node.gradientColor")]],
             ["fillGradientAngle", [id("node.gradientDirection")]],
+            ["fillGradientColors", [id("node.gradientColors")]],
+            ["fillGradientStops", [id("node.gradientStops")]],
+            ["fillGradientKind", [table("node.gradientKind", NODE_GRADIENT_KINDS)]],
             // graphty writes a consumer's `node.outline` as `borderColor`, so its own file reads it
             // back there. Another program's border is a ring sized with the node: drawn as the
             // outline's screen-space glow it covers the fill once the graph is framed (issue #2252).
@@ -659,6 +662,9 @@ function channelPlans(
             // A label's wrap width is drawn in the scene's units, a node size's in its own.
             ["labelWrapWidth", [length("node.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
             ["labelWrapTrailingSpace", [id("node.labelWrapTrailingSpace")]],
+            ["labelWrapEllipsis", [id("node.labelWrapEllipsis")]],
+            ["labelWrapAnywhere", [id("node.labelWrapAnywhere")]],
+            ["labelWrapSpaceCount", [id("node.labelWrapSpaceCount")]],
             ["labelFont", [label("labelFont")]],
             ["labelWeight", [label("labelWeight")]],
             ["labelTextAlign", [label("labelTextAlign")]],
@@ -783,6 +789,12 @@ function channelPlans(
         // Along the line, in the scene's units, as a node's lengths are.
         ["targetLabelOffset", [length("edge.arrowHeadTextDistance", factors.node * SCENE_PER_UNIT.node)]],
         ["sourceLabelOffset", [length("edge.arrowTailTextDistance", factors.node * SCENE_PER_UNIT.node)]],
+        ["targetLabelOffsetX", [length("edge.arrowHeadTextOffsetX", factors.node * SCENE_PER_UNIT.node)]],
+        ["targetLabelOffsetY", [length("edge.arrowHeadTextOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+        ["sourceLabelOffsetX", [length("edge.arrowTailTextOffsetX", factors.node * SCENE_PER_UNIT.node)]],
+        ["sourceLabelOffsetY", [length("edge.arrowTailTextOffsetY", factors.node * SCENE_PER_UNIT.node)]],
+        ["targetLabelRotation", [id("edge.arrowHeadTextRotation")]],
+        ["sourceLabelRotation", [id("edge.arrowTailTextRotation")]],
         ["labelColor", [label("labelColor"), ...captions("Color")]],
         // Another program draws an edge's end labels in its label's font size (Cytoscape.js, Graphviz); graphty
         // writes its own captions' sizes apart.
@@ -805,6 +817,9 @@ function channelPlans(
         ["labelItalic", [label("labelItalic")]],
         // in the scene's units, as a node label's wrap width is
         ["labelWrapWidth", [length("edge.labelWrapWidth", factors.node * SCENE_PER_UNIT.node)]],
+        ["labelWrapEllipsis", [id("edge.labelWrapEllipsis")]],
+        ["labelWrapAnywhere", [id("edge.labelWrapAnywhere")]],
+        ["labelWrapSpaceCount", [id("edge.labelWrapSpaceCount")]],
         ["labelRotation", [label("labelRotation")]],
         ["labelBackground", [label("labelBackground")]],
         ["labelOutlineColor", [label("labelOutline")]],
@@ -851,6 +866,12 @@ const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["corners", "corners"],
     ["midpoints", "midpoints"],
     ["bezier", "bezier"],
+]);
+
+/** The element's node gradient kind for each neutral one. */
+const NODE_GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
+    ["linear", "linear"],
+    ["radial", "radial"],
 ]);
 
 /** The element's gradient kind for each neutral one. */

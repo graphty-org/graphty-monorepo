@@ -259,6 +259,8 @@ export type NodeStripeDirectionValue = NonNullable<NonNullable<NodeStyleConfig["
 /** How a curved edge is drawn through its bends (`edge.bendCurve`): corners rounded, or through the midpoints. */
 export type EdgeBendCurveValue = NonNullable<NonNullable<EdgeStyleConfig["line"]>["bendCurve"]>;
 export type EdgeGradientKindValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["gradient"]>["kind"]>;
+/** How a node's gradient fill runs (`node.gradientKind`): straight across it, or out from its middle. */
+export type NodeGradientKindValue = "linear" | "radial";
 
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
@@ -306,6 +308,9 @@ export interface ChannelValues {
     "node.labelLocation": LabelLocation;
     "node.labelWrapWidth": number;
     "node.labelWrapTrailingSpace": boolean;
+    "node.labelWrapEllipsis": boolean;
+    "node.labelWrapAnywhere": boolean;
+    "node.labelWrapSpaceCount": number;
     "node.labelMinScreenSize": number;
     "node.labelOnTop": boolean;
     "node.labelDeclutter": LabelDeclutterOrder;
@@ -375,6 +380,9 @@ export interface ChannelValues {
     "node.labelFitSquare": boolean;
     "node.gradientColor": ColorValue;
     "node.gradientDirection": number;
+    "node.gradientColors": string;
+    "node.gradientStops": string;
+    "node.gradientKind": NodeGradientKindValue;
     "node.image": string;
     "node.imageFallback": string;
     "node.imageFit": NodeImageFitValue;
@@ -454,6 +462,9 @@ export interface ChannelValues {
     "edge.arrowHeadTextWeight": LabelWeightValue;
     "edge.arrowHeadTextOpacity": number;
     "edge.arrowHeadTextDistance": number;
+    "edge.arrowHeadTextRotation": number;
+    "edge.arrowHeadTextOffsetX": number;
+    "edge.arrowHeadTextOffsetY": number;
     "edge.arrowTail": ArrowValue;
     "edge.arrowTailSize": number;
     "edge.arrowTailWidth": number;
@@ -472,6 +483,9 @@ export interface ChannelValues {
     "edge.arrowTailTextWeight": LabelWeightValue;
     "edge.arrowTailTextOpacity": number;
     "edge.arrowTailTextDistance": number;
+    "edge.arrowTailTextRotation": number;
+    "edge.arrowTailTextOffsetX": number;
+    "edge.arrowTailTextOffsetY": number;
     "edge.arrowMiddleHead": ArrowValue;
     "edge.arrowMiddleHeadSize": number;
     "edge.arrowMiddleHeadWidth": number;
@@ -501,6 +515,9 @@ export interface ChannelValues {
     "edge.labelLocation": LabelLocation;
     "edge.labelWrapWidth": number;
     "edge.labelWrapTrailingSpace": boolean;
+    "edge.labelWrapEllipsis": boolean;
+    "edge.labelWrapAnywhere": boolean;
+    "edge.labelWrapSpaceCount": number;
     "edge.labelMinScreenSize": number;
     "edge.labelOnTop": boolean;
     "edge.labelRotation": number;
@@ -687,6 +704,16 @@ const EDGE_GRADIENT_CAVEAT =
 
 /** How an edge's gradient runs, or that it has none. */
 const EDGE_GRADIENT_KIND_VALUES: readonly EdgeGradientKindValue[] = ["linear", "radial", "none"];
+
+const NODE_GRADIENT_CAVEAT =
+    "Fills the node with a gradient through `node.gradientColors`, CSS colors separated by spaces from " +
+    "its start to its end (unset: from `node.color` into `node.gradientColor`), placed by " +
+    "`node.gradientStops`, fractions from 0 to 1 (unset, or not one per color: evenly spaced). " +
+    '`node.gradientKind` "linear" runs it the way `node.gradientDirection` says; "radial" runs it out ' +
+    "from the node's middle to its edge. Each distinct gradient is its own source mesh and ramp texture.";
+
+/** How a node's gradient fill runs. */
+const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
 const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier"];
 
 const EDGE_OUTLINE_CAVEAT =
@@ -775,7 +802,7 @@ const EDGE_LINE_DEFAULT_COLOR =
 
 /** The eight channels of one arrow end: `edge.arrowHead`, `edge.arrowHeadSize` and so on. */
 type ArrowEndChannel<End extends "Head" | "Tail"> =
-    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance"}`;
+    `edge.arrow${End}${"" | "Size" | "Width" | "Side" | "Position" | "Gap" | "Color" | "Opacity" | "Image" | "Text" | "TextStyle" | "TextSize" | "TextLetterSize" | "TextFont" | "TextColor" | "TextWeight" | "TextOpacity" | "TextDistance" | "TextRotation" | "TextOffsetX" | "TextOffsetY"}`;
 
 /**
  * The eight channels of one arrow end, in table order. The head's and the tail's differ only in
@@ -993,6 +1020,36 @@ function arrowEndChannels<End extends "Head" | "Tail">(end: End): Record<ArrowEn
                 "far from where the line leaves this end's node, in scene units, as Cytoscape.js draws its " +
                 "source and target labels.",
         },
+        {
+            ...id("TextRotation"),
+            plainName: `Arrow ${end} Caption Rotation`,
+            shortName: `${end} caption rotation`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.rotation`,
+            renderable: true,
+            caveat: "How far the caption is turned, in degrees clockwise on screen about its own middle; unset, level.",
+        },
+        {
+            ...id("TextOffsetX"),
+            plainName: `Arrow ${end} Caption Offset X`,
+            shortName: `${end} caption offset x`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.offsetX`,
+            renderable: true,
+            caveat: "How far the caption is moved right of where it sits, in scene units, on screen.",
+        },
+        {
+            ...id("TextOffsetY"),
+            plainName: `Arrow ${end} Caption Offset Y`,
+            shortName: `${end} caption offset y`,
+            group: "arrows",
+            accepts: "number",
+            stylePath: `arrow${end}.text.offsetY`,
+            renderable: true,
+            caveat: "How far the caption is moved down from where it sits, in scene units, on screen.",
+        },
     ];
 
     return Object.fromEntries(rows.map((row) => [row.channel, row])) as Record<ArrowEndChannel<End>, ChannelDescriptor>;
@@ -1033,7 +1090,7 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
 
 /** The label channels that write one field of a label style. */
 type LabelFieldChannel<Target extends "node" | "edge"> =
-    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
+    `${Target}.label${"Color" | "Size" | "LetterSize" | "Font" | "Weight" | "Italic" | "WrapWidth" | "WrapTrailingSpace" | "WrapEllipsis" | "WrapAnywhere" | "WrapSpaceCount" | "MinScreenSize" | "OnTop" | "Rotation" | "Background" | "Outline" | "OutlineWidth" | "Border" | "BorderWidth" | "Opacity" | "BackgroundOpacity" | "OutlineOpacity" | "BorderOpacity" | "Padding" | "CornerRadius" | "LineHeight" | "OffsetX" | "OffsetY" | "ShiftX" | "ShiftY"}`;
 
 /** The field of a label style each label field channel writes, by the channel's suffix. */
 const LABEL_FIELD_OF_SUFFIX = {
@@ -1045,6 +1102,9 @@ const LABEL_FIELD_OF_SUFFIX = {
     Italic: "italic",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapEllipsis: "wrapEllipsis",
+    WrapAnywhere: "wrapAnywhere",
+    WrapSpaceCount: "wrapSpaceCount",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
@@ -1208,6 +1268,21 @@ function labelFieldChannels<Target extends "node" | "edge">(
         row("Italic", "Italic", { accepts: "boolean" }),
         row("WrapWidth", "Wrap Width", { accepts: "number", min: 0 }),
         row("WrapTrailingSpace", "Wrap Trailing Space", { accepts: "boolean" }),
+        row("WrapEllipsis", "Wrap Ellipsis", {
+            accepts: "boolean",
+            caveat: "A line wider than the wrap width is cut to fit, with an ellipsis after it, in place of wrapping.",
+        }),
+        row("WrapAnywhere", "Wrap Anywhere", {
+            accepts: "boolean",
+            caveat: "A line may break between any two letters, filling each line to the wrap width.",
+        }),
+        row("WrapSpaceCount", "Wrap Space Count", {
+            accepts: "number",
+            min: 0,
+            caveat:
+                "How many blanks one blank between two words counts as against the wrap width; it is still " +
+                "drawn once. Unset, one.",
+        }),
         // Screen pixels, never scaled with the graph: a size below which the label is not drawn.
         row("MinScreenSize", "Min Screen Size", { accepts: "number", min: 0 }),
         row("OnTop", "On Top", { accepts: "boolean" }),
@@ -1320,6 +1395,9 @@ const LABEL_STYLE_PATH_OF_SUFFIX: Readonly<Record<keyof typeof LABEL_FIELD_OF_SU
     Italic: "fontStyle",
     WrapWidth: "wrapWidth",
     WrapTrailingSpace: "wrapTrailingSpace",
+    WrapEllipsis: "wrapEllipsis",
+    WrapAnywhere: "wrapAnywhere",
+    WrapSpaceCount: "wrapSpaceCount",
     MinScreenSize: "minScreenSize",
     OnTop: "onTop",
     Rotation: "rotation",
@@ -1389,7 +1467,7 @@ export function labelFieldOf(channel: Channel): { readonly into: Channel; readon
     }
 
     const match =
-        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
+        /^(node|edge)\.label(Color|Size|LetterSize|Font|Weight|Italic|WrapWidth|WrapTrailingSpace|WrapEllipsis|WrapAnywhere|WrapSpaceCount|MinScreenSize|OnTop|Rotation|Background|Outline|OutlineWidth|Border|BorderWidth|Opacity|BackgroundOpacity|OutlineOpacity|BorderOpacity|Padding|CornerRadius|LineHeight|OffsetX|OffsetY|ShiftX|ShiftY)$/.exec(
             channel,
         );
 
@@ -2522,6 +2600,41 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "Which way a gradient fill (`node.gradientColor`) runs, in degrees on the screen: 0 from " +
             "left to right, 90 from top to bottom, 45 from the top-left corner to the bottom-right one. " +
             "Without `node.gradientColor` the node is filled flat with its `node.color`.",
+    },
+    "node.gradientColors": {
+        channel: "node.gradientColors",
+        target: "node",
+        plainName: "Node Gradient Colors",
+        shortName: "Gradient colors",
+        group: "color",
+        accepts: "text",
+        stylePath: "texture.color.colors",
+        renderable: true,
+        caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.gradientStops": {
+        channel: "node.gradientStops",
+        target: "node",
+        plainName: "Node Gradient Stops",
+        shortName: "Gradient stops",
+        group: "color",
+        accepts: "text",
+        stylePath: "texture.color.stops",
+        renderable: true,
+        caveat: NODE_GRADIENT_CAVEAT,
+    },
+    "node.gradientKind": {
+        channel: "node.gradientKind",
+        target: "node",
+        plainName: "Node Gradient Kind",
+        shortName: "Gradient kind",
+        group: "color",
+        default: "linear",
+        accepts: "enum",
+        values: NODE_GRADIENT_KIND_VALUES,
+        stylePath: "texture.color.colorType",
+        renderable: true,
+        caveat: NODE_GRADIENT_CAVEAT,
     },
     "edge.color": {
         channel: "edge.color",

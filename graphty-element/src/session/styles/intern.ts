@@ -162,6 +162,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // each distinct gradient is its own source mesh (NodeMesh interns the ramps).
     "node.gradientColor": "mesh",
     "node.gradientDirection": "mesh",
+    "node.gradientColors": "mesh",
+    "node.gradientStops": "mesh",
+    "node.gradientKind": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
     // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
@@ -267,6 +270,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.labelItalic": "content",
     "node.labelWrapWidth": "content",
     "node.labelWrapTrailingSpace": "content",
+    "node.labelWrapEllipsis": "content",
+    "node.labelWrapAnywhere": "content",
+    "node.labelWrapSpaceCount": "content",
     "node.labelMinScreenSize": "content",
     "node.labelOnTop": "content",
     "node.labelDeclutter": "content",
@@ -300,6 +306,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.labelLocation": "content",
     "edge.labelWrapWidth": "content",
     "edge.labelWrapTrailingSpace": "content",
+    "edge.labelWrapEllipsis": "content",
+    "edge.labelWrapAnywhere": "content",
+    "edge.labelWrapSpaceCount": "content",
     "edge.labelMinScreenSize": "content",
     "edge.labelOnTop": "content",
     "edge.labelRotation": "content",
@@ -345,6 +354,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowHeadTextWeight": "content",
     "edge.arrowHeadTextOpacity": "content",
     "edge.arrowHeadTextDistance": "content",
+    "edge.arrowHeadTextRotation": "content",
+    "edge.arrowHeadTextOffsetX": "content",
+    "edge.arrowHeadTextOffsetY": "content",
     "edge.arrowTailText": "content",
     "edge.arrowTailTextStyle": "content",
     "edge.arrowTailTextSize": "content",
@@ -354,6 +366,9 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.arrowTailTextWeight": "content",
     "edge.arrowTailTextOpacity": "content",
     "edge.arrowTailTextDistance": "content",
+    "edge.arrowTailTextRotation": "content",
+    "edge.arrowTailTextOffsetX": "content",
+    "edge.arrowTailTextOffsetY": "content",
 });
 
 /**

@@ -131,6 +131,21 @@ export interface LabelStyle {
      */
     wrapTrailingSpace?: boolean;
     /**
+     * Whether a line wider than `wrapWidth` is cut to fit, with an ellipsis after the letters kept, in place of
+     * wrapping onto more lines (Cytoscape.js `text-wrap: ellipsis`). Unset or false, it wraps.
+     */
+    wrapEllipsis?: boolean;
+    /**
+     * Whether a line may break between any two letters, filling each line to `wrapWidth`, not only at the spaces
+     * between words (Cytoscape.js `text-overflow-wrap: anywhere`). Unset or false, only at spaces.
+     */
+    wrapAnywhere?: boolean;
+    /**
+     * How many blanks one blank between two words counts as when a line is measured against `wrapWidth`; the
+     * blank is still drawn once (vis-network counts three). Unset, one.
+     */
+    wrapSpaceCount?: number;
+    /**
      * How far the label is turned, in degrees clockwise as the reader sees it, about its own center.
      * Unset or 0, it reads level.
      */
@@ -322,6 +337,9 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     italic: 0,
     wrapWidth: 0,
     wrapTrailingSpace: 0,
+    wrapEllipsis: 0,
+    wrapAnywhere: 0,
+    wrapSpaceCount: 0,
     rotation: 0,
     lineHeight: 0,
     minScreenSize: 0,

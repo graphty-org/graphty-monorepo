@@ -192,6 +192,11 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.stops":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",
@@ -243,19 +248,8 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     },
     {
         reason:
-            "Chosen by the paint path, never by a layer: a neutral solid so that each node's own " +
-            "instance colour can show -- one material per colour would be one source mesh per " +
-            "colour, fifty thousand of them for a continuous ramp -- and a linear gradient when " +
-            "`node.gradientColor` or `node.gradientDirection` is painted. A radial gradient, which " +
-            "`NodeMesh` also builds, has no channel.",
-        kind: "by-design",
-        target: "node",
-        path: "texture.color.colorType",
-    },
-    {
-        reason:
-            "Pinned to a neutral white by the paint path, for the same reason as " +
-            "`texture.color.colorType`: the colour a reader sees is written into the node's own " +
+            "Pinned to a neutral white by the paint path: one material per colour would be one " +
+            "source mesh per colour, so the colour a reader sees is written into the node's own " +
             "instance, beside the style, through the `node.color` channel.",
         kind: "by-design",
         target: "node",

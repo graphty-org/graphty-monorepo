@@ -86,3 +86,80 @@ describe("edges drawn through bends", () => {
         assert.isFalse(route.some(([x, y]) => Math.hypot(x, y + 4) < 1e-6));
     });
 });
+
+describe("a self-loop drawn through a closed ring of bends", () => {
+    let container: HTMLElement;
+    let graph: Graph;
+
+    beforeEach(async () => {
+        container = document.createElement("div");
+        container.style.width = "640px";
+        container.style.height = "480px";
+        document.body.appendChild(container);
+        graph = new Graph(container);
+        await graph.init();
+        await graph.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);
+        await graph.addEdges([{ src: "a", dst: "a" }]);
+        await graph.setLayout("fixed", { dim: 3 });
+    });
+
+    afterEach(() => {
+        graph.dispose();
+        container.remove();
+    });
+
+    /**
+     * A ring of bends round a point above the node, from its bottom all the way round and back to it.
+     * @param cy - The ring's center above the node's, in node half sizes.
+     * @param r - Its radius, in node half sizes.
+     * @returns The bends.
+     */
+    function ring(cy: number, r: number): string {
+        const points: string[] = [];
+        for (let k = 0; k <= 24; k++) {
+            const a = -Math.PI / 2 + (2 * Math.PI * (k % 24)) / 24;
+            points.push(`${(r * Math.cos(a)).toFixed(4)},${(cy + r * Math.sin(a)).toFixed(4)}`);
+        }
+        return points.join(" ");
+    }
+
+    /**
+     * Paint the loop's bends and wait for it to be drawn.
+     * @param bends - The bends.
+     * @returns The points its line is drawn through.
+     */
+    async function drawn(bends: string): Promise<[number, number][]> {
+        await graph.getSession().styles.add({
+            name: "ring",
+            target: "edge",
+            selector: { match: "everything" },
+            set: { "edge.bends": bends, "edge.arrowHead": "none" },
+        });
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
+        const [edge] = graph.getDataManager().edges.values();
+        return edge.drawnCurve?.map((v): [number, number] => [v.x, v.y]) ?? [];
+    }
+
+    it("draws a ring that meets its node nowhere as the ring alone, as vis-network draws its circle", async () => {
+        const [node] = graph.getDataManager().nodes.values();
+        const half = node.drawnHalfExtents.y;
+        // a ring three half sizes up, its bottom a half size clear of the node
+        const points = await drawn(ring(3, 1.5));
+        assert.lengthOf(points, 25, "the ring's points, closed, and no line out from the node");
+        for (const [x, y] of points) {
+            assert.isAbove(Math.hypot(x, y), 1.4 * half, "no point of the line is at the node");
+        }
+        assert.closeTo(points[0][0], points[24][0], 1e-6);
+        assert.closeTo(points[0][1], points[24][1], 1e-6);
+    });
+
+    it("still runs a ring that crosses its node out of the node and back, cut at its outline", async () => {
+        const [node] = graph.getDataManager().nodes.values();
+        const half = node.drawnHalfExtents.y;
+        const points = await drawn(ring(1.5, 1.5));
+        // the ring's bottom lies inside the node: the line starts and ends on the node's outline
+        assert.closeTo(Math.hypot(...points[0]), half, 0.05 * half);
+        assert.closeTo(Math.hypot(...(points.at(-1) ?? [0, 0])), half, 0.05 * half);
+    });
+});

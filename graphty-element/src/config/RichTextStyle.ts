@@ -76,6 +76,12 @@ export const RichTextStyle = z.strictObject({
     wrapWidth: z.number().min(0).optional(),
     // Whether a space after each word counts toward wrapWidth; unset, only the words do.
     wrapTrailingSpace: z.boolean().optional(),
+    // Whether a line wider than wrapWidth is cut to fit with an ellipsis after it, in place of wrapping.
+    wrapEllipsis: z.boolean().optional(),
+    // Whether a line may break between any two letters, not only at its spaces.
+    wrapAnywhere: z.boolean().optional(),
+    // How many blanks a blank between two words counts as against wrapWidth; unset, one.
+    wrapSpaceCount: z.number().min(0).optional(),
     // How far the label is turned, in degrees clockwise on screen, about its own center.
     rotation: z.number().optional(),
     fontWeight: z.string().default("normal").optional(),

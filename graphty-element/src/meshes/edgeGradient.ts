@@ -27,6 +27,38 @@ function hexOf(text: string): string | null {
 }
 
 /**
+ * A gradient's colors written as CSS colors separated by spaces, as `#rrggbb`; a space inside a
+ * color's parentheses is kept ("rgb(1, 2, 3) red") and a color no parser reads is left out.
+ * @param text - The colors as written.
+ * @returns The colors.
+ */
+export function gradientColorList(text: string | undefined): string[] {
+    return (text ?? "")
+        .trim()
+        .split(/\s+(?![^(]*\))/)
+        .flatMap((c) => {
+            const hex = c === "" ? null : hexOf(c);
+            return hex === null ? [] : [hex];
+        });
+}
+
+/**
+ * Where each of a gradient's colors sits, fractions separated by spaces, or null unless there is
+ * exactly one number per color.
+ * @param text - The stops as written.
+ * @param count - How many colors the gradient has.
+ * @returns The stops, or null.
+ */
+export function gradientStopList(text: string | undefined, count: number): number[] | null {
+    const given = (text ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter((s) => s !== "")
+        .map(Number);
+    return given.length === count && given.every((s) => Number.isFinite(s)) ? given : null;
+}
+
+/**
  * The colors of a line's gradient pieces, from its source end to its target end, or null when the
  * style paints the line in no gradient: `line.gradient` with fewer than two colors, or kind "none".
  * A linear gradient runs from the source end to the target end; a radial one out from the line's
@@ -44,27 +76,12 @@ export function gradientPieceColors(
         return null;
     }
 
-    // colors separated by spaces, a space inside a color's parentheses kept: "rgb(1, 2, 3) red"
-    const colors = (gradient.colors ?? "")
-        .trim()
-        .split(/\s+(?![^(]*\))/)
-        .flatMap((c) => {
-            const hex = c === "" ? null : hexOf(c);
-            return hex === null ? [] : [hex];
-        });
+    const colors = gradientColorList(gradient.colors);
     if (colors.length < 2) {
         return null;
     }
 
-    const given = (gradient.stops ?? "")
-        .trim()
-        .split(/\s+/)
-        .filter((s) => s !== "")
-        .map(Number);
-    const stops =
-        given.length === colors.length && given.every((s) => Number.isFinite(s))
-            ? given
-            : colors.map((_, i) => i / (colors.length - 1));
+    const stops = gradientStopList(gradient.stops, colors.length) ?? colors.map((_, i) => i / (colors.length - 1));
 
     return Array.from({ length: pieces }, (_, i) => {
         const t = (i + 0.5) / pieces;

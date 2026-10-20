@@ -14,6 +14,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
     asColorValue,
     CHANNEL_DESCRIPTORS,
@@ -140,6 +141,9 @@ const RICH_TEXT_KEYS = {
     letterSize: "letterSize",
     wrapWidth: "wrapWidth",
     wrapTrailingSpace: "wrapTrailingSpace",
+    wrapEllipsis: "wrapEllipsis",
+    wrapAnywhere: "wrapAnywhere",
+    wrapSpaceCount: "wrapSpaceCount",
     rotation: "rotation",
     color: "textColor",
     lineHeight: "lineHeight",
@@ -392,25 +396,29 @@ function neutralFill(opacity: number | undefined): Fill {
 }
 
 /**
- * A linear gradient fill from the node's colour into `node.gradientColor`, running the way
- * `node.gradientDirection` says (0, left to right, when it is unset). With no second colour it is
- * one stop, which `NodeMesh` paints flat.
- * @param from - The node's colour, where the ramp starts.
- * @param gradient - The second colour and the direction, as painted.
- * @param gradient.to - The colour the ramp ends in.
- * @param gradient.direction - Which way it runs, in degrees.
+ * A gradient fill through `node.gradientColors`, or else from the node's colour into
+ * `node.gradientColor`, placed by `node.gradientStops`; linear, running the way
+ * `node.gradientDirection` says (0, left to right, when it is unset), or radial out from the
+ * middle. With one colour it is one stop, which `NodeMesh` paints flat.
+ * @param from - The node's colour, where the ramp starts when no colour list is painted.
+ * @param gradient - The gradient channels, as painted.
  * @param opacity - The node's opacity, when it has one.
  * @returns The `texture.color` value.
  */
-function gradientFill(from: string, gradient: { to?: string; direction?: number }, opacity: number | undefined): Fill {
-    const colors = gradient.to === undefined ? [from] : [from, gradient.to];
-
-    return {
-        colorType: "gradient",
-        direction: gradient.direction ?? 0,
+function gradientFill(from: string, gradient: FillChannels, opacity: number | undefined): Fill {
+    const listed = gradientColorList(gradient.colors);
+    const own = gradient.to === undefined ? [from] : [from, gradient.to];
+    const colors = listed.length > 0 ? listed : own;
+    const stops = gradientStopList(gradient.stops, colors.length)?.map((t) => Math.min(1, Math.max(0, t)));
+    const rest = {
         colors,
+        ...(stops === undefined ? {} : { stops }),
         ...(opacity === undefined ? {} : { opacity }),
     };
+
+    return gradient.kind === "radial"
+        ? { colorType: "radial-gradient", ...rest }
+        : { colorType: "gradient", direction: gradient.direction ?? 0, ...rest };
 }
 
 /** The channels a node's fill is drawn from, read beside the style rather than into it. */
@@ -423,6 +431,12 @@ interface FillChannels {
     to?: string;
     /** `node.gradientDirection`: which way it runs. */
     direction?: number;
+    /** `node.gradientColors`: every colour it runs through, in place of the two above. */
+    colors?: string;
+    /** `node.gradientStops`: where each colour sits. */
+    stops?: string;
+    /** `node.gradientKind`: linear or radial. */
+    kind?: string;
 }
 
 /** How each fill channel is read into {@link FillChannels}; every other channel is written into the style. */
@@ -438,6 +452,15 @@ const FILL_READERS: Partial<Record<Channel, (fill: FillChannels, value: unknown)
     },
     "node.gradientDirection": (fill, value) => {
         fill.direction = typeof value === "number" ? value : undefined;
+    },
+    "node.gradientColors": (fill, value) => {
+        fill.colors = typeof value === "string" ? value : undefined;
+    },
+    "node.gradientStops": (fill, value) => {
+        fill.stops = typeof value === "string" ? value : undefined;
+    },
+    "node.gradientKind": (fill, value) => {
+        fill.kind = typeof value === "string" ? value : undefined;
     },
 };
 
@@ -482,7 +505,12 @@ function nodePaintOf(resolved: ResolvedStyle, meshKey: number, plainText: (chann
     // channels) and its instance colour is not drawn: `node.color` is where the ramp starts. That
     // is an `instance` channel the interner keys nothing by, so the start goes into the key here,
     // as the opacity does.
-    const filled = fill.to !== undefined || fill.direction !== undefined;
+    const filled =
+        fill.to !== undefined ||
+        fill.direction !== undefined ||
+        fill.colors !== undefined ||
+        fill.stops !== undefined ||
+        fill.kind !== undefined;
     setAtPath(bag, "texture.color", filled ? gradientFill(hex, fill, opacity) : neutralFill(opacity));
     const key = [`s${String(meshKey)}`];
     if (opacity !== undefined) {

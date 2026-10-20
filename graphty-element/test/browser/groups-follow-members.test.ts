@@ -223,6 +223,53 @@ describe("a group with no stored position follows its members", () => {
         assert.strictEqual(hidden, 0, "the ray to every member's centre meets the member before its group");
     });
 
+    it("ends an uncapped edge to a group at the group's outline, not under it at its middle", async () => {
+        // Cytoscape.js ends an edge to a compound node on the compound's box; the region is drawn behind the
+        // edge, so a line from its middle would show across it
+        const saved = JSON.stringify({
+            elements: {
+                nodes: [
+                    { data: { id: "group" } },
+                    { data: { id: "m1", parent: "group" }, position: { x: 0, y: 0 } },
+                    { data: { id: "m2", parent: "group" }, position: { x: 100, y: 40 } },
+                    { data: { id: "free" }, position: { x: 300, y: 20 } },
+                ],
+                edges: [{ data: { id: "e", source: "group", target: "free" } }],
+            },
+            style: [{ selector: "edge", style: { "target-arrow-shape": "none", "curve-style": "straight" } }],
+        });
+        await graph.addDataFromSource("json", { data: saved });
+        await operationQueueOf(graph).waitForCompletion();
+        const layout = graph.getLayoutManager();
+        layout.placeGroups();
+        const { nodes, edges } = graph.getDataManager();
+        for (const node of nodes.values()) {
+            node.update();
+        }
+        const group = nodes.get("group");
+        assert.isDefined(group);
+        assert.isTrue(group.isDrawnAsGroup, "the compound is drawn as a region");
+        const edge = [...edges.values()][0];
+        assert.isDefined(edge);
+        edge.invalidatePositionCache();
+        edge.update();
+        const line = edge.drawnLine;
+        assert.isNotNull(line);
+        const from = at("group");
+        const to = at("free");
+        const between = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
+        // the shorter half of the region across the view: the line leaves it no nearer its middle than that
+        const half = Math.min(group.drawnHalfExtents.x, group.drawnHalfExtents.y);
+        assert.isAbove(half, 0);
+        // the line runs from the region's right side to the free node: a group's half width shorter
+        assert.isBelow(
+            line?.length ?? Number.POSITIVE_INFINITY,
+            between - 0.9 * half,
+            "the line starts at the outline",
+        );
+        assert.isAbove(line?.length ?? 0, between - 1.6 * half, "and not far inside the gap");
+    });
+
     it("lays a group out like any node when behavior.layout.groupsFollowMembers is false", async () => {
         graph.setLayoutBehavior({ layout: { groupsFollowMembers: false } });
         await graph.addDataFromSource("dot", { data: DOT });

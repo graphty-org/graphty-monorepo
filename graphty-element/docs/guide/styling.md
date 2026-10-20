@@ -190,6 +190,9 @@ A channel is one visual property with one name. These are all of them:
 | `node.color`                  | any CSS colour                                                                                                                                   |
 | `node.gradientColor`          | any CSS colour: fills the node with a gradient from `node.color` into it                                                                         |
 | `node.gradientDirection`      | 0 to 360: which way that gradient runs; 0 left to right, 90 downward                                                                             |
+| `node.gradientColors`         | CSS colours separated by spaces: every colour the gradient runs through, start to end, in place of the two above                                 |
+| `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient colour: where each sits (otherwise evenly spaced)                                         |
+| `node.gradientKind`           | `linear` (the default) or `radial`: out from the node's middle to its edge                                                                       |
 | `node.size`                   | 0 or more; every shape at one size is the same width across the view                                                                             |
 | `node.sizeMode`               | `scale` (the default) or `diameter`: what `node.size` measures                                                                                   |
 | `node.shape`                  | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...                                                                         |
@@ -214,6 +217,9 @@ A channel is one visual property with one name. These are all of them:
 | `node.labelItalic`            | true or false                                                                                                                                    |
 | `node.labelWrapWidth`         | a number: how wide a line may be before its words wrap, in scene units                                                                           |
 | `node.labelWrapTrailingSpace` | true or false: a word must fit with the space after it, as Cytoscape wraps                                                                       |
+| `node.labelWrapEllipsis`      | true or false: a line wider than the wrap width is cut to fit with an ellipsis, in place of wrapping                                             |
+| `node.labelWrapAnywhere`      | true or false: a line may break between any two letters, not only at spaces                                                                      |
+| `node.labelWrapSpaceCount`    | 0 or more: how many blanks a blank between two words counts as against the wrap width (vis-network counts 3)                                     |
 | `node.labelMinScreenSize`     | a number of screen pixels: the label is hidden while its letters are drawn smaller                                                               |
 | `node.labelOnTop`             | true or false: draw the label over every node and edge                                                                                           |
 | `node.labelDeclutter`         | `degree` or `size`: hide the label where it overlaps one kept before it                                                                          |
@@ -245,6 +251,9 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowHeadOpacity`       | 0 to 1                                                                                                       |
 | `edge.arrowHeadText`          | words drawn beside the head cap                                                                              |
 | `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                         |
+| `edge.arrowHeadTextRotation`  | degrees clockwise the head's caption is turned about its middle                                              |
+| `edge.arrowHeadTextOffsetX`   | how far right the head's caption is moved, in scene units on screen                                          |
+| `edge.arrowHeadTextOffsetY`   | how far down the head's caption is moved, in scene units on screen                                           |
 | `edge.arrowTail`              | the same arrows                                                                                              |
 | `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                   |
 | `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                 |
@@ -252,6 +261,9 @@ A channel is one visual property with one name. These are all of them:
 | `edge.arrowTailOpacity`       | 0 to 1                                                                                                       |
 | `edge.arrowTailText`          | words drawn beside the tail cap                                                                              |
 | `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                         |
+| `edge.arrowTailTextRotation`  | as `edge.arrowHeadTextRotation`                                                                              |
+| `edge.arrowTailTextOffsetX`   | as `edge.arrowHeadTextOffsetX`                                                                               |
+| `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                               |
 | `edge.animationSpeed`         | a number                                                                                                     |
 | `edge.label`                  | the words to draw                                                                                            |
 | `edge.labelStyle`             | as `node.labelStyle`                                                                                         |
@@ -263,6 +275,9 @@ A channel is one visual property with one name. These are all of them:
 | `edge.labelItalic`            | as `node.labelItalic`                                                                                        |
 | `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                     |
 | `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                             |
+| `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                  |
+| `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                  |
+| `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                |
 | `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                 |
 | `edge.labelOnTop`             | as `node.labelOnTop`                                                                                         |
 | `edge.labelRotation`          | as `node.labelRotation`                                                                                      |
@@ -295,7 +310,7 @@ at 24 px, and each field takes the value from the highest layer that set it.
 A whole label style can only be `set`. To draw each label from your data -- a size from a column,
 a color per group -- bind one of the label field channels (`node.labelColor`, `node.labelSize`, `node.labelLetterSize`,
 `node.labelFont`, `node.labelWeight`, `node.labelItalic`, `node.labelWrapWidth`,
-`node.labelWrapTrailingSpace`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
+`node.labelWrapTrailingSpace`, `node.labelWrapEllipsis`, `node.labelWrapAnywhere`, `node.labelWrapSpaceCount`, `node.labelMinScreenSize`, `node.labelOnTop`, `node.labelDeclutter`, `node.labelRotation`, and the same on
 edges but `labelDeclutter`). Each lands
 in the same label style, field by field, in layer order, beside whatever `node.labelStyle` layers
 write. A binding on the whole `node.labelStyle` paints nothing, and `validate()` warns about it with

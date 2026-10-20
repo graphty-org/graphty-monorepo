@@ -492,7 +492,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX` and `labelShiftY` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX` and `labelShiftY` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -516,6 +516,9 @@ export type Channel =
     | "node.labelItalic"
     | "node.labelWrapWidth"
     | "node.labelWrapTrailingSpace"
+    | "node.labelWrapEllipsis"
+    | "node.labelWrapAnywhere"
+    | "node.labelWrapSpaceCount"
     | "node.labelMinScreenSize"
     | "node.labelOnTop"
     | "node.labelDeclutter"
@@ -587,6 +590,9 @@ export type Channel =
     | "node.labelFitSquare"
     | "node.gradientColor"
     | "node.gradientDirection"
+    | "node.gradientColors"
+    | "node.gradientStops"
+    | "node.gradientKind"
     | "node.image"
     | "node.imageFallback"
     | "node.imageFit"
@@ -666,6 +672,9 @@ export type Channel =
     | "edge.arrowHeadTextWeight"
     | "edge.arrowHeadTextOpacity"
     | "edge.arrowHeadTextDistance"
+    | "edge.arrowHeadTextRotation"
+    | "edge.arrowHeadTextOffsetX"
+    | "edge.arrowHeadTextOffsetY"
     | "edge.arrowTail"
     | "edge.arrowTailSize"
     | "edge.arrowTailWidth"
@@ -684,6 +693,9 @@ export type Channel =
     | "edge.arrowTailTextWeight"
     | "edge.arrowTailTextOpacity"
     | "edge.arrowTailTextDistance"
+    | "edge.arrowTailTextRotation"
+    | "edge.arrowTailTextOffsetX"
+    | "edge.arrowTailTextOffsetY"
     | "edge.arrowMiddleHead"
     | "edge.arrowMiddleHeadSize"
     | "edge.arrowMiddleHeadWidth"
@@ -711,6 +723,9 @@ export type Channel =
     | "edge.labelItalic"
     | "edge.labelWrapWidth"
     | "edge.labelWrapTrailingSpace"
+    | "edge.labelWrapEllipsis"
+    | "edge.labelWrapAnywhere"
+    | "edge.labelWrapSpaceCount"
     | "edge.labelMinScreenSize"
     | "edge.labelOnTop"
     | "edge.labelTextAlign"

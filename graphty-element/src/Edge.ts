@@ -825,10 +825,36 @@ export class Edge {
                 srcPoint === null && this.mesh instanceof PatternedLineMesh && this.mesh.wave !== undefined
                     ? this.getInterceptPoints()
                     : null;
-            this.transformEdgeMesh(srcPoint ?? surface?.srcPoint ?? src, dstPoint ?? surface?.dstPoint ?? dst);
+            this.transformEdgeMesh(
+                srcPoint ?? surface?.srcPoint ?? this.groupEnd(this.srcNode, src, dst),
+                dstPoint ?? surface?.dstPoint ?? this.groupEnd(this.dstNode, dst, src),
+            );
         }
 
         return bent;
+    }
+
+    /**
+     * Where a line with no cap at an end starts from that end's node: its center, which the opaque
+     * node hides, or, for a group drawn as a region behind its members and edges, the region's
+     * outline, which is where Cytoscape.js and yEd end an edge to a compound node.
+     * @param node - The end's node.
+     * @param centre - Its center.
+     * @param toward - The other end's center.
+     * @returns The point.
+     */
+    private groupEnd(node: Node, centre: Vector3, toward: Vector3): Vector3 {
+        if (!node.isDrawnAsGroup) {
+            return centre;
+        }
+
+        // The region is a thin plate: the line leaves it through its outline across the view, never through its
+        // face, so the crossing is found in the plane and the line's depth carried along to it.
+        const across = Math.hypot(toward.x - centre.x, toward.y - centre.y);
+        const edge = this.leaveNode(node, centre, new Vector3(toward.x, toward.y, centre.z));
+        const reached = Math.hypot(edge.x - centre.x, edge.y - centre.y);
+        edge.z = across > 0 ? centre.z + ((toward.z - centre.z) * reached) / across : centre.z;
+        return edge;
     }
 
     /**
@@ -1763,6 +1789,12 @@ export class Edge {
         // it leaves each node, as a program that draws its curves under its nodes shows it.
         const bezier = line?.bezier === true && line.bendCurve === "bezier";
         const through = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
+        const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
+        if (ring !== null) {
+            // ponytail: a ring's arrow caps are not placed; no program draws one on a ring that misses its node
+            this.placeRun(batch, Edge.curveThroughBends(line, ring));
+            return true;
+        }
         const route = bezier ? bezierThroughControls(through) : through;
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
         const span = routeEnds(route, ports, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
@@ -1791,6 +1823,40 @@ export class Edge {
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
         this.placeRun(batch, bezier ? flat : Edge.curveThroughBends(line, flat));
         return true;
+    }
+
+    /**
+     * A self-loop's route that is a closed ring meeting its node nowhere -- its bends start and end at one point and
+     * every one lies outside the node -- as vis-network draws a self-loop whose circle holds the whole node: the ring
+     * alone, with no line from the node out to it. An open route, whose ends a program runs back into the node
+     * (Cytoscape.js's loop spline), keeps its legs.
+     * @param through - The route, flat x, y, z: the node's center, the bends, the center again.
+     * @param outside - Whether a point is outside the node.
+     * @returns The ring's points, flat, or null for any other route.
+     */
+    private static detachedRing(
+        through: readonly number[],
+        outside: (x: number, y: number, z: number) => boolean,
+    ): number[] | null {
+        const ring = through.slice(3, -3);
+        const n = ring.length / 3;
+        if (n < 4) {
+            return null;
+        }
+
+        const gap = Math.hypot(ring[0] - ring[3 * n - 3], ring[1] - ring[3 * n - 2], ring[2] - ring[3 * n - 1]);
+        const span = Math.hypot(ring[0] - ring[3], ring[1] - ring[4], ring[2] - ring[5]);
+        if (gap > 1e-6 * Math.max(span, 1e-9)) {
+            return null;
+        }
+
+        for (let i = 0; i < n; i++) {
+            if (!outside(ring[3 * i], ring[3 * i + 1], ring[3 * i + 2])) {
+                return null;
+            }
+        }
+
+        return ring;
     }
 
     /**
@@ -2429,6 +2495,18 @@ export class Edge {
 
         if (srcPoint !== null && dstPoint !== null) {
             this.pastBorders(srcPoint, dstPoint);
+        }
+
+        // A group drawn as a region behind its members is a thin plate a ray meets at once, at its middle: the line
+        // leaves it through its outline across the view instead.
+        if (this.srcNode.isDrawnAsGroup) {
+            srcPoint = this.groupEnd(this.srcNode, srcMesh.position, dstMesh.position);
+        }
+        if (this.dstNode.isDrawnAsGroup) {
+            dstPoint = this.groupEnd(this.dstNode, dstMesh.position, srcMesh.position);
+        }
+
+        if (srcPoint !== null && dstPoint !== null) {
             newEndPoint = this.lineEndBefore(srcPoint, dstPoint);
         }
 

@@ -30,9 +30,19 @@ describe("a label's wrap width", () => {
      * @param options.text - Its words.
      * @param options.wrapWidth - Its wrap width, or none.
      * @param options.wrapTrailingSpace - Whether the space after a word must fit too.
+     * @param options.wrapEllipsis - Whether a line that does not fit is cut with an ellipsis.
+     * @param options.wrapAnywhere - Whether a line may break between any two letters.
+     * @param options.wrapSpaceCount - How many blanks a blank counts as.
      * @returns The plane's size.
      */
-    function planeOf(options: { text: string; wrapWidth?: number; wrapTrailingSpace?: boolean }): {
+    function planeOf(options: {
+        text: string;
+        wrapWidth?: number;
+        wrapTrailingSpace?: boolean;
+        wrapEllipsis?: boolean;
+        wrapAnywhere?: boolean;
+        wrapSpaceCount?: number;
+    }): {
         width: number;
         height: number;
     } {
@@ -44,6 +54,14 @@ describe("a label's wrap width", () => {
         const size = { width: max.x - min.x, height: max.y - min.y };
         label.dispose();
         return size;
+    }
+
+    /**
+     * How much wider a label's plane is than its words.
+     * @returns The margin, in the scene.
+     */
+    function margin(): number {
+        return 2 * planeOf({ text: "aa" }).width - planeOf({ text: "aaaa" }).width;
     }
 
     test("breaks a long label onto more lines, each no wider than the width", () => {
@@ -82,5 +100,45 @@ describe("a label's wrap width", () => {
         assert.closeTo(height(false), planeOf({ text: "aa aa\naa aa" }).height, 1e-9);
         // a space after every word, the last one's too, as Cytoscape desktop measures
         assert.closeTo(height(true), planeOf({ text: "aa\naa\naa\naa" }).height, 1e-9);
+    });
+
+    test("with wrapEllipsis, cuts a long label to one line ending in an ellipsis", () => {
+        const one = planeOf({ text: WORDS });
+        const wrapWidth = planeOf({ text: "ionizing rad" }).width;
+        const cut = planeOf({ text: WORDS, wrapWidth, wrapEllipsis: true });
+        assert.closeTo(cut.height, one.height, 1e-9, "one line");
+        // the width holds the words; a plane is its words plus a fixed margin
+        assert.isAtMost(cut.width, wrapWidth + margin() + 1e-6, "no wider than the width");
+        assert.isAbove(cut.width, wrapWidth * 0.75, "as many letters as fit");
+        // a label that fits is drawn whole
+        const fits = planeOf({ text: "short" });
+        assert.closeTo(
+            planeOf({ text: "short", wrapWidth: fits.width * 2, wrapEllipsis: true }).width,
+            fits.width,
+            1e-9,
+        );
+    });
+
+    test("with wrapAnywhere, breaks a word wider than the width between its letters", () => {
+        const word = planeOf({ text: "unbreakablewordlabel" });
+        const one = planeOf({ text: "u" });
+        const wrapWidth = word.width / 2;
+        const broken = planeOf({ text: "unbreakablewordlabel", wrapWidth, wrapAnywhere: true });
+        assert.isAtLeast(Math.round(broken.height / one.height), 2, "two lines or more");
+        assert.isAtMost(broken.width, wrapWidth + margin() + 1e-6, "each no wider than the width");
+        // without it, the word keeps a line of its own
+        assert.closeTo(planeOf({ text: "unbreakablewordlabel", wrapWidth }).height, word.height, 1e-9);
+    });
+
+    test("with wrapSpaceCount, counts each blank between words that many times", () => {
+        // wide enough for "aa aa" with half a blank to spare, not with two more blanks between the words: a plane is
+        // its words plus a fixed margin, so the margin and a blank's width come from three planes
+        const two = planeOf({ text: "aa aa" }).width;
+        const joined = planeOf({ text: "aaaa" }).width;
+        const wrapWidth = two - margin() + (two - joined) / 2;
+        const height = (wrapSpaceCount?: number): number =>
+            planeOf({ text: "aa aa", wrapWidth, wrapSpaceCount }).height;
+        assert.closeTo(height(), planeOf({ text: "aa aa" }).height, 1e-9);
+        assert.closeTo(height(3), planeOf({ text: "aa\naa" }).height, 1e-9);
     });
 });

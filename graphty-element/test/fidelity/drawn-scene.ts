@@ -575,7 +575,7 @@ export interface DrawnNode {
      * The ramp the texture is painted with, as the node's style asked its renderer for it (NodeMesh paints its stops
      * evenly, a linear one along `direction` degrees on the upright texture, clockwise from +x on screen), or null.
      */
-    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null } | null;
+    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null; stops?: number[] } | null;
     instanceColor: boolean;
     visible: boolean;
     /**
@@ -773,7 +773,7 @@ function readInset(node: Node, p: Projector): number {
  */
 function rampOf(node: Node): DrawnNode["ramp"] {
     const color = (node as unknown as NodeInternals).drawnStyle?.texture?.color as
-        { colorType?: string; colors?: unknown[]; direction?: unknown } | undefined;
+        { colorType?: string; colors?: unknown[]; direction?: unknown; stops?: unknown[] } | undefined;
     if (color?.colorType !== "gradient" && color?.colorType !== "radial-gradient") {
         return null;
     }
@@ -784,6 +784,9 @@ function rampOf(node: Node): DrawnNode["ramp"] {
               kind: color.colorType === "gradient" ? "linear" : "radial",
               colors,
               direction: color.colorType === "gradient" && typeof color.direction === "number" ? color.direction : null,
+              ...(color.stops?.length === colors.length && color.stops.every((t) => typeof t === "number")
+                  ? { stops: color.stops }
+                  : {}),
           };
 }
 

@@ -310,6 +310,40 @@ describe("StylePainter channels", () => {
         assert.notStrictEqual(held.painter.nodePaint(0)?.meshKey, held.painter.nodePaint(1)?.meshKey);
     });
 
+    it("fills a node with a radial gradient through every listed colour at its stops", async () => {
+        const held = harness();
+        await held.styles.add({
+            name: "radial three",
+            target: "node",
+            selector: { match: "everything" },
+            set: {
+                "node.gradientKind": "radial",
+                "node.gradientColors": "cyan rgb(255, 0, 255) #ffff00",
+                "node.gradientStops": "0 0.2 1",
+            },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "radial-gradient",
+            colors: ["#00ffff", "#ff00ff", "#ffff00"],
+            stops: [0, 0.2, 1],
+        });
+
+        // stops that are not one per colour are left out, so the colours are evenly spaced
+        await held.styles.add({
+            name: "linear two stops",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.gradientKind": "linear", "node.gradientStops": "0 1" },
+        });
+        await held.paintAll();
+        assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
+            colorType: "gradient",
+            direction: 0,
+            colors: ["#00ffff", "#ff00ff", "#ffff00"],
+        });
+    });
+
     it("fills a node flat with its colour when only a gradient direction is painted", async () => {
         const held = harness();
         const spec: LayerSpec = {

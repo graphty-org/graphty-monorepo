@@ -171,6 +171,7 @@ interface ColorObject {
     colorType: string;
     value?: string;
     colors?: string[];
+    stops?: number[];
     direction?: number;
     opacity?: number;
 }
@@ -185,6 +186,8 @@ interface ColorObject {
 interface GradientColor {
     radial: boolean;
     colors: string[];
+    /** Where each color sits, one per color; undefined, evenly spaced. */
+    stops: number[] | undefined;
     direction: number;
 }
 
@@ -986,9 +989,12 @@ export class NodeMesh {
             return undefined;
         }
 
+        const stops = colorObj.stops?.length === colors.length ? colorObj.stops : undefined;
+
         return {
             radial: isRadial,
             colors,
+            stops,
             // The radial form has no direction in the schema. Pin it to 0 so two radial gradients
             // that are equal in every meaningful way share one cache entry.
             direction: isRadial ? 0 : (colorObj.direction ?? 0),
@@ -1035,7 +1041,7 @@ export class NodeMesh {
             return undefined;
         }
 
-        const key = `${gradient.radial ? "radial" : "linear"}|${gradient.direction}|${gradient.colors.join(",")}`;
+        const key = `${gradient.radial ? "radial" : "linear"}|${gradient.direction}|${gradient.colors.join(",")}|${gradient.stops?.join(",") ?? ""}`;
 
         let sceneCache = gradientTextureCache.get(scene);
         if (!sceneCache) {
@@ -1102,9 +1108,9 @@ export class NodeMesh {
                 ? ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
                 : this.createLinearRamp(ctx, gradient.direction, size);
 
-            const { colors } = gradient;
+            const { colors, stops } = gradient;
             for (let i = 0; i < colors.length; i++) {
-                ramp.addColorStop(i / (colors.length - 1), colors[i] ?? "transparent");
+                ramp.addColorStop(stops?.[i] ?? i / (colors.length - 1), colors[i] ?? "transparent");
             }
 
             ctx.fillStyle = ramp;

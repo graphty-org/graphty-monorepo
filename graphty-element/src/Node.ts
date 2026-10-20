@@ -1667,6 +1667,15 @@ export class Node {
     }
 
     /**
+     * Whether the node is drawn as a group following its members: a region behind them, its edges and
+     * their labels, stretched over its members' box.
+     * @returns True while it is drawn so.
+     */
+    get isDrawnAsGroup(): boolean {
+        return this.drawnAsGroup;
+    }
+
+    /**
      * How far the node's drawn surface reaches from its centre along each axis: its bounding
      * box's half-size, in the units its position is laid out in (the node's own space, not the
      * world, for the reason {@link Node.drawnRadius} gives).

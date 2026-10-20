@@ -238,12 +238,13 @@ function arrowShapeNamed(name: string): ArrowShape {
 }
 
 /**
- * A node's gradient as graphty paints it: its colors as evenly spaced stops, a linear one along its direction.
+ * A node's gradient as graphty paints it: its colors at their stops (evenly spaced when it has none), a linear one
+ * along its direction.
  * @param ramp - the drawn ramp
  * @returns the gradient, or null
  */
 function gradientOf(
-    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null } | null,
+    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null; stops?: number[] } | null,
 ): PGradient | null {
     if (ramp === null) {
         return null;
@@ -251,7 +252,7 @@ function gradientOf(
     const last = Math.max(ramp.colors.length - 1, 1);
     return {
         kind: ramp.kind,
-        stops: ramp.colors.map((color, i) => ({ offset: i / last, color, opacity: 1 })),
+        stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, color, opacity: 1 })),
         angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
     };
 }

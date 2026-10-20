@@ -91,6 +91,8 @@ describe("GML styles: where the program places an edge's label", () => {
         // 2.5 right of the middle, 6.5 above it: y grows downward in graphty
         expect(edge$("labelOffsetX")).toEqual([2.5, null]);
         expect(edge$("labelOffsetY")).toEqual([-6.5, null]);
+        // moved from the line's middle, not from beside it
+        expect(edge$("labelPosition")[0]).toBe("center");
     });
 
     it("moves an OGDF label on a bent edge to the middle of its first segment, where drawSVG draws it", async () => {
@@ -112,6 +114,8 @@ describe("GML styles: where the program places an edge's label", () => {
         // graphty hangs the label at the bend (973, 406); drawSVG at (954, 421)
         expect(edge$("labelOffsetX")).toEqual([-19, null]);
         expect(edge$("labelOffsetY")).toEqual([15, null]);
+        // drawSVG draws every edge label on its line
+        expect(edge$("labelPosition")).toEqual(["center", "center"]);
     });
 });
 

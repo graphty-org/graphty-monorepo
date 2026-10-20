@@ -1135,11 +1135,13 @@ function putEdgeLabelOffset(
     at: BendPoint,
     middle: BendPoint,
     yUp: boolean,
-    put: (property: string, value: number) => void,
+    put: (property: string, value: StyleValue) => void,
 ): void {
     const dx = num6(at[0] - middle[0]);
     const dy = num6((yUp ? -1 : 1) * (at[1] - middle[1]));
     if (Number.isFinite(dx) && Number.isFinite(dy) && (dx !== 0 || dy !== 0)) {
+        // moved from the line's middle itself, not from graphty's default place beside the line
+        put("labelPosition", "center");
         put("labelOffsetX", dx);
         put("labelOffsetY", dy);
     }
@@ -1157,7 +1159,7 @@ function readGv2gmlLabelPlace(
     snapshot: GraphSnapshot,
     e: number,
     bent: boolean,
-    put: (property: string, value: number) => void,
+    put: (property: string, value: StyleValue) => void,
 ): void {
     const lp = cellOf(snapshot.edges, "lp", e);
     const m = typeof lp === "string" ? /^\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*$/.exec(lp) : null;
@@ -1181,7 +1183,7 @@ function readOgdfLabelPlace(
     snapshot: GraphSnapshot,
     g: unknown,
     e: number,
-    put: (property: string, value: number) => void,
+    put: (property: string, value: StyleValue) => void,
 ): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
     const list = isRec(raw) ? [raw] : raw;

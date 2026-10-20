@@ -803,6 +803,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${OGDF_SVG}fill #000000)`),
                     labelFont: v("Arial", `${OGDF_SVG}font-family Arial)`),
                     labelSize: v(10, `${OGDF_SVG}font-size 10)`),
+                    labelPosition: v("center", `${OGDF_SVG}text-anchor middle on the line, dominant-baseline middle)`),
                 },
                 graph: { background: v("#ffffff", `${OGDF_SVG}no background: the page's white shows through)`) },
                 derived: [],

@@ -416,7 +416,8 @@
             "lineStyle": "solid",
             "labelColor": "#000000",
             "labelFont": "Arial",
-            "labelSize": 10
+            "labelSize": 10,
+            "labelPosition": "center"
         },
         "graph": {
             "background": "#ffffff"

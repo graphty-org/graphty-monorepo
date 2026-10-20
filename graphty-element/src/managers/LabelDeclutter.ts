@@ -167,6 +167,14 @@ const AROUND: readonly (readonly [number, number])[] = [
 ];
 /** Pixels kept between a moved label and its node. */
 const LABEL_GAP = 2;
+/**
+ * Pixels a label's words must keep from another label's words, and from another node, to count as
+ * apart. Words that touch read as one run of text, and words touching a node read as its name, so
+ * a label closer than this is treated as overlapping. Fixed
+ * in pixels, not in label sizes, so the camera decides it: zoomed out, labels close in on each
+ * other and more of them are hidden; zoomed in, they come back.
+ */
+const LABEL_CLEARANCE = 3;
 /** What covering each kind of thing costs a place; the cheapest place wins. */
 const COVERS_LABEL = 4;
 const COVERS_NODE = 2;
@@ -926,12 +934,19 @@ export class LabelDeclutter {
         this.projection.set(camera.getProjectionMatrix().m);
     }
 
+    /**
+     * Whether a rectangle keeps {@link LABEL_CLEARANCE} from every label already kept.
+     * @param entry - The rectangle.
+     * @param size - The grid's cell size in pixels.
+     * @returns True when it does.
+     */
     private isClear(entry: Box, size: number): boolean {
         const { x: originX, y: originY } = this.viewport;
-        const x1 = cell(entry.right - originX, size, this.columns);
-        const y1 = cell(entry.bottom - originY, size, this.rows);
-        for (let x = cell(entry.left - originX, size, this.columns); x <= x1; x++) {
-            for (let y = cell(entry.top - originY, size, this.rows); y <= y1; y++) {
+        const gap = LABEL_CLEARANCE;
+        const x1 = cell(entry.right + gap - originX, size, this.columns);
+        const y1 = cell(entry.bottom + gap - originY, size, this.rows);
+        for (let x = cell(entry.left - gap - originX, size, this.columns); x <= x1; x++) {
+            for (let y = cell(entry.top - gap - originY, size, this.rows); y <= y1; y++) {
                 const bucket = this.grid.get(x * this.rows + y);
                 if (!bucket) {
                     continue;
@@ -939,10 +954,10 @@ export class LabelDeclutter {
 
                 for (const other of bucket) {
                     if (
-                        entry.left < other.right &&
-                        entry.right > other.left &&
-                        entry.top < other.bottom &&
-                        entry.bottom > other.top
+                        entry.left < other.right + gap &&
+                        entry.right + gap > other.left &&
+                        entry.top < other.bottom + gap &&
+                        entry.bottom + gap > other.top
                     ) {
                         return false;
                     }
@@ -1086,8 +1101,11 @@ export class LabelDeclutter {
         }
 
         const root = mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
+        // A node ringed by its halo (the selection ring) reaches as far as the ring: a label moved
+        // beside it, its own or another node's, keeps clear of the ring, not of the node inside it.
+        const ring = node.label?.ringScale ?? 1;
         const corner = this.corner.copyFrom(centre);
-        this.right.scaleAndAddToRef(node.drawnRadius * Math.abs(root), corner);
+        this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(root), corner);
         const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
         const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
         const r = Math.hypot(k.x - c.x, k.y - c.y);
@@ -1095,7 +1113,9 @@ export class LabelDeclutter {
         circles[3 * slot + 1] = c.y;
         circles[3 * slot + 2] = r;
         this.nodeSlots.set(node, slot);
-        const box = { left: c.x - r, top: c.y - r, right: c.x + r, bottom: c.y + r };
+        // Bucketed as far as a label must keep from it, so the cells a label is tested in hold it.
+        const reach = r + LABEL_CLEARANCE;
+        const box = { left: c.x - reach, top: c.y - reach, right: c.x + reach, bottom: c.y + reach };
         if (
             box.right >= viewport.x &&
             box.left <= viewport.x + viewport.width &&
@@ -1302,7 +1322,12 @@ export class LabelDeclutter {
         for (const slot of slots ?? []) {
             if (
                 slot !== entry.slot &&
-                rectMeetsCircle(entry, circles[3 * slot], circles[3 * slot + 1], circles[3 * slot + 2])
+                rectMeetsCircle(
+                    entry,
+                    circles[3 * slot],
+                    circles[3 * slot + 1],
+                    circles[3 * slot + 2] + LABEL_CLEARANCE,
+                )
             ) {
                 return true;
             }

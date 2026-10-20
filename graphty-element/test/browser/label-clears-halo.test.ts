@@ -50,7 +50,14 @@ async function draw(graph: Graph): Promise<void> {
  * Three labelled nodes in a row, framed whole.
  * @returns The graph.
  */
-async function labelled(): Promise<Graph> {
+async function labelled(
+    nodes = [
+        { id: "Cosette", position: { x: 0, y: 0, z: 0 } },
+        { id: "left", position: { x: -6, y: 0, z: 0 } },
+        { id: "right", position: { x: 6, y: 0, z: 0 } },
+    ],
+    avoidNodesAndEdges = false,
+): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = "640px";
     container.style.height = "480px";
@@ -61,11 +68,11 @@ async function labelled(): Promise<Graph> {
         container.remove();
     });
     await graph.init();
-    await graph.addNodes([
-        { id: "Cosette", position: { x: 0, y: 0, z: 0 } },
-        { id: "left", position: { x: -6, y: 0, z: 0 } },
-        { id: "right", position: { x: 6, y: 0, z: 0 } },
-    ]);
+    if (avoidNodesAndEdges) {
+        graph.setLayoutBehavior({ labels: { declutter: true, avoidNodesAndEdges: true } });
+    }
+
+    await graph.addNodes(nodes);
     await graph.setLayout("fixed", { dim: 3 });
     await graph.getSession().styles.add({
         name: "labels",
@@ -175,6 +182,32 @@ describe("a label and the ring around its node", () => {
         assert.isFalse(
             meets(label, circle),
             `the words (bottom ${label.bottom.toFixed(1)}) reach into the ring (top ${(circle.y - circle.r).toFixed(1)})`,
+        );
+    });
+
+    it("are apart when the label was moved beside its node to clear the node above it", async () => {
+        // The label's own place, above, covers the node above, so the overlap pass moves it to a
+        // side of its node -- and measured that side from the node, not from the ring around it.
+        const graph = await labelled(
+            [
+                { id: "Cosette", position: { x: 0, y: 0, z: 0 } },
+                { id: "above", position: { x: 0, y: 1.6, z: 0 } },
+            ],
+            true,
+        );
+        const node = graph.getNode("Cosette");
+        assert.isOk(node);
+
+        assert.isTrue(graph.selectNode("Cosette"));
+        await operationQueueOf(graph).waitForCompletion();
+        await draw(graph);
+
+        const label = words(graph, node);
+        const circle = ring(graph, node);
+        assert.isAbove(label.bottom, circle.y - circle.r, "the setup must put the label beside the node");
+        assert.isFalse(
+            meets(label, circle),
+            `the words (${label.left.toFixed(1)}..${label.right.toFixed(1)}, ${label.top.toFixed(1)}..${label.bottom.toFixed(1)}) reach into the ring (centre ${circle.x.toFixed(1)}, ${circle.y.toFixed(1)}, radius ${circle.r.toFixed(1)})`,
         );
     });
 

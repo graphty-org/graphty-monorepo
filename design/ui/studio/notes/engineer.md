@@ -16,60 +16,28 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, size with "Clamp outliers" off) Mechanism: `positionBetween` in
-   graphty-element `session/styles/scales.ts` cuts every continuous scale's place to [0, 1], so a
-   value above an explicit domain ("Values to") draws at the range's upper end; "Clamp outliers" is
-   the percentile alternative to a written domain, not an on/off for this cut. Documented
-   (`BindingPreview.above` "painted as its upper end") and tested (`scales.test.ts` "clamps a value
-   outside the domain"), so changing it is breaking: recorded "For the owner" in owner-decisions.md
-   (2026-10-19, "should a value beyond a written domain be drawn past the range's end?") with an
-   additive `beyondDomain` option as one way forward. No code change; Node.ts is not involved (it
-   draws the size the scale returns). No real.mjs walk: nothing changed to check.
-   Re-checked 2026-10-19 before the freeze: 25f2ac298 changes only owner-decisions.md and these
-   notes; no app, element or compact-mantine source changed since graphty/dist was built (07:26),
-   so no screen renders anything new and no walk is needed. The finding's acceptance ("read the
-   mechanism; if the element documents a ceiling, record it for the owner") holds: the doc line
-   (encoding.ts BindingPreview.above) and the test (scales.test.ts) exist as cited.
-   0a. (2026-10-18, Analyze: Enter, tooltip, run message) Asked again for three pilot findings
-   (Enter in Louvain's Resolution, an "Analyze Shift+A" tooltip after Run, "Louvain finished" with
-   no count) seen on build 58556989e. All three were already fixed before the frozen build
-   52cb47a85a: Enter in `fa3c6be16` (compact-mantine `useNumberField` commits, then submits its
-   form), the message in `fa3c6be16` (`groupsAnnouncement` in `analyze/words.ts`: "Louvain
-   finished: 6 groups, each a layer in the Louvain folder of Style layers"), the tooltip in
-   `098534fc7` (`focusReturned` in compact-mantine `overlayBehavior.ts`). Test
-   `GroupsAsLayers.real-element` "runs on Enter in a setting..." covers all three and passes. No
-   code change; before building a fix, check `git log <pilot build>..HEAD` for the file first.
-   No real.mjs walk this time: all four browser slots were held by r1d3 pilot sessions for 15+
-   minutes, and the repo's hook refuses a foreground wait, so the queued session was cancelled. 0. (2026-10-18, labels, third hand-out) The label item (text size beside 'Size in', Escape in a
-   settings field, Escape on Reset, list opens on 'name', Fixed text box width, Tab closes the
-   list, Icosphere whole) is in 611619ee7, an ancestor of the study build 52cb47a85; the pilot
-   T44A/T44B ran on 58556989e, before it. On HEAD d8ab81d4e `Labels.real-element` passes 16 of 16
-   (one test per acceptance item, the "a label entry's size, keys, lists and widths" block). No
-   code change. No new walk: all four browser slots held by the r1d3 pilots; the walk on a build
-   holding 611619ee7 is `design/ui/studio/tmp/r1-dry1-labels/walk3`, `walk4`. Before building a
-   handed-out fix, run `git merge-base --is-ancestor <fix> <pilot commit>` first.
+0. (2026-10-19, label count and the selection ring) Measured first with an in-page probe of the
+   frozen build (`design/ui/studio/tmp/r1-dry1-labels-overlap-ring/probe.mjs`, word rectangles
+   from each label plane's corners): at default size Les Miserables draws NO overlapping words,
+   only 3 pairs within 2 px, and at size 96 the count did change with zoom (10 to 8). So "0
+   hidden" was honest by the old rule; the reader's "touching" was the defect. graphty-element
+   `LabelDeclutter`: `LABEL_CLEARANCE` (3 px) between kept words and from other nodes' circles
+   (`isClear`, `coversNode`, the node grid's buckets widened to match), fixed in pixels so the
+   camera decides it; `projectNode` sizes a node by `node.label.ringScale` (new getter on the
+   unexported `RichTextLabel`, no API change), so a label moved beside a selected node clears the
+   ring, not the node. Tests: `label-declutter` "hides a label whose words touch a kept one, and
+   shows it again when a zoom opens the gap" (real wheel), `label-clears-halo` "are apart when the
+   label was moved beside its node" (both fail on HEAD). Walks w2 (Les Mis: 0 hidden at default
+   size with nothing touching, 14 at 96, 13 zoomed in, 14 back), w3 (volunteers at 96: 0 hidden,
+   nothing within 3 px; Lucy Grant selected, ring clear, crop w3/15). Red before and after (not
+   mine): `label-drawn-over-edges` "draws a selected node's label over its selection ring" (x2).
+   Earlier Top-of-mind 0 and 0a (size clamp; Analyze Enter, tooltip, message; labels third
+   hand-out): `git show 9ed873a75:design/ui/studio/notes/engineer.md`.
 
-1. (2026-10-18, layer rows and the key agree with what a layer draws) graphty-element
-   `styles.groups` counted the whole graph (the prepared binding's `categoryCounts`) although
-   `ValueGroup.count` says "of the layer's elements": now counted over the layer's selector
-   (not for an `everything` layer), recorded as a fix under "decided by the team". App:
-   `rows.ts` `builtParts` (writing halves, else halves with a condition, else all) drives the row
-   count, `paintedTarget`, the kind glyph and the subtitle; `legendWords.ts` `heldRows` (in
-   `dataBlocks`) filters and orders a category block by `styles.groups` (count > 0, groups'
-   order = the Style table's), `keyBlocks` drops a category size block whose rows all paint one
-   size, `coveredLine` + `KeyNames.covers` (from `styles.counts(id).covers[channel]`, state layers
-   skipped, a run's layer named by `runName`) adds "1 node covered by s01" under a non-category
-   section, and the export image carries scope and covered notes on ramps. Tests
-   `canvas/__tests__/LayerRowAndKey.real-element` (5, all fail on HEAD), element
-   `group-editor` "counts each group among the layer's own elements" (fails on HEAD). Walks in
-   `design/ui/studio/tmp/r1-dry3-layer-row-and-key-agree/` (w1 12 row 0 "Node layer", 19 key
-   "board" only, 20 table 1/0/0; w2 13 row 51 "Edge layer"; w3 14 key order kept after red, 21
-   no width key at 8/8/8, 24 widths 8/24/8; w4 17 covered line). Not done: the bound pill's chits
-   still put a recolored group first (`ValueField`/pill, not the key). Red on HEAD too (not this
-   change): Groups "one undo step", graph-place tasks "click on a drawn name", BindingPopover "on
-   Louvain", inspector tasks T8, CanvasOverlays.real-element T8, RowKinds 2, CanvasOverlays.test
-   "Open a sample" (`data.source` mock), ExportDialog "saves the drawing" (two toasts),
-   Canvas.stories "Path Over Ranking".
+1. (2026-10-18, layer rows and the key agree with what a layer draws: `styles.groups` counted over
+   the layer's selector, `rows.ts` `builtParts`, `legendWords.ts` `heldRows`/`coveredLine`) in
+   full, with its walks and the tests red on HEAD then, in
+   `git show 9ed873a75:design/ui/studio/notes/engineer.md`, Top of mind 1.
    0d. (2026-10-18, undo words and keys) in full in `git show e247f1900:design/ui/studio/notes/engineer.md`, Top of mind 0.
 2. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
    summaries and the Data place, focus after a style line, shape list typing and the color picker,
@@ -261,6 +229,12 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-19) An in-page probe that measures label WORDS on screen and compares them with the
+  declutter's own rectangles (they matched to the pixel) settled "is the count lying?" in one run:
+  it was not; the rule was too strict. WORKED. A zoom in perspective scales world-sized labels and
+  their gaps together, so a count can only move with zoom through a rule fixed in pixels.
+  Wheeling out past the fitted view did not zoom further in the probe (zoom3 equals the start).
 
 - (2026-10-18) Did not work: queuing a real.mjs `--start` while four pilot sessions hold every
   browser slot. The start blocks with no output; a `timeout` around it kills the client but leaves

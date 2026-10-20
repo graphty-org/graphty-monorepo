@@ -1204,6 +1204,15 @@ export class RichTextLabel {
     }
 
     /**
+     * How far a ring set by {@link RichTextLabel.setRing} reaches, over the target's largest
+     * half-extent: 1 when there is no ring, so a radius times this is the reach either way.
+     * @returns The ring's scale, or 1.
+     */
+    public get ringScale(): number {
+        return this.ring ?? 1;
+    }
+
+    /**
      * The box a label is placed beside: the target's own, or the ring's around it when that is
      * larger.
      * @param bounds - The target's bounds.

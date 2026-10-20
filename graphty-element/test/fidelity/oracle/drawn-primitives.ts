@@ -15,6 +15,7 @@ import {
     type DashClass,
     dashClassOf,
     type PArrow,
+    type PEdge,
     type PGradient,
     type PNode,
     type PScene,
@@ -167,6 +168,21 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
 };
 
 /** Where along its edge each of graphty's caps sits. */
+/**
+ * The band graphty draws under an edge's line, with the line class of the pattern it is drawn in (a joined line's dots
+ * dotted, its dashes dashed); none for a solid band.
+ * @param o - the band as drawn, or null
+ * @returns the band, or null for none
+ */
+function outlineOf(o: DrawnEdge["outline"] | undefined): PEdge["outline"] {
+    if (o === null || o === undefined) {
+        return null;
+    }
+    const { pattern, ...band } = o;
+    const dashClass = pattern === undefined ? "solid" : (LINE_CLASS[pattern] ?? "other");
+    return dashClass === "solid" ? band : { ...band, dashClass };
+}
+
 const CAP_END: Readonly<Record<DrawnEdge["caps"][number]["end"], PArrow["end"]>> = {
     arrowHead: "target",
     arrowTail: "source",
@@ -477,7 +493,7 @@ export function drawnPrimitives(
                     gradient,
                 },
                 arrows,
-                outline: d.outline ?? null,
+                outline: outlineOf(d.outline),
                 // the texts at its ends belong to it too, as the oracle reads every text beside an edge
                 label: mergeTexts(
                     [e.label !== null ? d.label : null, ...d.endLabels]

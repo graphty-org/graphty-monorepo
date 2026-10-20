@@ -913,8 +913,11 @@ export interface DrawnEdge {
      * and spacing); null for a line drawn whole or a pattern whose pieces are not read.
      */
     dashPx: number[] | null;
-    /** The band drawn under the line (`line.outline`): its color, opacity and whole width in pixels; null for none. */
-    outline: { color: string; opacity: number; width: number } | null;
+    /**
+     * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
+     * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
+     */
+    outline: { color: string; opacity: number; width: number; pattern?: string } | null;
     caps: {
         end: EdgeCapEnd;
         name: string;
@@ -1084,15 +1087,21 @@ function readOutline(internal: EdgeInternals, p: Projector): DrawnEdge["outline"
     const [a, b] = batch.endsOf(slots[0]);
     const mid = a.add(b).scale(0.5);
     const m = materialColor(batch.mesh.material);
-    const meta = batch.mesh.metadata as { lineOpacity?: number; joinedLine?: boolean } | null;
+    const meta = batch.mesh.metadata as {
+        lineOpacity?: number;
+        joinedLine?: boolean;
+        pattern?: { kind: string };
+    } | null;
     // a joined line's shader draws its own opacity and never reads the mesh's visibility (as `readEdge` reads it)
     const visibility = meta?.joinedLine === true ? 1 : batch.mesh.visibility;
+    const pattern = meta?.pattern?.kind;
     return m === null
         ? null
         : {
               color: hex(m.rgb),
               opacity: (meta?.lineOpacity ?? m.alpha) * visibility,
               width: lineThickness(batch.mesh, mid, p),
+              ...(pattern === undefined ? {} : { pattern }),
           };
 }
 

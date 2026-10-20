@@ -188,6 +188,11 @@ export interface PNode {
      * side's pixels. Absent or null for none.
      */
     ring?: (PStroke & { reach: number }) | null;
+    /**
+     * The oracle's side only: the boxes of the pictures drawn as part of the node (an image over or inside its shape,
+     * vis-network's circularImage and image nodes), which graphty draws as pieces over the node's face. Absent for none.
+     */
+    pictures?: PBox[];
     label: PText | null;
     /**
      * graphty's side only: whether its border was drawn in from the node's size (a border inside the size or centered
@@ -252,9 +257,10 @@ export interface PEdge {
     label: PText | null;
     /**
      * A band drawn under the line along its length (Cytoscape.js `line-outline-*`, vis-network's edge `background`):
-     * its paint and its whole width across, in the side's pixels; absent or null for none.
+     * its paint, its whole width across, in the side's pixels, and its line class (absent: solid); absent or null for
+     * none.
      */
-    outline?: { color: string; opacity: number; width: number } | null;
+    outline?: { color: string; opacity: number; width: number; dashClass?: DashClass } | null;
 }
 
 /** A group box as drawn. */

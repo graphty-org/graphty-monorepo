@@ -1678,14 +1678,18 @@ export function compareOracle(
             e.outline !== undefined && e.outline !== null && e.outline.opacity > 0.05 ? e.outline : null;
         const [ob, gb] = [shownBand(o), shownBand(g)];
         if (ob !== null || gb !== null) {
+            // its line class shown only where it is not solid, as the band's own dashes (vis-network's background.dashes)
             const show = (b: PEdge["outline"], k: number): unknown =>
-                b === null || b === undefined ? null : [b.color, R(b.opacity), R(b.width * k)];
+                b === null || b === undefined
+                    ? null
+                    : [b.color, R(b.opacity), R(b.width * k), ...(b.dashClass === undefined ? [] : [b.dashClass])];
             const miss =
                 ob === null || gb === null || ob === undefined || gb === undefined
                     ? 1
                     : Math.max(0, deltaE(ob.color, gb.color) - T.colorDeltaE) +
                       ratioMiss((gb.width * lengthScale) / Math.max(ob.width, 1e-9), T.edgeWidthRatio) +
-                      opacityMiss(ob.opacity, gb.opacity);
+                      opacityMiss(ob.opacity, gb.opacity) +
+                      (sameLine(ob.dashClass ?? "solid", gb.dashClass ?? "solid") ? 0 : 1);
             j.add("edge.outline", "edge", id, miss, show(ob, 1), show(gb, lengthScale));
         }
         const swap = { source: "target", target: "source", middle: "middle" } as const;
@@ -2020,9 +2024,11 @@ export function compareOracle(
             );
             return { ...s, matched };
         });
-    // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near
+    // an annotation graphty draws where the oracle draws nothing like it: a box, or words the oracle draws nowhere near;
+    // a picture graphty draws over a node's face is drawn where the program draws one as part of a node
     const oBoxes = [
         ...oracle.strays.map((s) => s.box),
+        ...oracle.nodes.flatMap((n) => n.pictures ?? []),
         ...oracle.texts.map((t) => t.box),
         ...oracle.groups.map((g) => g.box),
     ];

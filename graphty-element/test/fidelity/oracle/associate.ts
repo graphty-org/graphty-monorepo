@@ -268,9 +268,10 @@ export function outerRingOf(shapes: readonly Prim[]): Prim | null {
 
 /**
  * The first piece of a node whose fill is drawn in pieces (Graphviz's striped and wedged styles): two or more fills of
- * which none covers the box they make together. Its fill is the node's first color, as a program's own fill list names
- * it, where the largest piece would be decided by the size of each piece's box (a wedge's box is not its area) or, for
- * equal stripes, by rounding.
+ * which one at least does not cover the box they make together (a wedge of 0.7 of a circle spans the whole box, its
+ * 0.3 sibling does not). Its fill is the node's first color, as a program's own fill list names it, where the largest
+ * piece would be decided by the size of each piece's box (a wedge's box is not its area) or, for equal stripes, by
+ * rounding. A whole fill drawn first beneath smaller ones is that first piece too.
  * @param shapes - the node's shapes
  * @returns the first-drawn piece, or null when the node's fill is not in pieces
  */
@@ -280,7 +281,7 @@ function piecesFirst(shapes: readonly Prim[]): Prim | null {
         return null;
     }
     const whole = area(union(fills.map((s) => s.box)));
-    return fills.every((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
+    return fills.some((s) => area(s.box) < 0.95 * whole) ? [...fills].sort((a, b) => a.index - b.index)[0] : null;
 }
 
 /** A node built from the primitives that draw it. */
@@ -312,8 +313,10 @@ function nodeFrom(id: string, drawn: readonly Prim[], texts: readonly PText[]): 
     const stroked = all
         .filter((s) => s.stroke !== null)
         .sort((a, b) => off(a) - off(b) || area(b.box) - area(a.box) || a.index - b.index)[0];
+    const pictures = shapes.filter((s) => s.kind === "image").map((s) => s.box);
     return {
         id,
+        ...(pictures.length > 0 ? { pictures } : {}),
         cx: cx(box),
         cy: cy(box),
         w: bw(box),
@@ -850,17 +853,31 @@ function nearestEnd<End extends ArrowEnd>(
 }
 
 /**
+ * A line's middle and the farther of the two points either side of it, which give the line's direction there.
+ * @param path - the line, source end first
+ * @returns the middle and that point
+ */
+function middleAxis(path: readonly Pt[]): [Pt, Pt] {
+    const [a, m, b] = middleRun(path);
+    const far = (p: Pt | undefined): number => (p === undefined ? -1 : Math.hypot(p[0] - m[0], p[1] - m[1]));
+    return [m, far(a) >= far(b) ? a : b];
+}
+
+/**
  * Whether an open stroke spans its edge's line at one end as an arrowhead drawn as a stroke does (Cytoscape's open
- * half circle): its two ends either side of the line, the chord between them across it, its middle at the line's end.
- * A piece of a node's outline beside the end does none of that.
+ * half circle): its two ends either side of the line, the chord between them across it, its middle at the line's end
+ * (or at the line's middle, for a cap drawn part-way along it). A piece of a node's outline beside the end does none
+ * of that.
  * @param stroke - the stroke's points
  * @param e - the edge
- * @param end - which end
+ * @param end - which end, or the middle
  * @returns true for a stroke that caps the end
  */
-function capsAcross(stroke: readonly Pt[], e: PEdge, end: "source" | "target"): boolean {
+function capsAcross(stroke: readonly Pt[], e: PEdge, end: ArrowEnd): boolean {
     const run = end === "source" ? e.points : [...e.points].reverse();
-    const [q, back] = [run[0], run[Math.min(1, run.length - 1)]];
+    // a cap part-way along the line (vis-network's middle curve) spans the line at its middle, along the longer of the
+    // two runs either side of it
+    const [q, back] = end === "middle" ? middleAxis(e.points) : [run[0], run[Math.min(1, run.length - 1)]];
     const a = stroke[0];
     const b = stroke.at(-1) ?? a;
     const chord = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -891,6 +908,37 @@ function centeredOnLine(box: PBox, e: PEdge, end: ArrowEnd): boolean {
     const c: Pt = [cx(box), cy(box)];
     const across = Math.abs((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) / len;
     return across <= Math.max(2, Math.min(bw(box), bh(box)) / 6);
+}
+
+/**
+ * Whether a closed shape is a cap pointing along its line with its point on the line's middle: one of its points lies
+ * there (within a twentieth of its size, at least a pixel and a half), and no point of it lies farther along the line
+ * that way. A cap at an end has its point at that end, and a shape centered on the middle (a circle, a bar) has no
+ * point there.
+ * @param p - the shape
+ * @param e - the edge
+ * @returns true for a cap pointing at the middle
+ */
+function tipsMiddle(p: Prim, e: PEdge): boolean {
+    const run = middleRun(e.points);
+    if (run.length < 3 || p.points.length < 3 || !centeredOnLine(p.box, e, "middle")) {
+        return false;
+    }
+    const [a, m, b] = run;
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 1e-9) {
+        return false;
+    }
+    const [ux, uy] = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+    const tol = Math.max(1.5, 0.05 * Math.max(bw(p.box), bh(p.box)));
+    const along = p.points.map((v) => (v[0] - m[0]) * ux + (v[1] - m[1]) * uy);
+    const [lo, hi] = [Math.min(...along), Math.max(...along)];
+    return (
+        hi - lo >= 2 * tol &&
+        p.points.some(
+            (v, i) => Math.hypot(v[0] - m[0], v[1] - m[1]) <= tol && (along[i] >= hi - 0.5 || along[i] <= lo + 0.5),
+        )
+    );
 }
 
 /**
@@ -940,8 +988,12 @@ export function arrowheadEdge(
     };
     const middle = nearestEnd(edges, (e) => middleGap(e), reach, ["middle"]);
     const held = ends !== null && ends.d <= 0.75 * size + 2;
+    // a cap whose point is its line's middle, pointing along the line, is that line's middle arrow however near an end
+    // its base reaches (vis-network's arrows.middle with a scaleFactor, on a line under twice the cap's length)
+    const pointed = nearestEnd(edges, (e) => (tipsMiddle(p, e) ? 0 : Number.POSITIVE_INFINITY), 1, ["middle"]);
     const best =
         (centerLines ? nearestEnd(edges, (e, end) => tipGap(p, e, end, nodes), 3, ["source", "target"]) : null) ??
+        pointed ??
         (held || middle === null || (ends !== null && ends.d < middle.d) ? ends : middle);
     if (best === null) {
         return null;
@@ -1454,11 +1506,17 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         drawnAt.set(edge, p.index);
         edges.push(edge);
     }
-    // A solid line drawn under a narrower one along the same route between the same nodes is that edge's outline
-    // (Cytoscape.js's line outline, vis-network's edge background): one edge with a band under its line, not two.
+    // A line drawn under a narrower one along the same route between the same nodes is that edge's outline
+    // (Cytoscape.js's line outline, vis-network's edge background, in dashes of its own with `background.dashes`): one
+    // edge with a band under its line, not two. A band is solid or dashed; a pattern drawn as a shape is a line.
     for (const under of [...edges]) {
         const band = under.stroke;
-        if (!under.id.includes("#g") || band === null || band.dashClass !== "solid" || !Number.isFinite(band.width)) {
+        if (
+            !under.id.includes("#g") ||
+            band === null ||
+            !["solid", "dashed", "dotted", "dash-dot"].includes(band.dashClass) ||
+            !Number.isFinite(band.width)
+        ) {
             continue;
         }
         const tol = Math.max(band.width, 2);
@@ -1476,7 +1534,12 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         if (over === undefined) {
             continue;
         }
-        over.outline = { color: band.color, opacity: band.opacity, width: band.width };
+        over.outline = {
+            color: band.color,
+            opacity: band.opacity,
+            width: band.width,
+            ...(band.dashClass === "solid" ? {} : { dashClass: band.dashClass }),
+        };
         edges.splice(edges.indexOf(under), 1);
         withPieces.splice(withPieces.indexOf(under), 1);
     }
@@ -1552,7 +1615,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     }
     // a small open stroke at an edge's end is its arrowhead, beside the line, which it does not carry on
     // a small curved open stroke no edge took, across an edge's end: that end's arrowhead drawn as a stroke (vis-network's
-    // curve and inv_curve caps, a semicircle a third of the arrow's length across the line at its end)
+    // curve and inv_curve caps, a semicircle a third of the arrow's length across the line at its end), or across its
+    // middle: its middle arrow drawn so (vis-network's arrows.middle type curve)
     for (const p of free()) {
         if (strokedArc(p)) {
             arcs.push({ p, piece: null });
@@ -1567,7 +1631,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         );
         if (
             best !== null &&
-            best.end !== "middle" &&
+            (best.end !== "middle" || piece === null) &&
             best.e.arrows.every((x) => x.end !== best.end) &&
             capsAcross(p.points, best.e, best.end)
         ) {

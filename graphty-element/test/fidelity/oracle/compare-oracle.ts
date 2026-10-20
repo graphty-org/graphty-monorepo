@@ -1999,9 +1999,13 @@ export function compareOracle(
     // what the program drew off its canvas is drawn nowhere a reader sees (vis-network's edge label in a text font,
     // drawn beyond the canvas's right edge)
     const onCanvas = (b: PBox): boolean => b.x1 >= 0 && b.y1 >= 0 && b.x0 <= oracle.width && b.y0 <= oracle.height;
+    // a text under one render pixel is no text to a reader, as judgeLabel and extract-scene.ts drop graphty's: the
+    // further lines of a wrapped node label Cytoscape draws at 0.15 px (cx-ddram, node 6907), which the association
+    // leaves as free text when it drops the first line with its node
+    const legibleText = (t: PText): boolean => t.sizePx === 0 || t.sizePx / lengthScale >= T.legibleFontPx;
     const strays = [
         ...oracle.strays.map((s) => ({ tag: s.tag, box: s.box, fill: s.fill, stroke: s.stroke, text: s.text })),
-        ...[...oracle.texts, ...annotatedTexts].map((t) => ({
+        ...[...oracle.texts, ...annotatedTexts].filter(legibleText).map((t) => ({
             tag: "text",
             box: t.box,
             fill: null,

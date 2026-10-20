@@ -1,3 +1,7 @@
+## 0.9.32 (2026-10-20)
+
+This was a version bump only for compact-mantine to align it with other projects, there were no code changes.
+
 ## 0.9.31 (2026-10-18)
 
 ### 🚀 Features

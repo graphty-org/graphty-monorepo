@@ -156,7 +156,9 @@ export function dependantColor(mode: string, parent: readonly number[]): number[
 }
 
 /**
- * The labels drawn: none when `<target>.label.show` is off, each cut when `<target>.label.shorten` is on.
+ * The labels drawn: none when `<target>.label.show` is off, each cut when `<target>.label.shorten` is on, and with its
+ * line breaks left out, as Java's `drawString` draws a label on one line with nothing for a break ("line one\nline
+ * two" is drawn "line oneline two": Gephi Toolkit 0.11.3's preview and PNG export, `gexf-specimen-labels`).
  * @param labels - each element's label, or undefined when none has one
  * @param preview - the settings
  * @param target - "node" or "edge"
@@ -170,11 +172,8 @@ export function drawnLabels(
     if (labels === undefined || !preview.on(`${target}.label.show`)) {
         return undefined;
     }
-    if (!preview.on(`${target}.label.shorten`)) {
-        return [...labels];
-    }
-    const max = preview.num(`${target}.label.max-char`);
-    return labels.map((l) => (typeof l === "string" ? shortened(l, max) : l));
+    const max = preview.on(`${target}.label.shorten`) ? preview.num(`${target}.label.max-char`) : Infinity;
+    return labels.map((l) => (typeof l === "string" ? shortened(l, max).replaceAll(/[\r\n]/g, "") : l));
 }
 
 /**

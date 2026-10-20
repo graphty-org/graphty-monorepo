@@ -31,7 +31,7 @@
     },
     "fonts": "Gephi writes font-family=\"Dialog\" (Java's logical font); rasterize.mjs draws it with the repository's pinned fonts",
     "svgPostprocessing": "none: the SVG is Gephi's output byte for byte",
-    "date": "2026-10-18",
+    "date": "2026-10-20",
     "standIn": false,
     "regenerate": "node graph-io/test/fidelity/oracles/tools/gephi.mjs gexf-specimen-labels-p2 && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/gexf-specimen-labels-p2.svg"
 }

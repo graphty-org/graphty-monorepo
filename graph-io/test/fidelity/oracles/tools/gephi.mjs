@@ -109,7 +109,7 @@ function restoreLabelText(svg, items) {
                 (whole, tag, id, lead, text, tail) => {
                     const label = labels[kind].get(id);
                     if (typeof label !== "string") return whole;
-                    const want = esc(label.trim().replace(/\s+/g, " "));
+                    const want = esc(label.replaceAll(/[\r\n]/g, "").trim());
                     if (want === text || want.replace(/\s+/g, "") !== text.replace(/\s+/g, "")) return whole;
                     restored++;
                     return `${tag}${lead}${want}${tail}`;

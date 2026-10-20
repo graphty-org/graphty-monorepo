@@ -143,6 +143,7 @@ export interface AttributeDescriptor {
     runId?: RunId;
     // (undocumented)
     sampleValues: readonly unknown[];
+    sources?: readonly SourceKey[];
     // (undocumented)
     technicalName: string;
     token: string;
@@ -1790,7 +1791,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2144,9 +2145,19 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly counts: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly joinedOnto?: SourceKey;
+    readonly key: SourceKey;
+    readonly kind: LoadedSourceKind;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
 }
+
+// @public
+export type LoadedSourceKind = "file" | "server" | "sample" | "join";
 
 // @public
 export interface LoadError {
@@ -2840,6 +2851,18 @@ export { registerSource }
 export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
 
 // @public
+export interface RemoveSourceResult {
+    readonly kept: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly removed: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+}
+
+// @public
 export type RepaintReason = "add" | "update" | "remove" | "move" | "sweep";
 
 // @public
@@ -3146,6 +3169,15 @@ export type RuleTree = {
     readonly path: Path;
     readonly top?: number;
     readonly above?: number;
+}
+/**
+* The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+* `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+* Speaks nodes and edges.
+*/
+| {
+    readonly kind: "source";
+    readonly sources: readonly SourceKey[];
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -3715,6 +3747,7 @@ export interface SessionDataApi {
     }): Promise<LoadDraft>;
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
+    removeSource(key: SourceKey): Promise<RemoveSourceResult>;
     renameSource(name: string): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
@@ -3722,6 +3755,9 @@ export interface SessionDataApi {
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     sources(): readonly LoadedSource[];
+    sourcesOf(id: NodeId_2 | EdgeId, options?: {
+        readonly kind?: "node" | "edge";
+    }): readonly SourceKey[];
     statistics(): GraphStatistics;
     readonly store: SessionGraphStore;
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
@@ -4096,6 +4132,9 @@ export { SourceDescriptor }
 export { SourceEdgeRecord }
 
 // @public
+export type SourceEntry = LoadedSource;
+
+// @public
 export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
 
 // @public
@@ -4138,6 +4177,9 @@ export interface SourceInput {
 export { SourceIssueCode }
 
 export { SourceIssueParams }
+
+// @public
+export type SourceKey = string;
 
 export { SourceKind }
 

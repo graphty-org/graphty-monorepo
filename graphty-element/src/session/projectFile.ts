@@ -23,6 +23,7 @@ import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecut
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import { SOURCE_RECORD_MEMBER } from "./sources/ids";
+import { isProvenance, type Provenance } from "./sources/provenance";
 import {
     asFileStyleStore,
     FILE_STYLES_VALUE,
@@ -504,6 +505,23 @@ export function dataMember(session: GraphSession): Record<string, unknown> {
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
     const sources = session.data.sources();
+    // What each load supplied: nodes by id, edges by their position in `links`, as a run's are.
+    const provenance: Record<string, { nodes: NodeId[]; edges: number[] }> = {};
+    const entry = (key: string): { nodes: NodeId[]; edges: number[] } => (provenance[key] ??= { nodes: [], edges: [] });
+    if (sources.length > 0) {
+        for (const node of nodes) {
+            for (const key of session.data.sourcesOf(node.id)) {
+                entry(key).nodes.push(node.id);
+            }
+        }
+
+        edges.forEach((edge, at) => {
+            for (const key of session.data.sourcesOf(edge.id, { kind: "edge" })) {
+                entry(key).edges.push(at);
+            }
+        });
+    }
+
     return {
         kind: "graphty-data",
         version: VERSION,
@@ -518,6 +536,7 @@ export function dataMember(session: GraphSession): Record<string, unknown> {
         },
         ...(source === null ? {} : { source }),
         ...(sources.length === 0 ? {} : { sources }),
+        ...(Object.keys(provenance).length === 0 ? {} : { provenance }),
     };
 }
 
@@ -1108,6 +1127,7 @@ async function clearInto(tx: TransactionScope): Promise<void> {
  * @param graph - The graph.
  * @param source - The member's `source`: where the graph was loaded from, when the file says.
  * @param sources - The member's `sources`: every load the graph held, when the file says.
+ * @param provenance - The member's `provenance`: what each load supplied, edges by position.
  * @returns The edge ids this session gave the file's edges, by position.
  */
 async function importInto(
@@ -1115,6 +1135,7 @@ async function importInto(
     graph: NodeLink,
     source: unknown,
     sources: unknown,
+    provenance?: unknown,
 ): Promise<(EdgeId | undefined)[]> {
     const before = tx.data.edges().length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
@@ -1128,16 +1149,51 @@ async function importInto(
             ...(typeof graph.directed === "boolean" ? { directed: graph.directed } : {}),
         },
     });
-    if (isObject(source)) {
-        // A list with an entry not shaped like a load is left out whole, as an older file has none.
-        const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
-        await tx.execute({ op: "data.setSource", source, ...(loads === undefined ? {} : { sources: loads }) });
-    }
-
-    return tx.data
+    const edgeIds = tx.data
         .edges()
         .slice(before)
         .map((edge) => edge.id);
+    if (isObject(source)) {
+        // A list with an entry not shaped like a load is left out whole, as an older file has none.
+        const loads = Array.isArray(sources) && sources.every(isLoadedSource) ? sources : undefined;
+        const supplied = loads === undefined ? undefined : provenanceInto(provenance, edgeIds);
+        await tx.execute({
+            op: "data.setSource",
+            source,
+            ...(loads === undefined ? {} : { sources: loads }),
+            ...(supplied === undefined ? {} : { provenance: supplied }),
+        });
+    }
+
+    return edgeIds;
+}
+
+/**
+ * A saved `provenance` member, its edges named by position, as this session's edge ids.
+ * @param saved - What the file holds.
+ * @param edgeIds - The ids this session gave the file's edges, by position.
+ * @returns The provenance, or undefined when the file holds none or one not shaped like it.
+ */
+function provenanceInto(saved: unknown, edgeIds: readonly (EdgeId | undefined)[]): Provenance | undefined {
+    if (!isProvenance(saved)) {
+        return undefined;
+    }
+
+    return Object.freeze(
+        Object.fromEntries(
+            Object.entries(saved).map(([key, supplied]) => [
+                key,
+                Object.freeze({
+                    nodes: Object.freeze([...supplied.nodes]),
+                    edges: Object.freeze(
+                        (supplied.edges as readonly unknown[])
+                            .map((at) => (typeof at === "number" ? edgeIds[at] : undefined))
+                            .filter((id): id is EdgeId => id !== undefined),
+                    ),
+                }),
+            ]),
+        ),
+    );
 }
 
 /**
@@ -1243,14 +1299,14 @@ async function readProject(
     name: string | null,
     canned: CannedOutcomes,
 ): Promise<void> {
-    const { source, sources } = doc.members.get("graphty-data")?.[0] ?? {};
+    const { source, sources, provenance } = doc.members.get("graphty-data")?.[0] ?? {};
     const { tx, problems } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
     await clearInto(tx);
     await attempt(opening, "config", () => tx.config.set({ ...(isObject(state.config) ? state.config : {}), name }));
-    const edgeIds = await importInto(tx, graph, source, sources);
+    const edgeIds = await importInto(tx, graph, source, sources, provenance);
     opening.restored.add("graph");
     const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
     await readDeclarations(opening, state.declarations);

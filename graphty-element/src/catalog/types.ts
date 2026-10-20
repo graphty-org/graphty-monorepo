@@ -1115,6 +1115,11 @@ export interface AttributeDescriptor {
      * ```
      */
     usedBy?: readonly AttributeUse[];
+    /**
+     * The loads whose rows carry the column, oldest first (`session.data.sources()` keys). Absent
+     * when no load recorded what it supplied.
+     */
+    sources?: readonly SourceKey[];
 }
 
 /**
@@ -1245,9 +1250,18 @@ export type RuleTree =
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
       }
+    /**
+     * The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+     * `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+     * Speaks nodes and edges.
+     */
+    | { readonly kind: "source"; readonly sources: readonly SourceKey[] }
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
+export type SourceKey = string;
 
 /**
  * One step of a stepped visibility filter: a rule that can be switched off without being lost.

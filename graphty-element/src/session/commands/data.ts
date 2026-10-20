@@ -29,7 +29,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
+import type { EdgeId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -38,11 +38,12 @@ import type { UndoableContext, UndoableDefinition } from "../project/Dispatcher"
 import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
+import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
 import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
-import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
+import type { HistoryCode, LoadedSource, LoadedSourceKind, NodeRecordInput, RowUpdate } from "../types";
 import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
@@ -166,6 +167,10 @@ export interface DataImportCommand {
     readonly tables?: readonly string[];
     /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
     readonly tableRows?: readonly ("nodes" | "edges")[];
+    /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
+    readonly origin?: LoadedSourceKind;
+    /** For a joined table: the load it was joined onto. */
+    readonly joinedOnto?: SourceKey;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -241,6 +246,8 @@ interface DataSetSourceCommand {
     readonly source: ImportSource;
     /** Every load still in the graph, as `data.sources()` reports them; left as they are when absent. */
     readonly sources?: readonly LoadedSource[];
+    /** What each load supplied; left as it is when absent. */
+    readonly provenance?: Provenance;
 }
 
 /**
@@ -810,7 +817,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
         fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
     },
     moves: false,
-    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`],
+    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`, `graph/v:${PROVENANCE_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { source } = command;
@@ -836,6 +843,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
             {
                 [SOURCE_VALUE]: describeSource(source),
                 ...(command.sources === undefined ? {} : { [SOURCES_VALUE]: Object.freeze([...command.sources]) }),
+                ...(command.provenance === undefined ? {} : { [PROVENANCE_VALUE]: command.provenance }),
             },
             ctx.draft,
         );

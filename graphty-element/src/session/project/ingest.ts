@@ -15,7 +15,7 @@ import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
 import { unknownFormat } from "../../catalog/detect";
-import type { EdgeId } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
 import { DataSource, type DataSourceChunk, type DeclaredDirection } from "../../data/DataSource";
 import { decideRepeat, edgeIdOf } from "../../data/edgeIdentity";
 import { readEndpoint, type ResolvedEndpoints, resolveEndpoints } from "../../data/endpoints";
@@ -47,8 +47,9 @@ import {
 } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
+import { type Provenance, PROVENANCE_VALUE, withSupplied } from "../sources/provenance";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
-import type { LoadedSource } from "../types";
+import type { LoadedSource, LoadedSourceKind } from "../types";
 import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -107,6 +108,16 @@ export function resolveEdgeWeight(
     }
 
     return { weight: 1, source: "default" };
+}
+
+/**
+ * The number in a load key (`s3` is 3), so the next key is past every key a list holds.
+ * @param key - The key, or undefined for an entry saved before loads had keys.
+ * @returns The number, or 0.
+ */
+function serialOf(key: string | undefined): number {
+    const match = /^s(\d+)$/.exec(key ?? "");
+    return match === null ? 0 : Number(match[1]);
 }
 
 /** What a caller may say about one `addEdges` call that the configuration does not already say. */
@@ -358,6 +369,12 @@ export class Ingest<K extends KnownEdge> {
     /** While a draft's load is measured: the graph it counts as already there. */
     private measure: NonNullable<DataImportCommand["measure"]> | null = null;
 
+    /** The ids the load in progress named, for its entry in `provenance`; null outside a load. */
+    private supplied: { readonly nodes: Set<NodeId>; readonly edges: Set<EdgeId> } | null = null;
+
+    /** The highest load key number handed out, so a key is never handed out twice. */
+    private sourceSerial = 0;
+
     /**
      * Start with no records seen and no report.
      * @param host - what draws the graph, and knows which edges it already holds
@@ -471,10 +488,12 @@ export class Ingest<K extends KnownEdge> {
     ): Promise<ImportOutcome | null> {
         const { type, config } = command.source;
         const loads = type !== undefined && config !== undefined;
-        const earlier =
-            command.mode === "merge"
-                ? ((writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [])
-                : [];
+        const listed = (writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+        const earlier = command.mode === "merge" ? listed : [];
+        const earlierProvenance =
+            command.mode === "merge" ? (writer.graphValue(PROVENANCE_VALUE) as Provenance | undefined) : undefined;
+        // Read before a replacing load empties the list, so a key is never reused.
+        this.sourceSerial = Math.max(this.sourceSerial, ...listed.map((each) => serialOf(each.key)));
         if (loads && command.mode !== "merge") {
             this.apply({ kind: "clear" }, writer);
         }
@@ -495,6 +514,8 @@ export class Ingest<K extends KnownEdge> {
         // as there, as the real merge does (#935).
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
+        const supplied = { nodes: new Set<NodeId>(), edges: new Set<EdgeId>() };
+        this.supplied = supplied;
         try {
             const outcome = await this.addDataFromSource(
                 type,
@@ -507,20 +528,52 @@ export class Ingest<K extends KnownEdge> {
                 command.source.name,
             );
             const after = this.heldCounts();
+            const added = Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges });
+            const key: SourceKey = `s${String(++this.sourceSerial)}`;
+            const kind: LoadedSourceKind = command.origin ?? (type.startsWith("source:") ? "server" : "file");
             const loaded: LoadedSource = Object.freeze({
                 ...described,
+                key,
+                kind,
+                ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
                 tables: Object.freeze([...(command.tables ?? [])]),
                 ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
-                added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
+                added,
+                // What it supplied that the graph holds; `data.sources()` recounts it as the graph changes.
+                counts: Object.freeze({ nodes: supplied.nodes.size, edges: supplied.edges.size }),
             });
-            writer.setGraphValues({ [SOURCES_VALUE]: Object.freeze([...earlier, loaded]) });
+            writer.setGraphValues({
+                [SOURCES_VALUE]: Object.freeze([...earlier, loaded]),
+                [PROVENANCE_VALUE]: withSupplied(earlierProvenance, key, {
+                    nodes: [...supplied.nodes],
+                    edges: [...supplied.edges],
+                }),
+            });
             return outcome;
         } finally {
+            this.supplied = null;
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";
             this.updateExisting = false;
             this.measure = null;
         }
+    }
+
+    /**
+     * Record an edge, and the two nodes it names, as supplied by the load in progress.
+     * @param edge - The edge's id.
+     * @param source - Its source node id.
+     * @param target - Its target node id.
+     */
+    private noteSupplied(edge: EdgeId, source: NodeIdType, target: NodeIdType): void {
+        const { supplied } = this;
+        if (supplied === null) {
+            return;
+        }
+
+        supplied.edges.add(edge);
+        supplied.nodes.add(source);
+        supplied.nodes.add(target);
     }
 
     /**
@@ -585,6 +638,10 @@ export class Ingest<K extends KnownEdge> {
             const nodeId = ids[i];
             if (this.loadTally !== null && this.loadRowSkipped(nodeId, node, writer, this.loadTally)) {
                 continue;
+            }
+
+            if (isStorableId(nodeId)) {
+                this.supplied?.nodes.add(nodeId);
             }
 
             if (this.hasNode(nodeId)) {
@@ -742,6 +799,8 @@ export class Ingest<K extends KnownEdge> {
                         writer,
                     )
                 ) {
+                    // The edge it repeats is one this load supplied too.
+                    this.noteSupplied(edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)), srcNodeId, dstNodeId);
                     tally.edgeIds.push(null);
                     continue;
                 }
@@ -776,6 +835,7 @@ export class Ingest<K extends KnownEdge> {
             }
 
             tally.edgeIds.push(edgeIdOf(edgeId));
+            this.noteSupplied(edgeIdOf(edgeId), srcNodeId, dstNodeId);
             this.host.edgeStored({ record, sourceId: srcNodeId, targetId: dstNodeId, edgeIndex, edgeId });
         }
 

@@ -27,7 +27,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "algo.run": ["algo.run"],
     "algo.legacy": ["algo.legacy"],
     "algo.remove": ["algo.remove"],
-    batch: ["batch", "data.replace-nodes", "data.replace-edges", "data.set", "layout.behavior"],
+    batch: ["batch", "data.replace-nodes", "data.replace-edges", "data.set", "layout.behavior", "data.remove-source"],
     "data.apply": [
         "data.add-nodes",
         "data.add-edges",
@@ -111,6 +111,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.collapse": ["node", "nodes"],
     "data.declare": ["column", "kind"],
     "data.set-source": ["name"],
+    "data.remove-source": ["key", "name"],
     "data.label": ["label", "path", "value"],
     "data.set-file-styles": ["loads"],
     "style.add-layer": ["layer"],

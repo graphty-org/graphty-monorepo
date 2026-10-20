@@ -1728,6 +1728,15 @@ export type RuleTree = {
     readonly path: Path;
     readonly top?: number;
     readonly above?: number;
+}
+/**
+* The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+* `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+* Speaks nodes and edges.
+*/
+| {
+    readonly kind: "source";
+    readonly sources: readonly SourceKey[];
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];

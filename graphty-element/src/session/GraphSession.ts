@@ -36,6 +36,7 @@ import type {
     Scope,
     ScopeInput,
     SetId,
+    SourceKey,
     StaticStyle,
 } from "../catalog/types";
 import { DataConfig } from "../config/DataConfig";
@@ -127,6 +128,7 @@ import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
+import { type Provenance, PROVENANCE_VALUE, suppliedBy } from "./sources/provenance";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -2238,6 +2240,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         return key === undefined ? () => undefined : setsCache.pin(key);
     };
 
+    /**
+     * What some loads supplied, as the graph slice records it now.
+     * @param keys - The loads' keys.
+     * @returns Their node ids and edge ids.
+     */
+    const suppliedNow = (keys: readonly SourceKey[]): ReturnType<typeof suppliedBy> =>
+        suppliedBy(dispatcher.state.graph.values.get(PROVENANCE_VALUE) as Provenance | undefined, keys);
+
     const scope: ScopeResolver = createScopeApi({
         snapshot,
         store: store.store,
@@ -2263,6 +2273,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         fieldKinds: dependencies.fieldKinds,
         matchEdges: (where: Query) => requireQuery(query).edges(where),
         values: valueSourceOf(records, snapshot),
+        supplied: suppliedNow,
     });
 
     const visibility = createVisibilityApi({
@@ -2286,6 +2297,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(runsOptions.engine === undefined ? {} : { engine: runsOptions.engine }),
         result: resultSource,
         values: valueSourceOf(records, snapshot),
+        supplied: suppliedNow,
         onChange: (change) => {
             notifier.notify({ kind: "visibility" });
             publish(watchers, "visibility:changed", change);

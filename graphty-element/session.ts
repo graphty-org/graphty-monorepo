@@ -99,6 +99,7 @@ export type {
     LoadChoices,
     LoadDraft,
     LoadedSource,
+    LoadedSourceKind,
     LoadMapping,
     LoadMappingRead,
     Neighbor,
@@ -117,6 +118,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemoveSourceResult,
     ResultCell,
     ResultColumn,
     ResultColumnDescriptor,
@@ -135,6 +137,7 @@ export type {
     SessionRunsOptions,
     SessionStatus,
     SessionViews,
+    SourceEntry,
     StyleProblem,
     TableMapping,
     TableMappingRead,
@@ -399,6 +402,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
+export type { SourceKey } from "./src/catalog/types";
 export type {
     FilterResult,
     FilterStep,

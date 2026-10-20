@@ -140,6 +140,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    SourceKey,
 } from "./src/catalog/types";
 
 /**

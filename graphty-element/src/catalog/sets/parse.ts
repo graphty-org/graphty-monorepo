@@ -445,6 +445,14 @@ function checkTree(value: unknown, walker: Walker): void {
             known([]);
 
             return;
+        case "source":
+            known(["sources"]);
+
+            if (!Array.isArray(value.sources) || !value.sources.every((key) => typeof key === "string")) {
+                throw bad('A "source" leaf\'s sources are a list of load keys.', { sources: value.sources });
+            }
+
+            return;
         case "member":
             known(["of"]);
             checkScope(value.of, walker);
@@ -532,6 +540,7 @@ export function speaksEdges(
         case "edges":
         case "self-loop":
         case "repeated-edge":
+        case "source":
             return true;
         case "member":
             return readingOfScope(node.of, referent) !== "induced";

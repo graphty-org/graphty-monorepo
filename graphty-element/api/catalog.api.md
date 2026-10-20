@@ -172,6 +172,7 @@ export interface AttributeDescriptor {
     runId?: RunId;
     // (undocumented)
     sampleValues: readonly unknown[];
+    sources?: readonly SourceKey[];
     // (undocumented)
     technicalName: string;
     token: string;
@@ -1628,6 +1629,15 @@ export type RuleTree = {
     readonly path: Path;
     readonly top?: number;
     readonly above?: number;
+}
+/**
+* The nodes and edges any of these loads supplied (`session.data.sources()` keys): what
+* `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
+* Speaks nodes and edges.
+*/
+| {
+    readonly kind: "source";
+    readonly sources: readonly SourceKey[];
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -1813,6 +1823,9 @@ export type SetOperand = Scope | {
 export function sourceDescriptors(): readonly SourceInfo[];
 
 export { SourceInfo }
+
+// @public
+export type SourceKey = string;
 
 // @public
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;

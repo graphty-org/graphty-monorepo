@@ -52,6 +52,7 @@ import type {
     RunId,
     Scope,
     SelectionDirection,
+    SourceKey,
 } from "../../catalog/types";
 import { rowOfEitherSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
@@ -184,6 +185,15 @@ export interface FilterSources {
      * @returns Its node bitmap when its field lives on nodes, its edge bitmap when on edges.
      */
     readonly captured?: (item: ResultItem) => CapturedHalves | undefined;
+    /**
+     * The nodes and edges any of these loads supplied. Absent refuses a `source` leaf.
+     * @param keys - The loads' keys.
+     * @returns Their node ids and edge ids; ones the graph no longer holds are ignored.
+     */
+    readonly supplied?: (keys: readonly SourceKey[]) => {
+        readonly nodes: ReadonlySet<NodeId>;
+        readonly edges: ReadonlySet<EdgeId>;
+    };
 }
 
 /** A captured item's members over the snapshot: null for a half the item's field does not live on. */
@@ -269,6 +279,7 @@ const FILTER_KINDS = [
     "isolated",
     "self-loop",
     "repeated-edge",
+    "source",
     "edges",
     "member",
     "item",
@@ -459,6 +470,12 @@ function assertFilter(filter: RuleTree): void {
         case "isolated":
         case "self-loop":
         case "repeated-edge":
+            return;
+        case "source":
+            if (!Array.isArray(filter.sources) || !filter.sources.every((key) => typeof key === "string")) {
+                throw malformed('A "source" filter needs a list of load keys.', { sources: filter.sources });
+            }
+
             return;
         case "member":
             // The filter computes "visible", and "search" will read the filter: either one here is
@@ -655,6 +672,12 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
 
                 return;
             }
+            case "source":
+                if (sources.supplied === undefined) {
+                    throw unsupported("source", "a record of what each load supplied");
+                }
+
+                return;
             case "all":
             case "any":
                 each.of.forEach(check);
@@ -827,6 +850,25 @@ function edgeQueryTest(context: CompileContext, where: Query): ElementTest {
     }
 
     return (index) => hit[index] === 1;
+}
+
+/**
+ * The tests over what some loads supplied: a node or an edge passes when one of them supplied it.
+ * @param context - The compile context.
+ * @param keys - The loads' keys.
+ * @returns Both halves.
+ * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session records no provenance.
+ */
+function sourceTests(context: CompileContext, keys: readonly SourceKey[]): CompiledHalves {
+    const { supplied } = context.sources;
+    if (supplied === undefined) {
+        throw unsupported("source", "a record of what each load supplied");
+    }
+
+    const { nodes, edges } = supplied(keys);
+    const { graph } = context;
+    const space = edgeSpaceOf(graph);
+    return { node: (index) => nodes.has(graph.ids.idOf(index)), edge: (index) => edges.has(space.idOf(index)) };
 }
 
 /**
@@ -1304,6 +1346,8 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
             return { node: null, edge: repeatedEdgeTest(context) };
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
+        case "source":
+            return sourceTests(context, filter.sources);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");

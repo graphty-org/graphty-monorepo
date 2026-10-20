@@ -197,6 +197,7 @@ function batchOf(label: keyof typeof BATCH_CODES, ...steps: SessionCommand[]): S
 /** What the element's pair adds to an import: the key its two assignments coalesce under. */
 interface ImportExtra {
     readonly coalesce?: string;
+    readonly origin?: "sample";
 }
 
 /**
@@ -377,6 +378,13 @@ const REMOVE_NODES = calls([["n3"]], [removes("remove-nodes", ["n3"])]);
 const CLEAR_DATA = calls([], [CLEAR]);
 
 /** A small graph document the JSON data source reads, for the load doors. */
+/** What `data.removeSource("s1")` dispatches inside its batch, after loading {@link TINY_JSON}. */
+const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-edges", ids: ["0"] } },
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: ["j1", "j2"] } },
+    { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
+];
+
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
 
 /**
@@ -1678,6 +1686,30 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             lastImport: READ,
             source: READ,
             sources: READ,
+            sourcesOf: READ,
+            // The rows only that load supplied go, and the load leaves the list, as one batch.
+            removeSource: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1"],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import({ type: "json", config: { data: TINY_JSON } });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Removed s1",
+                        fact: { code: "data.remove-source", params: { key: "s1", name: null } },
+                        steps: REMOVE_SOURCE_STEPS,
+                    },
+                    ...REMOVE_SOURCE_STEPS,
+                ],
+            },
             renameSource: {
                 kind: "dispatches",
                 op: "data.setSource",
@@ -1699,8 +1731,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                             {
                                 type: "json",
                                 config: {},
+                                key: "s1",
+                                kind: "file",
                                 tables: [],
                                 added: { nodes: 2, edges: 1 },
+                                counts: { nodes: 2, edges: 1 },
                                 name: "Door source",
                             },
                         ],
@@ -1845,7 +1880,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // The generated graph's records, through the JSON reader.
             generate: calls(
                 ["path", { n: 2 }],
-                [imports("replace", { type: "json", name: "path", config: { data: GENERATED_PATH_JSON } })],
+                [
+                    imports(
+                        "replace",
+                        { type: "json", name: "path", config: { data: GENERATED_PATH_JSON } },
+                        { origin: "sample" },
+                    ),
+                ],
             ),
             loadDataset: {
                 kind: "dispatches",
@@ -1873,7 +1914,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         };
                     },
                 },
-                expect: [imports("replace", { type: "json", name: "door-dataset", config: { data: DATASET_JSON } })],
+                expect: [
+                    imports(
+                        "replace",
+                        { type: "json", name: "door-dataset", config: { data: DATASET_JSON } },
+                        { origin: "sample" },
+                    ),
+                ],
             },
         },
     },

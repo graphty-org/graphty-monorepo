@@ -1,8 +1,8 @@
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { resolveInspected } from "../inspector/inspected";
-import { addLabelRow } from "./row";
+import { addLabelLine, labelRow } from "./row";
 import { firstStyleWords } from "./words";
 
 /**
@@ -20,9 +20,37 @@ function inspectedAttribute(ctx: CommandContext): ReturnType<GraphSession["data"
 }
 
 /**
- * The Style tab package's commands. "Add label line" is the attribute menu's door (Data >
- * Attributes, the attribute inspector, a table column; tier1-design.md 5.T10): it makes a row on
- * top whose label line is bound to that attribute, selects it, and the canvas draws it.
+ * Adds a label line on the inspected layer row or Everything, the line Text "+" adds there, and
+ * shows that row's Style tab: bound to the column when one is given (an attribute's menu, or the
+ * attribute open in the inspector), else with the Text section's source list open, as Text "+"
+ * opens it (or, when the row already labels, with focus on its label line).
+ * @param session - the element's session.
+ * @param workspace - the chrome store.
+ * @param column - the node attribute, if one was chosen.
+ * @returns when it is written.
+ */
+export async function labelLine(
+    session: GraphSession,
+    workspace: CommandContext["workspace"],
+    column?: ColumnRef,
+): Promise<void> {
+    const state = workspace.get();
+    const row = labelRow(session, state.inspected);
+    if (column !== undefined) {
+        await addLabelLine(session, row, column);
+    }
+    workspace.set({
+        inspected: row.inspected,
+        tabs: { ...workspace.get().tabs, [row.inspected.kind]: "style" },
+        styleSide: "node",
+        ...(column === undefined ? { textNext: "node.label" as const } : {}),
+    });
+}
+
+/**
+ * The Style tab package's commands. "Add label line" (Quick actions, and the attribute menu's
+ * door: Data > Attributes, the attribute inspector, a table column) adds the Text "+" label line
+ * on the inspected layer row or Everything.
  */
 export const registration = defineRegistration({
     owner: "style",
@@ -31,19 +59,19 @@ export const registration = defineRegistration({
             id: "style.add-label-line",
             label: "Add label line",
             group: "Graph tree",
-            description: "Label every node with this attribute, on a new row on top",
-            disabled: (ctx) =>
-                inspectedAttribute(ctx) === undefined ? "Open a node attribute in Data > Attributes first" : null,
+            description: "Label every node on the selected layer or Everything, by the open attribute or one you pick",
+            disabled: (ctx) => (ctx.session === null ? "Open a graph first" : null),
             run: async (ctx) => {
-                const column = inspectedAttribute(ctx);
-                if (ctx.session === null || column === undefined) {
+                if (ctx.session === null) {
                     return;
                 }
+                const column = inspectedAttribute(ctx);
                 try {
-                    const layer = await addLabelRow(ctx.session, column);
-                    ctx.workspace.set({ inspected: { kind: "layer-row", id: layer.id } });
+                    await labelLine(ctx.session, ctx.workspace, column);
                 } catch {
-                    ctx.workspace.set({ notice: { message: `${column.name} could not label the nodes` } });
+                    ctx.workspace.set({
+                        notice: { message: `${column?.name ?? "That attribute"} could not label the nodes` },
+                    });
                 }
             },
         },

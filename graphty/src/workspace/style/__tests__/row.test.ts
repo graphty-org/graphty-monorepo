@@ -2,7 +2,7 @@ import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "@graphty/graphty-el
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { addLabelRow, EVERYTHING_LAYER, LABEL_SIZE_PX, propose, startingValue, writeLine } from "../row";
+import { addLabelLine, EVERYTHING_LAYER, labelRow, propose, startingValue, textBinding, writeLine } from "../row";
 
 /**
  * Every channel a "+" can add: drawn, and not a whole label style or a channel that takes nothing.
@@ -106,13 +106,58 @@ describe("a label line the app adds", () => {
         assert.equal(on.history.steps.length, before + 1);
     });
 
-    it("from an attribute's Add label line, in the app's look, undone in one step", async () => {
+    it('Add label line writes the line Text "+" writes on Everything, undone in one step', async () => {
+        const column = { kind: "node", name: "name" } as const;
+        const row = (on: GraphSession): unknown =>
+            on.styles
+                .list()
+                .filter((l) => l.source.by === "user")
+                .map(({ name, target, selector, set, encode }) => ({ name, target, selector, set, encode }));
+        // Text "+" on Everything, the column picked from its source list.
+        const plus = await twoNodes();
+        const proposal = propose(plus, { kind: "column", column }, "node.label");
+        if (!proposal.ok) {
+            throw new Error("the element refused to label by name");
+        }
+        await writeLine(
+            plus,
+            [],
+            "node",
+            "node.label",
+            { binding: textBinding(plus, proposal.binding) },
+            EVERYTHING_LAYER,
+        );
+        const byPlus = row(plus);
+        plus.dispose();
+        // Add label line, nothing inspected.
+        const quick = await twoNodes();
+        const before = quick.history.steps.length;
+        await addLabelLine(quick, labelRow(quick, null), column);
+        assert.deepEqual(row(quick), byPlus);
+        assert.notInclude(
+            quick.styles.list().map((l) => l.name),
+            "name",
+            "no layer is named after the attribute",
+        );
+        assert.equal(quick.history.steps.length, before + 1);
+    });
+
+    it("Add label line writes on the inspected layer row, not a new one", async () => {
         const on = await twoNodes();
-        const before = on.styles.list().length;
-        const layer = await addLabelRow(on, { kind: "node", name: "name" });
-        const written = on.styles.list().find((l) => l.id === layer.id);
-        assert.equal(written?.set?.["node.labelSize"], LABEL_SIZE_PX);
-        await on.undo();
-        assert.lengthOf(on.styles.list(), before);
+        const mine = await on.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
+        });
+        const count = on.styles.list().length;
+        const row = labelRow(on, { kind: "layer-row", id: mine.id });
+        assert.deepEqual(row.inspected, { kind: "layer-row", id: mine.id });
+        await addLabelLine(on, row, { kind: "node", name: "name" });
+        assert.lengthOf(on.styles.list(), count);
+        const written = on.styles.get(mine.id);
+        assert.isDefined(written?.encode?.["node.label"]);
+        assert.isUndefined(written?.set?.["node.labelStyle"]);
+        assert.isUndefined(written?.set?.["node.labelSize"]);
     });
 });

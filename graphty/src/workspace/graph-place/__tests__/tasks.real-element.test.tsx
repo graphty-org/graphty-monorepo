@@ -19,7 +19,7 @@ import { page, userEvent as realInput } from "vitest/browser";
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
-import { addLabelRow } from "../../style/row";
+import { addLabelLine, labelRow, writeLine } from "../../style/row";
 import { Workspace } from "../../Workspace";
 
 /** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
@@ -173,8 +173,14 @@ describe("the Graph place on the real element", () => {
         if (element === null) {
             return;
         }
-        // Names on, as the Style tab's Label line or a column's Add label line draws them.
-        await addLabelRow(session, { kind: "node", name: "name" });
+        // Names on, as the Style tab's Label line or a column's Add label line draws them, in a
+        // look and size that pick the node a name names (a reader's choice from the label settings).
+        await addLabelLine(session, labelRow(session, null), { kind: "node", name: "name" });
+        const row = labelRow(session, null);
+        const look = { look: "card", onTop: true, pickable: true } as const;
+        await writeLine(session, row.row, "node", "node.labelStyle", { value: look }, row.fresh, {
+            "node.labelSize": 72,
+        });
         await element.waitForStableFrame();
         // A point on Officer's name: above the sphere's drawn disc, where the name sits, the
         // first one that answers Officer. Off the disc, only the name can.

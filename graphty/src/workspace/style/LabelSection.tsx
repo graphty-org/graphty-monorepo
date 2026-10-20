@@ -17,7 +17,6 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LabelSettings, type VaryField } from "./LabelSettings";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
-    type DataBinding,
     type DataChoice,
     type Line,
     lineIn,
@@ -27,11 +26,12 @@ import {
     removeLine,
     sourceName,
     startFor,
+    textBinding,
     writeIn,
     type writeLine,
 } from "./row";
 import { AddButton, type AddOption } from "./Section";
-import { focusLineNext, focusSectionNext } from "./useFocusLine";
+import { focusLineNext, focusSectionNext, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import { failureWords, labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
 
@@ -61,9 +61,6 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     head: "At target",
     tail: "At source",
 };
-
-/** How a label bound to a number writes it: three significant digits, not fifteen decimals. */
-const NUMBER_FORMAT = { maximumSignificantDigits: 3 } as const;
 
 /**
  * The bottom of the app header, so a tall pop-out starts below it and never covers it.
@@ -95,17 +92,6 @@ const LOCATIONS = [
 function styleOf(line: Line | undefined): LabelStyle {
     const value = line?.value;
     return typeof value === "object" && !("r" in value) ? value : {};
-}
-
-/**
- * A text binding as the app writes it: a number value is written with three significant digits.
- * @param session - the element's session.
- * @param binding - the binding the element proposed.
- * @returns the binding, with a number format when it reads a number.
- */
-function formatted(session: GraphSession, binding: DataBinding): DataBinding {
-    const kind = session.data.readableValues().find((value) => value.path === binding.by)?.kind;
-    return kind === "number" ? { ...binding, format: NUMBER_FORMAT } : binding;
 }
 
 /**
@@ -192,7 +178,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             if (!proposal.ok) {
                 return;
             }
-            next = { binding: formatted(session, proposal.binding) };
+            next = { binding: textBinding(session, proposal.binding) };
         }
         focusLineNext(kind.words);
         // Only the words: a size, a unit or a look is the reader's to add from "+".
@@ -256,6 +242,23 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             })
             .catch(fail);
     };
+    // "Add label line" with no attribute open asks for a kind of text here: its source list opens
+    // as Text "+" opens it, or, when the row already writes that text, its line takes focus.
+    const textNext = useWorkspaceState((state) => state.textNext);
+    const asked = kinds.find((each) => each.words === textNext);
+    const askedHas = asked !== undefined && hasEntry(asked);
+    useEffect(() => {
+        if (asked === undefined) {
+            return;
+        }
+        store.set({ textNext: null });
+        if (askedHas) {
+            lineTarget(list.current?.querySelector(`[data-line="${asked.words}"]`))?.focus();
+        } else {
+            picked.current = false;
+            setPicking(asked.id);
+        }
+    }, [asked, askedHas, store]);
     const shown = kinds.filter((kind) => hasEntry(kind) || picking === kind.id || typing === kind.id);
     const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
 

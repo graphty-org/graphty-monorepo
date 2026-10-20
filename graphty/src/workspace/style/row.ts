@@ -10,10 +10,10 @@
  */
 
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
-import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
+import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
-import { findTreeRow } from "../graph-place/rows";
+import { findTreeRow, rowLayers as treeRowLayers } from "../graph-place/rows";
 import { ID_NAME } from "../inspector/words";
 import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
@@ -119,69 +119,70 @@ export function without<T>(
     return Object.keys(rest).length === 0 ? undefined : rest;
 }
 
-/** Each label channel's style channel and size channel. */
-const LABEL_CHANNELS: Partial<Readonly<Record<Channel, { readonly style: Channel; readonly size: Channel }>>> = {
-    "node.label": { style: "node.labelStyle", size: "node.labelSize" },
-    "edge.label": { style: "edge.labelStyle", size: "edge.labelSize" },
-};
+/** How a label bound to a number writes it: three significant digits, not fifteen decimals. */
+const NUMBER_FORMAT = { maximumSignificantDigits: 3 } as const;
 
 /**
- * How tall the app draws a label's letters on the label's own canvas. graphty-element sizes a
- * label in world units (one unit per 48 of these), so its size on screen follows the zoom: at 72
- * a 20-node file framed whole reads at about 10 px and a 9-node one at about 22 px, where the
- * element's own 48 drew the 20-node one at 6 px. A size fixed on screen would need the element to
- * offer one.
- */
-export const LABEL_SIZE_PX = 72;
-
-/**
- * The app's starting look for a new label: graphty-element's Card look (dark text on a white,
- * bordered chip, in a sans serif), drawn over the graph, and picking the node it names. On top
- * alone keeps every letter, but a label's ground is transparent: a selected edge's blue band
- * showed between the strokes and through a letter's open middle, and "Stadium" read "Stadi m". The
- * chip is the ground the letters need. A click on a drawn name picks the node it names
- * (`pickable`): a reader points at the word they can read, not at the sphere under it. Where it
- * sits and how it behaves are not part of a look, so the entry reads "Card", not "Card, edited".
- * @returns the label style.
- */
-function appLabelLook(): LabelStyle {
-    return { look: "card", onTop: true, pickable: true };
-}
-
-/**
- * The app's starting look and size for an attribute's "Add label line", unless the layer already
- * styles its labels. A label added from the Style tab's Text list writes only its words.
- * @param channel - the channel being written.
- * @param set - what the layer already sets.
- * @returns the style and size channels' entries to add, or nothing.
- */
-function labelLookFor(
-    channel: Channel,
-    set: Partial<Record<Channel, ChannelValue>> | undefined,
-): Partial<Record<Channel, ChannelValue>> {
-    const label = LABEL_CHANNELS[channel];
-    if (label === undefined || set?.[label.style] !== undefined) {
-        return {};
-    }
-    return {
-        [label.style]: appLabelLook(),
-        ...(set?.[label.size] === undefined ? { [label.size]: LABEL_SIZE_PX } : {}),
-    };
-}
-
-/**
- * Adds a row on top whose node label reads a column, in the app's label look: one undoable step.
- * The door of every "Add label line" on an attribute.
+ * A text binding as the app writes it: a number value is written with three significant digits.
  * @param session - the element's session.
- * @param column - the node attribute.
- * @returns the new layer.
+ * @param binding - the binding the element proposed.
+ * @returns the binding, with a number format when it reads a number.
  */
-export async function addLabelRow(session: GraphSession, column: ColumnRef): Promise<Layer> {
-    return session.transaction("adding a label line", async (tx) => {
-        const layer = await tx.styles.encode({ column, channel: "node.label" });
-        await tx.styles.update(layer.id, { set: { ...layer.set, ...labelLookFor("node.label", layer.set) } });
-        return layer;
-    });
+export function textBinding(session: GraphSession, binding: DataBinding): DataBinding {
+    const kind = session.data.readableValues().find((value) => value.path === binding.by)?.kind;
+    return kind === "number" ? { ...binding, format: NUMBER_FORMAT } : binding;
+}
+
+/** The row a label line goes on, as the Style tab edits it, and what to inspect to show it. */
+export interface LabelRow {
+    readonly row: readonly LayerId[];
+    readonly fresh?: NewLayer;
+    readonly inspected: { readonly kind: "layer-row" | "everything-row"; readonly id?: string };
+}
+
+/**
+ * The row "Add label line" writes to: the inspected layer row, else Everything (the starting
+ * Everything row when the project has one, as the Graph tree lists it) -- the rows Text "+" writes
+ * to when the reader is on them.
+ * @param session - the element's session.
+ * @param inspected - what is inspected, if anything.
+ * @returns the row.
+ */
+export function labelRow(
+    session: GraphSession,
+    inspected: { readonly kind: string; readonly id?: string } | null | undefined,
+): LabelRow {
+    const id = inspected?.id;
+    if (inspected?.kind === "layer-row" && id !== undefined && findTreeRow(session.styles.tree(), id) !== undefined) {
+        return { row: treeRowLayers(session, id), inspected: { kind: "layer-row", id } };
+    }
+    const starting = startingEverything(session);
+    return starting === undefined
+        ? { row: everythingRow(session), fresh: EVERYTHING_LAYER, inspected: { kind: "everything-row" } }
+        : { row: treeRowLayers(session, starting), inspected: { kind: "layer-row", id: starting } };
+}
+
+/**
+ * Labels the nodes with a column on a row: the line Text "+" adds when the column is picked from
+ * its source list -- only the words, no look and no size. One undoable step of the element's.
+ * @param session - the element's session.
+ * @param row - the row.
+ * @param column - the node attribute.
+ * @returns when it is written.
+ */
+export async function addLabelLine(session: GraphSession, row: LabelRow, column: ColumnRef): Promise<void> {
+    const proposal = propose(session, { kind: "column", column }, "node.label");
+    if (!proposal.ok) {
+        throw new Error(`The element refused to label by ${column.name}: ${proposal.refusal.code}`);
+    }
+    await writeLine(
+        session,
+        row.row,
+        "node",
+        "node.label",
+        { binding: textBinding(session, proposal.binding) },
+        row.fresh,
+    );
 }
 
 /** The layer a row's first edit adds when the row has no layer the reader may edit. */

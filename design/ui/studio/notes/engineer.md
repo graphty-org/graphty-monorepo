@@ -16,23 +16,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0b. (2026-10-19, condition card keys; graphty `WhichPicker.tsx`, compact-mantine `listbox.tsx`)
-(a) Every match pick focuses the card's value box: `MatchSelect` remembers the pick and, once
-the card draws that match, focuses the first `VALUE_BOX` in its `[data-card-body]` (NumberCard
-and TextCard bodies), so layer cards and filter steps (`CardBody`) both get it. (b) Escape in a
-number box holding text commits it and stops (picker open; a refused number keeps its reason);
-in a text box with its list shut and text in it, Escape stops too (`onKeyDownCapture`, so the
-theme's `consumeListEscape` default stays). An empty box's Escape still closes the picker, which
-drops the unfinished card with its notice. (c) The count is spoken once typing pauses
-(`useDebouncedValue(head, 500)` before `useAnnounceChange`); the screen follows each key.
-(d) compact-mantine `syncSelected` runs on every open list field (`openList`, editable too) and
-the Autocomplete theme installs `ensureListboxKeyboard`: an ArrowDown highlight is no longer
-"selected". Still says "selected": Add a condition's search row (its store re-highlights after
-typing). Tests: `SuggestionSelected.browser.test.tsx` (red before), ConditionCardKeys,
-NumberCard, FilterStepCard; stale tests from the one-click change fixed. Walks (fresh dist by
-`npm run build` in graphty; nx refused) in `design/ui/studio/tmp/r1-dry1-condition-card-keys/`:
-`pointer/11-12, 15, 19`; `keys/` (sr: one "8 of 331 nodes", "GAL1" not selected, from `1`
-Escape kept). Pre-existing: compact-mantine "a disabled trigger keeps its border" fails.
+0. (2026-10-19, Quick actions' "Add label line" is the Text "+" line) One path, `labelRow` +
+   `addLabelLine` (`style/row.ts`), used by Quick actions and the attribute menus (`labelLine`,
+   `style/commands.ts`): the inspected layer row, else Everything (the starting tree row as its
+   `layer-row`), words only -- no Card look, no size 72, no layer named after the attribute.
+   `addLabelRow`/`LABEL_SIZE_PX` gone; number format is `textBinding`. No attribute open: the
+   command opens Text's source list there (store `textNext`, taken by `LabelSection`), or focuses
+   the label line when the row already labels. Walk `tmp/r1-dry1-quick-actions-label-line/`:
+   plus/07 = attr/07; attr/11 list; attr/14 focus. Pre-existing red here, same on old code:
+   StyleTab "...states the counts" (hiddenByOverlap 0) and tasks "a click on a drawn name".
+
+0b. (2026-10-19, condition card keys) in full: `git show c9eb6f622:design/ui/studio/notes/engineer.md`,
+Top of mind 0b.
 
 0. (2026-10-19, one name per control, names that say the value; graphty and compact-mantine)
    The node id is "Id" everywhere it is listed (`ID_NAME` in `inspector/words.ts`: table key
@@ -56,21 +51,17 @@ Escape kept). Pre-existing: compact-mantine "a disabled trigger keeps its border
    editing `StylePanel.tsx`, `row.ts`, `WhichPicker.tsx`, compact-mantine inputs): StylePanel 3
    (fold row name regex, keyboard bind, tooltip `/^id/`), BulkPilot 2, VaryByLayer 7,
    NamesAndRules timeout, OneLineRows left edge, DataPage "All 12 rows" twice.
-1. (2026-10-19, earlier today) Style nodes says why it is dimmed (no code change); the key and
-   layer rows say what is drawn (`legendAsked`, `paintedRows`, `builtParts`); a node called by
-   its label everywhere (`nodeName`); Which nodes in one click; the drawing stays put. In full:
-   `git show a18493275:design/ui/studio/notes/engineer.md`, Top of mind 0 to 2.
+1. (2026-10-19, earlier today: Style nodes dimmed reason and others) in full in
+   `git show c9eb6f622:design/ui/studio/notes/engineer.md`, Top of mind 1.
 
 0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
 starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary
 between 340 and 344, or lightness too, with E68FAC in the test. Lesson: test every palette
 color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
 
-1. (2026-10-19, label count and the selection ring) graphty-element `LabelDeclutter` keeps a
-   fixed 3 px `LABEL_CLEARANCE` between kept words and other nodes' circles, and sizes a node by
-   `node.label.ringScale` so a moved label clears the selection ring; measured first with an
-   in-page probe, re-walked and holding. In full, with the probe, tests and walks:
-   `git show 50ecd91e4:design/ui/studio/notes/engineer.md`, Top of mind 0 and 1.
+1b. (2026-10-19, label count and the selection ring) in full in
+`git show c9eb6f622:design/ui/studio/notes/engineer.md`, Top of mind 1.
+
 2. (2026-10-18, layer rows and the key agree with what a layer draws: `styles.groups` counted over
    the layer's selector, `rows.ts` `builtParts`, `legendWords.ts` `heldRows`/`coveredLine`) in
    full, with its walks and the tests red on HEAD then, in

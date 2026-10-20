@@ -8,6 +8,7 @@
  */
 
 import type { Lighting, ViewInsets } from "@graphty/graphty-element";
+import type { Channel } from "@graphty/graphty-element/schema";
 import type { GraphSession, NoteTargetInput } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
@@ -96,6 +97,11 @@ export interface WorkspaceState {
      */
     readonly allLabelsShown: boolean;
     /**
+     * A kind of text the Style tab is asked to add or show, by its words channel ("node.label"),
+     * set by "Add label line" with no attribute open and cleared by the Text section that takes it.
+     */
+    readonly textNext: Channel | null;
+    /**
      * Graph settings, Labels: move a label off the nodes and edges it would cover, and with the
      * overlap rule on, hide one with no place clear of labels and nodes. On by default: without it a
      * name is drawn across the nodes in front of and behind it, which the overlap rule alone (labels
@@ -177,6 +183,7 @@ const INITIAL: WorkspaceState = {
     keyHasEntries: false,
     legendAsked: false,
     allLabelsShown: false,
+    textNext: null,
     labelsAvoid: true,
     sameSizeAtAnyDepth: null,
     lighting: "studio",

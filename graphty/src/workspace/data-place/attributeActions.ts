@@ -2,7 +2,7 @@ import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
-import { addLabelRow } from "../style/row";
+import { labelLine } from "../style/commands";
 import { NEW, openStepEditor } from "./filterSteps";
 import { labelRefusalWords } from "./words";
 
@@ -50,21 +50,16 @@ function attributeActions(
         actions.push({
             label: "Add label line",
             disabledReason: labelRefusalFor(session, column),
-            // A new row on top whose label is bound to the attribute. It lands selected, so the
-            // inspector shows it; a refusal is one Problem notice.
+            // The Text "+" label line, on the inspected layer row or Everything; a refusal is one
+            // Problem notice.
             run: () => {
-                addLabelRow(session, column).then(
-                    (layer) => {
-                        store.set({ inspected: { kind: "layer-row", id: layer.id } });
-                    },
-                    () => {
-                        store.set({
-                            notice: {
-                                message: `Could not add a label line from "${column.name}". Pick another attribute.`,
-                            },
-                        });
-                    },
-                );
+                labelLine(session, store, column).catch(() => {
+                    store.set({
+                        notice: {
+                            message: `Could not add a label line from "${column.name}". Pick another attribute.`,
+                        },
+                    });
+                });
             },
         });
     }

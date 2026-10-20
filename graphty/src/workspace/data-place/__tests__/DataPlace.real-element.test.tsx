@@ -7,7 +7,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page } from "vitest/browser";
@@ -246,7 +246,7 @@ describe("the Data place on the real element", () => {
         });
     });
 
-    it("Add label line binds a new layer's node label to the attribute and selects it, as one undoable step", async () => {
+    it("Add label line binds Everything's node label to the attribute and shows Everything, as one undoable step", async () => {
         const { session, store } = await openDataPlace();
         await importGraphFile(session);
         const before = session.styles.list().length;
@@ -254,15 +254,19 @@ describe("the Data place on the real element", () => {
         const menu = await menuOf(await screen.findByRole("treeitem", { name: "label, node attribute" }));
         await userEvent.click(within(menu).getByRole("menuitem", { name: "Add label line" }));
 
+        // The Text "+" label line on Everything (its first line adds its layer), shown.
+        const labeled = (): Layer | undefined =>
+            session.styles.list().find((l) => l.encode?.["node.label"] !== undefined);
         await waitFor(() => {
             assert.equal(session.styles.list().length, before + 1);
+            assert.isDefined(labeled());
         });
-        // A new row on top, its node label bound to the column, selected.
-        const layer = session.styles.list().at(-1);
-        assert.equal(layer?.name, "label");
+        const layer = labeled();
+        assert.equal(layer?.name, "Everything");
         assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
+        assert.isUndefined(layer?.set?.["node.labelStyle"], "no look");
         await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+            assert.deepEqual(store.get().inspected, { kind: "everything-row" });
         });
 
         await session.undo();
@@ -330,10 +334,10 @@ describe("the Data place on the real element", () => {
         await waitFor(() => {
             assert.equal(session.styles.list().length, before + 1);
         });
-        const layer = session.styles.list().at(-1);
+        const layer = session.styles.list().find((l) => l.encode?.["node.label"] !== undefined);
         assert.include(JSON.stringify(layer?.encode?.["node.label"]), '"data.label"');
         await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer?.id });
+            assert.deepEqual(store.get().inspected, { kind: "everything-row" });
         });
     });
 

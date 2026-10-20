@@ -153,18 +153,36 @@ describe("labels from an attribute (task T10) on the real element", () => {
         );
     });
 
-    it("Add label line from an attribute makes a row on top, bound to it, and selects it", async () => {
+    it('Add label line labels Everything as Text "+" does, by the open attribute or one picked', async () => {
         const { session, element, store } = await openWithGraph();
         const [command] = registration.commands;
         const ctx = { session, element, workspace: store };
-        assert.equal(command.disabled?.(ctx), "Open a node attribute in Data > Attributes first");
-        store.set({ inspected: { kind: "attribute", id: "data.name" } });
+        const userLayers = (): unknown =>
+            session.styles
+                .list()
+                .filter((l) => l.source.by === "user")
+                .map(({ name, set, encode }) => ({ name, set, encode }));
+        // On Everything with no attribute open, it runs: Text's source list opens there, as "+" does.
         assert.isNull(command.disabled?.(ctx) ?? null);
         await command.run(ctx);
-        const top = session.styles.list().at(-1);
-        const binding = top?.encode?.["node.label"];
-        assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
-        assert.deepEqual(store.get().inspected, { kind: "layer-row", id: top?.id });
+        const list = await findValuePicker();
+        await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
+        await waitFor(
+            () => {
+                assert.equal(element.labelOf("1")?.text, "Alpha");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        const byPlus = userLayers();
+        await session.undo();
+        await waitFor(() => {
+            assert.isUndefined(element.labelOf("1")?.text);
+        });
+        // With the name attribute open, the same line on Everything: no layer named "name", no look, no size.
+        store.set({ inspected: { kind: "attribute", id: "data.name" } });
+        await command.run(ctx);
+        assert.deepEqual(userLayers(), byPlus);
+        assert.deepEqual(store.get().inspected, { kind: "everything-row" });
     });
 });
 

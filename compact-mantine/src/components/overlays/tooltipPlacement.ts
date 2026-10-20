@@ -178,6 +178,21 @@ function ownRowWords(bubble: Box, reference: Element): number {
 }
 
 /**
+ * Each tooltip's trigger, as floating-ui positions them. The trigger's aria-describedby is not
+ * enough to find it: a control may write its own over the tooltip's (a Mantine text input does).
+ */
+const triggers = new WeakMap<Element, Element>();
+
+/**
+ * The control a tooltip belongs to, once it has been placed.
+ * @param tooltip - a cm-tooltip element
+ * @returns its trigger, or null
+ */
+export function tooltipTrigger(tooltip: Element): Element | null {
+    return triggers.get(tooltip) ?? null;
+}
+
+/**
  * The flip options for one placement floating-ui tries (its derivable form).
  * @param state - floating-ui's middleware state
  * @returns the flip options
@@ -188,6 +203,7 @@ export function tooltipFlip(state: PlacementState): Record<string, unknown> {
     if (!(reference instanceof Element)) {
         return options;
     }
+    triggers.set(floating, reference);
     // x and y are in the frame floating-ui positions in; the trigger's two boxes give the shift
     // to the viewport.
     const client = reference.getBoundingClientRect();

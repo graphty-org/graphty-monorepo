@@ -11,7 +11,7 @@
  * from the elevation tokens, and the order of equal-color outer shadows does not change the
  * picture.
  */
-import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, Tooltip } from "@mantine/core";
+import { Button, Loader, Menu, Modal, Popover, Progress, ScrollArea, TextInput, Tooltip } from "@mantine/core";
 import { useState } from "react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
@@ -1096,6 +1096,53 @@ describe("8.3 tooltip dismiss and focus delay", () => {
         await userEvent.keyboard("{Tab}");
         expect(document.activeElement?.textContent).toBe("R");
         await waitFor(() => isVisible(tip));
+    });
+
+    /**
+     * A text field with a tooltip that, after a click on the box above it, moves under the resting
+     * pointer (an Undo that brings a line back does this). A text input writes its own
+     * aria-describedby, so the tooltip's link to it is lost.
+     */
+    function FieldSwap(): React.JSX.Element {
+        const [shown, setShown] = useState(false);
+        return (
+            <div style={{ padding: 40 }}>
+                {shown && (
+                    <Tooltip label="Tags you can use">
+                        <TextInput aria-label="Words" style={{ width: 200 }} />
+                    </Tooltip>
+                )}
+                <input type="checkbox" aria-label="Show more" onChange={() => setShown(true)} />
+            </div>
+        );
+    }
+
+    it("a text field that comes under a resting pointer shows no tooltip until the pointer moves", async () => {
+        const { getByRole } = await renderFigma(<FieldSwap />);
+        const mounted = tooltipMount("Tags you can use");
+        await userEvent.click(getByRole("checkbox", { name: "Show more" }));
+        // The field took the checkbox's place under the pointer; Chromium's hover update opens it.
+        const tip = await mounted;
+        expect(tip.hasAttribute("data-cm-still")).toBe(true);
+        await frames();
+        expect(isVisible(tip)).toBe(false);
+    });
+
+    it("a tooltip stays shut while its trigger's own pop-up is open", async () => {
+        const { getByRole } = await renderFigma(
+            <div style={{ padding: 120 }}>
+                <InfoCircle label="Degree">How many edges touch a node.</InfoCircle>
+            </div>,
+        );
+        const about = getByRole("button", { name: /Degree/ });
+        const mounted = tooltipMount(about.getAttribute("aria-label") ?? "");
+        // Hovering opens the explanation at once; the tooltip mounts after its delay, over it.
+        await userEvent.hover(about);
+        await waitFor(() => (about.getAttribute("aria-expanded") === "true" ? true : null));
+        const tip = await mounted;
+        expect(tip.hasAttribute("data-cm-dismissed")).toBe(true);
+        await frames();
+        expect(isVisible(tip)).toBe(false);
     });
 });
 

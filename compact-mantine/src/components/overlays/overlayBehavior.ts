@@ -26,6 +26,9 @@
  *   pointer (a page switch, a panel opening) would open its tooltip unasked. Such a tooltip is
  *   marked `data-cm-still` (CSS hides it) until the pointer moves over the trigger or it is
  *   focused, and then shows after the usual delay. Keyboard focus is unaffected.
+ * - A tooltip does not open while its trigger's own pop-up is open (`aria-expanded` on a control
+ *   with `aria-haspopup`): an info circle's explanation, a menu or a list already covers that
+ *   place and says more.
  * - Menus get type-ahead: a printable key moves focus to the next enabled row whose label starts
  *   with it ("v" -> View).
  * - A menu clamped to the viewport shows Figma's 24px chevron rows at the ends it can still
@@ -39,6 +42,7 @@
  * dispatched, so the animation alone would let a focus-opened tooltip show before it is held.
  */
 import { TOOLTIP_CLOSE_DELAY, TOOLTIP_OPEN_DELAY } from "../../theme/styles/overlays";
+import { tooltipTrigger } from "./tooltipPlacement";
 
 /** Keys that never dismiss a tooltip. */
 const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "AltGraph", "Meta", "CapsLock", "Fn", "OS"]);
@@ -93,12 +97,31 @@ function anotherTooltipVisible(except?: Element): boolean {
 }
 
 /**
- * The element a tooltip describes (Mantine sets aria-describedby on it while the tooltip is open).
+ * The element a tooltip describes: the trigger floating-ui placed it beside, else the element
+ * whose aria-describedby names it (Mantine sets that while the tooltip is open, but a text input
+ * or a child that passes its own overwrites it).
  * @param tooltip - a cm-tooltip element
  * @returns the trigger, or null
  */
 function triggerOf(tooltip: Element): Element | null {
-    return tooltip.id ? document.querySelector(`[aria-describedby~="${CSS.escape(tooltip.id)}"]`) : null;
+    return (
+        tooltipTrigger(tooltip) ??
+        (tooltip.id ? document.querySelector(`[aria-describedby~="${CSS.escape(tooltip.id)}"]`) : null)
+    );
+}
+
+/** A trigger whose own pop-up (a popover, a menu, a list) is open. */
+const POPUP_OPEN = '[aria-expanded="true"][aria-haspopup]:not([aria-haspopup="false"])';
+
+/**
+ * Whether a tooltip that just mounted belongs to a control whose own pop-up is open: the pop-up
+ * already says more than the tooltip would, and the bubble would sit over it (an info circle's
+ * explanation opens on hover, its name tooltip a second later).
+ * @param tooltip - the tooltip element that just mounted
+ * @returns true when it stays closed
+ */
+function popupOpen(tooltip: HTMLElement): boolean {
+    return triggerOf(tooltip)?.matches(POPUP_OPEN) === true;
 }
 
 /** What makes a trigger off: a tooltip on it then says why. */
@@ -266,7 +289,7 @@ function pressedTrigger(tooltip: HTMLElement): boolean {
  * @param tooltip - the tooltip element that just mounted
  */
 function holdIfFocusOpened(tooltip: HTMLElement): void {
-    if (pressedTrigger(tooltip)) {
+    if (pressedTrigger(tooltip) || popupOpen(tooltip)) {
         tooltip.dataset.cmDismissed = "";
     } else if (focusReturned(tooltip)) {
         tooltip.dataset.cmDismissed = "";

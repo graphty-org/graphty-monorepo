@@ -602,13 +602,43 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
       `sigma-ediaspora` 30): Gephi draws a curved edge as an arc of radius distance / 1.2 cut back by a chord of
       each end node's radius (and the arrowhead); where the cuts meet it draws no line, though it draws the arrowhead
       (EdgeRenderer.CurvedEdgeRenderer, ArrowRenderer). graph-io now hides such an undirected edge and draws a
-      directed one with no line. On `sigma-ediaspora` the 30 arrowheads Gephi still draws are oracle strays that no
-      oracle line carries (a comparator reading of an arrowhead with no line).
-    - Open (comparator): `cns-wos` node.present 221/225 (n5, n23, n50, n100): each lies wholly under a node drawn at
-      (nearly) the same place, which graphty's scene marks hidden (`occluders`), while the oracle's reading of Gephi's
-      SVG counts every circle, covered or not. Gephi draws the same cover (its node items run largest first, file
-      order among equals, the order graphty-element draws them in); the oracle side should judge cover as the
-      graphty side does.
+      directed one with no line. Those arrowheads are now judged as free shapes on both sides (fix round 3, below).
+    - Fixed (comparator and graph-io, 2026-10-20, fix round 3): `cns-wos` node.present 221/225 (n5, n23, n50, n100)
+      -> 221/221. Each lies wholly under a node drawn at (nearly) the same place, which graphty's scene marks hidden
+      (`occluders`) while the oracle's reading counted every circle. The oracle side now judges cover the same way
+      (`withoutCovered` in oracle/associate.ts: an opaque node later in the document whose box holds the node's box,
+      within graphty's half pixel taken into the oracle's pixels by the two drawings' node size ratio, 1.49 here).
+      That surfaced the covered nodes' labels ("Borner, K", "Bueckle, A"), which Gephi draws over every node (its
+      node label items come after the nodes; g#node-labels follows g#nodes in its SVG) and graphty drew under the
+      node covering theirs: graph-io's Gephi defaults now set `labelOnTop`, and extract-scene counts an on-top label
+      of a hidden node as drawn. stray.present 0/2 -> 2/2, label.present floor 0.914 -> 1.
+    - Fixed (graph-io, 2026-10-20, fix round 3): a node drawn less than opaque (`node.opacity` 40, or a per-node alpha
+      under `node.per.node.opacity`; `node-sizes-opacity-p2`, `-p3`) keeps its border. Gephi draws such a node as a
+      fill of radius 0.84 s and a separate ring out to s, both at the node's alpha (NodeRenderer; the -p3 SVG's
+      r=29.4 fill and r=32.2 ring of width 5.6 at opacity 0.4); graph-io gave it no border at all. It now keeps the
+      border and gives it the node's alpha (`borderOpacity`), which graphty-element draws as a ring outside the fill
+      (border position inside). The comparator read Gephi's ring, which names no node, as a stray: the oracle's SVG
+      reader now gives the unnamed ring drawn right after a node's fill on its center to that node (`gephiRingOf` in
+      oracle/svg-primitives.ts). -p3 node.width 0/21 -> 21/21, node.stroke 1/21 -> 21/21, stray.present 0/22 gone;
+      -p2 node.width 17/20 -> 20/20.
+    - Fixed (comparator, 2026-10-20, fix round 3): edge.arrowShape on Gephi's arrowheads of short arcs
+      (`graphology-rio` 1070/1076 -> 1076/1076, e.g. `ncs337->ncs291`: a 1.4 px arc whose arrowhead aims 34 degrees
+      off its end, read as half an arrow). The cap's own axis was accepted only within 30 degrees of the line; Gephi's
+      aim turns from its arc by at most asin(0.6) = 36.87 degrees (the tangent-chord angle of an arc of radius
+      distance / 1.2 through both node centers), which is now the bound (`CAP_AXIS_TURN` in oracle/associate.ts).
+    - Fixed (comparator, 2026-10-20, fix round 3): the arrowheads Gephi draws on edges it draws no line for (their
+      nodes swallow the arc) were oracle strays nothing on graphty's side could match. graphty's side now reads the
+      arrowheads it draws on line-less edges as free shapes (`linelessCaps` in oracle/drawn-primitives.ts), and both
+      sides leave out one drawn wholly inside an opaque node drawn over it (Gephi draws its nodes after its arrows):
+      `sigma-ediaspora` 26 of Gephi's 30 lie under a node, `graphology-rio` none. rio: stray.present 0/20 -> 17/20
+      and stray.extra 17/20; the 3 left are graphty's arrowheads about 0.6 graphty pixels off Gephi's, which a 3 px
+      box's IoU 0.5 does not allow.
+    - Open (graphty-element): `sigma-ediaspora` stray.extra 0/10, stray.present 0/1. Of the 30 swallowed directed
+      edges, Gephi draws the arrowhead with its tip on the target's outer rim, aimed along the arc's chord from the cut
+      point (ArrowRenderer.Helper), so 29 lie under the overlapping source node; graphty draws 10 of them clear of
+      every node, about 25 to 160 oracle pixels from Gephi's (one: 4 px inside the target's rim where Gephi's tip is
+      on it). Where graphty-element puts the cap of a curved edge whose two trimmed ends pass each other needs to
+      follow ArrowRenderer: tip on the target's rim along the arc, whatever the line.
     - `edge.radius` (`arrows-p4`): Gephi ends each edge that far short of its nodes; the vocabulary has no edge end
       gap (graph-io vocabulary, then graphty-element).
     - Fixed (oracle, 2026-10-19, fix round 2): Gephi's SVG wrote a label's text with the space before `&` and `<`

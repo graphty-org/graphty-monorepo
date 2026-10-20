@@ -12,41 +12,38 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Top of mind
 
-- (2026-10-19, fourth review) My 2026-10-18 asks landed in the criteria (exit test, `decided.md`,
-  any groups run, T49 by the drawing, T51 B companies, bar 4 = 10) but two are still on paper
-  only: WALKS3 does not walk the five screens criteria added (last screen in `bars.mjs` is the
-  "Color from each layer" dialog), and the wording check has still never run (no
-  `vocabulary.json`, no gate evidence under `rounds/r1/`).
-- (2026-10-19) The fifth dry-run pass on 1fa51e2b0b stopped mid-run: complete only on T37 A/B,
-  T38 A/B, T39 B, T40 A/B, T41 A; partial T39 A (pointer only), T41 B, T42 B; nothing on T43 to
-  T51, where all eight pass-4 blockers sit. It also spent walks on T37 and T42, which round 1
-  does not run. Resume it, blockers' tasks first; never restart it.
-- (2026-10-19) T40 B's "starts with" route loses typed letters: after picking the match mode,
-  focus stays on the mode menu and typing reopens it with "Ends with" highlighted. Bar 6 checks
-  typing only after adding a card, a Color line and a Shape line, so it cannot see this.
-- (2026-10-19) The selection ring over a fresh fill makes the find-box route's eight purple genes
-  read yellow-orange: a listed detour's last screen disagrees with the key. Graders and the audit
-  need one rule for it before round 1.
-- (2026-10-19) T51 is the commonest first styling act and my top risk's screen, yet runs at 2 and
-  on two files of one shape with 3 values; it never meets "twelve values, look-alike colors".
+- (2026-10-20, fifth review) The frozen build on criteria line 1 (3ef9e6c1ec) has NO pilot walk,
+  differs from e3c5bca8e6 in 86 app files, and does not hold the golden merge (f9d8b44b9) that the
+  change log and `decided.md` say it does. Refreeze on the post-golden commit; every walk and
+  reference value (T46 to T48 all methods, T51 palette) is owed there.
+- (2026-10-20) Third review in a row with the same tool asks unbuilt: WALKS3 lacks the five
+  2026-10-18 screens and the "Starts with" typing check; no `spoken.json`; `wording.mjs` stem()
+  joins plurals only; `gateCheck` still keys pilots by walk-folder name, so it refuses every
+  round. A criteria line with no owner and no machine check does not get built. Ask for a gate
+  refusal instead of a sentence.
+- (2026-10-20) The session-ready bar needs a measurable "grading-spoiling wrong result": a key,
+  count or drawing that disagrees with the style tree. And a keyboard-only block on Sam's four
+  halves (T39 A, T40 A, T47 B, T48 A) is a blocked task, not backlog.
+- (2026-10-20) One round only: bar 1 cannot hold (T37, T42, T44 unjudged by plan), the stall rule
+  has no prior round. Round 1 is a diagnostic and must say so in its headline.
+- (2026-10-19) T51 runs on two 3-value columns of one shape; my "twelve look-alike colors" risk
+  is unmet. Cheapest cover: the audit's key-and-drawing check on T46 B and T47 B (10 clusters, an
+  8-color palette).
 - Confusing rows off the success path are what the sessions are for; holding round 1 for them
   spends the study on polish. A skipped pilot reads as a clean one.
 - Grade the user's goal, not the answer key's route.
 - Top risk, every tier: a picture that looks right and answers wrong (stale key, twelve oranges for
   twelve values, a count that disagrees with the drawing). Any such screen is severity 3.
 - A new task brings its route's screens into WALKS3 in the same change.
-- Task wording never reuses the target's screen words, including tooltips and info lines; every
-  wording at stake runs on two domains. A fix that adds an alias for a prompt's word makes that
-  task re-test in a word the fix did not add.
+- Task wording never reuses the target's screen words, including tooltips, spoken names and
+  notices; every wording at stake runs on two domains.
 - No tours, hint panels or first-run aids; the same screens for everyone.
 - Grade from what ended on screen and in the style tree, never from a participant's rating.
 - Simulated passes are weak; failures and scripted repros count. One model's matching asides are
   one voice.
-- Personas whose files script a quit are placed only where the quit is the finding, never as the
-  sole session of a study question.
+- Personas whose files script a quit are placed only where the quit is the finding.
 - (2026-10-16) V7 accepted (Node | Edge tabs, typed condition cards, bulk field as one bound value
-  with <<Layer>>). Standing asks: a new layer opens on "Add a condition"; Close is not Cancel; a
-  card that leaves 0 says so; a selector the cards cannot draw shows a read-only Expression card.
+  with <<Layer>>).
 
 ## Priorities and values
 
@@ -105,31 +102,28 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Decisions and reasons
 
-- **2026-10-19 (me, fourth review of tier 3 criteria and tasks, build 1fa51e2b0b, no session
-  run):** Eight changes: resume pass 5 at T43 B with T46 to T50 first and drop the T37/T42 walks;
-  land the five WALKS3 screens before the gate; add "after choosing a text card's match mode" to
-  bar 6's typing check and fix it as a success-path defect; one rule for a styled set left
-  selected (graded by the style tree, audited as a key-drawing disagreement); run the wording
-  check now with a stem that joins draw/drawn/drawing, pick/picked, keep/kept; T51 to 4 in round
-  1 from T44's 2; T51 B on College football's conferences (12 values); the expert and audit
-  findings feed bar 5 only, so say so in bar 5's row and count "not walked" screens as not
-  scored. Reason: each is a success path no check reaches, a grade two graders would split on,
-  or the commonest act left unjudged. Evidence: `rounds/r1/pilot/*/session.json` commits;
-  `rounds/r1/pilot/T40B/report.md` steps 10-13 and detour 2a; `tool/bars.mjs` screen list;
-  `tool/wording.mjs` stem().
-- **2026-10-18 (me, third review of tier 3 criteria and tasks, before round 1):** Eight changes:
-  preflight 4's exit test and a decisions file; walk what pass 4 skipped first; five screens into
-  WALKS3; run the wording check now and declare "cluster"; any groups run counts on T46 to T48;
-  T49's start-looking drawing SD; bar 4 written as 10, twice the key's 5; T51 B asks for the
-  companies. Reason: each is either a bar that cannot be met or reconciled, a route a newcomer
-  takes that no check sees, or a grade that measures the key instead of the user. Evidence:
-  `tmp/tier3-dryrun-analysis/summary.txt` and `match_p3_p4_summary.md`; `dry-run-r1-4.md` "Not
-  piloted"; `tool/bars.mjs` WALKS3; no `vocabulary.json` under `tier3/rounds/`; `answers.md` T46,
-  T49, T51; the convergence rules on branch `chore/studio-convergence-rules` (4a01f1747).
-- **2026-10-17 (me, first and second reviews of tier 3, summarized 2026-10-19):** All asks
-  landed: T51 added; T47 A cubes; T45 B blue; T41 "is missing"; B prompts a colleague's; T48
-  "when the file first opened"; Tom off several-layer tasks and T51; color-binding, key and
-  opened-project screens into WALKS3. Reason: routes no check saw, grades the key could not give.
+- **2026-10-20 (me, fifth review of tier 3 criteria and tasks; named build 3ef9e6c1ec, no
+  session run):** Eight changes: refreeze on the post-golden commit and re-read every reference
+  value; define "grading-spoiling" as a screen that disagrees with the style tree, and count a
+  keyboard block on Sam's halves as a blocked task; keyboard walks only on Sam's halves and a gate
+  that accepts a re-pilot of success paths only, with `gateCheck` keyed by half; make missing
+  WALKS3 screens a gate refusal and run the wording check (expect T41 "stays", T48 "look");
+  give every backlog row a severity and count 3+ once in bar 5; headline round 1 as
+  not passable by plan; settle T50 B's summary reading as SD, rule not read; run the audit's
+  key-and-drawing check on T46 B and T47 B for look-alike colors. Reason: the gate as written
+  refuses round 1 forever, two graders would split, or a bar reads clean because nothing checked
+  it. Evidence: pilot `session.json` build stamps (none on 3ef9e6c1ec); `git merge-base
+--is-ancestor f9d8b44b9 3ef9e6c1ec` false; `tool/bars.mjs` WALKS3 screen list;
+  `tool/real.mjs` gateCheck (`piloted.set(basename(dir))`); `tool/wording.mjs` stem();
+  `graphty/src/workspace/style/PropertyRow.tsx:1022` ("stays a fixed value").
+- **2026-10-17 to 2026-10-19 (me, first to fourth reviews of tier 3, summarized 2026-10-20):**
+  Landed: T51 added and run at 4; T47 A cubes; T45 B blue; T41 "is missing"; B prompts a
+  colleague's; T48 "when the file first opened"; Tom off several-layer tasks and T51; exit test
+  and `decided.md`; any community analysis counts on T46 to T48; T49 graded by the drawing; bar 4
+  = 10; T51 B companies; bar 5 not scored when the walk skips a screen; a styled node left
+  selected graded by the tree; "Starts with" typing in bar 6 (on paper). Not taken: T51 B on
+  College football's conferences. Reason throughout: routes no check saw, grades the key could
+  not give, bars that could not be met.
 - **2026-10-16 (me, combined V7 + cards + bulk review):** Accepted the owner's V7 and dropped my
   2026-10-12 "groups, never tabs". Asks recorded in Top of mind.
 - **2026-10-16 (bulk iteration 7 frozen as `tier3-bulk7-457aa9f0f2`):** SpreadValues deleted; a
@@ -223,6 +217,10 @@ something, or change my mind. Summarize when it passes about 25 KB.
 
 ## Tried: worked / did not work
 
+- 2026-10-20 -- DID NOT WORK (third time): asking for tool changes in criteria prose ("does not
+  pass until WALKS3 walks..."). Nothing was built across two reviews. WORKED: grouping pilot
+  `session.json` build stamps per half in one command, which showed the named build has no walk.
+
 - 2026-10-19 -- DID NOT WORK: a criteria line that says a check "does not pass until" a script
   changes, with no owner for the script change. The five WALKS3 screens agreed on 2026-10-18 were
   still unwalked a day later. WORKED: listing each pilot folder's `session.json` commit, which
@@ -240,24 +238,11 @@ something, or change my mind. Summarize when it passes about 25 KB.
   were blind to the very screen the task exists to test. Lesson: a new task brings its screens
   into WALKS3 in the same change.
 
-- 2026-10-11 -- TIER 2 ROUND 4. WORKED: Shift-click adds (T24 2 of 4 to 7 of 7, median 4 steps);
-  toolbar Filters icon (7 of 7 first door, 0 wrong turns); Les Miserables "or more" row taken. DID
-  NOT: the gate again (not run, not enforced); 3 sessions lost to the browser-slot wait; briefings
-  leaking file contents; find box on a number that is not a value. My round 3 watch list was
-  answered on T24 and T17; nobody tried Ctrl first.
-
-- 2026-10-11 -- DID NOT WORK: proposing several variants per problem (eight roles, up to four
-  each). Stacked, round 4 could not credit any one. One path per problem, the rest held by name.
-  WORKED: my round 3 critique's ranking matched the final list on 5 of 7 items.
-
-- 2026-10-10 -- TIER 2 ROUND 3. WORKED: find box hint and example (T22 4 of 4, one detour each);
-  Recent entry in Analyze; Replace with its marks; Filters found 8 of 8; repeat follow-ups at
-  target (weak: simulated memory). DID NOT: Shift-click on nodes; T24's key vs its prompt; the
-  round's gate (prompt pilots skipped, leak check read nothing, --end deleted notes); 0 of 8 typed
-  "=" unprompted, so the rule language is copied, never discovered.
-- 2026-10-10 -- DID NOT WORK: refusing a session folder without a briefing as the leak fix --
-  a participant can still read upward. Moving folders out of the tree plus a transcript check is
-  the fix. Also: a preflight that claims scripts exist without running them on a planted fault.
+- 2026-10-10 to 2026-10-11, folded 2026-10-20 -- TIER 2 ROUNDS 3-4. WORKED: Shift-click adds (T24
+  7 of 7), toolbar Filters icon (7 of 7 first door), find box hint and example, Replace with its
+  marks, one path per problem so a round can credit each. DID NOT: the gate (not run, not
+  enforced) twice; briefing leaks; refusing a folder without a briefing (moving folders out plus
+  a transcript check is the fix); several variants per problem; 0 of 16 typed "=" unprompted.
 - 2026-10-09 -- DID NOT WORK: a dry run that walks only the answer key, by pointer only, with no
   tool check. Every open fault sat on a detour or in the tool. Next: walk round 1's detours and
   keyboard, and dry-run the tool itself.

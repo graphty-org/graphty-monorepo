@@ -10,37 +10,25 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-19, build e3c5bca8e6) answers.md matches e3c5bca8e6 as the round 1 pilots saw it
-  (rounds/r1/pilot/, T37 A to T51 B). Owed before round 1: T46 B and T49 B by keyboard (both
-  stopped after the start screen; T49 B's g-keys session may still hold a slot). Most halves'
-  report.md was never written (the harness refuses subagent report files): the pilot output is
-  the only record; T40 B's and T45 A's report.md describe older builds.
-- (2026-10-19) Every path that adds a condition is one step longer: the collapsed Which nodes
-  line only expands. T38 13, T40 A 11, B 12 (15 with Starts with), T41 19, T42 11, T45 A 17, B 16;
-  T39's new-layer route 6. Bar 4 (T39, Everything route, 5) is unaffected.
-- (2026-10-19) Cross-task facts on e3c5bca8e6: Enter in a just-added color box keeps focus there
-  (the 6dd0b00bd7 "disabled Fill +" severity-3 candidate is gone); an unset line takes its shown
-  value on Enter (T48 cover and T49 re-add no longer 2 steps longer); every run and first key
-  re-frame the drawing (shrinks, moves right ~130-170 px) and it stays off center after Undo --
-  the likeliest confirmed defect across T37-T51; dimmed Undo is no Tab stop (against decided.md);
-  the tree is entered at Everything (against decided.md); F6 never reaches the left panel's
-  content or the top bar.
-- (2026-10-19) Severity-3 watch for round 1: T40 B "Starts with" leaves focus on the match menu
-  and the letters are lost; T47 shape list gives no sign when `cube` matches nothing (the
-  Cylinder false finish is gone); T47 Undo of a folder shape leaves the inspector showing Box;
-  nodes titled by id everywhere (T38, T41, T43, T46, T50, T51).
+- (2026-10-20) The named build 3ef9e6c1ec does NOT hold the golden merge f9d8b44b9 that the
+  criteria change log and decided.md's 2026-10-20 entries describe; HEAD differs from it in 1472
+  files. No pilot walk exists on 3ef9e6c1ec (all 30 halves on e3c5bca8e6, 86 app files apart);
+  answers.md still reads e3c5bca8e6 and its re-framing lines. Refreeze before any walk counts.
+- (2026-10-20) T46/T47 "keeps its own color" echoes the token's spoken name "Each layer's own
+  value, N layers" (ValuePicker.tsx) and the folder's "Louvain: each layer's own value"
+  (WhichPicker.tsx). wording.mjs cannot see it: "own" and "each" are in COMMON. Primes question 3.
+- (2026-10-20) Tools behind the criteria lag: wording.mjs reads no spoken.json and joins no
+  irregular forms; WALKS3 lacks Memberships, a node's Style tab, the shape list, the key-on
+  sample and the Starts-with typing check; gateCheck still keys by walk folder name. Preflight 3's
+  self-tests pass without any of it.
+- (2026-10-20) One round only: bar 1's "cannot pass while a task is unjudged" (T37, T42, T44)
+  and the stall rule make "passed" and "stalled" unreachable; round 1 needs its own verdict.
+- (2026-10-20) T50 B: trained with 30+ and 31+ hours are the same 6 people in volunteers.graphml
+  (no one at 30), so the selection-summary reading names exactly the green set.
 - (2026-10-19) Left to the Director: T50 B's "31 or more" read from the selection summary
   ("hours 31 to 52") instead of the card. Graded "hours 30 to 52 and trained" from the card as S.
-- (2026-10-19, fourth read) Eight criteria changes proposed and taken into the refrozen criteria
-  (own-run grading for non-repeating methods, bar 2 T49 carve-out, bar 6 typing after a match
-  kind, docs-only commits do not refreeze, round-1 halves only, spoken.json, kept "draw", card
-  type by domain count). Preflight 5's per-method reference values are still owed.
-- (2026-10-18) Seven of eight third-read changes taken; not taken: T51 B to neighbors.csv
-  (volunteers and sources share one schema under T38, T41, T43, T48, T51: a recorded limit).
 - (2026-10-18) No prompt echoes a fix's words ("Not set yet", "Undid ...", "the color before this
   edit"); the at-rest walk does not see notices -- spoken.json now carries them.
-- (2026-10-17) T46's Memberships button and "Why this look" open the right group layer, so the
-  folder (question 3's trap) may never be visited: read T46 Token lines knowing that.
 - (2026-10-17) Round 1 is 13 tasks: T37, T42, T44 out; core T39, T40, T47, T48. score.mjs: under
   4 sessions a task does not hold bar 1; T47 holds only when half its successes carry `Route:`
   folder/several; bar 4 stops at every node in ONE new color.
@@ -89,6 +77,22 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-20 (fifth read of the criteria, build 3ef9e6c1ec named; HEAD holds golden):**
+  Proposed, not applied (the Director freezes): (1) refreeze on the golden build and re-walk
+  before anything else, because no walk exists on the named build and the named build lacks the
+  behaviors decided.md now binds; (2) a round 1 verdict, since one round cannot reach "passed" or
+  "stalled"; (3) T46/T47 reworded to "leave the colors of the other circles as they are" /
+  "without changing the color of any circle", and the wording check matches 2+-word phrases incl.
+  common words against spoken.json; (4) preflight 3 names the planted cases each self-test must
+  hold (irregular echo, spoken echo, phrase echo, half-keyed gate, missing walk, non-equivalent
+  build, the five screens, Starts-with typing); (5) T50 B settled as S with a `Read from:` line,
+  because both readings pick the same 6 on this file; (6) the expert walk and audit say which bar
+  each part feeds, the key-and-drawing check runs after sessions, and an expert's leading-word
+  finding marks its task primed (preflight 7); (7) a core half that holds only through Alex or
+  Maren does not hold, and bar 1 is also reported without Sam; (8) a design (not build) problem
+  is confirmed by two sessions on two different task halves, not two on one prompt. Did not
+  re-propose the schema twins.
 
 - **2026-10-19 (pilots on e3c5bca8e6 into the key):** Patched answers.md bullet by bullet from 30
   pilot outputs (most report.md files never written). Rewrote the shared "every path meets" block
@@ -159,6 +163,13 @@ logged). Their reasons, in short:
 
 ## Tried: worked / did not work
 
+- 2026-10-20 (fifth read) -- Worked: `git merge-base --is-ancestor f9d8b44b9 3ef9e6c1ec` to test
+  the change log's "the build now includes golden" (it does not); counting buildStamps per pilot
+  half (zero on the named build); reading wording.mjs's COMMON list, which showed why a phrase
+  echo ("its own") is invisible; grepping app strings for prompt phrases (`git grep` at the build
+  commit, quoted strings only); computing T50 B's two readings from the GraphML. Did not work:
+  grepping app source for prompt words without restricting to quoted strings (comments flood it).
+
 - 2026-10-19 (e3c5bca8e6 pilots into the key) -- Worked: grepping the key for stale phrases
   ("disabled Fill", "size and place", "Control+Y does", the old build id) after the edits, which
   caught a missed T51 reference line. Did not work: trusting one pilot's keyboard claim when two
@@ -221,6 +232,12 @@ logged). Their reasons, in short:
   script while it runs; a harness that exits 0 printing nothing; mocks.
 
 ## Thinking
+
+- 2026-10-20 -- A word list cannot catch an echo made of common words: "keeps its own color"
+  vs "each layer's own value" shares only stop-words. Echo checks need phrases, and the spoken
+  layer, where the bulk token's meaning is written out, is where the echo lives.
+- 2026-10-20 -- A change log entry is a claim about the build; check it against the commit graph
+  before trusting any decision that rests on it.
 
 - 2026-10-17 -- A prompt must state the goal, and when the goal IS the meaning a new control is
   meant to convey ("every cluster keeps its own color" vs the bulk token), the session cannot

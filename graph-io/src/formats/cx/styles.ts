@@ -230,7 +230,7 @@ function javaHashOrder(ids: readonly unknown[]): number[] | null {
  * @param snapshot - the graph
  * @returns each node's and edge's rank, or null
  */
-function hashCreationOrder(snapshot: GraphSnapshot): NonNullable<CytoscapeElements["ends"]>["created"] | null {
+export function hashCreationOrder(snapshot: GraphSnapshot): NonNullable<CytoscapeElements["ends"]>["created"] | null {
     const ids = snapshot.edges.byRole("id");
     if (ids === null) {
         return null;

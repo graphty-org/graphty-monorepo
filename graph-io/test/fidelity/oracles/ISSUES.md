@@ -2894,3 +2894,74 @@ Still open, and why:
   (the sheet's `options.edges.smooth`), drawn as vis-network's quadratic Bezier through its control point
   (BezierEdgeStatic `curvedCW`); both curves bow the same way and the difference is at the circle arrow's end. Not
   found this round.
+
+## Specimen sheets: edge ends on curves, Gephi's edge radius, record fields, programs' own placements (fix round 3, rendering batch 3, 2026-10-20)
+
+graphty-element now draws, and graph-io maps the files onto it:
+
+- A curved edge leaves and meets its nodes where the curve itself crosses their outlines. graphty-element drew an
+  arc as straight pieces of 7.5 degrees and joined the first piece outside a node to the node's outline by a line
+  from the node's center, which cut the curve's corner and bowed the rest of it deeper; and it measured a flat
+  ellipse's outline as its box's, so between large discs the line started a box corner away. The route is now cut
+  where its own piece crosses the outline, the outline of a flat ellipse is the ellipse, and an arrowhead on a curve
+  spans the chord from where the curve is cut back by the head's length to the outline, as Gephi and Cytoscape.js
+  draw it (`Edge.placeRoute`, `Edge.placeBent`; `crossingOf`, `cutFromEnd` and `surfaceReach` in
+  `meshes/edgeRoute.ts`). `gexf-miserables` 103 failing elements to 0, `gexf-qvge-mine-airing` 27 to 0,
+  `gexf-graphology-rio` 268 to 50 (the rest self-loops), `gexf-sigma-ediaspora` 346 to 36.
+- Gephi's `edge.radius` (`line.nodeGap`, channel `edge.nodeGap`; graph-io `nodeGap`): every edge, and its arrowhead,
+  stops that far short of its nodes' outlines. `gexf-specimen-arrows-p4` 11 failing elements to 0.
+- A node with no `viz:position` in a GEXF file that places the others is put at the origin, as Gephi's importer puts
+  it (`originUnplaced` in the position column's spelling; `gexf-specimen-node-sizes-opacity` `position-none`, drawn at
+  0, 0 by Gephi). A file that places no node is still laid out by graphty: Gephi gives such nodes random places.
+- A Pajek file with no coordinates is placed as Pajek 6.02 places it: round a circle in vertex order, the first on
+  the left, clockwise, radius 0.4 of the Draw window (`unplacedCircle` in the importer's positions answer;
+  `pajek-iliad`, 311 vertices on a circle of 200 points: every position now matches; its 30 failing elements left
+  are the oracle's Windows-1252 reading of the names, already recorded, and 8 routes and 5 arrowheads).
+- Graphviz records (`record`, `Mrecord`): graph-io lays a record out as Graphviz does (`parse_reclbl`,
+  `size_reclbl`, `resize_reclbl`, `pos_reclbl`: fields at their padded text size, the node at least their size
+  unless `fixedsize`, the difference shared out in whole points, nested braces turned, `rankdir` LR and RL turning
+  the top level, `\l` and `\r` lines set in 8 points from their field's side) and writes the dividers as the node's
+  lines (`shapeLines`) and each text line as a further text over the node (`shapeTexts`), which graphty-element
+  draws in the label's font, size and color (`shape.texts`, channel `node.shapeTexts`). Text widths are estimated from
+  DejaVu Sans's advances (`formats/dot/record.ts`). `dot-specimen-node-shapes-p3` and `-p4` (rankdir LR and RL)
+  fell from 5 failing nodes to 1 (the default node's width, unrelated), `-p2`'s six records from 6 to 1.
+
+Still open, and why:
+
+- Graphviz edge routing, ports and the layout of DOT files without positions (`graphviz-layout-engine`: every
+  `dot-specimen-edges-lines*`, `arrows-p2`, `-p4`, `edge-labels`, `mappings-bypass` route, curve and edge-label place;
+  the nine DOT corpus samples): Graphviz routes every edge as a spline round its obstacles into its ports and places
+  every edge label, even when `neato -n2` pins the nodes. That needs Graphviz's own engines, which are on
+  `origin/golden` (`feat/graphviz-layouts`, PR #3203) and not merged into this branch; merging another branch is the
+  integration step's, not a rendering batch's. A record port still ends its edge at the node's center: the port's
+  field is known (`layoutRecord` returns it), but Graphviz's spline into it is the router's.
+- Files whose program lays them out itself (`unpositioned-layout-scale`): vis-network documents without positions
+  (`json-vis-siblings`, `-unix`, `-lesmiserables`, `-world`, `-transparency`, `-nodelegend`) are placed by
+  vis-network's Barnes-Hut physics, which only a port of vis-network's simulation would reproduce; Gephi places the
+  nodes of a GEXF file with no positions at random (`gexf-hsk-chars`); Cytoscape desktop lays a CX file without a
+  `cartesianLayout` out differently on each load (`cx-radiation-bibliography`, `cx-repro-unplaced-boxes`: "two loads
+  drew different SVGs" in their oracle records). graphty's own layout cannot match a random or physics layout node by
+  node, so their positions stay unjudged in any useful sense.
+- `dot-specimen-node-shapes-p2` `distortion-*`, `skew-*` (`node.shape` o=rect g=other): graphty draws Graphviz's
+  corners where Graphviz does (cropped side by side: the same parallelograms and trapezia); the oracle reader classes
+  Graphviz's four-cornered polygon "rect" (comparator, `comparator-shape-class`).
+- Graphviz record fields are spaced with estimated DejaVu Sans widths and Graphviz's rows here differ by up to a point
+  from the even shares graph-io computes for a vertical record (Graphviz's 13.75, 13.75, 12.5 against 14, 13, 13).
+- `dot-specimen-node-shapes-p2` `record-escapes` `label.anchor` (o=start/center g=center/center): the field texts
+  are where Graphviz sets them to within a point, but their union is 2.3 px left of the node's middle in graphty
+  against 2.6 in the oracle, either side of the anchor tolerance; `label.anchor` on the sheet falls to 5 of 6 judged
+  (6 of 7 before: one record's merged label is no longer judged against its box).
+- Rows this batch moved the wrong way, each looked at:
+    - `vis-network-specimen-arrows` `raster.edge` 0.92 to 0.875 and `raster.label` 0.868 to 0.864, with no element
+      row changed (6 failing before and after): graphty's frame zooms in by 0.1% (the anchors 0.64 px further apart)
+      because its drawing's extent shrank where curved edges now stop at their outlines, and the raster score of
+      lines 1 to 2 px wide changes with the sub-pixel phase of the aligned image. `gml-specimen-edge-labels`
+      `raster.edge` 0.8318 to 0.8298 the same way (one bent edge's end moved 1.5 px onto its ellipse).
+    - `graphml-scala-collection-mutable` `n2->n11` `edge.route` and `yed-graphml-specimen-edges-lines`
+      `raster.arrowhead`, `raster.nodeOutline`: graphty's edges now end on an ellipse node's outline, not its box's
+      corner; the draw.io stand-in ends them at the box corner (`n2->n11` ends 48.5, 23.5 px from the center of a
+      93 x 47 ellipse). Stand-in limit until the owner's yEd export.
+    - `dot-synth-nodes` `node.sizeToSpacing`, `sizeToExtent`, `label.present`: an unrelated layout (graphty's own,
+      until Graphviz's engines land); the records are now Graphviz's size, which moves graphty's force layout.
+    - `gexf-sigma-ediaspora` `109->80`, `66->63` `edge.curve`: failing before as well (the sheet's curve rate was
+      under its floor, which hid them); 346 failing elements to 36.

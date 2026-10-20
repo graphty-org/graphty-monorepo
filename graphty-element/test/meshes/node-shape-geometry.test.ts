@@ -217,6 +217,35 @@ describe("flat shape outlines", () => {
         assert.approximately(Math.abs(front), areaOf(outline), 1e-6);
     });
 
+    test("a man and a woman are Pajek's own figures: slender, legs apart, filling their box", () => {
+        // Pajek 6.02's SVG export: the man's path fills 0.625 of its box, the woman's, in her skirt, 0.512
+        // (the figures drawn before filled 0.559 and 0.526)
+        for (const [shape, share] of [
+            ["man", 0.625],
+            ["woman", 0.512],
+        ] as const) {
+            const outline = flatShapeOutline(shape, 2, 2);
+            const box = boxOf(outline);
+            assert.approximately(box.width, 2, 1e-9);
+            assert.approximately(box.height, 2, 1e-9);
+            assert.approximately(areaOf(outline) / 4, share, 0.005, shape);
+            assert.isAbove(areaOf(outline), 0, `${shape} runs counter-clockwise`);
+        }
+        // the gap between the man's legs, at his feet's height, is outside him
+        const man = flatShapeOutline("man", 2, 2);
+        const inside = (p: Point2): boolean =>
+            man.reduce((n, a, i) => {
+                const b = man[(i + 1) % man.length];
+                const crosses =
+                    a[1] > p[1] !== b[1] > p[1] && p[0] < a[0] + ((p[1] - a[1]) * (b[0] - a[0])) / (b[1] - a[1]);
+                return crosses ? n + 1 : n;
+            }, 0) %
+                2 ===
+            1;
+        assert.isFalse(inside([0, -0.6]));
+        assert.isTrue(inside([0.3, -0.6]));
+    });
+
     test("a rounded rectangle's corners stay round however long it is", () => {
         const outline = flatShapeOutline("round-rectangle", 4, 1);
         // The top edge is straight from x = -(2 - r) to 2 - r with r a quarter of the short side.

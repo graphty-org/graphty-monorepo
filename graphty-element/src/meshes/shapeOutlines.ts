@@ -21,6 +21,25 @@ export interface RingPiece {
 const ARC_STEPS = 8;
 
 /**
+ * Pajek 6.02's man and woman, the figures of its genealogies, as its SVG export draws them (x_fact 0.5,
+ * `graph-io/test/fidelity/oracles/pajek-specimen-node-shapes.svg`, vertices 9 and 10): a man 2.5 times as tall as he
+ * is wide, a woman in a skirt and with her arms out a little wider.
+ */
+const PAJEK_MAN =
+    "M -0.48 28.93 A 1.60 1.60 0 0 1 -6.88 28.93 L -6.88 -11.97 A 0.59 0.59 0 0 0 -8.06 -11.97 L -8.06 3.33 " +
+    "A 2.22 2.22 0 0 1 -12.51 3.33 L -12.51 -14.62 A 6.66 5.54 0 0 1 -6.98 -20.16 L -1.38 -20.86 L -1.38 -21.98 " +
+    "A 5.47 5.47 0 1 1 1.38 -21.98 L 1.38 -20.86 L 6.98 -20.16 A 6.66 5.54 0 0 1 12.51 -14.62 L 12.51 3.33 " +
+    "A 2.22 2.22 0 0 1 8.06 3.33 L 8.06 -11.97 A 0.59 0.59 0 0 0 6.88 -11.97 L 6.88 28.93 A 1.60 1.60 0 0 1 0.54 28.93 " +
+    "L 0.48 5.57 L -0.48 5.57 z";
+const PAJEK_WOMAN =
+    "M -0.84 29.41 A 2.37 2.37 0 0 1 -5.59 29.41 L -5.59 11.47 L -12.32 11.47 L -5.33 -13.03 " +
+    "A 0.59 0.59 0 0 0 -6.50 -13.03 L -11.08 1.82 A 2.05 2.05 0 0 1 -14.85 0.20 L -10.01 -16.25 " +
+    "A 9.98 9.98 0 0 1 -1.40 -21.29 L -1.95 -22.13 A 5.52 5.61 0 1 1 1.95 -22.13 L 1.40 -21.29 " +
+    "A 9.98 9.98 0 0 1 10.01 -16.25 L 14.85 0.20 A 2.05 2.05 0 0 1 11.08 1.82 L 6.50 -13.03 " +
+    "A 0.59 0.59 0 0 0 5.33 -13.03 L 12.32 11.47 L 5.59 11.47 L 5.59 29.41 A 2.37 2.37 0 0 1 0.84 29.41 " +
+    "L 0.84 11.47 L -0.84 11.47 z";
+
+/**
  * The flat shapes as unit outlines, before they are fitted to a width and a height. Each is
  * stretched to fill its box exactly, which is how Cytoscape and yEd draw them.
  */
@@ -65,8 +84,7 @@ const UNIT_OUTLINES: Readonly<Record<string, readonly Point2[]>> = {
         [-1, 1],
     ],
     // Pajek's vertex shapes: a plus-shaped cross, a house (a box under a pitched roof), and the
-    // man and woman pictograms of its genealogy drawings (a figure with a head, arms and legs;
-    // the woman's in a skirt).
+    // man and woman figures of its genealogy drawings, as Pajek draws them (PAJEK_MAN, PAJEK_WOMAN).
     cross: [
         [-1 / 3, -1],
         [1 / 3, -1],
@@ -88,56 +106,87 @@ const UNIT_OUTLINES: Readonly<Record<string, readonly Point2[]>> = {
         [0, 1],
         [-1, 0.2],
     ],
-    man: figure([
-        [0.06, -0.3],
-        [0.06, -1],
-        [0.5, -1],
-        [0.5, -0.1],
-        [0.55, -0.1],
-        [0.55, 0.2],
-        [0.62, 0.2],
-        [0.62, -0.3],
-        [0.95, -0.3],
-        [0.95, 0.3],
-        [0.8, 0.42],
-        [0.14, 0.42],
-    ]),
-    woman: figure([
-        [0.08, -0.55],
-        [0.08, -1],
-        [0.35, -1],
-        [0.35, -0.55],
-        [0.7, -0.55],
-        [0.52, -0.05],
-        [0.55, 0.2],
-        [0.66, 0.2],
-        [0.66, -0.2],
-        [0.95, -0.2],
-        [0.95, 0.3],
-        [0.8, 0.42],
-        [0.14, 0.42],
-    ]),
+    man: pajekFigure(PAJEK_MAN),
+    woman: pajekFigure(PAJEK_WOMAN),
 };
 
 /**
- * A standing figure as a unit outline: the right half of its body, given from the bottom of its
- * middle up to its neck, under a round head, mirrored to the left.
- * @param rightHalf - The body's right half, counter-clockwise, from the middle at the bottom to
- *   the right of the neck.
- * @returns The whole outline, counter-clockwise.
+ * An SVG path of straight lines and unrotated elliptical arcs (`M`, `L`, `A`, `z`, absolute, y down) as a unit
+ * outline: its arcs drawn with `ARC_STEPS` points a quarter turn, fitted to the box -1..1 each way, y up,
+ * counter-clockwise.
+ * @param path - The path.
+ * @returns The outline.
  */
-function figure(rightHalf: readonly Point2[]): Point2[] {
-    const [cy, radius, neck] = [0.72, 0.27, 0.12];
-    const start = Math.atan2(-Math.sqrt(radius * radius - neck * neck), neck);
-    const steps = ARC_STEPS * 2;
-    const head = Array.from({ length: steps + 1 }, (_, i): Point2 => {
-        const angle = start + ((Math.PI - 2 * start) * i) / steps;
+function pajekFigure(path: string): Point2[] {
+    const tokens = path.match(/[MLAz]|-?\d+(?:\.\d+)?/g) ?? [];
+    const points: Point2[] = [];
+    let at: Point2 = [0, 0];
+    for (let i = 0; i < tokens.length;) {
+        const n = (k: number): number => Number(tokens[i + k]);
+        if (tokens[i] === "M" || tokens[i] === "L") {
+            at = [n(1), n(2)];
+            points.push(at);
+            i += 3;
+        } else if (tokens[i] === "A") {
+            const to: Point2 = [n(6), n(7)];
+            points.push(...arcPoints(at, n(1), n(2), n(4) === n(5), n(5) === 1, to));
+            at = to;
+            i += 8;
+        } else {
+            i += 1;
+        }
+    }
+    const xs = points.map(([x]) => x);
+    const ys = points.map(([, y]) => y);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    const unit = points.map(([x, y]): Point2 => [(2 * x - x0 - x1) / (x1 - x0), (y0 + y1 - 2 * y) / (y1 - y0)]);
+    // the path runs clockwise on screen, so counter-clockwise once y points up
+    return signedArea(unit) < 0 ? unit.reverse() : unit;
+}
 
-        return [radius * Math.cos(angle), cy + radius * Math.sin(angle)];
+/**
+ * The points of an SVG elliptical arc after its start (SVG's endpoint-to-center conversion, with no rotation; radii
+ * too small for the chord grow to reach it).
+ * @param from - Where it starts.
+ * @param rx - Its x radius.
+ * @param ry - Its y radius.
+ * @param sameFlags - Whether its large-arc flag equals its sweep flag (which picks the center).
+ * @param sweep - Whether it turns the positive way (clockwise on screen).
+ * @param to - Where it ends.
+ * @returns Its points, the last one `to`.
+ */
+function arcPoints(from: Point2, rx: number, ry: number, sameFlags: boolean, sweep: boolean, to: Point2): Point2[] {
+    const [dx, dy] = [(from[0] - to[0]) / 2, (from[1] - to[1]) / 2];
+    const grow = Math.max(1, Math.sqrt((dx / rx) ** 2 + (dy / ry) ** 2));
+    const [a, b] = [rx * grow, ry * grow];
+    const square = (a * a * b * b - a * a * dy * dy - b * b * dx * dx) / (a * a * dy * dy + b * b * dx * dx);
+    const k = Math.sqrt(Math.max(0, square)) * (sameFlags ? -1 : 1);
+    const [ux, uy] = [(k * a * dy) / b, (-k * b * dx) / a];
+    const [cx, cy] = [ux + (from[0] + to[0]) / 2, uy + (from[1] + to[1]) / 2];
+    const start = Math.atan2((dy - uy) / b, (dx - ux) / a);
+    let turn = Math.atan2((-dy - uy) / b, (-dx - ux) / a) - start;
+    if (sweep && turn < 0) {
+        turn += 2 * Math.PI;
+    } else if (!sweep && turn > 0) {
+        turn -= 2 * Math.PI;
+    }
+    const steps = Math.max(2, Math.ceil((Math.abs(turn) / (Math.PI / 2)) * ARC_STEPS));
+    return Array.from({ length: steps }, (_, i): Point2 => {
+        const angle = start + (turn * (i + 1)) / steps;
+        return i === steps - 1 ? to : [cx + a * Math.cos(angle), cy + b * Math.sin(angle)];
     });
-    const right = [...rightHalf, ...head.slice(0, steps / 2)];
+}
 
-    return [...right, head[steps / 2], ...[...right].reverse().map(([x, y]): Point2 => [-x, y])];
+/**
+ * The signed area (twice it) inside an outline (shoelace): positive when it runs counter-clockwise.
+ * @param outline - The outline.
+ * @returns The area.
+ */
+function signedArea(outline: readonly Point2[]): number {
+    return outline.reduce((sum, [x, y], i) => {
+        const [nx, ny] = outline[(i + 1) % outline.length];
+        return sum + x * ny - nx * y;
+    }, 0);
 }
 
 /**

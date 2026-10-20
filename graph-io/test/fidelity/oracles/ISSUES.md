@@ -2807,3 +2807,90 @@ Still open, and why:
   `Edge.leaveNode` from the first bend outside the node; why it lands that far out on this sheet (its nodes have the
   inset border another round is changing) was not found. graphty-element-render.
 - Pajek `edges-lines-p5` (Color as Gradient of End Vertices) still fails rows of its own; the loops pass there.
+
+## Specimen sheets: glyph shapes, label runs, image sides and centered borders (fix round 3, rendering batch 2, 2026-10-20)
+
+graphty-element now draws, as style options with channels, and graph-io maps the files onto them:
+
+- A node's further pieces and lines (`node.shapeParts`, `node.shapeLines`, `node.shapeLineWidth`; graph-io
+  `shapeParts`, `shapeLines`, `shapeLineWidth`): Graphviz's synthetic-biology shapes are their glyphs at Graphviz's own
+  size on a baseline through the node's middle (a polygon drawn where its points say, the further bars of an
+  `assembly` or a `noverhang`, the open baselines and stems), an `insulator`'s square is an outer ring 3 points round
+  it, and the decorated boxes (`box3d`, `tab`, `folder`, `component`, `note`, `cds`, the arrows and promoters) are
+  drawn at the node's size with their decorations a fixed number of points across, as Graphviz draws them, with their
+  lines (a `box3d`'s edges, a `note`'s fold); an `underline` is its box with no line round it and its bottom line. The
+  geometry was measured with Graphviz 14.1.2 `neato -n2 -Tsvg` at 36 x 36, 72 x 36, 36 x 72 and 108 x 54 points. A
+  `cylinder` is drawn as graphty's database. `dot-specimen-node-shapes` fell from 25 failing nodes to 4,
+  `gml-specimen-node-shapes-p7` from 22 to 1.
+- A run of label markup drawn off its line (`<shift='60%'>`, a share of the label's size) and where runs of different
+  sizes meet (`node.labelRunAlign` / `edge.labelRunAlign`: alphabetic baselines, hanging baselines or middles; graph-io
+  `labelRunAlign` and a run's `shift` in `labelRuns`): vis-network's font modifiers' own `vadjust` (mono's is 2 unless
+  given), its hanging baseline below a node and middle baseline inside one and on an edge, and the extra depth a larger
+  run gives a label below a node (half of what its lines are taller than one font size each, ShapeBase._drawShape).
+  `vis-network-specimen-labels` `font-multi-html`, `font-multi-markdown` and `-labels-p3` `font-mono-shorthand` label
+  offsets pass.
+- An image's side left unset drawn at the picture's own pixels (`node.imageAutoSize` "natural"; graph-io
+  `imageAutoSize`), and Cytoscape.js `background-width` / `-height` in percent of the node's padding box, its default
+  `-relative-to: include-padding` (of its inner box under `inner`), as cytoscape.js 3.34.3 drawInscribedImage sizes
+  them: a picture 100% wide on a 36 px node with 8 px padding is 52 wide and its own 24 tall
+  (`cytoscapejs-specimen-images-charts` `background-width-relative-to-include-padding`: cropped side by side, drawn
+  alike). Its rows stay: the oracle reader takes the picture for the node (`node.width` o=51.2 x 23.2, no fill and no
+  outline) and leaves the node's own body as strays (`stray.present` path#15, #16 ...), so graphty's body reads as a
+  different size and its picture as an extra annotation (comparator, `comparator-clip-path`, `annotation-scoring`).
+- vis-network's and Pajek's borders are centered on the node's outline (`borderPosition` "center", a canvas or SVG
+  stroke), and a node's label is placed against its outline whatever its border's position, so a centered or inside
+  border no longer pulls the label in by half or all of its width: `vis-network-specimen-node-fills-borders`
+  `border-width-8` and `pajek-specimen-node-fills-borders-p3` `bw-8` width and height pass (44 across, not 52), and
+  Pajek's lines end at the vertex outline (`pajek-lin-rel4` 88 routes, `pajek-synth-vertices` 10, `pajek-1crn` 3).
+  Over the vis-network and Pajek sheets and samples this fixed 118 rows and broke 8 (below); over the other formats'
+  label, shape, border, size, group, image and mapping sheets (305) placing labels against the outline changed only
+  yEd rows, 6 fixed (`yed-graphml-specimen-labels-p2` internal, corner and eight-position models) and 3 broken (below).
+
+Still open, and why:
+
+- Rows the centered borders and the outline label place broke: `pajek-synth-lines` 5 routes, `json-vis-synth` 1 route,
+  `pajek-lin-rel4` 1 route, `pajek-synth-vertices` 1 height; `yed-graphml-specimen-groups-p2` `box-99`, `box-107` and
+  `-labels` `border-distance` label offsets (draw.io standing in for yEd; graphty's group label now sits against the
+  group's outline, half its 1 px border further out). Not looked into one by one this round.
+
+- `dot-specimen-node-shapes` and `gml-specimen-node-shapes-p6` `parallelogram` (`node.shape` o=rect g=other):
+  comparator (`comparator-shape-class`). graphty draws Graphviz's own corners (classed "other", as `shapeOf` classes a
+  four-sided outline with two corners on its box's); Graphviz's polygon is the same parallelogram (its corners
+  `811.66,-721.25 781.97,-721.25 774.34,-685.25 804.02,-685.25`), yet the oracle side reads "rect". Why was not found.
+- `tripleoctagon` (DOT and GML, width and height 45 against 37): graphty draws one outer ring; the oracle reader counts
+  the middle ring in the node's size and the outermost as its ring. A third outline needs a second outer ring
+  (graph-io `node-outline-ring`).
+- vis-network `font-*-vadjust` (`labels-p2`, `edge-labels`, `label.present` o=None): comparator. graphty-element now
+  draws the run that much lower, as vis-network does; the oracle reader keeps a run drawn more than half its height off
+  the line as a text of its own (`joinRuns`), so the label is not found on the oracle side at all.
+- vis-network `font.background` (`labels` `font-background`, label 28.6 below its node against 22.0): graph-io draws
+  the box round the words alone (`labelPadding` 0, `labelLineHeight` 1), and graphty-element places a label by its
+  box, so the words move up with the smaller box; vis-network places the words and draws the box round them. Needs a
+  way to place a label by its words when its box is drawn (graphty-element-render), or graph-io's label place for
+  vis-network below a node modelled on the words (`label-anchor-offset`).
+- vis-network `size-30-database` (`label.anchor` center/end against center/center): the database is sized by its label,
+  as vis-network sizes it (width and height pass now); graphty's label box is a line height and a padding taller than
+  the words, so its words sit lower in the small node (`label-anchor-offset`). Its `node.stroke` rows and
+  `node-shapes` `shape-database*`: comparator, as before (vis-network strokes the database as one open path, which
+  the oracle reader does not take as the node's outline).
+- vis-network `border-radius-12` (`node.shape` o=other g=roundrect): comparator, as before (the same capsule).
+- Pajek `bw-4-cross`, `bw-4-diamond`: comparator and oracle, as before (Pajek 6.02's SVG export writes a cross vertex as
+  an ellipse; its diamond's corners are 0.04 wide and read as a hexagon).
+- vis-network `image-background` (`useBorderWithImage`, width 68 against 35) and `coordinate-origin-top-left` /
+  `-circular`: vis-network sizes an image node's box to its picture's proportions, its shorter side `2 * size`
+  (CircleImageBase._resizeImage), and with `coordinateOrigin` "top-left" draws the node with its box's corner at the
+  position. graphty-element needs a node whose box follows its picture once loaded, and a node placed by a corner of its
+  box (graphty-element-render, `node-images`).
+- Cytoscape.js `background-image-two-layers` (`fit none contain`): Cytoscape.js draws every layer of a background image
+  list, each with its own fit, size and place; graphty-element draws one picture per node and graph-io reads the first.
+  Needs picture layers in graphty-element's node style (graphty-element-render, `node-images`). The oracle side reads
+  these image nodes with no fill and no outline (`node.fill`, `node.stroke` o=None) though Cytoscape.js draws both
+  (cropped side by side): comparator (`comparator-clip-path`).
+- `json-graphology-synth` routes (42 rows): not sigma's curve. Of the 42, 39 are straight edges (30 plain, 4 hidden,
+  4 `line`, 1 `arrow`) and 3 curves; sigma 4's default programs draw every edge straight (the oracle registers no curve
+  program), as graph-io reads them. The straight ones are the raster reading of short edges under their nodes
+  (comparator), as recorded in fix round 2.
+- vis-network `mappings-bypass` `edge-default` (`edge.route` 0.082 of the chord against 0.05): it is a `curvedCW` edge
+  (the sheet's `options.edges.smooth`), drawn as vis-network's quadratic Bezier through its control point
+  (BezierEdgeStatic `curvedCW`); both curves bow the same way and the difference is at the circle arrow's end. Not
+  found this round.

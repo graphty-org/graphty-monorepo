@@ -1434,10 +1434,15 @@ export class RichTextLabel {
             );
         }
 
-        // Moved by its offset and its shift, right and down on screen: y is up in every frame here.
+        // Moved by its offset and its shift, right and down on screen: y is up in every frame here. The shift is along
+        // the label's own turned axes, so a turned label turns about the point of its box the shift pins, as
+        // Cytoscape desktop, Cytoscape.js and Pajek turn a label about its anchor (cx2-syn-mappings: a label pinned
+        // by its left middle and turned 33.5 degrees hangs 7 px below its node's middle).
         const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
-        const moveX = offsetX + shiftX * labelWidth;
-        const moveY = offsetY + shiftY * labelHeight;
+        const turn = ((this.options.rotation ?? 0) * Math.PI) / 180;
+        const [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        const moveX = offsetX + sx0 * Math.cos(turn) - sy0 * Math.sin(turn);
+        const moveY = offsetY + sx0 * Math.sin(turn) + sy0 * Math.cos(turn);
         if (moveX !== 0 || moveY !== 0) {
             // beside its target the label is in the target's own frame, whose stretch its gaps undo
             const sx = inFront ? 1 : (stretch?.x ?? 1) || 1;

@@ -98,6 +98,28 @@ describe("RichTextLabel opacity and offsets", () => {
         assert.closeTo(shifted.y - plain.y, -height / 2, height * 0.05);
     });
 
+    test("a turned label's shift turns with it, so it turns about the point the shift pins", () => {
+        const at = (extra: object): Vector3 => {
+            const mesh = RichTextLabel.createLabel(scene, {
+                text: "hi",
+                attachTo: new Vector3(0, 0, 0),
+                attachPosition: "center",
+                attachOffset: 0,
+                ...extra,
+            }).labelMesh;
+            assert.isNotNull(mesh);
+            return mesh.position.clone();
+        };
+        const plain = at({ rotation: 30 });
+        const width = 2 * (at({ shiftX: 0.5 }).x - at({}).x);
+        // pinned by its left middle and turned 30 degrees clockwise: its middle is half its width along the turned
+        // axis, so below the pin on screen (y is up in the scene)
+        const turned = at({ shiftX: 0.5, rotation: 30 });
+        const turn = Math.PI / 6;
+        assert.closeTo(turned.x - plain.x, (width / 2) * Math.cos(turn), width * 0.01);
+        assert.closeTo(turned.y - plain.y, -(width / 2) * Math.sin(turn), width * 0.01);
+    });
+
     test("a border round a box with no background is a ring, its middle left undrawn (Gephi's label box)", () => {
         // the rectangles in the path the border's fill was given: two (the box and its hole) for a ring
         const rects = (extra: object): number => {

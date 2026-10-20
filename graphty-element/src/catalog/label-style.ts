@@ -242,7 +242,9 @@ export interface LabelStyle {
     offsetY?: number;
     /**
      * How far the label is moved to the right of where `location` and `offsetX` put it, as a
-     * fraction of its own width: -0.5 puts its right edge where its middle was. Unset, 0.
+     * fraction of its own width: -0.5 puts its right edge where its middle was. Measured along the
+     * label's own axes, turned by `rotation`, so a turned label turns about the point the shift
+     * pins. Unset, 0.
      */
     shiftX?: number;
     /** How far the label is moved down, as a fraction of its own height; see `shiftX`. Unset, 0. */

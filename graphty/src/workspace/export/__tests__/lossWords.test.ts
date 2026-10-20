@@ -2,7 +2,7 @@ import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import { EXPORT_STYLE_LOSS_CODES } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { isStyleLoss, layersBackWords, listedStyleLosses, lossLines, type LossFacts } from "../lossWords";
+import { isStyleLoss, layersBackWords, listedStyleLosses, type LossFacts, lossLines } from "../lossWords";
 
 const unnamed = (): null => null;
 
@@ -66,7 +66,9 @@ describe("lossLines", () => {
         const generic = /^Part of this graph /;
         assert.isAbove(EXPORT_STYLE_LOSS_CODES.length, 5);
         for (const code of EXPORT_STYLE_LOSS_CODES) {
-            const line = said(styleLoss(code, 8, { target: "node", property: "borderColor", layer: "ramp", reason: "SCALE" }));
+            const line = said(
+                styleLoss(code, 8, { target: "node", property: "borderColor", layer: "ramp", reason: "SCALE" }),
+            );
             assert.notMatch(line, generic, code);
             assert.isTrue(isStyleLoss({ code }), code);
         }
@@ -79,15 +81,34 @@ describe("lossLines", () => {
             "Node fill color on 8 nodes is not written.",
         );
         assert.strictEqual(
-            said(styleLoss("W_STYLE_APPROXIMATED", 1, { target: "edge", property: "graphty:arrowHead", channel: "arrowHead" })),
+            said(
+                styleLoss("W_STYLE_APPROXIMATED", 1, {
+                    target: "edge",
+                    property: "graphty:arrowHead",
+                    channel: "arrowHead",
+                }),
+            ),
             "Edge arrow head on 1 edge is written as the nearest value this format allows.",
         );
         assert.strictEqual(
-            said(styleLoss("W_STYLE_LAYER_FLATTENED", 8, { target: "node", property: "fill", layer: "ramp", reason: "SCALE" })),
+            said(
+                styleLoss("W_STYLE_LAYER_FLATTENED", 8, {
+                    target: "node",
+                    property: "fill",
+                    layer: "ramp",
+                    reason: "SCALE",
+                }),
+            ),
             'The layer "ramp" is written as the node fill color it paints on 8 nodes, not as a layer: this format cannot hold its palette or scale.',
         );
         assert.strictEqual(
-            said(styleLoss("W_STYLE_NOT_WRITTEN", 8, { target: "node", property: "graphty:node.shape", channel: "node.shape" })),
+            said(
+                styleLoss("W_STYLE_NOT_WRITTEN", 8, {
+                    target: "node",
+                    property: "graphty:node.shape",
+                    channel: "node.shape",
+                }),
+            ),
             "Node shape on 8 nodes is not written.",
         );
         assert.strictEqual(said(styleLoss("W_STYLES_NOT_EXPORTED", 2)), "2 style layers are not written.");
@@ -106,8 +127,14 @@ describe("lossLines", () => {
         assert.match(layersBackWords(writing("none"), []), /none of the styles/);
         assert.match(layersBackWords(undefined, []), /none of the styles/);
         assert.match(layersBackWords(writing("values"), []), /but not the style layers/);
-        assert.match(layersBackWords(writing("rules"), [styleLoss("W_STYLE_RULES_NOT_KEPT")]), /but not the style layers/);
+        assert.match(
+            layersBackWords(writing("rules"), [styleLoss("W_STYLE_RULES_NOT_KEPT")]),
+            /but not the style layers/,
+        );
         assert.match(layersBackWords(writing("rules"), []), /rebuilds the style layers as layers/);
-        assert.match(layersBackWords(writing("rules"), [styleLoss("W_STYLE_LAYER_FLATTENED")]), /the other style layers/);
+        assert.match(
+            layersBackWords(writing("rules"), [styleLoss("W_STYLE_LAYER_FLATTENED")]),
+            /the other style layers/,
+        );
     });
 });

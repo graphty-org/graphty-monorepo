@@ -5,6 +5,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
 import { createWorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
@@ -36,21 +37,20 @@ const page = (): ReturnType<typeof within> => within(document.body);
  * @returns the scene.
  */
 async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
-    await userEvent.click(await page().findByRole("button", { name: "Open the Les Miserables sample" }));
+    await userEvent.click(
+        await page().findByRole("button", { name: "Open the Les Miserables sample" }, storyWaitOptions(1000)),
+    );
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");
         expect(found).not.toBeNull();
         return found as GraphtyElement;
-    });
+    }, storyWaitOptions(1000));
     const { session } = element;
     // The app loads the sample once the project's element is up.
-    await waitFor(
-        () => {
-            expect(session.data.statistics().nodeCount).toBe(77);
-        },
-        { timeout: 10_000 },
-    );
+    await waitFor(() => {
+        expect(session.data.statistics().nodeCount).toBe(77);
+    }, storyWaitOptions(10_000));
     expect(session.config.startingRows).toBe(true);
     expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
@@ -115,22 +115,24 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
  * @param name - the row's name.
  */
 async function clickRow(name: string): Promise<void> {
-    const tree = await page().findByRole("tree", { name: "Style layers" });
+    const tree = await page().findByRole("tree", { name: "Style layers" }, storyWaitOptions(1000));
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
+    await userEvent.click(
+        await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }, storyWaitOptions(1000)),
+    );
 }
 
 /**
  * Opens the Annotations folder in the tree, by a click on it and ArrowRight, so Key people shows.
  */
 async function openAnnotations(): Promise<void> {
-    const tree = await page().findByRole("tree", { name: "Style layers" });
-    const folder = await within(tree).findByRole("treeitem", { name: /^Annotations, / });
+    const tree = await page().findByRole("tree", { name: "Style layers" }, storyWaitOptions(1000));
+    const folder = await within(tree).findByRole("treeitem", { name: /^Annotations, / }, storyWaitOptions(1000));
     await userEvent.click(folder);
     if (folder.getAttribute("aria-expanded") !== "true") {
         await userEvent.keyboard("{ArrowRight}");
     }
-    await within(tree).findByRole("treeitem", { name: /^Key people, / });
+    await within(tree).findByRole("treeitem", { name: /^Key people, / }, storyWaitOptions(1000));
 }
 
 /**
@@ -139,7 +141,7 @@ async function openAnnotations(): Promise<void> {
  */
 async function clickTab(name: "Style" | "Values"): Promise<void> {
     const inspector = page().getByRole("complementary", { name: "Inspector" });
-    await userEvent.click(await within(inspector).findByRole("tab", { name }));
+    await userEvent.click(await within(inspector).findByRole("tab", { name }, storyWaitOptions(1000)));
 }
 
 /**
@@ -153,11 +155,11 @@ async function openStyle(name: string): Promise<HTMLElement> {
     }
     await clickRow(name);
     const inspector = page().getByRole("complementary", { name: "Inspector" });
-    const style = await within(inspector).findByRole("tab", { name: "Style" });
+    const style = await within(inspector).findByRole("tab", { name: "Style" }, storyWaitOptions(1000));
     if (style.getAttribute("aria-selected") !== "true") {
         await userEvent.click(style);
     }
-    return page().findByTestId("style-tab");
+    return page().findByTestId("style-tab", {}, storyWaitOptions(1000));
 }
 
 /**
@@ -170,9 +172,9 @@ async function openColorBinding(tab: HTMLElement): Promise<HTMLElement> {
         const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
         expect(found).not.toBeNull();
         return found as HTMLElement;
-    });
+    }, storyWaitOptions(1000));
     await userEvent.click(pill);
-    return page().findByRole("group", { name: "Color binding" });
+    return page().findByRole("group", { name: "Color binding" }, storyWaitOptions(1000));
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -233,7 +235,7 @@ export const HoveredAtRest: Story = sceneStory(async () => {
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await page().findByRole("menuitem", { name: "Shape" });
+    await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000));
 });
 
 /** Key people's size removed with its minus: Shape is its dimmed title and "+" again. */
@@ -242,7 +244,7 @@ export const SizeRemoved: Story = sceneStory(async () => {
     await userEvent.click(within(tab).getByRole("button", { name: "Remove node size" }));
     await waitFor(() => {
         expect(tab.querySelector('[data-section="node-shape"] .ws-row')).toBeNull();
-    });
+    }, storyWaitOptions(1000));
 });
 
 /** Everything hidden by its eye: only what another shown row paints is still drawn. */
@@ -250,14 +252,14 @@ export const EverythingHidden: Story = sceneStory(async () => {
     const tree = page().getByRole("tree", { name: "Style layers" });
     const everything = within(tree).getByRole("treeitem", { name: /^Everything, / });
     await userEvent.click(within(everything).getByRole("button", { name: "Hide Everything" }));
-    await within(everything).findByRole("button", { name: "Show Everything" });
+    await within(everything).findByRole("button", { name: "Show Everything" }, storyWaitOptions(1000));
     await openStyle("Everything");
 });
 
 /** The Annotations folder: the Style panel acting on its rows, under its scope line. */
 export const FolderPanel: Story = sceneStory(async () => {
     await clickRow("Annotations");
-    await page().findByText(/ in Annotations\b/);
+    await page().findByText(/ in Annotations\b/, {}, storyWaitOptions(1000));
 });
 
 /** Key people and Degree selected together: one panel for both, Mixed with who sets it where one sets a property. */
@@ -269,7 +271,7 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
     const tree = page().getByRole("tree", { name: "Style layers" });
     await user.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${runs.degree}, `) }));
     await user.keyboard("{/Control}");
-    await page().findByRole("heading", { level: 2, name: "2 layers" });
+    await page().findByRole("heading", { level: 2, name: "2 layers" }, storyWaitOptions(1000));
 });
 
 /**
@@ -280,14 +282,17 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
 async function openLeidenFolder(): Promise<HTMLElement> {
     const toolbar = page().getByRole("toolbar", { name: "Canvas tools" });
     await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-    await userEvent.type(await page().findByRole("combobox", { name: "Filter analyses" }), "Leiden");
-    await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }));
-    await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }));
-    const tree = await page().findByRole("tree", { name: "Style layers" });
-    const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / }, { timeout: 30_000 });
+    await userEvent.type(
+        await page().findByRole("combobox", { name: "Filter analyses" }, storyWaitOptions(1000)),
+        "Leiden",
+    );
+    await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }, storyWaitOptions(1000)));
+    const tree = await page().findByRole("tree", { name: "Style layers" }, storyWaitOptions(1000));
+    const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / }, storyWaitOptions(30_000));
     await userEvent.click(folder);
-    await page().findByText(/ layers in Leiden\b/);
-    return page().findByTestId("style-tab");
+    await page().findByText(/ layers in Leiden\b/, {}, storyWaitOptions(1000));
+    return page().findByTestId("style-tab", {}, storyWaitOptions(1000));
 }
 
 /**
@@ -300,14 +305,14 @@ async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
         const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
         expect(found).not.toBeNull();
         return found as HTMLElement;
-    });
+    }, storyWaitOptions(1000));
 }
 
 /** Leiden's folder of group layers selected: the scope line, and Fill showing each group layer's own color in list order. */
 export const BulkFolder: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
-    await within(fill).findByRole("button", { name: /^Node color: / });
+    await within(fill).findByRole("button", { name: /^Node color: / }, storyWaitOptions(1000));
 });
 
 /** "One value for all", then a color typed into the Fill of Leiden's folder: every group layer takes it, and the receipt says so. */
@@ -316,13 +321,13 @@ export const BulkReceipt: Story = sceneStory(async () => {
     const fill = await fillRow(tab);
     await userEvent.hover(fill);
     await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
-    await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
+    await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }, storyWaitOptions(1000)));
     await userEvent.keyboard("0072B2{Enter}");
     await waitFor(() => {
         const found = fill.querySelector<HTMLElement>("[data-receipt]");
         expect(found).not.toBeNull();
         return found as HTMLElement;
-    });
+    }, storyWaitOptions(1000));
 });
 
 /** Fill > Change source > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */
@@ -331,12 +336,12 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     const fill = await fillRow(tab);
     // Each layer on its own color: the pill opens the popover by Layer, and Change source picks the value.
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-    const byLayer = await page().findByRole("dialog", { name: "Color from each layer" });
+    const byLayer = await page().findByRole("dialog", { name: "Color from each layer" }, storyWaitOptions(1000));
     await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-    const options = await page().findAllByRole("option", { name: /^Leiden/ });
+    const options = await page().findAllByRole("option", { name: /^Leiden/ }, storyWaitOptions(1000));
     await userEvent.click(options[0]);
-    const popover = await page().findByRole("dialog", { name: /^Color by / });
-    await within(popover).findByRole("grid", { name: / groups$/ });
+    const popover = await page().findByRole("dialog", { name: /^Color by / }, storyWaitOptions(1000));
+    await within(popover).findByRole("grid", { name: / groups$/ }, storyWaitOptions(1000));
 });
 
 /** Fill from each layer on Leiden's folder: the pill opens the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
@@ -344,16 +349,16 @@ export const BulkVaryByLayer: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-    const popover = await page().findByRole("dialog", { name: "Color from each layer" });
-    await within(popover).findByRole("grid", { name: "Layer groups" });
+    const popover = await page().findByRole("dialog", { name: "Color from each layer" }, storyWaitOptions(1000));
+    await within(popover).findByRole("grid", { name: "Layer groups" }, storyWaitOptions(1000));
 });
 
 /** "+" > Layer: a real "Layer 1" on nodes and edges, its name ready to type, writing nothing yet. */
 export const NewLayer: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
-    await page().findByRole("textbox", { name: "Layer name" });
-    await page().findByTestId("style-tab");
+    await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }, storyWaitOptions(1000)));
+    await page().findByRole("textbox", { name: "Layer name" }, storyWaitOptions(1000));
+    await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
 });
 
 // Checkpoint 2: pickers, popovers with category rows and New layer for a value, labels, effects.
@@ -368,8 +373,10 @@ export const VaryBy: Story = sceneStory(async () => {
     if (box === null) {
         throw new Error("no Node size field");
     }
-    await userEvent.click(await within(box).findByRole("button", { name: "Node size by attribute" }));
-    await page().findByRole("combobox", { name: "Find an attribute" });
+    await userEvent.click(
+        await within(box).findByRole("button", { name: "Node size by attribute" }, storyWaitOptions(1000)),
+    );
+    await page().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
 });
 
 /** Degree's color ramp. */
@@ -383,7 +390,7 @@ export const LouvainCategories: Story = sceneStory(async ({ runs }) => {
     const tab = await openStyle(runs.louvain);
     const popover = await openColorBinding(tab);
     await userEvent.click(within(popover).getByRole("button", { name: /Group 3 actions$/ }));
-    await within(popover).findByRole("menuitem", { name: "New layer for Group 3" });
+    await within(popover).findByRole("menuitem", { name: "New layer for Group 3" }, storyWaitOptions(1000));
 });
 
 /**
@@ -399,15 +406,19 @@ export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
     }
     const group = name.firstChild?.textContent ?? "";
     await userEvent.click(name);
-    const detail = await page().findByRole("group", { name: `${group} properties` });
+    const detail = await page().findByRole("group", { name: `${group} properties` }, storyWaitOptions(1000));
     await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${group}` }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
-    const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${group} shape`) });
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
+    const shape = await within(detail).findByRole(
+        "combobox",
+        { name: new RegExp(`^${group} shape`) },
+        storyWaitOptions(1000),
+    );
     await userEvent.click(shape);
-    await userEvent.click(await page().findByRole("option", { name: /^Box/ }));
+    await userEvent.click(await page().findByRole("option", { name: /^Box/ }, storyWaitOptions(1000)));
     await waitFor(() => {
         expect(within(detail).getByRole("combobox", { name: new RegExp(`^${group} shape`) })).toHaveValue("Box");
-    });
+    }, storyWaitOptions(1000));
 });
 
 /**
@@ -423,15 +434,19 @@ export const LouvainShapeForOneGroup: Story = sceneStory(async ({ runs, session 
     }
     const group = name.firstChild?.textContent ?? "";
     await userEvent.click(name);
-    const detail = await page().findByRole("group", { name: `${group} properties` });
+    const detail = await page().findByRole("group", { name: `${group} properties` }, storyWaitOptions(1000));
     await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${group}` }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
-    const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${group} shape`) });
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
+    const shape = await within(detail).findByRole(
+        "combobox",
+        { name: new RegExp(`^${group} shape`) },
+        storyWaitOptions(1000),
+    );
     await userEvent.click(shape);
-    await userEvent.click(await page().findByRole("option", { name: /^Box/ }));
+    await userEvent.click(await page().findByRole("option", { name: /^Box/ }, storyWaitOptions(1000)));
     await userEvent.keyboard("{Escape}");
     await userEvent.keyboard("{Escape}");
-    await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / });
+    await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / }, storyWaitOptions(1000));
     await session.styles.settled();
 });
 
@@ -444,33 +459,35 @@ export const EdgeBetweenness: Story = sceneStory(async ({ runs }) => {
 export const LabelsMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
-    await page().findByRole("menuitem", { name: /^Label/ });
+    await page().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000));
 });
 
 /** A label entry on Key people reading the name. */
 export const LabelEntry: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
-    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }));
-    await within(tab).findByRole("button", { name: /^Label source: / });
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }, storyWaitOptions(1000)));
+    await within(tab).findByRole("button", { name: /^Label source: / }, storyWaitOptions(1000));
 });
 
 /** Label settings open on Key people's name label: font, size, look and placement in one popover. */
 export const LabelSettings: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
-    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }));
-    await userEvent.click(await within(tab).findByRole("button", { name: "Node label settings" }));
-    await page().findByRole("dialog", { name: "Label settings" });
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }, storyWaitOptions(1000)));
+    await userEvent.click(
+        await within(tab).findByRole("button", { name: "Node label settings" }, storyWaitOptions(1000)),
+    );
+    await page().findByRole("dialog", { name: "Label settings" }, storyWaitOptions(1000));
 });
 
 /** Key people's Effects "+": the effects the layer does not draw yet. */
 export const EffectsMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node effects" }));
-    await page().findAllByRole("menuitem");
+    await page().findAllByRole("menuitem", {}, storyWaitOptions(1000));
 });
 
 // Checkpoint 3: the Values tab and Graph settings.
@@ -479,28 +496,28 @@ export const EffectsMenu: Story = sceneStory(async () => {
 export const DegreeValues: Story = sceneStory(async ({ runs }) => {
     await clickRow(runs.degree);
     await clickTab("Values");
-    await page().findByTestId("values-spread");
+    await page().findByTestId("values-spread", {}, storyWaitOptions(1000));
 });
 
 /** Louvain's Values: its groups, largest first. */
 export const LouvainValues: Story = sceneStory(async ({ runs }) => {
     await clickRow(runs.louvain);
     await clickTab("Values");
-    await page().findByText("Groups, largest first");
+    await page().findByText("Groups, largest first", {}, storyWaitOptions(1000));
 });
 
 /** The route's Values: its nodes in order. */
 export const RouteValues: Story = sceneStory(async ({ runs }) => {
     await clickRow(runs["shortest-path"]);
     await clickTab("Values");
-    await page().findByRole("group", { name: "Nodes in order" });
+    await page().findByRole("group", { name: "Nodes in order" }, storyWaitOptions(1000));
 });
 
 /** Graph settings: lighting, label rules and the highlight color. */
 export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
     // Lighting shows only in 3D; Outline width shows in every view.
-    await page().findByRole("spinbutton", { name: /^Outline width/ });
+    await page().findByRole("spinbutton", { name: /^Outline width/ }, storyWaitOptions(1000));
 });
 
 // College football: a number column that names groups, painted one color per value.
@@ -512,19 +529,18 @@ export const GraphSettings: Story = sceneStory(async () => {
  * @returns the element.
  */
 async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement> {
-    await userEvent.click(await page().findByRole("button", { name: "Open the College football sample" }));
+    await userEvent.click(
+        await page().findByRole("button", { name: "Open the College football sample" }, storyWaitOptions(1000)),
+    );
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");
         expect(found).not.toBeNull();
         return found as GraphtyElement;
-    });
-    await waitFor(
-        () => {
-            expect(element.session.data.statistics().nodeCount).toBe(115);
-        },
-        { timeout: 10_000 },
-    );
+    }, storyWaitOptions(1000));
+    await waitFor(() => {
+        expect(element.session.data.statistics().nodeCount).toBe(115);
+    }, storyWaitOptions(10_000));
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
     await element.session.styles.settled();
@@ -543,10 +559,10 @@ export const FootballConference: Story = {
         const { session } = element;
         const before = new Set(session.styles.list().map((l) => l.id));
         await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
-        await page().findByRole("textbox", { name: "Layer name" });
+        await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }, storyWaitOptions(1000)));
+        await page().findByRole("textbox", { name: "Layer name" }, storyWaitOptions(1000));
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
-        const tab: HTMLElement = await page().findByTestId("style-tab");
+        const tab: HTMLElement = await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         const box: HTMLElement = await waitFor(() => {
             const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
@@ -554,21 +570,27 @@ export const FootballConference: Story = {
             );
             expect(found).not.toBeNull();
             return found as HTMLElement;
-        });
+        }, storyWaitOptions(1000));
         // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
         (box.querySelector("input") as HTMLElement | null)?.focus();
-        await userEvent.click(await within(box).findByRole("button", { name: "Node color by attribute" }));
-        await userEvent.click(await page().findByRole("option", { name: "value" }));
+        await userEvent.click(
+            await within(box).findByRole("button", { name: "Node color by attribute" }, storyWaitOptions(1000)),
+        );
+        await userEvent.click(await page().findByRole("option", { name: "value" }, storyWaitOptions(1000)));
         const made = await waitFor(() => {
             const layer = session.styles
                 .list()
                 .find((l) => !before.has(l.id) && l.encode?.["node.color"] !== undefined);
             expect(layer).toBeDefined();
             return layer as NonNullable<typeof layer>;
-        });
-        await within(page().getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
-            name: /^Conference, /,
-        });
+        }, storyWaitOptions(1000));
+        await within(page().getByRole("tree", { name: "Style layers" })).findByRole(
+            "treeitem",
+            {
+                name: /^Conference, /,
+            },
+            storyWaitOptions(1000),
+        );
 
         const styleTab = await openStyle("Conference");
         const popover = await openColorBinding(styleTab);
@@ -576,8 +598,8 @@ export const FootballConference: Story = {
         await waitFor(() => {
             const binding = session.styles.get(made.id)?.encode?.["node.color"];
             expect(binding !== undefined && "by" in binding ? binding.scale : undefined).toBe("ordinal");
-        });
-        await within(popover).findByRole("combobox", { name: /^Palette/ });
+        }, storyWaitOptions(1000));
+        await within(popover).findByRole("combobox", { name: /^Palette/ }, storyWaitOptions(1000));
         await element.waitForStableFrame();
     },
 };

@@ -105,15 +105,14 @@ async function addLine(kind: "node" | "edge", title: string, item: string, chann
 }
 
 /**
- * Waits until every write has been drawn and two frames have passed, so a focus move made after a
- * redraw (in a frame callback) has happened.
+ * Waits until every write has been drawn, then one frame more, so a focus move made after a redraw
+ * (in a frame callback) has happened.
  * @param session - the session.
  */
 async function drawn(session: GraphSession): Promise<void> {
     await session.styles.settled();
-    for (let frame = 0; frame < 3; frame++) {
-        await new Promise((done) => requestAnimationFrame(done));
-    }
+    await document.querySelector("graphty-element")?.waitForStableFrame();
+    await new Promise((done) => requestAnimationFrame(done));
 }
 
 /**

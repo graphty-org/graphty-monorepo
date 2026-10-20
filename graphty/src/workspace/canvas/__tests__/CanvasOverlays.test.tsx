@@ -485,8 +485,14 @@ describe("the legend card", () => {
             throw new Error("the card has no canvas");
         }
         canvas.style.height = "300px";
-        // The resize observer reports the new size by the next frame.
-        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        // Resize observers report together: once this one has seen the new size, the card's has too.
+        await new Promise<void>((resolve) => {
+            const watch = new ResizeObserver(() => {
+                watch.disconnect();
+                resolve();
+            });
+            watch.observe(canvas);
+        });
         assert.equal(zoomToFit.mock.calls.length, 0);
     });
 

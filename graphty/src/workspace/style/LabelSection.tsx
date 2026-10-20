@@ -14,8 +14,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { cardLines, cardSummary } from "./cardLines";
 import { CARD_LOOK, isCard } from "./cardLook";
-import { CardContents, cardLines, cardSummary } from "./LabelCard";
+import { CardContents } from "./LabelCard";
 import { LabelSettings, type VaryField } from "./LabelSettings";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {

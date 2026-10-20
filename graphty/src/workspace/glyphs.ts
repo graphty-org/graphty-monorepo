@@ -8,6 +8,7 @@ import type { ReadableValueKind } from "@graphty/graphty-element/catalog";
 import {
     ArrowDownToLine,
     ArrowLeftToLine,
+    ArrowRight,
     ArrowRightToLine,
     ArrowUpToLine,
     Blend,
@@ -27,6 +28,7 @@ import {
     CircleDot,
     CircleHelp,
     CircleSlash,
+    Code,
     Columns3,
     Copy,
     Database,
@@ -44,6 +46,8 @@ import {
     Highlighter,
     History,
     Layers,
+    LayoutGrid,
+    Link,
     Link2,
     List,
     ListFilter,
@@ -61,9 +65,11 @@ import {
     Network,
     Orbit,
     Paintbrush,
+    Pause,
     Pencil,
     Pin,
     PinOff,
+    Play,
     Plus,
     Redo2,
     Route,
@@ -71,8 +77,10 @@ import {
     Settings,
     Shapes,
     Share2,
+    Shuffle,
     Sparkles,
     Spline,
+    Square,
     SquareDashed,
     StickyNote,
     Sun,
@@ -85,7 +93,10 @@ import {
     Ungroup,
     Unlink2,
     Upload,
+    Waypoints,
     Workflow,
+    X,
+    Zap,
 } from "lucide-react";
 
 import type { SourceKind } from "./data-place/words";
@@ -192,6 +203,23 @@ export const GLYPHS = {
     canceled: CircleSlash,
     private: Lock,
     shared: Share2,
+    // Work the browser kept from a visit that ended before it was saved.
+    recovered: History,
+    // The start page.
+    go: ArrowRight,
+    openFile: Folder,
+    gridView: LayoutGrid,
+    listView: List,
+    generated: Shuffle,
+    noPicture: Waypoints,
+    gpu: Zap,
+    developer: Code,
+    webAddress: Link,
+    close: X,
+    // The start page's turning graph.
+    play: Play,
+    pause: Pause,
+    stop: Square,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

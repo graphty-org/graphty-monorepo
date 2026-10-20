@@ -1,4 +1,4 @@
-import { FieldRow, MenuCheckItem } from "@graphty/compact-mantine";
+import { FieldRow, MenuCheckItem, Popout } from "@graphty/compact-mantine";
 import {
     type Channel,
     labelTemplateLine,
@@ -6,36 +6,15 @@ import {
     labelTemplateRow,
 } from "@graphty/graphty-element/schema";
 import type { GraphSession } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Group, Menu, Popover, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { Ellipsis, Plus } from "lucide-react";
+import { ActionIcon, Button, Group, Menu, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
-import { type DataChoice, type Line, propose, sourceName, type Target } from "./row";
+import { type DataChoice, propose, sourceName, type Target } from "./row";
 import { ValuePicker } from "./ValuePicker";
 
-/**
- * A card's lines: the template's, or the one value a plain label reads, as one row.
- * @param line - the label line.
- * @returns the lines.
- */
-export function cardLines(line: Line): readonly string[] {
-    if (line.template !== undefined) {
-        return line.template;
-    }
-    return line.binding === undefined ? [] : [labelTemplateLine({ text: "", path: line.binding.by })];
-}
-
-/**
- * What a card shows first, and how many rows follow: "name +2".
- * @param session - the element's session.
- * @param lines - the card's lines.
- * @returns the words.
- */
-export function cardSummary(session: GraphSession, lines: readonly string[]): string {
-    const first = lines.map(labelTemplateRow).find((row) => row !== null);
-    const name = first === undefined ? (lines[0] ?? "Empty") : (sourceName(session, { by: first.path }) ?? first.path);
-    return lines.length > 1 ? `${name} +${String(lines.length - 1)}` : name;
-}
+/** The width of a value list, as the label entry's own lists. */
+const LIST_WIDTH = 248;
+import { GLYPHS } from "../glyphs";
 
 /** Props for CardContents. */
 interface CardContentsProps {
@@ -104,24 +83,20 @@ export function CardContents({
                 <Text size="xs" fw={600} pl={4}>
                     Card contents
                 </Text>
-                {/* Lists and menus here open in the Card settings popover's own tree, so a click in
-                    one is not a click outside that closes it (Mantine's rule for nested popovers). */}
-                <Popover opened={adding} onChange={setAdding} position="left-start" trapFocus withinPortal={false}>
-                    <Popover.Target>
+                <Popout opened={adding} onOpenChange={setAdding}>
+                    <Popout.Trigger>
                         <Tooltip label="Add card row">
-                            <ActionIcon
-                                variant="subtle"
-                                size="sm"
-                                aria-label="Add card row"
-                                onClick={() => {
-                                    setAdding(!adding);
-                                }}
-                            >
-                                <Plus size={14} aria-hidden />
+                            <ActionIcon variant="subtle" size="sm" aria-label="Add card row">
+                                <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
                         </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown p={0}>
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={LIST_WIDTH}
+                        placement="left"
+                        alignment="start"
+                        header={{ variant: "title", title: "Add card row" }}
+                    >
                         <ValuePicker
                             title="Add card row"
                             target={target}
@@ -137,8 +112,8 @@ export function CardContents({
                                 setAdding(false);
                             }}
                         />
-                    </Popover.Dropdown>
-                </Popover>
+                    </Popout.Panel>
+                </Popout>
             </Group>
             {lines.map((line, at) => (
                 <CardRow
@@ -223,7 +198,7 @@ function CardRow({
             <Menu.Target>
                 <Tooltip label={`${place} actions`}>
                     <ActionIcon variant="subtle" size="sm" aria-label={`${place} actions`}>
-                        <Ellipsis size={14} aria-hidden />
+                        <GLYPHS.more size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             </Menu.Target>
@@ -260,8 +235,8 @@ function CardRow({
     );
 
     const picker = (
-        <Popover opened={picking} onChange={setPicking} position="left-start" trapFocus withinPortal={false}>
-            <Popover.Target>
+        <Popout opened={picking} onOpenChange={setPicking}>
+            <Popout.Trigger>
                 <Button
                     size="compact-xs"
                     variant="subtle"
@@ -271,14 +246,16 @@ function CardRow({
                     justify="flex-start"
                     title={row === null ? undefined : value}
                     aria-label={row === null ? `${place}: replace with a value` : `${place} value: ${value}`}
-                    onClick={() => {
-                        setPicking(!picking);
-                    }}
                 >
                     {row === null ? "Replace with a value" : value}
                 </Button>
-            </Popover.Target>
-            <Popover.Dropdown p={0}>
+            </Popout.Trigger>
+            <Popout.Panel
+                width={LIST_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title: place }}
+            >
                 <ValuePicker
                     title={place}
                     target={target}
@@ -295,8 +272,8 @@ function CardRow({
                         setPicking(false);
                     }}
                 />
-            </Popover.Dropdown>
-        </Popover>
+            </Popout.Panel>
+        </Popout>
     );
 
     if (row === null) {

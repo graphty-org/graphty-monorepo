@@ -3,10 +3,10 @@ import { definePalette } from "@graphty/graphty-element/extend";
 import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
 import { UnstyledButton } from "@mantine/core";
-import { Pause, Play, Square, X } from "lucide-react";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { loadGraphtyElement } from "../../elementLoader";
+import { GLYPHS } from "../glyphs";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
 
@@ -645,7 +645,7 @@ export function HeroGraph({
                     <Chip
                         pressed={shown.flat}
                         disabled={!ready}
-                        icon={<Square aria-hidden />}
+                        icon={<GLYPHS.stop aria-hidden />}
                         onClick={() => void toggleFlat()}
                     >
                         2D
@@ -658,7 +658,7 @@ export function HeroGraph({
                             setTurning((before) => !before);
                         }}
                     >
-                        {turning ? <Pause aria-hidden /> : <Play aria-hidden />}
+                        {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
                     </UnstyledButton>
                 </div>
                 {lines.length > 0 ? (
@@ -823,7 +823,7 @@ function NodeCard({
     return (
         <dialog open className="ws-land-info" ref={boxRef} aria-label="Node details">
             <UnstyledButton className="ws-land-info-x" aria-label="Close" onClick={onClose}>
-                <X aria-hidden />
+                <GLYPHS.close aria-hidden />
             </UnstyledButton>
             <b>{card.name}</b>
             <p>

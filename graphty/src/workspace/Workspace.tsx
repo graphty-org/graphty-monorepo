@@ -189,11 +189,8 @@ export function Workspace({
 
     return (
         <WorkspaceContext.Provider value={value}>
-            {projectOpen ? (
-                Frame === null ? null : <Frame onElementReady={onElementReady} />
-            ) : (
-                <StartScreen openRef={startDoor} lastDoor={lastDoor} />
-            )}
+            {projectOpen && Frame !== null ? <Frame onElementReady={onElementReady} /> : null}
+            {projectOpen ? null : <StartScreen openRef={startDoor} lastDoor={lastDoor} />}
             <HelpDialogs />
             <ExportDialog />
             <SettingsDialog />

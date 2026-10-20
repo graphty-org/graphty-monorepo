@@ -401,6 +401,9 @@ function FieldControl({
     suffix?: string;
     onChange: (value: unknown) => void;
 }>): React.JSX.Element {
+    // A number field shows the value set here, else the value beneath, else nothing.
+    const numberBeneath = typeof fallback === "number" ? fallback : null;
+    const shownNumber = typeof value === "number" ? value : numberBeneath;
     switch (field.kind) {
         case "text":
             return (
@@ -465,8 +468,8 @@ function FieldControl({
                             kind="number"
                             width="fill"
                             // Nothing set here: the value beneath shows in the field, or "None".
-                            value={typeof value === "number" ? value : typeof fallback === "number" ? fallback : null}
-                            placeholder={typeof value === "number" || typeof fallback === "number" ? undefined : NONE}
+                            value={shownNumber}
+                            placeholder={shownNumber === null ? NONE : undefined}
                             unit={suffix?.trim()}
                             step={field.step}
                             onChange={(next) => {

@@ -8,22 +8,6 @@ import {
 } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import {
-    ArrowRight,
-    Code,
-    Database,
-    Folder,
-    LayoutGrid,
-    List,
-    Lock,
-    Plus,
-    Search,
-    Settings,
-    Shuffle,
-    Upload,
-    Waypoints,
-    Zap,
-} from "lucide-react";
 import React, { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
@@ -32,6 +16,7 @@ import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
 import { MainMenu } from "../frame/menus";
 import { NoticeSlot } from "../frame/NoticeSlot";
+import { GLYPHS } from "../glyphs";
 import { ariaKey } from "../keys/keys";
 import { UsageDataCard } from "../privacy/UsageDataCard";
 import { openProjectFile, openRecent } from "../project/actions";
@@ -374,7 +359,7 @@ function RecentTile({ entry }: Readonly<{ entry: RecentProject }>): React.JSX.El
         >
             {picture === undefined ? (
                 <span className="ws-land-recent-pic ws-land-recent-none" aria-hidden>
-                    <Waypoints />
+                    <GLYPHS.noPicture />
                 </span>
             ) : (
                 <img className="ws-land-recent-pic" src={picture} alt="" />
@@ -409,7 +394,7 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 {algorithms === undefined ? null : <b>{algorithms}</b>} algorithms
             </span>
             <span className="ws-land-it">
-                <LayoutGrid aria-hidden />
+                <GLYPHS.gridView aria-hidden />
                 {layouts === undefined ? null : <b>{layouts}</b>} layouts
             </span>
             <span className="ws-land-it ws-land-vr">
@@ -417,12 +402,12 @@ function FactBar({ session }: Readonly<{ session: GraphSession | null }>): React
                 2D, 3D, VR and AR
             </span>
             <span className="ws-land-it ws-land-gpu">
-                <Zap aria-hidden />
+                <GLYPHS.gpu aria-hidden />
                 GPU accelerated
             </span>
             <span className="ws-land-sp" />
             <a className="ws-land-dev" href={ELEMENT_DOCS}>
-                <Code aria-hidden />
+                <GLYPHS.developer aria-hidden />
                 Put it on your own site
             </a>
         </aside>
@@ -452,7 +437,7 @@ function Headset(): React.JSX.Element {
 function TilePicture({ picture }: Readonly<{ picture: string | undefined }>): React.JSX.Element {
     return picture === undefined ? (
         <span className="ws-land-sample-pic ws-land-sample-none" aria-hidden>
-            <Waypoints />
+            <GLYPHS.noPicture />
         </span>
     ) : (
         <img className="ws-land-sample-pic" src={picture} alt="" loading="lazy" />
@@ -483,7 +468,7 @@ function LibraryTile({
         >
             <TilePicture picture={tile.picture} />
             <span className="ws-land-sample-tag">
-                {generated ? <Shuffle size={11} aria-hidden /> : null}
+                {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
                 {tile.field}
             </span>
             <span className="ws-land-sample-t">{tile.hook}</span>
@@ -525,7 +510,7 @@ function SampleLibrary(): React.JSX.Element {
                     type="search"
                     aria-label="Search samples"
                     placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein, small world...`}
-                    leftSection={<Search size={15} aria-hidden />}
+                    leftSection={<GLYPHS.quickActions size={15} aria-hidden />}
                     value={text}
                     onChange={(event) => {
                         setText(event.currentTarget.value);
@@ -539,7 +524,7 @@ function SampleLibrary(): React.JSX.Element {
                             setView("grid");
                         }}
                     >
-                        <LayoutGrid size={16} aria-hidden />
+                        <GLYPHS.gridView size={16} aria-hidden />
                     </UnstyledButton>
                     <UnstyledButton
                         aria-label="List"
@@ -548,7 +533,7 @@ function SampleLibrary(): React.JSX.Element {
                             setView("list");
                         }}
                     >
-                        <List size={16} aria-hidden />
+                        <GLYPHS.listView size={16} aria-hidden />
                     </UnstyledButton>
                 </fieldset>
             </div>
@@ -774,7 +759,7 @@ export function StartScreen({
     };
     const privacy = (
         <Text size="xs" c="dimmed" className="ws-land-privacy">
-            <Lock size={13} aria-hidden /> Or drop a file anywhere. It never leaves your computer.
+            <GLYPHS.private size={13} aria-hidden /> Or drop a file anywhere. It never leaves your computer.
         </Text>
     );
     const openKey = openDoor?.command.keys?.[0];
@@ -785,12 +770,12 @@ export function StartScreen({
             aria-keyshortcuts={openKey === undefined ? undefined : ariaKey(openKey)}
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
             onClick={openDoor?.run}
-            leftSection={variant === "tint" ? <Folder size={16} aria-hidden /> : undefined}
+            leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
                 <span className="ws-land-xl-label">
                     <span className="ws-land-xl-top">
-                        <Folder size={18} aria-hidden />
+                        <GLYPHS.openFile size={18} aria-hidden />
                         Open a file
                     </span>
                     <span className="ws-land-xl-sub">CSV, GraphML, GEXF, Cytoscape, or a saved project</span>
@@ -805,7 +790,7 @@ export function StartScreen({
             variant="default"
             className="ws-land-plain"
             data-start-door="project.new"
-            leftSection={<Plus size={16} aria-hidden />}
+            leftSection={<GLYPHS.add size={16} aria-hidden />}
             onClick={newDoor?.run}
         >
             New project
@@ -860,7 +845,7 @@ export function StartScreen({
                     GitHub
                 </Anchor>
                 <ColorSchemeToggle />
-                <CommandButton id="settings.open" icon={<Settings size={18} aria-hidden />} />
+                <CommandButton id="settings.open" icon={<GLYPHS.settings size={18} aria-hidden />} />
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
@@ -874,7 +859,7 @@ export function StartScreen({
                             <Paper className="ws-land-launcher" withBorder>
                                 <Button
                                     className="ws-land-go ws-land-resume"
-                                    leftSection={<ArrowRight size={18} aria-hidden />}
+                                    leftSection={<GLYPHS.go size={18} aria-hidden />}
                                     onClick={() => {
                                         void openRecent(workspace, latest);
                                     }}
@@ -899,7 +884,7 @@ export function StartScreen({
                                                         ?.scrollIntoView({ behavior: "smooth" });
                                                 }}
                                             >
-                                                All projects <ArrowRight size={13} aria-hidden />
+                                                All projects <GLYPHS.go size={13} aria-hidden />
                                             </Anchor>
                                         </div>
                                         <div className="ws-land-recents">
@@ -929,7 +914,7 @@ export function StartScreen({
                                 <div className="ws-land-more">
                                     <Button
                                         className="ws-land-tint"
-                                        leftSection={<Database size={16} aria-hidden />}
+                                        leftSection={<GLYPHS.data size={16} aria-hidden />}
                                         aria-haspopup="dialog"
                                         onClick={() => {
                                             setNetwork(true);
@@ -939,7 +924,7 @@ export function StartScreen({
                                     </Button>
                                     <Button
                                         className="ws-land-tint"
-                                        leftSection={<LayoutGrid size={16} aria-hidden />}
+                                        leftSection={<GLYPHS.gridView size={16} aria-hidden />}
                                         onClick={showSamples}
                                     >
                                         Samples
@@ -992,7 +977,7 @@ export function StartScreen({
                 <div className="ws-start-drop" aria-hidden>
                     <Paper withBorder p="lg">
                         <Stack align="center" gap={4}>
-                            <Upload size={24} aria-hidden />
+                            <GLYPHS.upload size={24} aria-hidden />
                             <Text fw={600}>Drop to open</Text>
                             <Text size="xs" c="dimmed">
                                 The file is read here and never uploaded.

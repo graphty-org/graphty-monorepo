@@ -12,8 +12,8 @@ import { Box } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
-import { fixWallClock } from "../../test/fixedWallClock";
 import { storyWaitOptions } from "../../stories/wait";
+import { fixWallClock } from "../../test/fixedWallClock";
 import { createRegistry } from "../commands/registry";
 import { REGISTRATIONS } from "../registrations";
 import { createWorkspaceStore, type WorkspaceState, type WorkspaceStore } from "../state/store";

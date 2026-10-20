@@ -22,6 +22,24 @@ import { Workspace } from "../../Workspace";
 /** A hang guard for the element coming up and runs finishing, not a pass/fail timing. */
 const TIMEOUT_MS = 90_000;
 
+/**
+ * Waits until the element holds the room the store reserves, so the camera has the insets to frame
+ * with before the next stable frame is read.
+ * @param element - the element.
+ * @param store - the workspace store.
+ */
+async function insetsInForce(element: HTMLElementTagNameMap["graphty-element"], store: WorkspaceStore): Promise<void> {
+    await waitFor(
+        () => {
+            const held = element.viewInsets;
+            for (const [side, room] of Object.entries(store.get().viewInsets)) {
+                assert.strictEqual(held[side as keyof typeof held], room, `the ${side} inset reached the element`);
+            }
+        },
+        { timeout: TIMEOUT_MS },
+    );
+}
+
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
@@ -244,7 +262,7 @@ describe("the canvas key on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await insetsInForce(element, store);
         await element.waitForStableFrame();
         const xs = ids.flatMap((id) => {
             const at = element.nodeScreenPosition(id);
@@ -376,7 +394,7 @@ describe("the canvas key on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        await insetsInForce(element, store);
         await element.waitForStableFrame();
 
         const now = drawn();
@@ -413,7 +431,7 @@ describe("the canvas key on the real element", () => {
             });
         const framed = drawn();
         const unmoved = async (what: string): Promise<void> => {
-            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            await insetsInForce(element, store);
             await element.waitForStableFrame();
             const now = drawn();
             assert.strictEqual(now.length, framed.length);

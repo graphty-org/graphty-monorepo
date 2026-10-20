@@ -182,7 +182,7 @@ interface AnalyzePopoverProps {
  * algorithm catalog under the app's headings; picking one shows its short form (its key options,
  * the advanced ones behind a closed fold), the cost line and Run. The filter box is a combobox over the
  * list: ArrowDown and ArrowUp move the active entry, Enter opens it, and while there is filter
- * text the first match is active, so Enter on a single match opens it. Esc steps back one level,
+ * text the first match is active, so Enter on a single match opens it, and so does Tab. Esc steps back one level,
  * and a second Esc closes. Running closes the popover; the new row in the tree is the feedback.
  * @param props - Component props
  * @param props.session - The element's session
@@ -343,7 +343,17 @@ export function AnalyzePopover({
     };
 
     const onFilterKeyDown = (event: React.KeyboardEvent): void => {
-        if (event.key === "Tab" && onTab !== undefined && !event.altKey && !event.ctrlKey && !event.metaKey) {
+        const plainTab = event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+        // Tab with letters typed takes the highlighted analysis, as in every list; with nothing
+        // typed it leaves and takes nothing. Stopped here, or the popover's focus trap (a document
+        // listener) takes the same Tab on to the card's next stop, past Run.
+        if (plainTab && !event.shiftKey && filter.trim() !== "" && active >= 0) {
+            event.preventDefault();
+            event.stopPropagation();
+            open(flat[active]);
+            return;
+        }
+        if (plainTab && onTab !== undefined) {
             event.preventDefault();
             onTab(event.shiftKey);
             return;

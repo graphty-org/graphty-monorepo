@@ -160,6 +160,26 @@ describe("keys that close what they leave and land focus in the right place", ()
         });
     });
 
+    it("Tab in Filter analyses with letters typed takes the highlighted analysis", async () => {
+        await openGraph();
+        const analyze = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Analyze",
+        });
+        await userEvent.click(analyze);
+        await screen.findByRole("combobox", { name: "Filter analyses" });
+        await userEvent.keyboard("cluster");
+        const highlighted = await waitFor(() => {
+            const option = screen.getAllByRole("option").find((o) => o.getAttribute("aria-selected") === "true");
+            assert.isDefined(option, "no analysis highlighted");
+            return option.textContent ?? "";
+        });
+        await userEvent.keyboard("{Tab}");
+        // Its card opens, with focus on its Run button, so Enter runs it.
+        const card = await screen.findByRole("form");
+        assert.include(highlighted, card.getAttribute("aria-label") ?? "(no name)");
+        assert.strictEqual(document.activeElement, within(card).getByRole("button", { name: /^Run / }), focused());
+    });
+
     it("Escape on a button in the inspector clears the graph's selection", async () => {
         const { session } = await openGraph();
         await session.selection.apply({

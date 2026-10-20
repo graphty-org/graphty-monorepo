@@ -36,7 +36,9 @@ Evidence lines cite files by short name. They resolve as follows.
 
 ## B. Requirement evidence
 
-Numbers match the main document. "Jobs" are the job rows of section C.
+Numbers match the main document. Here they run in number order; in the main document the order
+within a tier is priority. "Jobs" are the job rows of section C; the first job named is the one
+the requirement is ranked by.
 
 ### 1. Every data operation is one element command
 
@@ -80,7 +82,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 6. A dropped file goes where it belongs
 
-- **Tier:** primary. **Owner:** both. **Jobs:** load-one-file, keep-and-replay-steps.
+- **Tier:** secondary. **Owner:** both. **Jobs:** load-one-file, keep-and-replay-steps.
 - **Requirement:** A dropped recipe, style file or project goes to Apply or Open, not the Data page; a file no reader recognizes offers 'Read as...' with the registered formats.
 - **Acceptance test:** Drop a recipe: Apply opens; drop a .txt edge list with an unknown extension: 'Read as...' lists CSV and opens it as CSV.
 - **Today:** Unverified on golden
@@ -178,7 +180,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 18. Autosave and reopen
 
-- **Tier:** primary. **Owner:** both. **Jobs:** know-provenance.
+- **Tier:** primary. **Owner:** both. **Jobs:** reopen-as-left, know-provenance.
 - **Requirement:** Work autosaves; reopening a project restores every source, mapping, join, filter and set, and reports anything that did not reload.
 - **Acceptance test:** Load, join, filter; reload the page: the same counts, join and filter return; a project whose source file moved names it as not reloaded.
 - **Today:** Partly: app autosave and recent projects (graphty/src/workspace/autosave/, workspace/project/); version history not in element (task-flows.md 2.2)
@@ -186,7 +188,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 19. Known file shapes map themselves
 
-- **Tier:** primary. **Owner:** both. **Jobs:** set-structural-role, keep-and-replay-steps.
+- **Tier:** secondary. **Owner:** both. **Jobs:** keep-and-replay-steps, set-structural-role.
 - **Requirement:** A file whose headers match a mapping the reader used before, or a known export (such as STRING), is mapped automatically, and the Data page names the mapping in one line with Change; matching is by header name, and unmatched or new columns are listed.
 - **Acceptance test:** Load two same-headed exports in different column order: the second needs no changes and reads 'Used your mapping from sept.csv'; an export with one new column lists it as unmapped.
 - **Today:** No
@@ -210,7 +212,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 22. Apply a recipe someone gave you
 
-- **Tier:** primary. **Owner:** both. **Jobs:** keep-and-replay-steps.
+- **Tier:** secondary. **Owner:** both. **Jobs:** keep-and-replay-steps.
 - **Requirement:** A reader applies a recipe someone gave them to their data in one command; attributes bind by name, the reader confirms only weight roles and mismatched measurement levels, everything unbound is listed before anything runs, and one undo reverses it.
 - **Acceptance test:** Apply a recipe to a table lacking padj: 'column padj not found' is listed before any step runs; one undo removes the recipe's effects.
 - **Today:** No: recipe format specified, not implemented (design/documents/README.md:10-16)
@@ -218,7 +220,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 23. Connect to a source and test it
 
-- **Tier:** primary (for readers whose data is on a server). **Owner:** both. **Jobs:** load-from-network-source.
+- **Tier:** secondary (server data). **Owner:** both. **Jobs:** load-from-network-source.
 - **Requirement:** A reader picks a registered source, fills in fields drawn from its descriptor (endpoint, database, sign-in) and tests the connection before loading; the test reports reachable, sign-in accepted, and the reason when not (refused sign-in, blocked by the browser, local network).
 - **Acceptance test:** A Neo4j endpoint with a wrong password reports a refused sign-in before any data loads; with the right one it reports success; the app holds no source-specific code.
 - **Today:** Element yes, app no. FACT: `data.testSource(source, options)` returns a `SourceProbe` (graphty-element/api/session.api.md on golden); `sourceDescriptors()` in `./catalog`; six built-in sources: ndex, cypher, neo4j, neptune, rest, openalex (graph-io/src/sources/builtins.ts); STRING and deps.dev are sample REST mappings (graph-io/src/sources/rest/samples/). No SPARQL source is registered. The app's NetworkDataDialog.tsx lists NDEx, Neo4j and Web API as "on the way" and opens only a URL.
@@ -226,7 +228,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 24. Browse or query what to load
 
-- **Tier:** primary (server data). **Owner:** both. **Jobs:** load-from-network-source.
+- **Tier:** secondary (server data). **Owner:** both. **Jobs:** load-from-network-source.
 - **Requirement:** A reader searches a repository and picks (an NDEx network by name), writes a query or picks labels and relationship types for a database, or fills a web API's parameters, and loads the result as one undo step.
 - **Acceptance test:** An NDEx search for 'TP53' lists networks with node and edge counts; choosing one draws it; one undo removes it.
 - **Today:** Element yes, app no. FACT: `data.listSource(source, query, options)` returns neutral rows; NDEx implements list through its v2 network search (graph-io/src/sources/ndex/index.ts:7); `data.import({ source, config })` loads (the `data.import-source` history code).
@@ -234,7 +236,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 25. Expand from the server and collapse
 
-- **Tier:** primary (server data). **Owner:** both. **Jobs:** expand-from-source.
+- **Tier:** advanced. **Owner:** both. **Jobs:** expand-from-source.
 - **Requirement:** From a node a source brought, a reader fetches its neighbors from the server with a depth, direction, relationship types and a limit on new nodes; new nodes appear beside the seed; each node states whether it has more to show; collapse removes what that node's expansions added and nothing else.
 - **Acceptance test:** In a Neo4j graph, expanding one account with limit 50 adds at most 50 nodes and marks it partial; expanding again continues from the saved cursor; collapse restores the graph; each is one undo step.
 - **Today:** Element yes, app no. FACT: `data.expand(ids, ExpandOptions)`, `data.collapse(id)` returning `CollapseResult` (session.api.md on golden); `ExpandBehavior.trigger` "none" | "click" | "double-click", default "none"; facts `_source.expansion`, `_source.hidden`, `_source.loads` (graphty-element/src/session/sources/ids.ts); `W_COLLAPSE_KEPT` for edited nodes. NDEx, Cypher and REST sources implement expand.
@@ -242,7 +244,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 26. Size limits and load more
 
-- **Tier:** primary (server data). **Owner:** both. **Jobs:** load-subset, load-from-network-source.
+- **Tier:** secondary (server data). **Owner:** both. **Jobs:** load-from-network-source, load-subset.
 - **Requirement:** Every source load and expansion takes size limits (nodes, edges, bytes, requests, time) that the application sets; a capped load keeps what came first, reports which cap it reached and whether more remains, and Load more fetches the next page.
 - **Acceptance test:** A query matching 40,000 nodes under a 5,000-node limit loads 5,000, says more remain, and one Load more adds the next page.
 - **Today:** Element yes, app no. FACT: `SourceLoadOptions.limits` (`SourceLimitOptions`: maxNodes, maxEdges, maxBytes, maxRequests, timeoutMs; graph-io/src/sources/types.ts:177-191) and `onLimit`; `data.more(options)`; every default is no limit (design/graph-io/network-sources-design.md section 9).
@@ -250,7 +252,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 27. Reopen asks before it queries; credentials
 
-- **Tier:** primary (server data). **Owner:** both. **Jobs:** load-from-network-source, know-provenance.
+- **Tier:** secondary (server data). **Owner:** both. **Jobs:** load-from-network-source, know-provenance.
 - **Requirement:** A reopened project shows its saved rows offline and runs no query by itself; each waiting load names its source, endpoint, whether it has a query, whether the server is on the local network and whether sign-in is needed, and runs when the reader approves. A secret is never in the project file, the undo journal or an event; the file holds only the credential's kind, origin and user name. A remembered credential is found by source and origin, so the reader is asked only when none is remembered; remembered credentials are listed and removable.
 - **Acceptance test:** A saved Neo4j project reopened in a new browser shows its graph, lists one waiting load needing sign-in, and fetches nothing until approved; the saved file contains no password; forgetting the credential makes the next run ask again.
 - **Today:** Element yes, app no. FACT: `data.pendingSourceLoads()` returns `PendingSourceLoad { id, source, endpoint, hasQuery, isLocalNetwork, authRequired }`; `data.runPendingSourceLoad(id, options)`; `./credentials` entry point with `CredentialStore` (remember, lookup by source and origin, list, forget, forgetAll; credentials.api.md on golden); `SourceLoadRecord.credential` is a `SourceCredentialIdentity`; project member `graphty-sources` (`SOURCE_RECORD_MEMBER`).
@@ -283,7 +285,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 31. Merge exact duplicates
 
-- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** resolve-duplicate-nodes.
+- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** resolve-duplicate-nodes.
 - **Requirement:** A reader reviews groups of exact and case- or space-variant duplicate nodes, approves each group, and chooses per attribute how values combine (first, sum, list, earliest); undo splits them.
 - **Acceptance test:** 'Acme', 'ACME' and 'Acme ' form one group; approving merges them with the chosen rules; undo restores three nodes.
 - **Today:** No
@@ -355,7 +357,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 40. Edit values
 
-- **Tier:** secondary. **Owner:** both. **Jobs:** edit-values.
+- **Tier:** advanced. **Owner:** both. **Jobs:** edit-values.
 - **Requirement:** A reader edits a cell and adds or removes a node (with its edges) or an edge; each edit is one undo step and stays marked as edited through save and export.
 - **Acceptance test:** Add a link from a report and correct a department name; both show as edited after reopening; undo reverses each.
 - **Today:** Element verbs yes (updateNodes, add/remove); table read-only
@@ -363,7 +365,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 41. Extract a subnetwork
 
-- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** merge-or-compare-graphs, filter-hide.
+- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** keep-subnetwork, merge-or-compare-graphs, filter-hide.
 - **Requirement:** A reader keeps only the largest group in one action, and saves a filter or set as a subnetwork while keeping the parent.
 - **Acceptance test:** 'Keep only the largest group' from what-loaded leaves the largest group; 'Save as subnetwork' from a set keeps the full network reachable.
 - **Today:** No
@@ -371,7 +373,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 42. One table, several kinds of node
 
-- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** set-structural-role, two-tables-one-network.
+- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** one-table-several-kinds, set-structural-role, two-tables-one-network.
 - **Requirement:** From one event table a reader picks several entity columns to become nodes of different kinds, marks two columns as the same kind of id, and chooses how entities in a row link.
 - **Acceptance test:** auth.log (user, src_host, dst_host, time): users and hosts become two kinds; src_host and dst_host share one id space; each row links user to both hosts.
 - **Today:** No
@@ -379,7 +381,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 43. Gene list to network
 
-- **Tier:** secondary. **Owner:** both. **Jobs:** load-from-network-source.
+- **Tier:** secondary (server data). **Owner:** both. **Jobs:** load-from-network-source.
 - **Requirement:** From the start screen a reader pastes a list of ids, picks a species and a confidence, and gets the network from STRING with a count of ids found and not found, stating what is sent and where before the request.
 - **Acceptance test:** Paste 300 symbols, human, 0.7: the network loads, '287 found, 13 not found' is shown, and the source is listed.
 - **Today:** Element partly, app no. FACT: the `rest` source's STRING sample mapping takes `identifiers` and `species` and loads the interaction network (graph-io/src/sources/rest/samples/string.ts); no found and not-found counts and no confidence parameter in the mapping.
@@ -387,7 +389,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 44. Id list as a set
 
-- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** save-filter-or-set, select-by-condition.
+- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** save-filter-or-set, select-by-condition.
 - **Requirement:** A reader imports a plain list of identifiers (or a GMT file) as a saved set and sees how many matched.
 - **Acceptance test:** Import 50 flagged account ids: set created with '47 matched, 3 not in graph'.
 - **Today:** No
@@ -404,7 +406,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 46. Too-large file path
 
-- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** load-subset, load-one-file.
+- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** load-subset, load-one-file.
 - **Requirement:** A file over the drawing limit is not refused bare: the reader sees its size and the limit before loading and one way through (the busiest N nodes or the first N rows) pre-chosen.
 - **Acceptance test:** A 2M-edge file shows its size, the limit and 'Busiest 50,000 nodes' selected; loading states what was left out.
 - **Today:** Refusal only (tier1-design.md:433)
@@ -420,7 +422,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 48. Refresh a source load
 
-- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** replace-with-newer-data, keep-and-replay-steps.
+- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** replace-with-newer-data, keep-and-replay-steps.
 - **Requirement:** A reader asks whether a source changed since it loaded, and refreshes it: the query re-runs to the same number of pages, expansions replay in order, and the difference (added, removed, updated) applies as one undo step; a value the reader edited that the source also changed is kept unless the reader takes the source's.
 - **Acceptance test:** An NDEx network edited upstream reads 'changed'; refresh reports added, removed and updated counts; undo restores the earlier data.
 - **Today:** No. FACT: `SourceLoadRecord` keeps config, pages, next and validators, but no `refresh` or `revalidate` is in session.api.md on golden.
@@ -436,7 +438,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 50. Computed column
 
-- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** derive-column.
+- **Tier:** secondary. **Owner:** graphty-element. **Jobs:** derive-column.
 - **Requirement:** A reader creates a column from an expression over other columns and results, in the existing JMESPath dialect, sees its type and fill, and edits it later.
 - **Acceptance test:** Create degree_tumor - degree_normal: typed number with fill shown; editing it updates the column.
 - **Today:** No
@@ -494,7 +496,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### 57. Earlier data as a named graph
 
-- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** replace-with-newer-data, know-provenance.
+- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** merge-or-compare-graphs, replace-with-newer-data, know-provenance.
 - **Requirement:** After Replace, the reader can keep the earlier data as another named graph ("September") and compare it with the new one.
 - **Acceptance test:** After replacing September with October and keeping September, the comparison lists added, removed and changed elements.
 - **Today:** No (task-flows.md 2.2: 'Not yet in the element at all')
@@ -528,6 +530,8 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 
 ### Grid
 
+This is the grid as first coded; the corrected grid is in "How the ranking was challenged" below.
+
 Cell = frequency/importance. Frequency: E every session, O often, S sometimes, R rarely. Importance: B blocking, I important, n nice. Blank = no evidence the persona does this job.
 
 | job                          | explorer-elena | analyst-alex | expert-emma | fraud-analyst | intelligence-analyst | cybersecurity-analyst | bioinformatics-researcher | genomics-cytoscape-user | supply-chain-analyst | marketing-analyst | ml-engineer-recsys | knowledge-engineer | plugin-author-domain-researcher | plugin-author-data-scientist |
@@ -559,6 +563,411 @@ Cell = frequency/importance. Frequency: E every session, O often, S sometimes, R
 | clean-values                 | R/n            | S/I          |             |               | S/I                  |                       |                           | S/I                     | S/I                  |                   |                    | E/B                | S/I                             |                              |
 | keep-and-replay-steps        |                | O/I          | S/I         | S/I           |                      | S/I                   | O/I                       | O/I                     | O/I                  | S/I               |                    | O/I                |                                 |                              |
 | export-data                  |                | O/I          | O/B         | O/I           | S/I                  |                       | O/I                       | E/I                     | O/I                  | O/B               | E/B                | O/I                |                                 | S/I                          |
+
+### Summary by job
+
+How many of the 14 personas do each job, as first coded, and for whom it is every session or blocking.
+
+| Data job                              | Personas who do it | Every session for                                        | Blocking for                                                 |
+| ------------------------------------- | ------------------ | -------------------------------------------------------- | ------------------------------------------------------------ |
+| Load one file                         | 13 of 14           | 9 personas, from explorer to lab researcher              | all but knowledge engineer                                   |
+| Filter or hide                        | 12                 | analyst, expert, fraud, intelligence, security, genomics | analyst, security                                            |
+| Export data                           | 11                 | genomics, recommender                                    | expert, marketing, recommender                               |
+| Check what loaded                     | 10                 | explorer, analyst, expert, genomics, knowledge engineer  | analyst, knowledge engineer                                  |
+| Set id, source, target, weight        | 10                 | security, recommender, lab researcher                    | explorer, analyst, supply chain, recommender, lab researcher |
+| Join a table onto nodes               | 9                  | genomics                                                 | genomics, bioinformatics                                     |
+| Repeat steps on new data              | 9                  | --                                                       | -- (often for five)                                          |
+| Set time, kind, place                 | 9                  | fraud, security                                          | --                                                           |
+| Preview before loading                | 8                  | explorer, analyst, knowledge engineer, lab researcher    | genomics, lab researcher                                     |
+| Select by condition                   | 8                  | explorer, fraud, intelligence, security                  | fraud                                                        |
+| Node table plus edge table            | 8                  | --                                                       | supply chain                                                 |
+| Add a second file                     | 7                  | --                                                       | intelligence, knowledge engineer                             |
+| Fix a column's type                   | 7                  | --                                                       | --                                                           |
+| Replace with newer data               | 6                  | --                                                       | supply chain                                                 |
+| Load from a server or list of ids     | 6                  | genomics, knowledge engineer, security                   | genomics, knowledge engineer                                 |
+| Expand a neighborhood from the server | 6                  | fraud                                                    | fraud                                                        |
+| Merge duplicate nodes                 | 6                  | knowledge engineer                                       | knowledge engineer                                           |
+| Merge or compare two graphs           | 5                  | --                                                       | --                                                           |
+
+### Priority scores
+
+These are the scores of the first coding, kept so the challenges below can be checked against
+them. A job's score sums, over the personas with evidence for it, frequency (every session 4, often
+3, sometimes 2, rarely 1) times importance (blocking 3, important 2, nice 1), from the grid above.
+The main document now ranks from the corrected grid in "How the ranking was challenged".
+
+| job                          | score | personas with evidence | personas for whom it is blocking |
+| ---------------------------- | ----- | ---------------------- | -------------------------------- |
+| load-one-file                | 141   | 13                     | 12                               |
+| filter-hide                  | 88    | 12                     | 2                                |
+| set-structural-role          | 78    | 10                     | 5                                |
+| export-data                  | 76    | 11                     | 3                                |
+| check-what-loaded            | 76    | 10                     | 2                                |
+| select-by-condition          | 60    | 8                      | 1                                |
+| preview-validate-before-load | 57    | 8                      | 2                                |
+| join-table-onto-nodes        | 53    | 9                      | 2                                |
+| load-from-network-source     | 50    | 6                      | 2                                |
+| keep-and-replay-steps        | 46    | 9                      | 0                                |
+| set-descriptive-role         | 45    | 9                      | 0                                |
+| add-second-file              | 42    | 7                      | 2                                |
+| two-tables-one-network       | 40    | 8                      | 1                                |
+| expand-from-source           | 36    | 6                      | 1                                |
+| clean-values                 | 33    | 7                      | 1                                |
+| derive-column                | 30    | 7                      | 0                                |
+| set-column-type              | 29    | 7                      | 0                                |
+| resolve-duplicate-nodes      | 29    | 6                      | 1                                |
+| replace-with-newer-data      | 29    | 6                      | 1                                |
+| load-subset                  | 29    | 6                      | 1                                |
+| save-filter-or-set           | 26    | 5                      | 0                                |
+| know-provenance              | 24    | 5                      | 0                                |
+| map-identifiers              | 20    | 5                      | 0                                |
+| rename-hide-columns          | 14    | 4                      | 0                                |
+| merge-or-compare-graphs      | 12    | 5                      | 0                                |
+| edit-values                  | 12    | 5                      | 0                                |
+| open-sample                  | 10    | 4                      | 0                                |
+
+### How the ranking was challenged
+
+The scores above are the first coding. Six reviews then tried to break the ranking, and the main
+document now ranks from the corrected grid below. Every cell is still one reader's judgment over
+persona and workflow files marked `validated: false`.
+
+Two short names are used in this subsection:
+
+- "The study personas" are the longer persona briefs written for the simulated studio sessions
+  (`design/ui/prototype/study/personas/` on the branch `ux-storyboards-mocks-and-study`).
+- "The studio" is the design studio's results (`design/ui/studio/` on `design/studio-tier3`).
+
+The rule for evidence is this. The designloom persona and workflow files are the source of record.
+A study persona overrides one only where the designloom file is silent. A studio briefing written
+to set up a studio task is never evidence about the persona.
+
+#### Cell corrections
+
+Four audits re-read every cell against its cited lines. Every score in the first coding matched a
+recomputation from the grid, so the arithmetic was right; the faults were in the cells. These
+corrections were accepted, grouped by reason:
+
+- **The citation says something else.** The neighborhood-expansion capability expands the view
+  inside the loaded graph (`capabilities/neighborhood-expansion.yaml`, lines 3-5); it does not
+  fetch from a server. So expand-from-source falls for fraud, Alex, intelligence, cybersecurity and
+  bioinformatics. Other misread citations:
+    - Emma's derive-column cites "combines analysis techniques" (`expert-emma.yaml`, line 25).
+    - Elena's edit-values cites her fear of breaking things (`explorer-elena.yaml`, line 37).
+    - Bioinformatics' duplicate merging cites W22's cluster collapse (`W22.yaml`, line 62).
+    - The recommender engineer's derive-column cites model embeddings.
+    - The knowledge engineer's provenance cites her entity types.
+    - Genomics' rename cites the width of a preview.
+- **A job after loading was coded more often than the load.** Preview and check-what-loaded fall
+  to "often" for Alex, the knowledge engineer and Emma.
+- **Using the app daily is not loading daily.** For fraud and intelligence, load-one-file falls to
+  "often": their workflows W05, W17 and W15 start from a graph already built.
+- **A studio briefing was cited as a persona fact.** This lowers two-tables for Elena and supply
+  chain, and replace and set-structural-role for supply chain.
+- **The work happens in the reader's own pipeline, not in the app.** For the knowledge engineer
+  this covers cleanup, duplicate merging, a second file, types, id mapping, edits, replay and
+  export (`knowledge-engineer.yaml`, line 23; `W13.yaml`, line 89). For the recommender engineer
+  it covers derived columns and export.
+- **Cells left blank although the files support them.** 24 cells were added from cited lines, for
+  example:
+    - select-by-condition for marketing, supply chain, bioinformatics and the recommender engineer
+    - a time role for Emma (`W19.yaml`, line 27)
+    - export for supply chain, raised to blocking ("A no or not sure on Power BI makes it a side
+      tool", study persona `supply-chain-analyst.md`, lines 194-197)
+- **The two plugin-author personas were removed.** The domain researcher and the data scientist
+  write code against graphty-element (`plugin-author-domain-researcher.yaml`, lines 28 and 48-50;
+  `plugin-author-data-scientist.yaml`, lines 8 and 52-53). Neither is in any workflow, and the app
+  cannot load a third-party plugin. Their needs are graphty-element API requirements:
+    - row-numbered parse errors
+    - combining replicate edges with a chosen rule
+    - failing loudly on a misspelt attribute
+    - flat typed-array reads
+
+Two corrections were accepted only in part. For fraud, the audit proposed rarely/nice for
+expand-from-source and load-from-network-source; both were set to sometimes/important instead.
+The citation fails, but the designloom file's multi-hop tracing and "Disconnected data sources"
+(`fraud-analyst.yaml`, lines 23 and 38) make an occasional pull from a source plausible. The study
+persona's rule that bank data needs IT approval is not in the designloom file.
+
+#### Jobs that had no row
+
+Three new rows were added:
+
+- **reopen-as-left** (requirement 18 had only provenance, a different job). Evidence: study
+  personas `fraud-analyst.md`, lines 229-230; `supply-chain-analyst.md`, lines 228-229;
+  `analyst-alex.md`, lines 109-113; and `W25.yaml`, lines 50-51.
+- **one-table-several-kinds** (requirement 42). Evidence: `cybersecurity-analyst.yaml`, line 23;
+  `ml-engineer-recsys.yaml`, line 22; `intelligence-analyst.yaml`, line 26; study persona
+  `supply-chain-analyst.md`, lines 224-225.
+- **keep-subnetwork** (requirement 41, which had been scored as filter-hide). Evidence:
+  `genomics-cytoscape-user.yaml`, lines 10, 27 and 39; `W20.yaml`, lines 56 and 88-90.
+
+These were not added, each for the reason given:
+
+- **Know where the data goes before loading it.** Every analyst study persona refuses to load
+  real data until this is answered. It is a gate passed once, which a frequency scale cannot
+  score. Requirement 4 already makes every door say the file stays in this browser. The
+  intelligence analyst's "keep sensitive data on this machine" is the same gate.
+- **Load a known vendor export without renaming columns.** This is requirement 19's job.
+- **Keep elements with no coordinates visible on a map.** It waits for the map view (requirement
+  59).
+- **Project a two-mode graph, and build a network from shared membership.** Requirements 55 and
+  44 cover these in part. They are left for the next coding pass.
+- **Indicator lists as a set** for cybersecurity. Her save-filter-or-set cell already covers it.
+- **Record the evidence document for a link.** Requirements 29 and 40 cover it in part.
+- **See the schema as a graph; load RDF or SPARQL.** These are outside data management;
+  requirement 23 records that there is no SPARQL source yet.
+- **Publish to a repository such as NDEx.** No requirement covers it yet. This is a gap for a
+  later requirement, not a ranking error.
+- **Read the full node table.** The table dock already does this.
+- **Cut a timestamped graph into windows.** Requirements 33 and 60 cover it.
+- **Check graph-wide direction and weighting.** Requirement 32 covers it.
+- **Name each condition's attributes on a merge.** This belongs in requirement 56's test.
+
+#### The method
+
+The method review's findings, each with what was done about it:
+
+1. **The published order did not follow the published scores.** For example, autosave scored 24
+   but sat above the weight's role at 78. Accepted: order within a tier is now computed, and every
+   placement against the score names its rule.
+2. **No rule said how a requirement serving several jobs is scored.** Accepted: each requirement
+   now has one ranking job, and covering only part of it lowers the tier by one.
+3. **Summing over personas buries a job that blocks a few.** Accepted as a weighting: "blocking
+   first" is one of the five. The proposal to set every tier by it was rejected as the default. It
+   would put the server block in the first layer on two personas' evidence, against the owner's
+   stated priority for the average user, with no studio observation. It is the third answer to the
+   owner question.
+4. **A persona's say is how much its file says.** Totals range from 55 to 140. Accepted as a
+   limitation: the normalized weighting gives every persona the same total, and a requirement whose
+   tier changes under it is marked weight-sensitive.
+5. **The plugin authors were counted as app users.** Accepted: they were removed.
+6. **The audience the UI task ranking names was ignored** (`top-tasks.md`, line 10). Accepted as a
+   weighting ("audience"): Alex counts three times, fraud and security twice. It is the second
+   answer to the owner question.
+7. **There was no term for the cost of an error.** Accepted: the named cost-of-error rule from
+   `top-tasks.md`, lines 49-52, places 8, 9, 13, 16 and 17.
+8. **Multiplying ordinal codes is arbitrary.** Accepted as a check: the additive weighting. A job's
+   rank spread over all weightings is published, and a spread over 5 marks it weight-sensitive.
+9. **First sessions and repeat work are mixed in one number.** Not computable from the grid, which
+   does not say when in a reader's life a job happens. The newcomer's safety net (21) is placed by
+   rule instead.
+
+#### The studio
+
+These challenges come from simulated readers in the studio. Each is accepted or rejected:
+
+- **The owner asked for the average user first** (`digests/owner-voice.md`, lines 296-297).
+  Accepted: the default weighting stays equal, and the server block moved to secondary.
+- **The newcomer personas are not in the grid.** Accepted as a limitation. They exist only as
+  study personas, which have no designloom file to code. Open a sample is placed by rule.
+- **No studio task opened a network source.** Accepted: requirements 23 to 27 are secondary, and
+  each says it is unobserved.
+- **Replace and Add are ranked too low.** Accepted. 8 of 8 readers had to hunt for Replace
+  (`tier2/rounds/round-1/insights.md`, lines 81-93). The obvious door offered only Add, which
+  doubled 41 edges to 82 (`round-2/insights.md`, lines 100-104). Control+O on the same file
+  duplicated every edge (`tier3/dry-run-r1-1.md`, line 120). Both 13 and 16 are now placed by cost
+  of error, 13's test adds the same-file case, and 16 carries the mapping.
+- **Mappings carry over on Replace.** 8 of 8 left the weight's meaning unset (`round-2/scores.md`,
+  lines 297-300). Accepted into 16's test.
+- **Routing a dropped file is verified broken** (`tier3/dry-run-r1-1.md`, line 50). Accepted: the
+  bug is fixed in slice 1, and "Read as..." is secondary.
+- **The name column and a count column as the weight.** Accepted into 7's test.
+- **Column types silently empty a filter** (`tier3/dry-run-r1-1.md`, line 38). Accepted: 17 is
+  placed by cost of error and built in slice 1.
+- **Changing a role after loading should be primary.** Rejected. The observed need, saying what a
+  number means after loading, is met by 9's weight line in the inspector. 39 stays secondary.
+- **Imported and computed columns look the same.** Accepted into 10. Showing degree before a run
+  was not added: that is an analysis feature, not a data one.
+- **Readers type a condition in the find box; export failed at the door.** Accepted into the tests
+  of 11 and 20.
+
+#### The competitors
+
+These challenges compare the ranking with Gephi, Cytoscape, Kumu, Neo4j Bloom, Tableau, Power BI
+and Flourish:
+
+- **The order did not follow the scores.** Accepted (method finding 1).
+- **Column type is too low:** every tool surveyed shows and fixes types on its first screen
+  (section J, "What competitors teach"). Accepted, together with the studio finding.
+- **There is no visible place to start a filter.** Accepted: 12 now has an always-visible Filter
+  entry in the Data place.
+- **Build Expand (25) before Load more (26), as in Neo4j Bloom.** Rejected. The argument rested on
+  fraud expanding from a server every session, a cell the audits removed. Expand is now advanced,
+  and 26 ships with the server load it guards.
+- **Refresh (48) belongs in the first server list.** Rejected. Only the knowledge engineer needs
+  it, and her app use is viewing. Its job ranks in the last third under every deciding weighting.
+- **Apply a recipe (22) should be secondary.** Accepted.
+- **Merging duplicates (31) can stay secondary.** Its job now ranks in the last third, and Kumu's
+  duplicates come from re-imports, which 13, 16 and 30 prevent. It moved to advanced.
+
+#### The weightings
+
+All six run on the corrected grid; "published" is the first coding, shown for comparison. A
+script computed every table below from the two grids in this section; none was worked by hand.
+
+- **corrected**: the original method, equal weight per persona.
+- **audience**: as corrected, with Alex counted three times and fraud and security twice, after
+  the weekly analyst `top-tasks.md` is written for and the daily analysts it names (lines 10, 24).
+- **normalized**: each persona's cells divided by that persona's total, so every persona has the
+  same say.
+- **blocking-first**: personas blocked often or more, then personas blocked at all, then the sum.
+- **max**: the largest single cell. It ties nine jobs at rank 1, so it is a check only and does
+  not decide stability.
+- **additive**: frequency plus importance instead of times.
+
+#### Corrected grid
+
+Cell = frequency/importance, as in the original grid. The two plugin-author personas are
+removed (they consume graphty-element's API, not the app's data screens); three job rows are new.
+
+| job                          | explorer-elena | analyst-alex | expert-emma | fraud-analyst | intelligence-analyst | cybersecurity-analyst | bioinformatics-researcher | genomics-cytoscape-user | supply-chain-analyst | marketing-analyst | ml-engineer-recsys | knowledge-engineer |
+| ---------------------------- | -------------- | ------------ | ----------- | ------------- | -------------------- | --------------------- | ------------------------- | ----------------------- | -------------------- | ----------------- | ------------------ | ------------------ |
+| load-one-file                | E/B            | O/B          | O/B         | O/B           | O/B                  | E/B                   | O/B                       | O/B                     | E/B                  | E/B               | E/B                | O/I                |
+| open-sample                  | S/I            | R/n          |             |               |                      |                       |                           | R/n                     |                      |                   |                    |                    |
+| two-tables-one-network       |                | O/B          |             | O/I           | O/I                  |                       | S/I                       | S/I                     | O/I                  | S/I               | S/I                | O/I                |
+| preview-validate-before-load | E/I            | O/I          | S/n         | S/I           | S/I                  |                       |                           | O/B                     | O/I                  |                   |                    | O/I                |
+| check-what-loaded            | E/I            | E/B          | O/I         | O/I           | O/I                  | S/I                   | O/I                       | E/I                     | O/I                  | S/I               | S/I                | O/B                |
+| set-structural-role          | S/B            | S/B          | S/I         | O/I           | O/I                  | E/I                   | O/I                       | O/I                     | S/B                  |                   | E/B                |                    |
+| set-descriptive-role         |                | S/n          | S/I         | O/I           | O/B                  | E/I                   | S/n                       | R/n                     | O/I                  | S/I               | O/I                | O/I                |
+| set-column-type              | R/n            | S/I          |             | O/I           |                      |                       |                           | O/I                     | S/I                  |                   |                    | S/I                |
+| add-second-file              |                | S/n          |             | O/I           | O/B                  | O/I                   | S/I                       |                         | O/I                  |                   |                    | S/I                |
+| join-table-onto-nodes        |                | S/I          |             | S/I           | S/I                  | S/I                   | O/B                       | E/B                     | O/I                  | O/I               | S/I                | S/I                |
+| map-identifiers              |                |              |             | S/n           |                      | S/n                   | S/I                       | O/I                     | S/I                  |                   |                    | S/I                |
+| merge-or-compare-graphs      |                | R/n          | S/I         |               | S/I                  |                       | S/I                       | S/I                     | S/n                  | R/n               |                    |                    |
+| resolve-duplicate-nodes      |                |              |             | S/I           | O/I                  | S/n                   |                           |                         | O/I                  |                   |                    | S/I                |
+| replace-with-newer-data      |                | O/I          |             | R/n           |                      | S/I                   |                           | R/n                     | S/B                  | S/I               |                    | O/I                |
+| load-from-network-source     |                |              |             | S/I           | R/n                  | S/I                   | O/I                       | E/B                     |                      |                   |                    | O/B                |
+| expand-from-source           |                |              |             | S/I           | R/n                  | S/n                   | S/n                       |                         |                      |                   |                    | S/I                |
+| load-subset                  |                | R/n          | S/n         | S/I           |                      | O/I                   | S/n                       |                         |                      | R/I               | E/B                | O/I                |
+| know-provenance              |                |              |             | O/I           | O/B                  | S/I                   | S/I                       | S/I                     |                      |                   |                    | S/I                |
+| rename-hide-columns          | R/n            | S/n          |             |               |                      |                       |                           | S/I                     |                      |                   |                    | S/I                |
+| edit-values                  |                |              |             | S/n           | S/I                  |                       |                           | R/n                     |                      |                   |                    | R/n                |
+| filter-hide                  | O/I            | E/B          | E/I         | E/I           | E/I                  | E/B                   | O/I                       | E/I                     | O/I                  | O/I               | O/I                | S/n                |
+| select-by-condition          | E/I            | O/I          | O/I         | E/B           | O/I                  | E/I                   | O/I                       | O/I                     | O/I                  | O/I               | S/I                | O/I                |
+| save-filter-or-set           |                | O/I          |             | O/I           | S/I                  | O/I                   | S/I                       | S/I                     |                      |                   |                    |                    |
+| derive-column                |                | S/I          | S/I         | S/I           |                      | S/I                   | S/I                       | S/I                     |                      | S/I               | R/n                |                    |
+| clean-values                 | R/n            | S/I          |             | O/I           | S/I                  |                       |                           | S/I                     | O/I                  |                   |                    | S/I                |
+| keep-and-replay-steps        |                | O/I          | S/I         | S/I           |                      | O/I                   | O/I                       | O/I                     | O/I                  | S/I               |                    | S/n                |
+| export-data                  |                | E/I          | O/B         | O/B           | S/I                  | S/I                   | O/I                       | E/I                     | O/B                  | E/B               | O/B                | S/I                |
+| reopen-as-left               |                | O/I          |             | O/B           |                      |                       | S/I                       | S/I                     | O/I                  |                   |                    |                    |
+| one-table-several-kinds      |                |              |             |               | S/I                  | E/B                   |                           |                         | S/I                  |                   | E/B                |                    |
+| keep-subnetwork              |                |              |             |               |                      |                       | S/I                       | E/I                     |                      |                   |                    |                    |
+
+#### Job scores under each weighting
+
+Rank (score). blocking-first scores read: personas blocked often or more / personas blocked / sum.
+
+| job                          | published | corrected | audience | normalized | blocking-first | max    | additive | rank spread |
+| ---------------------------- | --------- | --------- | -------- | ---------- | -------------- | ------ | -------- | ----------- |
+| load-one-file                | 1 (141)   | 1 (120)   | 1 (159)  | 1 (131.4)  | 1 (11/11/120)  | 1 (12) | 1 (76)   | 1-1         |
+| filter-hide                  | 2 (88)    | 2 (88)    | 2 (132)  | 2 (91.7)   | 3 (2/2/88)     | 1 (12) | 2 (66)   | 1-3         |
+| export-data                  | 4 (76)    | 3 (82)    | 5 (111)  | 3 (85.8)   | 2 (5/5/82)     | 1 (12) | 5 (60)   | 1-5         |
+| select-by-condition          | 6 (60)    | 4 (80)    | 4 (112)  | 4 (84.7)   | 9 (1/1/80)     | 1 (12) | 3 (63)   | 1-9         |
+| check-what-loaded            | 4 (76)    | 5 (79)    | 3 (113)  | 5 (83.4)   | 4 (2/2/79)     | 1 (12) | 4 (62)   | 1-5         |
+| set-structural-role          | 3 (78)    | 6 (66)    | 6 (92)   | 6 (68.3)   | 8 (1/4/66)     | 1 (12) | 6 (52)   | 1-8         |
+| join-table-onto-nodes        | 8 (53)    | 7 (57)    | 7 (73)   | 8 (53.0)   | 5 (2/2/57)     | 1 (12) | 8 (47)   | 1-8         |
+| set-descriptive-role         | 11 (45)   | 8 (54)    | 9 (72)   | 7 (53.8)   | 10 (1/1/54)    | 11 (9) | 7 (48)   | 7-11        |
+| two-tables-one-network       | 13 (40)   | 9 (49)    | 7 (73)   | 10 (45.6)  | 11 (1/1/49)    | 11 (9) | 9 (42)   | 7-11        |
+| preview-validate-before-load | 7 (57)    | 10 (45)   | 11 (61)  | 9 (46.7)   | 12 (1/1/45)    | 11 (9) | 11 (38)  | 9-12        |
+| keep-and-replay-steps        | 10 (46)   | 11 (44)   | 10 (66)  | 11 (42.5)  | 18 (0/0/44)    | 18 (6) | 10 (40)  | 10-18       |
+| add-second-file              | 12 (42)   | 12 (37)   | 13 (53)  | 13 (32.2)  | 13 (1/1/37)    | 11 (9) | 12 (32)  | 11-13       |
+| load-from-network-source     | 9 (50)    | 13 (36)   | 18 (44)  | 15 (30.2)  | 6 (2/2/36)     | 1 (12) | 15 (28)  | 1-18        |
+| load-subset                  | 17 (29)   | 14 (35)   | 15 (47)  | 12 (36.6)  | 14 (1/1/35)    | 1 (12) | 12 (32)  | 1-15        |
+| one-table-several-kinds      | --        | 15 (32)   | 18 (44)  | 14 (31.2)  | 7 (2/2/32)     | 1 (12) | 24 (22)  | 1-24        |
+| know-provenance              | 22 (24)   | 16 (31)   | 21 (41)  | 17 (26.7)  | 15 (1/1/31)    | 11 (9) | 17 (27)  | 11-21       |
+| save-filter-or-set           | 21 (26)   | 17 (30)   | 12 (54)  | 19 (25.0)  | 19 (0/0/30)    | 18 (6) | 17 (27)  | 12-19       |
+| clean-values                 | 15 (33)   | 18 (29)   | 20 (43)  | 19 (25.0)  | 20 (0/0/29)    | 18 (6) | 15 (28)  | 15-20       |
+| derive-column                | 16 (30)   | 18 (29)   | 16 (45)  | 16 (29.9)  | 20 (0/0/29)    | 25 (4) | 14 (30)  | 14-25       |
+| reopen-as-left               | --        | 18 (29)   | 14 (50)  | 21 (23.5)  | 16 (1/1/29)    | 11 (9) | 20 (24)  | 11-21       |
+| replace-with-newer-data      | 17 (29)   | 21 (28)   | 16 (45)  | 18 (26.5)  | 17 (0/1/28)    | 18 (6) | 17 (27)  | 16-21       |
+| set-column-type              | 17 (29)   | 22 (25)   | 22 (39)  | 22 (21.0)  | 22 (0/0/25)    | 18 (6) | 20 (24)  | 18-22       |
+| map-identifiers              | 23 (20)   | 23 (22)   | 24 (26)  | 25 (18.5)  | 23 (0/0/22)    | 18 (6) | 22 (23)  | 18-25       |
+| resolve-duplicate-nodes      | 17 (29)   | 23 (22)   | 23 (28)  | 24 (19.0)  | 23 (0/0/22)    | 18 (6) | 25 (21)  | 18-25       |
+| merge-or-compare-graphs      | 25 (12)   | 25 (20)   | 25 (22)  | 23 (20.9)  | 25 (0/0/20)    | 25 (4) | 22 (23)  | 22-25       |
+| expand-from-source           | 14 (36)   | 26 (13)   | 26 (19)  | 26 (11.3)  | 26 (0/0/13)    | 25 (4) | 26 (16)  | 25-26       |
+| keep-subnetwork              | --        | 27 (12)   | 28 (12)  | 28 (9.6)   | 27 (0/0/12)    | 17 (8) | 29 (10)  | 17-29       |
+| rename-hide-columns          | 24 (14)   | 28 (11)   | 27 (15)  | 27 (10.2)  | 28 (0/0/11)    | 25 (4) | 27 (13)  | 25-28       |
+| edit-values                  | 25 (12)   | 29 (8)    | 29 (10)  | 30 (6.8)   | 29 (0/0/8)     | 25 (4) | 28 (11)  | 25-30       |
+| open-sample                  | 27 (10)   | 30 (6)    | 30 (8)   | 29 (8.8)   | 30 (0/0/6)     | 25 (4) | 30 (8)   | 25-30       |
+
+#### Requirement stability
+
+A requirement takes the rank of its one primary job. The score gives it the tier of the third
+of the job list that job falls in (ranks 1-10 primary, 11-20 secondary, 21-30 advanced), one
+tier lower when it covers only part of the job. 'Score holds' means that tier is the same under
+the five deciding weightings and the job's rank spreads by 5 or less; max is shown as a check.
+'Placed' is the tier in the main document, and 'why' names the rule or evidence when it differs
+from the score.
+
+| req | name                                 | job                          | whole | corrected | audience | normalized | blocking-first | max  | additive | was | placed | score holds | why                                                        |
+| --- | ------------------------------------ | ---------------------------- | ----- | --------- | -------- | ---------- | -------------- | ---- | -------- | --- | ------ | ----------- | ---------------------------------------------------------- |
+| 4   | Load a file by any door              | load-one-file                | yes   | 1 P       | 1 P      | 1 P        | 1 P            | 1 P  | 1 P      | P   | P      | yes         |                                                            |
+| 5   | A clean file is one Enter            | load-one-file                | yes   | 1 P       | 1 P      | 1 P        | 1 P            | 1 P  | 1 P      | P   | P      | yes         |                                                            |
+| 6   | A dropped file goes where it belongs | load-one-file                | part  | 1 S       | 1 S      | 1 S        | 1 S            | 1 S  | 1 S      | P   | S      | yes         |                                                            |
+| 7   | Column roles at load                 | set-structural-role          | yes   | 6 P       | 6 P      | 6 P        | 8 P            | 1 P  | 6 P      | P   | P      | yes         |                                                            |
+| 8   | Load report                          | preview-validate-before-load | yes   | 10 P      | 11 S     | 9 P        | 12 S           | 11 S | 11 S     | P   | P      | no          | cost of error: checking the import                         |
+| 9   | The weight's role                    | set-structural-role          | part  | 6 S       | 6 S      | 6 S        | 8 S            | 1 S  | 6 S      | P   | P      | yes         | cost of error: what a weight means                         |
+| 10  | What loaded, in plain words          | check-what-loaded            | yes   | 5 P       | 3 P      | 5 P        | 4 P            | 1 P  | 4 P      | P   | P      | yes         |                                                            |
+| 11  | Find by name or value                | select-by-condition          | yes   | 4 P       | 4 P      | 4 P        | 9 P            | 1 P  | 3 P      | P   | P      | no          |                                                            |
+| 12  | One condition card                   | filter-hide                  | yes   | 2 P       | 2 P      | 2 P        | 3 P            | 1 P  | 2 P      | P   | P      | yes         |                                                            |
+| 13  | Add a second file                    | add-second-file              | yes   | 12 S      | 13 S     | 13 S       | 13 S           | 11 S | 12 S     | P   | P      | yes         | cost of error: a second file silently drops attributes     |
+| 14  | Join a table onto nodes              | join-table-onto-nodes        | yes   | 7 P       | 7 P      | 8 P        | 5 P            | 1 P  | 8 P      | P   | P      | yes         |                                                            |
+| 15  | Node file and edge file together     | two-tables-one-network       | yes   | 9 P       | 7 P      | 10 P       | 11 S           | 11 S | 9 P      | P   | P      | no          |                                                            |
+| 16  | Replace data, keep the analysis      | replace-with-newer-data      | yes   | 21 A      | 16 S     | 18 S       | 17 S           | 18 S | 17 S     | P   | P      | no          | cost of error: a newer file lands on Add and doubles edges |
+| 17  | See and fix a column's type          | set-column-type              | yes   | 22 A      | 22 A     | 22 A       | 22 A           | 18 S | 20 S     | P   | P      | no          | cost of error: a wrong type silently empties a filter      |
+| 18  | Autosave and reopen                  | reopen-as-left               | yes   | 18 S      | 14 S     | 21 A       | 16 S           | 11 S | 20 S     | P   | P      | no          | prevents lost work                                         |
+| 19  | Known file shapes map themselves     | keep-and-replay-steps        | part  | 11 A      | 10 S     | 11 A       | 18 A           | 18 A | 10 S     | P   | S      | no          | studio: Replace must carry the mapping                     |
+| 20  | Export everything                    | export-data                  | yes   | 3 P       | 5 P      | 3 P        | 2 P            | 1 P  | 5 P      | P   | P      | yes         |                                                            |
+| 21  | Open a sample                        | open-sample                  | yes   | 30 A      | 30 A     | 29 A       | 30 A           | 25 A | 30 A     | P   | P      | yes         | newcomer safety net; already built                         |
+| 22  | Apply a recipe                       | keep-and-replay-steps        | part  | 11 A      | 10 S     | 11 A       | 18 A           | 18 A | 10 S     | P   | S      | no          | audience weighting; no tool puts recipes first             |
+| 23  | Connect to a source and test it      | load-from-network-source     | yes   | 13 S      | 18 S     | 15 S       | 6 P            | 1 P  | 15 S     | P   | S      | no          |                                                            |
+| 24  | Browse or query what to load         | load-from-network-source     | yes   | 13 S      | 18 S     | 15 S       | 6 P            | 1 P  | 15 S     | P   | S      | no          |                                                            |
+| 25  | Expand from the server               | expand-from-source           | yes   | 26 A      | 26 A     | 26 A       | 26 A           | 25 A | 26 A     | P   | A      | yes         |                                                            |
+| 26  | Size limits and Load more            | load-from-network-source     | part  | 13 A      | 18 A     | 15 A       | 6 S            | 1 S  | 15 A     | P   | S      | no          | ships with 24                                              |
+| 27  | Reopen asks before it queries        | load-from-network-source     | part  | 13 A      | 18 A     | 15 A       | 6 S            | 1 S  | 15 A     | P   | S      | no          | ships with 24                                              |
+| 28  | Ordered filter steps                 | filter-hide                  | part  | 2 S       | 2 S      | 2 S        | 3 S            | 1 S  | 2 S      | S   | S      | yes         |                                                            |
+| 29  | Sources list                         | know-provenance              | yes   | 16 S      | 21 A     | 17 S       | 15 S           | 11 S | 17 S     | S   | S      | no          |                                                            |
+| 30  | Cleanup offers                       | clean-values                 | yes   | 18 S      | 20 S     | 19 S       | 20 S           | 18 S | 15 S     | S   | S      | yes         |                                                            |
+| 31  | Merge exact duplicates               | resolve-duplicate-nodes      | yes   | 23 A      | 23 A     | 24 A       | 23 A           | 18 S | 25 A     | S   | A      | yes         |                                                            |
+| 32  | Graph properties                     | set-structural-role          | part  | 6 S       | 6 S      | 6 S        | 8 S            | 1 S  | 6 S      | S   | S      | yes         |                                                            |
+| 33  | Time spans                           | set-descriptive-role         | part  | 8 S       | 9 S      | 7 S        | 10 S           | 11 A | 7 S      | S   | S      | yes         |                                                            |
+| 34  | Named filters and sets               | save-filter-or-set           | yes   | 17 S      | 12 S     | 19 S       | 19 S           | 18 S | 17 S     | S   | S      | no          |                                                            |
+| 35  | Export scope                         | export-data                  | part  | 3 S       | 5 S      | 3 S        | 2 S            | 1 S  | 5 S      | S   | S      | yes         |                                                            |
+| 36  | The list of data steps               | keep-and-replay-steps        | part  | 11 A      | 10 S     | 11 A       | 18 A           | 18 A | 10 S     | S   | S      | no          | audience weighting; 16 and 22 need it                      |
+| 37  | Rename, delete, fill empty           | rename-hide-columns          | part  | 28 A      | 27 A     | 27 A       | 28 A           | 25 A | 27 A     | S   | S      | yes         | competitors: rename in the column menu                     |
+| 38  | Hide and reorder columns             | rename-hide-columns          | part  | 28 A      | 27 A     | 27 A       | 28 A           | 25 A | 27 A     | S   | S      | yes         | competitors: hide in the column menu                       |
+| 39  | Change a role after loading          | set-structural-role          | part  | 6 S       | 6 S      | 6 S        | 8 S            | 1 S  | 6 S      | S   | S      | yes         |                                                            |
+| 40  | Edit values                          | edit-values                  | yes   | 29 A      | 29 A     | 30 A       | 29 A           | 25 A | 28 A     | S   | A      | yes         |                                                            |
+| 41  | Keep the largest group, subnetwork   | keep-subnetwork              | yes   | 27 A      | 28 A     | 28 A       | 27 A           | 17 S | 29 A     | S   | S      | yes         | W20 needs the largest group in one click                   |
+| 42  | One table, several kinds of node     | one-table-several-kinds      | yes   | 15 S      | 18 S     | 14 S       | 7 P            | 1 P  | 24 A     | S   | S      | no          |                                                            |
+| 43  | Gene list to network                 | load-from-network-source     | yes   | 13 S      | 18 S     | 15 S       | 6 P            | 1 P  | 15 S     | S   | S      | no          |                                                            |
+| 44  | Id list as a set                     | save-filter-or-set           | part  | 17 A      | 12 A     | 19 A       | 19 A           | 18 A | 17 A     | S   | A      | no          |                                                            |
+| 45  | Join onto edges                      | join-table-onto-nodes        | part  | 7 S       | 7 S      | 8 S        | 5 S            | 1 S  | 8 S      | S   | S      | yes         |                                                            |
+| 46  | Too-large file path                  | load-subset                  | part  | 14 A      | 15 A     | 12 A       | 14 A           | 1 S  | 12 A     | S   | A      | yes         |                                                            |
+| 47  | Draw the file's own styles           | load-one-file                | part  | 1 S       | 1 S      | 1 S        | 1 S            | 1 S  | 1 S      | S   | S      | yes         |                                                            |
+| 48  | Refresh a source load                | replace-with-newer-data      | part  | 21 A      | 16 A     | 18 A       | 17 A           | 18 A | 17 A     | S   | A      | yes         |                                                            |
+| 49  | Save steps as a recipe               | keep-and-replay-steps        | part  | 11 A      | 10 S     | 11 A       | 18 A           | 18 A | 10 S     | A   | A      | no          |                                                            |
+| 50  | Computed column                      | derive-column                | yes   | 18 S      | 16 S     | 16 S       | 20 S           | 25 A | 14 S     | A   | S      | no          |                                                            |
+| 51  | Similar-name duplicates              | resolve-duplicate-nodes      | part  | 23 A      | 23 A     | 24 A       | 23 A           | 18 A | 25 A     | A   | A      | yes         |                                                            |
+| 52  | Id mapping table                     | map-identifiers              | yes   | 23 A      | 24 A     | 25 A       | 23 A           | 18 S | 22 A     | A   | A      | yes         |                                                            |
+| 53  | Define a new source                  | load-from-network-source     | part  | 13 A      | 18 A     | 15 A       | 6 S            | 1 S  | 15 A     | A   | A      | no          |                                                            |
+| 54  | Remove one source                    | know-provenance              | part  | 16 A      | 21 A     | 17 A       | 15 A           | 11 A | 17 A     | A   | A      | no          |                                                            |
+| 55  | Two-mode projection                  | merge-or-compare-graphs      | part  | 25 A      | 25 A     | 23 A       | 25 A           | 25 A | 22 A     | A   | A      | yes         |                                                            |
+| 56  | Union, intersection, difference      | merge-or-compare-graphs      | yes   | 25 A      | 25 A     | 23 A       | 25 A           | 25 A | 22 A     | A   | A      | yes         |                                                            |
+| 57  | Earlier data after Replace           | merge-or-compare-graphs      | part  | 25 A      | 25 A     | 23 A       | 25 A           | 25 A | 22 A     | A   | A      | yes         |                                                            |
+| 58  | Match nodes across graphs            | map-identifiers              | part  | 23 A      | 24 A     | 25 A       | 23 A           | 18 A | 22 A     | A   | A      | yes         |                                                            |
+| 59  | Place roles                          | set-descriptive-role         | part  | 8 L       | 9 L      | 7 L        | 10 L           | 11 L | 7 L      | L   | L      | yes         | needs a map view                                           |
+| 60  | Load a subset of a file              | load-subset                  | yes   | 14 L      | 15 L     | 12 L       | 14 L           | 1 L  | 12 L     | L   | L      | yes         | too-large path (46) covers the urgent half                 |
+
+#### The first layer under the three answers to the owner question
+
+- corrected: 4, 5, 12, 20, 11, 10, 7, 9, 14, 15, 8, 13, 18, 16, 17, 21
+- audience: 4, 5, 12, 10, 11, 20, 7, 9, 14, 15, 8, 13, 18, 16, 17, 21
+- blocking-first: 4, 5, 20, 12, 10, 14, 23, 24, 43, 26, 27, 42, 7, 9, 11, 8, 13, 18, 16, 17, 21
+
+The first-layer lists hold every requirement the score puts in the first layer under that
+weighting, plus those placed by a named rule, in that weighting's order.
 
 ### Jobs
 
@@ -2127,7 +2536,11 @@ Judgment
 
 ## J. Competitor lessons and superseded designs
 
-The main document summarizes these in one paragraph.
+In short, the competitors teach: let the reader point at columns instead of
+demanding fixed headers; make a join say why it matched nothing before it commits; fix a type on
+the column itself; prefer two plain verbs to three subtle ones; offer cleanup only when the data
+needs it; bind recorded steps by column role or name, never by position; and keep one filter card
+first, because ordered filter trees confuse newcomers.
 
 ### What competitors teach
 
@@ -2183,7 +2596,62 @@ The main document summarizes these in one paragraph.
 The framework documents in `design/ui/framework/` stay in force; this document applies them to
 data.
 
-## K. Sources for the project file decision
+## K. The project file decision: column roles and sources
+
+### What the columns member holds
+
+The detail of item 8 of the owner's decision of 2026-10-19 (main document, "Decided by the
+owner"):
+
+- Standard keywords carry the type, `format` (date-time, date, duration, uri), `enum`, and
+  title and description.
+- The graphty vocabulary carries: the column's role; the weight's meaning (distance,
+  similarity, capacity, unknown) and whether higher means stronger; the id system (Ensembl
+  gene, UniProt, email); the time kind (instant, start, end, duration); precision; the original
+  format and time zone, so an export writes the values back as they came; the measurement
+  level, including ordered categories; a unit or currency; the missing-value markers seen on
+  import; a multi-valued separator; and the keys used to match nodes across graphs or tables.
+- Values in the data are stored normalized: ids as strings, numbers as numbers, times as ISO
+  8601 in UTC, lists as arrays, blanks as missing.
+- A column with no recorded role is inferred on open, as today.
+- Node positions stay with the layout, and a file's own colors and sizes stay a style layer;
+  neither is a column role.
+- Recipes refer to columns by role, so a recipe survives renamed columns. Each column change a
+  person makes is also a recipe command, so applying a recipe to new data reproduces the
+  types.
+
+### What the columns member records per role
+
+The owner's decision of 2026-10-19 (main document, "Decided by the owner", item 8) gives each
+column a JSON Schema description. Per role it records:
+
+| Role                     | Recorded besides type and format                          | Stored as                           |
+| ------------------------ | --------------------------------------------------------- | ----------------------------------- |
+| node id                  | id system; whether it is a key for matching across graphs | string                              |
+| edge source, edge target | id system of the node ids they name                       | string                              |
+| edge id                  | id system                                                 | string                              |
+| weight                   | meaning; whether higher is stronger; unit                 | number                              |
+| time                     | time kind; precision; original format and time zone       | ISO 8601 in UTC; durations ISO 8601 |
+| label                    | --                                                        | string                              |
+| kind                     | the kinds (`enum`)                                        | string                              |
+| category                 | the categories (`enum`); whether they are ordered         | string                              |
+| place                    | original format; precision                                | string or number, as its type says  |
+| link                     | --                                                        | string, `format: uri`               |
+| image                    | --                                                        | string, `format: uri`               |
+
+Any column, with a role or none, can also record a unit or currency, missing-value markers and a
+multi-valued separator (stored as an array).
+
+### Why JSON Schema rather than Frictionless Table Schema
+
+Values are already stored normalized, so
+Table Schema's rules for parsing raw text are not needed. The document file already uses JSON
+Schema, so the whole file has one schema language, and standard validators check embedded data
+against it. graphty's own meanings need a vocabulary in either language. A Table Schema that comes
+with a CSV (a `datapackage.json` beside it) is read by graph-io at import and mapped into the
+columns member; graphty never writes one.
+
+### Sources
 
 - FACT: the document container, its typed members, `requires`, skipped unknown kinds and the closed
   data member (`design/documents/container.md` on `golden`, "Data model", "Reading a file" rules
@@ -2198,3 +2666,29 @@ data.
   parsing raw values such as missing-value markers and number formats
   (https://specs.frictionlessdata.io/table-schema/). graph-io reads it at import; graphty does not
   write it.
+
+## L. Team decisions in full
+
+The main document lists these in short, under "Decided here".
+
+These are additive, so the team decides them; each lands without the owner's approval.
+
+1. **Column roles gain a node or edge kind and a skip choice by a new field, not by widening
+   `ColumnRole`.** `ColumnRole` is a closed union that `DraftColumn.suggested` returns, so a new
+   member would break a consumer's exhaustive switch. `DraftColumn` gains a field typed as an open
+   union (`ColumnRole` plus `"kind"`, `"skip"` and any string), and the table mapping gains optional
+   `kind` and `skip` entries. Widening `ColumnRole` itself can ride in the grouped graphty-element
+   major the owner has on hold.
+2. **A date is a time measurement with an optional unit and format, not a new kind.** `Measurement`
+   is already an open union that includes `"time"`, and optional fields on a measurement
+   declaration break nothing. Column types and time roles (requirements 17 and 33) need it now.
+3. **The weight meaning "similarity" is accepted beside "strength".** Every input accepts both,
+   values read back keep saying `"strength"` so no consumer's switch breaks, and `"strength"` is
+   deprecated and replaced in the next planned graphty-element major.
+   `design/ui/framework/graph-conventions.md` (line 88) asks for the clearer word.
+4. **Ordered filter steps take one kind of step.** The published API has one filter per session
+   (`session.visibility.filter`) plus one time window, and no `FilterStep`, so the list of steps is
+   a new shape. The team takes decision 25 of `design/ui/framework/one-way-doors.md`: one kind,
+   every step bounding every computation. Steps are saved as recipe commands.
+5. **Network-source limits default to none in the element and are set by the app**, because the
+   right cap depends on the consumer's screen and machine.

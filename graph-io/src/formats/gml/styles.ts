@@ -1207,6 +1207,29 @@ function readOgdfLabelPlace(
 }
 
 /**
+ * Hides the edges Gephi's own GML importer leaves out: an edge whose `directed` key disagrees with the graph's (a
+ * mixed graph's other kind; Gephi 0.11 loads 4 of `specimen-arrows-p6`'s 5 edges, and a mixed file it wrote itself
+ * loses its edges the same way). The edge and its data stay; Gephi draws nothing there, so graphty draws nothing.
+ * @param snapshot - the graph
+ * @param values - the edge values read so far, given `visible`
+ */
+function hideGephiDroppedEdges(snapshot: GraphSnapshot, values: ValueColumns): void {
+    const header = (snapshot.meta.extra.gml as Record<string, unknown> | undefined)?.directed;
+    const directed = snapshot.edges.byRole("directed");
+    if (directed === null) {
+        return;
+    }
+    const graphDirected = Number(header ?? 0) === 1;
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const v = plainCell(directed.value(e));
+        if (typeof v === "boolean" && v !== graphDirected) {
+            values.visible ??= new Array<StyleValue | null>(snapshot.edgeCount).fill(null);
+            values.visible[e] = false;
+        }
+    }
+}
+
+/**
  * Every element's values, read with a writer's vocabulary.
  * @param snapshot - the graph
  * @param writer - the writer
@@ -1376,6 +1399,7 @@ export function gmlStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
                 return w > 0 ? w : 1;
             });
         }
+        hideGephiDroppedEdges(snapshot, values.edge);
     }
     const none = { rules: [], columns: new Map<string, StyleColumn>() };
     const gephi =

@@ -17,7 +17,7 @@ const registry = createRegistry();
  */
 async function load(doc: string) {
     const result = await registry.importGraph(doc, { format: "gml", styles: { toolDefaults: true } });
-    const styles = result.styles;
+    const { styles } = result;
     if (styles === null || styles === undefined) {
         throw new Error("no styles");
     }
@@ -112,5 +112,26 @@ describe("GML styles: where the program places an edge's label", () => {
         // graphty hangs the label at the bend (973, 406); drawSVG at (954, 421)
         expect(edge$("labelOffsetX")).toEqual([-19, null]);
         expect(edge$("labelOffsetY")).toEqual([15, null]);
+    });
+});
+
+describe("GML styles: what Gephi leaves out", () => {
+    it("hides an edge whose directed key disagrees with a Gephi graph's, which Gephi's importer never loads", async () => {
+        const doc = (graph: 0 | 1): string =>
+            [
+                "graph [",
+                '  Creator "Gephi"',
+                `  directed ${String(graph)}`,
+                '  node [ id 0 label "a" graphics [ x 0.0 y 0.0 w 10.0 ] ]',
+                '  node [ id 1 label "b" graphics [ x 100.0 y 0.0 w 10.0 ] ]',
+                "  edge [ id 1 source 0 target 1 directed 0 ]",
+                "  edge [ id 2 source 0 target 1 directed 1 ]",
+                "]",
+            ].join("\n");
+        // a directed graph: the undirected edge (read as a pair of directed halves) is hidden, the directed one kept
+        expect((await load(doc(1))).edge("visible")).toEqual([false, false, null]);
+        // an undirected graph: the directed edge is the one Gephi leaves out
+        const undirected = (await load(doc(0))).edge("visible");
+        expect(undirected.filter((v) => v === false)).toHaveLength(1);
     });
 });

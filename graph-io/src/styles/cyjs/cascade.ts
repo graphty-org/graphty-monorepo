@@ -48,6 +48,7 @@ import {
     CYJS_CURVE_STYLES,
     CYJS_THROWS,
     cyjsAliasOf,
+    cyjsDashLook,
     type CyjsFlat,
     cyjsNeutral,
     type CyjsParsed,
@@ -1938,9 +1939,49 @@ function combineParts(
         combineArrowFills(n, words, values);
         combineLineOpacity(n, words.get("_lineOpacity"), values);
     }
+    combineDashes(kind, n, words, values);
     combineLabelText(n, words, values);
     combineLabelDress(kind, n, words, values, notes);
     combineVisibility(kind, n, words, values);
+}
+
+/**
+ * A dashed line or border as the line it looks like. Cytoscape.js draws `dashed` with `line-dash-pattern` (6 3) or
+ * `border-dash-pattern` (4 2) in pixels whatever the width, and `dotted` as 1 1 (cytoscape.js 3.34.3 `drawEdgePath`,
+ * `drawNode`), so a wide dashed line shows dots and a pattern of long and short dashes a dash-dot. The class is read
+ * from the dashes and gaps against the width, a round or square cap lengthening each dash by the width.
+ * ponytail: the neutral line styles name a class, not a pattern; a dash pattern slot would carry the lengths exactly
+ * @param kind - the target
+ * @param n - the element count
+ * @param words - the parts by internal name
+ * @param values - the values; changed in place
+ */
+function combineDashes(
+    kind: StyleTarget,
+    n: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    values: Record<string, (StyleValue | null)[]>,
+): void {
+    const [style, width, fallback, pattern] =
+        kind === "edge" ? ["lineStyle", "width", 3, "6 3"] : ["borderStyle", "borderWidth", 0, "4 2"];
+    const col = values[style];
+    if (col === undefined) {
+        return;
+    }
+    for (let i = 0; i < n; i++) {
+        if (col[i] !== "dashed") {
+            continue;
+        }
+        const w = values[width]?.[i];
+        const dashes = (words.get("_dashPattern")?.[i] ?? pattern)
+            .split(/[\s,[\]]+/)
+            .filter((t) => t !== "")
+            .map(Number.parseFloat);
+        if (dashes.length > 0 && dashes.every((d) => Number.isFinite(d))) {
+            const cap = words.get("_dashCap")?.[i] ?? "butt";
+            col[i] = cyjsDashLook(dashes, typeof w === "number" ? w : fallback, cap);
+        }
+    }
 }
 
 /**
@@ -2031,7 +2072,7 @@ function combineLabelText(
  * A label's outline and background box as Cytoscape.js draws them: the outline only with a `text-outline-width` and
  * a `text-outline-opacity` above 0, a stroke of twice that width centered on the letters' edges (cytoscape.js
  * 3.34.3 `drawText`: `lineWidth = 2 * text-outline-width`); the box only with a `text-background-opacity` above 0
- * (its default is 0). An opacity between 0 and 1 is drawn opaque, noted.
+ * (its default is 0), at that opacity; an outline opacity between 0 and 1 is drawn opaque, noted.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
@@ -2052,7 +2093,8 @@ function combineLabelDress(
     const col = (p: string): (StyleValue | null)[] => (values[p] ??= new Array<StyleValue | null>(n).fill(null));
     const outlined = words.has("_outlineWidth");
     const boxed = words.has("_backgroundOpacity");
-    for (let i = 0; i < n && (outlined || boxed); i++) {
+    const bordered = words.has("_borderWidth") && words.has("_borderOpacity");
+    for (let i = 0; i < n && (outlined || boxed || bordered); i++) {
         const width = num("_outlineWidth", i, 0);
         const outlineOpacity = num("_outlineOpacity", i, 1);
         if (outlined && width > 0 && outlineOpacity > 0) {
@@ -2066,9 +2108,47 @@ function combineLabelDress(
         if (boxed && boxOpacity > 0) {
             col("labelBackground")[i] = words.get("_backgroundColor")?.[i] ?? "#000000";
             if (boxOpacity < 1) {
-                notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: boxOpacity, element: i });
+                col("labelBackgroundOpacity")[i] = boxOpacity;
             }
         }
+        if (bordered) {
+            labelBorder(kind, i, num("_borderWidth", i, 0), num("_borderOpacity", i, 0), words, col, notes);
+        }
+    }
+}
+
+/**
+ * The line Cytoscape.js draws round a label's box: only with a `text-border-width` and a `text-border-opacity` above
+ * 0 (both default to 0), in `text-border-color` (black unset). Its opacity below 1 and a style other than solid are
+ * drawn as a solid opaque line, noted.
+ * @param kind - the target
+ * @param i - the element
+ * @param width - its width
+ * @param opacity - its opacity
+ * @param words - the parts by internal name
+ * @param col - a property's values, created when absent
+ * @param notes - where problems are noted
+ */
+function labelBorder(
+    kind: StyleTarget,
+    i: number,
+    width: number,
+    opacity: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+    col: (p: string) => (StyleValue | null)[],
+    notes: StyleNotes,
+): void {
+    if (!(width > 0 && opacity > 0)) {
+        return;
+    }
+    col("labelBorderColor")[i] = words.get("_borderColor")?.[i] ?? "#000000";
+    col("labelBorderWidth")[i] = width;
+    if (opacity < 1) {
+        notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBorderColor", { sample: opacity, element: i });
+    }
+    const style = words.get("_borderStyle")?.[i] ?? "solid";
+    if (style !== "solid") {
+        notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBorderColor", { sample: style, element: i });
     }
 }
 
@@ -2195,6 +2275,9 @@ const ROUTE_PARTS: readonly (readonly [keyof CyjsRouteEdge, string, CyjsProperty
     ["edgeDistances", "edge-distances", { property: "_edgeDistances", type: "text" }],
     ["loopDirection", "loop-direction", { property: "_loopDirection", type: "text" }],
     ["loopSweep", "loop-sweep", { property: "_loopSweep", type: "text" }],
+    ["segmentRadii", "segment-radii", { property: "_segmentRadii", type: "text" }],
+    ["taxiRadius", "taxi-radius", { property: "_taxiRadius", type: "text" }],
+    ["radiusType", "radius-type", { property: "_radiusType", type: "text" }],
 ];
 
 /**
@@ -2240,6 +2323,7 @@ function edgeRoutes(
         };
     };
     const rotations = drawnColumn(read, "text-rotation", TEXT_PART);
+    const ends = [drawnColumn(read, "source-endpoint", TEXT_PART), drawnColumn(read, "target-endpoint", TEXT_PART)];
     const loops = new Map<string, number>();
     let routed: (StyleValue | null)[] | null = null;
     for (let k = 0; k < read.order.length; k++) {
@@ -2272,10 +2356,82 @@ function edgeRoutes(
             routed[k] = bends;
             (values.curved ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = false;
         }
+        if (!loop) {
+            edgePorts(edge.curveStyle, [ends[0][k], ends[1][k]], [src, tgt], (p, port) => {
+                (values[p] ??= new Array<StyleValue | null>(read.order.length).fill(null))[k] = port;
+            });
+        }
     }
     if (routed !== null) {
         values.bends = routed;
     }
+}
+
+/**
+ * Where an edge's ends meet its nodes, when not where the line from the centers crosses the outlines (cytoscape.js
+ * 3.34.3 `findEndpoints`, `manualEndptToPx`): `inside-to-node` at the center, `x y` offsets from the center (pixels,
+ * or percentages of the node's outer size), an angle clockwise from 12 o'clock on the outline. A `haystack` edge
+ * runs between points `haystack-radius` of the way from the centers to the outlines in a random direction
+ * (`findHaystackPoints`), drawn from the centers, where a radius of 0 (the default) puts them; a taxi edge ignores its
+ * endpoints.
+ * ponytail: an angle meets a polygon's outline where it meets its box; per-shape outlines if a file angles one
+ * @param curve - the curve style
+ * @param words - the source endpoint and the target endpoint, as Cytoscape.js spells them
+ * @param nodes - the source's and the target's geometry
+ * @param put - sets `sourcePort` or `targetPort`
+ */
+function edgePorts(
+    curve: string,
+    words: readonly (StyleValue | null | undefined)[],
+    nodes: readonly [CyjsRouteNode, CyjsRouteNode],
+    put: (property: string, port: string) => void,
+): void {
+    if (curve === "taxi" || curve === "round-taxi") {
+        return;
+    }
+    (["sourcePort", "targetPort"] as const).forEach((p, a) => {
+        const port = curve === "haystack" ? "0,0" : endpointPort(String(words[a] ?? ""), nodes[a]);
+        if (port !== null) {
+            put(p, port);
+        }
+    });
+}
+
+/**
+ * One `source-endpoint` / `target-endpoint` as a neutral port.
+ * @param text - the value
+ * @param node - the node's geometry
+ * @returns the port, or null where the line meets the outline as it does by default
+ */
+function endpointPort(text: string, node: CyjsRouteNode): string | null {
+    const t = text.trim();
+    if (t === "inside-to-node") {
+        return "0,0";
+    }
+    const parts = t.split(/\s+/);
+    const [w, h] = node.size;
+    const r6 = (v: number): string => String(Math.round(v * 1e6) / 1e6 + 0);
+    const fraction = (part: string, size: number): number | null => {
+        const m = /^(-?(?:\d+\.?\d*|\.\d+))(%|px)?$/.exec(part);
+        if (m === null || !(size > 0)) {
+            return null;
+        }
+        const px = m[2] === "%" ? (Number(m[1]) / 100) * size : Number(m[1]);
+        return px / (size / 2);
+    };
+    if (parts.length === 2) {
+        const [x, y] = [fraction(parts[0], w), fraction(parts[1], h)];
+        return x === null || y === null ? null : `${r6(x)},${r6(-y)}`;
+    }
+    const m = /^(-?(?:\d+\.?\d*|\.\d+))(deg|rad)$/.exec(t);
+    if (m === null) {
+        return null;
+    }
+    const turn = m[2] === "deg" ? (Number(m[1]) * Math.PI) / 180 : Number(m[1]);
+    // the direction in half sizes, y up, from 12 o'clock clockwise; scaled until it meets the outline
+    const [dx, dy] = [Math.sin(turn) / (w / 2), Math.cos(turn) / (h / 2)];
+    const reach = node.ellipse ? Math.hypot(dx, dy) : Math.max(Math.abs(dx), Math.abs(dy));
+    return reach > 0 ? `${r6(dx / reach)},${r6(dy / reach)}` : null;
 }
 
 /**
@@ -2311,6 +2467,9 @@ function routeSettings(
         edgeDistances: text("edgeDistances"),
         loopDirection: text("loopDirection"),
         loopSweep: text("loopSweep"),
+        segmentRadii: text("segmentRadii"),
+        taxiRadius: text("taxiRadius"),
+        radiusType: text("radiusType"),
     };
 }
 
@@ -2326,19 +2485,37 @@ const TEXT_PART: CyjsPropertySpec = { property: "_text", type: "text" };
  */
 function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
     const padding = drawnColumn(read, "padding", TEXT_PART);
+    const toLabel = (["width", "height"] as const).map((p) => drawnColumn(read, p, SIZE_PART));
     const n = read.order.length;
+    const col = (p: string): (StyleValue | null)[] => (values[p] ??= new Array<StyleValue | null>(n).fill(null));
     for (let k = 0; k < n; k++) {
         const core = read.order[k];
         const pad = core < 0 || graph.children[core].length > 0 ? 0 : paddingOf(padding[k]);
+        const fitted = toLabel.map((c) => c[k] === "label");
+        if (fitted[0] || fitted[1]) {
+            // `width: label` sizes the node to its label's box (cytoscape.js 3.34.3 `width()` reads the label's
+            // width), padding on each side: the label's side is a minimum of 0, the other keeps its own size
+            col("labelFit")[k] = "bounds";
+            col("labelPaddingX")[k] = pad;
+            col("labelPaddingY")[k] = pad;
+            ["width", "height"].forEach((p, a) => {
+                const v = values[p]?.[k];
+                col(p)[k] = fitted[a] ? 0 : (typeof v === "number" ? v : 30) + 2 * pad;
+            });
+            continue;
+        }
         if (pad <= 0) {
             continue;
         }
         for (const p of ["width", "height"]) {
             const v = values[p]?.[k];
-            (values[p] ??= new Array<StyleValue | null>(n).fill(null))[k] = (typeof v === "number" ? v : 30) + 2 * pad;
+            col(p)[k] = (typeof v === "number" ? v : 30) + 2 * pad;
         }
     }
 }
+
+/** A node size read as Cytoscape.js's word, so `label` is seen. */
+const SIZE_PART: CyjsPropertySpec = { property: "_size", type: "nodeSize" };
 
 /**
  * A node's padding in pixels. A percentage is relative only on a compound parent; on any other node Cytoscape.js

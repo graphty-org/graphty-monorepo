@@ -963,9 +963,35 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
             const want = resolveRules(rules, target, property, src);
             addBypasses(rows, target, property, want, drawn[target].values[property]);
         }
+        if (target === "node") {
+            labelSizedBypasses(rows, (p) => resolveRules(rules, target, p, src), drawn.node.values);
+        }
         out[target] = rows;
     }
     return out;
+}
+
+/**
+ * A node sized to its label (`labelFit` `bounds`, the label's side 0) as Cytoscape.js's `width: label` or
+ * `height: label`, where what is drawn does not size it so already.
+ * @param rows - the bypasses, changed in place
+ * @param want - the styles' values of a property
+ * @param got - what is drawn
+ */
+function labelSizedBypasses(
+    rows: (Record<string, string | number> | null)[],
+    want: (property: string) => readonly (StyleValue | null)[],
+    got: Readonly<Partial<Record<string, readonly (StyleValue | null)[]>>>,
+): void {
+    const fit = want("labelFit");
+    for (const p of ["width", "height"]) {
+        const size = want(p);
+        for (let i = 0; i < rows.length; i++) {
+            if (fit[i] === "bounds" && size[i] === 0 && !(got.labelFit?.[i] === "bounds" && got[p]?.[i] === 0)) {
+                rows[i] = { ...rows[i], [p]: "label" };
+            }
+        }
+    }
 }
 
 /**

@@ -34,6 +34,12 @@ export interface CyjsRouteEdge {
     readonly edgeDistances: string | null;
     readonly loopDirection: string | null;
     readonly loopSweep: string | null;
+    /** A `round-segments` edge's corner radii (`segment-radii`). */
+    readonly segmentRadii?: string | null;
+    /** A `round-taxi` edge's corner radius (`taxi-radius`). */
+    readonly taxiRadius?: string | null;
+    /** Whether a radius is the arc's (`arc-radius`, the default) or how far back the arc starts (`influence-radius`). */
+    readonly radiusType?: string | null;
 }
 
 /** An edge's route: its neutral `bends`, or null when Cytoscape.js draws it some other way. */
@@ -284,13 +290,72 @@ export function cyjsRoute(edge: CyjsRouteEdge, src: CyjsRouteNode, tgt: CyjsRout
         points = offsetPoints(measureLine(edge, src, tgt), weights, distances);
     } else if (style.endsWith("taxi")) {
         points = taxiPoints(edge, src, tgt);
-    } else if (style === "unbundled-bezier" && edge.controlPointDistances !== null) {
-        const distances = lengths(edge.controlPointDistances);
+    } else if (style === "unbundled-bezier") {
+        // with no control-point-distances, its one control point is the step size out (cytoscape.js 3.34.3
+        // `findBezierPoints`: "fall back on step size")
+        const distances = lengths(edge.controlPointDistances ?? String(edge.controlPointStepSize ?? 40));
         const weights = lengths(edge.controlPointWeights ?? "0.5");
         const controls = offsetPoints(measureLine(edge, src, tgt), weights, distances);
         points = controls.length === 0 ? [] : splinePoints(src, tgt, controls);
     }
+    if (points.length > 0 && style.startsWith("round-")) {
+        const radii = lengths((style === "round-taxi" ? edge.taxiRadius : edge.segmentRadii) ?? "15");
+        const types = (edge.radiusType ?? "arc-radius").trim().split(/\s+/);
+        const start = outlinePoint(src, points[0]);
+        const end = outlinePoint(tgt, points.at(-1) ?? tgt.center);
+        points = roundedCorners([start, ...points, end], radii, types).slice(1, -1);
+    }
     return points.length === 0 ? null : canonBends(src.center, tgt.center, points, true);
+}
+
+/** How many points each rounded corner's arc is drawn with. */
+const ARC_STEPS = 8;
+
+/**
+ * A polyline's corners rounded as Cytoscape.js rounds a `round-segments` or `round-taxi` edge's (cytoscape.js 3.34.3
+ * `calcCornerArc`): an arc tangent to both sides, its radius the corner's (the last given for the corners after it),
+ * or for `influence-radius` starting that far back along each side; never reaching past either side's middle.
+ * @param line - the points, ends included
+ * @param radii - the corners' radii
+ * @param types - each corner's radius type
+ * @returns the points with each corner replaced by its arc
+ */
+function roundedCorners(line: readonly BendPoint[], radii: readonly number[], types: readonly string[]): BendPoint[] {
+    const out: BendPoint[] = [line[0]];
+    for (let i = 1; i < line.length - 1; i++) {
+        const [p, a, b] = [line[i], line[i - 1], line[i + 1]];
+        const r = radii[Math.min(i - 1, radii.length - 1)] ?? 15;
+        const arc = (types[Math.min(i - 1, types.length - 1)] ?? "arc-radius") !== "influence-radius";
+        const l1 = Math.hypot(a[0] - p[0], a[1] - p[1]);
+        const l2 = Math.hypot(b[0] - p[0], b[1] - p[1]);
+        const u1: BendPoint = [(a[0] - p[0]) / l1, (a[1] - p[1]) / l1];
+        const u2: BendPoint = [(b[0] - p[0]) / l2, (b[1] - p[1]) / l2];
+        // the angle between the two sides at the corner
+        const angle = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
+        const half = angle / 2;
+        if (!(r > 0) || !(l1 > 0 && l2 > 0) || Math.abs(Math.PI - angle) < 1e-6) {
+            out.push(p);
+            continue;
+        }
+        const limit = Math.min(l1 / 2, l2 / 2);
+        const back = Math.min(limit, arc ? r / Math.tan(half) : r);
+        const radius = back * Math.tan(half);
+        const bis: BendPoint = [u1[0] + u2[0], u1[1] + u2[1]];
+        const bl = Math.hypot(bis[0], bis[1]);
+        const reach = Math.hypot(back, radius);
+        const c: BendPoint = [p[0] + (bis[0] / bl) * reach, p[1] + (bis[1] / bl) * reach];
+        const from = Math.atan2(p[1] + u1[1] * back - c[1], p[0] + u1[0] * back - c[0]);
+        const to = Math.atan2(p[1] + u2[1] * back - c[1], p[0] + u2[0] * back - c[0]);
+        // the short way round
+        let sweep = to - from;
+        sweep -= 2 * Math.PI * Math.round(sweep / (2 * Math.PI));
+        for (let k = 0; k <= ARC_STEPS; k++) {
+            const t = from + (sweep * k) / ARC_STEPS;
+            out.push([c[0] + Math.cos(t) * radius, c[1] + Math.sin(t) * radius]);
+        }
+    }
+    out.push(line.at(-1) ?? line[0]);
+    return out;
 }
 
 /**

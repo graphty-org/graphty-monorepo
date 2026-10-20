@@ -153,6 +153,19 @@ describe("Cytoscape.js edge routes", () => {
         ).toBe("0.325,-0.2 0.675,0.2");
     });
 
+    it("rounds a round-segments edge's corner as an arc of its segment radius", () => {
+        const across = (edge: Record<string, unknown>): number[] =>
+            String(routed({ "curve-style": "round-segments", ...edge }).bends)
+                .split(" ")
+                .map((p) => Number(p.split(",")[1]));
+        // the corner 20 px off the line is cut off: the arc never reaches it
+        const round = across({});
+        expect(round.length).toBeGreaterThan(1);
+        expect(Math.min(...round)).toBeGreaterThan(-0.2);
+        // a larger radius cuts off more
+        expect(Math.min(...across({ "segment-radii": 30 }))).toBeGreaterThan(Math.min(...round));
+    });
+
     it("draws a taxi edge through its two corners, turning halfway between the nodes' sides", () => {
         expect(routed({ "curve-style": "taxi", "taxi-direction": "horizontal" }, { x: 100, y: 50 })).toEqual({
             bends: "0.4,0.2 0.6,-0.2",
@@ -173,6 +186,8 @@ describe("Cytoscape.js edge routes", () => {
             .split(" ")
             .map((p) => p.split(",").map(Number));
         expect(Math.min(...points.map(([, across]) => across))).toBeCloseTo(-0.2469, 3);
+        // with no control-point-distances, the one control point is the step size (40 px) out
+        expect(routed({ "curve-style": "unbundled-bezier" })).toEqual(curve);
         const loop = evaluateCytoscapeJs(
             doc({}, { "curve-style": "bezier" }, [
                 { data: { id: "a" }, position: { x: 0, y: 0 } },
@@ -249,5 +264,91 @@ describe("Cytoscape.js text justification", () => {
         expect(at({ "text-justification": "auto", "text-halign": "left" })).toBe("right");
         expect(at({ "text-justification": "auto", "text-halign": "right" })).toBe("left");
         expect(at({ "text-justification": "auto" })).toBe("center");
+    });
+});
+
+describe("Cytoscape.js label opacity, margins and borders", () => {
+    it("draws a label at text-opacity, moved by text-margin-x and -y, a node's and an edge's", () => {
+        const v = evaluateCytoscapeJs(
+            doc({ "text-opacity": 0.4, "text-margin-x": "12px", "text-margin-y": "-12px" }, { "text-margin-x": 20 }),
+        );
+        expect(v.node.values.labelOpacity?.[0]).toBe(0.4);
+        expect([v.node.values.labelOffsetX?.[0], v.node.values.labelOffsetY?.[0]]).toEqual([12, -12]);
+        expect(v.edge.values.labelOffsetX?.[0]).toBe(20);
+    });
+
+    it("draws a label's box at its opacity, and a line round it only with a width and an opacity", () => {
+        const v = evaluateCytoscapeJs(
+            doc({}, {}, [
+                { data: { id: "a" }, style: { "text-background-color": "blue", "text-background-opacity": 0.4 } },
+                { data: { id: "b" }, style: { "text-border-width": "1px", "text-border-opacity": 1 } },
+                {
+                    data: { id: "c" },
+                    style: { "text-border-width": 2, "text-border-opacity": 1, "text-border-color": "red" },
+                },
+                { data: { id: "d" }, style: { "text-border-width": 2 } },
+            ]),
+        ).node.values;
+        expect([v.labelBackground?.[0], v.labelBackgroundOpacity?.[0]]).toEqual(["#0000ff", 0.4]);
+        expect([v.labelBorderColor?.[1], v.labelBorderWidth?.[1]]).toEqual(["#000000", 1]);
+        expect([v.labelBorderColor?.[2], v.labelBorderWidth?.[2]]).toEqual(["#ff0000", 2]);
+        // text-border-opacity is 0 by default: no line
+        expect(v.labelBorderWidth?.[3] ?? null).toBeNull();
+    });
+});
+
+describe("Cytoscape.js node borders, opacity and sizes to the label", () => {
+    it("reads border-position", () => {
+        const v = evaluateCytoscapeJs(doc({ "border-width": 6, "border-position": "inside" })).node.values;
+        expect(v.borderPosition?.[0]).toBe("inside");
+    });
+
+    it("reads a dashed line or border as the line its dash pattern looks like at its width", () => {
+        const edges = (edge: Record<string, unknown>): unknown =>
+            evaluateCytoscapeJs(doc({}, { "line-style": "dashed", "curve-style": "straight", ...edge })).edge.values
+                .lineStyle?.[0];
+        // the default 6 3 at the default 3 px is dashes; at 5 px each dash is no longer than a dot
+        expect(edges({})).toBe("dashed");
+        expect(edges({ width: 5 })).toBe("dotted");
+        expect(edges({ "line-dash-pattern": [12, 4, 2, 4] })).toBe("dash-dot");
+        // a round cap grows each dash by the width
+        expect(edges({ "line-dash-pattern": [3, 6], "line-cap": "round" })).toBe("dashed");
+        const border = (node: Record<string, unknown>): unknown =>
+            evaluateCytoscapeJs(doc({ "border-style": "dashed", ...node })).node.values.borderStyle?.[0];
+        expect(border({ "border-width": 1 })).toBe("dashed");
+        expect(border({ "border-width": 4 })).toBe("dotted");
+    });
+
+    it("sizes a node to its label for width: label or height: label, the other side kept", () => {
+        const v = evaluateCytoscapeJs(
+            doc({ width: 36, height: 36 }, {}, [
+                { data: { id: "w" }, style: { width: "label" } },
+                { data: { id: "h" }, style: { height: "label", padding: "2px" } },
+            ]),
+        ).node.values;
+        expect([v.labelFit?.[0], v.width?.[0], v.height?.[0]]).toEqual(["bounds", 0, 36]);
+        expect([v.labelFit?.[1], v.width?.[1], v.height?.[1], v.labelPaddingY?.[1]]).toEqual(["bounds", 40, 0, 2]);
+    });
+});
+
+describe("Cytoscape.js edge endpoints", () => {
+    const ports = (edge: Record<string, unknown>): unknown[] => {
+        const v = evaluateCytoscapeJs(doc({ width: 40, height: 20 }, edge)).edge.values;
+        return [v.sourcePort?.[0] ?? null, v.targetPort?.[0] ?? null];
+    };
+
+    it("runs a haystack edge between the centers", () => {
+        expect(ports({})).toEqual(["0,0", "0,0"]);
+    });
+
+    it("meets the node at its center, an offset from it, or an angle on its outline", () => {
+        const straight = { "curve-style": "straight" };
+        expect(ports(straight)).toEqual([null, null]);
+        expect(ports({ ...straight, "source-endpoint": "inside-to-node" })).toEqual(["0,0", null]);
+        // 50% of the 40 px width is a whole half width; 5 px down is half the half height, y up
+        expect(ports({ ...straight, "target-endpoint": "50% 5px" })).toEqual([null, "1,-0.5"]);
+        expect(ports({ ...straight, "source-endpoint": "90deg", "target-endpoint": "0deg" })).toEqual(["1,0", "0,1"]);
+        // a taxi edge leaves its ends where the outline is
+        expect(ports({ "curve-style": "taxi", "source-endpoint": "inside-to-node" })).toEqual([null, null]);
     });
 });

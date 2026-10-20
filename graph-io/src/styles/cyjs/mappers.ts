@@ -26,7 +26,16 @@ import { CYJS_FACE_PROPERTIES } from "./face.js";
 
 /** How Cytoscape.js types a property's value. */
 export type CyjsValueType =
-    "color" | "zeroOne" | "size" | "nodeSize" | "positive" | "text" | "fontFamily" | "fontWeight" | "enum";
+    | "color"
+    | "zeroOne"
+    | "size"
+    | "signedSize"
+    | "nodeSize"
+    | "positive"
+    | "text"
+    | "fontFamily"
+    | "fontWeight"
+    | "enum";
 
 /** One property graph-io carries: the neutral property it sets (or a part it combines) and how it is parsed. */
 export interface CyjsPropertySpec {
@@ -154,6 +163,16 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["text-background-color", { property: "_backgroundColor", type: "color" }],
     ["text-background-opacity", { property: "_backgroundOpacity", type: "zeroOne" }],
     ["text-rotation", { property: "_rotation", type: "text" }],
+    // the words' own opacity (cytoscape.js 3.34.3 `drawText` sets globalAlpha to text-opacity times the element's)
+    ["text-opacity", { property: "labelOpacity", type: "zeroOne" }],
+    // the label moved right and down by this many pixels from where its alignment puts it, a node's and an edge's
+    ["text-margin-x", { property: "labelOffsetX", type: "signedSize" }],
+    ["text-margin-y", { property: "labelOffsetY", type: "signedSize" }],
+    // the line round the label's box draws only with a width and an opacity above 0 (`combineLabelDress`)
+    ["text-border-color", { property: "_borderColor", type: "color" }],
+    ["text-border-width", { property: "_borderWidth", type: "size" }],
+    ["text-border-opacity", { property: "_borderOpacity", type: "zeroOne" }],
+    ["text-border-style", { property: "_borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
 ];
 
 /** Cytoscape.js's `background-gradient-direction` values. */
@@ -368,6 +387,11 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["border-opacity", { property: "borderOpacity", type: "zeroOne" }],
     ["border-width", { property: "borderWidth", type: "size" }],
     ["border-style", { property: "borderStyle", type: "enum", enums: ["solid", "dotted", "dashed", "double"] }],
+    // the dashes a dashed border is drawn with and their ends, which decide how it looks (`combineDashes`)
+    ["border-dash-pattern", { property: "_dashPattern", type: "text" }],
+    ["border-cap", { property: "_dashCap", type: "enum", enums: ["butt", "round", "square"] }],
+    // where the border sits against the node's outline: across it, inside it or outside it
+    ["border-position", { property: "borderPosition", type: "enum", enums: ["center", "inside", "outside"] }],
     ["outline-color", { property: "outerBorderColor", type: "color" }],
     ["outline-opacity", { property: "outerBorderOpacity", type: "zeroOne" }],
     ["outline-width", { property: "outerBorderWidth", type: "size" }],
@@ -414,6 +438,9 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["line-color", { property: "color", type: "color" }],
     ["width", { property: "width", type: "nodeSize" }],
     ["line-style", { property: "lineStyle", type: "enum", enums: ["solid", "dotted", "dashed"] }],
+    // the dashes a dashed line is drawn with and their ends, which decide how it looks (`combineDashes`)
+    ["line-dash-pattern", { property: "_dashPattern", type: "text" }],
+    ["line-cap", { property: "_dashCap", type: "enum", enums: ["butt", "round", "square"] }],
     // the line's own opacity, combined afterward into `opacity`, which the line is drawn at
     ["line-opacity", { property: "_lineOpacity", type: "zeroOne" }],
     ["line-outline-width", { property: "outlineWidth", type: "size" }],
@@ -452,6 +479,12 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["edge-distances", { property: "_edgeDistances", type: "text" }],
     ["loop-direction", { property: "_loopDirection", type: "text" }],
     ["loop-sweep", { property: "_loopSweep", type: "text" }],
+    ["segment-radii", { property: "_segmentRadii", type: "text" }],
+    ["taxi-radius", { property: "_taxiRadius", type: "text" }],
+    ["radius-type", { property: "_radiusType", type: "text" }],
+    // where the ends meet the nodes, read with the routes (`edgePorts`)
+    ["source-endpoint", { property: "_sourceEndpoint", type: "text" }],
+    ["target-endpoint", { property: "_targetEndpoint", type: "text" }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],
@@ -820,6 +853,7 @@ function parseFlat(spec: CyjsPropertySpec, raw: unknown, rendered = false): Flat
             return ok ? { kind: "number", value: x, units: null, str: String(x) } : null;
         }
         case "size":
+        case "signedSize":
         case "nodeSize":
             return parseSizeValue(spec, value, raw);
         case "text":
@@ -881,7 +915,9 @@ function parseSizeValue(spec: CyjsPropertySpec, value: unknown, raw: unknown): C
     if (Number.isNaN(x)) {
         return spec.type === "nodeSize" && raw === "label" ? { kind: "word", value: "label", str: "label" } : null;
     }
-    return x < 0 ? null : { kind: "number", value: x, units, str: `${String(x)}${units ?? ""}` };
+    return x < 0 && spec.type !== "signedSize"
+        ? null
+        : { kind: "number", value: x, units, str: `${String(x)}${units ?? ""}` };
 }
 
 /**
@@ -995,7 +1031,11 @@ function parseMapData(spec: CyjsPropertySpec, value: string, mode: CyjsParseMode
         return null;
     }
     const numeric =
-        spec.type === "zeroOne" || spec.type === "positive" || spec.type === "size" || spec.type === "nodeSize";
+        spec.type === "zeroOne" ||
+        spec.type === "positive" ||
+        spec.type === "size" ||
+        spec.type === "signedSize" ||
+        spec.type === "nodeSize";
     if (spec.type !== "color" && !numeric) {
         return null;
     }
@@ -1130,7 +1170,13 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
     switch (spec.property) {
         case "width":
         case "height":
-            site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, { sample: v.str, element: site.element });
+            // a node sized to its label is drawn so by the node sizes (`nodeSizes`); an edge has no such width
+            if (site.target === "edge") {
+                site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
+                    sample: v.str,
+                    element: site.element,
+                });
+            }
             return undefined;
         case "label":
         case "sourceLabel":
@@ -1208,4 +1254,27 @@ export function cyjsRendered(
         return null;
     }
     return cyjsNeutral(spec, v, site);
+}
+
+/**
+ * The line class a dash array looks like against the line's width: solid where its gaps are a tenth of it or less,
+ * dotted where no dash is longer than one and a half widths, dash-dot where a dash is twice another, else dashed.
+ * @param dash - the dashes and gaps, in pixels
+ * @param width - the line's width
+ * @param cap - the dashes' ends
+ * @returns the neutral line style
+ */
+export function cyjsDashLook(dash: readonly number[], width: number, cap: string): string {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : [...dash];
+    const grow = cap === "butt" ? 0 : width;
+    const on = pairs.filter((_, i) => i % 2 === 0).map((d) => Math.max(0, d) + grow);
+    const off = pairs.filter((_, i) => i % 2 === 1).map((d) => Math.max(0, d - grow));
+    const sum = (xs: readonly number[]): number => xs.reduce((a, b) => a + b, 0);
+    if (sum(off) <= 0.1 * (sum(on) + sum(off))) {
+        return "solid";
+    }
+    if (on.every((d) => d <= Math.max(1, width) * 1.5)) {
+        return "dotted";
+    }
+    return Math.max(...on) >= 2 * Math.min(...on) ? "dash-dot" : "dashed";
 }

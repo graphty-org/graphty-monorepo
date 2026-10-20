@@ -7,7 +7,13 @@ import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
 import { importGraph } from "../../src/registry.js";
-import { cyjsPolygonShapes, cyjsProperties, cyjsPropertyName, cyjsRendered } from "../../src/styles/cyjs/mappers.js";
+import {
+    cyjsDashLook,
+    cyjsPolygonShapes,
+    cyjsProperties,
+    cyjsPropertyName,
+    cyjsRendered,
+} from "../../src/styles/cyjs/mappers.js";
 import {
     CYJS_PROPERTY_DEFAULTS,
     type CyjsCheck,
@@ -160,6 +166,26 @@ function expected(
                 }
             });
         }
+    }
+    // a dashed line or border is drawn as the line its dash pattern looks like at its width
+    const [styleName, widthName, pattern, capName, fallback] =
+        target === "edge"
+            ? ["lineStyle", "width", "line-dash-pattern", "line-cap", 3]
+            : ["borderStyle", "border-width", "border-dash-pattern", "border-cap", 0];
+    values.get(styleName)?.forEach((v, i, col) => {
+        if (v === "dashed") {
+            const w = Number.parseFloat(raw.get(widthName)?.[i] ?? "");
+            const dashes = (raw.get(pattern)?.[i] ?? (target === "edge" ? "6 3" : "4 2")).split(/[\s,]+/).map(Number);
+            col[i] = cyjsDashLook(dashes, Number.isFinite(w) ? w : fallback, raw.get(capName)?.[i] ?? "butt");
+        }
+    });
+    // a node sized to its label (`width: label`) is drawn from its label's box, its own side a minimum of 0
+    for (const p of target === "node" ? ["width", "height"] : []) {
+        values.get(p)?.forEach((_, i, col) => {
+            if (raw.get(p)?.[i] === "label") {
+                col[i] = 0;
+            }
+        });
     }
     const vis = raw.get("visibility") ?? [];
     const disp = raw.get("display") ?? [];

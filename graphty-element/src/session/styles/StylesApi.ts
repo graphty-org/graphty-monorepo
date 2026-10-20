@@ -134,7 +134,7 @@ import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { channelDescriptor, isChannel, toColorValue } from "./channels";
+import { channelDescriptor, isChannel, readRenamedChannels, toColorValue } from "./channels";
 import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
 import {
     type BindingPreview,
@@ -3216,7 +3216,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const ids = document.layers.map((spec) => id(spec.name));
         const rowKeys = documentRowKeys(document.layers, ids);
 
-        for (const [index, spec] of document.layers.entries()) {
+        for (const [index, saved] of document.layers.entries()) {
+            const spec = readRenamedChannels(saved);
             const authored = stamped(rowKeys.has(index) ? { ...spec, row: rowKeys.get(index) } : spec, templateId);
 
             if (isElementSource(sourceOf(authored))) {

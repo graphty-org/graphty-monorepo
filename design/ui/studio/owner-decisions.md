@@ -8,8 +8,9 @@ before it lands on master. Newest first.
 
 graphty-element, non-breaking, both fixes of documents and loads that failed. (1) `project.open`
 reads `node.haloSize` in a saved style member as `node.haloScale`, the name golden gave the
-channel; the channel set is unchanged (`node.haloSize` is not accepted anywhere else, and new
-documents write `node.haloScale`). Without it every project saved before the golden merge opens
+channel; the channel set is unchanged (`node.haloSize` is read only from a style document, by
+`project.open` and `styles.applyTemplate`; `styles.add`, `encode` and the catalog do not accept it,
+and new documents write `node.haloScale`). Without it every project saved before the golden merge opens
 with no layer at all, because one unknown channel refuses the whole style member
 (`E_UNKNOWN_CHANNEL`). (2) A replacing load of the same file keeps a hand-picked layer's ties: the
 layer's ids follow the ties through the element's stable edge identity, as a project open already

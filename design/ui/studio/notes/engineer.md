@@ -17,51 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0r. (2026-10-19, re-walk, no changes) Drawing stays put (e1befa6ac), condition card keys
-(a18493275), inspector after Undo (52681cd9e), style field Tab/remove/Escape (d897c4b4a) and
-dimmed Undo/Redo stops (1835762fe) all hold on a fresh build of 1835762fe (nx refused the
-build: the untracked `compact-mantine-headproof/` copy is a second "compact-mantine" project;
-`npm run build` in compact-mantine then graphty works). Screens under
-`design/ui/studio/tmp/r1-dry1-recheck-drawing-stays-put/`: `draw/` 04-05 color by name, Undo,
-08 Degree run, 10 size bind, 14-15 filter step on/off (no move), 17 Fit (0) clear of the key;
-`cards-pointer/` 06-08, tab-strip.png; `cards-keys/` num-esc.png, num-bad.png, highest.png;
-`filter-step/` fs-text.png, fs-num.png; `folder/` box.png, color.png; `fields/` width.png,
-color.png, remove.png, 21 (selection's first color, Tab lands on the bind button), size.png,
-rmlabel.png; `topbar/` tabs.png, undo.png. Left over, not regressions: answers.md line ~706
-still says the color box's "Edit discarded" note is "(spoken only)"; it is now drawn too.
-The discard note wraps inside a 110 px number box and drops the line's label and bind button
-(Width line, Label settings Size row). `f` is Frame selection and does nothing with no
-selection; Fit is `0`. Lesson: a hover left by an earlier `--click` looks like the arrow-key
-highlight in a reopened list -- check the pointer's last position before calling it a bug. 0. (2026-10-19, re-walk of five fixes, no changes: Which-nodes one click, one name per control,
-F6 regions, find box words and keys, Escape in the inspector) Build: `git archive 393580a87
-graphty` into `tmp/r1-dry1-recheck-which-nodes-one-click/build`, symlinked node_modules,
-graphty-element and compact-mantine (its dist predates every compact-mantine revert), `vite
-build --outDir ../dist`; its main chunk hash equals the 20:43 build of the same source (stamp
-reads the worktree HEAD, not 393580a87). Screens under `design/ui/studio/tmp/r1-dry1-recheck-
-which-nodes-one-click/`. Holds: one click (`which/06`) and Enter (`which/13`) open the list
-with focus in its search; "Add a condition" on an open list keeps it open (`which/08`); a layer
-with conditions opens with the list closed (`which/18`); Which edges the same (`which/21`);
-"Id" in condition, value picker, filter step and table lists (`names/52`, `esc/26`); color
-label click focuses the hex box (`names/03`); "Undid changing the background" (`names/07`);
-yes/no select named "trained" (`names/12`); gear and Stop varying tooltips equal their names;
-"Already open" (`find/03`); read-the-file roles as values (`names/58`); find: `=degree`,
-`=DEGREE` run with no "Did you mean", text kept through a panel click and a run, cleared by a
-node click (`find/05-09`, `21`, `25`); F6 and Shift+F6 cycle top bar, left panel, drawing,
-toolbar, table, inspector, never a resize handle (`f6/12-24`, `esc/20-27`); start-screen
-Shift+Tab under a second (`f6/03`); Escape: Degree row with its tooltip clears (`esc/14`),
-member Enter then Escape returns to Poster on its row (`esc/06-08`), layer inspector keeps the
-selection (`esc/18-19`). REGRESSIONS: (a) Select layers on a folder (compact-mantine
-`Tree.tsx` `allSelected`): a folder whose every row is selected shows a checked box, but a
-click toggles only the folder's own selection, so two clicks change nothing on the box
-(`names/47-49`); fix idea: a click on an all-selected folder clears its rows, or only show
-checked when the folder itself is selected. (b) Escape on a focused table header with a
-selection clears it and keeps focus on the header (`grid/10`; entry 2 below has the
-mechanism: the tooltip re-read of Escape). Seen, not from these diffs: run fields
-unreachable by name in a rule (`=PageRank > 0.05`, `find/24`); the size chip's cursor is a
-pointer and its tooltip "hours 1 to 3" differs from its name "Node size: hours, 1 to 3"
-(`names/32`); Data panel and node Summary list the column as lowercase "id"; Escape on any
-control whose tooltip shows on focus (Main menu, toolbar) now also clears the selection at
-once (`esc/10-11`), wider than decided.md's inspector entry.
+0s. (2026-10-20) A saved style document reads a renamed channel under its new name:
+`readRenamedChannels` in `graphty-element/src/session/styles/channels.ts` (a table, old name ->
+new) runs on each layer in `planTemplate` (StylesApi), so `project.open` and `applyTemplate` both
+get it. Any future channel rename adds one row there, or every saved project loses its whole look
+(one unknown channel refuses the whole style member). Checked on a fresh build: both study
+projects open with no lost part (`design/ui/studio/tmp/r1-dry1-project-renamed-halo-channel/`).
+0r. (2026-10-19) Two re-walks of the dry-run fixes, in full (screens, regressions, left-overs) in
+`git show 6f9784441b:design/ui/studio/notes/engineer.md`, Top of mind 0r and 0. Still open from
+them: compact-mantine `Tree.tsx` folder "Select layers" box toggles only the folder's own
+selection (two clicks change nothing); Escape on a focused table header (entry 2); the discard
+note wraps in a 110 px number box; run fields unreachable by name in a rule (`=PageRank > 0.05`).
+Lesson: a hover left by an earlier `--click` looks like an arrow-key highlight -- check the
+pointer's last position first.
 
 1. (2026-10-19) Earlier re-walk (key and layer rows, New layer from selection, selection words,
    Color by kind keys, Why this look) and dimmed Undo and Redo as Tab stops: in full in
@@ -121,6 +89,12 @@ once (`esc/10-11`), wider than decided.md's inspector entry.
 
 ## Decisions and reasons
 
+- (2026-10-20) **A renamed channel is read in the style document reader, not in the project file
+  reader.** `planTemplate` is where every saved style document (a project's member, a style file
+  applied by a consumer) becomes layers, so one place covers both; `projectFile.ts` would have left
+  `applyTemplate` callers broken. Only `set` and `encode` keys name channels in a layer. Where a
+  layer names both the old and new name, the new one wins. Not in `channelDescriptor`: the old
+  name stays out of the channel set, the catalog and new documents.
 - (2026-10-19) **Escape clears the selection only on the selection's own inspector.** A layer,
   run or attribute's inspector is about that row; clearing a find selection from there had no
   Undo and nothing said Escape would do it (decided.md "Escape in the inspector").
@@ -250,6 +224,12 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-20) Worked: Node test opening the two study project files straight from
+  `design/ui/studio/tool/files/` with `createGraphSession().project.open` -- it failed with the
+  reader removed (E_UNKNOWN_CHANNEL, no layers) and passes with it. `createGraphSession` takes no
+  `startingRows` option (a repro script passing it compiled only because it was .mjs).
+- (2026-10-20) The frozen-era real.mjs start page is now the landing page: open a project with
+  `--click "Open a file" --upload <file>`, not "Open project or file".
 - (2026-10-19) Worked: when another agent rebuilds `graphty/dist` mid-revert, build the commit
   under test from `git archive <commit> graphty tsconfig.base.json package.json` with
   `node_modules`, `graphty-element` and `compact-mantine` symlinked to the worktree and `vite

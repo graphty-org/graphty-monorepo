@@ -280,3 +280,26 @@ describe("the project file's generator", () => {
         session.dispose();
     });
 });
+
+describe("a project an earlier build saved", () => {
+    // Both were saved while the halo's size channel was still called node.haloSize.
+    for (const [file, layer] of [
+        ["lesmis-poster.graphty.json", "Poster"],
+        ["volunteers-thanks.graphty.json", "Thank-you cards"],
+    ] as const) {
+        it(`opens ${file} with its look`, async () => {
+            const text = readFileSync(join(__dirname, "../../../design/ui/studio/tool/files", file), "utf8");
+            const session = createGraphSession();
+            const report = await session.project.open(text, { fileName: file });
+
+            assert.deepEqual(report.problems, []);
+            const names = session.styles.list().map((entry) => entry.name);
+            assert.include(names, layer);
+            assert.include(names, "Selected");
+            const selected = session.styles
+                .list()
+                .find((entry) => entry.name === "Selected" && entry.target === "node");
+            assert.equal(selected?.set?.["node.haloScale"], 1.45);
+        });
+    }
+});

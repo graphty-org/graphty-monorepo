@@ -1710,3 +1710,43 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
     return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
 }
+
+/**
+ * Channels an earlier build saved under another name, by old name. Only a document being read
+ * consults this: the channel set, `channelDescriptor` and every document the element writes use
+ * the new name.
+ */
+const RENAMED_CHANNELS: Readonly<Record<string, Channel>> = {
+    // Same drawn part and units (`effect.halo.scale`, times the node's radius): only the name moved.
+    "node.haloSize": "node.haloScale",
+};
+
+/**
+ * A saved layer with any renamed channel read under its current name, so a document an earlier
+ * build wrote opens with the look it was saved with. Where a layer names both, the current name wins.
+ * @param spec - A layer as a document holds it.
+ * @returns The same layer when it names no old channel, otherwise a copy that names the new ones.
+ */
+export function readRenamedChannels<T extends { readonly set?: object; readonly encode?: object }>(spec: T): T {
+    const rename = (entries: object | undefined): object | undefined => {
+        if (entries === undefined || !Object.keys(entries).some((key) => key in RENAMED_CHANNELS)) {
+            return entries;
+        }
+
+        const out: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(entries)) {
+            const current = RENAMED_CHANNELS[key] ?? key;
+            if (current === key || !(current in entries)) {
+                out[current] = value;
+            }
+        }
+
+        return out;
+    };
+    const set = rename(spec.set);
+    const encode = rename(spec.encode);
+
+    return set === spec.set && encode === spec.encode
+        ? spec
+        : { ...spec, ...(set === undefined ? {} : { set }), ...(encode === undefined ? {} : { encode }) };
+}

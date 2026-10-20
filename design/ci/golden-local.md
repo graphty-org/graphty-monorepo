@@ -202,9 +202,9 @@ pull request, not hundreds, the only merge path.
 | ------------------------------------------------- | ------------------------------------------------------------------------------ |
 | Local testing as close to CI as possible          | The landing gate is the existing pre-push gate, which runs CI's shard commands |
 | Open work promptly                                | Every landing pushes `golden`; nothing landed is only on this machine          |
-| Interactive sessions rather than headless workers | Sessions run `land` themselves; no dispatcher                                  |
+| Interactive sessions rather than headless workers | Sessions run `land` and the round skills; no dispatcher                        |
 | Claude judges overlap and relatedness             | A conflict sends the session back to merge and judge, not a script             |
-| No fixed-interval jobs when idle                  | Nothing polls; every step is started by a command                              |
+| No fixed-interval jobs when idle                  | No daemon or timer; a session's `/loop` runs short rounds (section 4.13)       |
 
 ### 3.3 The owner's statements of 2026-10-18
 
@@ -241,7 +241,10 @@ node tools/land.mjs land <branch>
    told who holds the lock.
 2. **Sync.** Fetches, then merges `origin/golden` (where the owner's screenshot accept commits
    land) and `origin/master` (release version merges and the merged golden pull request) into
-   local `golden`.
+   local `golden`. It then fast-forwards the main checkout's master to `origin/master` (so new
+   sessions read the current CLAUDE.md), unless the main checkout is on another branch, has
+   uncommitted changes or has commits master lacks, in which case it only warns; `revert`, `ship`
+   and `status` do the same after their fetch.
 3. **Merge.** Merges the change branch with `--no-ff` and the message `land: <branch>`. A conflict
    aborts the merge, leaves `golden` unchanged, and tells the session to merge `golden` into its
    own branch, resolve the conflict and land again (exit code 2).
@@ -258,6 +261,22 @@ node tools/land.mjs land <branch>
    golden pull request in the background, so the review page shows a local capture.
 
 `--dry-run` merges locally, reports, and undoes the merge. It never pushes and never calls GitHub.
+
+```
+node tools/land.mjs land <branch> <branch> ... [--dry-run]
+```
+
+Several branches land in one gate run, under the one lock and one sync. Each is merged in the order
+given, with its own `land: <branch>` merge commit. A branch that conflicts is skipped (that merge
+attempt is undone, the others stay) and so is one already on `golden`. Golden is then pushed once.
+When that push's gate fails and more than one branch was merged, the tool finds the culprit by
+halving: it resets `golden` to before the merges, merges the first half again and pushes, then the
+second half, and splits again whichever half fails. A half that passes stays landed. Each split runs
+the gate again. The pull request body and the preview are refreshed once, after the last successful
+push. A summary lists every branch with its outcome: landed, conflict, gate failure with its log, or
+already on `golden`. Exit 0 when every branch landed (or was already there), 2 when only conflicts
+kept some out, 3 when only gate failures did, 5 when both did; 1 and 4 as for one branch. One branch
+behaves exactly as above.
 
 ### 4.3 Screenshot review
 
@@ -335,6 +354,7 @@ background, not in a model turn.
 | Gate failure at landing                               | Local `golden` reset to where it was before this landing (the sync merges too); never pushed; the gate log is reported (exit 3)                                                                                                                   |
 | Golden cannot take `origin/golden` or `origin/master` | `golden` unchanged (exit 4). The two conflict with each other, not with the change. The session that hit it merges by hand in the golden worktree (signed commit) and lands again; a conflict in the owner's screenshot records goes to the owner |
 | Golden on GitHub moves during the gate                | Usually the owner's screenshot approvals. The tool merges `origin/golden` and pushes again, up to 3 tries; if that fails, `golden` is unchanged and it exits 4: land again                                                                        |
+| Several branches: some kept out (exit 2, 3 or 5)      | The rest landed and were pushed; the summary names each branch kept out and why. 2: conflicts only, 3: gate failures only, 5: both. Each such branch's session fixes it as above and lands again                                                  |
 | Refused (exit 1)                                      | Nothing changed. The message names the cause: an unknown branch, uncommitted changes in the golden worktree, no landing to revert, no golden pull request to ship, or local `golden` differing from `origin/golden` at ship                       |
 | Rejected screenshot                                   | `land.mjs revert <branch>`; the session fixes and lands again                                                                                                                                                                                     |
 | CI failure on the golden pull request                 | A difference between this machine and a clean one, or something the local gate skipped. The culprit is found from the failure; its change is reverted from `golden` or fixed; the pull request goes back to draft until then                      |
@@ -363,24 +383,97 @@ reached master; a `Refs` or `Part of` issue stays open. Nothing closes an issue 
   `node tools/land.mjs land <branch>` in the background.
 - No per-change pull requests, no pushing branches for review, no stacked pull requests.
 - A large change lands in small pieces, ideally behind a switch that is off by default.
-- Subagents commit and stop. The session that started them runs `land`.
-- A conflict (exit 2) is the session's to resolve; a gate failure (exit 3) is the session's to fix.
-  Exit 4 (golden cannot take `origin/golden` or `origin/master`) is not caused by the branch: the
-  session merges by hand in the golden worktree and lands again, or asks the owner when the
-  conflict is in the owner's screenshot records. Exit 1 is a refusal whose message names the cause.
+- Subagents commit and stop. The session that started them runs `land`, or, for subagents the round skills started,
+  pipeline-round does (section 4.13).
+- A session that lands a branch itself owns its failures: a conflict (exit 2) is its to resolve, a
+  gate failure (exit 3) its to fix. Exit 4 (golden cannot take `origin/golden` or `origin/master`)
+  is not caused by the branch: merge by hand in the golden worktree and land again, or ask the
+  owner when the conflict is in the owner's screenshot records. Exit 1 is a refusal whose message
+  names the cause. Failures of landings the pipeline-round skill started are its own (section 4.13).
+
+### 4.13 Keeping work moving without a router
+
+**Why.** The owner will not route work: he does not want to tell sessions which issue to take,
+which branch to land or which failure to fix. githerd tried to do that routing with a program that
+directed sessions, and it became its own source of failures (section 2.5). The lesson is to invert
+it: a written routine, run by an ordinary interactive session under Claude Code's `/loop`, that
+reads the repository, takes the few actions due, and ends. No daemon, no new program, no new state
+file; `tools/land.mjs` stays as it is.
+
+**Two skills.** The routine is two project skills, so the two kinds of work can run in separate
+clients and neither blocks the other:
+
+| Skill            | Does                                                                                                                                                                                                                                                                           | Never                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `pipeline-round` | Alarms (a red master build, master-guard revert pull requests, `priority:critical` issues, a held release, a failed publish); keeps golden landing and shipping; lands branches that background subagents finished; owns landing failures; stranded branches; worktree cleanup | Starts new issue work                                                      |
+| `issue-round`    | Picks the next issue or group of related issues, marks it in progress, starts a background subagent that fixes, commits and stops, within a cap of three jobs per session                                                                                                      | Lands, ships, reverts or touches golden; takes a `priority:critical` issue |
+
+The skills live in `.claude/skills/pipeline-round/SKILL.md` and `.claude/skills/issue-round/SKILL.md`.
+Every rule both need -- the hard rules, reading the state, the markers, the rules every subagent
+prompt carries, escalation and the failure classes -- is in one shared file,
+`.claude/skills/pipeline-round/shared.md`, which both read at the start of each round.
+
+**Modes.** Normal: both skills, either in two clients (`/loop 30m /pipeline-round` and
+`/loop 30m /issue-round`) or both in one `/loop` prompt with issue-round second. Drain: only
+pipeline-round, so work in flight lands and ships and nothing new starts. Issues only: only
+issue-round; finished branches wait, marked ready, for the next pipeline round. One session runs
+each skill at a time; other sessions still work by hand.
+
+**Grouping.** issue-round takes the top issue by priority, then effort, then age, and judges which
+other open issues belong with it: the same file or component, the same root cause, the same
+symptom, or touched by the same fix. That is the session's judgment, not keyword matching. Up to
+four issues form one job: all get the same in-progress marker and one branch, the commits carry one
+`Fixes #N` line per issue, and the subagent first verifies the group and releases any issue that
+turns out unrelated. A group counts as one job against the cap.
+
+**Who owns a landing failure.** pipeline-round owns every failure of a landing it started. A change
+a human-run session is landing itself belongs to that session; pipeline-round picks it up only when
+it goes stale, as a stranded branch.
+
+| Failure                                                                                    | What pipeline-round does                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Conflict (exit 2)                                                                          | A subagent merges `origin/golden`, then `origin/master` into the branch, resolves keeping both intents, runs the affected tests, commits and stops; a later round lands it |
+| Gate failure caused by the branch (exit 3)                                                 | A subagent reads the gate log, fixes the branch, commits and stops; the issue keeps its in-progress marker (same job)                                                      |
+| Not the branch's fault (exit 4 with golden broken, or the same failure without the branch) | Find the landed change that broke golden, `land.mjs revert` it, send it to a fix subagent; never hand the problem to an innocent branch                                    |
+| Machine or network (DNS, a killed process, a GitHub outage)                                | Retry next round; open an issue only when the same failure repeats                                                                                                         |
+| A bug in `land.mjs`, the push queue or the gate                                            | Fix the tool on a branch and land it; never work around it in the session                                                                                                  |
+| Two failed fix attempts on one branch for the same cause                                   | Stop retrying; file or update an issue with the evidence and release the in-progress marker; the branch waits for issue-round like any issue                               |
+
+Attempts are counted by `fix attempt` markers on the branch's issue (or on the golden pull request
+for a branch with no issue).
+
+**State in GitHub only.** Everything the routine knows between rounds is in GitHub and git: the
+`in-progress` label, one-line issue comments that start with `pipeline-round:` (taken, ready,
+landing, landed, land failed, fix attempt, retry, released, asked owner), branches and golden. A
+round in a brand-new session behaves exactly like one in a long-running session, and a session that
+dies loses nothing. The in-progress marker names the session, branch and worktree; other sessions
+skip the issue while that session is alive, and a stale marker (dead session, no finished branch)
+is released so the issue can be picked again.
+
+**Escalation.** The owner is asked only for what only he can do -- screenshot review, a breaking
+change or major release, money, credentials, a new package's first npm publish, sudo or permission
+changes, `design/brand`, a one-way decision, and a red master still failing after three fix
+attempts -- once each, with a final `ACTION NEEDED:` line and an `asked owner` marker so no later
+round asks again. Everything else the round decides and records.
+
+**How the skills improve.** When a round meets a situation its skill does not cover, or a step
+proves wrong, the session handles it and then corrects the skill -- a new "Known situations" entry
+or a fixed step -- on a branch that lands like any change. A rule both skills need goes in the
+shared file. A situation that keeps needing the same manual work becomes an issue for a tool fix,
+not a longer routine.
 
 ## 5. Retired and kept
 
 ### 5.1 Retired
 
-| Mechanism                                    | What happens to it                                                                                                                                                                                                                                                                   | Why                                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| githerd                                      | The daemon is not run; its MCP server is removed from `.mcp.json`; its code stays in `githerd/` for now. Its two Claude Code hooks in `.claude/settings.json` (SessionStart, and PreToolUse on `gh` commands) are still checked in; removing them is an open follow-up (section 6.2) | It drove sessions, duplicated other mechanisms, and created its own failures (section 2.5) |
-| The githerd watchdog                         | `.github/workflows/githerd-watchdog.yml` is deleted                                                                                                                                                                                                                                  | It watched a daemon that no longer runs                                                    |
-| Mergify                                      | `.mergify.yml` is deleted, so Mergify does nothing. `ci.yml`'s merge-queue handling stays in the file, unused                                                                                                                                                                        | One pull request at a time needs no queue; GitHub auto-merge does the merge                |
-| Per-change pull request CI as the merge path | Changes land through `golden`                                                                                                                                                                                                                                                        | It tested each change a second and third time on limited runners (section 2.4)             |
-| Stacked pull requests                        | Not used                                                                                                                                                                                                                                                                             | Auto-merges into an unprotected base and merge-order incidents (section 2.8)               |
-| The `queue:next` label                       | Not used                                                                                                                                                                                                                                                                             | There is no queue to jump                                                                  |
+| Mechanism                                    | What happens to it                                                                                                                                                          | Why                                                                                        |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| githerd                                      | The daemon is not run; its MCP server is removed from `.mcp.json`; its code stays in `githerd/` for now. Its two Claude Code hooks are removed from `.claude/settings.json` | It drove sessions, duplicated other mechanisms, and created its own failures (section 2.5) |
+| The githerd watchdog                         | `.github/workflows/githerd-watchdog.yml` is deleted                                                                                                                         | It watched a daemon that no longer runs                                                    |
+| Mergify                                      | `.mergify.yml` is deleted, so Mergify does nothing. `ci.yml`'s merge-queue handling stays in the file, unused                                                               | One pull request at a time needs no queue; GitHub auto-merge does the merge                |
+| Per-change pull request CI as the merge path | Changes land through `golden`                                                                                                                                               | It tested each change a second and third time on limited runners (section 2.4)             |
+| Stacked pull requests                        | Not used                                                                                                                                                                    | Auto-merges into an unprotected base and merge-order incidents (section 2.8)               |
+| The `queue:next` label                       | Not used                                                                                                                                                                    | There is no queue to jump                                                                  |
 
 ### 5.2 Kept
 
@@ -396,8 +489,9 @@ reached master; a `Refs` or `Part of` issue stays open. Nothing closes an issue 
 
 ### 6.1 Risks and trade-offs
 
-- **Landing is serial.** Each landing runs about 20 to 40 minutes of gate. If landings back up,
-  several queued branches can be landed in one gate run (not built yet).
+- **Landing is serial.** Each landing runs about 20 to 40 minutes of gate. When landings back up,
+  several branches land in one gate run (section 4.2), and pipeline-round lands every ready branch
+  that way.
 - **A CI failure on the golden pull request has several suspects.** Every change landed since the
   last ship is a candidate. Keep golden pull requests small by shipping often.
 - **This machine is the integration point.** If it is down, nothing lands. `golden` on GitHub holds
@@ -411,8 +505,7 @@ reached master; a `Refs` or `Part of` issue stays open. Nothing closes an issue 
 - Screenshot approvals keyed by image content, so an image the owner already approved is never
   reviewed again.
 - Simplify the push queue now that `land` is its main caller.
-- Delete githerd's code and `ci.yml`'s Mergify merge-queue logic, and remove githerd's two Claude
-  Code hooks from `.claude/settings.json`.
+- Delete githerd's code and `ci.yml`'s Mergify merge-queue logic.
 - Decide whether the release-only checks (GPU, Hosts, LLM regression) should stay release gates.
 
 ## 7. Superseded documents

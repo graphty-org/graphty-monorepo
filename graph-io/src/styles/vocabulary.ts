@@ -129,7 +129,21 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
         ],
     ],
     ["weight", ["normal", "bold"]],
-    ["position", ["center", "top", "bottom", "left", "right", "top-left", "top-right", "bottom-left", "bottom-right"]],
+    [
+        "position",
+        [
+            "center",
+            "top",
+            "bottom",
+            "left",
+            "right",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+            "inside-top",
+        ],
+    ],
 ]);
 
 /** The enumerations that keep unknown spellings as `other:<raw>`. */

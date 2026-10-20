@@ -3,6 +3,7 @@
  * the app's, and lives here.
  */
 
+import type { FieldBand } from "@graphty/graphty-element/catalog";
 import type {
     Channel,
     GraphStatistics,
@@ -12,6 +13,22 @@ import type {
 } from "@graphty/graphty-element/session";
 
 import type { InspectedKindId } from "./inspected";
+
+/** What each modularity band graphty-element publishes is called, keyed by its id. */
+const MODULARITY_BAND_NAMES: Readonly<Record<string, string>> = {
+    barely: "Barely separated",
+    clear: "Clearly separated",
+    weak: "Weakly separated",
+};
+
+/**
+ * The name of the modularity band a grouping run's modularity falls in.
+ * @param band - the band graphty-element put the modularity in.
+ * @returns the name; a band the app does not know reads as its id.
+ */
+export function modularityBandName(band: FieldBand): string {
+    return MODULARITY_BAND_NAMES[band.id] ?? band.id;
+}
 
 /** The kind word on the header's second line (tier1-design.md section 2.7). */
 export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {

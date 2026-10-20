@@ -44,6 +44,7 @@ import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN } from "./syntax.js";
  * @category Built-in formats
  */
 export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
+    tool: "pajek",
     node: Object.freeze([
         "label",
         "fill",

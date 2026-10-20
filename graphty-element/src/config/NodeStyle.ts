@@ -155,8 +155,9 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
 
 /**
  * The line styles a node border is drawn in. Beside the dash patterns: a zigzag or a sine wave
- * running round the node, short strokes across the ring (leaning either way or straight), or a ring of small
- * arrows chasing each other round it (Cytoscape desktop's border line types). @public
+ * running round the node, short strokes across the ring (leaning either way or straight), a ring of small
+ * arrows chasing each other round it, or a bar of arrows joined head to tail (Cytoscape desktop's border line
+ * types). @public
  */
 export const NodeBorderStyles = z.enum([
     "solid",
@@ -170,6 +171,7 @@ export const NodeBorderStyles = z.enum([
     "backward-slash",
     "vertical-slash",
     "separate-arrow",
+    "contiguous-arrow",
 ]);
 
 /**
@@ -314,6 +316,15 @@ export const NodeStyle = z.strictObject({
             // so the fill shrinks by twice the border's width (to nothing, for a node no larger
             // than its border) and the ring by as much as it must.
             position: NodeBorderPositions.optional(),
+            // A zigzag or sinewave border's swing to either side of the ring's middle, in the units
+            // of `width`. Set, the wave is drawn with this swing and `wavePeriod`, and `width` is the
+            // thickness of the waving line; unset, the wave is drawn within the ring. A sine wave's
+            // periods are each drawn straight from where they start along the outline (Cytoscape
+            // desktop's), so on a small node they loop out past it.
+            waveAmplitude: z.number().nonnegative().optional(),
+            // How far round the outline the wave runs before it repeats, in the units of `width`;
+            // used with `waveAmplitude`, which it defaults to four times (as does 0).
+            wavePeriod: z.number().nonnegative().optional(),
         })
         .optional(),
     /**

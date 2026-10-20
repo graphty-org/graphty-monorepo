@@ -77,6 +77,8 @@ const DECLARED = [
     "node.borderOpacity",
     "node.borderStyle",
     "node.borderPosition",
+    "node.borderWaveAmplitude",
+    "node.borderWavePeriod",
     "node.outerBorderColor",
     "node.outerBorderWidth",
     "node.outerBorderOpacity",
@@ -152,6 +154,8 @@ const DECLARED = [
     "edge.gradientKind",
     "edge.style",
     "edge.patternCount",
+    "edge.waveAmplitude",
+    "edge.wavePeriod",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
@@ -263,9 +267,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and ten node channels and one hundred and two edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 110);
-        assert.strictEqual(channelsFor("edge").length, 102);
+    it("splits into one hundred and twelve node channels and one hundred and four edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 112);
+        assert.strictEqual(channelsFor("edge").length, 104);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -518,6 +522,11 @@ describe("what a style editor needs to draw a row", () => {
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
         "edge.patternCount",
+        // Unset, a wave is drawn within its line's width or its border's ring.
+        "edge.waveAmplitude",
+        "edge.wavePeriod",
+        "node.borderWaveAmplitude",
+        "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
         "node.underlayShape",
         "node.underlayCornerRadius",

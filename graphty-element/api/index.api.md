@@ -1412,6 +1412,8 @@ export const EdgeStyle: z.ZodObject<{
         animationSpeed: z.ZodOptional<z.ZodNumber>;
         width: z.ZodOptional<z.ZodNumber>;
         patternCount: z.ZodOptional<z.ZodNumber>;
+        waveAmplitude: z.ZodOptional<z.ZodNumber>;
+        wavePeriod: z.ZodOptional<z.ZodNumber>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodNumber>;
         outline: z.ZodOptional<z.ZodObject<{
@@ -3808,6 +3810,7 @@ export const NodeStyle: z.ZodObject<{
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
             "separate-arrow": "separate-arrow";
+            "contiguous-arrow": "contiguous-arrow";
             dashed: "dashed";
             dotted: "dotted";
         }>>;
@@ -3816,6 +3819,8 @@ export const NodeStyle: z.ZodObject<{
             inside: "inside";
             outside: "outside";
         }>>;
+        waveAmplitude: z.ZodOptional<z.ZodNumber>;
+        wavePeriod: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     outerBorder: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
@@ -3831,6 +3836,7 @@ export const NodeStyle: z.ZodObject<{
             "backward-slash": "backward-slash";
             "vertical-slash": "vertical-slash";
             "separate-arrow": "separate-arrow";
+            "contiguous-arrow": "contiguous-arrow";
             dashed: "dashed";
             dotted: "dotted";
         }>>;

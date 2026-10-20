@@ -95,6 +95,7 @@ export const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
     ["other:backward-slash", "backward-slash"],
     ["other:vertical-slash", "vertical-slash"],
     ["other:separate-arrow", "separate-arrow"],
+    ["other:contiguous-arrow", "contiguous-arrow"],
 ]);
 
 /** The border styles drawn as the nearest style rather than exactly: none, since every one has its own. */

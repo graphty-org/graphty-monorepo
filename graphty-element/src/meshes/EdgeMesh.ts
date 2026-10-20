@@ -30,6 +30,7 @@ import { FrameRoster } from "./FrameRoster";
 import type { MeshCache } from "./MeshCache";
 import { PatternedLineMesh } from "./PatternedLineMesh";
 import { PatternedLineRenderer, type PatternType } from "./PatternedLineRenderer";
+import type { WaveShape } from "./shapeOutlines";
 import { Simple2DLineRenderer } from "./Simple2DLineRenderer";
 
 /** The line types drawn as a run of pattern elements rather than as one line. */
@@ -377,8 +378,27 @@ void main() {
                 opacity: style.line?.opacity ?? 1,
                 is2DMode: this.is2DMode(scene), // Pass 2D mode detection flag
                 patternCount: style.line?.patternCount, // undefined means follow the spacing rule
+                wave: this.waveOf(style),
             },
         );
+    }
+
+    /**
+     * A sinewave's or zigzag's own swing and period in world units (`line.waveAmplitude`,
+     * `line.wavePeriod`, in the line's width units), or undefined to draw the wave within its width.
+     * @param style - The resolved style.
+     * @returns The wave, or undefined.
+     */
+    private static waveOf(style: EdgeStyleConfig): WaveShape | undefined {
+        const amplitude = style.line?.waveAmplitude;
+        if (amplitude === undefined) {
+            return undefined;
+        }
+
+        // world units per unit of line width, as createPatternedLine converts the width
+        const perWidth = 1 / 40;
+        const period = style.line?.wavePeriod || 4 * amplitude;
+        return period > 0 ? { amplitude: amplitude * perWidth, period: period * perWidth } : undefined;
     }
 
     /**

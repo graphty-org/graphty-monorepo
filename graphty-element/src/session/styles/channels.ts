@@ -342,6 +342,8 @@ export interface ChannelValues {
     "node.borderOpacity": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.borderPosition": NodeBorderPositionValue;
+    "node.borderWaveAmplitude": number;
+    "node.borderWavePeriod": number;
     "node.outerBorderColor": ColorValue;
     "node.outerBorderWidth": number;
     "node.outerBorderOpacity": number;
@@ -417,6 +419,8 @@ export interface ChannelValues {
     "edge.gradientKind": EdgeGradientKindValue;
     "edge.style": EdgeLineValue;
     "edge.patternCount": number;
+    "edge.waveAmplitude": number;
+    "edge.wavePeriod": number;
     "edge.curvature": boolean;
     "edge.bends": string;
     "edge.fanSpacing": number;
@@ -1791,6 +1795,37 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             'canvas stroke does. "inside": the ring\'s outer edge is the size, so the node is drawn no ' +
             "larger than its size, as Cytoscape desktop draws it.",
     },
+    "node.borderWaveAmplitude": {
+        channel: "node.borderWaveAmplitude",
+        target: "node",
+        plainName: "Node Border Wave Amplitude",
+        shortName: "Border wave amplitude",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.waveAmplitude",
+        renderable: true,
+        caveat:
+            "How far a zigzag or sinewave border swings to either side of the ring's middle, in the units of " +
+            "`node.borderWidth`. Set, the border's width is the thickness of the waving line and " +
+            "`node.borderWavePeriod` how often it repeats; unset, the wave is drawn within the ring. A sine " +
+            "wave's periods are each drawn straight from where they start, so on a small node they loop out " +
+            "past it, as Cytoscape desktop draws them.",
+    },
+    "node.borderWavePeriod": {
+        channel: "node.borderWavePeriod",
+        target: "node",
+        plainName: "Node Border Wave Period",
+        shortName: "Border wave period",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "border.wavePeriod",
+        renderable: true,
+        caveat:
+            "How far round the node a zigzag or sinewave border runs before it repeats, in the units of " +
+            "`node.borderWidth`. Used with `node.borderWaveAmplitude`; unset or 0, it is four times the amplitude.",
+    },
     "node.outerBorderColor": {
         channel: "node.outerBorderColor",
         target: "node",
@@ -2519,6 +2554,35 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "patterned line only: a solid line has no elements to count, and zigzag and " +
             "sinewave always tile the whole edge, so they ignore it. Left unset, the spacing " +
             "rule decides, so a long edge or a thin one draws more of them.",
+    },
+    "edge.waveAmplitude": {
+        channel: "edge.waveAmplitude",
+        target: "edge",
+        plainName: "Edge Wave Amplitude",
+        shortName: "Wave amplitude",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.waveAmplitude",
+        renderable: true,
+        caveat:
+            "How far a sinewave or zigzag line swings to either side of its path, in the units of " +
+            "`edge.width`. Set, the edge's width is the thickness of the waving line and `edge.wavePeriod` " +
+            "how often it repeats; unset, the wave is drawn within the edge's width.",
+    },
+    "edge.wavePeriod": {
+        channel: "edge.wavePeriod",
+        target: "edge",
+        plainName: "Edge Wave Period",
+        shortName: "Wave period",
+        group: "line",
+        accepts: "number",
+        min: 0,
+        stylePath: "line.wavePeriod",
+        renderable: true,
+        caveat:
+            "How far along its path a sinewave or zigzag line runs before it repeats, in the units of " +
+            "`edge.width`. Used with `edge.waveAmplitude`; unset or 0, it is four times the amplitude.",
     },
     "edge.curvature": {
         channel: "edge.curvature",

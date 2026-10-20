@@ -635,11 +635,22 @@ const PATTERNS: Readonly<Record<string, readonly number[] | undefined>> = {
  * The ring lies OUTSIDE the outline, so it never covers the node's fill.
  * @param outline - The node's outline, counter-clockwise.
  * @param width - How wide the border is.
- * @param style - Its line style: solid, dashed, dotted, double, dash-dot, or one of the strokes
- *   {@link strokedRing} draws (zigzag, sine wave, slashes, arrows).
+ * @param style - Its line style: solid, dashed, dotted, double, dash-dot, contiguous-arrow, or one of
+ *   the strokes {@link strokedRing} draws (zigzag, sine wave, slashes, arrows).
+ * @param wave - A zigzag's or sine wave's swing and period, in the units of `width`; given, the wave
+ *   is drawn with them and `width` is the thickness of its line ({@link wavedRing}).
  * @returns The pieces.
  */
-export function borderRing(outline: readonly Point2[], width: number, style: string): RingPiece[] {
+export function borderRing(outline: readonly Point2[], width: number, style: string, wave?: WaveShape): RingPiece[] {
+    const waved = wave === undefined ? null : wavedRing(outline, width, style, wave);
+    if (waved !== null) {
+        return waved;
+    }
+
+    if (style === "contiguous-arrow") {
+        return arrowChainRing(offsetOutline(outline, width / 2), width);
+    }
+
     if (style === "double") {
         const third = width / 3;
 
@@ -864,4 +875,318 @@ export function strokedRing(outline: readonly Point2[], width: number, style: st
         outer: [moved(s, -lean + line, -half), moved(s, lean + line, half)],
         closed: false,
     }));
+}
+
+/** A wave's shape: how far it swings to either side of its path, and how far along the path it repeats. */
+export interface WaveShape {
+    readonly amplitude: number;
+    readonly period: number;
+}
+
+/** How many points each quadratic arc of a sine wave is drawn with. */
+const WAVE_STEPS = 8;
+
+/**
+ * Java's default miter limit (`BasicStroke`): a corner's miter reaches no further than this many half line widths
+ * from it.
+ */
+const MITER_LIMIT = 10;
+
+/**
+ * One period of a sine wave drawn as a band, in its own frame: x along the path from -period/2 to period/2, y across
+ * it. A crest then a trough, each a quadratic arc whose control point is `amplitude + width` off the path, and the
+ * band's two edges `width` apart across the path where they meet it and half that at a crest: the wave Java2D's
+ * `quadTo` draws for Cytoscape desktop's sine-wave line, centered on its path.
+ * @param amplitude - The swing to either side.
+ * @param period - The length along the path.
+ * @param width - The band's thickness across the path where it meets it.
+ * @returns The band, as an open piece; `outer` is its +y edge.
+ */
+export function sineWavePeriod(amplitude: number, period: number, width: number): RingPiece {
+    const inner: Point2[] = [];
+    const outer: Point2[] = [];
+    for (const [sign, from] of [
+        [1, -period / 2],
+        [-1, 0],
+    ] as const) {
+        for (let k = from < 0 ? 0 : 1; k <= WAVE_STEPS; k++) {
+            const t = k / WAVE_STEPS;
+            const x = from + (t * period) / 2;
+            const y = 2 * t * (1 - t) * sign * (amplitude + width) - width / 2;
+            inner.push([x, y]);
+            outer.push([x, y + width * ((1 - t) ** 2 + t ** 2)]);
+        }
+    }
+
+    return { inner, outer, closed: false };
+}
+
+/**
+ * How much of a zigzag's period a piece draws: all of it, or up to its first or its second turn, where a zigzag
+ * that has no room for another turn ends (Cytoscape desktop's `ZigzagStroke`).
+ */
+export type ZigzagStretch = "period" | "first-turn" | "second-turn";
+
+/**
+ * One piece of a zigzag laid along a line: how much of its period it draws, and whether it starts or ends the line,
+ * where the line is capped square, half its width past its end (Java2D's default cap, which Cytoscape desktop draws).
+ */
+export interface ZigzagPiece {
+    readonly stretch: ZigzagStretch;
+    readonly startCap?: boolean;
+    readonly endCap?: boolean;
+}
+
+/**
+ * A zigzag piece's own name, which tells pieces drawn alike from pieces drawn otherwise.
+ * @param piece - The piece.
+ * @returns Its name.
+ */
+export function zigzagPieceKey(piece: ZigzagPiece): string {
+    return `${piece.startCap === true ? "<" : ""}${piece.stretch}${piece.endCap === true ? ">" : ""}`;
+}
+
+/**
+ * One period of a zigzag, in its own frame: x along the path from 0 to period, y across it. It leaves the path at x
+ * = 0, turns `amplitude` to -y a quarter period on and to +y three quarters on, and meets the path again at the
+ * period's end, a line `width` thick with mitred corners, so periods laid end to end make one zigzag.
+ * @param amplitude - The swing to either side.
+ * @param period - The length along the path.
+ * @param width - The line's thickness.
+ * @param piece - How much of the period it draws (all of it by default) and whether its ends are capped.
+ * @returns The line, as an open piece.
+ */
+export function zigzagPeriod(
+    amplitude: number,
+    period: number,
+    width: number,
+    piece: ZigzagPiece = { stretch: "period" },
+): RingPiece {
+    const line: Point2[] = [
+        [0, 0],
+        [period / 4, -amplitude],
+        [(3 * period) / 4, amplitude],
+        [period, 0],
+    ];
+    return strokeLine(line.slice(0, { period: 4, "first-turn": 2, "second-turn": 3 }[piece.stretch]), width, false, [
+        piece.startCap === true,
+        piece.endCap === true,
+    ]);
+}
+
+/**
+ * A line through points, `width` thick, as a piece: each point moved half the width to either side along the miter of
+ * its corner (no further than {@link MITER_LIMIT} half widths), an open line's ends cut square, at the end or, capped,
+ * half the width past it.
+ * @param points - The points.
+ * @param width - The thickness.
+ * @param closed - Whether the last point joins the first.
+ * @param caps - Whether an open line's start and end are capped.
+ * @returns The piece; `outer` is the side on the left of the line's direction.
+ */
+function strokeLine(
+    points: readonly Point2[],
+    width: number,
+    closed: boolean,
+    caps: readonly [boolean, boolean] = [false, false],
+): RingPiece {
+    const count = points.length;
+    const past = (from: Point2, to: Point2): Point2 => {
+        const length = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1;
+        return [to[0] + ((to[0] - from[0]) / length) * (width / 2), to[1] + ((to[1] - from[1]) / length) * (width / 2)];
+    };
+    const line = [...points];
+    if (!closed && count >= 2) {
+        if (caps[0]) {
+            line[0] = past(points[1], points[0]);
+        }
+        if (caps[1]) {
+            line[count - 1] = past(points[count - 2], points[count - 1]);
+        }
+    }
+    const leftOf = (a: Point2, b: Point2): Point2 => {
+        const length = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        return [-(b[1] - a[1]) / length, (b[0] - a[0]) / length];
+    };
+    const inner: Point2[] = [];
+    const outer: Point2[] = [];
+    for (let i = 0; i < count; i++) {
+        const before = i > 0 || closed ? leftOf(line[(i + count - 1) % count], line[i]) : null;
+        const after = i < count - 1 || closed ? leftOf(line[i], line[(i + 1) % count]) : null;
+        const [ax, ay] = before ?? after ?? [0, 1];
+        const [bx, by] = after ?? before ?? [0, 1];
+        const [mx, my] = [ax + bx, ay + by];
+        const along = Math.hypot(mx, my);
+        // the miter is half the width over the cosine of half the turn, 2 / |a + b| of it
+        const reach = along < 1e-9 ? width / 2 : Math.min(width / along, (MITER_LIMIT * width) / 2);
+        const [ux, uy] = along < 1e-9 ? [ax, ay] : [mx / along, my / along];
+        const [x, y] = line[i];
+        outer.push([x + ux * reach, y + uy * reach]);
+        inner.push([x - ux * reach, y - uy * reach]);
+    }
+
+    return { inner, outer, closed };
+}
+
+/**
+ * Where a closed outline is a distance along from its first point, and its direction there.
+ * @param outline - The outline, counter-clockwise.
+ * @param lengths - {@link cumulativeLengths} of it.
+ * @param distance - How far along.
+ * @returns The station.
+ */
+function stationAt(outline: readonly Point2[], lengths: readonly number[], distance: number): Station {
+    const perimeter = lengths.at(-1) ?? 0;
+    const d = perimeter > 0 ? ((distance % perimeter) + perimeter) % perimeter : 0;
+    const side = Math.max(0, lengths.findIndex((length) => length > d) - 1);
+    const [x0, y0] = outline[side % outline.length];
+    const [x1, y1] = outline[(side + 1) % outline.length];
+    const t = (d - lengths[side]) / (lengths[side + 1] - lengths[side] || 1);
+    const [ox, oy] = unitNormal(x0, y0, x1, y1);
+
+    return { at: [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t], along: [-oy, ox], out: [ox, oy] };
+}
+
+/**
+ * A piece drawn in its own frame, laid on a station: x along the outline, y in toward the node.
+ * @param piece - The piece.
+ * @param s - The station.
+ * @returns The piece where it goes.
+ */
+function laid(piece: RingPiece, s: Station): RingPiece {
+    const place = ([x, y]: Point2): Point2 => moved(s, x, -y);
+    return { inner: piece.inner.map(place), outer: piece.outer.map(place), closed: piece.closed };
+}
+
+/**
+ * A zigzag or sine-wave border drawn with a swing and a period of its own, as Cytoscape desktop draws its border line
+ * types, round the ring's middle, the line `width` thick:
+ *
+ * - zigzag: one line round the outline, turning `amplitude` out and in every half period, its first turn a quarter
+ *   period from the outline's first point (Cytoscape's `ZigzagStroke`)
+ * - sinewave: one {@link sineWavePeriod} every period from the outline's first point, each drawn straight along the
+ *   outline's direction where it is laid (Cytoscape's `ShapeStroke`), so round a small node its crests loop out
+ * @param outline - The node's outline, counter-clockwise.
+ * @param width - The line's thickness.
+ * @param style - The border's line style.
+ * @param wave - Its swing and period.
+ * @returns The pieces, or null for a style that is no wave.
+ */
+export function wavedRing(
+    outline: readonly Point2[],
+    width: number,
+    style: string,
+    wave: WaveShape,
+): RingPiece[] | null {
+    if ((style !== "zigzag" && style !== "sinewave") || !(wave.period > 0)) {
+        return null;
+    }
+
+    const middle = offsetOutline(outline, width / 2);
+    const lengths = cumulativeLengths(middle);
+    const perimeter = lengths.at(-1) ?? 0;
+    if (style === "sinewave") {
+        const period = sineWavePeriod(wave.amplitude, wave.period, width);
+        return Array.from({ length: Math.floor(perimeter / wave.period) + 1 }, (_unused, k) =>
+            laid(period, stationAt(middle, lengths, k * wave.period)),
+        );
+    }
+
+    const half = wave.period / 2;
+    const turns = Math.floor((perimeter - wave.period / 4) / half) + 1;
+    const line: Point2[] = [middle[0]];
+    for (let k = 0; k < turns; k++) {
+        line.push(
+            moved(
+                stationAt(middle, lengths, wave.period / 4 + k * half),
+                0,
+                k % 2 === 0 ? wave.amplitude : -wave.amplitude,
+            ),
+        );
+    }
+
+    return [strokeLine(line, width, true)];
+}
+
+/**
+ * A ring of Cytoscape desktop's contiguous arrows round the ring's middle: one every three widths, each a bar three
+ * widths long and one thick with a chevron on it, two widths to either side, pointing along the outline
+ * (`ContiguousArrowStroke`), laid straight along the outline's direction where it starts.
+ * @param middle - The ring's middle, counter-clockwise.
+ * @param width - The border's width.
+ * @returns The pieces.
+ */
+function arrowChainRing(middle: readonly Point2[], width: number): RingPiece[] {
+    const w = width;
+    const arrow: RingPiece[] = [
+        {
+            inner: [
+                [-1.5 * w, -w / 2],
+                [1.5 * w, -w / 2],
+            ],
+            outer: [
+                [-1.5 * w, w / 2],
+                [1.5 * w, w / 2],
+            ],
+            closed: false,
+        },
+        {
+            inner: [
+                [-1.5 * w, 2 * w],
+                [-0.25 * w, w / 2],
+            ],
+            outer: [
+                [-w, 2 * w],
+                [0.25 * w, w / 2],
+            ],
+            closed: false,
+        },
+        {
+            inner: [
+                [-1.5 * w, -2 * w],
+                [-0.25 * w, -w / 2],
+            ],
+            outer: [
+                [-w, -2 * w],
+                [0.25 * w, -w / 2],
+            ],
+            closed: false,
+        },
+    ];
+    const lengths = cumulativeLengths(middle);
+    const perimeter = lengths.at(-1) ?? 0;
+    if (!(w > 0)) {
+        return [];
+    }
+
+    return Array.from({ length: Math.floor(perimeter / (3 * w)) + 1 }, (_unused, k) =>
+        stationAt(middle, lengths, k * 3 * w),
+    ).flatMap((s) => arrow.map((piece) => laid(piece, s)));
+}
+
+/**
+ * How thick the line a set of pieces draws is: twice their area over the length of their edges, the measure of a
+ * band of one thickness (an outline drawn as a fill is read so).
+ * @param pieces - The pieces.
+ * @returns The thickness, or 0 for pieces with no area.
+ */
+export function piecesThickness(pieces: readonly RingPiece[]): number {
+    let area = 0;
+    let edges = 0;
+    for (const { inner, outer, closed } of pieces) {
+        const steps = closed ? inner.length : inner.length - 1;
+        for (let i = 0; i < steps; i++) {
+            const j = (i + 1) % inner.length;
+            area += Math.abs(signedArea([inner[i], outer[i], outer[j], inner[j]])) / 2;
+            edges += Math.hypot(inner[j][0] - inner[i][0], inner[j][1] - inner[i][1]);
+            edges += Math.hypot(outer[j][0] - outer[i][0], outer[j][1] - outer[i][1]);
+        }
+        if (!closed) {
+            edges += Math.hypot(outer[0][0] - inner[0][0], outer[0][1] - inner[0][1]);
+            const [a, b] = [inner.at(-1) ?? inner[0], outer.at(-1) ?? outer[0]];
+            edges += Math.hypot(b[0] - a[0], b[1] - a[1]);
+        }
+    }
+
+    return edges > 0 ? (2 * area) / edges : 0;
 }

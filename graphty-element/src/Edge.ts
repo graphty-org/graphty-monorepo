@@ -808,7 +808,13 @@ export class Edge {
         this.bundled = route !== null && this.lineBatch !== null && this.placeRoute(this.lineBatch, src, dst, route);
         if (!bent && !this.bundled) {
             const { srcPoint, dstPoint } = this.transformArrowCap();
-            this.transformEdgeMesh(srcPoint ?? src, dstPoint ?? dst);
+            // A wave with a period of its own starts where the line leaves its node, as Cytoscape desktop
+            // lays its strokes from the node's outline, so its turns fall where the program's do.
+            const surface =
+                srcPoint === null && this.mesh instanceof PatternedLineMesh && this.mesh.wave !== undefined
+                    ? this.getInterceptPoints()
+                    : null;
+            this.transformEdgeMesh(srcPoint ?? surface?.srcPoint ?? src, dstPoint ?? surface?.dstPoint ?? dst);
         }
 
         return bent;

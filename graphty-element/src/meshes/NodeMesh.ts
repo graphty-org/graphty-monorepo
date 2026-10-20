@@ -27,7 +27,15 @@ import {
     projectedVertices,
     ringSlab,
 } from "./NodeShapeGeometry";
-import { borderRing, convexHull, flatShapeOutline, isFlatShape, offsetOutline, type Point2 } from "./shapeOutlines";
+import {
+    borderRing,
+    convexHull,
+    flatShapeOutline,
+    isFlatShape,
+    offsetOutline,
+    type Point2,
+    type WaveShape,
+} from "./shapeOutlines";
 
 interface NodeMeshOptions {
     styleId: string;
@@ -401,7 +409,8 @@ export class NodeMesh {
      * size on every side, and how wide the ring outside the fill is, both in world units. Outside
      * (the default), the fill is the size and the ring is the border's width. Centered, the fill
      * comes in by half the width. Inside, by the whole width, so the ring's outer edge is the size;
-     * a node no larger than twice its border is all ring, drawn half as wide as the node.
+     * a node no larger than twice its border is all ring, drawn half as wide as the node. A border
+     * of opacity 0 is not drawn; the fill reaches the middle of the ring it would be.
      * @param shape - The node's shape block.
      * @param border - The node's border block.
      * @param extents - The node's extents at its size.
@@ -415,14 +424,38 @@ export class NodeMesh {
     ): { inset: number; ring: number } {
         const width = (border?.width ?? 0) * this.extentPerSize(shape);
         const position = border?.position ?? "outside";
-        if (width <= 0 || (border?.opacity ?? 1) <= 0 || position === "outside") {
+        if (width <= 0 || position === "outside") {
             return { inset: 0, ring: width };
         }
 
         const half = Math.min(extents.x ?? extents.across, extents.y ?? extents.across) / 2;
         const ring = position === "inside" ? Math.min(width, half) : width;
+        // A stroke paints over the fill out to its middle. Under a border that is seen, graphty stops the fill at the
+        // ring; under one of opacity 0 nothing covers that inner half, so the fill reaches the ring's middle, as
+        // Cytoscape desktop draws a transparent border inside the node's size.
+        if ((border?.opacity ?? 1) <= 0) {
+            return { inset: position === "inside" ? ring / 2 : 0, ring };
+        }
 
         return { inset: Math.min(position === "inside" ? ring : width / 2, half), ring };
+    }
+
+    /**
+     * A wave border's swing and period in world units (`border.waveAmplitude`, `border.wavePeriod`), or undefined
+     * when it has no swing of its own and is drawn within its ring.
+     * @param border - The node's border block.
+     * @param perSize - World units per unit of border width.
+     * @returns The wave, or undefined.
+     * @internal
+     */
+    static waveOf(border: NodeStyleConfig["border"], perSize: number): WaveShape | undefined {
+        const amplitude = border?.waveAmplitude;
+        if (amplitude === undefined) {
+            return undefined;
+        }
+
+        const period = border?.wavePeriod || 4 * amplitude;
+        return period > 0 ? { amplitude: amplitude * perSize, period: period * perSize } : undefined;
     }
 
     /**
@@ -529,7 +562,13 @@ export class NodeMesh {
             const extents = this.fillExtents(sized, inset);
             const outline = flat ? this.flatOutline(shape, extents) : this.solidOutline(fill);
             const depth = flat ? (extents.z ?? extents.across) : THIN_DEPTH_RATIO * extents.across;
-            const mesh = ringSlab("node-border", borderRing(outline, width, border?.style ?? "solid"), depth, scene);
+            const wave = NodeMesh.waveOf(border, this.extentPerSize(shape));
+            const mesh = ringSlab(
+                "node-border",
+                borderRing(outline, width, border?.style ?? "solid", wave),
+                depth,
+                scene,
+            );
             placeByZIndex(mesh, shape, options.is2D);
             mesh.material = this.createBorderMaterial(border?.color ?? "#000000", opacity, scene);
 

@@ -150,6 +150,20 @@ const LineStyle = z.strictObject({
      * A fraction is drawn rounded down (`discreteMeshCount`), which is what the channel accepts.
      */
     patternCount: z.number().min(2).optional(),
+    /**
+     * A sinewave or zigzag line's swing to either side of its path, in the line's own width units.
+     * Set, the wave is drawn with this swing and `wavePeriod`, and `width` is the thickness of the
+     * waving line itself; unset, the wave is drawn within `width`. Cytoscape desktop swings 10 px.
+     */
+    waveAmplitude: z.number().nonnegative().optional(),
+    /**
+     * How far along its path a sinewave or zigzag line runs before it repeats, in the line's own
+     * width units; used with `waveAmplitude`, which it defaults to four times (as does 0). A sine wave is one
+     * crest and one trough a period, each a quadratic arc, drawn as a band whose two edges run
+     * `width` apart where it crosses its path and half that at its crests; a zigzag turns every
+     * half period. Cytoscape desktop repeats every 20 px.
+     */
+    wavePeriod: z.number().nonnegative().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
     /**

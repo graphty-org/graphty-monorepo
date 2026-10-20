@@ -77,6 +77,12 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     // are, at this canvas and zoom, under the probe's 4 px.
     "node.labelMinScreenSize": { "node.labelSize": 1 },
     "edge.labelMinScreenSize": { "edge.labelSize": 1 },
+    // A wave's own swing and period shape only a sine-wave or zigzag line or border, and a period only
+    // a wave that has a swing of its own.
+    "edge.waveAmplitude": { "edge.style": "sinewave" },
+    "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
+    "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
+    "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
 };
 
 /** How wide the canvas is. */

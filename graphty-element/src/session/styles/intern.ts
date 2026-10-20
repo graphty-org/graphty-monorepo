@@ -146,6 +146,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.stripeDirection": "mesh",
     "node.stripeSize": "mesh",
     "node.borderPosition": "mesh",
+    "node.borderWaveAmplitude": "mesh",
+    "node.borderWavePeriod": "mesh",
     "node.cornerRadius": "mesh",
     "node.exactCornerRadius": "mesh",
     "node.shapePoints": "mesh",
@@ -182,6 +184,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.width": "mesh",
     "edge.style": "mesh",
     "edge.patternCount": "mesh",
+    "edge.waveAmplitude": "mesh",
+    "edge.wavePeriod": "mesh",
     "edge.curvature": "mesh",
     "edge.animationSpeed": "mesh",
 

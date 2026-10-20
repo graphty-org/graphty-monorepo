@@ -634,6 +634,8 @@ function channelPlans(
             ["height", [length("node.height")]],
             ["borderStyle", [table("node.borderStyle", BORDER_STYLES, BORDER_STYLES_NEAREST)]],
             ["borderPosition", [id("node.borderPosition")]],
+            ["borderWaveAmplitude", [length("node.borderWaveAmplitude")]],
+            ["borderWavePeriod", [length("node.borderWavePeriod")]],
             ["outerBorderColor", [id("node.outerBorderColor")]],
             ["outerBorderWidth", [length("node.outerBorderWidth")]],
             ["outerBorderOpacity", [id("node.outerBorderOpacity")]],
@@ -715,6 +717,9 @@ function channelPlans(
         ["gradientStops", [id("edge.gradientStops")]],
         ["gradientKind", [table("edge.gradientKind", GRADIENT_KINDS)]],
         ["lineStyle", [table("edge.style", LINE_STYLES, LINE_STYLES_NEAREST)]],
+        // in the line's own width units, as its width is
+        ["waveAmplitude", [length("edge.waveAmplitude")]],
+        ["wavePeriod", [length("edge.wavePeriod")]],
         ["targetArrow", [table("edge.arrowHead", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
         ["sourceArrow", [table("edge.arrowTail", ARROW_SHAPES, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],

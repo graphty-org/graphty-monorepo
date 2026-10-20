@@ -26,6 +26,14 @@ import type { ArrowCap } from "./ArrowCapBatch";
 import { FilledArrowRenderer } from "./FilledArrowRenderer";
 import { MaterialHelper } from "./MaterialHelper";
 import { PatternedLineMesh, type PatternedLineOptions } from "./PatternedLineMesh";
+import {
+    type RingPiece,
+    sineWavePeriod,
+    type WaveShape,
+    zigzagPeriod,
+    type ZigzagPiece,
+    zigzagPieceKey,
+} from "./shapeOutlines";
 
 // ==========================================
 // PATTERN TYPE DEFINITIONS
@@ -342,6 +350,10 @@ export class PatternedLineRenderer {
      * @param scene - Babylon.js scene
      * @param shapeType - Optional specific shape type for alternating patterns
      * @param is2DMode - Draw flat in the XY plane with a StandardMaterial rather than billboarded
+     * @param wave - A sinewave's or zigzag's own swing and period, in world units: given, one element
+     *   is one period of {@link PatternedLineRenderer.waveGeometry}, `width` thick
+     * @param piece - How much of its period a zigzag element with a wave of its own draws (the last
+     *   stops at its last turn) and whether it is capped where the line starts or ends
      * @returns The element; place it with `ArrowCap.place`
      */
     static createPatternElement(
@@ -352,6 +364,8 @@ export class PatternedLineRenderer {
         scene: Scene,
         shapeType?: PatternShapeType,
         is2DMode?: boolean,
+        wave?: WaveShape,
+        piece: ZigzagPiece = { stretch: "period" },
     ): ArrowCap {
         const patternDef = PATTERN_DEFINITIONS[pattern];
         const shape = shapeType ?? this.getDefaultShapeType(pattern);
@@ -360,8 +374,14 @@ export class PatternedLineRenderer {
         // follow the width, its length does not), so it is drawn at scale 1 and the width is part
         // of its key. A discrete shape is one normalized geometry drawn at a per-slot scale.
         const scale = patternDef.connected ? 1 : width / this.getGeometryDiameter(pattern, shapeType);
-        const builtWidth = patternDef.connected ? String(width) : "";
+        const waved = patternDef.connected && wave !== undefined;
+        const builtWidth = patternDef.connected
+            ? `${String(width)}${waved ? `~${String(wave.amplitude)}~${String(wave.period)}~${zigzagPieceKey(piece)}` : ""}`
+            : "";
         const geometry = (): VertexData => {
+            if (waved) {
+                return this.waveGeometry(pattern, width, wave, piece);
+            }
             if (patternDef.connected) {
                 return this.createConnectedSegmentGeometry(pattern, width);
             }
@@ -409,6 +429,68 @@ export class PatternedLineRenderer {
         element.setAppearance(scale, color);
 
         return element;
+    }
+
+    /**
+     * One period of a sinewave or zigzag with a swing and period of its own, in the XZ plane (x along
+     * the line, z across it): a sine wave's period centered on its element's place
+     * ({@link sineWavePeriod}), a zigzag's starting there ({@link zigzagPeriod}), so elements a
+     * period apart from the line's start draw the wave Cytoscape desktop draws.
+     * @param pattern - sinewave or zigzag
+     * @param width - The thickness of the waving line, in world units
+     * @param wave - Its swing and period, in world units
+     * @param piece - How much of its period a zigzag's piece draws, and its caps
+     * @returns The geometry
+     */
+    static waveGeometry(
+        pattern: PatternType,
+        width: number,
+        wave: WaveShape,
+        piece: ZigzagPiece = { stretch: "period" },
+    ): VertexData {
+        return this.pieceGeometry(this.wavePiece(pattern, width, wave, piece));
+    }
+
+    /**
+     * One period of a wave with a swing and period of its own, in its own frame (x along the line, y across it).
+     * @param pattern - sinewave or zigzag
+     * @param width - The thickness of the waving line
+     * @param wave - Its swing and period
+     * @param piece - How much of its period a zigzag's piece draws, and its caps
+     * @returns The period, as a band
+     */
+    static wavePiece(
+        pattern: PatternType,
+        width: number,
+        wave: WaveShape,
+        piece: ZigzagPiece = { stretch: "period" },
+    ): RingPiece {
+        return pattern === "sinewave"
+            ? sineWavePeriod(wave.amplitude, wave.period, width)
+            : zigzagPeriod(wave.amplitude, wave.period, width, piece);
+    }
+
+    /**
+     * A band as a quad strip in the XZ plane (y = 0).
+     * @param piece - The band, x along and y across.
+     * @returns The geometry.
+     */
+    private static pieceGeometry(piece: RingPiece): VertexData {
+        const positions: number[] = [];
+        const indices: number[] = [];
+        piece.inner.forEach(([x, y], i) => {
+            const [ox, oy] = piece.outer[i];
+            positions.push(x, 0, y, ox, 0, oy);
+        });
+        for (let i = 0; i + 1 < piece.inner.length; i++) {
+            const base = i * 2;
+            indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
+        }
+
+        const vertexData = new VertexData();
+        vertexData.positions = positions;
+        vertexData.indices = indices;
+        return vertexData;
     }
 
     /**

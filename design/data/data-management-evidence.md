@@ -149,6 +149,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Acceptance test:** Join a 340-row logFC table by symbol: 318 matched; 22 not in graph; TP53 matches 2 rows; 4,682 nodes get no value; '19 more match ignoring case [Use]'; symbol suggested as key; joined columns carry origin 'joined'.
 - **Today:** No (issue #298 open)
 - **Evidence:** FACT: every-session/blocking for genomics (workflows/W20.yaml:59-60); Cytoscape's top complaint is a silent zero-match join (graph tools 11 (section F)); whitespace and case are named causes (graph tools 2 (section F)); Power Query key suggestion (BI [23] (section G)). Simplest element call takes only the table and key; all defaults neutral.
+- **Saved as:** the table is a source in the sources member and the join a recipe command naming the key columns; matches are recomputed on open, never stored. Owner decision 2026-10-19 on what a project file records (main document, "Decided by the owner"), item 9.
 
 ### 15. A node file and an edge file together
 
@@ -173,6 +174,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Acceptance test:** amount with one 'N/A' among 500 numbers loads as number with '1 blank'; convert '$1,200' text to number: '3 will not convert, left empty' before apply; restore SEPT2-as-date to text.
 - **Today:** No: type read-only, no date kind, inference has no tolerance (graph-io/src/common/text.ts:1-13)
 - **Evidence:** FACT: type fix is first-layer in Tableau, Power Query, Sheets, Datawrapper (BI cross-tool table (section G)); Kumu 'Size by' empty until Number (graph tools 4, section F); one N/A turns a column to text today. Door 20 measurement level (one-way-doors.md:313). Conversion options stay one step in.
+- **Saved as:** the type and its format in the graph's columns member (JSON Schema), and the change as a recipe command, so a recipe applied to new data reproduces the types. Owner decision 2026-10-19 on what a project file records (main document, "Decided by the owner"), item 8.
 
 ### 18. Autosave and reopen
 
@@ -269,6 +271,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Acceptance test:** Load two files and one Neo4j query: three sources listed with counts, the query among them; an edge's details name its source without an extra click.
 - **Today:** Partly. FACT: network loads are listed by `data.loads()` (`SourceLoadRecord`: source, config, endpoint, loadedAt, pages) and each node carries `_source.loads`; file loads are not in that list, and a file merge still overwrites the one `data.source()` (ingest.ts:474).
 - **Evidence:** FACT: door 29 source attribute holding a list (one-way-doors.md:976); evidence trail (intelligence-analyst.yaml:513, fraud-analyst.yaml:343); Tableau union origin (BI [10] (section G)).
+- **Saved as:** the sources member (the experimental `graphty-sources` member extended to files and URLs) and the reserved `_source.loads` column. Owner decision 2026-10-19 on what a project file records (main document, "Decided by the owner"), items 2 and 4.
 
 ### 30. Cleanup offers
 
@@ -397,6 +400,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Acceptance test:** Join a (from, to, volume) table: '380 of 400 edges matched' and volume on matched edges.
 - **Today:** No
 - **Evidence:** FACT: element-needs.md 'joins onto edges'.
+- **Saved as:** as a node join (requirement 14): a source plus a recipe command naming the key columns. Owner decision 2026-10-19 on what a project file records (main document, "Decided by the owner"), item 9.
 
 ### 46. Too-large file path
 
@@ -453,6 +457,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Acceptance test:** Apply an Ensembl-to-symbol table: '12 unmapped' shown before the join.
 - **Today:** No
 - **Evidence:** FACT: genomics fights symbol/Entrez/UniProt (genomics-cytoscape-user.yaml:28); out of v1 (data-plan.md:275).
+- **Saved as:** the mapping table is itself a source; the join names it, and matches are recomputed on open (requirement 58). Owner decision 2026-10-19 on what a project file records (main document, "Decided by the owner"), item 9.
 
 ### 53. Define a new source
 
@@ -485,6 +490,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Acceptance test:** Merge tumor and normal: edges carry tumor-only/normal-only/both and logFC_tumor/logFC_normal.
 - **Today:** No
 - **Evidence:** FACT: sometimes for genomics only (W24.yaml); one data member per file today (design/documents/container.md:44-45). Unblocked: the owner decided on 2026-10-19 that a project can hold several named graphs.
+- **Saved as:** the result is its own named graph (one data member) plus a recipe command naming its inputs and the operation, so it can be rebuilt. Owner decision 2026-10-19 on what a project file records (main document, "Decided by the owner"), items 1 and 9.
 
 ### 57. Earlier data as a named graph
 
@@ -494,7 +500,15 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Today:** No (task-flows.md 2.2: 'Not yet in the element at all')
 - **Evidence:** FACT: task-flows.md 8.2; door 28 (one-way-doors.md:1070); door 95 checkpoints. Owner decision 2026-10-19: several named graphs per project, which serves this without a separate versioning mechanism.
 
-### 58. Place roles
+### 58. Match nodes across graphs or tables
+
+- **Tier:** advanced. **Owner:** graphty-element. **Jobs:** map-identifiers, join-table-onto-nodes, merge-or-compare-graphs.
+- **Requirement:** The element matches nodes of two graphs, or a graph and a table, by a key column with its id system, or through an id-mapping table, and reports matched and unmatched counts. The project stores the rule and recomputes the matches on open; it never stores matched pairs. Joins (14, 45), mapping tables (52) and set operations (56) use it.
+- **Acceptance test:** A tumor and a normal network matched by Ensembl gene report matched and only-in-one counts; after reopening the project the same counts return, and the saved file holds the rule and no list of pairs.
+- **Today:** No. FACT: no cross-graph matching in any package; one data member per file today (container.md, "The data member" rule 3).
+- **Evidence:** FACT: genomics 'fights identifier mismatches (symbol vs Entrez vs UniProt, case sensitivity)' (genomics-cytoscape-user.yaml:28); Cytoscape merges networks by matching columns (graph tools 2 (section F)); the owner's decision of 2026-10-19 to store the rule, not the pairs. JUDGMENT: advanced, because most readers match within one graph through a join, and the rule is shared by every cross-graph operation.
+
+### 59. Place roles
 
 - **Tier:** later. **Owner:** graphty-element. **Jobs:** set-descriptive-role.
 - **Requirement:** A reader marks latitude/longitude or country columns and the element counts invalid values.
@@ -502,7 +516,7 @@ Numbers match the main document. "Jobs" are the job rows of section C.
 - **Today:** No geo kind (owner-decisions.md 364-373); no map view
 - **Evidence:** FACT: Tableau geographic roles (BI [4][5] (section G)). JUDGMENT: nothing reads a geo role until a map view exists.
 
-### 59. Load a subset
+### 60. Load a subset
 
 - **Tier:** later. **Owner:** graphty-element. **Jobs:** load-subset.
 - **Requirement:** A reader loads only a time window or the strongest ties of a large file and sees how much was left out. For network sources the source's own filter parameters, size limits (requirement 26) and expansion (requirement 25) already load only part.
@@ -2110,3 +2124,77 @@ Judgment
 - Competitor products not yet checked: KeyLines, Neo4j Bloom, Graph Commons, Trifacta, Alteryx and Quantexa.
 - No real-user complaint mining has been done (forums and bug trackers).
 - Whether `report()` fills the repeated-edge counts before a load has not been verified.
+
+## J. Competitor lessons and superseded designs
+
+The main document summarizes these in one paragraph.
+
+### What competitors teach
+
+- **Every graph tool puts "open a file" first, and the ones with fixed column names write the most
+  help pages.** Gephi, Kumu and Polinode need exact headers. Cytoscape lets you click a header to
+  make it the source or target ([Cytoscape manual](https://manual.cytoscape.org/en/stable/Creating_Networks.html)).
+- **The most repeated complaint is a join that matches nothing and does not say why.** Cytoscape's
+  error names no cause, and the causes are the key column, the id system, spaces and case
+  ([Bioconductor thread](https://support.bioconductor.org/p/p133439/)). Power Query shows the
+  matching-row estimate before you commit
+  ([Microsoft](https://learn.microsoft.com/en-us/power-query/merge-queries-overview)).
+- **Fixing a column's type is on the column itself everywhere:** Tableau, Power Query, Google
+  Sheets and Datawrapper ([Datawrapper](https://www.datawrapper.de/academy/data-column-types)).
+- **Two plain verbs beat three subtle ones.** Tableau's relationships, joins and blends are its
+  most documented confusion
+  ([Tableau](https://help.tableau.com/current/pro/desktop/en-us/datasource_dont_be_scared.htm)).
+  Gephi users report landing in two workspaces when they miss the append choice.
+- **Cleanup is offered only when the data needs it.** Tableau's Data Interpreter and Google
+  Sheets' cleanup suggestions both appear only for messy data
+  ([Tableau](https://help.tableau.com/current/pro/desktop/en-us/data_interpreter.htm)).
+- **Recorded steps make refresh work, but steps keyed by column position break.** Power Query
+  replays applied steps on refresh, and its automatic "Changed type" step fails when a column is
+  renamed ([Microsoft](https://learn.microsoft.com/en-us/power-query/applied-steps)). Recipes bind
+  by column role and name for this reason.
+- **Ordered filter trees confuse newcomers.** Gephi declined a per-step toggle to stay simple
+  ([Gephi blueprint](https://blueprints.launchpad.net/gephi/+spec/subfilter-toggle)), and
+  Cytoscape's filter selects by default and hides only on request
+  ([Cytoscape](https://manual.cytoscape.org/en/latest/Finding_and_Filtering_Nodes_and_Edges.html)).
+  So one card is primary and ordered steps appear only once there are two.
+
+### What this supersedes or updates
+
+- **The old app shell's Data section** (`design/ui/app-shell-progressive-disclosure-design.md`,
+  section 5.3). Still holds: open, URL, paste and samples first; a mapping stated in one line with
+  Change; tables and cleaning one step in. Replaced: table join moves up to the first layer as one
+  of three verbs; the seven-way Import options dialog gives way to the Data page; large files get a
+  pre-chosen way through instead of "warn and allow"; repeated edges are kept unless the reader
+  combines them.
+- **`design/ui/tier1-real-app/tier1-design.md`, "Not in tier 1".** Joins, Replace and weight roles
+  move up from tier 2 to the first layer. **`element-gaps.md`** beside it is out of date.
+- **`design/documents/drafts/data-plan.md`.** Its refusal of a join on a clashing column name is
+  replaced by an explicit clash rule, and its remembered mapping becomes a recipe.
+- **`design/ui/object-first-ux/feature-fit/1-data.md`.** Its "merging nodes does not fit" is
+  overturned; merging is secondary.
+- **`design/designloom/capabilities/`.** `data-import.yaml` no longer refuses a file over 100 MB
+  without a way through; `saved-filters.yaml` stores saved filters in the project as rule sets;
+  `neighborhood-expansion.yaml` keeps its jobs, and its 500-node warning and 2,000-node block
+  become settings the app passes.
+- **`design/graph-io/network-sources-design.md`** says "Nothing here is implemented". Most of it has
+  landed on `golden`; refresh, removing one load, the persistent source cache and a SPARQL source
+  have not.
+
+The framework documents in `design/ui/framework/` stay in force; this document applies them to
+data.
+
+## K. Sources for the project file decision
+
+- FACT: the document container, its typed members, `requires`, skipped unknown kinds and the closed
+  data member (`design/documents/container.md` on `golden`, "Data model", "Reading a file" rules
+  8 and 10, "The data member" rules 2 and 3); the container's own schema is JSON Schema draft
+  2020-12 (`design/documents/container.schema.json`).
+- FACT: network loads are recorded today in the experimental `graphty-sources` member
+  (`graphty-element/src/session/projectFile.ts`, line 66) and each element's loads in
+  `_source.loads` (`graphty-element/src/session/sources/ids.ts`, line 24).
+- FACT: JSON Schema 2020-12 lets a schema declare its own keywords through a vocabulary and a
+  meta-schema (https://json-schema.org/draft/2020-12/json-schema-core#section-8.1.2).
+- FACT: Frictionless Table Schema describes the columns of a text table, including rules for
+  parsing raw values such as missing-value markers and number formats
+  (https://specs.frictionlessdata.io/table-schema/). graph-io reads it at import; graphty does not
+  write it.

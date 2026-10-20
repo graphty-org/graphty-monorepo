@@ -214,25 +214,32 @@ describe("the Graph place on the real element", () => {
         assert.equal(values.getAttribute("aria-selected"), "true");
     });
 
-    it("leaves the camera alone for a pick already on screen, and turns it to one off screen", async () => {
+    it("glides the camera to center a pick, on screen or off", async () => {
         const { session } = await openGraph();
         const element = document.querySelector("graphty-element");
         assert.isNotNull(element);
         if (element === null) {
             return;
         }
-        // The element's own framing after the layout settles has landed: two reads apart agree.
-        let last = "";
         await waitFor(
-            async () => {
-                const now = JSON.stringify(element.getCameraState());
-                await new Promise((resolve) => setTimeout(resolve, 300));
-                const same = now === last && now === JSON.stringify(element.getCameraState());
-                last = now;
-                assert.isTrue(same && element.nodeScreenPosition(7)?.visible === true);
+            () => {
+                assert.isTrue(element.nodeScreenPosition(7)?.visible === true);
             },
-            { timeout: TIMEOUT_MS, interval: 50 },
+            { timeout: TIMEOUT_MS },
         );
+        await element.waitForStableFrame();
+        const centered = (id: number): void => {
+            const { target } = element.getCameraState();
+            const node = element.getNode(id)?.getPosition();
+            assert.isDefined(target);
+            assert.isDefined(node);
+            if (target === undefined || node === undefined) {
+                return;
+            }
+            assert.closeTo(target.x, node.x, 0.01, `the camera turns about node ${String(id)}`);
+            assert.closeTo(target.y, node.y, 0.01, `the camera turns about node ${String(id)}`);
+            assert.closeTo(target.z, node.z, 0.01, `the camera turns about node ${String(id)}`);
+        };
         const pick = async (name: string, id: number): Promise<void> => {
             const box = screen.getByRole("combobox", { name: "Find" });
             await userEvent.type(box, name);
@@ -241,25 +248,24 @@ describe("the Graph place on the real element", () => {
             await waitFor(() => {
                 assert.isTrue(session.selection.has(id));
             });
-            // Long enough for a camera turn to have landed.
-            // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-            await new Promise((resolve) => setTimeout(resolve, 300));
+            // A stable frame is one the camera has finished gliding to the pick in.
+            await element.waitForStableFrame();
         };
 
-        const before = JSON.stringify(element.getCameraState());
+        // A pick already on screen is centered too (camera.pivotOnSelection, issue #2293).
         await pick("Eve", 7);
-        assert.equal(JSON.stringify(element.getCameraState()), before, "a pick on screen moves nothing");
+        centered(7);
+        assert.isTrue(element.nodeScreenPosition(7)?.visible);
 
-        // Turned away from the graph, a pick brings the node back into view.
+        // Turned away from the graph, a pick brings the node back into view, centered.
         const away = element.getCameraState();
         await element.setCameraState({ ...away, target: { x: 500, y: 500, z: 500 } });
         await waitFor(() => {
             assert.isFalse(element.nodeScreenPosition(4)?.visible);
         });
         await pick("Bea", 4);
-        await waitFor(() => {
-            assert.isTrue(element.nodeScreenPosition(4)?.visible);
-        });
+        centered(4);
+        assert.isTrue(element.nodeScreenPosition(4)?.visible);
     });
 
     it("says when nothing matches, and offers the value rows", async () => {

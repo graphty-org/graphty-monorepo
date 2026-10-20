@@ -139,7 +139,7 @@ describe("the workspace frame on the real element", () => {
 
     // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
     it(
-        "paints a shortest path in the app's own highlight colour, not the element's indigo",
+        "paints a shortest path as ordinary layers in the element's result colour, not the app's highlight",
         async () => {
             const session = await openWorkspace();
             await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
@@ -148,16 +148,22 @@ describe("the workspace frame on the real element", () => {
                 { source: "b", target: "c" },
             ]);
 
-            await session.runs.start("shortest-path", { source: "a", target: "c" });
+            const { runId } = await session.runs.start("shortest-path", { source: "a", target: "c" });
 
+            // Marks, not highlights, so a second algorithm's picture stacks on this one.
             await waitFor(() => {
-                const route = session.styles.list().filter((layer) => layer.kind === "highlight");
+                const route = session.styles
+                    .list()
+                    .filter((layer) => layer.source.by === "run" && layer.source.runId === runId);
                 assert.lengthOf(route, 2);
                 for (const layer of route) {
-                    assert.equal(layer.set?.[`${layer.target ?? "node"}.color`], APP_HIGHLIGHT_COLOR);
+                    assert.notEqual(layer.kind, "highlight");
+                    const color = layer.set?.[`${layer.target ?? "node"}.color`];
+                    const hex = typeof color === "string" ? color.toUpperCase() : undefined;
+                    assert.equal(hex, "#D55E00");
+                    assert.notEqual(hex, APP_HIGHLIGHT_COLOR.toUpperCase());
                 }
             });
-            assert.notEqual(APP_HIGHLIGHT_COLOR.toLowerCase(), "#332288");
         },
         TIMEOUT_MS,
     );

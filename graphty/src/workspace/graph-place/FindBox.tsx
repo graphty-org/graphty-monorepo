@@ -701,8 +701,8 @@ export function FindBox(): React.JSX.Element {
                 focusInspectorTitle();
             }
         });
-        // The camera turns only to bring a pick that is off screen into view: turning to every pick
-        // swings the rest of the drawing out of the canvas, and it stays out.
+        // The element glides the camera to center every pick (camera.pivotOnSelection, set in
+        // ElementHost); a pick that is off screen is also zoomed to, so it is drawn at a size to see.
         const ids = hit.kind === "edge" ? [hit.ends.source.id, hit.ends.target.id] : [hit.id];
         if (!ids.every((id) => element?.nodeScreenPosition(id)?.visible === true)) {
             await element?.zoomToSelection();

@@ -521,6 +521,47 @@ function textOutlineOf(
 }
 
 /**
+ * Which half of an outline's stroke its clip keeps, where the clip is the outline itself (`inside`: Cytoscape.js's
+ * `border-position: inside`, a stroke twice the border's width clipped to the node) or a box with the outline cut
+ * out of it by the evenodd rule (`outside`). Any other clip, or none, is null: the stroke is read whole.
+ * @param el - the stroked outline
+ * @param root - the SVG
+ * @returns the half kept, or null
+ */
+function clippedBand(el: Element, root: SVGSVGElement): "inside" | "outside" | null {
+    const ref = /url\(\s*["']?#([^"')]+)["']?\s*\)/.exec(el.closest("[clip-path]")?.getAttribute("clip-path") ?? "");
+    const clip = ref === null ? null : root.querySelector(`clipPath[id="${ref[1]}"] > path`);
+    const own = (el.getAttribute("d") ?? "").replace(/\s+/g, " ").trim();
+    if (clip === null || own === "") {
+        return null;
+    }
+    const d = (clip.getAttribute("d") ?? "").replace(/\s+/g, " ").trim();
+    if (d === own) {
+        return "inside";
+    }
+    const evenodd = (clip.getAttribute("clip-rule") ?? getComputedStyle(clip).clipRule) === "evenodd";
+    // the outline's own path data ends the clip's; svgcanvas writes its first move as a line from the box's last point
+    const tail = own.replace(/^[Mm]\s*/, "");
+    return evenodd && d.length > tail.length && d.endsWith(tail) ? "outside" : null;
+}
+
+/**
+ * An outline's points moved out (or in, for a negative distance) by a distance from its box's center on each axis:
+ * the middle of the half of its stroke a clip keeps.
+ * @param points - the outline
+ * @param by - how far each side moves out
+ * @returns the moved points
+ */
+function bandCenter(points: readonly Pt[], by: number): Pt[] {
+    const b = boxOfPoints(points);
+    const [cx, cy] = [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+    const [hx, hy] = [(b.x1 - b.x0) / 2, (b.y1 - b.y0) / 2];
+    const sx = hx > 0 ? Math.max(0, hx + by) / hx : 1;
+    const sy = hy > 0 ? Math.max(0, hy + by) / hy : 1;
+    return points.map(([x, y]): Pt => [cx + (x - cx) * sx, cy + (y - cy) * sy]);
+}
+
+/**
  * The faces Java drew the logical fonts in that Cytoscape desktop's SVG writer (FreeHEP) names by their PostScript
  * stand-ins or by their Java names: it writes Dialog and SansSerif as Helvetica, Serif as Times and Monospaced as
  * Courier, and a styled logical font it cannot map by its Java name (`Dialog.bolditalic`), but Java laid each line out
@@ -871,7 +912,12 @@ export function readSvgPrimitives(svgText: string): SvgPrimitives {
                 continue;
             }
             const open = fill === null && !CLOSED.has(tag) && !/[Zz]\s*$/.test(el.getAttribute("d") ?? "");
-            const points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
+            let points = geometryPoints(el as SVGGeometryElement, m, open ? PATH_SAMPLES : SAMPLES);
+            const band = fill === null && stroke !== null ? clippedBand(el, root) : null;
+            if (band !== null && stroke !== null) {
+                points = bandCenter(points, band === "inside" ? -stroke.width / 4 : stroke.width / 4);
+                stroke = { ...stroke, width: r3(stroke.width / 2) };
+            }
             // a filled shape with no area and no stroke paints nothing (Gephi writes an arrowhead of arrow.size 0 as
             // a polyline of three equal points)
             const extent = boxOfPoints(points);

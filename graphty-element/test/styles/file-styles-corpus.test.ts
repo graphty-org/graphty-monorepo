@@ -451,7 +451,9 @@ describe("a node border another program wrote", () => {
         assert.strictEqual(norm(merged["node.color"]), "#00ff00");
         assert.isNull(norm(merged["node.outline"]));
         assert.strictEqual(norm(merged["node.borderColor"]), "#ff0000");
-        assert.strictEqual(merged["node.borderStyle"], "dashed");
+        // Cytoscape.js dashes a border 4 on and 2 off in pixels whatever its width, so a 4-wide dashed border is
+        // drawn as the dots it looks like
+        assert.strictEqual(merged["node.borderStyle"], "dotted");
         const notDrawn = notes.filter((note) => note.code === FILE_STYLE_ISSUE.NOT_DRAWN);
         assert.deepEqual(
             notDrawn.map((note) => note.params.property),

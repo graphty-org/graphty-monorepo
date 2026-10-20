@@ -325,7 +325,7 @@ describe("StylePainter channels", () => {
         await held.paintAll();
         assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
             colorType: "radial-gradient",
-            colors: ["#00ffff", "#ff00ff", "#ffff00"],
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
             stops: [0, 0.2, 1],
         });
 
@@ -340,7 +340,7 @@ describe("StylePainter channels", () => {
         assert.deepStrictEqual(held.painter.nodePaint(0)?.style.texture?.color, {
             colorType: "gradient",
             direction: 0,
-            colors: ["#00ffff", "#ff00ff", "#ffff00"],
+            colors: ["#00FFFF", "#FF00FF", "#FFFF00"],
         });
     });
 

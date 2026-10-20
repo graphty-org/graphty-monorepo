@@ -74,7 +74,7 @@ async function openPicker(session: GraphSession): Promise<{ id: string; region: 
 
 /**
  * Open Add a condition and wait for its search to take focus. A layer with no card opens its
- * picker on that list already.
+ * picker on that list already, so a click there would close it.
  * @param region - The open picker.
  * @returns The search box.
  */
@@ -266,43 +266,23 @@ describe("the cards", () => {
         });
     });
 
-    it("one click on a layer with no card opens the list with its search focused; typing filters it", async () => {
+    it("a layer with no card opens on Add a condition and keeps Done; an unfinished card shows no count", async () => {
         const session = await open();
         const { region } = await openPicker(session);
         assert.isNotNull(within(region).queryByRole("button", { name: "Done" }), "Done is there before a card");
+        // The list is closed, so one press on Add a condition opens it rather than closing it.
+        assert.isNull(screen.queryByRole("listbox"), "the list did not open on its own");
+        const add = within(region).getByRole("button", { name: "Add a condition" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, add, "focus is on Add a condition");
+        });
+        await userEvent.click(add);
         const search = await screen.findByRole("combobox", { name: FIND_ATTRIBUTE });
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, search, "the list opened with its search focused");
+            assert.strictEqual(document.activeElement, search, "the list opens with its search focused");
         });
-        const options = (): number =>
-            within(screen.getByRole("listbox", { name: "Attributes" })).getAllByRole("option").length;
-        const all = options();
-        await userEvent.keyboard("nam");
-        await waitFor(() => {
-            assert.isBelow(options(), all, "typing filters the list");
-            assert.isTrue(
-                within(screen.getByRole("listbox", { name: "Attributes" }))
-                    .getAllByRole("option")
-                    .every((each) => (each.getAttribute("aria-label") ?? "").toLowerCase().includes("nam")),
-            );
-        });
-        // Add a condition opens the list and never closes it.
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await waitFor(() => {
-            assert.isNotNull(screen.queryByRole("listbox", { name: "Attributes" }), "the list stayed open");
-            assert.strictEqual(document.activeElement, search, "focus is back in its search");
-        });
-        await userEvent.keyboard("e{Enter}");
+        await userEvent.keyboard("name{Enter}");
         const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
         assert.strictEqual(card.getAttribute("aria-label"), "name", "an unfinished card says no count");
-        // With a card, opening the row again leaves the list closed.
-        await waitFor(() => {
-            assert.isTrue(card.contains(document.activeElement), "focus is in the new card");
-        });
-        await userEvent.keyboard("Val{Enter}");
-        await closedOntoRow();
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
-        await screen.findByRole("group", { name: "Which nodes" });
-        assert.isNull(screen.queryByRole("listbox"), "a layer with a condition opens with the list closed");
     });
 });

@@ -363,9 +363,6 @@ export function WhichPicker({
     const [focusKey, setFocusKey] = useState<string | null>(() =>
         open && document.activeElement?.getAttribute("role") !== "tab" ? "add" : null,
     );
-    // Opened from the row with no card yet, the attribute list opens too, its search focused: one
-    // click from "add a condition to narrow" to typing a field's name.
-    const [listFirst, setListFirst] = useState(false);
     const rowButton = useRef<HTMLButtonElement>(null);
     const regionId = useId();
     // A card that changes the count says so -- also when the key that changed it (Enter in a
@@ -401,7 +398,6 @@ export function WhichPicker({
                     side={side}
                     initial={shown}
                     focusKey={focusKey}
-                    listFirst={listFirst}
                     regionId={regionId}
                     base={base}
                     adding={adding}
@@ -420,10 +416,9 @@ export function WhichPicker({
                     buttonRef={rowButton}
                     regionId={regionId}
                     onOpen={(key) => {
-                        // With no card, the attribute list opens with focus in its search.
-                        const first = key === undefined && shown.length === 0;
-                        setListFirst(first);
-                        setFocusKey(first ? null : (key ?? shown[0]?.key ?? "add"));
+                        // With no card, focus lands on Add a condition, whose list opens on a
+                        // press: open already, the press would close it.
+                        setFocusKey(key ?? shown[0]?.key ?? "add");
                         setOpen(true);
                     }}
                 />
@@ -636,7 +631,6 @@ type OnCard = (next: Card) => void;
  * @param props.side - nodes or edges
  * @param props.initial - the cards when it opened
  * @param props.focusKey - the card (or "add") to focus first
- * @param props.listFirst - opens the Add a condition list at once, its search focused
  * @param props.regionId - the open cards' id, which the row controls
  * @param props.base - the base layer: no condition is added to it
  * @param props.adding - a field to add a card on when the cards open
@@ -651,7 +645,6 @@ function Cards({
     side,
     initial,
     focusKey,
-    listFirst = false,
     regionId,
     base,
     adding,
@@ -664,7 +657,6 @@ function Cards({
     side: Side;
     initial: readonly Shown[];
     focusKey: string | null;
-    listFirst?: boolean;
     regionId: string;
     base: boolean;
     adding?: string;
@@ -965,7 +957,6 @@ function Cards({
                     fields={fields}
                     elsewhere={elsewhere}
                     used={list.map((each) => each.key)}
-                    openFirst={listFirst}
                     onAdd={add}
                     onElsewhere={onElsewhere}
                 />
@@ -1110,7 +1101,6 @@ async function announceEmpty(
  * @param props.fields - the fields of the kind
  * @param props.elsewhere - the other kind's fields, named when a search finds none of this kind's
  * @param props.used - the card keys already drawn
- * @param props.openFirst - open the list when it is first drawn
  * @param props.onAdd - adds a card on a field
  * @param props.onElsewhere - goes to the other kind's tab with a card on its field
  * @returns The control
@@ -1119,14 +1109,12 @@ function AddCondition({
     fields,
     elsewhere = [],
     used,
-    openFirst = false,
     onAdd,
     onElsewhere,
 }: Readonly<{
     fields: readonly CardField[];
     elsewhere?: readonly CardField[];
     used: readonly string[];
-    openFirst?: boolean;
     onAdd: (field: CardField) => void;
     onElsewhere?: (field: CardField) => void;
 }>): React.JSX.Element {
@@ -1151,15 +1139,6 @@ function AddCondition({
             combobox.focusSearchInput();
         },
     });
-    // Only when first drawn: closing the list later keeps it closed.
-    const { openDropdown } = combobox;
-    const opensFirst = useRef(openFirst);
-    useEffect(() => {
-        if (opensFirst.current) {
-            opensFirst.current = false;
-            openDropdown();
-        }
-    }, [openDropdown]);
     const typed = search.trim().toLowerCase();
     const found = (each: CardField): boolean => typed === "" || each.name.toLowerCase().includes(typed);
     // A name that starts with the typed text first, in its group, and its group first.
@@ -1285,13 +1264,8 @@ function AddCondition({
                     data-add
                     aria-haspopup="listbox"
                     aria-expanded={dropdownOpened}
-                    // Opens the list, never closes it: a press on an open list puts focus back in its search.
                     onClick={() => {
-                        if (dropdownOpened) {
-                            combobox.focusSearchInput();
-                        } else {
-                            combobox.openDropdown();
-                        }
+                        combobox.toggleDropdown();
                     }}
                     onKeyDown={(event) => {
                         // An open list takes Escape; the picker around it stays open.

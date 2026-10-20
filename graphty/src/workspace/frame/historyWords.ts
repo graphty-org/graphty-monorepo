@@ -45,6 +45,24 @@ function counted(params: Params, noun: string, key = "count"): string {
     return typeof value === "number" ? count(value, noun) : `${noun}s`;
 }
 
+/** A setting the app writes, by the first part of its key, as the Graph inspector names it. */
+const SETTING_WORDS: Readonly<Record<string, string>> = { background: "the background" };
+
+/**
+ * A settings change as Undo names it: the setting, when every key it wrote is one the app names
+ * ("changing the background"), else "changing settings".
+ * @param params - the fact's params; `keys` lists the setting paths written.
+ * @returns the words.
+ */
+function settingWords(params: Params): string {
+    const { keys }: { keys?: unknown } = params;
+    const named = new Set(
+        (Array.isArray(keys) ? keys : []).map((key) => SETTING_WORDS[String(key).split(".")[0]] as string | undefined),
+    );
+    const [only] = named;
+    return named.size === 1 && only !== undefined ? `changing ${only}` : "changing settings";
+}
+
 /**
  * An algorithm by its key, in the app's words.
  * @param session - the session, for the catalog.
@@ -162,7 +180,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "view.remove": () => "deleting a view",
     "view.dimension": (p) => `switching to ${p.dimension === "2d" ? "2D" : "3D"}`,
     "view.immersive": (p) => `entering ${p.mode === "ar" ? "AR" : "VR"}`,
-    "config.set": () => "changing settings",
+    "config.set": (p) => settingWords(p),
     "positions.set": (p) => `moving ${counted(p, "node")}`,
     "positions.pin": (p) => `pinning ${counted(p, "node")}`,
     "positions.release": (p) => `releasing ${counted(p, "node")}`,

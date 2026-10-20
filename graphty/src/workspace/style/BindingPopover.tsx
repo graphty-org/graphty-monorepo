@@ -239,8 +239,8 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
             )}
             {isNumber && !detail ? (
                 <StyleSelect
+                    // Named by its label and its value, as every select in the popover is.
                     label="Combine"
-                    aria-label={`How ${name.toLowerCase()} meets the layers beneath`}
                     value={binding.combine}
                     defaultValue="replace"
                     options={COMBINE_WORDS}

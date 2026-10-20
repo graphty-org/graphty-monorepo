@@ -659,7 +659,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                 {sourceControl}
                 <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
                     <Popout.Trigger>
-                        <Tooltip label={`${kind.name} settings`}>
+                        <Tooltip label={`${where} settings`}>
                             <PopoutButton
                                 icon={<GLYPHS.settings size={14} aria-hidden />}
                                 aria-label={`${where} settings`}

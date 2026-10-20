@@ -3,7 +3,7 @@
  * keys and clicks: the first match is active after typing, so Enter takes it; the search is a
  * combobox naming its list and how many options it holds; Tab leaves the list closed; Escape
  * closes the list only; reopening focuses the search; the list stays inside the cards' column;
- * a data column that spells each node's id is listed once, as Node id; Enter in a text or number
+ * a data column that spells each node's id is listed once, as Id; Enter in a text or number
  * box finishes the cards as Done does; an unfinished card shows the layer's count; and a layer
  * with no card shows no Done.
  */
@@ -198,7 +198,7 @@ describe("the Add a condition list", () => {
         });
     });
 
-    it("lists a data column that spells each node's id once, as Node id", async () => {
+    it("lists a data column that spells each node's id once, as Id", async () => {
         const session = await open(async (s) => {
             await s.data.addNodes([
                 { id: "a", role: "x" },
@@ -217,7 +217,7 @@ describe("the Add a condition list", () => {
             const names = within(list)
                 .getAllByRole("option")
                 .map((each) => each.getAttribute("aria-label"));
-            assert.deepEqual(names, ["Node id"]);
+            assert.deepEqual(names, ["Id"]);
         });
     });
 });

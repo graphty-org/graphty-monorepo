@@ -1761,7 +1761,13 @@ async function find(page, raw, out) {
                         // a label and the control it labels are one control to a person
                         const c = hit.tagName === "LABEL" && hit.control ? hit.control : hit;
                         c.dataset.tryKey ??= String((window.__tryKeys = (window.__tryKeys || 0) + 1));
-                        const said = (c.getAttribute("aria-label") || c.innerText || c.value || "")
+                        // a name given by other elements (aria-labelledby) is theirs, not the text inside
+                        const by = (c.getAttribute("aria-labelledby") || "")
+                            .split(/\s+/)
+                            .map((id) => document.getElementById(id)?.innerText ?? "")
+                            .join(" ")
+                            .trim();
+                        const said = (c.getAttribute("aria-label") || by || c.innerText || c.value || "")
                             .trim()
                             .replace(/\s+/g, " ")
                             .slice(0, chars);

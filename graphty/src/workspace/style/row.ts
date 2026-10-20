@@ -14,6 +14,7 @@ import type { Binding, Channel, ChannelValue, CombineMode, LabelStyle, LayerId }
 import { type ColumnRef, type GraphSession, type Layer, OVERFLOW_SHAPES } from "@graphty/graphty-element/session";
 
 import { findTreeRow } from "../graph-place/rows";
+import { ID_NAME } from "../inspector/words";
 import { DEFAULT_NAME_KEY } from "./cards";
 import type { BeneathValue, RowContext } from "./PropertyRow";
 import { channelPhrase, hexOf, readableName } from "./words";
@@ -605,7 +606,7 @@ export function sourceName(session: GraphSession, binding: Pick<DataBinding, "by
         binding.by === "id" ||
         session.data.readableValues().some((each) => each.path === binding.by && each.holdsNodeIds === true)
     ) {
-        return "Node id";
+        return ID_NAME;
     }
     const column = session.data.attributes().find((attribute) => attribute.path === binding.by);
     if (column !== undefined) {

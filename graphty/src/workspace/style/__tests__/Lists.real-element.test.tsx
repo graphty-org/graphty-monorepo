@@ -1,7 +1,7 @@
 /**
  * The app's searchable lists on the REAL graphty-element, driven by real keys: Vary by opens with
  * nothing active, so Enter binds nothing; a name that starts with the typed text ranks first; a
- * yes-or-no column wears the yes-or-no icon and a column of node ids is one "Node id" row under
+ * yes-or-no column wears the yes-or-no icon and a column of node ids is one "Id" row under
  * Structure, as Add a condition lists it; a value typed on the other kind's tab is pointed there;
  * the analysis filter matches the words its entries show and never makes a disabled one active; the
  * Analyze popover keeps its place as its list shrinks; and a filter step's text box lists every value
@@ -130,12 +130,12 @@ describe("the app's lists", () => {
             });
         assert.isFalse(bound(), "Enter on open colors by nothing");
 
-        // The yes-or-no column wears its own icon; the id column is "Node id", under Structure.
+        // The yes-or-no column wears its own icon; the id column is "Id", under Structure.
         const onRecord = within(picker).getByRole("option", { name: /^online(,|$)/ });
         assert.strictEqual(iconOf(onRecord), "lucide-toggle-right");
         assert.isNull(within(picker).queryByRole("option", { name: /^vid(,|$)/ }), "the id column is not 'vid'");
         const structure = within(picker).getByRole("group", { name: "Structure" });
-        assert.deepEqual(within(structure).getAllByRole("option").map(nameOf), ["Node id"]);
+        assert.deepEqual(within(structure).getAllByRole("option").map(nameOf), ["Id"]);
 
         // A name that starts with the typed text ranks first, and is the active one.
         await userEvent.keyboard("on");
@@ -149,7 +149,7 @@ describe("the app's lists", () => {
         });
     });
 
-    it("Add a condition: prefix first, the same icons and Node id, and an edge value pointed to the Edge tab", async () => {
+    it("Add a condition: prefix first, the same icons and Id, and an edge value pointed to the Edge tab", async () => {
         const session = await open({}, volunteers);
         await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
         await session.styles.add({
@@ -177,7 +177,7 @@ describe("the app's lists", () => {
         });
         const list = await screen.findByRole("listbox", { name: "Attributes" });
         assert.strictEqual(iconOf(within(list).getByRole("option", { name: /^online(,|$)/ })), "lucide-toggle-right");
-        within(list).getByRole("option", { name: /^Node id(,|$)/ });
+        within(list).getByRole("option", { name: /^Id(,|$)/ });
 
         await userEvent.keyboard("on");
         await waitFor(() => {

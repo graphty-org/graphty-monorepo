@@ -81,8 +81,9 @@ describe("A yes-or-no column", () => {
         row.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
-        // The step is the yes-or-no condition card: Yes or No, starting at Yes, then whether it has one.
-        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained: how to match" });
+        // The step is the yes-or-no condition card: its select holds the value, named by the column
+        // alone: Yes or No, starting at Yes, then whether it has one.
+        const is = await screen.findByRole<HTMLInputElement>("combobox", { name: "trained" });
         assert.equal(is.value, "Yes");
         await userEvent.click(is);
         const listbox = await screen.findByRole("listbox");

@@ -19,6 +19,13 @@ import type {
 
 import type { InspectedKindId } from "./inspected";
 
+/**
+ * What the app calls a node's id wherever it lists it: the table's key column, the filter step's
+ * and the condition cards' attribute lists, the value picker. One name, so a reader who reads "Id"
+ * over the table finds the same word in every list.
+ */
+export const ID_NAME = "Id";
+
 /** The kind word on the header's second line (tier1-design.md section 2.7). */
 export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     graph: "Graph",

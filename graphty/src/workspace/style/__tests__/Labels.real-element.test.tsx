@@ -199,8 +199,17 @@ describe("label entries on the real element", () => {
             assert.equal(labelStyle(session).look, "dark");
             assert.equal(shown("Node label look"), "Dark");
         });
+        // The gear's tooltip and its name say the same words.
+        const gear = within(textList()).getByRole("button", { name: "Node label settings" });
+        await userEvent.hover(gear);
+        await waitFor(() => {
+            assert.include(
+                screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
+                "Node label settings",
+            );
+        });
         // A font of the reader's own makes the look read edited; the font's reset clears it back.
-        await userEvent.click(within(textList()).getByRole("button", { name: "Node label settings" }));
+        await userEvent.click(gear);
         const settings = await screen.findByRole("dialog", { name: "Label settings" });
         await choose("Font", "Serif", settings);
         await waitFor(() => {
@@ -298,7 +307,7 @@ describe("label entries on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        assert.isNotNull(within(textList()).getByRole("button", { name: "Stop varying node label size by data" }));
+        assert.isNotNull(within(textList()).getByRole("button", { name: /^Stop varying node label size by data/ }));
     });
 
     it("Escape on a new tooltip's source list leaves the Text list unchanged and returns focus to '+'", async () => {

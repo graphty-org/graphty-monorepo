@@ -17,60 +17,49 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 ## Top of mind
 
 0b. (2026-10-19, condition card keys; graphty `WhichPicker.tsx`, compact-mantine `listbox.tsx`)
-   (a) Every match pick focuses the card's value box: `MatchSelect` remembers the pick and, once
-   the card draws that match, focuses the first `VALUE_BOX` in its `[data-card-body]` (NumberCard
-   and TextCard bodies), so layer cards and filter steps (`CardBody`) both get it. (b) Escape in a
-   number box holding text commits it and stops (picker open; a refused number keeps its reason);
-   in a text box with its list shut and text in it, Escape stops too (`onKeyDownCapture`, so the
-   theme's `consumeListEscape` default stays). An empty box's Escape still closes the picker, which
-   drops the unfinished card with its notice. (c) The count is spoken once typing pauses
-   (`useDebouncedValue(head, 500)` before `useAnnounceChange`); the screen follows each key.
-   (d) compact-mantine `syncSelected` runs on every open list field (`openList`, editable too) and
-   the Autocomplete theme installs `ensureListboxKeyboard`: an ArrowDown highlight is no longer
-   "selected". Still says "selected": Add a condition's search row (its store re-highlights after
-   typing). Tests: `SuggestionSelected.browser.test.tsx` (red before), ConditionCardKeys,
-   NumberCard, FilterStepCard; stale tests from the one-click change fixed. Walks (fresh dist by
-   `npm run build` in graphty; nx refused) in `design/ui/studio/tmp/r1-dry1-condition-card-keys/`:
-   `pointer/11-12, 15, 19`; `keys/` (sr: one "8 of 331 nodes", "GAL1" not selected, from `1`
-   Escape kept). Pre-existing: compact-mantine "a disabled trigger keeps its border" fails.
+(a) Every match pick focuses the card's value box: `MatchSelect` remembers the pick and, once
+the card draws that match, focuses the first `VALUE_BOX` in its `[data-card-body]` (NumberCard
+and TextCard bodies), so layer cards and filter steps (`CardBody`) both get it. (b) Escape in a
+number box holding text commits it and stops (picker open; a refused number keeps its reason);
+in a text box with its list shut and text in it, Escape stops too (`onKeyDownCapture`, so the
+theme's `consumeListEscape` default stays). An empty box's Escape still closes the picker, which
+drops the unfinished card with its notice. (c) The count is spoken once typing pauses
+(`useDebouncedValue(head, 500)` before `useAnnounceChange`); the screen follows each key.
+(d) compact-mantine `syncSelected` runs on every open list field (`openList`, editable too) and
+the Autocomplete theme installs `ensureListboxKeyboard`: an ArrowDown highlight is no longer
+"selected". Still says "selected": Add a condition's search row (its store re-highlights after
+typing). Tests: `SuggestionSelected.browser.test.tsx` (red before), ConditionCardKeys,
+NumberCard, FilterStepCard; stale tests from the one-click change fixed. Walks (fresh dist by
+`npm run build` in graphty; nx refused) in `design/ui/studio/tmp/r1-dry1-condition-card-keys/`:
+`pointer/11-12, 15, 19`; `keys/` (sr: one "8 of 331 nodes", "GAL1" not selected, from `1`
+Escape kept). Pre-existing: compact-mantine "a disabled trigger keeps its border" fails.
 
-0. (2026-10-19, "Style nodes" says why it is dimmed: NO CODE CHANGE NEEDED) The dimmed box on a
-   layer made from a find selection already carries its reason: `KindSwitch` (`StylePanel.tsx`,
-   not `ValuePicker.tsx`) gives a disabled box `aria-description` "Stays on: style edges first to
-   stop styling nodes" and a tooltip, exactly as a disabled "+" does (not a Tab stop, reason on
-   hover; `decided.md`). It was in the frozen build e3c5bca8e6 too. Walked on a fresh dist
-   (`design/ui/studio/tmp/r1-dry1-style-nodes-reason/repro/09-12`): volunteers, find `phone`,
-   Enter, Fill red; hovering "Style nodes" prints the tooltip. The pilots who flagged it (T40B,
-   T41A, T41B) never hovered: "dimmed with no reason" means "no reason drawn on the panel", and
-   drawing it there was reversed in pass 2 (three lines under the box). Added a guard to
-   `FindToRule.real-element.test.tsx` (a rule-made layer's box: disabled, description, tooltip);
-   it passes on HEAD, as expected. Next triage should class the complaint "no change" against the
-   disabled-"+" rule, or decide anew whether a box that cannot change should show at all.
-
-1. (2026-10-19, the key and the layer rows say what is drawn; graphty app, no API change)
-   (a) Legend pressed with nothing keyed: store flag `legendAsked`, set only by the reader's press
-   (the default `legendShown: true` is not a request), makes the toggle read pressed and the card
-   show one line "Nothing is styled yet" (`NOTHING_KEYED`, `legendWords.ts`); the next press clears
-   both. Without the flag the default-on switch would put that line on every fresh graph.
-   (b) A category row a layer above paints over on every element (`paintedOverBy`) is no row, like
-   a `hidden` one (`paintedRows`); "covered by X" as a row's value is gone from the card and the
-   image key (a ramp's "N nodes covered by X" line stays); a width block left at one width is no
-   block. Reverses the 2026-10-18 covered row (e07dec723). (c) `builtParts` (`rows.ts`) is the
-   union of the halves that write and the halves with a condition; before, a writing half hid a
-   conditioned one, so an edge-only condition plus a node look read "Node layer", "Edge not styled".
-   Tests red before: `LayerRowAndKey.real-element.test.tsx` (node look; size key), CanvasOverlays
-   and WorkspaceToolbar tests. Walks on a fresh dist under
-   `design/ui/studio/tmp/r1-dry1-key-and-rows-say-what-is-drawn/`: `legend/05-07`; `width/22-23`
-   (family row gone, width key gone once uniform); `width/36-41` (Node and edge layer, no "not
-   styled"). In this shared worktree today 15 real-element tests (VaryByLayer 7, StylePanel 3,
-   RowKinds 2, ConditionCards 1, LayerPanelBehavior 1, CanvasOverlays T8) fail identically with and
-   without these edits: not from this change.
-2. (2026-10-19, earlier today) A node called by its label everywhere (`nodeName`, fa2316520);
-   Which nodes in one click (`WhichPicker.tsx`); the drawing stays put when the key appears
-   (`useOverlayInset` never frames); re-walk of tooltips, lists and picker (four pre-existing
-   gaps). Each in full in `git show f94864ef6:design/ui/studio/notes/engineer.md`, Top of mind 0,
-   0a, 1 and 2. Staging beside another agent's unstaged hunks: blob from `git show HEAD:<path>`
-   plus my replacements, `git hash-object -w`, `git update-index --cacheinfo`.
+0. (2026-10-19, one name per control, names that say the value; graphty and compact-mantine)
+   The node id is "Id" everywhere it is listed (`ID_NAME` in `inspector/words.ts`: table key
+   column, filter step and condition lists, value picker, binding source). Combine is named by
+   its label and value (no aria-label). Stop varying, One value for all and the label gear: the
+   tooltip IS the name (one string). A yes-or-no card's select is named by its column alone
+   (`MatchSelect spoken`). "Already open" on the open sample. Undo of `config.set` names the
+   setting from `params.keys` ("changing the background", `SETTING_WORDS` in `historyWords.ts`).
+   File-set roles on the read-the-file page are text values, not disabled selects.
+   compact-mantine: the color field's label is a `<label for>` its hex box (a click focuses it);
+   a tree folder's box is checked when every row inside is selected (selection unchanged); a
+   QuickActions section's first row is `aria-describedby` its heading (ids by section index:
+   an id list splits on spaces). The study tool now names an `aria-labelledby` group by its
+   label: "Shape Shape" was the tool reading the group's text, the real name was "Shape".
+   Walk: `design/ui/studio/tmp/r1-dry1-names-match/walk/` 03 (group "Shape"), 05-07 (label
+   click focuses the box; "Undid changing the background."), 13-17 (tooltip = name), 15
+   (Combine), 21 (gear), 25-27 (Id; select "trained"), 38 (folder checked);
+   `sample/03` (Already open), `sample/05` (roles as values). The "Select layers" boxes are
+   already `aria-hidden` (the row's aria-selected carries the state); no change there.
+   Pre-existing failures in the same run, none on lines this touched (another agent was
+   editing `StylePanel.tsx`, `row.ts`, `WhichPicker.tsx`, compact-mantine inputs): StylePanel 3
+   (fold row name regex, keyboard bind, tooltip `/^id/`), BulkPilot 2, VaryByLayer 7,
+   NamesAndRules timeout, OneLineRows left edge, DataPage "All 12 rows" twice.
+1. (2026-10-19, earlier today) Style nodes says why it is dimmed (no code change); the key and
+   layer rows say what is drawn (`legendAsked`, `paintedRows`, `builtParts`); a node called by
+   its label everywhere (`nodeName`); Which nodes in one click; the drawing stays put. In full:
+   `git show a18493275:design/ui/studio/notes/engineer.md`, Top of mind 0 to 2.
 
 0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
 starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary
@@ -129,6 +118,12 @@ color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/n
 
 ## Decisions and reasons
 
+- (2026-10-19) **A tooltip and its control's name are one string in code**, so they cannot
+  drift; the longer words win ("Stop varying node size by data: use one value for all"), and
+  tests match the name by its start.
+- (2026-10-19) **Check what the study tool reads before changing a name.** Its candidate list
+  used `aria-label || innerText`, so an `aria-labelledby` group read as all its text ("Shape
+  Shape Size"); the app was right and the fix was the tool's.
 - (2026-10-19) **A pressed switch over nothing says so; a default-on switch over nothing stays
   quiet.** Only the reader's press is a request, so only it shows the empty key's line.
 - (2026-10-19) **A key row no element shows is no row, whatever hides it.** "covered by X" kept a
@@ -237,6 +232,8 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-19) Swapping the tree's checkbox for `Checkbox.Indicator` (no input): did not keep
+  the themed look (the theme styles `Checkbox` only), so kept `Checkbox` inside `aria-hidden`.
 - (2026-10-19) A page-level live region for a list's message. DID NOT WORK: any always-present
   `role=status` in `document.body` collides with consumers' own `getByRole("status")`. Put the
   region in the open surface it belongs to, made lazily, words one frame later.

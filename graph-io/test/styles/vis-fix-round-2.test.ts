@@ -176,10 +176,53 @@ describe("vis-network multi-font labels", () => {
             { text: " " },
             { text: "I", italic: true },
             { text: " " },
-            // mono is 15 px monospace unless the file says otherwise
-            { text: "M", font: "monospace", size: 15 },
+            // mono is 15 px monospace, drawn 2 px lower, unless the file says otherwise
+            { text: "M", font: "monospace", size: 15, shift: 2 },
         ]);
         expect(value(r, "node", "labelRuns", 1)).toBe(null);
+    });
+
+    it("draws a modifier's own vadjust that much lower, and sets runs where vis-network's text baseline puts them", async () => {
+        const r = await load({
+            nodes: [
+                // below a dot: drawn with the hanging baseline, its line as tall as its 15 px run
+                {
+                    id: "a",
+                    x: 0,
+                    y: 0,
+                    shape: "dot",
+                    label: "<b>B</b> <code>M</code>",
+                    font: { multi: "html", size: 10, vadjust: 1, bold: { vadjust: 6 } },
+                },
+                // inside a box: drawn with the middle baseline
+                {
+                    id: "b",
+                    x: 50,
+                    y: 0,
+                    shape: "box",
+                    label: "<b>B</b> x",
+                    font: { multi: true, bold: { vadjust: -3 } },
+                },
+            ],
+            edges: [
+                { from: "a", to: "b", label: "<i>I</i> y", font: { multi: true, align: "top", ital: { size: 20 } } },
+            ],
+            options: { physics: false },
+        });
+        expect(JSON.parse(value(r, "node", "labelRuns", 0) as string)).toEqual([
+            { text: "B", weight: "bold", shift: 5 },
+            { text: " " },
+            { text: "M", font: "monospace", size: 15, shift: 1 },
+        ]);
+        expect(value(r, "node", "labelRunAlign", 0)).toBe("hanging");
+        // half of the 5 px its line is taller than one font size, under the label's own vadjust of 1
+        expect(value(r, "node", "labelOffsetY", 0)).toBe(3.5);
+        expect(JSON.parse(value(r, "node", "labelRuns", 1) as string)).toEqual([
+            { text: "B", weight: "bold", shift: -3 },
+            { text: " x" },
+        ]);
+        expect(value(r, "node", "labelRunAlign", 1)).toBe("middle");
+        expect(value(r, "edge", "labelRunAlign", 0)).toBe("baseline");
     });
 });
 

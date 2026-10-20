@@ -215,6 +215,11 @@ export interface NodeStyleValues {
      * Unset, one.
      */
     readonly labelWrapSpaceCount: number;
+    /**
+     * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
+     * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
+     */
+    readonly labelRunAlign: string;
     /** Whether and how the node grows to hold its label; unset, `width` and `height` are its size. */
     readonly labelFit: StyleLabelFit;
     /** The space between the label's box and the node's sides, left and right each, when it grows to fit the label. */
@@ -302,9 +307,11 @@ export interface NodeStyleValues {
     /**
      * The label drawn in runs of styles of their own (a program's rich text: vis-network's multi-font labels), as a
      * JSON array of runs left to right, each `{ "text": string, "weight"?: "bold", "italic"?: true, "font"?: string,
-     * "size"?: number, "color"?: "#rrggbb" }`; a run's `text` may hold line breaks. A run gives only what differs
-     * from the label's own font (`labelFont`, `labelSize` in the unit of `width`, `labelColor`, `labelWeight`,
-     * `labelItalic`). Its words, run after run, are `label`. Unset, the label is drawn in its own font throughout.
+     * "size"?: number, "color"?: "#rrggbb", "shift"?: number }`; a run's `text` may hold line breaks. A run gives only
+     * what differs from the label's own font (`labelFont`, `labelSize` in the unit of `width`, `labelColor`,
+     * `labelWeight`, `labelItalic`); `shift` is how far below the label's line the run is drawn, in the unit of its
+     * size (negative: above). Its words, run after run, are `label`. Unset, the label is drawn in its own font
+     * throughout.
      */
     readonly labelRuns: string;
     /** The tooltip text. */
@@ -681,6 +688,11 @@ export interface EdgeStyleValues {
     readonly labelWrapAnywhere: boolean;
     /** How many blanks a blank between two words counts as against `labelWrapWidth`; see the node's. */
     readonly labelWrapSpaceCount: number;
+    /**
+     * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
+     * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
+     */
+    readonly labelRunAlign: string;
     /** Where the label sits against the line's middle: `center` on the line, `top` above it. */
     readonly labelPosition: StyleLabelPosition;
     /** How far right of where `labelPosition` puts it the label is drawn (a length). */

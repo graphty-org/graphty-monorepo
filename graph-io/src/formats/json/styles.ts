@@ -1115,7 +1115,11 @@ function visLabelValues(
         const marked = typeof text === "string" ? visMarkup(text, layer.fontMulti) : null;
         put("label", marked?.text ?? text);
         if (marked !== null) {
-            put("labelRuns", visRuns(marked.runs, layer, site("labelRuns")));
+            const runs = visRuns(marked.runs, layer, site("labelRuns"));
+            put("labelRuns", runs);
+            if (runs !== null) {
+                put("labelRunAlign", visRunAlign(layer, target));
+            }
         }
         // after the face: a label all in mono is drawn in the mono face
         for (const [p, v] of Object.entries(VIS_MOD_VALUES[marked?.mod ?? "normal"] ?? {})) {
@@ -1285,19 +1289,23 @@ function visMarkup(
     return { text: runs.map((r) => r.text).join(""), mod: only === "normal" ? null : only, runs: merged };
 }
 
-/** vis-network's own options of each font modifier (vis-network 9.1.9 `NodesHandler` defaults, `font.mono`). */
-const VIS_MOD_DEFAULTS: Readonly<Record<string, { mod: string; face?: string; size?: number }>> = {
+/**
+ * vis-network's own options of each font modifier (vis-network 9.1.9 `NodesHandler` defaults, `font.mono`); an option
+ * a modifier does not set is the label's own (Label.propagateFonts).
+ */
+const VIS_MOD_DEFAULTS: Readonly<Record<string, { mod: string; face?: string; size?: number; vadjust?: number }>> = {
     bold: { mod: "bold" },
     ital: { mod: "italic" },
     boldital: { mod: "bold italic" },
-    mono: { mod: "", face: "monospace", size: 15 },
+    mono: { mod: "", face: "monospace", size: 15, vadjust: 2 },
 };
 
 /**
  * vis.js multi-font runs as the neutral `labelRuns`: each run's font as vis-network draws it (its modifier's own
  * `font.bold`, `font.ital`, `font.boldital` or `font.mono` options, an object or text like "16px arial black", over
- * the label's font; mono is 15 px monospace unless given), each field only where it differs from the label's own.
- * vadjust is not carried.
+ * the label's font; mono is 15 px monospace unless given), each field only where it differs from the label's own, and
+ * `shift`: how much lower than the label's own words its modifier's `vadjust` draws the run (mono's is 2 unless given;
+ * the others' are the label's).
  * @param runs - the runs, each with its modifier
  * @param layer - the element's layer
  * @param site - where a bad color is noted
@@ -1308,6 +1316,7 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         face: typeof layer.fontFace === "string" ? layer.fontFace : "arial",
         size: typeof layer.fontSize === "number" ? layer.fontSize : VIS_FONT_SIZE,
         color: typeof layer.fontColor === "string" ? layer.fontColor : null,
+        vadjust: typeof layer.fontVadjust === "number" && Number.isFinite(layer.fontVadjust) ? layer.fontVadjust : 0,
     };
     const mods = isJsonObject(layer.fontMods) ? layer.fontMods : {};
     let differs = false;
@@ -1321,6 +1330,7 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         const modText = typeof given.mod === "string" ? given.mod : base.mod;
         const face = typeof given.face === "string" ? given.face : (base.face ?? own.face);
         const size = typeof given.size === "number" ? given.size : (base.size ?? own.size);
+        const vadjust = typeof given.vadjust === "number" ? given.vadjust : (base.vadjust ?? own.vadjust);
         const color = typeof given.color === "string" ? canonColor(given.color, "vis", site)?.color : null;
         if (modText.includes("bold")) {
             run.weight = "bold";
@@ -1334,6 +1344,9 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         if (size !== own.size) {
             run.size = size;
         }
+        if (Number.isFinite(vadjust) && vadjust !== own.vadjust) {
+            run.shift = vadjust - own.vadjust;
+        }
         if (typeof color === "string") {
             run.color = color;
         }
@@ -1341,6 +1354,58 @@ function visRuns(runs: readonly { text: string; mod: string }[], layer: VisLayer
         return run;
     });
     return differs ? JSON.stringify(out) : null;
+}
+
+/**
+ * Where vis-network sets the runs of a label on a line: each block is drawn at the line's place with the label's
+ * `textBaseline` (Label._drawText): "hanging" below a node sized by `size` (ShapeBase._drawShape), "middle" inside
+ * one sized by its label and on an edge's line, "alphabetic" above an edge (`font.align` top) and "hanging" below it.
+ * @param layer - the element's merged layer
+ * @param target - nodes or edges
+ * @returns the neutral run alignment
+ */
+function visRunAlign(layer: VisLayer, target: StyleTarget): "baseline" | "hanging" | "middle" {
+    if (target === "edge") {
+        return (
+            ({ top: "baseline", bottom: "hanging" } as Record<string, "baseline" | "hanging">)[
+                String(layer.fontAlign)
+            ] ?? "middle"
+        );
+    }
+    return VIS_SIZED.has(typeof layer.shape === "string" ? layer.shape : "ellipse") ? "hanging" : "middle";
+}
+
+/**
+ * How much farther below a node sized by `size` vis-network draws a label in runs than one in its own font alone:
+ * half of what its lines are taller (each line as tall as its largest run, Label: line.height) than one font size each
+ * (ShapeBase._drawShape centers the label half its height below the node, then draws its first line at the top).
+ * @param runs - the label's runs, as `visRuns` writes them
+ * @param size - the label's font size
+ * @returns the distance, 0 for runs no larger than the label's font
+ */
+function visRunsDrop(runs: string, size: number): number {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(runs);
+    } catch {
+        return 0;
+    }
+    if (!Array.isArray(parsed)) {
+        return 0;
+    }
+    const lines: number[] = [size];
+    for (const run of parsed as { text?: unknown; size?: unknown }[]) {
+        const runSize = typeof run.size === "number" ? run.size : size;
+        (typeof run.text === "string" ? run.text : "").split("\n").forEach((piece, i) => {
+            if (i > 0) {
+                lines.push(size);
+            }
+            if (piece !== "") {
+                lines[lines.length - 1] = Math.max(lines[lines.length - 1], runSize);
+            }
+        });
+    }
+    return lines.reduce((sum, h) => sum + h - size, 0) / 2;
 }
 
 /**
@@ -1651,6 +1716,14 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
         const shaped = VIS_SIZED.has(shape)
             ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
             : visFitShape(merged, shape);
+        // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
+        if (VIS_SIZED.has(shape) && typeof row.labelRuns === "string") {
+            const size = typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE;
+            const drop = visRunsDrop(row.labelRuns, size);
+            if (drop !== 0) {
+                row.labelOffsetY = (typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0) + drop;
+            }
+        }
         // the shape's own label place, then font.vadjust below it
         for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
             const [a, b] = [row[p], shaped[p]];

@@ -57,6 +57,8 @@ async function startPage(): Promise<{
         throw new Error("the start page's graph never came up");
     }
     const hero = element as Element;
+    // A still graph drawn on every animation frame made each click on the page take about a second.
+    assert.isTrue(hero.renderOnDemand, "the start page's graph draws on demand");
     // Stop the turning with the page's own button, so a node stays under the pointer.
     const pause = screen.queryByRole("button", { name: "Pause the turning" });
     if (pause !== null) {

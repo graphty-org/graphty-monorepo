@@ -12,7 +12,7 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import type { ColumnRef, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
 import { assertAppKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
@@ -87,6 +87,22 @@ export interface SourceRowCommand {
     readonly run: (ctx: CommandContext, source: LoadedSource) => void | Promise<void>;
 }
 
+/**
+ * A command on a table column's header menu (data prototype spec section 3.5.2): the menu lists
+ * every one registered whose `shown` holds for the column, after the table's own items, so a
+ * package adds an item (the join screen's Match on this) by registering one.
+ */
+export interface ColumnHeaderCommand {
+    /** Stable id, `column.<verb>`. */
+    readonly id: string;
+    /** The menu item's label, such as `"Match on this"`. */
+    readonly label: string;
+    /** Whether the column offers it: false leaves it out (an absent precondition is never grayed). */
+    readonly shown?: (ctx: CommandContext, column: ColumnRef) => boolean;
+    /** Does it to the column. */
+    readonly run: (ctx: CommandContext, column: ColumnRef) => void | Promise<void>;
+}
+
 /** An inspected kind (tier1-design.md section 2.7): its tabs and which tab it opens on. */
 export interface InspectedKind {
     /** The kind's id, such as `"node"`, `"measure-row"`, `"graph"`. */
@@ -109,6 +125,8 @@ export interface WorkspaceRegistration {
     readonly inspectedKinds?: readonly InspectedKind[];
     /** Its commands on a Sources row. */
     readonly sourceRow?: readonly SourceRowCommand[];
+    /** Its commands on a table column's header menu. */
+    readonly columnHeader?: readonly ColumnHeaderCommand[];
 }
 
 /**
@@ -183,6 +201,8 @@ export interface WorkspaceCommands {
     readonly kinds: ReadonlyMap<string, InspectedKind>;
     /** Every Sources row command, in menu order. */
     readonly sourceRow: readonly SourceRowCommand[];
+    /** Every table column header command, in registration order. */
+    readonly columnHeader: readonly ColumnHeaderCommand[];
     /**
      * A command by id.
      * @param id - the command id.
@@ -230,8 +250,21 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
     const byKey = new Map<string, string>();
     const kinds = new Map<string, InspectedKind>();
     const sourceRow: SourceRowCommand[] = [];
+    const columnHeader: ColumnHeaderCommand[] = [];
 
-    for (const { owner, commands, inspectedKinds = [], sourceRow: rowCommands = [] } of registrations) {
+    for (const {
+        owner,
+        commands,
+        inspectedKinds = [],
+        sourceRow: rowCommands = [],
+        columnHeader: headerCommands = [],
+    } of registrations) {
+        for (const command of headerCommands) {
+            if (columnHeader.some((each) => each.id === command.id)) {
+                throw new Error(`Column header command "${command.id}" is registered twice (again by ${owner})`);
+            }
+            columnHeader.push(command);
+        }
         for (const command of rowCommands) {
             if (sourceRow.some((each) => each.id === command.id)) {
                 throw new Error(`Source row command "${command.id}" is registered twice (again by ${owner})`);
@@ -260,6 +293,7 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
         sourceRow: sourceRow.sort(
             (a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER),
         ),
+        columnHeader,
         get: (id) => byId.get(id),
         built: (id) => {
             const command = byId.get(id);

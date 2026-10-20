@@ -31,6 +31,8 @@ interface RecordTableProps {
     sort: DataTableSort | null;
     onSortChange: (sort: DataTableSort | null) => void;
     height: number;
+    /** A column's header parts: its icons, summary, warning and menu. */
+    header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
 }
 
 /**
@@ -60,6 +62,7 @@ function tableValue(value: unknown): DataTableValue {
  * @param props.sort - The sorted column
  * @param props.onSortChange - Called with a new sort
  * @param props.height - The table's height in pixels
+ * @param props.header - A column's header parts
  * @returns The table
  */
 export function RecordTable({
@@ -70,6 +73,7 @@ export function RecordTable({
     sort,
     onSortChange,
     height,
+    header,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
@@ -91,6 +95,7 @@ export function RecordTable({
     const tableColumns = columns.map((column): DataTableColumn<Row> => {
         const at = column.run === undefined ? -1 : runIds.indexOf(column.run);
         return {
+            ...header?.(column),
             id: column.id,
             header: column.header,
             align: column.numeric ? "end" : "start",

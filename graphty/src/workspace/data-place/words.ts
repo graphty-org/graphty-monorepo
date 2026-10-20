@@ -5,7 +5,13 @@
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { ColumnRole, Endpoint, LoadedSource, TableMappingRead } from "@graphty/graphty-element/session";
+import type {
+    ColumnRole,
+    Endpoint,
+    LoadedSource,
+    TableMapping,
+    TableMappingRead,
+} from "@graphty/graphty-element/session";
 
 import { formatNumber } from "../inspector/words";
 
@@ -158,4 +164,22 @@ export function kindChoices(roles: TableMappingRead | undefined, current: string
         (name): name is string => name !== null,
     );
     return [...new Set(names)];
+}
+
+/**
+ * A load-time mapping that changes one role, in the shape the load's table is named by: a bare
+ * mapping for a load of one table, the table by id otherwise.
+ * @param source - the load.
+ * @param side - which table.
+ * @param roles - the roles to change.
+ * @returns the mapping.
+ */
+export function remap(
+    source: LoadedSource,
+    side: FieldSide,
+    roles: TableMapping,
+): TableMapping | { tables: Record<string, TableMapping> } {
+    const tables = Object.entries(source.mapping?.tables ?? {});
+    const id = tables.find(([, table]) => table.rowsAre === side)?.[0];
+    return tables.length <= 1 || id === undefined ? roles : { tables: { [id]: roles } };
 }

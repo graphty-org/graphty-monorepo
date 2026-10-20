@@ -1,6 +1,17 @@
+import type { DataIssue } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { countOf, elementSort, groupName, sortCaption, type TableColumnChoice } from "../columns";
+import {
+    countOf,
+    elementSort,
+    fixLabel,
+    groupName,
+    issueLabel,
+    issuePlace,
+    sortCaption,
+    type TableColumnChoice,
+    valueTypeOf,
+} from "../columns";
 import { registration } from "../commands";
 
 const RANK: TableColumnChoice = {
@@ -50,5 +61,37 @@ describe("the table dock's words and sorts", () => {
         assert.isNotTrue(toggle.stub);
         const workspace = { get: () => ({ project: null }) } as never;
         assert.equal(toggle.disabled?.({ workspace, session: null, element: null }), "No project is open");
+    });
+
+    it("words an issue with its count, and a fix as its button", () => {
+        const issue = (code: string, count: number, params = {}): DataIssue =>
+            ({ id: code, code, count, params, fixes: [], ignored: false }) as DataIssue;
+        assert.equal(issueLabel(issue("not-a-number", 1)), "1 not a number");
+        assert.equal(issueLabel(issue("decimal-comma", 3)), "3 decimal commas");
+        assert.equal(issueLabel(issue("refused-row", 1, { lines: [412] })), "row 412 refused");
+        assert.equal(issueLabel(issue("refused-row", 2, { lines: [4, 9] })), "2 rows refused");
+        assert.equal(issueLabel(issue("something-new", 2)), "2 something-new");
+        assert.equal(fixLabel("read-decimal-comma"), "Read as decimals");
+    });
+
+    it("puts a column issue in its column and a row issue in the key of its rows", () => {
+        const session = { data: { sources: () => [{ key: "s1", counts: { nodes: 3, edges: 2 } }] } } as never;
+        const base = { count: 1, params: {}, fixes: [], ignored: false };
+        assert.deepEqual(
+            issuePlace({ ...base, id: "a", code: "decimal-comma", column: { kind: "edge", name: "amount" } }, session),
+            { kind: "edge", column: "a:amount", name: "amount" },
+        );
+        assert.equal(issuePlace({ ...base, id: "b", code: "repeated-id" }, session).column, "id");
+        assert.equal(issuePlace({ ...base, id: "c", code: "refused-row", source: "s1" }, session).kind, "edge");
+        assert.equal(
+            issuePlace({ ...base, id: "d", code: "blank-id", params: { rowsAre: "nodes" } }, session).kind,
+            "node",
+        );
+    });
+
+    it("reads a column's type as the Type menu names it", () => {
+        assert.equal(valueTypeOf({ type: "integer" } as never), "number");
+        assert.equal(valueTypeOf({ type: "time" } as never), "date");
+        assert.isUndefined(valueTypeOf({ type: "mixed" } as never));
     });
 });

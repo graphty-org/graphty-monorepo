@@ -43,6 +43,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const dockMaximized = useWorkspaceState((state) => state.dockMaximized);
     const autosave = useWorkspaceState((state) => state.autosave);
     const panels = page === "panels";
 
@@ -85,18 +86,27 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         </div>
                     </div>
                     {dockOpen ? (
-                        <section className="ws-dock" aria-label="Table" style={{ height: dockHeight }}>
-                            <ResizeHandle
-                                edge="top"
-                                label="Resize table"
-                                value={dockHeight}
-                                defaultValue={240}
-                                min={DOCK_MIN}
-                                max={DOCK_MAX}
-                                onChange={(value) => {
-                                    store.set({ dockHeight: value });
-                                }}
-                            />
+                        // Maximized, the dock covers the canvas area (table.css), so it takes no height
+                        // of its own and has nothing to resize.
+                        <section
+                            className="ws-dock"
+                            aria-label="Table"
+                            data-maximized={dockMaximized ? "" : undefined}
+                            style={dockMaximized ? undefined : { height: dockHeight }}
+                        >
+                            {dockMaximized ? null : (
+                                <ResizeHandle
+                                    edge="top"
+                                    label="Resize table"
+                                    value={dockHeight}
+                                    defaultValue={240}
+                                    min={DOCK_MIN}
+                                    max={DOCK_MAX}
+                                    onChange={(value) => {
+                                        store.set({ dockHeight: value });
+                                    }}
+                                />
+                            )}
                             <TableDock />
                         </section>
                     ) : null}

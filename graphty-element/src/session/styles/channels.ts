@@ -1129,7 +1129,11 @@ function arrowMidChannels<End extends "MiddleHead" | "MiddleTail">(
     const from = end === "MiddleHead" ? "Head" : "Tail";
     const plain = end === "MiddleHead" ? "Middle Head" : "Middle Tail";
     const rows = Object.values(arrowEndChannels(from))
-        .filter((row) => !row.channel.slice(`edge.arrow${from}`.length).startsWith("Text"))
+        // a middle cap has no caption, and no gap from a node it does not touch
+        .filter((row) => {
+            const suffix = row.channel.slice(`edge.arrow${from}`.length);
+            return !suffix.startsWith("Text") && suffix !== "Gap";
+        })
         .map((row): ChannelDescriptor => {
             const suffix = row.channel.slice(`edge.arrow${from}`.length);
             return {
@@ -1414,14 +1418,12 @@ function labelFieldChannels<Target extends "node" | "edge">(
         }),
         row("CornerRadius", "Corner Radius", {
             accepts: "number",
-            min: 0,
             caveat:
                 "How far the corners of the panel behind the label's words are rounded, in pixels of the label " +
                 "drawn at its own size (`labelSize`). Unset, square corners.",
         }),
         row("LineHeight", "Line Height", {
             accepts: "number",
-            min: 0,
             caveat:
                 "How tall one line of the label is, as a multiple of its font's ascent plus descent: 1 is a line " +
                 "box exactly as tall as the font. Unset, 1.2.",

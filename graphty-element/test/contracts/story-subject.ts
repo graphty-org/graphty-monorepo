@@ -90,8 +90,13 @@ const SUBJECT_TREE = "Styles/";
  * "on" came with `labelOnTop`, where it is a preposition joining "label" to "top"; in a story
  * name -- `OnHover`, `OnOneNodeOnly` -- it is a preposition too, naming when, not what. That
  * channel's stories are still checked under "top".
+ *
+ * "line" came with `labelLineHeight`, `chartLineWidth` and `shapeLines`, where it is a line of a
+ * label's text, of a chart or drawn over a node; in a story name -- `LineOpacity`, `TwoDAllLines`
+ * -- it is the edge itself. "box" came with `pieFitBox`, a pie's fit to its node's box; in a story
+ * name -- `Box` -- it is a node shape. Neither names one subject.
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on", "line", "box"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

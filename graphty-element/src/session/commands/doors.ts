@@ -1073,6 +1073,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             framingHalf: READ,
             drawnHalfExtents: READ,
             decorationPieces: READ,
+            shapeTextLabels: RENDER,
+            isDrawnAsGroup: READ,
         },
     },
     {

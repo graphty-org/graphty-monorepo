@@ -3100,3 +3100,69 @@ Rows still open, each with what stops it:
 - The `60x30` text on `{xgmml,cx,cx2,cys}-specimen-mappings-bypass-p2`: it is the third line of the caption
   `shape=\nROUND_RECTANGLE\n60x30` (and `PARALLELOGRAM`), which the oracle keeps as a free text while the caption's
   other lines are dropped with it. Not a chart and not drawn wrong. Comparator work (caption words).
+
+## Specimen sheets: Graphviz DOT settings graph-io now reads, and the DOT rows still open (fix round 3, 2026-10-20)
+
+Graph-io now reads these Graphviz settings, each checked against Graphviz 14.1.2's own drawing of the DOT sheets.
+The unit tests are in `graph-io/test/formats/dot/styles-fix-round-3.test.ts`, `graphty-element/test/browser/oracle-svg-primitives.test.ts`
+and `graphty-element/test/fidelity/oracle/compare-oracle-labels.test.ts`.
+
+- HTML `<B>`, `<I>` and `<FONT COLOR FACE POINT-SIZE>` (`dot-specimen-labels-p2` `html-b`, `html-i`, `html-nested`,
+  `html-font-*`; `dot-specimen-groups` `cluster-label-html`). These are now `labelRuns`. A label drawn in one run
+  sets the label's own color, size, family, weight and slant. All of these specimens pass. `<BR ALIGN>` now lines up
+  the label (`html-br-left`, `html-br-right`). Underline, overline, strike-through, `<SUB>` and `<SUP>` have no
+  neutral slot, so they are drawn plain.
+- `labelangle` and `labeldistance` (`dot-specimen-edge-labels`). An end label is now placed where Graphviz's
+  `place_portlabel` puts it: `10 * labeldistance` points from the end of the line, turned `labelangle` degrees.
+  Graphviz does this only when an edge's value is off its default. All five specimens pass. With both values at
+  their defaults, Graphviz places end labels as external labels (the label's corner at the end of the line), and
+  graphty keeps its own place beside the end.
+- `lp`, `head_lp` and `tail_lp` are read only for an edge that has a stored `pos`. `neato -n2` routes an edge
+  without a stored `pos` again and places its labels again, so on the sheet Graphviz ignores them (`lp`, `head-lp`).
+  `lp-s->lp-t` still fails `label.alongLine` (o=0.32, g=0.5) because of that placement; see the
+  `graphviz-layout-engine` row.
+- A cluster's stored `lp` (`cluster-lp`), and `labeljust=l` / `r` set 8 points in from the side (Graphviz pads the
+  label's box by 8 points). Both pass.
+- `pos` arrow tips (`s,` / `e,`): the route now runs on to each tip. Route on `-edges-lines-p11` went from 0.12 to
+  0.108 and from 0.17 to 0.164. The tip's arrow is drawn along the line from the end of the spline to the tip.
+  Graphviz's line ends at the spline, so the comparator still classes Graphviz's arrow as `half`
+  (`pos-arrow-*` `edge.arrowShape`). That is open for the comparator.
+- `quantum` (`dot-specimen-node-sizes-opacity-p4`). A box or ellipse that grows to fit its label is now at least
+  one quantum across, and an ellipse at least the quantum times the square root of 2 (`quantum-box` and
+  `quantum-fixed` pass). Open: Graphviz rounds a padded label box that is wider than one quantum up to the next
+  multiple. graphty-element has no setting to round a label-sized node, so `quantum-label` is 92.9 wide against
+  153.
+- Comparator fixes:
+  - `shape=plain` with `style=filled` (Graphviz writes `points="-nan,nan ..."`) and an `arrowsize=0` head (a stroked
+    polygon of equal points with butt caps) now paint nothing on the oracle side.
+  - `style=rounded` on a hexagon now classes as a hexagon. The rule: a path of straight cubic sides between corner
+    curves classes as the polygon it rounds.
+  - `wedged-partial` now reads the first wedge. The rule: a node is filled in pieces when one piece at least does
+    not cover the box.
+
+  All four now pass.
+
+Still open:
+
+- HTML-like tables (`TABLE` / `TD` borders, padding, spacing, sizes, `COLSPAN` / `ROWSPAN`, `HR` / `VR`, `IMG`) on
+  `-labels-p2`, `-labels-p3`, `-edges-lines`, `-edge-labels` and `-images-charts`. graph-io keeps only the cells'
+  text, and graphty-element has no table or cell label to draw them with. Graph-io work (laying out the table) and
+  graphty-element work (drawing cells as label boxes). The edge with an HTML table label (`label-html-table`) is
+  routed around its label by neato; that is the `graphviz-layout-engine` row.
+- `peripheries=3`, `doublecircle` with `peripheries=3`, `tripleoctagon`. The neutral styles carry one outer ring
+  (`outerBorder*`), so drawing a third ring needs a ring count in graph-io's vocabulary and in graphty-element.
+- `style=tapered`. This needs a tapering width in the vocabulary and a line of varying width in graphty-element.
+- `labelfontcolor`, `labelfontname` and `labelfontsize`. The neutral end labels (`sourceLabel` and `targetLabel`)
+  use the edge label's font. graphty-element has `edge.arrowHeadText{Color,Font,Size}` channels, but no neutral
+  property reaches them. Fixing this means adding end-label font properties to `vocabulary.ts`, `types.ts` and
+  graphty-element's `translate.ts`. Those are shared files that other work had uncommitted edits in, so this was
+  left for one coordinated change.
+- `xlabel` and `xlp` on a node: there is no second node label in the vocabulary or in graphty-element.
+- The root graph's `label`: graphty draws annotations only from Cytoscape's annotation column, so a DOT graph
+  label needs an annotation reader for DOT.
+- `rotate=90`, `landscape` and `orientation=landscape` (`-groups-p9` to `-p11`): Graphviz turns the whole drawing,
+  text included. `ratio=2` (`-groups-p12`) stretches positions only. Both need a transform of the stored positions
+  (and, for rotation, of every label), which `ImporterPositions` cannot express.
+- Comparator: Graphviz draws `curve`, `icurve`, `lcurve` and `rcurve` arrows as a stem plus an open arc, which the
+  oracle side reads as no arrow. It writes colored segments (`color="red;0.3:blue"`) as one path per segment, and
+  the oracle side takes one segment as the edge. Both are in `associate.ts`, which other work is changing.

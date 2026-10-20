@@ -1352,7 +1352,9 @@ function evaluateTarget(
         }
     }
     if (kind === "node") {
-        nodeSizes(graph, { kind, els, cells, order, rendered: input.rendered, notes }, drawn);
+        const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
+        nodeSizes(graph, read, drawn);
+        mixedLabelPlaces(graph, read, drawn);
     }
     if (kind === "edge") {
         straightenUnpairedBeziers(graph, curveStyles(graph, cells, input.rendered), coreToOut, drawn.curved);
@@ -1930,11 +1932,7 @@ function combineParts(
     const va = words.get("_valign");
     const ha = words.get("_halign");
     if (kind === "node" && (va !== undefined || ha !== undefined)) {
-        values.labelPosition = Array.from({ length: n }, (_, i) =>
-            labelPosition(va?.[i] ?? null, ha?.[i] ?? null, (sample) => {
-                notes.add(STYLE_ISSUE.UNKNOWN_VALUE, kind, "labelPosition", { sample, element: i });
-            }),
-        );
+        values.labelPosition = Array.from({ length: n }, (_, i) => labelPosition(va?.[i] ?? null, ha?.[i] ?? null));
     }
     // `text-max-width` wraps a label only under `text-wrap: wrap`; unset there, it is 9999 (cytoscape.js 3.34.3
     // dist/cytoscape.cjs.js line 18484), which wraps nothing but the label's own line breaks.
@@ -2244,8 +2242,17 @@ function combineLabelDress(
         }
         const border = bordered && labelBorder(kind, i, words, col, notes, at(whole[i]));
         if (box || border) {
-            // the box reaches this far past the words on every side (0 unset)
+            // the box reaches this far past the words on every side (0 unset), one font size tall a line
+            // (cytoscape.js 3.34.3 `calculateLabelDimensions`), its corners rounded 2px for round-rectangle (`drawText`)
             col("labelPadding")[i] = num("_backgroundPadding", i, 0);
+            col("labelLineHeight")[i] = 1;
+            const shape = words.get("_backgroundShape")?.[i];
+            if (shape === "round-rectangle" || shape === "roundrectangle") {
+                col("labelCornerRadius")[i] = 2;
+            } else if (shape === "circle") {
+                // a disc as tall as the box, centered on it: no neutral box has that shape
+                notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBackground", { sample: "circle", element: i });
+            }
         }
     }
 }
@@ -2682,6 +2689,85 @@ function nodeSizes(graph: CyjsGraph, read: DrawnRead, values: Record<string, (St
     }
 }
 
+/** The label alignments read as Cytoscape.js's words. */
+const VALIGN_PART: CyjsPropertySpec = {
+    property: "_valign",
+    type: "enum",
+    enums: ["top", "top-inside", "center", "bottom", "bottom-inside"],
+};
+const HALIGN_PART: CyjsPropertySpec = {
+    property: "_halign",
+    type: "enum",
+    enums: ["left", "left-inside", "center", "right", "right-inside"],
+};
+
+/**
+ * Where Cytoscape.js pins a label on one axis (cytoscape.js 3.34.3 `recalculateNodeLabelProjection` and
+ * `labelHalign` / `labelValign`): outside, `padding` past the node's side with the label's far edge there; inside,
+ * `padding` short of it with the label's near edge there; centered, at the node's middle.
+ * @param align - the alignment (`left`, `left-inside`, `top`, ...)
+ * @param half - half the node's drawn size on that axis, `padding` included
+ * @param pad - the node's padding
+ * @returns the offset from the node's center and the shift by the label's own size
+ */
+function pinnedAxis(align: string, half: number, pad: number): { offset: number; shift: number } {
+    const near = /^(left|top)/.test(align);
+    if (!near && !/^(right|bottom)/.test(align)) {
+        return { offset: 0, shift: 0 };
+    }
+    const side = near ? -1 : 1;
+    return align.endsWith("-inside")
+        ? { offset: side * (half - 2 * pad), shift: -side / 2 }
+        : { offset: side * half, shift: side / 2 };
+}
+
+/**
+ * A node label with one alignment inside the node and the other outside it (`text-valign: bottom-inside` with
+ * `text-halign: left`): no neutral position says that, so the label is centered, moved to the point Cytoscape.js
+ * puts it at by `labelOffsetX` / `labelOffsetY` (its `text-margin` added) and pinned there by `labelShiftX` /
+ * `labelShiftY`. A node sized to its label keeps the outside side's position, noted.
+ * @param graph - the core's elements
+ * @param read - the nodes' cells
+ * @param values - the nodes' values, sizes already drawn (`nodeSizes`); changed in place
+ */
+function mixedLabelPlaces(graph: CyjsGraph, read: DrawnRead, values: Record<string, (StyleValue | null)[]>): void {
+    const va = drawnColumn(read, "text-valign", VALIGN_PART);
+    const ha = drawnColumn(read, "text-halign", HALIGN_PART);
+    const padding = drawnColumn(read, "padding", TEXT_PART);
+    const n = read.order.length;
+    const col = (p: string): (StyleValue | null)[] => (values[p] ??= new Array<StyleValue | null>(n).fill(null));
+    for (let k = 0; k < n; k++) {
+        const v = typeof va[k] === "string" ? String(va[k]) : "top";
+        const h = typeof ha[k] === "string" ? String(ha[k]) : "center";
+        const inside = v.endsWith("-inside") || h.endsWith("-inside");
+        const outside = v === "top" || v === "bottom" || h === "left" || h === "right";
+        if (!inside || !outside) {
+            continue;
+        }
+        if (values.labelFit?.[k] !== undefined && values.labelFit[k] !== null) {
+            read.notes.add(STYLE_ISSUE.APPROXIMATED, "node", "labelPosition", { sample: `${v} ${h}`, element: k });
+            continue;
+        }
+        const core = read.order[k];
+        const pad = core < 0 || graph.children[core].length > 0 ? 0 : paddingOf(padding[k]);
+        const size = (p: string): number => {
+            const s = values[p]?.[k];
+            return typeof s === "number" ? s : 30 + 2 * pad;
+        };
+        const x = pinnedAxis(h, size("width") / 2, pad);
+        const y = pinnedAxis(v, size("height") / 2, pad);
+        const add = (p: string, d: number): void => {
+            const was = values[p]?.[k];
+            col(p)[k] = (typeof was === "number" ? was : 0) + d;
+        };
+        col("labelPosition")[k] = "center";
+        add("labelOffsetX", x.offset);
+        add("labelOffsetY", y.offset);
+        col("labelShiftX")[k] = x.shift;
+        col("labelShiftY")[k] = y.shift;
+    }
+}
+
 /** A node size read as Cytoscape.js's word, so `label` is seen. */
 const SIZE_PART: CyjsPropertySpec = { property: "_size", type: "nodeSize" };
 
@@ -2792,13 +2878,13 @@ function combineArrowFills(
  * A node label's position from its vertical and horizontal alignments. Cytoscape.js 3.34 places an `-inside`
  * alignment against that side of the node, inside it (`recalculateNodeLabelProjection`): `top-inside` with
  * `center` is `inside-top`, `top-inside` with `left-inside` is `inside-top-left`. One inside and one outside
- * alignment have no neutral position: the outside side wins, its inside part read as centered, noted.
+ * alignment have no neutral position of their own: the outside side here, its inside part read as centered, which
+ * `mixedLabelPlaces()` replaces with the pinned place once the node's size is known.
  * @param v - the vertical alignment, or null
  * @param h - the horizontal alignment, or null
- * @param note - notes an alignment read as another
  * @returns the position, or null
  */
-function labelPosition(v: string | null, h: string | null, note: (sample: string) => void): StyleValue | null {
+function labelPosition(v: string | null, h: string | null): StyleValue | null {
     if (v === null && h === null) {
         return null;
     }
@@ -2812,7 +2898,6 @@ function labelPosition(v: string | null, h: string | null, note: (sample: string
         if (!vOut && !hOut) {
             return INSIDE_POSITIONS.get(`${vv},${hh}`) ?? null;
         }
-        note(`${v ?? ""} ${h ?? ""}`);
         return POSITIONS.get(`${vIn ? "center" : vv},${hIn ? "center" : hh}`) ?? null;
     }
     return POSITIONS.get(`${vv},${hh}`) ?? null;

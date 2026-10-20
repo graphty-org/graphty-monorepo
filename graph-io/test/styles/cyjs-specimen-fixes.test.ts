@@ -35,10 +35,53 @@ describe("Cytoscape.js label alignments inside the node", () => {
         expect(at("top-inside", "center")).toBe("inside-top");
         expect(at("center", "right-inside")).toBe("inside-right");
         expect(at("bottom-inside", "right-inside")).toBe("inside-bottom-right");
-        // one side outside: that side, the inside part centered
-        expect(at("top", "left-inside")).toBe("top");
-        expect(at("top-inside", "left")).toBe("left");
         expect(at("center", "center")).toBe("center");
+    });
+
+    it("pins a label with one alignment inside and the other outside where Cytoscape.js draws it", () => {
+        const place = (v: string, h: string, more: Record<string, unknown> = {}): unknown[] => {
+            const { values } = evaluateCytoscapeJs(doc({ "text-valign": v, "text-halign": h, ...more })).node;
+            return ["labelPosition", "labelOffsetX", "labelOffsetY", "labelShiftX", "labelShiftY"].map(
+                (p) => values[p]?.[0],
+            );
+        };
+        // bottom-inside / left on a 30px node: the label's bottom right corner at (-15, 15)
+        expect(place("bottom-inside", "left")).toEqual(["center", -15, 15, -0.5, -0.5]);
+        // top / left-inside: its bottom left corner at (-15, -15)
+        expect(place("top", "left-inside")).toEqual(["center", -15, -15, 0.5, -0.5]);
+        // padding moves an outside side out by it and an inside side in by it; the margin is added
+        expect(place("bottom", "right-inside", { width: 40, height: 20, padding: 5, "text-margin-x": 2 })).toEqual([
+            "center",
+            2 + 20 - 5,
+            10 + 5,
+            -0.5,
+            0.5,
+        ]);
+    });
+});
+
+describe("Cytoscape.js label boxes", () => {
+    it("draws the box one font size tall a line, its corners rounded only for round-rectangle", () => {
+        const box = (shape: string): unknown[] => {
+            const { values } = evaluateCytoscapeJs(
+                doc({ "text-background-opacity": 1, "text-background-shape": shape }),
+            ).node;
+            return [values.labelLineHeight?.[0], values.labelCornerRadius?.[0] ?? null];
+        };
+        expect(box("rectangle")).toEqual([1, null]);
+        expect(box("round-rectangle")).toEqual([1, 2]);
+        expect(box("roundrectangle")).toEqual([1, 2]);
+        // no box drawn: nothing set
+        expect(evaluateCytoscapeJs(doc({})).node.values.labelLineHeight).toBeUndefined();
+    });
+
+    it("notes a circle box, which no neutral box shape draws", () => {
+        const notes = new StyleNotes();
+        evaluateCytoscapeJs({
+            ...doc({ "text-background-opacity": 1, "text-background-shape": "circle" }),
+            notes,
+        });
+        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBackground", 0)).toBe(true);
     });
 });
 

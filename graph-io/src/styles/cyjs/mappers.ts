@@ -164,6 +164,14 @@ const LABEL: [string, CyjsPropertySpec][] = [
     ["text-background-color", { property: "_backgroundColor", type: "color" }],
     ["text-background-opacity", { property: "_backgroundOpacity", type: "zeroOne" }],
     ["text-background-padding", { property: "_backgroundPadding", type: "size" }],
+    [
+        "text-background-shape",
+        {
+            property: "_backgroundShape",
+            type: "enum",
+            enums: ["rectangle", "round-rectangle", "roundrectangle", "circle"],
+        },
+    ],
     ["text-rotation", { property: "_rotation", type: "text" }],
     // the words' own opacity, drawn times the element's (`combineLabelOpacity`)
     ["text-opacity", { property: "_textOpacity", type: "zeroOne" }],

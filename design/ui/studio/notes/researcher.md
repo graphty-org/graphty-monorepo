@@ -10,10 +10,16 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
 
 ## Top of mind
 
-- (2026-10-20) The named build 3ef9e6c1ec does NOT hold the golden merge f9d8b44b9 that the
-  criteria change log and decided.md's 2026-10-20 entries describe; HEAD differs from it in 1472
-  files. No pilot walk exists on 3ef9e6c1ec (all 30 halves on e3c5bca8e6, 86 app files apart);
-  answers.md still reads e3c5bca8e6 and its re-framing lines. Refreeze before any walk counts.
+- (2026-10-20) Round 1 is frozen on 7d87760756 (holds golden); the key now reads that build from
+  all 30 halves' pilot walks. T50 is BLOCKED there: both project files open without their style
+  part ("1 part did not come back"), a regression from e3c5bca8e6; T50 sessions are
+  build-decided until it is fixed (preflight 4 blocked task).
+- (2026-10-20) The start page's demo is the first graph the tool records: styles-start.json,
+  `changes` and the first `graph: true` steps line are the demo. Grade layers from styles.json
+  itself; T49's start is the first steps line after the sample opens. real.mjs also prints "the
+  app never drew its window" at every start -- a tool bug, owed before sessions.
+- (2026-10-20) The start page hands out answers: its demo is Les Miserables ("Valjean is the
+  biggest", six community colors with one red). T37 A and T46 A participants see it first.
 - (2026-10-20) T46/T47 "keeps its own color" echoes the token's spoken name "Each layer's own
   value, N layers" (ValuePicker.tsx) and the folder's "Louvain: each layer's own value"
   (WhichPicker.tsx). wording.mjs cannot see it: "own" and "each" are in COMMON. Primes question 3.
@@ -23,10 +29,6 @@ made and evidence comes in. Summarized 2026-10-17 (older entries folded; full te
   self-tests pass without any of it.
 - (2026-10-20) One round only: bar 1's "cannot pass while a task is unjudged" (T37, T42, T44)
   and the stall rule make "passed" and "stalled" unreachable; round 1 needs its own verdict.
-- (2026-10-20) T50 B: trained with 30+ and 31+ hours are the same 6 people in volunteers.graphml
-  (no one at 30), so the selection-summary reading names exactly the green set.
-- (2026-10-19) Left to the Director: T50 B's "31 or more" read from the selection summary
-  ("hours 31 to 52") instead of the card. Graded "hours 30 to 52 and trained" from the card as S.
 - (2026-10-18) No prompt echoes a fix's words ("Not set yet", "Undid ...", "the color before this
   edit"); the at-rest walk does not see notices -- spoken.json now carries them.
 - (2026-10-17) Round 1 is 13 tasks: T37, T42, T44 out; core T39, T40, T47, T48. score.mjs: under
@@ -77,6 +79,19 @@ logged). Their reasons, in short:
 - **Every committed step visible on canvas and legend at once; every count from live state.**
 
 ## Decisions and reasons
+
+- **2026-10-20 (pilots on 7d87760756 into the key):** Patched answers.md task by task from 30
+  pilot outputs (no report.md rewritten). File tasks lose a step ("Open a file" + Load replaces
+  "No thanks" + "Open project or file" + Load); sample tasks keep their counts (Samples + card).
+  Recounted every pilot's step claim myself: pilots counted the off-screen "No thanks" (T39 A, T40
+  A, T47 A, T49 A said one more) or miscounted (T38 B said 11 for a 12-item list). Where the
+  screen contradicts decided.md (F6, Which nodes, selection-held re-framing, Tab in a typed list,
+  silent Escapes), the key counts the screen and names the contradiction; the defects go to
+  preflight 4 triage, not into grades. T49's rule fixed to read the start after the sample opens,
+  because the rule as written grades every correct undo F against the demo. T37's demo reading
+  left ungraded (T37 not in round 1) rather than inventing a rule. Kept the e3c5bca8e6 T50 path
+  for the fixed build instead of deleting it. No prompt was wrong; tasks.md's facilitator detours
+  and two kept-word reasons now name this build's controls.
 
 - **2026-10-20 (fifth read of the criteria, build 3ef9e6c1ec named; HEAD holds golden):**
   Proposed, not applied (the Director freezes): (1) refreeze on the golden build and re-walk
@@ -162,6 +177,14 @@ logged). Their reasons, in short:
   section plus scoped edits per build; personas validate, never generate features.
 
 ## Tried: worked / did not work
+
+- 2026-10-20 (7d87760756 pilots into the key) -- Worked: one python helper that asserts each old
+  string occurs once before replacing (caught a T40 success line shared with T47 and a misquoted
+  T48 line before anything was written); grepping the key for "No thanks", "Open project or
+  file", "jumps", "shrinks" and the old build id after the edits; previewing prettier and
+  reflowing lines that begin with ">", "7." or "15)" (prettier turned one into a blockquote in the
+  old change log). Did not work: copying the file into tmp/ to preview prettier (ignored path, no
+  output); trusting pilot step totals.
 
 - 2026-10-20 (fifth read) -- Worked: `git merge-base --is-ancestor f9d8b44b9 3ef9e6c1ec` to test
   the change log's "the build now includes golden" (it does not); counting buildStamps per pilot

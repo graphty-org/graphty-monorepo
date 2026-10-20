@@ -47,8 +47,9 @@ brought is a file, and no everyday word replaces it. `volunteers`, `sources`, `n
 `yeast-galactose`, `graphml`, `csv`, `lesmis-poster`, `volunteers-thanks`, `graphty`, `json` -- the
 names of the files the participant brought, which the app shows once a file is read. `name` -- the everyday word; the data's own
 column is also called `name`, and a participant who picks it from the prompt is recorded. `tie` --
-the study's word for a link; the app never shows it. `open` -- the start screen's only way in ("Open
-sample", "Open project or file"); the study does not measure finding it. `first` -- every prompt
+the study's word for a link; the app never shows it. `open` -- the start page's ways in ("Open a
+file", "Open network data"; samples are reached by "Samples" and a card named "Open the <sample>
+sample"); the study does not measure finding it. `first` -- every prompt
 opens "This is your first time"; the app's "first" is in an analysis's description, on no route.
 
 ## The tasks
@@ -254,8 +255,9 @@ category column, read back from the key: T51.
   did not make.
 - **Words:** the prompt says "color them", not "draw them": T50's route reads "Why this look",
   where every unset color line's spoken name says "drawn".
-- **Kept on purpose:** `project` -- what the colleague sent is a project file; the start screen
-  says "Open project or file", and a newcomer has no other word for it.
+- **Kept on purpose:** `project` -- what the colleague sent is a project file; the start page's
+  "Open a file" says it takes "a saved project", the main menu says "Open project or file...", and
+  a newcomer has no other word for it.
 
 ### T51. Each kind its own color (two datasets)
 
@@ -279,12 +281,14 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
 (`build/walk-p1/` to `walk-p3/`), the bulk and picker pilots (`build/pilot-bulk/`,
 `build/pilot-bulk-rewalk/`) and earlier tiers' commonest wrong turns.
 
-- **Every task from an empty start:** the consent notice left open while working; a sample opened
-  from the main menu's "Open sample" instead of the start screen; Control+O pressed with a graph
-  already open, which adds the file to the open graph ("Add to ...") instead of starting anew.
-- **T38, T41, T42, T43, T44 B, T48 (a file brought):** the file opened through the start screen's
-  "New from data..." instead of "Open project or file"; Cancel on the read-the-file page, then a
-  second try.
+- **Every task from an empty start:** the start page's turning demo drawing tried first (its
+  buttons, a click on a node); the usage-data notice at the page's foot left unanswered while
+  working; a sample opened from the main menu's "Open sample", or through the top bar's Samples
+  link and the library's search, instead of the Samples button; Control+O pressed with a graph
+  already open, which offers to add the file to the open graph ("Add to ...") with Replace first.
+- **T38, T41, T42, T43, T44 B, T45 A, T48, T50, T51 (a file brought):** "Open network data" tried instead
+  of "Open a file" (it opens no local file); "New project", then "Add data..."; the file dropped
+  on the start page; Cancel on the read-the-file page, then a second try.
 - **T39:** a new layer with no condition instead of the starting layer's color; the color typed as
   a word ("dark green") into the hex box; the color set on the Edge tab first.
 - **T40 A, T50 A:** typing straight after adding a card (focus lands in the card's text box);
@@ -320,6 +324,12 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-20 (pilots on build 7d87760756): the app now opens on a start page, so the facilitator's
+  detours name its ways in ("Open a file", "Open network data", "New project", the Samples button
+  and link, the turning demo, the usage notice at the page's foot), and the reasons for keeping
+  `open` and `project` name the controls this build shows. No prompt was wrong: the prompts name
+  no control, and every half was reached from the new start page.
 
 - 2026-10-20 (fifth criteria review): T46 and T47 no longer say "keeps its own color"; they ask to
   leave the other colors as they are (T46) or to change no color (T47). The purple token is spoken

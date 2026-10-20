@@ -374,6 +374,30 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 
 ## Change log
 
+- 2026-10-20 (round 1 pilots on 7d87760756; no session has run): `answers.md` and `tasks.md`'s
+  facilitator detours now match the frozen build as the pilots in `rounds/r1/pilot/` saw it, every
+  half walked by pointer, detours and keyboard (the `answers.md` change log lists what changed).
+  No bar changed. Bar 4's frozen counts stand; the key's counts fell by one on every task that
+  brings a file ("Open a file" and Load replace "No thanks", "Open project or file" and Load) and
+  are unchanged on sample tasks (Samples and the card replace "No thanks" and the sample).
+    - Grading records, not bars: the start page's turning demo is the first graph the tool sees,
+      so T49's start is read from the first `styles-steps.jsonl` line after the sample opens, and
+      every task's layers are graded from `styles.json` itself, never from its `changes`; a T49
+      ending whose `colors` is `["none"]` matches the drawing. Reason: on this build the rule as
+      written would grade every correct T49 undo F.
+    - **T50 is blocked on this build:** both project files open without their style part ("1 part
+      did not come back"), so no layer, nothing drawn, and no route to S. They opened with their
+      layer on e3c5bca8e6. A T50 session on 7d87760756 is build-decided; under preflight 4 this
+      is a blocked task, to be fixed before round 1.
+    - Recorded for preflight 4's triage, not fixed here: F6 never reaches the top bar and lands on
+      resize handles; a new layer's Which nodes still only expands; the drawing moves when a
+      selection is held (runs, selection layers) and when the table opens; Tab in a typed
+      attribute list takes nothing; Escape in the picker's hex box and the size dialog reverts
+      silently; Escape on a checkbox closes a card's picker; the sample pictures are broken; the
+      usage notice is off the first screen. Each contradicts `decided.md` or the bar 6 checks.
+    - Tool, owed before any session: `real.mjs` prints "the app never drew its window" at every
+      start on the start page, and its `styles-start.json` records the demo.
+
 - 2026-10-20: round 1 frozen on 7d87760756 (`.study-builds/tier3-r1-7d87760756`), replacing
   3ef9e6c1ec (`.study-builds/tier3-r1d1-3ef9e6c1ec`). The commit merges origin/golden into the
   studio branch and holds merge f9d8b44b9, as preflight 1 requires. No bar changed.

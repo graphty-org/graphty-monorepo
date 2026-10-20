@@ -4,6 +4,7 @@ import type { SourceKey } from "@graphty/graphty-element/session";
 import React, { useState } from "react";
 
 import { useSessionVersion } from "../inspector/hooks";
+import { ServerPlace } from "../server/ServerForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
@@ -28,6 +29,7 @@ export function DataPlace(): React.JSX.Element {
         <section className="dp" aria-label="Data place">
             <h2 className="dp-title">{graphName}</h2>
             <Sources sources={sources} selected={selected?.key} onSelect={setPicked} />
+            <ServerPlace />
             <Fields source={selected} />
             <FiltersSection />
         </section>

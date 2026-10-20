@@ -109,18 +109,6 @@ export function openGenerated(
     openProject(workspace, generator.plainName, (session) => session.data.generate(generator.name, params));
 }
 
-/**
- * Opens the graph file at a web address as a new project named after the file. The element reads
- * the format from the address and the file, as for any file.
- * @param workspace - the workspace store.
- * @param url - the address.
- */
-export function openUrl(workspace: WorkspaceStore, url: string): void {
-    const file = new URL(url).pathname.split("/").pop() ?? "";
-    const name = decodeURIComponent(file).replace(/\.[^.]*$/, "") || new URL(url).hostname;
-    openProject(workspace, name, (session) => session.data.import({ config: { url }, name }));
-}
-
 /** A file, a node file and an edge file, pasted text or an address, and the name the reader knows it by. */
 export interface Incoming {
     readonly name: string;
@@ -279,13 +267,20 @@ export async function chooseAndOpenFile(ctx: CommandContext): Promise<void> {
 
 /**
  * Paste: the clipboard's text, read by graphty-element as any file is (CSV, TSV, JSON, a graph
- * format), added as a source.
+ * format), added as a source; a web address opens the graph file there.
  * @param ctx - the command context.
  */
 export async function pasteSource(ctx: CommandContext): Promise<void> {
     const text = await navigator.clipboard.readText();
     if (text.trim() === "") {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
+        return;
+    }
+    const pasted = text.trim();
+    // A pasted web address opens the graph file there, named after the file.
+    if (/^https?:\/\/\S+$/.test(pasted)) {
+        const name = decodeURIComponent(new URL(pasted).pathname.split("/").pop() ?? "") || new URL(pasted).hostname;
+        addSource(ctx, { name, source: { config: { url: pasted }, name } });
         return;
     }
     addSource(ctx, { name: "Pasted data", source: { config: { data: text }, name: "Pasted data" } });

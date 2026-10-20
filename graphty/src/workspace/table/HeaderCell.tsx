@@ -1,33 +1,11 @@
 import type { DataIssue } from "@graphty/graphty-element/session";
 import { HoverCard, Popover, TextInput } from "@mantine/core";
-import {
-    Calendar,
-    CaseSensitive,
-    Hash,
-    KeyRound,
-    Link,
-    type LucideIcon,
-    Shapes,
-    Sigma,
-    Tags,
-    ToggleLeft,
-    TriangleAlert,
-} from "lucide-react";
+import { KeyRound, Link, Shapes, Sigma, TriangleAlert } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 
 import { ROLE_WORDS, type TableColumnChoice } from "./columns";
 import { IssueRow } from "./IssuesList";
-
-/** The type icon for each of graphty-element's attribute types. */
-const TYPE_ICONS: Readonly<Record<string, LucideIcon>> = {
-    string: CaseSensitive,
-    number: Hash,
-    integer: Hash,
-    boolean: ToggleLeft,
-    time: Calendar,
-    category: Tags,
-    mixed: Shapes,
-};
+import { TYPE_ICONS } from "./typeIcons";
 
 /** What an icon is the size of in a header. */
 const ICON = 14;

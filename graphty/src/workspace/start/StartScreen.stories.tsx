@@ -97,20 +97,6 @@ export const ReturningReader: Story = {
     },
 };
 
-/** Open network data: the sources on the way, and Open from a link. */
-export const NetworkData: Story = {
-    beforeEach: () => {
-        answerUsageData("declined");
-    },
-    play: async ({ canvasElement, parameters }) => {
-        await click(canvasElement, parameters, "Open network data");
-        await waitFor(
-            () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
-            storyWaitOptions(1000),
-        );
-    },
-};
-
 /** A file dragged over the window (`#/start-screen/drop-target`). */
 export const DropTarget: Story = {
     play: async ({ canvasElement, parameters }) => {

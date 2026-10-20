@@ -210,31 +210,15 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("lists the network sources that are on the way, and opens a graph from a link", async () => {
+    it("opens a project on the Data place with the server form", async () => {
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        for (const source of ["NDEx", "Neo4j", "Web API"]) {
-            assert.isNotNull(within(dialog).getByText(source));
-        }
-        // Memgraph cannot be reached from an https page without a server, so it is not offered.
-        assert.isNull(within(dialog).queryByText("Memgraph"));
-        assert.isNotNull(within(dialog).getByText(/on the way/));
-        const open = within(dialog).getByRole("button", { name: "Open" });
-        // Open with no address asks for one, and opens nothing.
-        await userEvent.click(open);
-        assert.isNotNull(within(dialog).getByText("Paste the web address of a graph file first."));
-        assert.isNull(store.get().project);
 
-        await userEvent.type(
-            within(dialog).getByRole("textbox", { name: "Web address of a graph file" }),
-            "https://example.com/data/trade%20routes.graphml",
-        );
-        await userEvent.click(open);
-
-        assert.equal(store.get().project?.name, "trade routes");
-        assert.equal(store.get().opening?.name, "trade routes");
+        const state = store.get();
+        assert.equal(state.project?.name, "Untitled");
+        assert.equal(state.place, "data");
+        assert.equal(state.dialog, "server");
     });
 
     it("opens a dropped file as a project named after it", async () => {

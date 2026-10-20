@@ -17,6 +17,7 @@ import { registration as layout } from "./layout/commands";
 import { registration as privacy } from "./privacy/commands";
 import { registration as project } from "./project/commands";
 import { registration as replace } from "./replace/commands";
+import { registration as server } from "./server/commands";
 import { registration as settings } from "./settings/commands";
 import { registration as start } from "./start/commands";
 import { registration as style } from "./style/commands";
@@ -39,6 +40,7 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     table,
     join,
     replace,
+    server,
     exportDialog,
     dataPage,
     project,

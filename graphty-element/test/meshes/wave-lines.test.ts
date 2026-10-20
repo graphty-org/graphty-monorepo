@@ -6,7 +6,7 @@
  * and a chain of chevrons three border widths apart.
  */
 import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import {
@@ -128,6 +128,9 @@ describe("an edge drawn with a wave of its own", () => {
     let scene: Scene;
     beforeEach(() => {
         scene = new Scene(new NullEngine());
+    });
+    afterEach(() => {
+        scene.getEngine().dispose();
     });
 
     const line = (pattern: "sinewave" | "zigzag", length: number): PatternedLineMesh =>

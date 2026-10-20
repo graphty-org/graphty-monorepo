@@ -66,6 +66,13 @@ function areaOf(outline: readonly Point2[]): number {
 }
 
 describe("flat shape outlines", () => {
+    let slab: Scene | null = null;
+    const slabScene = (): Scene => (slab = new Scene(new NullEngine()));
+    afterEach(() => {
+        slab?.getEngine().dispose();
+        slab = null;
+    });
+
     for (const shape of FLAT_NODE_SHAPES.filter((name) => !FIGURES.has(name) && !ROUNDED.has(name))) {
         test(`${shape} fills its box and can be fanned from its centre`, () => {
             const outline = flatShapeOutline(shape, 4, 1);
@@ -196,11 +203,12 @@ describe("flat shape outlines", () => {
         const source = "sourceMesh" in mesh ? (mesh.sourceMesh as Mesh) : (mesh as Mesh);
         assert.strictEqual(source.getTotalIndices(), 0);
         assert.isAbove(source.getBoundingInfo().boundingBox.extendSize.x, 0);
+        scene.getEngine().dispose();
     });
 
     test("a figure's slab is ear-clipped: its front face covers the figure's area once", () => {
         const outline = flatShapeOutline("woman", 2, 3);
-        const mesh = outlineSlab("woman", outline, 0.1, new Scene(new NullEngine()));
+        const mesh = outlineSlab("woman", outline, 0.1, slabScene());
         const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
         const indices = mesh.getIndices() ?? [];
         let front = 0;
@@ -300,7 +308,7 @@ describe("flat shape outlines", () => {
     });
 
     test("lays a texture flat across a shape's box, so a gradient fill is drawn as a ramp", () => {
-        const mesh = outlineSlab("ellipse", flatShapeOutline("ellipse", 4, 2), 0.1, new Scene(new NullEngine()));
+        const mesh = outlineSlab("ellipse", flatShapeOutline("ellipse", 4, 2), 0.1, slabScene());
         const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
         const uvs = mesh.getVerticesData(VertexBuffer.UVKind) ?? [];
 

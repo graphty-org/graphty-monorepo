@@ -38,7 +38,7 @@ describe("glyph edge line patterns", () => {
     });
 
     afterEach(() => {
-        scene.dispose();
+        scene.getEngine().dispose();
     });
 
     test("every Cytoscape stroke line type is drawn as pattern elements on a straight edge", () => {

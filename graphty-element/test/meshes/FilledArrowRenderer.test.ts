@@ -568,6 +568,10 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         scene = new Scene(new NullEngine());
     });
 
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
     /**
      * A built arrow's extent along the line (x) and across it (z).
      * @param type - the arrow type

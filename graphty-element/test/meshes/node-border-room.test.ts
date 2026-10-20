@@ -4,7 +4,7 @@
  * cover the fill.
  */
 import { NullEngine, Scene } from "@babylonjs/core";
-import { assert, beforeEach, test } from "vitest";
+import { afterEach, assert, beforeEach, test } from "vitest";
 
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
@@ -15,6 +15,10 @@ let cache: MeshCache;
 beforeEach(() => {
     scene = new Scene(new NullEngine());
     cache = new MeshCache();
+});
+
+afterEach(() => {
+    scene.getEngine().dispose();
 });
 
 for (const [position, fillWidth] of [

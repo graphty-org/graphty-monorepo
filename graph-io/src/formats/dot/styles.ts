@@ -829,14 +829,14 @@ function readNodeOutline(n: NodeRead): void {
 }
 
 /** The outlines Graphviz draws round a node of these shapes when `peripheries` is not set. */
-const SHAPE_PERIPHERIES: ReadonlyMap<string, number> = new Map([
+export const SHAPE_PERIPHERIES: ReadonlyMap<string, number> = new Map([
     ["doublecircle", 2],
     ["doubleoctagon", 2],
     ["tripleoctagon", 3],
 ]);
 
 /** How far apart Graphviz draws a node's outlines, center to center (`GAP`, lib/common/shapes.c). */
-const PERIPHERY_GAP = 4;
+export const PERIPHERY_GAP = 4;
 
 /**
  * Reads a node's second outline (`peripheries=2`, `doublecircle`): Graphviz draws it `PERIPHERY_GAP` points outside
@@ -1360,16 +1360,10 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             ["target", head, forward],
             ["source", tail, back],
         ] as const) {
-            const first = on ? graphvizArrow(raw ?? "normal") : null;
-            const other = first === null ? undefined : GRAPHVIZ_OTHER_ARROWS.get(first.name);
-            put(
-                `${end}Arrow`,
-                on
-                    ? (other ?? canonEnum("arrow", first?.name ?? raw ?? "normal", "graphviz", at(`${end}Arrow`)))
-                    : "none",
-            );
-            if (first?.side !== null && first?.side !== undefined) {
-                put(`${end}ArrowSide`, first.side);
+            const arrow = on ? graphvizArrowValue(raw ?? "normal", at(`${end}Arrow`)) : null;
+            put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
+            if (arrow?.side !== null && arrow?.side !== undefined) {
+                put(`${end}ArrowSide`, arrow.side);
             }
         }
     }
@@ -1395,6 +1389,26 @@ const GRAPHVIZ_OTHER_ARROWS: ReadonlyMap<string, string> = new Map([
     ["obox", "other:open-square"],
     ["oinv", "other:open-inverted"],
 ]);
+
+/**
+ * The neutral arrow value Graphviz draws for an arrow name (`onormal`, `lbox`, `invempty`), with an open shape the
+ * neutral vocabulary has no name for (`obox`, `oinv`) as the value graphty draws it as, and the side an `l` or `r`
+ * keeps. Read so by the DOT reader and by the GML reader for gv2gml's `targetArrow` / `sourceArrow`.
+ * @param raw - the arrow name
+ * @param site - where it was read
+ * @returns the value and its side (null for the whole shape)
+ */
+export function graphvizArrowValue(
+    raw: string,
+    site: CanonSite,
+): { readonly value: string | null; readonly side: "left" | "right" | null } {
+    const first = graphvizArrow(raw);
+    const other = first === null ? undefined : GRAPHVIZ_OTHER_ARROWS.get(first.name);
+    return {
+        value: other ?? canonEnum("arrow", first?.name ?? raw, "graphviz", site),
+        side: first?.side ?? null,
+    };
+}
 
 /**
  * The arrow Graphviz draws at an edge's very end, from an arrow name of up to four shapes (`dotodot`,

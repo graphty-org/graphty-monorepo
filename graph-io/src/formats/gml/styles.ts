@@ -25,7 +25,7 @@ import {
 } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
-import { canonNumber, canonSigned } from "../../styles/canon/number.js";
+import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
@@ -54,7 +54,14 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
-import { graphvizArrow, graphvizHasNoOutline, graphvizOutline, graphvizRouteBends } from "../dot/styles.js";
+import {
+    graphvizArrowValue,
+    graphvizHasNoOutline,
+    graphvizOutline,
+    graphvizRouteBends,
+    PERIPHERY_GAP,
+    SHAPE_PERIPHERIES,
+} from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
@@ -549,7 +556,9 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         readColor(g.outline, "borderColor", null, writer, put, at);
         put("borderWidth", g.width === undefined ? null : canonNumber(g.width, at("borderWidth")));
     }
-    put("borderStyle", strokeStyle(g.outlineStyle, "borderStyle", writer, at("borderStyle")));
+    const borderStyle = strokeStyle(g.outlineStyle, "borderStyle", writer, at("borderStyle"));
+    put("borderStyle", borderStyle);
+    readGv2gmlRings(g, shape, borderStyle, writer, put, at);
     put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
     // gv2gml writes the height as H (gv2gml.c emitReal("H", ...)); h where a later edit spelled it as GML does
     const h = first(g, "H", "h");
@@ -567,6 +576,43 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("shapePoints", outline);
     } else if (g.type !== undefined) {
         put("shape", canonEnum("shape", g.type, "graphviz", at("shape")));
+    }
+}
+
+/**
+ * Reads the second outline Graphviz draws round a `doublecircle`, `doubleoctagon` or `tripleoctagon` (shapes.c):
+ * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it. graphty draws
+ * one outer ring, so a third outline is noted as not carried.
+ * @param g - the record
+ * @param shape - its Graphviz shape, lowercase
+ * @param style - its outline's dashes, as read
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readGv2gmlRings(g: Rec, shape: string, style: string | null, writer: GmlWriter, put: Put, at: At): void {
+    // ponytail: gv2gml copies a `peripheries` attribute as a node key beside graphics, which this record does not
+    // see; the shapes' own outlines are read. Read the key when a file sets it.
+    const count = SHAPE_PERIPHERIES.get(shape) ?? 1;
+    if (count < 2) {
+        return;
+    }
+    const c = canonColor(g.outline ?? "black", writer.spelling, at("outerBorderColor"), { use: "line" });
+    if (c !== null && c.alpha === 0) {
+        return;
+    }
+    const parsed = g.width === undefined ? 1 : Number(g.width);
+    const pen = Number.isFinite(parsed) ? Math.max(0, parsed) : 1;
+    put("outerBorderColor", c?.color ?? "#000000");
+    put("outerBorderOpacity", c !== null && c.alpha < 1 ? c.alpha : null);
+    put("outerBorderWidth", pen);
+    // the gap between the outline's outer edge and the ring's inner edge
+    put("outerBorderOffset", Math.max(0, PERIPHERY_GAP - pen));
+    if (style === "dashed" || style === "dotted") {
+        put("outerBorderStyle", style);
+    }
+    if (count > 2) {
+        noteAt(at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `type ${shape}`);
     }
 }
 
@@ -709,14 +755,10 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         ["target", g.targetArrow, ends[1]],
         ["source", g.sourceArrow, ends[0]],
     ] as const) {
-        const name = typeof raw === "string" ? raw : "normal";
-        put(
-            `${end}Arrow`,
-            on ? canonEnum("arrow", graphvizArrow(name)?.name ?? name, "graphviz", at(`${end}Arrow`)) : "none",
-        );
-        const side = on ? graphvizArrow(name)?.side : null;
-        if (side !== null && side !== undefined) {
-            put(`${end}ArrowSide`, side);
+        const arrow = on ? graphvizArrowValue(typeof raw === "string" ? raw : "normal", at(`${end}Arrow`)) : null;
+        put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
+        if (arrow?.side !== null && arrow?.side !== undefined) {
+            put(`${end}ArrowSide`, arrow.side);
         }
     }
 }
@@ -1067,6 +1109,104 @@ function readGv2gmlRoute(
 }
 
 /**
+ * Where graphty-element hangs an edge's label on a route drawn through these points (its centers and bends): the
+ * middle of its middle segment, or the joint between its two middle ones; `labelOffsetX` / `labelOffsetY` move it
+ * from there.
+ * @param points - the route, from the source's center to the target's
+ * @returns the point
+ */
+function routeMiddle(points: readonly BendPoint[]): BendPoint {
+    const m = points.length - 1;
+    if (m % 2 === 0) {
+        return points[m / 2];
+    }
+    const [a, b] = [points[(m - 1) / 2], points[(m + 1) / 2]];
+    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+}
+
+/**
+ * Puts an edge label's offset from where graphty-element hangs it, when the program draws it elsewhere.
+ * @param at - the label's center, in the file's coordinates
+ * @param middle - where graphty-element hangs it, in the same coordinates
+ * @param yUp - whether the file's y grows upward
+ * @param put - receives the values
+ */
+function putEdgeLabelOffset(
+    at: BendPoint,
+    middle: BendPoint,
+    yUp: boolean,
+    put: (property: string, value: number) => void,
+): void {
+    const dx = num6(at[0] - middle[0]);
+    const dy = num6((yUp ? -1 : 1) * (at[1] - middle[1]));
+    if (Number.isFinite(dx) && Number.isFinite(dy) && (dx !== 0 || dy !== 0)) {
+        put("labelOffsetX", dx);
+        put("labelOffsetY", dy);
+    }
+}
+
+/**
+ * A gv2gml edge label's place: gv2gml copies Graphviz's `lp` (the label's center, in points, y up) as a plain edge
+ * key, and Graphviz draws the label there, beside its line rather than on it.
+ * @param snapshot - the graph
+ * @param e - the edge's row
+ * @param bent - whether its route has bends
+ * @param put - receives the values
+ */
+function readGv2gmlLabelPlace(
+    snapshot: GraphSnapshot,
+    e: number,
+    bent: boolean,
+    put: (property: string, value: number) => void,
+): void {
+    const lp = cellOf(snapshot.edges, "lp", e);
+    const m = typeof lp === "string" ? /^\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*$/.exec(lp) : null;
+    // ponytail: a curved route's middle is where graphty-element samples its curve; only a straight one is placed
+    if (m === null || bent) {
+        return;
+    }
+    const [s, t] = [centerOf(snapshot, snapshot.edgeSource(e)), centerOf(snapshot, snapshot.edgeTarget(e))];
+    putEdgeLabelOffset([Number(m[1]), Number(m[2])], routeMiddle([s, t]), true, put);
+}
+
+/**
+ * An OGDF edge label's place: GraphIO::drawSVG (SvgPrinter::drawEdge) draws it at the middle of the route's first
+ * segment, from the source's center to its first bend, not at the route's middle.
+ * @param snapshot - the graph
+ * @param g - the edge's `graphics` value
+ * @param e - the edge's row
+ * @param put - receives the values
+ */
+function readOgdfLabelPlace(
+    snapshot: GraphSnapshot,
+    g: unknown,
+    e: number,
+    put: (property: string, value: number) => void,
+): void {
+    const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
+    const list = isRec(raw) ? [raw] : raw;
+    const [s, t] = [centerOf(snapshot, snapshot.edgeSource(e)), centerOf(snapshot, snapshot.edgeTarget(e))];
+    if (!Array.isArray(list) || snapshot.edgeSource(e) === snapshot.edgeTarget(e)) {
+        return;
+    }
+    const same = (a: BendPoint, b: BendPoint): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-6;
+    // the Line OGDF writes may start and end at the centers
+    const bends = list
+        .map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]))
+        .filter((p) => !same(p, s) && !same(p, t));
+    if (bends.length === 0) {
+        return;
+    }
+    const route = [s, ...bends, t];
+    putEdgeLabelOffset(
+        [(route[0][0] + route[1][0]) / 2, (route[0][1] + route[1][1]) / 2],
+        routeMiddle(route),
+        false,
+        put,
+    );
+}
+
+/**
  * Every element's values, read with a writer's vocabulary.
  * @param snapshot - the graph
  * @param writer - the writer
@@ -1106,11 +1246,21 @@ function readValues(
                 at,
             );
             if (target === "edge" && writer.vocabulary === "graphviz") {
+                let bent = false;
                 readGv2gmlRoute(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
                     found = true;
+                    bent ||= property === "bends";
                     out.put(i, property, value);
                 });
-            } else if (target === "edge") {
+                readGv2gmlLabelPlace(snapshot, i, bent, (property, value) => {
+                    out.put(i, property, value);
+                });
+            } else if (target === "edge" && writer.vocabulary === "ogdf") {
+                readOgdfLabelPlace(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
+                    out.put(i, property, value);
+                });
+            }
+            if (target === "edge" && writer.vocabulary !== "graphviz") {
                 readLineRoute(
                     snapshot,
                     cellOf(table, "graphics", i),

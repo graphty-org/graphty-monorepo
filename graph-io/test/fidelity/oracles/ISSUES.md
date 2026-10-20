@@ -2965,3 +2965,61 @@ Still open, and why:
       until Graphviz's engines land); the records are now Graphviz's size, which moves graphty's force layout.
     - `gexf-sigma-ediaspora` `109->80`, `66->63` `edge.curve`: failing before as well (the sheet's curve rate was
       under its floor, which hid them); 346 failing elements to 36.
+
+## Specimen sheets: tiny centered borders, yEd arcs, Cytoscape's bar, line, box and heat map charts (fix round 3, rendering batch 4, 2026-10-20)
+
+Fixed:
+
+- Pajek's `x_fact 0` vertex (`pajek-specimen-node-sizes-opacity` and its pages, `x-fact-0`): Pajek draws an ellipse
+  of radius 0 stroked 1 wide, a dot 1 across; graphty-element drew it 2 across, because a centered border on a node
+  narrower than the border kept its full width outside a fill shrunk to a point. A centered border now reaches half
+  its width past the size whatever the size (`NodeMesh.borderFit`). Every `node.width`, `node.height`, size and
+  `node.strokeWidth` row of the three pages passes (27 of 28 before); no other node sheet of any format changed.
+- yEd arc edges: yEd saves an arc's apex as its one bend, `y:Arc height` from the line between the ends (every
+  yEd-saved arc in the corpus: `scala-collection-mutable`, `Animatron__player__flow`), and draws the arc of the
+  circle through the ends and that point. graphty-element drew the bend's corner rounded, about 3 px inside the arc;
+  it now draws the circle (new `edge.bendCurve` value `arc`), and graph-io gives every `y:ArcEdge` that value. On
+  `yed-graphml-specimen-edges-lines` the drawn arcs lie on yEd's circles within 0.0003 of the chord.
+- yEd Bezier edges of whole cubic pieces and quad curve edges: graph-io flattens their curves into points on the
+  curve; it no longer marks them curved, so graphty-element draws straight from point to point instead of rounding
+  the corners, which cut inside the curve and bowed a quad curve of straightness 1 (its control polygon).
+- Cytoscape desktop's bar, line, box and heat map charts (`{xgmml,cx,cx2,cys}-specimen-images-charts`, `-p2`, `-p5`,
+  `-p7`, `-mappings-bypass-p14`, `-p15`, `-p18`): graphty-element draws a chart over a node's face (new `chart` style
+  block, channels `node.chartKind`, `-Values`, `-Colors`, `-Min`, `-Max`, `-Horizontal`, `-Size`, `-Margin`, `-Gap`,
+  `-LineWidth`, `-BorderColor`, `-BorderWidth`), and graph-io reads `BarChart` (grouped, stacked, heat strips,
+  up-down, horizontal, separation, border), `LineChart`, `BoxChart` and `HeatMapChart` as Cytoscape 3.10.5 draws them
+  (measured from its SVG export: the plot 52.1 across a 60 node, 51.1 for a heat map; bars 0.025 of the side in
+  from each end; heat colors from the zero color toward the up or down color by value; a line's range with a tenth
+  of headroom; JFreeChart's quartiles). `stray.present` on each format's `images-charts` 24 to 94 of 108, `-p2` 24
+  to 38 of 38, `-p5` 28 to 66 of 104, `-p7` 4 to 13 of 85, and the same on the `mappings-bypass` twins.
+
+Rows still open, each with what stops it:
+
+- yEd arc, Bezier and quad curve routes (`yed-graphml-specimen-edges-lines`, `edge.route` and `edge.curve` on
+  `arc-*`, `bezier`, `quadcurve-straightness-1`): the oracle is draw.io's stand-in, and draw.io draws its own curves
+  from yEd's points, not yEd's: an arc as one quadratic whose control is the apex (so it peaks at half the height:
+  `M 1026.25 334.48 Q 1060.18 316.62 1087.47 330.99`), a Bezier from the outline crossings rather than the ports,
+  and every quad curve alike whatever its straightness (0.1, 0.5 and 1 are the same path). graphty now draws yEd's
+  geometry, so these rows differ from the stand-in by design; they wait for the owner's yEd export of the sheet.
+  The sheet's `arc-fixed-height-minus-20` also saves its point above the line where yEd, for a negative height,
+  saves it below (generator: `generators/specimens/yed.*`).
+- Charts with an axis or labels (`images-charts` `bar-domain-axis`, `bar-range-axis`; every chart on `-p7`;
+  `-p5` `bar-axis-color-width`, `bar-item-labels`, `bar-zero-baseline`): Cytoscape shrinks the plot by the room
+  its axis labels take (5.2 px for the domain axis and 5.3 for the range axis at the default label size, 15.6 and
+  16.7 at size 10, 27.3 and 29.5 at size 20, more for turned labels), which depends on JFreeChart's text metrics;
+  graphty draws the chart over the whole plot and no axis, tick, label or zero line. The bars are drawn, a few px
+  from Cytoscape's, so `-p7` now reports graphty's bars as `stray.extra` (8 of 30) where it reported nothing drawn.
+  Needs axis and chart-label options in graphty-element (`chart-labels`).
+- Charts colored by a named scheme (`-p5` `bar-color-scheme-rainbow`, `-contrasting`; `-p6` `-modulated`,
+  `-blue-red`, `-yl-or-rd`): the file holds only the scheme's name; Cytoscape's colors for three bars are measured
+  (rainbow #ff0000 #00ff00 #0000ff, contrasting #ff0000 #ff00ff #0000ff, modulated #ff0000 #7dfd7d #1e1ef6,
+  blue-red #ff0000 #0000ff #c0c0c0, YlOrRd #ffeda0 #feb24c #f03b20) but its rule for other counts is not known, so
+  graph-io draws no chart for them.
+- Comparator: a stroked open path whose two ends land on one node is taken on the oracle side as a piece of the
+  node's drawing and never judged (`associate.ts`, "a path whose nearest ends are one node"), so Cytoscape's line
+  chart, its box whiskers and medians, and its axis lines are not compared at all. graphty reports its own chart
+  lines as line work of the node's face to match; their geometry is checked by
+  `graphty-element/test/meshes/node-decoration.test.ts` against the SVG's coordinates. Comparator work.
+- The `60x30` text on `{xgmml,cx,cx2,cys}-specimen-mappings-bypass-p2`: it is the third line of the caption
+  `shape=\nROUND_RECTANGLE\n60x30` (and `PARALLELOGRAM`), which the oracle keeps as a free text while the caption's
+  other lines are dropped with it. Not a chart and not drawn wrong. Comparator work (caption words).

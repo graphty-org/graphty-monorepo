@@ -99,6 +99,20 @@ describe("DataTable header features", () => {
         expect(button).toHaveAccessibleName("Degree");
     });
 
+    it("reads a labeled glyph as an image before the name", () => {
+        const labeled = columns(vi.fn()).map((column) =>
+            column.id === "degree" ? { ...column, iconLabel: "number, joined" } : column,
+        );
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable columns={labeled} data={NODES} getRowId={(node) => node.id} label="Nodes" />
+            </MantineProvider>,
+        );
+        const button = within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button");
+        expect(within(button).getByRole("img", { name: "number, joined" })).toBeInTheDocument();
+        expect(button).toHaveAccessibleName("number, joined Degree");
+    });
+
     it("shows the header tooltip on keyboard focus and describes the header with it", async () => {
         renderTable();
         const button = within(screen.getAllByTestId("data-table-header")[1]).getByTestId("data-table-sort-button");

@@ -825,7 +825,9 @@ function DataTableInner<TRow extends object>(
                                             <span
                                                 className="cm-dt-header-icon"
                                                 data-testid="data-table-header-icon"
-                                                aria-hidden="true"
+                                                {...(config.iconLabel === undefined
+                                                    ? { "aria-hidden": true }
+                                                    : { role: "img", "aria-label": config.iconLabel })}
                                             >
                                                 {config.icon}
                                             </span>

@@ -93,10 +93,16 @@ export interface DataTableColumn<TRow extends object> {
      */
     pinned?: "start";
     /**
-     * A small glyph drawn before the header's name, such as the column's data type. It is
-     * decoration: the header is still named by `header` alone.
+     * A small glyph drawn before the header's name, such as the column's data type. Without
+     * `iconLabel` it is decoration: the header is named by `header` alone.
      */
     icon?: React.ReactNode;
+    /**
+     * What `icon` says, for a screen reader, such as "number, joined". Given, the glyph is read
+     * as an image with this name before the header's name; omitted, it is hidden from assistive
+     * technology.
+     */
+    iconLabel?: string;
     /**
      * A tooltip on the header, shown on hover and on keyboard focus and linked to the header
      * as its description: the column's profile, such as "77 values, 1 to 36".

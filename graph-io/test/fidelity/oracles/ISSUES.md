@@ -2668,3 +2668,77 @@ Still open, and why:
   so two are hidden. The comparator does not notice, because each graphty edge lies within its route tolerance of an
   oracle edge. Fixing it needs a neutral per-edge end offset in graph-io and a way for graphty-element to draw it.
   Desktop's offsets come from its own random generator, so they could only be matched approximately. Open.
+
+## Specimen sheets: CX2 settings graph-io now reads, and the CX2 rows still open (fix round 2, 2026-10-19)
+
+Measured with the oracle report on every `cx2-` sample after rebuilding graph-io: 29 of 49 pass the verdict (19 in
+the round-2 gap list), and the failing elements of the 49 fell from 1,703 to 1,397.
+
+Fixed:
+
+- Arrow paint under an edge color bypass (`cx2-specimen-mappings-bypass`, `bypass-over-edge-passthrough`): graphty
+  painted the arrow in the bypassed line color (#9467bd), Cytoscape in the style's #505050. Cytoscape's CX2 writer
+  spells a desktop `EDGE_UNSELECTED_PAINT` bypass out as `EDGE_LINE_COLOR` plus both arrow colors, so an
+  `EDGE_LINE_COLOR` bypass alone is the stroke's; under `arrowColorMatchesEdge` the arrows now keep the style's line
+  color, and an arrow's own `EDGE_SOURCE/TARGET_ARROW_COLOR` bypass still wins. The sheet passes. Test:
+  `graph-io/test/formats/cx2/styles.test.ts` ("CX2 edge colors under arrowColorMatchesEdge").
+- Caps Cytoscape draws standing off their node (`arrows`, `mappings-bypass-p11`; T, HALF_CIRCLE, OPEN_HALF_CIRCLE,
+  HALF_TOP, HALF_BOTTOM, SQUARE, OPEN_SQUARE): Cytoscape's SVG draws each cap's unit glyph back from the node's outline
+  (T's bar 0.8 to 1, a half circle 0.5 to 1, HALF_TOP's barb 0.3 to 1.435, a square 0.25 to 1.25) with the line
+  stopping at it; graphty drew every cap against the node. graph-io reads the gap as the new neutral
+  `sourceArrowGap` / `targetArrowGap` (a multiple of the cap's own length), and graphty-element draws it through the new
+  `edge.arrowHeadGap` / `edge.arrowTailGap` channels (`ArrowStyle.gap`). The gaps now measure 9.28 against 9.29 (T),
+  5.80 against 5.81 (half circle) and 2.90 against 2.91 (square). Holds for CX, XGMML and sessions too. Tests:
+  `graph-io/test/formats/cx2/styles.test.ts` ("CX2 arrows Cytoscape draws off their node"),
+  `graphty-element/test/browser/edge-arrow-gap.test.ts`.
+- `OPEN_HALF_CIRCLE` route (comparator): the drawn scene reports graphty's line as ending at the cap's tip, which for an
+  open half circle is its mouth, while both drawings stop the line at the arc's back (cropped side by side, identical);
+  the oracle reader never carries a line through a small open stroke, so graphty's line is now ended at the arc's back
+  too (`drawn-primitives.ts`). No `edge.route` failure remains on `arrows` in CX, CX2, XGMML or sessions. Test:
+  `graphty-element/test/fidelity/oracle/drawn-primitives.test.ts`.
+- ROUND_RECTANGLE label boxes (`labels`, `edge-labels`, `mappings-bypass-p6`,
+  `label-background-shape-round-rectangle`): CX2 spells the shape `round-rectangle`, so the corner radius the sibling
+  XGMML round reads for ROUND_RECTANGLE was never set and the box drew square. Either spelling is read now. Test:
+  `graph-io/test/formats/cx2/styles.test.ts` ("CX2 label background shapes").
+- Straight lines judged as strays (`images-charts-p6`, 7 annotation arrows `stray.extra` and their 7 lines
+  `stray.present`): a straight line's box has no height, so the same line in both drawings shared no area under the
+  stray IoU and was a stray on both sides. Strays are now overlapped with each thin axis taken as 2 render px thick
+  (`strayIou`, `compare-oracle.ts`); a line a row apart still matches nothing (`-p6`: `stray.extra` 7 to 0,
+  `stray.present` 93 to 86, in all four Cytoscape desktop formats). Test:
+  `graphty-element/test/fidelity/oracle/stray-iou.test.ts`.
+- `ARROW`, HAYSTACK, curved-false parallel edges, the passthrough font face, the label background size and `Serif`:
+  fixed for every Cytoscape desktop format by the sibling XGMML and CX rounds (bbdf7ce71, d577376ba); they no longer
+  fail on the CX2 sheets.
+
+Still open, and why:
+
+- Chart labels (`images-charts-p5`, `-p7`, `mappings-bypass-p18`; `chart-labels`): not fixed, as the CX, XGMML and
+  session rounds say. 9 of the 11 labels on `-p7` belong to bar, line and heat map charts graphty-element does not draw
+  at all (`node-custom-graphics`), so they cannot be judged before those charts are drawn; pie item labels
+  (`cy_showItemLabels`, `cy_itemLabelsColumn`, `cy_itemLabelFontSize`) need a neutral slot and graphty-element to draw
+  words on a pie slice. One change in graphty-element closes it for all four Cytoscape desktop formats; it is left to a
+  single owner rather than four rounds racing on it.
+- `CROSS_DELTA`, `CROSS_OPEN_DELTA` (`arrows`, 4 `edge.arrowShape`): graphty-element-render (`arrow-shape-vocabulary`),
+  not in this round.
+- `arrows-p2` `target-arrow-size-24` (`edge.extra` 1, `stray.present` 2): both programs draw the same edge (cropped side
+  by side, identical): a line shorter than its size-24 delta. The oracle reader takes the delta as a stray and finds no
+  edge under it, so graphty's edge is reported extra (`comparator-edge-association`). Comparator.
+- Patterned corpus edges (`cx2-syn-mappings` 143 and `cx2-syn-bypass` 23 `edge.arrow`, `cx2-signor-aml`,
+  `cx2-wp1449-tlr` `edge.present` / `edge.extra`; `comparator-edge-association`): the oracle reader finds no cap at the
+  end of a line Cytoscape draws in pieces (slashes, arrows, dashes) and pairs some long edges with the wrong path
+  (`cx2-syn-mappings` `156->192`: the oracle's line runs node to node while its cap sits 250 px away). Comparator.
+  The cap gaps above raise these samples' `edge.route` (A/B on the same build, gaps off then on: `syn-mappings` 93 to
+  97 of 131, `signor-aml` 210 to 211 of 271, `wp1449-tlr` 92 to 112 of 126); the floors these samples fell below in
+  this run (`signor-aml` label.present, edge.width, dash, arrowLength; `syn-mappings` alongLine, edge.present, color;
+  `wp1449-tlr` edge.present) did not move in that A/B, so they follow the comparator's association changes landing
+  beside this round, not an import change.
+- Label wrapping (`cx2-us-returned-students` 3 `label.lines`, `cx2-ndex-90f78bcd` `Citric acid cycle`): graphty wraps
+  "Chinese Students' Christian Association" (198.3 wide in DejaVu Sans at size 10) and "Grass Valley High School
+  Debating Club" (198.5) under `NODE_LABEL_MAX_WIDTH` 200 because each word is measured with the space after it (201.5);
+  Cytoscape draws them on one line, and in this file it draws every label on one line, up to "American Association for
+  Advancement of Science" (251.8 wide). Its wrap rule for these files is not yet known (the specimen sheets' wrap width
+  specimens pass), so nothing was changed. graph-io-import (`label-wrap-width`).
+- `cx2-ndex-90f78bcd` node `304542` (`label.lines` 2 of 6): the node sits at x -9641, at the canvas's left edge; the
+  oracle holds only the two lines of its label the canvas shows. Not an import gap.
+- Chart pieces Cytoscape draws (bar, line, box, heat strip; the `60x30` image placeholder text): `stray.present` on the
+  `images-charts` pages, graphty-element-render (`node-custom-graphics`), not in this round.

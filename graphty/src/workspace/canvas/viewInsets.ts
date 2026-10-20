@@ -20,12 +20,8 @@ export const OVERLAY_GAP = 12;
  * sides (the key's room its left or top, the toolbar the bottom), so two overlays never overwrite
  * each other's margin.
  *
- * A margin changing never moves the drawing: the element keeps clear of it at its next framing of
- * its own (a load, a layout). Two things frame the graph again, clear of every margin, and only
- * while the element frames on its own and the reader has not placed the camera since
- * (`cameraPlaced`): the canvas changing size -- the table opening under it, the window resized --
- * since the drawing the reader saw no longer fits the canvas it is drawn on; and the overlay
- * arriving over a drawn node, since it would hide that node.
+ * A margin changing never moves the drawing: the element keeps clear of it when it frames the
+ * graph -- on open and when the reader asks for Frame. The drawing moves only when the reader asks.
  * @param ref - The overlay.
  * @param owned - The sides it owns; a module constant, so the report is set up once.
  * @param sides - A module function: its margins from its box and the canvas's, the owned sides only; a side left out
@@ -36,7 +32,7 @@ export function useOverlayInset(
     owned: readonly Side[],
     sides: (box: HTMLElement, canvas: HTMLElement) => ViewInsets,
 ): void {
-    const { store, element } = useWorkspace();
+    const { store } = useWorkspace();
     useLayoutEffect(() => {
         const box = ref.current;
         const canvas = box?.parentElement?.closest<HTMLElement>(".ws-canvas-overlays") ?? box?.parentElement;
@@ -61,42 +57,11 @@ export function useOverlayInset(
                 store.set({ viewInsets: merged });
             }
         };
-        const sizeOf = (): string => `${String(canvas.clientWidth)}x${String(canvas.clientHeight)}`;
-        // The size the reader last saw the drawing at; none while a page hides the canvas.
-        let size = canvas.getClientRects().length === 0 ? null : sizeOf();
-        // Whether the overlay has been measured once: its first report is its arrival.
-        let arrived = false;
-        /**
-         * Whether the overlay's box covers a node the element draws.
-         * @param host - The element.
-         * @returns True when a drawn node lies under the overlay.
-         */
-        const hidesNode = (host: NonNullable<typeof element>): boolean => {
-            const at = host.getBoundingClientRect();
-            const over = box.getBoundingClientRect();
-            const rect = { x: over.left - at.left, y: over.top - at.top, width: over.width, height: over.height };
-            return host.nodesInRect(rect).length > 0;
-        };
         const report = (): void => {
             // A canvas hidden behind a page (no box at all) measures nothing: insets read off it
-            // are not the overlay's, and its size coming back is not a resize.
-            if (canvas.getClientRects().length === 0) {
-                return;
-            }
-            write(sides(box, canvas));
-            const resized = size !== null && sizeOf() !== size;
-            const arriving = !arrived;
-            arrived = true;
-            size = sizeOf();
-            if (
-                element !== null &&
-                element.autoFrame &&
-                !element.cameraPlaced &&
-                (resized || (arriving && hidesNode(element)))
-            ) {
-                // The margins reach the element before the fit it asks for.
-                element.viewInsets = store.get().viewInsets;
-                element.zoomToFit();
+            // are not the overlay's.
+            if (canvas.getClientRects().length > 0) {
+                write(sides(box, canvas));
             }
         };
         const observer = new ResizeObserver(report);
@@ -107,7 +72,7 @@ export function useOverlayInset(
             observer.disconnect();
             write({});
         };
-    }, [store, element, ref, owned, sides]);
+    }, [store, ref, owned, sides]);
 }
 
 /** The side the canvas toolbar owns. */

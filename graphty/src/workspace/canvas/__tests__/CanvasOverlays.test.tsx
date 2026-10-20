@@ -457,48 +457,20 @@ describe("the legend card", () => {
         assert.isUndefined(store.get().viewInsets.top);
     });
 
-    it("frames the drawing once when the key arrives over a node, unless the reader placed the camera", async () => {
-        for (const [covered, placed, frames] of [
-            [["n1"], false, 1],
-            [["n1"], true, 0],
-            [[], false, 0],
-        ] as const) {
-            const { element, zoomToFit } = framing([...covered], placed);
-            const store = renderOver(standIn(facts).session, {}, [], element);
-            await vi.waitFor(() => {
-                assert.notDeepEqual(store.get().viewInsets, {});
-            });
-            await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-            assert.equal(
-                zoomToFit.mock.calls.length,
-                frames,
-                `covered ${String(covered.length)}, placed ${String(placed)}`,
-            );
-            if (frames > 0) {
-                assert.deepEqual(element.viewInsets, store.get().viewInsets, "the margins reach the element first");
-            }
+    it("never moves the drawing when the key arrives over a node or the canvas changes size", async () => {
+        const { element, zoomToFit } = framing(["n1"]);
+        const store = renderOver(standIn(facts).session, {}, [], element);
+        await vi.waitFor(() => {
+            assert.notDeepEqual(store.get().viewInsets, {});
+        });
+        const canvas = screen.getAllByRole("region", { name: "Legend" }).at(-1)?.parentElement;
+        if (!canvas) {
+            throw new Error("the card has no canvas");
         }
-    });
-
-    it("frames the drawing again when the canvas changes size, unless the reader placed the camera", async () => {
-        for (const placed of [false, true]) {
-            const { element, zoomToFit } = framing([], placed);
-            const store = renderOver(standIn(facts).session, {}, [], element);
-            await vi.waitFor(() => {
-                assert.notDeepEqual(store.get().viewInsets, {});
-            });
-            const canvas = screen.getAllByRole("region", { name: "Legend" }).at(-1)?.parentElement;
-            if (!canvas) {
-                throw new Error("the card has no canvas");
-            }
-            canvas.style.height = "300px";
-            await vi.waitFor(() => {
-                assert.equal(zoomToFit.mock.calls.length, placed ? 0 : 1);
-            });
-            if (!placed) {
-                assert.deepEqual(element.viewInsets, store.get().viewInsets, "the margins reach the element first");
-            }
-        }
+        canvas.style.height = "300px";
+        // The resize observer reports the new size by the next frame.
+        await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+        assert.equal(zoomToFit.mock.calls.length, 0);
     });
 
     it("says which layer paints a block of some nodes, and how many", () => {

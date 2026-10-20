@@ -39,12 +39,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Seen once, not reproduced: the bind pop-out showed open on a hover after Escape had closed it
    (tips/46-47); 54-61 repeated the sequence and it stayed shut.
 
-1. (2026-10-19, the three compact-mantine fixes re-walked above) Their design, the rejected
-   alternatives, the tests red before and the pre-existing compact-mantine failures are in full in
-   `git show 532890ecc:design/ui/studio/notes/engineer.md`, Top of mind 0, 1 and 0b. Kept here:
-   the picker's Tab wrap lives in PopoutPanel (`entryRef`, `visitedRef`), not the picker; the
-   no-match line's status region sits inside the list surface, never in `document.body`; build
-   each package with its own `npm run build` (nx fails on the untracked `compact-mantine-headproof/`).
+1. (2026-10-19, the drawing stays put when the key appears) `useOverlayInset` in
+   `graphty/src/workspace/canvas/viewInsets.ts` now only reports each overlay's margin to the
+   element; it never calls `zoomToFit`. Removed both frames it did: the key arriving over a drawn
+   node (made the drawing jump right and shrink at the first color) and the canvas changing size
+   (decided.md lists the table opening among things that never re-frame). The key's room is used
+   by Fit/Frame and by the element's own framing at open; a sample still opens centered (no key,
+   no room). Test red on the old hook: LegendCard.real-element "never moves the drawing when the
+   key comes up, grows, or Undo takes it away" (first color moved a node 251 -> 451 px). Walk:
+   `design/ui/studio/tmp/r1-dry1-drawing-stays-put/walk/` 05-06 Degree run, key appears, drawing
+   unchanged; 07 Undo unchanged; 10 Fit (0) keeps clear of the key. Not walked: filter step on and
+   off. Pre-existing failure, not mine: CanvasOverlays "lists every sample under Open a sample"
+   (stand-in session has no `data.source`). Earlier compact-mantine fix notes:
+   `git show 532890ecc:design/ui/studio/notes/engineer.md`, Top of mind 0, 1 and 0b.
 
 0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
 starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary

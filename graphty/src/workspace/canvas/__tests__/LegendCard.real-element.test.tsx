@@ -386,7 +386,7 @@ describe("the canvas key on the real element", () => {
         });
     });
 
-    it("frames the drawing clear of the key when it comes up, and never moves it as the key grows", async () => {
+    it("never moves the drawing when the key comes up, grows, or Undo takes it away", async () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
@@ -411,7 +411,7 @@ describe("the canvas key on the real element", () => {
                 const at = element.nodeScreenPosition(node.id);
                 return at === undefined ? [] : [at.x, at.y];
             });
-        let framed = drawn();
+        const framed = drawn();
         const unmoved = async (what: string): Promise<void> => {
             await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             await element.waitForStableFrame();
@@ -422,6 +422,7 @@ describe("the canvas key on the real element", () => {
             });
         };
 
+        // The first color: the key comes up over a drawing that has the whole canvas.
         await session.styles.add({
             name: "Key people",
             target: "node",
@@ -429,8 +430,6 @@ describe("the canvas key on the real element", () => {
             set: { "node.color": "#ff00ff" },
         });
         await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        // The key arrived over the drawing, which had the whole canvas: the graph is framed once,
-        // clear of the key's room.
         await waitFor(
             () => {
                 assert.isDefined(
@@ -440,21 +439,7 @@ describe("the canvas key on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        await element.waitForStableFrame();
-        const room = document.querySelector(".ws-legend-room")?.getBoundingClientRect();
-        const host = element.getBoundingClientRect();
-        assert.isDefined(room);
-        assert.isEmpty(
-            element.nodesInRect({
-                x: room.left - host.left,
-                y: room.top - host.top,
-                width: room.width,
-                height: room.height,
-            }),
-            "no node is drawn in the key's room once it came up",
-        );
-        framed = drawn();
+        await unmoved("the key coming up moved the drawing");
 
         await session.runs.start("louvain");
         await session.styles.settled();
@@ -466,16 +451,15 @@ describe("the canvas key on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
         await unmoved("the key growing as a run ended moved the drawing");
-        // Nothing drawn lies under the key: its room was kept clear from the start.
-        const legend = screen.getByRole("region", { name: "Legend" });
-        const canvas = legend.parentElement?.getBoundingClientRect();
-        const box = legend.getBoundingClientRect();
-        const covered = element.nodesInRect({
-            x: box.left - (canvas?.left ?? 0),
-            y: box.top - (canvas?.top ?? 0),
-            width: box.width,
-            height: box.height,
-        });
-        assert.isEmpty(covered, "no node is drawn under the key");
+
+        await session.undo();
+        await session.undo();
+        await waitFor(
+            () => {
+                assert.isNull(screen.queryByRole("region", { name: "Legend" }), "Undo took the key away");
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        await unmoved("Undo taking the key away moved the drawing");
     });
 });

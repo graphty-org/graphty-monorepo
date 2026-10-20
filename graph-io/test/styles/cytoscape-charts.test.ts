@@ -8,7 +8,7 @@ import type { StyleColumn } from "../../src/styles/types.js";
 
 const PIE =
     'org.cytoscape.PieChart:{"cy_startAngle":0.0,"cy_colors":["#D62728","#2CA02C","#1F77B4"],"cy_dataColumns":["a","b","c"]}';
-const DATA: Record<string, unknown> = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4] };
+const DATA: Record<string, unknown> = { a: 3, b: 5, c: 2, series: [2, 5, 3, 8, 4], chartLabels: ["X", "Y", "Z"] };
 
 /**
  * One node's chart values.
@@ -65,6 +65,34 @@ describe("Cytoscape charts", () => {
         expect(cx2.pieRadius).toBe(0.36);
         // NW,NW on a 60 node with a 21.6 disc: 19.2 px down and right, as the specimen sheets' oracles measure
         expect([cx2.pieOffsetX, cx2.pieOffsetY]).toEqual([19.2, 19.2]);
+    });
+
+    it("draws a pie's item labels on its slices, from the options or a column, at their size", () => {
+        const labelled = (options: string): unknown => {
+            const v = read({ NODE_CUSTOMGRAPHICS_1: PIE.replace("{", `{${options},`) });
+            return typeof v.shapeTexts === "string" ? JSON.parse(v.shapeTexts) : v.shapeTexts;
+        };
+        // a = 3 of 10 from 3 o'clock counter-clockwise: its middle at 54 degrees, 0.62 of the 27 px disc's radius out
+        // (xgmml-specimen-images-charts-p5 pie-item-label-font-size-20: "A" 17 px up and right of the center)
+        const r = 0.62 * 27;
+        const at = (deg: number): number[] => [
+            Number(((r * Math.cos((deg * Math.PI) / 180)) / 30).toFixed(6)),
+            Number(((r * Math.sin((deg * Math.PI) / 180)) / 30).toFixed(6)),
+        ];
+        const look = { size: Number((20 / 60).toFixed(6)), color: "#404040" };
+        expect(labelled('"cy_showItemLabels":true,"cy_itemLabels":["A","B","C"],"cy_itemLabelFontSize":20')).toEqual([
+            [...at(54), "A", look],
+            [...at(198), "B", look],
+            [...at(324), "C", look],
+        ]);
+        // from the node's list column, at Cytoscape's default size (1 px)
+        expect(labelled('"cy_showItemLabels":true,"cy_itemLabelsColumn":"chartLabels"')).toEqual([
+            [...at(54), "X", { size: 0.0166667, color: "#404040" }],
+            [...at(198), "Y", { size: 0.0166667, color: "#404040" }],
+            [...at(324), "Z", { size: 0.0166667, color: "#404040" }],
+        ]);
+        // none unless shown
+        expect(labelled('"cy_itemLabels":["A","B","C"]')).toBeUndefined();
     });
 
     it("places a chart whose anchors differ as Cytoscape draws it", () => {

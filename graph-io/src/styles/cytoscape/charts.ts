@@ -37,6 +37,10 @@ interface ChartOptions {
     readonly cy_borderWidth?: unknown;
     readonly cy_borderColor?: unknown;
     readonly cy_lineWidth?: unknown;
+    readonly cy_showItemLabels?: unknown;
+    readonly cy_itemLabels?: unknown;
+    readonly cy_itemLabelsColumn?: unknown;
+    readonly cy_itemLabelFontSize?: unknown;
 }
 
 /** The charts Cytoscape draws, by the name of their class. */
@@ -218,11 +222,117 @@ export function readCytoscapeCharts(
             }
         }
         col("pieRotation")[i] = num6((((90 - (Number.isFinite(start) ? start : 0)) % 360) + 360) % 360);
+        const texts = pieItemLabels(options, values, colors, (c) => value(c, i), {
+            start: Number.isFinite(start) ? start : 0,
+            radius: (CHART_ACROSS * (fitted || side === null ? 1 : own / side) * (side ?? 0)) / 2,
+            dx: Number(out.pieOffsetX?.[i] ?? 0),
+            dy: Number(out.pieOffsetY?.[i] ?? 0),
+            w: typeof w === "number" ? w : null,
+            h: typeof h === "number" ? h : null,
+        });
+        if (texts !== null && (out.shapeTexts?.[i] ?? null) === null) {
+            col("shapeTexts")[i] = texts;
+        }
         if (chart.ring) {
             const hole = Number(options.cy_holeSize ?? RING_HOLE);
             col("pieHole")[i] = Number.isFinite(hole) ? Math.max(0, Math.min(1, hole)) : RING_HOLE;
         }
     }
+}
+
+/**
+ * Where Cytoscape's pie draws an item label: centered on its slice's middle, this share of the radius out (measured
+ * from its SVG export of xgmml-specimen-images-charts-p5 and -p7: 16.4 to 17.3 px from the center of a 27.2 px disc,
+ * at 1, 10 and 20 px).
+ */
+const ITEM_LABEL_RADIUS = 0.62;
+
+/**
+ * The size of a chart's item labels, in the file's lengths, when its options name none: Cytoscape 3.10.5 draws them 1
+ * px tall (xgmml-specimen-images-charts-p5 `pie-item-labels`).
+ */
+const ITEM_LABEL_FONT_SIZE = 1;
+
+/** The color JFreeChart draws Cytoscape's chart labels in. */
+const CHART_LABEL_COLOR = "#404040";
+
+/**
+ * A chart's item labels: `cy_itemLabels`, or the node's list in `cy_itemLabelsColumn`, one per data column; none
+ * unless `cy_showItemLabels` is on.
+ * @param options - the chart's options
+ * @param value - reads the node's value of a column
+ * @returns the labels, or null
+ */
+function itemLabelsOf(options: ChartOptions, value: (column: string) => unknown): string[] | null {
+    if (options.cy_showItemLabels !== true) {
+        return null;
+    }
+    const column = typeof options.cy_itemLabelsColumn === "string" ? value(options.cy_itemLabelsColumn) : undefined;
+    const list = Array.isArray(column) ? column : options.cy_itemLabels;
+    return Array.isArray(list) ? list.map((v) => (v === null || v === undefined ? "" : String(v))) : null;
+}
+
+/**
+ * A pie's or a ring's item labels as the node's further texts (`shapeTexts`), as Cytoscape 3.10.5 draws them
+ * (measured from its SVG export of the specimen sheets): each slice's label centered on the middle of its slice, a
+ * share of the disc's radius out from its center, in `cy_itemLabelFontSize` (the file's lengths) and JFreeChart's
+ * dark gray.
+ * @param options - the chart's options
+ * @param values - the node's values, one per data column
+ * @param colors - the chart's colors, one per data column
+ * @param value - reads the node's value of a column
+ * @param at - where the disc is: its start angle (degrees counter-clockwise from 3 o'clock), radius and offset from
+ * the node's center (y down), and the node's width and height
+ * @param at.start - start angle
+ * @param at.radius - the disc's radius
+ * @param at.dx - offset right
+ * @param at.dy - offset down
+ * @param at.w - the node's width
+ * @param at.h - the node's height
+ * @returns the texts as JSON, or null for none
+ */
+function pieItemLabels(
+    options: ChartOptions,
+    values: readonly number[],
+    colors: readonly string[],
+    value: (column: string) => unknown,
+    at: { start: number; radius: number; dx: number; dy: number; w: number | null; h: number | null },
+): string | null {
+    const labels = itemLabelsOf(options, value);
+    const { w, h } = at;
+    if (labels === null || w === null || h === null || !(w > 0 && h > 0) || !(at.radius > 0)) {
+        return null;
+    }
+    const shown = values.map((v, k) => Number.isFinite(v) && v > 0 && colors[k] !== undefined);
+    const total = values.reduce((sum, v, k) => sum + (shown[k] ? v : 0), 0);
+    const size = Number(options.cy_itemLabelFontSize ?? ITEM_LABEL_FONT_SIZE);
+    const texts: [number, number, string, { size: number; color: string }][] = [];
+    let from = at.start;
+    values.forEach((v, k) => {
+        if (!shown[k]) {
+            return;
+        }
+        const sweep = (360 * v) / total;
+        const mid = ((from + sweep / 2) * Math.PI) / 180;
+        from += sweep;
+        const text = labels[k] ?? "";
+        if (text === "") {
+            return;
+        }
+        // counter-clockwise from 3 o'clock, y up in the node's frame
+        const x = at.dx + ITEM_LABEL_RADIUS * at.radius * Math.cos(mid);
+        const y = -at.dy + ITEM_LABEL_RADIUS * at.radius * Math.sin(mid);
+        texts.push([
+            num6(x / (w / 2)),
+            num6(y / (h / 2)),
+            text,
+            {
+                size: num6((Number.isFinite(size) && size > 0 ? size : ITEM_LABEL_FONT_SIZE) / h),
+                color: CHART_LABEL_COLOR,
+            },
+        ]);
+    });
+    return texts.length === 0 ? null : JSON.stringify(texts);
 }
 
 /** How many of the file's lengths one of Cytoscape's chart units is: it draws a chart at twice the node's scale. */

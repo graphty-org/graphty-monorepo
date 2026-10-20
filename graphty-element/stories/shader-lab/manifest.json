@@ -1,0 +1,987 @@
+{
+    "note": "Shader lab catalog. Builders set status to built (or broken) and story to the Storybook story id when a story exists.",
+    "batches": [
+        {
+            "id": "basics",
+            "title": "Basics",
+            "ideas": [
+                {
+                    "slug": "flat-nodes-and-straight-edges",
+                    "name": "Flat Nodes And Straight Edges",
+                    "category": "node",
+                    "purpose": "practical",
+                    "wow": 1,
+                    "what": "The harness starting point: flat discs and gradient edges. Copy it to start a story.",
+                    "status": "built",
+                    "story": "shader-lab-basics-flat-nodes-and-straight-edges--flat-nodes-and-straight-edges"
+                }
+            ]
+        },
+        {
+            "id": "sdf-node-glyphs",
+            "title": "SDF node glyphs",
+            "ideas": [
+                {
+                    "slug": "sdf-shape-glyphs",
+                    "name": "SDF shape glyphs",
+                    "category": "node",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Crisp circle/square/star/hexagon by community, border width by degree, smooth shape morph.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "pie-donut",
+                    "name": "Pie and donut composition",
+                    "category": "node",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Each node is a small pie or donut of its neighbors' community mix, slices animate open.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "progress-ring",
+                    "name": "Progress ring gauge",
+                    "category": "node",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Arc gauge with glowing tip shows a 0..1 value such as PageRank.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "lod-glyph",
+                    "name": "Level-of-detail glyph",
+                    "category": "node",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Dots far away, gain border, gauge, icon and badge as you zoom in, no popping.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "sparkline-badge",
+                    "name": "Sparkline badge",
+                    "category": "node",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Tiny line chart of the node's value over time drawn across its face.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "icon-sticker",
+                    "name": "Icon sticker with peel",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "SDF icon stickers by node type; the corner peels back with foil shine on hover.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "colorblind-patterns",
+                    "name": "Colorblind pattern overlay",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 1,
+                    "what": "Stripes, dots or checks per category inside the node, readable in any color vision.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "kaleidoscope-mandala",
+                    "name": "Kaleidoscope mandala",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Rotating mandala per node; symmetry fold count equals degree.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "fractal-core",
+                    "name": "Fractal core",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Animated Julia set per node, parameter from node data, a visual fingerprint.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "impostor-materials",
+            "title": "Sphere impostors and lit materials",
+            "ideas": [
+                {
+                    "slug": "sphere-impostors",
+                    "name": "Ray-cast sphere impostors",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Perfect lit spheres from two triangles with written depth; 100k nodes.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "matcap-sampler",
+                    "name": "Matcap material sampler",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 3,
+                    "what": "Switch nodes between clay, chrome, jade, pearl, velvet, wax, toon.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "toon-ink",
+                    "name": "Toon node with ink outline",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Comic-book bands, hard specular dot, wobbly hand-drawn ink outline, halftone shadow.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "glass-marble",
+                    "name": "Glass marble with inner swirl",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Glass marbles with community-colored ribbons refracted inside.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "gemstone",
+                    "name": "Cut gemstone with dispersion",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Faceted gems with rainbow fire; top-rank nodes are diamonds.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "soap-bubble",
+                    "name": "Soap bubble thin-film",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Iridescent swirling bubble nodes, or a bubble shield around locked nodes.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "eyeball",
+                    "name": "Eyeball that watches you",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Iris follows the cursor, blinks at random, hovered pupil dilates.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "lantern-glow",
+                    "name": "Lantern inner glow",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Nodes glow from within like paper lanterns; brightness is a value, hue stays free.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "fresnel-rim-selection",
+                    "name": "Fresnel rim selection glow",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Rim of light around selected/hovered nodes that breathes; cheap replacement for blur highlight.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "procedural-surfaces",
+            "title": "Procedural noise surfaces on nodes",
+            "ideas": [
+                {
+                    "slug": "gas-planet",
+                    "name": "Procedural gas planet",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Rotating banded gas giants with storms, atmosphere; hubs get rings.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "sun-star",
+                    "name": "Sun surface star",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Boiling granulated stars with corona; temperature color encodes rank.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "lava-node",
+                    "name": "Lava node",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Dark crust with glowing lava veins; vein brightness encodes load.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "living-cell",
+                    "name": "Living cell",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Wobbling membrane, nucleus sized by degree, drifting organelles.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "liquid-fill",
+                    "name": "Liquid fill level",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Glass bulb partly filled with sloshing liquid at a value's level.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "frost-pinned",
+                    "name": "Frost creep for pinned nodes",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Pinning grows frost inward from the rim; unpinning thaws it.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "aging-patina",
+                    "name": "Aging patina",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Old nodes fade to sepia with grain and cracks; new ones stay glossy.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "plasma-globe",
+                    "name": "Plasma globe toward neighbors",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Plasma tendrils reach toward each neighbor's direction and the cursor.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "radar-sweep",
+                    "name": "Radar sweep",
+                    "category": "node",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Rotating sweep lights neighbor blips; also a busy state while an algorithm computes.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "node-state-effects",
+            "title": "Time-driven status and event effects",
+            "ideas": [
+                {
+                    "slug": "hologram-ghost",
+                    "name": "Hologram ghost state",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Predicted or not-loaded nodes and edges as flickering scanline holograms.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "glitch-failure",
+                    "name": "Glitch for failures",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Failed nodes and edges tear with RGB split and block jumps.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "burning-dissolve",
+                    "name": "Burning dissolve on filter",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Filtered nodes and edges burn away with an ember rim, reassemble in reverse.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "gommage-disintegration",
+                    "name": "Gommage disintegration",
+                    "category": "node-effect",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "A removed node shatters into glowing flakes that drift away.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "change-flash",
+                    "name": "Change flash and cool-down",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Changed nodes flash with a star glint; new edges cool through a heat ramp; removed edges shrink away.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "heartbeat",
+                    "name": "Heartbeat",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Nodes and edges pulse with a lub-dub beat; rate and strength from centrality or activity.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "community-breathing",
+                    "name": "Community synchronized breathing",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Each community breathes in sync with a slow traveling wave.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "lock-on-reticle",
+                    "name": "Lock-on reticle",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "HUD brackets snap in around the selected node and rotate.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "foil-shimmer-search",
+                    "name": "Foil shimmer for search matches",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "A band of holographic foil sweeps across search hits.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "node-motion-aura",
+            "title": "Hop data, hover, motion and auras",
+            "ideas": [
+                {
+                    "slug": "hop-ripple",
+                    "name": "Hop-distance ripple",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Click a node; a ripple lights nodes in hop order, with screen-space water refraction.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "focus-by-hop",
+                    "name": "Focus by hop distance",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 4,
+                    "what": "Selected neighborhood stays sharp; farther nodes and edges blur, gray and fade (depth-of-field variant).",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "hover-swell",
+                    "name": "Magnetic hover swell",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Nodes near the cursor swell like the macOS dock.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "jelly-wobble",
+                    "name": "Jelly wobble from velocity",
+                    "category": "node-effect",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Nodes squash and stretch while the layout moves them and wobble when they stop.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "orbiting-satellites",
+                    "name": "Orbiting satellites",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Tiny moons orbit each node; count is a number, speed is activity.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "uncertainty-sketch",
+                    "name": "Uncertainty fuzz and sketch",
+                    "category": "node-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Uncertain nodes blur and grain; uncertain edges wobble like pencil strokes.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "uncertainty-aura",
+                    "name": "Turbulent uncertainty aura",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Smoky aura churns harder around less certain nodes.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "thermal-glow",
+                    "name": "Thermal heat glow and haze",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Busy nodes glow on a blackbody ramp with heat shimmer above.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "rising-embers",
+                    "name": "Rising embers from hot nodes",
+                    "category": "node-effect",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Top nodes shed rising sparks that wink out.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "edge-ribbon-patterns",
+            "title": "Fragment patterns along the edge ribbon",
+            "ideas": [
+                {
+                    "slug": "tapered-edges",
+                    "name": "Tapered direction edges",
+                    "category": "edge",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Wide at source, needle at target, with a ring sliding down.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "gradient-edges",
+                    "name": "Source-to-target gradient",
+                    "category": "edge",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Edge blends source to target community color with a faint direction shimmer.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "fiber-optic",
+                    "name": "Fiber optic strands",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Dark glass fibers carrying light packets, glint at the target.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "energy-flow",
+                    "name": "Energy plasma flow",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Scrolling turbulent plasma in a cosine palette; turbulence by weight.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "rope-chain",
+                    "name": "Rope, chain and stitch by weight",
+                    "category": "edge",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Thread, braided rope or chain links by weight band; stitched-thread variant.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "dna-helix",
+                    "name": "DNA double helix",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Two twisting strands in source and target colors with rungs.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "matrix-glyphs",
+                    "name": "Matrix glyph streams",
+                    "category": "edge-effect",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Procedural green glyphs rain along edges toward the target.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "ink-brush",
+                    "name": "Ink brush strokes",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Sumi-e strokes with pressure swell and dry-brush fraying.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "edge-geometry-glow",
+            "title": "Vertex-displaced and curved edges",
+            "ideas": [
+                {
+                    "slug": "bezier-glow",
+                    "name": "SDF Bezier glow curves",
+                    "category": "edge",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Anti-aliased curved edges; multi-edges bow apart, self-loops become teardrops.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "lightning-arcs",
+                    "name": "Lightning arcs",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Jagged bolts that re-snap several times a second, with forks.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "arcs-3d",
+                    "name": "3D arcs by weight",
+                    "category": "edge",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Edges lift into arches by weight or length, with a riding pulse.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "oscilloscope-edges",
+                    "name": "Oscilloscope wave edges",
+                    "category": "edge",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Green phosphor sine traces; frequency is weight, amplitude is variance.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "vines-growing",
+                    "name": "Vines growing along edges",
+                    "category": "edge-effect",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Vines grow source to target and unfurl leaves; newest edges still growing.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "dew-silk",
+                    "name": "Dew on spider silk",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Near-invisible threads beaded with glinting droplets; bead count is weight.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "aurora",
+                    "name": "Aurora curtains",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Aurora curtains hang from long edges, or above community pairs with brightness from edges between them.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "edge-flow-propagation",
+            "title": "Motion along edges and propagation",
+            "ideas": [
+                {
+                    "slug": "marching-ants",
+                    "name": "Marching ants and chevrons",
+                    "category": "edge",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Dashes or chevrons scroll source to target; speed and density by weight.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "comet-tracers",
+                    "name": "Comet tracers",
+                    "category": "edge",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Bright heads with fading tails race along edges with random phases.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "particle-traffic",
+                    "name": "Wind-map particle traffic",
+                    "category": "edge",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Thousands of glowing particles stream along edges; count and speed by traffic.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "packets-bursts",
+                    "name": "Data packets and event bursts",
+                    "category": "edge-effect",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Typed packet glyphs slide along edges and queue on congestion; a click fires a burst that splashes on the target.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "bfs-wave",
+                    "name": "BFS signal wave",
+                    "category": "edge-effect",
+                    "purpose": "practical",
+                    "wow": 5,
+                    "what": "Click a node; a light pulse runs over edges in breadth-first order.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "path-fuse",
+                    "name": "Shortest-path fuse",
+                    "category": "edge-effect",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "A burning spark runs along a Dijkstra path or a cascade, leaving embers.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "hover-sparkle",
+                    "name": "Hover neighbor sparkle",
+                    "category": "edge-effect",
+                    "purpose": "both",
+                    "wow": 3,
+                    "what": "Hovered node's out-edges and in-edges sparkle in two colors.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "density-fields",
+            "title": "Render-target splatting, fields and simulations",
+            "ideas": [
+                {
+                    "slug": "light-painting",
+                    "name": "Additive light painting",
+                    "category": "edge",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Faint additive edges tone-mapped like a long exposure; toggle vs plain alpha.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "density-heatmap",
+                    "name": "Node density heat map",
+                    "category": "whole-graph",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Gaussian splats mapped through a log magma ramp under the graph.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "metaball-hulls",
+                    "name": "Metaball community hulls",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Gooey blobs wrap each community, optional soap-bubble membrane.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "voronoi-territory",
+                    "name": "Voronoi territory map",
+                    "category": "whole-graph",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Jump-flood nearest-node cells colored by community with borders.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "iso-contours",
+                    "name": "Iso-contour topography",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Density as a topographic map with contours and hill shading.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "kdeeb-bundling",
+                    "name": "Kernel-density edge bundling",
+                    "category": "edge",
+                    "purpose": "practical",
+                    "wow": 5,
+                    "what": "Slider pulls a hairball into bundled highways; glowing traffic variant.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "layout-trails",
+                    "name": "Light trails during layout",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Nodes leave fading streaks while the force layout settles.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "force-wind-map",
+                    "name": "Layout force-field wind map",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 5,
+                    "what": "Particles drift along the layout's force field like a wind map.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "fluid-ink",
+                    "name": "Fluid ink stirred by dragging",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Dragging a node stirs community-colored ink in a fluid sim.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "glow-post",
+            "title": "Glow, bloom and full-screen post-processing",
+            "ideas": [
+                {
+                    "slug": "neon-glow",
+                    "name": "Neon nodes and edges",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Neon tube outlines and edges with white core and halo; flicker encodes volatility.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "selective-bloom",
+                    "name": "Selective importance bloom",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Only high-centrality nodes and the active path glow.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "depth-cues",
+                    "name": "3D depth cues",
+                    "category": "whole-graph",
+                    "purpose": "practical",
+                    "wow": 3,
+                    "what": "Toggles for depth fog and desaturation, eye-dome outlines, ambient occlusion.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "stylize-looks",
+                    "name": "Retro and illustration looks",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Dropdown: CRT, 1-bit dither, ASCII, pixel art, phosphor, pencil, watercolor, blueprint.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "colorblind-preview",
+                    "name": "Colorblind preview",
+                    "category": "whole-graph",
+                    "purpose": "practical",
+                    "wow": 2,
+                    "what": "Simulates protanopia, deuteranopia, tritanopia; optional hull stripes.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "lens",
+                    "name": "Magnifier and EdgeLens",
+                    "category": "whole-graph",
+                    "purpose": "both",
+                    "wow": 4,
+                    "what": "Draggable glass lens with chromatic rim; edges bend away from the lens.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "camera-finish",
+                    "name": "Film grade and tilt-shift",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Color grading, vignette, grain, anamorphic streaks, tilt-shift miniature.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        },
+        {
+            "id": "scene-spectacle",
+            "title": "Scene render targets, backdrops and transitions",
+            "ideas": [
+                {
+                    "slug": "black-hole-hub",
+                    "name": "Black hole hub",
+                    "category": "node",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Top hubs lens the graph behind them with an accretion disk.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "heat-haze-edges",
+                    "name": "Heat-haze refraction edges",
+                    "category": "edge",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Busy edges shimmer and distort what is behind them.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "shockwave",
+                    "name": "Shockwave and gravity wave",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "A chromatic ring bursts from changes; edges bend as it passes.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "nebula-backdrop",
+                    "name": "Nebula and starfield backdrop",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Domain-warped gas and parallax stars tinted by nearby communities.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "god-rays",
+                    "name": "God rays from a hub",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Light shafts from the selected hub with node and edge shadows.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "caustic-floor",
+                    "name": "Caustic floor",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 4,
+                    "what": "Rippling pool caustics beneath a 3D graph, ripples where nodes move.",
+                    "status": "planned",
+                    "story": null
+                },
+                {
+                    "slug": "particle-morph",
+                    "name": "Particle morph between layouts",
+                    "category": "whole-graph",
+                    "purpose": "aesthetic",
+                    "wow": 5,
+                    "what": "Nodes burst into curl-noise particles and reform at new positions.",
+                    "status": "planned",
+                    "story": null
+                }
+            ]
+        }
+    ]
+}

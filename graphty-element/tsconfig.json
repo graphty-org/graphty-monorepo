@@ -18,6 +18,6 @@
             "@graphty/graphty-element/logging": ["./logging.ts"]
         }
     },
-    "include": ["**/*.ts", ".storybook/**/*.ts"],
+    "include": ["**/*.ts", ".storybook/**/*.ts", ".storybook-shader-lab/**/*.ts"],
     "exclude": ["tmp/**/*", "vitest.config.ts", "vite.config.ts"]
 }

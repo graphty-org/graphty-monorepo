@@ -29,6 +29,39 @@ const SAMPLE = { name: "Florentine families", nodes: 15 };
 const RENAMED = "Medici study";
 
 /**
+ * The relative luminance of a CSS rgb() or rgba() color (WCAG 2), alpha ignored.
+ * @param css - the computed color.
+ * @returns the luminance, 0 to 1.
+ */
+function luminance(css: string): number {
+    const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map((part) => {
+        const c = Number(part) / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The WCAG contrast ratio of an element's text against the first opaque background behind it.
+ * @param element - the element.
+ * @returns the ratio, 1 to 21.
+ */
+function textContrast(element: HTMLElement): number {
+    let behind: HTMLElement | null = element;
+    let background = "rgb(255, 255, 255)";
+    while (behind !== null) {
+        const color = getComputedStyle(behind).backgroundColor;
+        if (color !== "transparent" && !/rgba\(.*,\s*0\)$/.test(color)) {
+            background = color;
+            break;
+        }
+        behind = behind.parentElement;
+    }
+    const [hi, lo] = [luminance(getComputedStyle(element).color), luminance(background)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
  * Deletes autosave's database and this tab's own-entry record, so each test starts with nothing
  * kept.
  * @returns settles once the database is gone.
@@ -79,11 +112,12 @@ async function openElement(): Promise<{ element: ElementUnderTest; session: Grap
 }
 
 /**
- * Opens the sample, renames it with the keyboard, waits until autosave has written it, and
- * unmounts the workspace: the visit a reload ends.
+ * Opens the sample, renames it with the keyboard (unless told not to), waits until autosave has
+ * written it, and unmounts the workspace: the visit a reload ends.
+ * @param rename - whether the reader renames the project.
  * @returns the entry id autosave wrote.
  */
-async function workThenLeave(): Promise<string> {
+async function workThenLeave(rename = true): Promise<string> {
     const first = mountWorkspace();
     await pickSample(SAMPLE.name);
     const { element, session } = await openElement();
@@ -94,13 +128,21 @@ async function workThenLeave(): Promise<string> {
         { timeout: TIMEOUT_MS },
     );
 
-    await userEvent.keyboard("{F2}");
-    const field = await screen.findByRole("textbox", { name: "Project name" });
-    await userEvent.clear(field);
-    await userEvent.type(field, `${RENAMED}{Enter}`);
+    // The data's arrival is announced once, politely, as a short fact.
     await waitFor(() => {
-        assert.equal(session.project.name, RENAMED);
+        assert.include(screen.getByTestId("workspace-status").textContent, `${String(SAMPLE.nodes)} nodes, `);
     });
+    assert.strictEqual(screen.getByTestId("workspace-status").getAttribute("aria-live"), "polite");
+
+    if (rename) {
+        await userEvent.keyboard("{F2}");
+        const field = await screen.findByRole("textbox", { name: "Project name" });
+        await userEvent.clear(field);
+        await userEvent.type(field, `${RENAMED}{Enter}`);
+        await waitFor(() => {
+            assert.equal(session.project.name, RENAMED);
+        });
+    }
 
     // Work is saved: the element says so, and the header's chip shows it.
     await waitFor(
@@ -110,7 +152,10 @@ async function workThenLeave(): Promise<string> {
         },
         { timeout: TIMEOUT_MS },
     );
-    assert.strictEqual(screen.getByTestId("autosave-chip").textContent, "Autosave: saved");
+    const chip = screen.getByTestId("autosave-chip");
+    assert.strictEqual(chip.textContent, "Autosave: saved");
+    // The chip's words are readable: 4.5:1 or more against what is behind them.
+    assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;
     if (entry === null) {
         throw new Error("autosave wrote no entry");
@@ -159,11 +204,29 @@ describe("Workspace autosave with the real graphty-element", () => {
             { timeout: TIMEOUT_MS },
         );
         assert.equal(second.store.get().project?.name, RENAMED);
-        await screen.findByText(/^Restored your work from/);
+        await screen.findByText(/^Restored: /);
         // This tab writes the restored work from here on.
         await waitFor(() => {
             assert.strictEqual(element.autosaver.status.entry, entry);
         });
+        second.view.unmount();
+    });
+
+    it("keeps the project's name on Restore when the reader never renamed it", async () => {
+        await workThenLeave(false);
+
+        const second = mountWorkspace();
+        await offer();
+        await userEvent.click(screen.getByRole("button", { name: "Restore" }));
+        const { session } = await openElement();
+        await waitFor(
+            () => {
+                assert.equal(session.data.statistics().nodeCount, SAMPLE.nodes);
+                assert.equal(second.store.get().project?.name, SAMPLE.name);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        assert.isNull(screen.queryByText("Recovered work"));
         second.view.unmount();
     });
 

@@ -2199,7 +2199,8 @@ function combineLabelDress(
 /**
  * The line Cytoscape.js draws round a label's box: only with a `text-border-width` and a `text-border-opacity` above
  * 0 (both default to 0), in `text-border-color` (black unset), at its opacity times the element's. A double one is
- * one line a quarter of the width (cytoscape.js 3.34.3 `drawText`); dotted and dashed are drawn solid, noted.
+ * one line a quarter of the width, where `drawText` strokes two such lines half the width apart (cytoscape.js 3.34.3),
+ * noted; dotted and dashed are drawn solid, noted.
  * @param kind - the target
  * @param i - the element
  * @param words - the parts by internal name
@@ -2226,7 +2227,7 @@ function labelBorder(
     col("labelBorderWidth")[i] = style === "double" ? width / 4 : width;
     const drawn = Math.round(opacity * whole * 1e6) / 1e6;
     col("labelBorderOpacity")[i] = drawn < 1 ? drawn : null;
-    if (style === "dotted" || style === "dashed") {
+    if (style === "dotted" || style === "dashed" || style === "double") {
         notes.add(STYLE_ISSUE.APPROXIMATED, kind, "labelBorderColor", { sample: style, element: i });
     }
     return true;

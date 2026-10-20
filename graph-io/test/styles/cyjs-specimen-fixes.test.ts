@@ -4,7 +4,9 @@
  */
 import { describe, expect, it } from "vitest";
 
+import { STYLE_ISSUE } from "../../src/styles/codes.js";
 import { evaluateCytoscapeJs } from "../../src/styles/internal.js";
+import { StyleNotes } from "../../src/styles/notes.js";
 
 /** Two nodes and one edge between them, each styled by `node` / `edge` rules plus the given ones. */
 function doc(
@@ -333,6 +335,15 @@ describe("Cytoscape.js label opacity, margins and borders", () => {
         ).node.values;
         expect(v.labelOutlineOpacity?.[0]).toBe(0.15);
         expect([v.labelBorderWidth?.[1], v.labelBorderOpacity?.[1], v.labelPadding?.[1]]).toEqual([0.5, 0.3, 4]);
+    });
+
+    it("notes a double label border as approximated: drawText strokes two lines, graphty one", () => {
+        const notes = new StyleNotes();
+        evaluateCytoscapeJs({
+            ...doc({ "text-border-width": 4, "text-border-opacity": 1, "text-border-style": "double" }),
+            notes,
+        });
+        expect(notes.covers(STYLE_ISSUE.APPROXIMATED, "node", "labelBorderColor", 0)).toBe(true);
     });
 });
 

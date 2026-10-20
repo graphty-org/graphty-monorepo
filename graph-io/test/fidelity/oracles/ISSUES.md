@@ -900,9 +900,9 @@ the writer's round trip in `cyjs.test.ts`):
   writes each back divided by the opacity it is drawn times.
 - `text-margin-x` / `-y` (negative too), a node's and an edge's, as `labelOffsetX` / `labelOffsetY`.
 - `text-border-width` and `-color` as `labelBorderWidth` / `labelBorderColor`, drawn only with a width and an
-  opacity above 0 (both 0 by default); `double` is one line a quarter of the width, as `drawText` draws it; dotted
-  and dashed are drawn solid, noted. `text-background-padding` (0 unset) is `labelPadding` wherever a box or a line
-  is drawn. The writer writes the box, the line, the outline and the padding back.
+  opacity above 0 (both 0 by default); `double` is one line a quarter of the width, noted (`drawText` strokes two such
+  lines, the second inset half the width); dotted and dashed are drawn solid, noted. `text-background-padding` (0
+  unset) is `labelPadding` wherever a box or a line is drawn. The writer writes the box, the line, the outline and the padding back.
 - `border-position` as `borderPosition`.
 - `width: label` / `height: label` as `labelFit: bounds` with that side 0 and the node's padding as the label
   padding, the other side kept; written back as `width: label`.

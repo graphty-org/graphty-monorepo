@@ -874,6 +874,7 @@ const BEND_CURVES: ReadonlyMap<string, string> = new Map([
     ["corners", "corners"],
     ["midpoints", "midpoints"],
     ["bezier", "bezier"],
+    ["arc", "arc"],
 ]);
 
 /** The element's node gradient kind for each neutral one. */

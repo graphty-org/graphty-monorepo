@@ -6,6 +6,7 @@
 import { assert, describe, it } from "vitest";
 
 import {
+    arcThroughBend,
     bendPoints,
     bezierThroughControls,
     centerArc,
@@ -114,6 +115,27 @@ describe("edge route geometry", () => {
         assert.closeTo(cubic[3 * mid + 1], 0.75, 1e-9);
         // no bends: the line itself
         assert.deepEqual(bezierThroughControls([0, 0, 0, 2, 0, 0]), [0, 0, 0, 2, 0, 0]);
+    });
+
+    it("draws an arc through its one bend on the circle through the ends and the bend, either way round", () => {
+        // ends 8 apart, the bend 2 above their middle: the circle centered (4, -3), radius 5
+        for (const sign of [1, -1]) {
+            const arc = arcThroughBend([0, 0, 0, 4, 2 * sign, 0, 8, 0, 0]) ?? [];
+            assert.isAbove(arc.length / 3, 3);
+            assert.deepEqual(arc.slice(0, 3), [0, 0, 0]);
+            assert.deepEqual(arc.slice(-3), [8, 0, 0]);
+            for (let i = 0; i < arc.length; i += 3) {
+                assert.closeTo(Math.hypot(arc[i] - 4, arc[i + 1] + 3 * sign), 5, 1e-9);
+                assert.closeTo(arc[i + 1] * sign, Math.abs(arc[i + 1]), 1e-12);
+            }
+        }
+        // a bend past half a circle: the arc goes round the far side, through it
+        const big = arcThroughBend([0, 0, 0, 4, 8, 0, 8, 0, 0]) ?? [];
+        assert.closeTo(Math.max(...big.filter((_, i) => i % 3 === 1)), 8, 1e-9);
+        assert.isBelow(Math.min(...big.filter((_, i) => i % 3 === 0)), 0);
+        // no arc through a bend on the line, or through other than one bend
+        assert.isNull(arcThroughBend([0, 0, 0, 4, 0, 0, 8, 0, 0]));
+        assert.isNull(arcThroughBend([0, 0, 0, 2, 1, 0, 6, 1, 0, 8, 0, 0]));
     });
 
     it("draws a curve through midpoints through the middle of each segment between two bends", () => {

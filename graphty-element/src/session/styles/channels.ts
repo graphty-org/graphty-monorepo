@@ -728,7 +728,7 @@ const NODE_GRADIENT_CAVEAT =
 
 /** How a node's gradient fill runs. */
 const NODE_GRADIENT_KIND_VALUES: readonly NodeGradientKindValue[] = ["linear", "radial"];
-const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier"];
+const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpoints", "bezier", "arc"];
 
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
@@ -3000,8 +3000,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             'How a curved edge is drawn through its bends: "corners" runs straight through each bend ' +
             'and rounds its corner; "midpoints" draws one smooth curve that uses the bends as control ' +
             'points, from the middle of each segment to the next; "bezier" draws one Bezier curve whose ' +
-            "control points are the bends (one: quadratic, two: cubic). A straight edge or one without bends " +
-            "ignores it.",
+            'control points are the bends (one: quadratic, two: cubic); "arc" draws the arc of the circle ' +
+            "through both ends and the one bend. A straight edge or one without bends ignores it.",
     },
     "edge.arcRadius": {
         channel: "edge.arcRadius",

@@ -15,6 +15,7 @@ import { gradientPieceColors } from "./meshes/edgeGradient";
 import type { EdgeLineBatch } from "./meshes/EdgeLineBatch";
 import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
+    arcThroughBend,
     bezierThroughControls,
     centerArc,
     crossingOf,
@@ -1842,6 +1843,8 @@ export class Edge {
         // A Bezier curve runs from node center to node center through its bends as control points, and is cut where
         // it leaves each node, as a program that draws its curves under its nodes shows it.
         const bezier = line?.bezier === true && line.bendCurve === "bezier";
+        // An arc runs from node center to node center through its one bend on a circle, cut where it leaves each node.
+        const arc = line?.bezier === true && line.bendCurve === "arc";
         const through = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
         const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
         if (ring !== null) {
@@ -1849,7 +1852,9 @@ export class Edge {
             this.placeRun(batch, Edge.curveThroughBends(line, ring));
             return true;
         }
-        const route = bezier ? bezierThroughControls(through) : through;
+        // an arc with other than one bend, or with its bend on the line between its ends, is drawn as "corners"
+        const arced = arc ? arcThroughBend(through) : null;
+        const route = bezier ? bezierThroughControls(through) : (arced ?? through);
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
         const gap = this.nodeGap;
         const outSrc = Edge.outside(this.srcNode, src, gap);
@@ -1885,7 +1890,7 @@ export class Edge {
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
-        this.placeRun(batch, bezier ? flat : Edge.curveThroughBends(line, flat));
+        this.placeRun(batch, bezier || arced !== null ? flat : Edge.curveThroughBends(line, flat));
         return true;
     }
 

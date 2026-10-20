@@ -85,6 +85,20 @@ describe("edges drawn through bends", () => {
         assert.isAbove(route.length, 4);
         assert.isFalse(route.some(([x, y]) => Math.hypot(x, y + 4) < 1e-6));
     });
+
+    it("draws an arc through its one bend on the circle through both centers (edge.bendCurve arc)", async () => {
+        // yEd's arc edge: the bend is the apex, 2 above the middle of the 8 between the centers
+        const route =
+            (await drawn({ "edge.bends": "0.5,0.25", "edge.curvature": true, "edge.bendCurve": "arc" })) ?? [];
+        assert.isAbove(route.length, 3);
+        // that circle's center is (4, -3) and its radius 5; every drawn point is on it, the ends cut at the outlines
+        // within the 0.011 a 7.5-degree piece's middle strays from the circle
+        for (const [x, y] of route) {
+            assert.closeTo(Math.hypot(x - 4, y + 3), 5, 0.011);
+        }
+        // and the arc reaches the apex
+        assert.closeTo(Math.max(...route.map(([, y]) => y)), 2, 0.011);
+    });
 });
 
 describe("a self-loop drawn through a closed ring of bends", () => {

@@ -260,9 +260,12 @@ const LineStyle = z.strictObject({
      * first and last segments (as Cytoscape desktop draws a curved edge through its handles, and
      * the loops it draws itself); "bezier", one Bezier curve whose control points are the bends
      * (one bend a quadratic curve, two a cubic), leaving each end toward the bend next to it (as
-     * vis-network draws its smooth edges). A file's rule arrives here through its style layer.
+     * vis-network draws its smooth edges); "arc", an arc of the circle through both ends and its one
+     * bend, the bend on the arc between them (as yEd draws an arc edge, saving the arc's apex as its
+     * bend; with another number of bends, drawn as "corners"). A file's rule arrives here through its
+     * style layer.
      */
-    bendCurve: z.enum(["corners", "midpoints", "bezier"]).optional(),
+    bendCurve: z.enum(["corners", "midpoints", "bezier", "arc"]).optional(),
     /**
      * The curve a curved line (`bezier`) is drawn as when it does not fan out of a bundle: unset,
      * the element's own bow; a number, an arc of the circle through both node centers whose radius

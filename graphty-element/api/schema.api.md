@@ -776,6 +776,7 @@ export const EdgeStyle: z.ZodObject<{
         fanSpacing: z.ZodOptional<z.ZodNumber>;
         fanned: z.ZodOptional<z.ZodBoolean>;
         bendCurve: z.ZodOptional<z.ZodEnum<{
+            arc: "arc";
             bezier: "bezier";
             corners: "corners";
             midpoints: "midpoints";

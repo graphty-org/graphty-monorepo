@@ -373,6 +373,51 @@ export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
 }
 
 /**
+ * A route through one bend drawn as an arc of the circle through its start, the bend and its end (`line.bendCurve`
+ * "arc"), the bend on the arc between the ends, as yEd draws an arc edge through its one bend (`y:ArcEdge`, whose
+ * bend yEd saves at the arc's apex, `y:Arc height` from the line between the ends). Drawn in the x-y plane; z runs
+ * straight from one end to the other.
+ * @param flat - The route, flat x, y, z: its start, the bend, its end.
+ * @returns The arc, flat x, y, z, both ends included; null with another number of points, or when the three are
+ *     on one line.
+ */
+export function arcThroughBend(flat: readonly number[]): number[] | null {
+    if (flat.length !== 9) {
+        return null;
+    }
+
+    const [ax, ay, az, bx, by, , cx, cy, cz] = flat;
+    const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    const span = Math.hypot(cx - ax, cy - ay);
+    if (Math.abs(d) < 1e-9 * Math.max(span * span, 1e-18)) {
+        return null;
+    }
+
+    const sq = (x: number, y: number): number => x * x + y * y;
+    const ox = (sq(ax, ay) * (by - cy) + sq(bx, by) * (cy - ay) + sq(cx, cy) * (ay - by)) / d;
+    const oy = (sq(ax, ay) * (cx - bx) + sq(bx, by) * (ax - cx) + sq(cx, cy) * (bx - ax)) / d;
+    const r = Math.hypot(ax - ox, ay - oy);
+    const from = Math.atan2(ay - oy, ax - ox);
+    const around = (x: number, y: number): number => {
+        const a = Math.atan2(y - oy, x - ox) - from;
+        return a - 2 * Math.PI * Math.floor(a / (2 * Math.PI));
+    };
+    // the way round from the start that meets the bend before the end
+    const toEnd = around(cx, cy);
+    const turn = around(bx, by) < toEnd ? toEnd : toEnd - 2 * Math.PI;
+    const pieces = Math.min(2 * BUNDLE_STEPS, Math.max(2, Math.ceil(Math.abs(turn) / ARC_TURN_PER_PIECE - 1e-9)));
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        out.push(ox + r * Math.cos(from + turn * t), oy + r * Math.sin(from + turn * t), az + (cz - az) * t);
+    }
+
+    out.splice(0, 3, ax, ay, az);
+    out.splice(-3, 3, cx, cy, cz);
+    return out;
+}
+
+/**
  * How many pieces a fanned edge's arc is drawn with: enough that no piece turns more, on average,
  * than {@link ARC_TURN_PER_PIECE}, and at least two, so the arc's bowed middle is one of its points.
  * @param chord - The distance from the arc's start to its end.

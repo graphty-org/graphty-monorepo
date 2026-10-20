@@ -865,6 +865,25 @@ function middleAxis(path: readonly Pt[]): [Pt, Pt] {
 
 /**
  * Whether an open stroke spans its edge's line at one end as an arrowhead drawn as a stroke does (Cytoscape's open
+/**
+ * Whether a stroke at one end of a line lies all to one side of the line through that end's last run (within half a
+ * pixel): an arrowhead cut along its line, as Graphviz's l and r arrows are.
+ * @param stroke - the stroke's points
+ * @param path - the line, source end first
+ * @param end - which end
+ * @returns true when no point is clearly on the other side
+ */
+function oneSided(stroke: readonly Pt[], path: readonly Pt[], end: "source" | "target"): boolean {
+    const pts = end === "target" ? path : [...path].reverse();
+    const [a, b] = [pts.at(-2) ?? pts[0], pts.at(-1) ?? pts[0]];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 1e-9) {
+        return false;
+    }
+    const side = stroke.map((q) => ((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])) / len);
+    return side.every((s) => s > -0.5) || side.every((s) => s < 0.5);
+}
+
  * half circle): its two ends either side of the line, the chord between them across it, its middle at the line's end
  * (or at the line's middle, for a cap drawn part-way along it). A piece of a node's outline beside the end does none
  * of that.
@@ -1122,14 +1141,16 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                 edgeCount.set(pairId, k + 1);
                 const heads = part.filter((p) => p !== line && p.kind === "shape");
                 let { points } = line;
-                const arrows = heads.map((h) => {
+                const endOf = (h: Prim): "source" | "target" => {
                     const c: Pt = [cx(h.box), cy(h.box)];
                     const a = line.points[0];
                     const b = line.points.at(-1) ?? a;
-                    const end =
-                        Math.hypot(c[0] - a[0], c[1] - a[1]) < Math.hypot(c[0] - b[0], c[1] - b[1])
-                            ? "source"
-                            : "target";
+                    return Math.hypot(c[0] - a[0], c[1] - a[1]) < Math.hypot(c[0] - b[0], c[1] - b[1])
+                        ? "source"
+                        : "target";
+                };
+                const arrows = heads.map((h) => {
+                    const end = endOf(h);
                     points = extendToTip(points, h.points, end);
                     return arrowFrom(h, line.points, end, canvas);
                 });
@@ -1141,6 +1162,32 @@ export function associate(prims: readonly Prim[], width: number, height: number,
                     stroke: line.stroke,
                     arrows,
                     label: mergeTexts(part.flatMap((p) => (p.text ? [p.text] : []))),
+                // Graphviz's curve and icurve (and their l / r halves): a stroked stem along the line to the tip and
+                // a stroked arc across it (arrows.c arrow_type_curve), both open paths; the stem carries the line to
+                // the tip, the arc is the arrowhead, hollow. The stems go first, so an arc is placed against the tip.
+                const strokes = part
+                    .filter((q) => q !== line && q.kind === "path" && !q.closed && q.fill === null)
+                    .sort((a, b) => Number(strokedArc(a)) - Number(strokedArc(b)));
+                for (const p of strokes) {
+                    const end = endOf(p);
+                    // near the line's own end or the stem's tip (an icurve's arc sits at the stem's back, a curve's
+                    // at its front)
+                    const reach = Math.max(bw(p.box), bh(p.box));
+                    const near = [line.points, points].some((q) => {
+                        const tip = end === "target" ? (q.at(-1) ?? q[0]) : q[0];
+                        return Math.hypot(cx(p.box) - tip[0], cy(p.box) - tip[1]) <= reach;
+                    });
+                    if (!near) {
+                        continue;
+                    }
+                    if (strokedArc(p)) {
+                        // an l or r arc keeps the part to one side of the line (arrows.c), as graphty's cap cut to
+                        // one side does: half an arrow
+                        const shape = oneSided(p.points, line.points, end) ? "half" : "half-circle";
+                        arrows.push({ ...arrowFrom(p, line.points, end, canvas), shape, filled: false });
+                    }
+                    points = extendToTip(points, p.points, end);
+                }
                 });
             }
         } else if (role === "group") {
@@ -1444,7 +1491,8 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     }
     // A self-loop a program draws as a whole circle on its node's outline (vis-network's selfReference) is a closed
     // stroked shape, or a path whose ends meet, with no end on the node: where graphty draws a loop on that node and no line was found for it, the circle
-    // centered off the node that crosses its outline is the loop.
+    // centered off the node that crosses its outline is the loop. So is a polyline from the node's center through its
+    // bends back to it (OGDF's drawSVG of a loop with bends).
     const loopsFound = (id: string): number => geoEdges.get(`${id}->${id}`) ?? 0;
     const loopsWanted = (id: string): number => guide.edges.filter((e) => e.source === id && e.target === id).length;
     const ringed = (p: Prim): boolean => {
@@ -1453,7 +1501,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         return p.kind === "shape" ? p.closed : p.kind === "path" && Math.hypot(b[0] - a[0], b[1] - a[1]) < 1;
     };
     for (const p of free()) {
-        if (!ringed(p) || p.fill !== null || p.stroke === null || p.corners !== 0 || p.points.length < 5) {
+        if (!ringed(p) || p.fill !== null || p.stroke === null || p.points.length < 5) {
             continue;
         }
         const c: Pt = [cx(p.box), cy(p.box)];
@@ -1483,6 +1531,10 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         // and the way round graphty's loop on that node runs: a route is judged point by point along it
         const wanted = guide.edges.find((e) => e.source === n.id && e.target === n.id);
         const turn = (pts: readonly Pt[]): number =>
+                // a ring with corners is a loop only drawn through the node's own middle (OGDF's drawSVG runs a loop
+                // from the node's center through its bends and back), never a polygon beside it
+                (p.corners === 0 ||
+                    p.points.some((q) => Math.abs(q[0] - m.cx) < 0.25 * m.w && Math.abs(q[1] - m.cy) < 0.25 * m.h)) &&
             Math.sign(
                 pts.reduce(
                     (sum, [x0, y0], i) => sum + x0 * pts[(i + 1) % pts.length][1] - pts[(i + 1) % pts.length][0] * y0,

@@ -69,6 +69,19 @@ export function boundaryOf(
         return fields.mode === "merge" ? null : "import";
     }
 
+    // A batch that replaces the project is announced before its first step: an import batched
+    // behind a config.set (a file naming its nodes) replaces the project with that write.
+    if (fields.op === "batch") {
+        const steps = (command as { readonly steps?: readonly { readonly op: string }[] }).steps ?? [];
+        for (const step of steps) {
+            const reason = boundaryOf(step, source);
+            if (reason !== null) {
+                return reason;
+            }
+        }
+        return null;
+    }
+
     if (fields.op === "data.apply") {
         return fields.mutation?.kind === "clear" ? "clear" : null;
     }

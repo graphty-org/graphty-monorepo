@@ -1986,6 +1986,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 [
                     {
                         op: "batch",
+                        fact: { code: "data.import", params: { name: null, type: "json" } },
                         steps: [
                             { op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } },
                             imports("replace", { type: "json", config: { data: TINY_JSON } }),
@@ -2039,6 +2040,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             type: READ,
             tables: READ,
             mapping: READ,
+            graphtyDocument: READ,
             missing: READ,
             resolve: READ,
             // Measured in a scratch session; this one is untouched.

@@ -128,6 +128,19 @@ export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[] = des
         "Geodesic sphere",
         '<circle cx="12" cy="12" r="9"/><path d="M7.5 7.5h9L21 12l-4.5 4.5h-9L3 12z M7.5 7.5l4.5 9 4.5-9 M7.5 16.5l4.5-9 4.5 9"/>',
     ],
+    // The flat shapes: drawn on one plane, so each glyph is its outline.
+    ["rectangle", "Rectangle", '<rect x="3" y="6" width="18" height="12"/>'],
+    ["round-rectangle", "Rounded rectangle", '<rect x="3" y="6" width="18" height="12" rx="3"/>'],
+    ["ellipse", "Ellipse", '<ellipse cx="12" cy="12" rx="9" ry="6"/>'],
+    ["diamond", "Diamond", '<path d="M12 3l9 9-9 9-9-9z"/>'],
+    ["triangle", "Triangle", '<path d="M12 4l9 16H3z"/>'],
+    ["pentagon", "Pentagon", '<path d="M12 3l9 6.5-3.4 10.5H6.4L3 9.5z"/>'],
+    ["hexagon", "Hexagon", '<path d="M7.5 4h9l4.5 8-4.5 8h-9L3 12z"/>'],
+    ["octagon", "Octagon", '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/>'],
+    ["parallelogram", "Parallelogram", '<path d="M7 6h14l-4 12H3z"/>'],
+    ["trapezoid", "Trapezoid", '<path d="M7 6h10l4 12H3z"/>'],
+    ["star", "Star", '<path d="M12 3l2.6 5.9 6.4.6-4.8 4.3 1.4 6.3L12 16.8l-5.6 3.3 1.4-6.3L3 9.5l6.4-.6z"/>'],
+    ["vee", "Vee", '<path d="M3 5l9 4 9-4-9 15z"/>'],
 ]);
 
 /** Every arrow kind, in the renderer's order, drawn at the right-hand end of a short line. */

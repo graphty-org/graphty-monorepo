@@ -67,13 +67,6 @@ export const RichTextStyle = z.strictObject({
     // Font settings
     font: z.string().default("Verdana").optional(),
     fontSize: z.number().default(48).optional(),
-    /**
-     * What `fontSize` is measured in. `"world"` (the default): a length in the scene, 48 to one
-     * world unit per line, so the label grows and shrinks with the zoom. `"screen"`: CSS pixels
-     * on screen, so the letters are drawn at that size at every zoom, as text on a page is.
-     * The same as `sizeMode`: either one set to `"screen"` sizes the label on screen.
-     */
-    fontSizeUnit: z.enum(["world", "screen"]).optional(),
     // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
     size: z.number().positive().optional(),
     fontWeight: z.string().default("normal").optional(),

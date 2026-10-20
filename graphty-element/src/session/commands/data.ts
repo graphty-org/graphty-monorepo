@@ -635,7 +635,7 @@ function importLabel(command: DataImportCommand): string {
  * @param command - The import.
  * @returns `data.import` with `name` and `type`, each null when unknown.
  */
-function importFact(command: DataImportCommand): CodedFact<"data.import"> {
+export function importFact(command: DataImportCommand): CodedFact<"data.import"> {
     const { type, config, name } = command.source;
     const file = config?.file as { name?: unknown } | undefined;
     const url = typeof config?.url === "string" && !config.url.startsWith("data:") ? config.url : undefined;

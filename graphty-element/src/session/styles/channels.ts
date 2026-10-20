@@ -952,7 +952,7 @@ function textLookChannels<Base extends string>(
         {
             ...shared,
             channel: `${base}Color` as Channel,
-            plainName: `${plainName} Text Colour`,
+            plainName: `${plainName} Text Color`,
             shortName: `${shortName} text color`,
             default: "#000000",
             accepts: "color",
@@ -1422,7 +1422,7 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "edge.bandColor": {
         channel: "edge.bandColor",
         target: "edge",
-        plainName: "Edge Band Colour",
+        plainName: "Edge Band Color",
         shortName: "Band",
         group: "line",
         // The selection look's blue: a band is drawn only once a layer names a colour.
@@ -1551,10 +1551,16 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         renderable: true,
     },
     ...LOOK_AND_VISIBILITY,
-    // The label field channels last, so the label size and color are the label field channels'
-    // (they also land in the label style field by field) wherever both declare them.
     ...labelFieldChannels("node"),
     ...labelFieldChannels("edge"),
+    // A label's size and color are declared twice: as label field channels (which land in the
+    // label style field by field) and as text look channels. The look rows win, because they state
+    // the size and color an unset label is drawn with, and the size's unit; the field routing
+    // (`labelFieldOf`) goes by the channel's name and holds either way.
+    "node.labelSize": LOOK_AND_VISIBILITY["node.labelSize"],
+    "node.labelColor": LOOK_AND_VISIBILITY["node.labelColor"],
+    "edge.labelSize": LOOK_AND_VISIBILITY["edge.labelSize"],
+    "edge.labelColor": LOOK_AND_VISIBILITY["edge.labelColor"],
 };
 
 /**

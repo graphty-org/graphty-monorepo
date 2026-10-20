@@ -86,12 +86,13 @@ describe("export variants", () => {
         }
     });
 
-    it("folds away every writer option but the CSV table and the Neo4j tables", () => {
+    it("folds away every writer option but the CSV table, the Neo4j tables and Include styles", () => {
         const keyOptions = FORMAT_DESCRIPTORS.flatMap((descriptor) => [
             ...(descriptor.writerOptions ?? []),
             ...(descriptor.exportVariants ?? []).flatMap((each) => each.options),
         ]).filter((option) => option.advanced !== true);
-        assert.deepEqual([...new Set(names(keyOptions))].sort(), ["part", "table"]);
+        // Whether the file keeps the graph's style layers is a first choice, not a detail.
+        assert.deepEqual([...new Set(names(keyOptions))].sort(), ["part", "styles", "table"]);
     });
 
     it("labels every writer choice with a name, not its raw value", () => {

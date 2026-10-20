@@ -350,6 +350,8 @@ export const RICH_TEXT_KEYS = {
     enabled: "enabled",
     font: "font",
     sizePx: "fontSize",
+    sizeMode: "sizeMode",
+    size: "size",
     color: "textColor",
     lineHeight: "lineHeight",
     textAlign: "textAlign",
@@ -363,6 +365,7 @@ export const RICH_TEXT_KEYS = {
     gradientDirection: "backgroundGradientDirection",
     location: "location",
     attachOffset: "attachOffset",
+    keepInView: "keepInView",
     marginTop: "marginTop",
     marginBottom: "marginBottom",
     marginLeft: "marginLeft",
@@ -379,6 +382,11 @@ export const RICH_TEXT_KEYS = {
     shadowBlur: "textShadowBlur",
     shadowOffsetX: "textShadowOffsetX",
     shadowOffsetY: "textShadowOffsetY",
+    panelShadow: "panelShadow",
+    panelShadowColor: "panelShadowColor",
+    panelShadowBlur: "panelShadowBlur",
+    panelShadowOffsetX: "panelShadowOffsetX",
+    panelShadowOffsetY: "panelShadowOffsetY",
     animation: "animation",
     animationSpeed: "animationSpeed",
     depthFade: "depthFadeEnabled",
@@ -393,6 +401,7 @@ export const RICH_TEXT_KEYS = {
     smartOverflow: "smartOverflow",
     maxNumber: "maxNumber",
     overflowSuffix: "overflowSuffix",
+    closeButton: "closeButton",
 } as const satisfies Partial<Record<keyof LabelStyle, string>>;
 
 /**

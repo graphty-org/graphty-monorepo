@@ -52,6 +52,7 @@ import {
     type DataMutation,
     type DataService,
     declarationKey,
+    importFact,
     type ImportSource,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -626,7 +627,7 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(graph, name), options);
+        await this.importVia(send, recordsSource(graph, name), options, false);
     }
 
     /**
@@ -661,7 +662,7 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(snapshot, name), load);
+        await this.importVia(send, recordsSource(snapshot, name), load, false);
     }
 
     /**
@@ -669,12 +670,15 @@ export class SessionData implements SessionDataApi {
      * @param send - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
+     * @param fromFile - Whether the source is a graph file the caller opened (not a generated
+     *   graph or a downloaded dataset), whose label column then names the nodes.
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
         send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        fromFile = true,
     ): Promise<void> {
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
@@ -719,6 +723,7 @@ export class SessionData implements SessionDataApi {
         // load of it does, unless a label path is configured already. A node without one is still
         // named by its id. A merge keeps how the graph it joins names its nodes.
         const names =
+            fromFile &&
             step.mode !== "merge" &&
             knownFields.nodeLabelPath === null &&
             step.source.type !== undefined &&
@@ -731,7 +736,9 @@ export class SessionData implements SessionDataApi {
                 ? [{ op: "config.set", values: { data: { knownFields: { nodeLabelPath: "label" } } } } as const]
                 : []),
         ];
-        await send(before.length === 0 ? step : { op: "batch", steps: [...before, step] });
+        // The batch is the import in the history, so it carries the import's fact: a page load's
+        // own step reads as a load, not as the reader's work (the autosaver tells them apart so).
+        await send(before.length === 0 ? step : { op: "batch", fact: importFact(step), steps: [...before, step] });
     }
 
     /**

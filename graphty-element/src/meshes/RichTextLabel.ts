@@ -147,7 +147,6 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "attachTo"
     | "onTop"
     | "pickable"
-    | "fontSizeUnit"
     | "plainText"
     | "size"
     | "_badgeType"
@@ -339,11 +338,6 @@ export class RichTextLabel {
                         userOptions.backgroundGradientColors ?? finalOptions.backgroundGradientColors,
                 };
             }
-        }
-
-        // `fontSizeUnit: "screen"` is the older spelling of `sizeMode: "screen"`.
-        if (finalOptions.fontSizeUnit === "screen") {
-            finalOptions.sizeMode = "screen";
         }
 
         BadgeStyleManager.applyBadgeBehaviors(finalOptions, userOptions);

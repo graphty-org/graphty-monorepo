@@ -140,6 +140,13 @@ export function rowOf(parts: readonly CompiledLayer[]): RowParts | undefined {
 }
 
 /**
+ * Bare keys that name a line's property, never a node's, even where a node channel shares the
+ * name: a row's `width` is how wide its lines are drawn. A node's extent is written in full,
+ * `node.width`.
+ */
+const LINE_ONLY_KEYS: ReadonlySet<string> = new Set(["width"]);
+
+/**
  * The keys of a row write that reach one kind, as that kind's channels.
  * @param keyed - The row's values or bindings.
  * @param kind - The part's kind.
@@ -148,6 +155,9 @@ export function rowOf(parts: readonly CompiledLayer[]): RowParts | undefined {
 function routed<T>(keyed: Readonly<Record<string, T>>, kind: SelectorTarget): Record<string, T> {
     const out: Record<string, T> = {};
     for (const [key, value] of Object.entries(keyed)) {
+        if (kind === "node" && LINE_ONLY_KEYS.has(key)) {
+            continue;
+        }
         const channel = key.includes(".") ? key : `${kind}.${key}`;
         if (channel.startsWith(`${kind}.`) && channelDescriptor(channel) !== undefined) {
             out[channel] = value;

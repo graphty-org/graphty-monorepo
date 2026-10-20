@@ -105,7 +105,10 @@ describe("label looks that vary", () => {
             encode: { "node.labelSize": { by: "data.degree", range: [12, 96] } },
         });
 
-        const sizes = (await painted(session, "node", "node.labelSize")) as number[];
+        // A label size lands in the label style, field by field (labelFieldOf).
+        const sizes = ((await painted(session, "node", "node.labelStyle")) as ({ sizePx?: number } | undefined)[]).map(
+            (style) => style?.sizePx,
+        ) as number[];
         const snapshot = session.data.snapshot();
         const degrees = [...snapshot.degree()];
         const top = degrees.indexOf(Math.max(...degrees));

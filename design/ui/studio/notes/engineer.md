@@ -25,6 +25,11 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    (2026-10-19, "should a value beyond a written domain be drawn past the range's end?") with an
    additive `beyondDomain` option as one way forward. No code change; Node.ts is not involved (it
    draws the size the scale returns). No real.mjs walk: nothing changed to check.
+   Re-checked 2026-10-19 before the freeze: 25f2ac298 changes only owner-decisions.md and these
+   notes; no app, element or compact-mantine source changed since graphty/dist was built (07:26),
+   so no screen renders anything new and no walk is needed. The finding's acceptance ("read the
+   mechanism; if the element documents a ceiling, record it for the owner") holds: the doc line
+   (encoding.ts BindingPreview.above) and the test (scales.test.ts) exist as cited.
    0a. (2026-10-18, Analyze: Enter, tooltip, run message) Asked again for three pilot findings
    (Enter in Louvain's Resolution, an "Analyze Shift+A" tooltip after Run, "Louvain finished" with
    no count) seen on build 58556989e. All three were already fixed before the frozen build

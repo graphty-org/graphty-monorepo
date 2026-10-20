@@ -17,22 +17,33 @@ Layout algorithms determine how nodes are positioned in the visualization. Choos
 `element.session.layout.set("force", { engine: "arf" })`. For a flat force layout use
 `{ dim: 2 }` instead, or the 2D view.
 
-| Layout              | Type           | Best For                                  | Dimensions |
-| ------------------- | -------------- | ----------------------------------------- | ---------- |
-| `ngraph`            | Force-directed | General graphs                            | 2D/3D      |
-| `d3`                | Force-directed | Web-standard                              | 2D/3D      |
-| `arf`               | Force-directed | Even spread over a flat disc              | 2D         |
-| `circular`          | Geometric      | Cycles, small graphs                      | 2D/3D      |
-| `grid`              | Geometric      | Regular structures                        | 2D         |
-| `radial`            | Geometric      | Distance from one node                    | 2D         |
-| `hierarchical`      | Layered        | Trees, DAGs                               | 2D/3D      |
-| `random`            | Random         | Testing, initial state                    | 2D/3D      |
-| `fixed`             | Manual         | Pre-computed positions                    | 2D/3D      |
-| `forceatlas2`       | Force-directed | Clusters and communities                  | 2D/3D      |
-| `spring`            | Force-directed | General graphs                            | 2D/3D      |
-| `spring-electrical` | Force-directed | Large graphs, with a hardware accelerator | 2D/3D      |
+| Layout               | Type                      | Best For                                  | Dimensions |
+| -------------------- | ------------------------- | ----------------------------------------- | ---------- |
+| `ngraph`             | Force-directed            | General graphs                            | 2D/3D      |
+| `d3`                 | Force-directed            | Web-standard                              | 2D/3D      |
+| `arf`                | Force-directed            | Even spread over a flat disc              | 2D         |
+| `circular`           | Geometric                 | Cycles, small graphs                      | 2D/3D      |
+| `grid`               | Geometric                 | Regular structures                        | 2D         |
+| `radial`             | Geometric                 | Distance from one node                    | 2D         |
+| `hierarchical`       | Layered                   | Trees, DAGs                               | 2D         |
+| `random`             | Random                    | Testing, initial state                    | 2D/3D      |
+| `fixed`              | Manual                    | Pre-computed positions                    | 2D/3D      |
+| `forceatlas2`        | Force-directed            | Clusters and communities                  | 2D/3D      |
+| `spring`             | Force-directed            | General graphs                            | 2D/3D      |
+| `spring-electrical`  | Force-directed            | Large graphs, with a hardware accelerator | 2D/3D      |
+| `graphviz-dot`       | Layered (Graphviz)        | Directed graphs, flow charts              | 2D         |
+| `graphviz-neato`     | Stress (Graphviz)         | Distances that match graph distances      | 2D         |
+| `graphviz-fdp`       | Force-directed (Graphviz) | Undirected graphs                         | 2D         |
+| `graphviz-sfdp`      | Force-directed (Graphviz) | Large undirected graphs                   | 2D         |
+| `graphviz-circo`     | Circular (Graphviz)       | Rings of tightly connected parts          | 2D         |
+| `graphviz-twopi`     | Radial (Graphviz)         | Rings around a root                       | 2D         |
+| `graphviz-osage`     | Packed array (Graphviz)   | Many small parts                          | 2D         |
+| `graphviz-patchwork` | Treemap (Graphviz)        | Tiling every node into one rectangle      | 2D         |
 
-The last three are live simulations: they keep stepping until the arrangement comes to rest
+The eight `graphviz-*` layouts are Graphviz itself, compiled to WebAssembly, and need the optional
+package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
+
+`forceatlas2`, `spring` and `spring-electrical` are live simulations: they keep stepping until the arrangement comes to rest
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
 `element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
 nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
@@ -147,13 +158,16 @@ await element.setLayout("force", { seed: 7 });
 
 ### d3 (Force-Directed)
 
-D3's force simulation (d3-force-3d). Industry-standard for web visualizations:
+D3's force simulation (`d3-force-3d`). Industry-standard for web visualizations. It runs until its
+"alpha" cools from 1 down to `alphaMin`:
 
 ```typescript
 graph.setLayout("d3", {
+    alphaMin: 0.1, // Stop once alpha cools below this
+    alphaTarget: 0, // The alpha the simulation cools towards
+    alphaDecay: 0.0228, // How fast alpha cools each tick
+    velocityDecay: 0.4, // Friction: how much speed each node loses each tick
     dim: 3, // 2 or 3
-    alphaDecay: 0.0228, // How quickly the simulation cools
-    velocityDecay: 0.4, // Damping
 });
 ```
 
@@ -167,9 +181,9 @@ Arranges nodes in a circle. Good for:
 
 ```typescript
 graph.setLayout("circular", {
-    radius: 100, // Circle radius
-    startAngle: 0, // Starting angle (radians)
-    endAngle: Math.PI * 2, // Ending angle
+    scale: 1, // Radius of the circle, before scalingFactor
+    scalingFactor: 80, // Multiplies every position; the drawn radius is scale * scalingFactor
+    dim: 2, // 2 or 3
 });
 ```
 
@@ -186,25 +200,28 @@ graph.setLayout("grid", {
 
 ### radial
 
-Puts one node at the centre and every other node on a ring by its hop distance from it. Nodes the
+Puts one node at the center and every other node on a ring by its hop distance from it. Nodes the
 root cannot reach share one extra outer ring:
 
 ```typescript
 graph.setLayout("radial", {
-    root: "node-1", // The node at the centre (default: the node with the most edges)
+    root: "node-1", // The node at the center (default: the node with the most edges)
     scale: 1, // Radius of the outermost ring
 });
 ```
 
 ### hierarchical
 
-Tree-like layout for directed graphs:
+Puts nodes in rows by how many steps they are from a starting node, so the graph reads as a tree
+growing away from it. It runs the `bfs` engine, and `start` is required: without it the layout is
+refused with `E_OPTION_RANGE`.
 
 ```typescript
 graph.setLayout("hierarchical", {
-    direction: "TB", // TB, BT, LR, RL
-    levelSeparation: 100, // Vertical spacing
-    nodeSeparation: 50, // Horizontal spacing
+    start: "root", // The node the tree grows from (required)
+    align: "vertical", // "vertical" or "horizontal"
+    scale: 1, // Size of the layout, before scalingFactor
+    scalingFactor: 20, // Multiplies every position
 });
 ```
 
@@ -225,19 +242,37 @@ graph.setLayout("random", {
 
 ### fixed
 
-Use pre-computed positions from node data:
+Use pre-computed positions from node data. Each node carries its center in a `position` field,
+either `{ x, y, z }` or `[x, y, z]` (`z` may be left out and is then 0), with y growing upward.
+Top-level `x`, `y` and `z` fields are ordinary attributes, not a position:
 
 ```typescript
-// Node data includes positions
 const nodes = [
-    { id: "a", x: 0, y: 0, z: 0 },
-    { id: "b", x: 100, y: 0, z: 0 },
-    { id: "c", x: 50, y: 100, z: 0 },
+    { id: "a", position: { x: 0, y: 0, z: 0 } },
+    { id: "b", position: { x: 100, y: 0, z: 0 } },
+    { id: "c", position: { x: 50, y: 100, z: 0 } },
 ];
 
 await graph.addNodes(nodes);
-graph.setLayout("fixed");
+await graph.setLayout("fixed");
 ```
+
+The coordinates are multiplied by the element's `positionScale` (default 1). A node with no usable
+`position` is put at the origin (or stays where an earlier layout put it), and the element emits a
+`layout-warning` event with code `W_NO_POSITION` and `params: { missing, total }`, the number of
+nodes without one and the number placed:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_NO_POSITION") {
+        console.warn(`${event.params.missing} of ${event.params.total} nodes have no position`);
+    }
+});
+```
+
+To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where it was saved,
+load it with `layout: "recommended"`: see
+[Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
 ### forceatlas2 (Force-Directed, live)
 
@@ -290,24 +325,15 @@ graph.setLayout("spring-electrical", {
 
 See the [acceleration guide](./acceleration) for how to attach one.
 
-## Layout Transitions
+## Switching Layouts
 
-Animate between layouts for smooth visual transitions:
+Set another layout at any time; the new one starts from where the nodes are:
 
 ```typescript
-// Current layout
 graph.setLayout("random");
 await graph.waitForSettled();
 
-// Transition to new layout
-graph.setLayout(
-    "circular",
-    {},
-    {
-        animate: true,
-        duration: 1000,
-    },
-);
+graph.setLayout("circular");
 ```
 
 ## Waiting for Settled
@@ -333,6 +359,49 @@ graph.on("graph-settled", () => {
 });
 ```
 
+## When a layout refuses the graph
+
+Some layouts only arrange certain graphs: `planar` needs a graph that can be drawn without crossing
+edges, and `bfs` needs every node reachable from its start. Given another graph, the layout places
+nothing -- every node stays where it was -- and the element reports the refusal on its `error`
+event as a `GraphtyError` with a code to switch on: `E_NOT_PLANAR` or `E_NOT_CONNECTED`, with the
+graph's size in `details`. The layout stays the chosen one and runs again when the graph changes.
+
+A layout refused for its options places nothing either, and the refusal carries the option's name
+in `details.option`:
+
+| Code                  | When                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| `E_UNKNOWN_ELEMENT`   | an option names a node the graph does not hold (a `bfs` start, a `radial` root)        |
+| `E_OPTION_RANGE`      | an option is missing (`bfs` with no `start`) or has a value the layout does not accept |
+| `E_UNKNOWN_OPTION`    | the layout has no option of that name                                                  |
+| `E_UNKNOWN_ATTRIBUTE` | an option names a node attribute the graph does not hold                               |
+| `E_ATTRIBUTE_TYPE`    | an option names a node attribute whose values the layout cannot read                   |
+| `E_BAD_WEIGHT`        | an edge weight the layout cannot use, such as a negative `kamada-kawai` distance       |
+
+`ngraph`, `forceatlas2`, `spring` and `spring-electrical` do not refuse an option they do not take:
+they run without it and emit a `layout-warning` event with code `W_UNKNOWN_OPTION`, whose
+`params.options` lists the names they ignored and `params.available` the names they take:
+
+```typescript
+graph.addListener("layout-warning", (event) => {
+    if (event.code === "W_UNKNOWN_OPTION") {
+        console.warn(`${event.layoutType} ignored ${String(event.params.options)}`);
+    }
+});
+```
+
+What to do about a refusal is the application's choice, such as picking another layout:
+
+```typescript
+element.addEventListener("error", (event) => {
+    const { error } = event.detail;
+    if (isGraphtyError(error) && error.code === "E_NOT_PLANAR") {
+        element.layout = "spring";
+    }
+});
+```
+
 ## 2D vs 3D
 
 Switching the view between 2D and 3D runs the layout again for that view. In the 2D view every
@@ -351,10 +420,14 @@ graph.setLayout("ngraph", { dim: 2 });
 <graphty-element layout="d3" view-mode="2d"></graphty-element>
 ```
 
+The layout follows the view mode when `dim` is not set. In 3D mode a `dim: 2` is kept, so a 3D
+view can show a flat layout. In 2D mode the layout is always computed in 2D: a `dim: 3` is
+replaced by `dim: 2`, and a `layout-warning` event with code `W_DIMENSION_OVERRIDDEN` reports it,
+with the options as given in `params.requested` and the values used in `params.used`. Switching
+back to 3D builds the layout with the `dim` it was given again.
+
 `element.session.layout.arrangedDimension` says how many dimensions the current layout places
 nodes in -- `"2d"` or `"3d"` -- which `session.layout.dimension`, the view's dimension, cannot.
-
-An option name the layout does not declare is reported with a console warning.
 
 ## Edge weights
 

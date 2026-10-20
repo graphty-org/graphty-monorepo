@@ -6,7 +6,10 @@
 
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
-import { z } from 'zod/v4';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import { z } from 'zod';
 
 // @public
 export type CommandMeta = {
@@ -27,9 +30,6 @@ export const COMMANDS: Readonly<{
     readonly "algo.remove": {
         readonly undo: "undoable";
     };
-    readonly "algo.move": {
-        readonly undo: "undoable";
-    };
     readonly batch: {
         readonly undo: "undoable";
     };
@@ -39,7 +39,16 @@ export const COMMANDS: Readonly<{
     readonly "data.import": {
         readonly undo: "undoable";
     };
+    readonly "data.import-source": {
+        readonly undo: "undoable";
+    };
     readonly "data.expand": {
+        readonly undo: "undoable";
+    };
+    readonly "data.source-expand": {
+        readonly undo: "undoable";
+    };
+    readonly "data.collapse": {
         readonly undo: "undoable";
     };
     readonly "data.declare": {
@@ -48,7 +57,7 @@ export const COMMANDS: Readonly<{
     readonly "data.setSource": {
         readonly undo: "undoable";
     };
-    readonly "data.label": {
+    readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
     readonly "style.patch": {
@@ -67,9 +76,6 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "visibility.context": {
-        readonly undo: "undoable";
-    };
-    readonly "visibility.steps": {
         readonly undo: "undoable";
     };
     readonly "set.create": {
@@ -144,7 +150,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

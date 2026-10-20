@@ -23,9 +23,16 @@
 export type { AutoApplyPolicy, AutoApplyRun, AutoApplySources, AutoApplyStyles } from "./autoApply";
 export { createAutoApplyPolicy } from "./autoApply";
 export type { ColorWrite, StyleColor } from "./colors";
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./derive";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./derive";
 export { suggestStyles } from "./derive";
-export type { BindingPreview, BindingPreviewBin, PreviewDefaultedPart, PreviewSpan, StyleSequence } from "./encoding";
+export type {
+    BindingPreview,
+    BindingPreviewBin,
+    PreviewDefaultedPart,
+    PreviewSpan,
+    StyleAdjustmentCode,
+    StyleSequence,
+} from "./encoding";
 export { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "./encoding";
 export type {
     ColumnEncodingSpec,
@@ -88,12 +95,14 @@ export type {
     HighlightSpec,
     LayerPatch,
     LayerReach,
+    MarkSpec,
     SessionStylesApi,
     StyleChange,
     StylesApi,
     StylesSources,
     StyleUpdateOptions,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
     UpdateManyResult,
 } from "./StylesApi";

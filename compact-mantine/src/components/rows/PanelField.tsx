@@ -13,8 +13,9 @@ import type {
     GestureEndHandler,
     GestureStartHandler,
 } from "../../types/events";
+import { useControlAnnotation } from "../../utils/control-annotation";
 import { isRtl, useDirection } from "../../utils/rtl";
-import { FieldCaret } from "../inputs/listbox";
+import { FieldCaret, ListboxCheck } from "../inputs/listbox";
 import { useNumberField } from "../inputs/useNumberField";
 import { useScrub } from "../inputs/useScrub";
 
@@ -180,6 +181,13 @@ export interface PanelFieldProps extends Omit<
      */
     data?: ComboboxData;
     /**
+     * A small picture for each choice in `data`, keyed by the choice's value, drawn before its
+     * name in the open list. A 16 x 16 drawing in `currentColor` fits best. It is decoration:
+     * the choice is still named by its label. To show the chosen one in the closed field too,
+     * pass it as `glyph`.
+     */
+    optionGlyphs?: Readonly<Record<string, React.ReactNode>>;
+    /**
      * A short unit shown after the value, in the secondary text color, at the
      * end of the same box -- "%", "px" per second, a count of links.
      */
@@ -230,6 +238,11 @@ export interface PanelFieldProps extends Omit<
     /** How much one press of an arrow key changes a number field. Shift moves ten. */
     step?: number;
     /**
+     * How many digits after the decimal separator a number field keeps. A
+     * committed value is rounded to it, so `0` makes an integer field.
+     */
+    decimalScale?: number;
+    /**
      * What a number field says about its arrow keys, after its name and value,
      * as its `aria-description`. Pass an empty string to say nothing.
      * @default "Use arrow keys to change the value"
@@ -272,6 +285,16 @@ export interface PanelFieldProps extends Omit<
      * announced as unavailable.
      */
     disabled?: boolean;
+    /**
+     * One sentence saying why the field is off, used only while `disabled` is
+     * true.
+     *
+     * It is appended to the field's name after a full stop in the tooltip --
+     * "Size. Load data first" -- and joins the field's accessible description,
+     * so a screen reader reads the reason instead of announcing an unexplained
+     * unavailable field.
+     */
+    disabledReason?: string;
     /**
      * Whether the value can be read but not changed.
      *
@@ -353,6 +376,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             defaultValue,
             onChange,
             data,
+            optionGlyphs,
             unit,
             width = PANEL_GRID.FIELD,
             bound = false,
@@ -362,12 +386,14 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             min,
             max,
             step,
+            decimalScale,
             stepHint = DEFAULT_STEP_HINT,
             onScrubStart,
             onScrub,
             onScrubEnd,
             onClick,
             disabled = false,
+            disabledReason,
             readOnly,
             boundDescription,
             pendingDescription,
@@ -445,7 +471,14 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             descriptions.push(pendingText);
         }
 
-        const description = descriptions.length > 0 ? descriptions.join(". ") : undefined;
+        const annotation = useControlAnnotation({
+            name: label,
+            enabledTitle: title ?? label,
+            disabled,
+            disabledReason,
+            extraDescriptions: descriptions,
+        });
+        const { description } = annotation;
 
         const isNumber = kind === "number";
         const wantsScrub = onScrubStart !== undefined || onScrub !== undefined || onScrubEnd !== undefined;
@@ -467,6 +500,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
             min,
             max,
             step,
+            decimalScale,
             locked: disabled || isReadOnly,
         });
 
@@ -584,7 +618,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                                 bottom: 0,
                                 width: PENDING_MARK,
                                 height: PENDING_MARK,
-                                background: PANEL_INK.ACCENT,
+                                background: PANEL_INK.ACCENT_GRAPHIC,
                             }}
                         />
                     )}
@@ -744,7 +778,7 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                 // input, so that hovering the glyph shows it too -- and so that it
                 // does not become the input's accessible description, which would
                 // make a screen reader read every field's name twice.
-                title: title ?? label,
+                title: annotation.title,
                 "data-testid": "panel-field",
                 "data-kind": kind,
                 "data-bound": bound ? "true" : undefined,
@@ -789,6 +823,21 @@ export const PanelField = forwardRef<HTMLInputElement, PanelFieldProps>(
                 <Select
                     {...common}
                     data={data}
+                    renderOption={
+                        optionGlyphs === undefined
+                            ? undefined
+                            : ({ option }) => (
+                                  <span className="cm-listbox-option-content" title={option.label}>
+                                      <ListboxCheck />
+                                      {optionGlyphs[option.value] !== undefined && (
+                                          <span className="cm-listbox-glyph" aria-hidden="true">
+                                              {optionGlyphs[option.value]}
+                                          </span>
+                                      )}
+                                      <span className="cm-listbox-label">{option.label}</span>
+                                  </span>
+                              )
+                    }
                     value={hidesValue || valueText === "" ? null : valueText}
                     onChange={(next) => {
                         handleChange(next ?? "");

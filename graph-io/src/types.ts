@@ -17,6 +17,18 @@ import {
     type IdCoercion,
 } from "@graphty/graph-format";
 
+import type { ImporterPositions, PositionReadContext } from "./positions/types.js";
+import { type SourceIssueCode } from "./sources/codes.js";
+import { type SourceReportInfo } from "./sources/types.js";
+import type {
+    EdgeStyleProperty,
+    GraphStyleProperty,
+    ImporterStyles,
+    NodeStyleProperty,
+    StyleReadContext,
+    StyleWriteCapabilities,
+} from "./styles/types.js";
+
 /**
  * What an importer reads: whole text, whole bytes, a byte stream (a browser
  * `File.stream()`, a fetch body) or an async iterable of text or byte chunks. Bytes are decoded
@@ -160,9 +172,10 @@ export interface CommonImportOptions {
      * Called as the input is read, with the bytes read so far and the total. For a string or a
      * Uint8Array the total is known from the first call. For a stream (which includes loadFromUrl()
      * and loadFromFile()) it is undefined until the last call, which always has
-     * `bytesDone === bytesTotal`. Text counts its UTF-8 length.
+     * `bytesDone === bytesTotal`. Text counts its UTF-8 length. A load from a network source passes a
+     * third argument, "bytes" or "items", saying what is counted.
      */
-    onProgress?: ((bytesDone: number, bytesTotal?: number) => void) | undefined;
+    onProgress?: ((bytesDone: number, bytesTotal?: number, unit?: "items" | "bytes") => void) | undefined;
     /**
      * The character encoding of byte input, as a label such as "utf-8", "windows-1252" or
      * "utf-16le". Without it graph-io uses a byte order mark, then the encoding the file declares
@@ -275,6 +288,33 @@ export interface GraphImporter<Opts = unknown> {
      * @returns one listing per graph, in document order
      */
     listGraphs?(input: ImportInput, options?: Opts & CommonImportOptions): Promise<readonly GraphListing[]>;
+    /**
+     * Optional: the file's styles, read after the import from the snapshot it built. Called only when a caller asks
+     * for styles (`importGraph(input, { styles: true })`). The simple path names the snapshot columns that hold
+     * each style and the dialect they are spelled in, and graph-io does the rest:
+     * `styles: () => ({ dialect: "css", node: { fill: { data: "color" } } })`. The advanced path returns canonical
+     * values and the rules the file declares (`{ canonical: true, ... }`). Style data that is not per element
+     * reaches it as `context.kept`: whatever this import's `import()` passed to `report.keepForStyles()`. Without
+     * this member, graph-io reads the columns whose role is `color`, `size`, `shape`, `thickness` or `hidden`.
+     * @param snapshot - the graph this import built
+     * @param context - the cancel signal, the work budget and what `import()` kept
+     * @returns the styles, or null when the file has none
+     */
+    styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
+    /**
+     * Optional: where this format's stored node coordinates are and how they are spelled, for
+     * `extractPositions()` (`@graphty/graph-io/positions`). Without it, the role-`position` column
+     * is read as its `meta.extra` declares (y up, center, file units when it says nothing). With it,
+     * the answer wins over the column's `meta.extra`; null falls back to the column.
+     *
+     * The simple form names plain numeric columns: `() => ({ x: "x", y: "y", yAxis: "down", units: "px" })`.
+     * The advanced form names a 3-component `column` and may add `anchor`, `width` / `height` size
+     * columns, `groups` (container boxes), `medianNodeSize` and `tool`.
+     * @param snapshot - the graph this importer read
+     * @param ctx - `signal` to abort
+     * @returns the spelling, or null to read the role-`position` column as declared
+     */
+    positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
 }
 
 /**
@@ -347,8 +387,19 @@ export interface ExportCapabilities {
     readonly graphAttributes: boolean;
     /** Whether the file can hold node positions. When false, the layout is lost. */
     readonly positions: boolean;
-    /** Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost. */
+    /**
+     * Whether the file can hold node and edge color, size, shape and thickness. When false, they are lost.
+     * @deprecated This describes the `color`, `size`, `shape` and `thickness` role columns, the old way styles
+     *     reached a file. Use {@link ExportCapabilities.styles}, what the format's style writer can hold. Removed in
+     *     the next major version.
+     */
     readonly viz: boolean;
+    /**
+     * What the format's writer can hold of a graph's styles (the exporter's `styles.capabilities`): per target the
+     * properties written natively, and where the `graphty.styles` block goes. Absent for a format that writes no
+     * styles: every style is then reported as W_STYLE_NOT_WRITTEN and W_STYLE_RULES_NOT_KEPT.
+     */
+    readonly styles?: StyleWriteCapabilities | undefined;
 }
 
 /**
@@ -374,6 +425,18 @@ export interface LossNote {
      * table. Absent on a note about one column or none.
      */
     readonly columns?: readonly string[];
+    /**
+     * The style a W_STYLE_ note is about: nodes, edges or the graph, and the neutral property (`fill`, `width`).
+     * Absent on every other note.
+     */
+    readonly style?:
+        | {
+              /** Nodes, edges or the graph. */
+              readonly target: "node" | "edge" | "graph";
+              /** The neutral property. */
+              readonly property: NodeStyleProperty | EdgeStyleProperty | GraphStyleProperty;
+          }
+        | undefined;
 }
 
 /**
@@ -451,6 +514,21 @@ export interface GraphExporter<Opts = unknown> {
      * @returns the whole file
      */
     exportToString(snapshot: GraphSnapshot, options?: Opts & CommonExportOptions): Promise<string>;
+    /**
+     * Optional: the styles this format can write. With it, `exportGraph(snapshot, format, { styles })` hands
+     * `export()`, `exportToString()` and `check()` an `options.styles` (`ExporterStyleInput`): each element's value
+     * per property (`picture()`), the `graphty.styles` block, the tagged per-element values and the rules. With
+     * `block: "attributes"` graph-io adds the block and the tagged values to the snapshot as a graph attribute and
+     * element attributes, so a format that writes attributes keeps every style for graphty with no code:
+     * `styles: { capabilities: { node: [], edge: [], block: "attributes" } }`. Every property not listed natively
+     * is reported as W_STYLE_NOT_WRITTEN, and a format without this member loses every style, reported the same way.
+     */
+    readonly styles?:
+        | {
+              /** What the writer holds natively, and where the block goes. */
+              readonly capabilities: StyleWriteCapabilities;
+          }
+        | undefined;
 }
 
 /**
@@ -478,9 +556,18 @@ export interface ImportIssue {
      * kept, possibly changed.
      */
     readonly severity: "error" | "warning";
-    /** A stable code; E_ for errors, W_ for warnings ("E_UNKNOWN_NODE", "W_WIDENED"). */
-    readonly code: string;
-    /** A plain-English message. */
+    /**
+     * A stable code; E_ for errors, W_ for warnings ("E_UNKNOWN_NODE", "W_WIDENED"). The network
+     * source codes (`SOURCE_ISSUE`) autocomplete; every other code is a string.
+     */
+    readonly code: SourceIssueCode | (string & {}); // NOSONAR(S4335): open string union, keeps the known names autocompleting
+    /**
+     * The issue's machine-readable values (`{ status: 401 }`), when it has any. Every network source
+     * issue has them (`SourceIssueParams` maps each code to its shape); an application writes its
+     * own words from the code and these values.
+     */
+    readonly params?: Readonly<Record<string, unknown>> | undefined;
+    /** A plain-English message, for logs. */
     readonly message: string;
     /** The 1-based line in the input, or null when the format has no lines or it is unknown. */
     readonly line: number | null;
@@ -523,6 +610,8 @@ export interface ImportReport {
     readonly lossy: readonly LossNote[];
     /** How long reading the file took, in milliseconds. */
     readonly durationMs: number;
+    /** What a load from a network source did: requests, bytes, where to resume. Experimental. */
+    readonly source?: SourceReportInfo | undefined;
 }
 
 /**

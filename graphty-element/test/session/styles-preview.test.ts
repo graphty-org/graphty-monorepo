@@ -272,7 +272,7 @@ describe("styles.preview", () => {
             "E_UNKNOWN_CHANNEL",
         );
         assert.strictEqual(
-            codeOf(() => styles.preview({ by: "data.score", stops: ["#000000"] }, { channel: "node.color" })),
+            codeOf(() => styles.preview({ by: "data.score", colors: ["#000000"] }, { channel: "node.color" })),
             "E_BAD_LAYER",
         );
         assert.strictEqual(
@@ -330,7 +330,7 @@ describe("a binding's own stops", () => {
             { id: "high", score: 10 },
         ];
         const saved = await sessionOf(nodes);
-        const binding: Binding = { by: "data.score", stops: ["#000000", "#ffffff"] };
+        const binding: Binding = { by: "data.score", colors: ["#000000", "#ffffff"] };
         const preview = saved.styles.preview(binding, { channel: "node.color", bins: 2 });
         const layer = await saved.styles.add({
             name: "Score",
@@ -379,9 +379,9 @@ describe("a binding's own stops", () => {
             return null;
         };
 
-        assert.strictEqual(await write({ by: "data.score", stops: ["#000000", "not a colour"] }), "E_BAD_LAYER");
+        assert.strictEqual(await write({ by: "data.score", colors: ["#000000", "not a colour"] }), "E_BAD_LAYER");
         assert.strictEqual(
-            await write({ by: "data.score", stops: ["#000000", "#ffffff"], palette: "viridis" }),
+            await write({ by: "data.score", colors: ["#000000", "#ffffff"], palette: "viridis" }),
             "E_BAD_LAYER",
         );
         session.dispose();

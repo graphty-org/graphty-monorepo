@@ -1,3 +1,130 @@
+## 2.5.8 (2026-10-18)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.37
+- Updated graph-format to 1.4.5
+- Updated algorithms to 3.4.12
+
+## 2.5.7 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.36
+- Updated graph-format to 1.4.4
+- Updated algorithms to 3.4.11
+
+## 2.5.6 (2026-10-17)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.35
+- Updated graph-format to 1.4.3
+- Updated algorithms to 3.4.10
+
+## 2.5.5 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.34
+- Updated graph-format to 1.4.2
+- Updated algorithms to 3.4.9
+
+## 2.5.4 (2026-10-15)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.33
+- Updated algorithms to 3.4.8
+
+## 2.5.3 (2026-10-14)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.32
+- Updated graph-format to 1.4.1
+- Updated algorithms to 3.4.7
+
+## 2.5.2 (2026-10-14)
+
+### 🩹 Fixes
+
+- **layout:** use graph-format's engine-independent math ([#2440](https://github.com/graphty-org/graphty-monorepo/issues/2440))
+- **layout:** draw seeded layouts with engine-independent log, sin, cos and acos ([#2430](https://github.com/graphty-org/graphty-monorepo/issues/2430))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.31
+- Updated graph-format to 1.4.0
+- Updated algorithms to 3.4.6
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.5.1 (2026-10-13)
+
+### 🩹 Fixes
+
+- **layout:** give every input refusal of the layouts a code and params ([#2335](https://github.com/graphty-org/graphty-monorepo/issues/2335))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.5.0 (2026-10-13)
+
+### 🚀 Features
+
+- **layout:** give the planar and bfs refusals a code ([#2275](https://github.com/graphty-org/graphty-monorepo/issues/2275))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.5 (2026-10-13)
+
+### 🩹 Fixes
+
+- **layout:** clear the SonarQube findings on the planar and spectral ports ([613462521](https://github.com/graphty-org/graphty-monorepo/commit/613462521))
+- **layout:** planar, spectral and arf draw what they promise ([7be0128bb](https://github.com/graphty-org/graphty-monorepo/commit/7be0128bb))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.30
+- Updated graph-format to 1.3.15
+- Updated algorithms to 3.4.5
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.4 (2026-10-13)
+
+### 🩹 Fixes
+
+- **tools:** cap each test slot's Node workers at its share of the cores ([9daf98f16](https://github.com/graphty-org/graphty-monorepo/commit/9daf98f16))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.29
+- Updated graph-format to 1.3.14
+- Updated algorithms to 3.4.4
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
+## 2.4.3 (2026-10-12)
+
+### 🩹 Fixes
+
+- **layout:** draw the 3D stories on demand instead of in an endless frame loop ([#2114](https://github.com/graphty-org/graphty-monorepo/issues/2114))
+
+### ❤️ Thank You
+
+- Adam Powers @apowers313
+
 ## 2.4.2 (2026-10-12)
 
 ### 🩹 Fixes

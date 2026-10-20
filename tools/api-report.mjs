@@ -9,7 +9,8 @@
  * regenerated (CLAUDE.md, "Public API review").
  *
  * The check also fails when the committed report ADDS a property typed plain `string` to a result
- * type, compared with the report on the merge base with origin/master (or $API_REPORT_BASE). The
+ * type, compared with the report on the merge base with the branch the pull request merges into
+ * ($API_REPORT_BASE, else origin/$GITHUB_BASE_REF in CI, else tools/push-base.mjs). The
  * element is neutral about presentation (CLAUDE.md): a reason, status, kind or note it returns is
  * a string-literal union of codes or a `CodedFact` `{ code, params }`, never free text. Fields that
  * already exist never fail; see plainStringAdditions.
@@ -22,9 +23,10 @@
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { pushBaseRef } from "./push-base.mjs";
 
 /**
  * The entry points of a package.json "exports" map that have types.
@@ -91,7 +93,10 @@ export function apiReport(packageDir, check) {
     const entries = entryPoints(pkg.exports);
     // api-extractor silently writes nothing into a folder that does not exist
     if (!check) mkdirSync(apiDir, { recursive: true });
-    const temp = mkdtempSync(join(tmpdir(), "api-report-"));
+    // In the repository's own tmp/, not /tmp, which other processes on this machine clear.
+    const scratch = join(fileURLToPath(new URL("..", import.meta.url)), "tmp", "api-report");
+    mkdirSync(scratch, { recursive: true });
+    const temp = mkdtempSync(join(scratch, "run-"));
     let differ;
     try {
         differ = entries.map(([name, types]) => reportEntry(dir, name, types, temp, check)).filter(Boolean);
@@ -130,6 +135,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "attribute",
     "source",
     "target",
+    // a registered file format's id ("gexf", "graphml")
+    "format",
     // names the consumer or its data gave (an attribute, a set, a layer), and catalog names (#1332)
     "name",
     "technicalName",
@@ -145,6 +152,13 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "path",
     "mediaType",
     "color",
+    // network sources: a source's id, the service's address and origin, when a load finished,
+    // and the reader's own user name on that service
+    "source",
+    "endpoint",
+    "origin",
+    "loadedAt",
+    "username",
 ]);
 
 const DECLARATION =
@@ -293,14 +307,19 @@ export function plainStringAdditions(baseTexts, headTexts) {
 /**
  * Checks a package's committed reports against the merge base's for added plain string fields.
  * @param packageDir - the package's directory
+ * @param [env] - the environment (API_REPORT_BASE, GITHUB_BASE_REF, PUSH_BASE_REF)
  * @returns the failure messages
  */
-function checkPlainStrings(packageDir) {
+export function checkPlainStrings(packageDir, env = process.env) {
     const apiDir = join(resolve(packageDir), "api");
     const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd: apiDir, encoding: "utf8" }).trim();
     // from the top: ls-tree run in a subfolder lists only that subfolder's part of the tree
-    const git = (...args) => execFileSync("git", args, { cwd: top, encoding: "utf8", maxBuffer: 1 << 28 });
-    const base = git("merge-base", "HEAD", process.env.API_REPORT_BASE ?? "origin/master").trim();
+    const git = (...args) => execFileSync("git", args, { cwd: top, env, encoding: "utf8", maxBuffer: 1 << 28 });
+    // The branch the pull request merges into, so a branch stacked on another pull request's branch
+    // is not blamed for its parent's additions (#2588): CI's pull request base, else tools/push-base.mjs.
+    const ref =
+        env.API_REPORT_BASE ?? (env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : pushBaseRef({ cwd: top, env }));
+    const base = git("merge-base", "HEAD", ref).trim();
     const prefix = relative(top, apiDir);
     const files = readdirSync(apiDir).filter((f) => f.endsWith(".api.md"));
     const baseFiles = git("ls-tree", "--name-only", `${base}:${prefix}`)

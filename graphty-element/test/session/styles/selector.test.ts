@@ -310,6 +310,7 @@ describe("selector refusals", () => {
             "member",
             "rule",
             "state",
+            "hover",
         ]);
     });
 

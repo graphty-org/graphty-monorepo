@@ -221,7 +221,7 @@ describe("a label and the ring around its node", () => {
             name: "ring",
             target: "node",
             selector: { match: "ids", nodes: ["Cosette"] },
-            set: { "node.haloColor": "#FFD700", "node.haloSize": 1.45, "node.haloOpacity": 1 },
+            set: { "node.haloColor": "#FFD700", "node.haloScale": 1.45, "node.haloOpacity": 1 },
         });
         await operationQueueOf(graph).waitForCompletion();
         await draw(graph);

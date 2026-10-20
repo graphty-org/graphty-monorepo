@@ -57,7 +57,7 @@ describe("a binding preview", () => {
     it("reports a binding's own stops as a custom palette", async () => {
         const session = await scored();
         const preview = session.styles.preview(
-            { by: "data.score", stops: ["#000000", "#ffffff"] },
+            { by: "data.score", colors: ["#000000", "#ffffff"] },
             { channel: "node.color" },
         );
 

@@ -2,7 +2,7 @@
 
 Two label options make labels easy to read whatever the zoom and whatever the data:
 
-- `sizeUnit: "screen"` in a label style measures its size in CSS pixels, so a 14 px label stays
+- `sizeMode: "screen"` in a label style measures its size in CSS pixels, so a 14 px label stays
   14 px tall as the reader zooms. The default, `"world"`, measures it in the scene, so the label
   grows and shrinks with its node.
 - `format` on a binding that writes a number as text rounds it, using the options of
@@ -22,7 +22,7 @@ await session.styles.add({
     name: "Scores",
     target: "node",
     selector: { match: "everything" },
-    set: { "node.labelStyle": { enabled: true, sizePx: 14, sizeUnit: "screen" } },
+    set: { "node.labelStyle": { enabled: true, sizePx: 14, sizeMode: "screen" } },
     encode: {
         "node.label": { by: "data.score", format: { maximumSignificantDigits: 3, locale: "en-US" } },
     },
@@ -43,11 +43,11 @@ This prints:
 
 ## Size
 
-`sizePx` is the label's size; `sizeUnit` says what it is measured in. With `"screen"`, the label's
+`sizePx` is the label's size; `sizeMode` says what it is measured in. With `"screen"`, the label's
 place beside its node, the pass that hides overlapping labels, and a pulse all follow the size it
 is drawn at. The same unit applies to a bound label size channel such as `node.labelSize`.
 `LABEL_STYLE_DEFAULTS` lists the value of every label style field when nothing sets it, including
-`sizeUnit: "world"`.
+`sizeMode: "world"`.
 
 ## Number format
 

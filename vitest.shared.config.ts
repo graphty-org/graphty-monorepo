@@ -3,6 +3,7 @@
 
 import { defineConfig, type UserConfig } from "vitest/config";
 
+import { workerShare } from "./tools/test-slots.mjs";
 import { ciReporters } from "./vitest.ci-junit.mjs";
 
 // Every Playwright browser the test projects launch inherits this process's environment. Chromium
@@ -41,6 +42,8 @@ export function createVitestConfig(options: VitestConfigOptions): UserConfig {
             },
             reporters: ["default", ...ciReporters()],
             testTimeout: 30000,
+            // At most this run's share of the cores (tools/test-slots.mjs; undefined on GitHub Actions).
+            maxWorkers: workerShare(),
         },
     });
 }

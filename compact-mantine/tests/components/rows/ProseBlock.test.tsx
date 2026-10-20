@@ -285,9 +285,9 @@ describe("ProseBlock", () => {
         it("states the severity as a named note, not only in yellow", () => {
             renderProse(<ProseBlock variant="departure">{DEPARTURE}</ProseBlock>);
 
-            const note = screen.getByRole("note", { name: "Departure" });
+            const note = screen.getByRole("note", { name: `Warning ${DEPARTURE}` });
             expect(note).toHaveAttribute("data-variant", "departure");
-            expect(note).toHaveTextContent(DEPARTURE);
+            expect(note).toHaveTextContent(`Warning${DEPARTURE}`);
         });
 
         it("hides the triangle from assistive technology, so the name is not read twice", () => {
@@ -482,7 +482,7 @@ describe("ProseBlock", () => {
                 </LabelsProvider>,
             );
 
-            expect(screen.getByRole("note", { name: "Abweichung" })).toBeInTheDocument();
+            expect(screen.getByRole("note", { name: `Abweichung ${DEPARTURE}` })).toBeInTheDocument();
         });
 
         it("takes the name of the details control from the labels", () => {
@@ -550,7 +550,7 @@ describe("ProseBlock", () => {
                 </ProseBlock>,
             );
 
-            expect(screen.getByRole("note", { name: "Departure" })).toHaveAttribute("aria-live", "polite");
+            expect(screen.getByRole("note", { name: `Warning ${DEPARTURE}` })).toHaveAttribute("aria-live", "polite");
         });
 
         it("keeps the details control reachable while the run record is a live region", () => {

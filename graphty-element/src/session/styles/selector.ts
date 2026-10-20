@@ -41,6 +41,7 @@ import {
     compileExpressionPredicate,
     expressionRule,
     hasPredicate,
+    hoverPredicate,
     idsPredicate,
     scopePredicate,
     type SelectorSource,
@@ -105,7 +106,17 @@ export type Selector =
      * ever hovered). View state, never data: the layer follows each change without a step.
      * @since 3.26.0
      */
-    | { readonly match: "state"; readonly state: ElementState };
+    | { readonly match: "state"; readonly state: ElementState }
+    /**
+     * What the reader is pointing at: the hovered node, or it and its neighbors; inverted, the
+     * rest of the graph while a node is hovered. See the public `Selector` for the reading.
+     */
+    | {
+          readonly match: "hover";
+          readonly reach?: "node" | "neighbors";
+          readonly invert?: boolean;
+          readonly orSelected?: boolean;
+      };
 
 /**
  * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
@@ -120,7 +131,7 @@ const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered"];
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
 
 /** Every selector kind, for a refusal that lists what was allowed. */
-const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule", "state"] as const;
+const SELECTOR_KINDS = ["everything", "expression", "has", "ids", "top", "member", "rule", "state", "hover"] as const;
 
 /** The prefix of the only paths a top selector ranks: a run's published fields. */
 const RESULT_PATH_PREFIX = "results.";
@@ -192,19 +203,13 @@ function assertIdList(ids: unknown, field: string): void {
 }
 
 /**
- * Check a selector is a selector, without touching the session.
- *
- * Separate from compiling it so the shape is refused at the call that offered it, which is what
- * lets a form show the mistake where it was typed.
- * @param selector - The selector to check.
- * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
+ * Refuse a value that is not even an object with a "match", such as a legacy selector string.
+ * @param given - The value offered as a selector.
  */
-function assertSelector(selector: Selector): void {
-    // Read through `unknown` because the refusals below are about a value the type system was
+function assertSelectorObject(given: unknown): void {
+    // Read through `unknown` because these refusals are about a value the type system was
     // told is a Selector and that arrived as something else -- a legacy selector string, most of
     // all, which is the shape every layer in the element carries today.
-    const given: unknown = selector;
-
     if (typeof given === "string") {
         const advice =
             given === ""
@@ -223,6 +228,18 @@ function assertSelector(selector: Selector): void {
             selector: given,
         });
     }
+}
+
+/**
+ * Check a selector is a selector, without touching the session.
+ *
+ * Separate from compiling it so the shape is refused at the call that offered it, which is what
+ * lets a form show the mistake where it was typed.
+ * @param selector - The selector to check.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR`, or `E_SELECTOR_EMPTY` for an empty one.
+ */
+function assertSelector(selector: Selector): void {
+    assertSelectorObject(selector);
 
     // Kept as a plain string beside the switch so the refusal below can name a kind the union
     // does not contain, which is exactly the case this check exists for.
@@ -232,25 +249,11 @@ function assertSelector(selector: Selector): void {
         case "everything":
             return;
         case "expression":
-            if (typeof selector.where !== "string") {
-                throw badShape("where-missing", 'An "expression" selector needs a where.', { where: selector.where });
-            }
-
-            if (selector.where.trim() === "") {
-                throw emptySelector("where", { where: selector.where });
-            }
+            assertExpressionSelector(selector);
 
             return;
         case "has":
-            if (typeof selector.path !== "string") {
-                throw badShape("has-path-missing", 'A "has" selector needs a path, such as "results.louvain.group".', {
-                    path: selector.path,
-                });
-            }
-
-            if (selector.path.trim() === "") {
-                throw emptySelector("path", { path: selector.path });
-            }
+            assertHasSelector(selector);
 
             return;
         case "ids":
@@ -259,54 +262,20 @@ function assertSelector(selector: Selector): void {
 
             return;
         case "top":
-            if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
-                throw badShape(
-                    "top-path-not-a-result",
-                    'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
-                    { path: selector.path },
-                );
-            }
-
-            if (!Number.isInteger(selector.n) || selector.n < 0) {
-                throw badShape("top-n-not-whole", 'A "top" selector\'s n is a whole number of elements.', {
-                    n: selector.n,
-                });
-            }
-
-            if (selector.ties !== undefined && selector.ties !== "fewer" && selector.ties !== "all") {
-                throw badShape("top-ties-unknown", 'A "top" selector\'s ties is "fewer" or "all".', {
-                    ties: selector.ties,
-                });
-            }
+            assertTopSelector(selector);
 
             return;
         case "state":
-            if (!ELEMENT_STATES.includes(selector.state)) {
-                throw badShape("unknown-state", `A "state" selector reads one of ${ELEMENT_STATES.join(", ")}.`, {
-                    state: selector.state,
-                    states: ELEMENT_STATES,
-                });
-            }
+            assertStateSelector(selector);
 
             return;
         case "member":
         case "rule":
-            try {
-                parseScope(selectorScope(selector));
-            } catch (error) {
-                if (!isGraphtyError(error)) {
-                    throw error;
-                }
+            assertScopeSelector(selector);
 
-                throw badShape(
-                    `bad-${selector.match}-scope`,
-                    `A "${selector.match}" selector ${selector.match === "rule" ? "holds a rule" : "names a scope"}: ${error.message}`,
-                    {
-                        of: selectorScope(selector),
-                        scope: error.details,
-                    },
-                );
-            }
+            return;
+        case "hover":
+            assertHoverSelector(selector);
 
             return;
         default:
@@ -388,6 +357,118 @@ export function selectorRule(
         }
         default:
             return undefined;
+    }
+}
+
+/**
+ * Check an "expression" selector's fields.
+ * @param selector - The selector.
+ */
+function assertExpressionSelector(selector: Extract<Selector, { match: "expression" }>): void {
+    if (typeof selector.where !== "string") {
+        throw badShape("where-missing", 'An "expression" selector needs a where.', { where: selector.where });
+    }
+
+    if (selector.where.trim() === "") {
+        throw emptySelector("where", { where: selector.where });
+    }
+}
+
+/**
+ * Check a "has" selector's fields.
+ * @param selector - The selector.
+ */
+function assertHasSelector(selector: Extract<Selector, { match: "has" }>): void {
+    if (typeof selector.path !== "string") {
+        throw badShape("has-path-missing", 'A "has" selector needs a path, such as "results.louvain.group".', {
+            path: selector.path,
+        });
+    }
+
+    if (selector.path.trim() === "") {
+        throw emptySelector("path", { path: selector.path });
+    }
+}
+
+/**
+ * Check a "top" selector's fields.
+ * @param selector - The selector.
+ */
+function assertTopSelector(selector: Extract<Selector, { match: "top" }>): void {
+    if (typeof selector.path !== "string" || !selector.path.startsWith(RESULT_PATH_PREFIX)) {
+        throw badShape(
+            "top-path-not-a-result",
+            'A "top" selector ranks a run\'s field, so its path is "results.<run>.<field>", such as "results.degree.value".',
+            { path: selector.path },
+        );
+    }
+
+    if (!Number.isInteger(selector.n) || selector.n < 0) {
+        throw badShape("top-n-not-whole", 'A "top" selector\'s n is a whole number of elements.', {
+            n: selector.n,
+        });
+    }
+
+    if (selector.ties !== undefined && selector.ties !== "fewer" && selector.ties !== "all") {
+        throw badShape("top-ties-unknown", 'A "top" selector\'s ties is "fewer" or "all".', {
+            ties: selector.ties,
+        });
+    }
+}
+
+/**
+ * Check a "state" selector's fields.
+ * @param selector - The selector.
+ */
+function assertStateSelector(selector: Extract<Selector, { match: "state" }>): void {
+    if (!ELEMENT_STATES.includes(selector.state)) {
+        throw badShape("unknown-state", `A "state" selector reads one of ${ELEMENT_STATES.join(", ")}.`, {
+            state: selector.state,
+            states: ELEMENT_STATES,
+        });
+    }
+}
+
+/**
+ * Check the scope a "member" or "rule" selector holds.
+ * @param selector - The selector.
+ */
+function assertScopeSelector(selector: Extract<Selector, { match: "member" | "rule" }>): void {
+    try {
+        parseScope(selectorScope(selector));
+    } catch (error) {
+        if (!isGraphtyError(error)) {
+            throw error;
+        }
+
+        throw badShape(
+            `bad-${selector.match}-scope`,
+            `A "${selector.match}" selector ${selector.match === "rule" ? "holds a rule" : "names a scope"}: ${error.message}`,
+            {
+                of: selectorScope(selector),
+                scope: error.details,
+            },
+        );
+    }
+}
+
+/**
+ * Check a "hover" selector's fields.
+ * @param selector - The selector.
+ */
+function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): void {
+    if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
+        throw badShape("hover-reach-unknown", 'A "hover" selector\'s reach is "node" or "neighbors".', { reach: selector.reach });
+    }
+
+    if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
+        throw badShape("hover-invert-not-boolean", 'A "hover" selector\'s invert is true or false.', { invert: selector.invert });
+    }
+
+    if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {
+        throw badShape("hover-or-selected-not-boolean", 'A "hover" selector\'s orSelected is true or false.', {
+            orSelected: selector.orSelected,
+        });
     }
 }
 
@@ -485,6 +566,25 @@ export function compileSelector(selector: Selector, target: SelectorTarget, sour
                 test: scopePredicate(live, target),
                 paths: EMPTY_PATHS,
                 problem: () => live.problem(),
+            };
+        }
+        case "hover": {
+            const hover = selector.orSelected === true ? source.focus : source.hover;
+            if (hover === undefined) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message:
+                        'This session cannot evaluate a "hover" selector, because nothing reports the pointer to it.',
+                    source: "style",
+                    details: { match: "hover" },
+                });
+            }
+
+            return {
+                match: "hover",
+                target,
+                test: hoverPredicate(hover, target, selector.reach ?? "node", selector.invert === true),
+                paths: EMPTY_PATHS,
             };
         }
         default: {

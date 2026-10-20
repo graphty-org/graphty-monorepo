@@ -1,7 +1,7 @@
 export const meta = {
     name: "design-studio",
     description:
-        "Graphty design studio: preflight, review and freeze the criteria, freeze and serve a build, pilot and dry-run every task, then rounds of simulated user sessions, expert walkthroughs, screenshot audits, critique and local fixes until the bars hold; then report and land on master",
+        "Graphty design studio: preflight, review and freeze the criteria, freeze and serve a build, pilot and dry-run every task, then rounds of simulated user sessions, expert walkthroughs, screenshot audits, critique and local fixes until the bars hold; then report and get the branch ready to land on master",
     whenToUse:
         "Launching or continuing a design studio study tier (or a later round of one) once its criteria, tasks, answer key and roster are written. See .claude/skills/design-studio/SKILL.md for how to prepare a tier and which args to pass.",
     phases: [
@@ -11,13 +11,16 @@ export const meta = {
         },
         {
             title: "Prepare",
-            detail: "wait for a clean branch, review and freeze the criteria, freeze and serve the build, pilot every task, dry run: fix what the pilots trip over",
+            detail: "wait for a clean branch, review and freeze the criteria, freeze and serve the build, pilot every task, dry run: triage against the binding decisions, fix shared parts, re-walk each fix, land each pass, until the exit test passes",
         },
         {
             title: "Round",
             detail: "plan, sessions, grading, skeptics, expert walkthroughs, screenshot audit, critique, red team, decisions, fixes, new frozen build and dry run",
         },
-        { title: "Report", detail: "summary report and landing on master with the fewest pull requests" },
+        {
+            title: "Report",
+            detail: "summary report, then the branch is made ready to land on master through golden-local",
+        },
     ],
 };
 
@@ -44,13 +47,22 @@ const SERVER = A.serverName || `design-studio-tier${TIER}`;
 const BUILDS = A.buildsDir || ROOT + "/.study-builds";
 const READING = (A.reading || [`${SD}/report.md`]).join(", ");
 const LAND = A.land !== false;
-const PR_BRANCH_NOTE = A.prNumber ? ` (pull request #${A.prNumber})` : "";
+// Land every fix pass on master (golden-local): tier 3's 526 fix commits stayed on the studio branch,
+// so no CI, SonarQube or screenshot review ever saw them and no consumer got them.
+const LAND_EACH_PASS = A.landEachPass !== false;
+// The tier's binding decisions: every triage reads and cites it. Tier 3 flip-flopped three behaviors
+// across triages (a disabled "+" as a Tab stop, Escape in the inspector, an unfinished card's count).
+const DECIDED = `${T}/decided.md`;
+// Cosmetic defects wait here, fixed in batches with tests, outside the freeze loop.
+const BACKLOG = `${T}/backlog.md`;
+// Fix groups the targeted re-walk rejected (reverted), for the next triage.
+const REJECTED = `${T}/rejected-fixes.md`;
 
 const RULES = `
 RULES FOR EVERY AGENT:
 - Plain ASCII only (-- not em dashes, straight quotes). American spelling. Write for a stranger: no internal IDs or process narration in documents.
 - Work only in the studio worktree ${ST} (branch ${BRANCH}). Never run git stash (not even git stash list), checkout, switch, reset, restore or rebase anywhere: a subagent's permission prompt is never answered and the run hangs. Never touch the main checkout ${ROOT} except reading; never force-push. If a command hangs for a minute, stop it and move on.
-- Commits: plain signed git commit that runs the real pre-commit and commit-msg hooks but not the interactive prepare-commit-msg: t=$(mktemp -d); cp -r ${ST}/.husky/. "$t"; rm -f "$t/prepare-commit-msg"; git -c core.hooksPath="$t/_" commit ... (husky's .husky/_/h runs the script one folder ABOVE its own, so copying only .husky/_ silently skips every hook); never --no-verify, HUSKY=0 or core.hooksPath=/dev/null; conventional message; no Co-Authored-By, Claude-Session or "Generated with" lines; stage only your own files (other agents commit in the same worktree).
+- Commits: plain signed git commit that runs the real pre-commit and commit-msg hooks but not the interactive prepare-commit-msg: t=${ST}/tmp/<your task>/hooks; rm -rf "$t"; mkdir -p "$t"; cp -r ${ST}/.husky/. "$t"; rm -f "$t/prepare-commit-msg"; git -c core.hooksPath="$t/_" commit ... (never mktemp into /tmp: the newest /tmp/tmp.* is often another process's file) (husky's .husky/_/h runs the script one folder ABOVE its own, so copying only .husky/_ silently skips every hook); never --no-verify, HUSKY=0 or core.hooksPath=/dev/null; conventional message; no Co-Authored-By, Claude-Session or "Generated with" lines; stage only your own files (other agents commit in the same worktree).
 - Studies run ONLY on the frozen build named on the first line of ${T}/criteria.md (real.mjs serves it with REAL_DIST=<that dir>; see ${SD}/tool/README.md). Never change a frozen build. Browsers only through ${SD}/tool/with-browser.sh (${SLOTS} machine-wide); one browser per agent; always --end a session you started.
 - Architecture (${ROOT}/CLAUDE.md "Architectural Principles"): graphty-element owns all graph functionality and returns neutral facts ({ code, params }), never English; the app owns all words, grouping and order; shared UI is fixed in compact-mantine, never with a bespoke control. Never work around an element defect in the app. Node and edge appearance only through style layers. graphty-element offers choices with neutral defaults; consumers make them.
 - API changes: additive changes (a new export, method, property, event, error code, attribute, entry point, or a new optional parameter whose default keeps today's behavior) are the team's call -- choose the name and shape, record the reasoning in ${SD}/owner-decisions.md under "decided by the team" and keep going. Only a BREAKING change (removing or renaming anything public, changing what an existing API does or returns, changing a default) goes on ${SD}/owner-decisions.md under "for the owner"; when unsure, treat it as breaking; never block the study on it.
@@ -113,11 +125,27 @@ const UNITS = {
                     what: { type: "string" },
                     acceptance: { type: "string" },
                     tasks: { type: "array", items: { type: "string" } },
+                    // the shared component a repeated defect is fixed in, once
+                    shared: { type: "string" },
+                    // the task routes and controls the change touches, for the targeted re-walk
+                    routes: { type: "array", items: { type: "string" } },
                 },
                 required: ["id", "title", "package", "what", "acceptance"],
             },
         },
         insights: { type: "string" },
+        counts: {
+            type: "object",
+            properties: {
+                fix_now: { type: "number" },
+                blocking: { type: "number" },
+                regressions: { type: "number" },
+                repeats: { type: "number" },
+                instances: { type: "number" },
+                reversals: { type: "number" },
+                cosmetic: { type: "number" },
+            },
+        },
     },
     required: ["units"],
 };
@@ -206,6 +234,7 @@ const PILOT = {
         keyboard: { type: "boolean" },
         mismatches: { type: "array", items: { type: "string" } },
         defects: { type: "array", items: { type: "string" } },
+        skipped: { type: "array", items: { type: "string" } },
     },
     required: ["task", "reached"],
 };
@@ -244,7 +273,7 @@ let build = null;
 async function freezeBuild(tag, phaseName) {
     return slot(() =>
         agent(
-            `${RULES}\nFreeze a study build "${tag}". In ${ST}: rebuild graphty-element, compact-mantine (if it builds) and graphty (Sentry variables unset). Copy graphty/dist to ${BUILDS}/tier${TIER}-${tag}-<short sha>/ (never overwrite an existing frozen dir). Serve it for the owner through servherd (load the tools with ToolSearch "select:mcp__servherd__servherd_start,mcp__servherd__servherd_info"): name "${SERVER}", protocol https, cwd ${ST}/graphty, command "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npx vite preview --host 0.0.0.0 --port {{port}} --strictPort --outDir <the frozen dir>", description naming the tier and round. Starting the same name again replaces the previous round's server. Confirm <url>/?next answers 200. Update the first line of ${T}/criteria.md to "The study runs on build <sha> served from <dir>" (record the previous build in the change log). Run REAL_DIST=<dir> node ${SD}/tool/real.mjs --prove and fix the tool only if needed. Commit criteria.md. Return sha, dir, url (with ?next), ok.`,
+            `${RULES}\nFreeze a study build "${tag}". FIRST, a build no commit reproduces is invalid (tier 3 pass 2's fixes were committed only after pass 3 piloted them): if git -C ${ST} status shows any uncommitted source change outside tmp/, it is a finished fix pass's work -- commit it (stage only those files) before building, and freeze HEAD. In ${ST}: rebuild graphty-element, compact-mantine (if it builds) and graphty (Sentry variables unset). Copy graphty/dist to ${BUILDS}/tier${TIER}-${tag}-<short sha>/ (never overwrite an existing frozen dir). Serve it for the owner through servherd (load the tools with ToolSearch "select:mcp__servherd__servherd_start,mcp__servherd__servherd_info"): name "${SERVER}", protocol https, cwd ${ST}/graphty, command "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npx vite preview --host 0.0.0.0 --port {{port}} --strictPort --outDir <the frozen dir>", description naming the tier and round. Starting the same name again replaces the previous round's server. Confirm <url>/?next answers 200. Update the first line of ${T}/criteria.md to "The study runs on build <sha> served from <dir>" (record the previous build in the change log). Run REAL_DIST=<dir> node ${SD}/tool/real.mjs --prove and fix the tool only if needed. Commit criteria.md. Return sha, dir, url (with ?next), ok.`,
             { label: `freeze build ${tag}`, phase: phaseName, schema: BUILD },
         ),
     );
@@ -256,7 +285,10 @@ async function freezeBuild(tag, phaseName) {
 // falling to the page after Add or Delete step, Enter not committing a step edit). So each pilot
 // walks the success path, the task's commonest detours, and the success path again by keyboard.
 // prevRound: the previous round's folder, whose wrong turns name the detours (none before round 1).
-async function pilotAll(tag, phaseName, prevRound) {
+// sameAs: the previous pass's pilot tag; later passes walk the same detours, so passes compare.
+// A pass is complete only when every task and route was walked: tier 3 pilots skipped tasks when no
+// browser slot was free, and a skipped route reads as a clean one.
+async function pilotAll(tag, phaseName, prevRound, sameAs) {
     const pastTurns = prevRound
         ? "the wrong turns participants took on this task in " +
           prevRound +
@@ -275,19 +307,38 @@ async function pilotAll(tag, phaseName, prevRound) {
             effort: "low",
         },
     );
-    const res = (
-        await parallel(
-            (ids?.ids || []).map(
-                (id) => () =>
-                    slot(() =>
-                        agent(
-                            `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md and its success path in ${T}/answers.md; walk it with real.mjs (REAL_DIST set; sessions under ${T}/rounds/${tag}/pilot/${id}/), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way. Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${pastTurns}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen); (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects. A dry run that passes on the answer key's route is necessary but not sufficient. Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.`,
-                            { label: `${tag} pilot: ${id}`, phase: phaseName, schema: PILOT },
-                        ),
-                    ),
+    const idList = ids?.ids || [];
+    const detours = (id) =>
+        sameAs
+            ? `walk exactly the detours ${T}/rounds/${sameAs}/pilot/${id}/report.md walked (the detour set is held fixed across passes so their counts compare; walk a new one only where that report has none)`
+            : `${pastTurns}what a person would try first if they did not know the success path (another panel, the search box, a right-click, a menu, the toolbar, styling from where they are, opening a file from the start screen)`;
+    const pilot = (id, k) =>
+        slot(() =>
+            agent(
+                `${RULES}\nPilot ${NAME} task ${id} on the frozen build (first line of ${T}/criteria.md): read ${SD}/tool/README.md, the task in ${T}/tasks.md, its success path in ${T}/answers.md and the binding decisions in ${DECIDED}; walk it with real.mjs (REAL_DIST set; sessions under ${T}/rounds/${tag}/pilot/${id}/), always from the task's real start, exactly as a participant can (clicks, typing, keys; never by URL), looking at every screenshot, and checking the data stays the task's own data the whole way. Walk it THREE ways, each its own session: (1) the success path by pointer; (2) the task's two or three commonest DETOURS, each walked as far as a participant would take it -- ${detours(id)}; (3) the success path again by KEYBOARD only (Tab, Shift+Tab, Enter, Space, Escape, arrows), recording each focused control's screen-reader name and every place focus falls to the page body. In every field you open, press Enter, Tab and Escape and check each does what a person expects (where ${DECIDED} settles a behavior, check against it and do not report the decided behavior as a defect). A dry run that passes on the answer key's route is necessary but not sufficient. Walk EVERY route: no free browser slot is a reason to wait for with-browser.sh, never to skip; list anything you did not walk in "skipped". Do not change code. Always --end. Write ${T}/rounds/${tag}/pilot/${id}/report.md (every route walked, what happened, screenshot paths). Return reached, the detours walked, keyboard (true if the keyboard walk reached the end), skipped, every mismatch between the answer key and the screen (from the success path), and every defect on ANY of the three walks (anything a participant could trip over, including focus lost, a missing or duplicate name, a key that does nothing), each with its route and screenshot path.${k ? " (An earlier attempt left routes unwalked: walk all of them now.)" : ""}`,
+                { label: `${tag} pilot: ${id}${k ? " again" : ""}`, phase: phaseName, schema: PILOT },
             ),
-        )
-    ).filter(Boolean);
+        );
+    const res = await parallel(idList.map((id) => () => pilot(id, 0)));
+    const incomplete = (i) => !res[i] || (res[i].skipped || []).length > 0;
+    for (let k = 1; k <= 2; k++) {
+        const redo = idList.map((id, i) => i).filter(incomplete);
+        if (!redo.length) break;
+        const again = await parallel(redo.map((i) => () => pilot(idList[i], k)));
+        redo.forEach((i, j) => {
+            if (again[j]) res[i] = again[j];
+        });
+    }
+    // An unwalked route is a defect of the pass, so the pass can never read as clean.
+    idList.forEach((id, i) => {
+        if (!incomplete(i)) return;
+        const left = res[i] ? res[i].skipped.join("; ") : "every route";
+        log(`${tag}: pass incomplete: ${id} not walked: ${left}`);
+        res[i] = {
+            ...(res[i] || { task: id, reached: false }),
+            defects: [...((res[i] || {}).defects || []), `PASS INCOMPLETE: not walked: ${left}`],
+        };
+    });
     const fixKey = res.filter((p) => (p.mismatches || []).length);
     if (fixKey.length)
         await agent(
@@ -299,8 +350,56 @@ async function pilotAll(tag, phaseName, prevRound) {
     return res;
 }
 
+// Fix one group of units in order, then re-walk what its commits touch and revert the group when
+// the re-walk finds a regression.
+async function fixGroup(g, tag, phaseName) {
+    const r = [];
+    for (const u of g.items)
+        r.push(
+            await slot(() =>
+                agent(
+                    `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem. If the unit names a shared component ("shared"), fix it there (compact-mantine or the shared app part) with a test in that component, never with a patch on one screen, and check every screen that uses it. Follow the binding decisions in ${DECIDED}. Add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
+                    {
+                        label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80),
+                        phase: phaseName,
+                        schema: DONE,
+                    },
+                ),
+            ),
+        );
+    const fixed = r.filter((d) => d && d.done && d.commit);
+    if (!fixed.length) return r;
+    const ids = g.items.map((u) => u.id).join(", ");
+    const chk = await slot(() =>
+        agent(
+            `${RULES}\n${asRole("engineer")}\nTARGETED RE-WALK of fix group ${ids} before any freeze. Commits: ${fixed.map((d) => d.commit).join(" ")}. Read each commit's diff (git show), rebuild ${ST}/graphty/dist if it is older than these commits, then walk with real.mjs (REAL_DIST=${ST}/graphty/dist, sessions under ${SD}/tmp/${tag}-recheck-${g.items[0].id}/) ONLY the routes these diffs touch: the units' routes ${JSON.stringify(g.items.map((u) => u.routes || u.tasks || []))} and every screen that renders a changed component, pressing Enter, Escape, Tab and Shift+Tab on every changed control and checking each against ${DECIDED}. Look at every screenshot; always --end. Change nothing. Return ok (true only if nothing these diffs touch got worse and each unit's acceptance holds) and every regression with its route and screenshot path.`,
+            { label: `${tag}: re-walk ${ids}`.slice(0, 80), phase: phaseName, schema: CHECK },
+        ),
+    );
+    if (chk && !chk.ok) {
+        log(`${tag}: fix group ${ids} rejected by its re-walk: ${(chk.problems || []).join("; ").slice(0, 400)}`);
+        await agent(
+            `${RULES}\nThe targeted re-walk rejected fix group ${ids}. In ${ST}, git revert --no-edit these commits, newest first, each as a signed commit through the hooks copy: ${fixed
+                .map((d) => d.commit)
+                .reverse()
+                .join(
+                    " ",
+                )}. Then append to ${REJECTED} the group, its units and these regressions, so the next triage refixes it in the shared part: ${JSON.stringify(chk.problems || [])}. Commit that file. Return the revert commits.`,
+            { label: `${tag}: revert ${ids}`.slice(0, 80), phase: phaseName, effort: "low" },
+        );
+        fixed.forEach((d) => {
+            d.done = false;
+            d.problems = "rejected by the targeted re-walk";
+        });
+    }
+    return r;
+}
+
 // Implement units: graph packages first, then compact-mantine, then the app; within a layer, groups
-// with disjoint files run in parallel and each group's units run in order.
+// with disjoint files run in parallel and each group's units run in order. After each group, a
+// targeted re-walk of only the routes its diff touches rejects (reverts) a group that regresses:
+// in tier 3, 28% to 41% of each pass's fix list were regressions of the previous pass's fixes, found
+// only by the next full pass.
 async function implement(units, tag, phaseName) {
     const order = [
         (u) => /element|layout|algorithms|graph-io|graph-format|graph-samples/.test(u.package),
@@ -321,25 +420,7 @@ async function implement(units, tag, phaseName) {
                 fs.forEach((x) => g.files.add(x));
             } else groups.push({ files: fs, items: [u] });
         }
-        const done = await parallel(
-            groups.map((g) => async () => {
-                const r = [];
-                for (const u of g.items)
-                    r.push(
-                        await slot(() =>
-                            agent(
-                                `${RULES}\n${asRole("engineer")}\nIMPLEMENT in ${ST}:\n${JSON.stringify(u, null, 2)}\nRead the code first; change the package that owns the problem; add a test that fails without the change; rebuild what you changed and check the acceptance on a fresh local build with real.mjs (REAL_DIST pointing at ${ST}/graphty/dist, session under ${SD}/tmp/${tag}-${u.id}/), looking at every screenshot. If the change would need a BREAKING public API change, record it for the owner in ${SD}/owner-decisions.md and implement the non-breaking part only (or nothing), saying so. Run the affected lint and nearest tests. Commit. Return done, commit, summary and any problem.`,
-                                {
-                                    label: `${tag}: ${u.id} ${u.title || ""}`.slice(0, 80),
-                                    phase: phaseName,
-                                    schema: DONE,
-                                },
-                            ),
-                        ),
-                    );
-                return r;
-            }),
-        );
+        const done = await parallel(groups.map((g) => () => fixGroup(g, tag, phaseName)));
         out.push(...done.flat().filter(Boolean));
     }
     const failed = out.filter((d) => !d.done);
@@ -348,34 +429,123 @@ async function implement(units, tag, phaseName) {
     return out;
 }
 
+// Land a finished fix pass on master through golden-local. Agents may not push, so the workflow
+// prepares the branch, logs "ready to land", and waits until the launching session's land.mjs run
+// has put the commit on origin/golden.
+async function landPass(label, phaseName, always) {
+    if (!LAND_EACH_PASS && !always) return;
+    const r = await agent(
+        `${RULES}\nPrepare ${BRANCH} to land after ${label}. In ${ST}: (1) commit any finished work still uncommitted outside tmp/ (stage only those files); (2) git fetch origin; git merge origin/master (merge, never rebase); resolve conflicts keeping both sides; pnpm install --frozen-lockfile if the lockfile changed; (3) build, regenerate the graphty-element API reports (npm run api:report in graphty-element) and commit them if they changed, lint graphty-element, compact-mantine and graphty, and fix what this branch breaks; commit. Never push and never run tools/land.mjs. Return the head sha, ok (the tree is clean outside tmp/ and lint passes), and breaking: every commit since origin/master marked breaking (a "!" or a BREAKING CHANGE footer) and every breaking change in the API report diff.`,
+        {
+            label: `${label}: prepare to land`,
+            phase: phaseName,
+            schema: {
+                type: "object",
+                properties: {
+                    sha: { type: "string" },
+                    ok: { type: "boolean" },
+                    breaking: { type: "array", items: { type: "string" } },
+                },
+                required: ["ok"],
+            },
+        },
+    );
+    if (!r?.sha || !r.ok) {
+        log(`${label}: could not prepare ${BRANCH} to land (${r?.sha || "no head"}); the studio goes on unlanded`);
+        return;
+    }
+    // A breaking commit lands only with the owner's go (CLAUDE.md, "Landing changes (golden-local)").
+    const owner = (r.breaking || []).length
+        ? ` It holds BREAKING changes, which land only with the owner's go: ${r.breaking.join("; ")}.`
+        : "";
+    log(
+        `ready to land: ${BRANCH} at ${r.sha} (${label}). Run node ${ROOT}/tools/land.mjs land ${BRANCH} in the background; the studio waits until origin/golden holds that commit.${owner}`,
+    );
+    await agent(
+        `Wait, changing nothing, until commit ${r.sha} is on origin/golden. Start this as ONE background command (run_in_background; never a foreground wait) and end your turn until its exit notice: until git -C ${ST} fetch -q origin golden && git -C ${ST} merge-base --is-ancestor ${r.sha} origin/golden; do sleep 300; done. Then return "landed ${r.sha}".`,
+        { label: `${label}: wait for landing`, phase: phaseName, effort: "low" },
+    );
+    log(`${label}: ${BRANCH} at ${r.sha} landed on golden`);
+}
+
+// One dry-run triage: classify the pilots' defects, commit the evidence, and log the counts.
+async function dryRunTriage(tag, phaseName, d, defects) {
+    const triage = await agent(
+        `${RULES}\n${asRole("director")}\nDRY RUN pass ${d} before the ${tag} sessions. Piloting every ${NAME} task on the frozen build (success path, commonest detours, and by keyboard) found the ${defects.length} defects below. The study's sessions must be spent learning what users need, not tripping over implementation flaws.
+FIRST read ${DECIDED}, the tier's BINDING DECISIONS (each a behavior -- what Enter, Escape or Tab does on a control, whether a disabled control is a Tab stop, what a count shows mid-edit -- with its date, reason and evidence; create it with a one-line header if missing), every earlier triage ${T}/dry-run-*.md, ${REJECTED} if it exists, and git log of the previous pass's fix commits.
+Classify every defect into exactly one class:
+(n) DECIDED -- it asks for something other than a decided behavior: no change, cite the entry. A decision is reversed only by a NEW entry in decided.md naming the entry it reverses, the new evidence and the reason; count it under reversals.
+(a) FIX NOW -- BLOCKING (the participant cannot finish the task) or CONFUSING (the participant would go wrong or doubt the result) on a task's path: a control that does nothing or gives no feedback, a button enabled when it should not be, focus left behind or falling to the page, a key (Enter, Escape, Tab) that does nothing where a person expects it to, a missing or duplicate screen-reader name, typing landing in the wrong field, broken values, raw internal text on screen, a missing unit, a defect met on a detour, a pass left incomplete.
+(c) COSMETIC -- does not block or confuse (spacing, alignment, a clipped label whose meaning still reads, an inconsistent but working component): append it to ${BACKLOG}; it is fixed later in batches with tests, never in this loop.
+(b) DESIGN QUESTION the study exists to answer (where something should live, what users expect, naming a concept users have not seen): leave it for the sessions.
+For every (a) defect record its origin: new; regression (caused by the previous pass's fixes); repeat (an earlier triage already sent the same problem to fix); instance (another screen showing a defect of a shared part already seen on another screen or in another pass). Every behavior this triage settles goes into decided.md as an entry, and the units cite it.${A.dryRunExtra ? " " + A.dryRunExtra : ""}
+Group the (a) defects into units, one coherent fix each, with the package that owns it, files, acceptance naming the pilot screenshot, and "routes": the task routes and controls the change touches, for the targeted re-walk. A defect seen on two screens or in two passes (regression, repeat or instance) is ONE unit fixed once in the shared component (compact-mantine or the shared app part), named in "shared", with a test there -- never one patch per screen.
+Write the triage to ${T}/dry-run-${tag}-${d}.md (every defect, its class, its origin, the decided.md entry it cites, the reason). Return the units; counts { fix_now, blocking, regressions, repeats, instances } over the (a) defects, plus reversals (new decided.md entries that reverse one) and cosmetic (rows sent to the backlog); and "insights": two sentences for the owner on what the dry run found.\n\nDEFECTS:\n${defects.join("\n")}`,
+        { label: `${tag}: dry run triage ${d}`, phase: phaseName, schema: UNITS, effort: "high" },
+    );
+    if (triage?.insights) log(`${tag} dry run ${d}: ${triage.insights}`);
+    // The pilot reports, the triage, the decisions and the backlog are evidence: commit them now.
+    await commitDocs(
+        `docs(workspace): ${NAME} ${tag} dry run ${d} triage and pilot reports`,
+        `${tag}: commit triage ${d}`,
+        phaseName,
+    );
+    const units = triage?.units || [];
+    const c = triage?.counts || {};
+    const fixNow = c.fix_now ?? units.length;
+    const regressions = c.regressions || 0;
+    log(
+        `${tag} dry run ${d}: ${fixNow} fix now (${c.blocking || 0} blocking), ${regressions} regressions, ${c.repeats || 0} repeats, ${c.instances || 0} more instances of a shared part, ${c.reversals || 0} reversed decisions, ${c.cosmetic || 0} to the backlog`,
+    );
+    return { units, c, fixNow, regressions };
+}
+
 // The dry run: participants' time goes to learning what users need, never to rediscovering
-// implementation flaws. Pilot every task, fix every implementation or polish defect a participant
-// would trip over, freeze again and re-pilot, until the pilots come back clean.
+// implementation flaws. Pilot every task, fix what blocks or confuses a participant, re-walk what
+// each fix touched, land, freeze again and re-pilot. Tier 3's four passes went 344, 217, 151 and 129
+// "fix now" rows, and half or more of each list were fix failures (regressions, repeats, more
+// instances of one shared part), so each pass is judged by an exit test, not by "no defects left".
+// Returns { stop } when the studio must not go on to sessions.
 async function dryRun(tag, phaseName, pilots, prevRound) {
+    let pilotTag = tag;
     for (let d = 1; d <= DRY_RUN_PASSES; d++) {
         const defects = pilots.flatMap((p) => (p.defects || []).map((x) => `${(p.task || "").slice(0, 12)}: ${x}`));
         if (!defects.length) {
             log(`${tag}: dry run clean`);
-            return;
+            return {};
         }
-        const triage = await agent(
-            `${RULES}\n${asRole("director")}\nDRY RUN before the ${tag} sessions. Piloting every ${NAME} task on the frozen build (success path, commonest detours, and by keyboard) found the ${defects.length} defects below. The study's sessions must be spent learning what users need, not tripping over implementation flaws. Triage each: (a) an implementation or polish defect a participant could hit -- truncated or clipped text, misalignment, a control that does nothing or gives no feedback, a button enabled when it should not be, focus left behind or falling to the page, a key (Enter, Escape, Tab) that does nothing where a person expects it to, a missing or duplicate screen-reader name, a defect met on a detour, typing landing in the wrong field, a wrong or inconsistent component, inconsistent lists, raw internal text on screen, broken values, a missing unit -- FIX IT NOW; (b) an open design question the study exists to answer (where something should live, what users expect, naming a concept users have not seen) -- leave it for the sessions.${A.dryRunExtra ? " " + A.dryRunExtra : ""} Write the triage to ${T}/dry-run-${tag}-${d}.md (every defect, its class, the reason). Return the (a) fixes as units (group related defects into one coherent unit, package that owns it, files, acceptance naming the pilot screenshot), and "insights": two sentences for the owner on what the dry run found.\n\nDEFECTS:\n${defects.join("\n")}`,
-            { label: `${tag}: dry run triage ${d}`, phase: phaseName, schema: UNITS, effort: "high" },
-        );
-        if (triage?.insights) log(`${tag} dry run ${d}: ${triage.insights}`);
-        const units = triage?.units || [];
+        const { units, c, fixNow, regressions } = await dryRunTriage(tag, phaseName, d, defects);
         if (!units.length) {
-            log(`${tag}: dry run left only open design questions`);
-            return;
+            log(`${tag}: dry run left only open design questions, decided behaviors and cosmetic backlog`);
+            return {};
         }
-        await implement(units, `${tag}-dry${d}`, phaseName);
+        // Exit test: nothing blocks, few fixes break earlier fixes, and the decisions held.
+        const converged = !c.blocking && !c.reversals && regressions < 0.1 * fixNow;
+        // Still about 40% regressions: more full passes only churn; fix the shared parts first.
+        const churning = d > 1 && regressions >= 0.4 * fixNow;
+        const todo = churning ? units.filter((u) => u.shared) : units;
+        await implement(todo, `${tag}-dry${d}`, phaseName);
+        await landPass(`${tag} dry run ${d}`, phaseName);
         build = await freezeBuild(`${tag}d${d}`, phaseName);
         log(`${tag}: dry-run build ${d}: ${build?.url || "not served"} (commit ${build?.sha || "?"})`);
-        pilots = await pilotAll(`${tag}d${d}`, phaseName, prevRound);
+        if (churning) {
+            const stop = `dry run ${d} of ${tag} was still ${Math.round((100 * regressions) / fixNow)}% regressions of earlier fixes; ${todo.length} shared-part fixes went in, and the shared parts need fixing before another full pass`;
+            log(`${tag}: ${stop}`);
+            return { stop };
+        }
+        if (converged) {
+            log(
+                `${tag}: dry run ${d} passed the exit test (no blocking row, regressions under 10%, no reversed decision); the sessions go ahead`,
+            );
+            return {};
+        }
+        pilots = await pilotAll(`${tag}d${d}`, phaseName, prevRound, pilotTag);
+        pilotTag = `${tag}d${d}`;
     }
     log(
         `${tag}: dry run still finding defects after ${DRY_RUN_PASSES} passes; the sessions go ahead and the leftovers are in ${T}/dry-run-${tag}-*.md`,
     );
+    return {};
 }
 
 // The study TOOL gets its own dry run before every round's sessions. In tier 2 round 1 the tool
@@ -457,7 +627,7 @@ if (A.preflightOnly) return { preflight: pre };
 if (!SKIP_PREPARE) {
     phase("Prepare");
     await agent(
-        `${RULES}\nBefore the ${NAME} study touches ${ST}, make sure the branch is in a clean state: another agent may be merging origin/master into it. Re-check every 2 minutes until git -C ${ST} rev-parse -q --verify MERGE_HEAD fails and git -C ${ST} status shows no conflicts and no uncommitted tracked changes outside ${SD}/tmp. Then report the head sha and whether the branch has an open pull request (gh pr list --head ${BRANCH} --state open; one call). Change nothing.`,
+        `${RULES}\nBefore the ${NAME} study touches ${ST}, make sure the branch is in a clean state: another agent may be merging origin/master into it. Re-check every 2 minutes until git -C ${ST} rev-parse -q --verify MERGE_HEAD fails and git -C ${ST} status shows no conflicts and no uncommitted tracked changes outside ${SD}/tmp. Then report the head sha. Change nothing.`,
         { label: "wait for a clean branch", phase: "Prepare", effort: "low" },
     );
     const reviews = (
@@ -478,7 +648,11 @@ if (!SKIP_PREPARE) {
     build = await freezeBuild(`r${START_ROUND}`, "Prepare");
     log(`${NAME} build for round ${START_ROUND}: ${build?.url || "not served"} (commit ${build?.sha || "?"})`);
     const prev = START_ROUND > 1 ? `${T}/rounds/round-${START_ROUND - 1}` : "";
-    await dryRun(`r${START_ROUND}`, "Prepare", await pilotAll(`r${START_ROUND}`, "Prepare", prev), prev);
+    const dr = await dryRun(`r${START_ROUND}`, "Prepare", await pilotAll(`r${START_ROUND}`, "Prepare", prev), prev);
+    if (dr.stop) {
+        log(`${NAME} stops before round ${START_ROUND}'s sessions: ${dr.stop}`);
+        return { preflight: pre, stop: dr.stop };
+    }
 }
 
 // ---------------- Rounds ----------------
@@ -695,11 +869,12 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         `t${TIER}r${r}`,
         "Round",
     );
+    await landPass(`round ${r} fixes`, "Round");
     build = await freezeBuild(`r${r + 1}`, "Round");
     log(
         `${NAME} build for round ${r + 1}: ${build?.url || "not served"} (commit ${build?.sha || "?"}); pilot screenshots in ${T}/rounds/r${r + 1}/pilot/`,
     );
-    await dryRun(`r${r + 1}`, "Round", await pilotAll(`r${r + 1}`, "Round", RD), RD);
+    const dr = await dryRun(`r${r + 1}`, "Round", await pilotAll(`r${r + 1}`, "Round", RD), RD);
     await parallel(
         ROLES.map(
             (x) => () =>
@@ -710,6 +885,10 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
         ),
     );
     await commitDocs(`docs(workspace): ${NAME} round ${r} results and studio notes`, `${P}: commit documents`, "Round");
+    if (dr.stop) {
+        log(`${NAME} stops before round ${r + 1}'s sessions: ${dr.stop}`);
+        break;
+    }
 }
 
 // ---------------- Report and landing ----------------
@@ -719,15 +898,7 @@ const report = await agent(
     { label: `${NAME} report`, phase: "Report", effort: "high" },
 );
 await commitDocs(`docs(workspace): the ${NAME} report and studio notes`, "commit report", "Report");
-let landing = null;
-if (LAND)
-    landing = await agent(
-        `${RULES}\nLand ${BRANCH}${PR_BRANCH_NOTE} on master with the fewest pull requests (fewer screenshot conflicts, less testing, faster release). Use the branch's open pull request (gh pr list --head ${BRANCH} --state open), or open one (ready, not draft) if none exists. GitHub API budget is shared by every session: one call per question, poll no faster than every 5 minutes, read status from ${ROOT}/tmp/pr-status/status.json when it is fresh.
-1. git fetch origin; merge origin/master into the branch (merge, never rebase); resolve conflicts keeping both sides; regenerate graphty-element API reports; pnpm install --frozen-lockfile; build; lint and default tests of graphty-element, compact-mantine, graphty; commit.
-2. Push via ${ROOT}/tmp/push-queue.sh git push origin HEAD:${BRANCH} (never --no-verify, never force). Never push while the pull request is labeled queued.
-3. Update the pull request body (gh api -X PATCH repos/graphty-org/graphty-monorepo/pulls/<n> -F body=@<file>) for a stranger: grouped contents, tests, screenshots expected to change by package, and a decision table of ONLY the BREAKING API changes (additive ones listed as decided by the team, one line each). Labels: if no breaking change is undecided, remove hold and needs-decision and add queue:next so Mergify merges it once CI and the screenshot approvals pass; otherwise keep hold and needs-decision.
-4. Watch CI to green; fix failures this branch causes (name the mechanism of each). Then run ${ROOT}/tools/visual-preview.sh <pr> so screenshots can be reviewed early.
-Return the pull request URL, labels, CI status, the review page URL (servherd_info "visual-review") per changed project, and the breaking decisions still open.`,
-        { label: "land on master", phase: "Report", effort: "high" },
-    );
-return { rounds, report, landing };
+// The studio lands like every other change (golden-local, CLAUDE.md "Landing changes"): the
+// workflow prepares the branch and waits; the launching session runs land.mjs.
+if (LAND) await landPass(`the ${NAME} report`, "Report", true);
+return { rounds, report };

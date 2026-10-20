@@ -1,4 +1,12 @@
-import { ControlSubGroup, DataRow, StyleNumberInput } from "@graphty/compact-mantine";
+import {
+    AdvancedButton,
+    DataRow,
+    FieldRow,
+    PanelField,
+    PanelLabelsProvider,
+    Popout,
+    ResetButton,
+} from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { ActionIcon, Checkbox, type MantineSpacing, Select, Stack, TextInput, Tooltip } from "@mantine/core";
@@ -28,7 +36,7 @@ interface OptionsFormProps {
     words: (option: OptionDescriptor) => OptionLabel;
     /** Whether a node option offers "Use selected node" (off where the selection fills it). */
     canUseSelectedNode?: boolean;
-    /** More controls at the end of the Advanced fold (a layout's Seed and Reshuffle). */
+    /** More controls at the end of the Advanced pop-out (a layout's Seed and Reshuffle). */
     advanced?: React.ReactNode;
     /**
      * The meaning of weight the algorithm reads (`descriptor.weightMeaning`): when set, its
@@ -37,10 +45,10 @@ interface OptionsFormProps {
     weightReads?: Meaning;
     /** The algorithm the form sets up: the element's plan for it says whether the loaded weight is read. */
     algorithm?: string;
-    /** The Advanced fold's name, when two folds can be on screen at once (the right panel's and a popover's). */
+    /** The Advanced pop-out's name, when two folds can be on screen at once (the right panel's and a popover's). */
     advancedLabel?: string;
     /**
-     * Insets the fields (and the Advanced fold's fields) from the section's content edge, while
+     * Insets the fields (and the Advanced pop-out's fields) from the section's content edge, while
      * the fold's own toggle stays on that edge, so its chevron hangs in the section's gutter in
      * line with the section chevrons.
      */
@@ -287,26 +295,43 @@ interface ControlProps {
  */
 function NumberOption({ option, value, label, empty, onChange }: Readonly<ControlProps>): React.JSX.Element {
     const integer = option.type === "integer";
+    // The value in force, the default included: an option always has one, so the box never says
+    // "not set" beside it. At the default there is nothing to reset: no Reset is drawn.
+    const shown = num(value) ?? num(option.default);
+    const changed = num(value) !== undefined && num(value) !== num(option.default);
     return (
-        <StyleNumberInput
-            label={label}
-            // The value in force, the default included: an option always has one, so the box never
-            // says "not set" beside it. At the default there is nothing to reset: no Reset is drawn.
-            value={num(value) ?? num(option.default)}
-            showReset={num(value) !== undefined && num(value) !== num(option.default)}
-            defaultValue={num(option.default) ?? 0}
-            // A default of no value (a sample size left to every node) is an empty box
-            // that says what empty means, never a 0 the run would not use.
-            emptyText={option.default === null ? (empty ?? "Not set") : undefined}
-            min={num(option.min)}
-            max={num(option.max)}
-            step={option.step ?? (integer ? 1 : undefined)}
-            decimalScale={integer ? 0 : undefined}
-            // A reset sets the default itself, so a run reset to what it used is unchanged.
-            onChange={(v) => {
-                onChange(v === undefined && typeof option.default === "number" ? option.default : v);
-            }}
-        />
+        <PanelLabelsProvider showLabels>
+            <FieldRow
+                trailing={
+                    changed && (
+                        <ResetButton
+                            label={label}
+                            onClick={() => {
+                                // A reset sets the default itself, so a run reset to what it used is unchanged.
+                                onChange(typeof option.default === "number" ? option.default : undefined);
+                            }}
+                        />
+                    )
+                }
+            >
+                <PanelField
+                    label={label}
+                    kind="number"
+                    width="fill"
+                    value={shown ?? null}
+                    // A default of no value (a sample size left to every node) is an empty box
+                    // that says what empty means, never a 0 the run would not use.
+                    placeholder={option.default === null ? (empty ?? "Not set") : undefined}
+                    min={num(option.min)}
+                    max={num(option.max)}
+                    step={option.step ?? (integer ? 1 : undefined)}
+                    decimalScale={integer ? 0 : undefined}
+                    onChange={(v) => {
+                        onChange(Number(v));
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }
 
@@ -494,7 +519,7 @@ function OptionField({
 
 /**
  * The options form shared by every method editor (an algorithm's short form, a run's Made with,
- * a layout's form): the key options first, then the advanced ones behind an "Advanced" fold that
+ * a layout's form): the key options first, then the advanced ones behind an "Advanced" button whose pop-out
  * starts closed and draws nothing while closed. Internal options are never drawn.
  * @param props - Component props
  * @param props.session - The element's session
@@ -505,8 +530,8 @@ function OptionField({
  * @param props.canUseSelectedNode - Whether a node option offers "Use selected node"
  * @param props.weightReads - The meaning of weight the algorithm reads, or null
  * @param props.algorithm - The algorithm the form sets up
- * @param props.advanced - More controls at the end of the Advanced fold
- * @param props.advancedLabel - The Advanced fold's name
+ * @param props.advanced - More controls at the end of the Advanced pop-out
+ * @param props.advancedLabel - The Advanced pop-out's name
  * @param props.fieldInset - Insets the fields, not the fold's toggle
  * @returns The fields
  */
@@ -534,14 +559,31 @@ export function OptionsForm({
                 </Stack>
             )}
             {advanced.length > 0 || more !== undefined ? (
-                <ControlSubGroup label={advancedLabel} opened={advancedOpen} onOpenChange={setAdvancedOpen}>
-                    {advancedOpen ? (
-                        <Stack gap={8} px={fieldInset}>
-                            {advanced.map(field)}
-                            {more}
-                        </Stack>
-                    ) : null}
-                </ControlSubGroup>
+                // The rare settings behind an Advanced button that opens a pop-out (compact-mantine
+                // draws no folds inside a panel).
+                <Popout opened={advancedOpen} onOpenChange={setAdvancedOpen}>
+                    <Popout.Trigger>
+                        <AdvancedButton
+                            label={advancedLabel}
+                            changed={advanced.some((o) => values[o.name] !== undefined)}
+                            aria-haspopup="dialog"
+                            aria-expanded={advancedOpen}
+                        />
+                    </Popout.Trigger>
+                    <Popout.Panel
+                        width={264}
+                        placement="left"
+                        alignment="start"
+                        header={{ variant: "title", title: advancedLabel }}
+                    >
+                        <Popout.Content>
+                            <Stack gap={8}>
+                                {advanced.map(field)}
+                                {more}
+                            </Stack>
+                        </Popout.Content>
+                    </Popout.Panel>
+                </Popout>
             ) : null}
         </>
     );

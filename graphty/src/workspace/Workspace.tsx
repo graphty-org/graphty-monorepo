@@ -3,11 +3,12 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { VisuallyHidden } from "@mantine/core";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { findRecovered } from "./autosave/autosave";
 import { createRegistry, type WorkspaceRegistration } from "./commands/registry";
 import { ExportDialog } from "./export/ExportDialog";
 import { focusIsLost, focusOpenedGraph, installFocusGuard } from "./frame/focus";
-import { Frame } from "./frame/Frame";
 import { HelpDialogs } from "./frame/HelpDialogs";
+import { loadedFrame, loadFrame } from "./frameLoader";
 import { useCommandKeys } from "./keys/useCommandKeys";
 import { ReportDialog } from "./privacy/ReportDialog";
 import { notReadSentence, openingFile } from "./project/actions";
@@ -66,8 +67,8 @@ export function Workspace({
     // reason staying until it is dismissed.
     useEffect(() => {
         const { opening, project } = store.get();
-        const { session } = element;
-        if (session === null) {
+        const { session, element: host } = element;
+        if (session === null || host === null) {
             return;
         }
         // The app's choice for every project it opens (graphty-element's defaults stay neutral):
@@ -86,7 +87,7 @@ export function Workspace({
         store.set({ opening: null });
         loading.current = true;
         defaults
-            .then(() => opening.load(session))
+            .then(() => opening.load(session, host))
             // A graph opened as a new project starts its history: Undo has nothing to take back
             // until the reader changes something, so one Undo too many never unloads the graph.
             // Focus goes to the graph's heading once it is read, so its size is heard.
@@ -105,7 +106,36 @@ export function Workspace({
                 );
             });
     }, [element, store, startProjectId]);
+    // Work graphty-element kept from an earlier visit is offered on the start screen, once per load.
+    useEffect(() => {
+        const { autosave, project } = store.get();
+        if (!autosave || project !== null) {
+            return undefined;
+        }
+        let live = true;
+        findRecovered()
+            .then((recovered) => {
+                if (live && store.get().project === null) {
+                    store.set({ recovered });
+                }
+            })
+            .catch(() => undefined);
+        return () => {
+            live = false;
+        };
+    }, [store]);
     const projectOpen = useStoreValue(store, (state) => state.project !== null);
+    // The frame's code, loaded on demand (frameLoader.ts); a project that opens before it has
+    // loaded shows once it has.
+    const [Frame, setFrame] = useState(loadedFrame);
+    useEffect(() => {
+        if (projectOpen && Frame === null) {
+            void loadFrame().then((loaded) => {
+                setFrame(() => loaded);
+            });
+        }
+    }, [projectOpen, Frame]);
+
     const announcement = useStoreValue(store, (state) => state.announcement);
     const announced = useStoreValue(store, (state) => state.announced);
     // A message is spoken as it is written; the reader's next key or press empties the line, so
@@ -160,7 +190,7 @@ export function Workspace({
     return (
         <WorkspaceContext.Provider value={value}>
             {projectOpen ? (
-                <Frame onElementReady={onElementReady} />
+                Frame === null ? null : <Frame onElementReady={onElementReady} />
             ) : (
                 <StartScreen openRef={startDoor} lastDoor={lastDoor} />
             )}

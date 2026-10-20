@@ -535,7 +535,7 @@ export function ColorPickerPanel({
             ) : (
                 <>
                     <div className="cm-color-picker-body">
-                        <div
+                        <div // NOSONAR(S6819): a two-axis saturation and value field; input type=range is one axis only
                             ref={fieldRef}
                             className="cm-color-saturation"
                             data-testid="color-picker-saturation"
@@ -693,7 +693,7 @@ export function ColorPickerPanel({
                     </div>
 
                     {shown.length > 0 && (
-                        <div className="cm-color-swatches" role="group" aria-label={labels.swatches}>
+                        <fieldset className="cm-fieldset cm-color-swatches" aria-label={labels.swatches}>
                             {shown.map((swatch, index) => {
                                 const hexa = normalizeHexa(swatch);
                                 const isStart =
@@ -721,7 +721,7 @@ export function ColorPickerPanel({
                                     </Tooltip>
                                 );
                             })}
-                        </div>
+                        </fieldset>
                     )}
                 </>
             )}

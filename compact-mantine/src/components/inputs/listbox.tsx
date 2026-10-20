@@ -1,5 +1,5 @@
 /**
- * The dark listbox (design/figma-spec.md 6.5): the dropdown of Select, Autocomplete,
+ * The listbox (design/figma-spec.md 6.5): the dropdown of Select, Autocomplete,
  * MultiSelect, TagsInput and ComboInput. The look is CSS (`cm-menu-surface`, `cm-menu-row`,
  * `cm-listbox*` in src/theme/css); this module holds the parts CSS cannot do: where the list
  * opens, and the 16px check column every option carries.
@@ -357,7 +357,7 @@ function speak(list: HTMLElement, words: string): void {
  * @returns the list element
  */
 function openList(input: EventTarget | null): HTMLElement | null {
-    if (!(input instanceof HTMLInputElement) || !input.hasAttribute("data-expanded")) {
+    if (!(input instanceof HTMLInputElement) || input.dataset.expanded === undefined) {
         return null;
     }
     const listId = input.getAttribute("aria-controls");
@@ -373,7 +373,7 @@ function openSelectList(input: EventTarget | null): HTMLElement | null {
     if (
         !(input instanceof HTMLInputElement) ||
         !input.readOnly ||
-        !input.hasAttribute("data-expanded") ||
+        input.dataset.expanded === undefined ||
         !input.closest(".cm-input-wrapper")
     ) {
         return null;
@@ -417,10 +417,10 @@ function inForce(input: HTMLInputElement, list: HTMLElement): HTMLElement | null
 export function walkHighlight(input: HTMLInputElement, list: HTMLElement, target: HTMLElement): void {
     const items = [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")];
     const goal = items.indexOf(target);
-    const enabled = items.filter((item) => !item.hasAttribute("data-combobox-disabled"));
+    const enabled = items.filter((item) => item.dataset.comboboxDisabled === undefined);
     const lastEnabled = items.indexOf(enabled[enabled.length - 1]);
     for (let i = 0; i <= items.length + 1; i++) {
-        const at = items.findIndex((item) => item.hasAttribute("data-combobox-selected"));
+        const at = items.findIndex((item) => item.dataset.comboboxSelected !== undefined);
         if (at === goal) {
             return;
         }
@@ -483,7 +483,7 @@ export function ensureListboxKeyboard(): void {
     const noteClosed = (event: Event): void => {
         const input = event.target;
         closedTrigger =
-            event.isTrusted && input instanceof HTMLInputElement && !input.hasAttribute("data-expanded") ? input : null;
+            event.isTrusted && input instanceof HTMLInputElement && input.dataset.expanded === undefined ? input : null;
         if (closedTrigger !== null) {
             missOn = null;
         }
@@ -507,8 +507,8 @@ export function ensureListboxKeyboard(): void {
             const checked = inForce(input, list);
             if (
                 !checked ||
-                checked.hasAttribute("data-combobox-disabled") ||
-                checked.hasAttribute("data-combobox-selected")
+                checked.dataset.comboboxDisabled !== undefined ||
+                checked.dataset.comboboxSelected !== undefined
             ) {
                 return;
             }
@@ -527,7 +527,7 @@ export function ensureListboxKeyboard(): void {
     // types in (an Autocomplete's suggestions): an option is "selected" only once Enter takes it.
     const syncSelected = (list: HTMLElement | null): void => {
         for (const option of list?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []) {
-            option.setAttribute("aria-selected", option.hasAttribute("data-checked") ? "true" : "false");
+            option.setAttribute("aria-selected", option.dataset.checked !== undefined ? "true" : "false");
         }
     };
     document.addEventListener("keydown", (event) => {
@@ -617,7 +617,7 @@ export function ensureListboxKeyboard(): void {
     };
     const enabledOptions = (list: HTMLElement): HTMLElement[] =>
         [...list.querySelectorAll<HTMLElement>("[data-combobox-option]")].filter(
-            (option) => !option.hasAttribute("data-combobox-disabled"),
+            (option) => option.dataset.comboboxDisabled === undefined,
         );
     const printable = (event: KeyboardEvent): boolean =>
         event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey;
@@ -656,7 +656,7 @@ export function ensureListboxKeyboard(): void {
                 input,
                 list,
                 options,
-                options.findIndex((option) => option.hasAttribute("data-combobox-selected")),
+                options.findIndex((option) => option.dataset.comboboxSelected !== undefined),
             );
         },
         true,
@@ -674,7 +674,7 @@ export function ensureListboxKeyboard(): void {
             !(input instanceof HTMLInputElement) ||
             !input.readOnly ||
             input.disabled ||
-            input.hasAttribute("data-expanded") ||
+            input.dataset.expanded !== undefined ||
             input.getAttribute("aria-haspopup") !== "listbox" ||
             !input.closest(".cm-input-wrapper")
         ) {

@@ -49,7 +49,7 @@ import { PasswordToggleIcon } from "./PasswordToggleIcon";
  *
  * The look is the stylesheet (../css/inputs.css.ts and the foundation's `cm-field`), reached
  * through `classNames`; `vars` carries only the per-size metrics (../styles/inputs.ts). Every
- * dropdown is the dark listbox (`cm-menu-surface`): over the trigger for Select, below the
+ * dropdown is the listbox (`cm-menu-surface`): over the trigger for Select, below the
  * field for Autocomplete, MultiSelect and TagsInput. No overlay animates.
  *
  * `props?.size` is read with optional chaining: the theme suites call `extension.vars!()` with
@@ -114,7 +114,7 @@ function fieldClassNames(fallback: "filled" | "outlined", extra = "") {
 }
 
 /**
- * The dark listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
+ * The listbox's classNames (spec 6.5). The dropdown is also a `cm-menu`: it scrolls itself
  * (no ScrollArea) and takes the menus' 24px scroll chevron rows (overlayBehavior.ts).
  */
 const LISTBOX_CLASS_NAMES = {

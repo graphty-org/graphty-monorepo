@@ -9,11 +9,12 @@
 # everywhere) and runs `pnpm install --frozen-lockfile` there.
 #
 # Usage:
-#   ./tools/worktree-new.sh <branch> [base]
+#   ./tools/worktree-new.sh <branch> [base] [name]
 #     <branch>  an existing local or origin branch is checked out; a new name is created from base
 #     [base]    the start point of a new branch (default origin/master, fetched first)
+#     [name]    the worktree's directory name (default: the branch, with / replaced by -)
 #
-# The worktree lands in .worktrees/<branch with / replaced by ->. Remove finished ones with
+# The worktree lands in .worktrees/<name>. Remove finished ones with
 # tools/worktree-prune.sh.
 
 set -euo pipefail
@@ -22,11 +23,12 @@ die() { echo "tools/worktree-new.sh: $*" >&2; exit 1; }
 
 BRANCH="${1:-}"
 BASE="${2:-origin/master}"
-[ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base]"
+NAME="${3:-${BRANCH//\//-}}"
+[ -n "$BRANCH" ] || die "usage: worktree-new.sh <branch> [base] [name]"
 
 # The main checkout, even when this runs from inside another worktree.
 MAIN="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
-DIR="$MAIN/.worktrees/${BRANCH//\//-}"
+DIR="$MAIN/.worktrees/$NAME"
 [ -e "$DIR" ] && die "$DIR already exists"
 
 git -C "$MAIN" fetch --quiet origin
@@ -37,6 +39,9 @@ if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH" \
 else
     # --no-track: the new branch's upstream is set by its first `git push -u`, not to the base
     git -C "$MAIN" worktree add --no-track -b "$BRANCH" "$DIR" "$BASE"
+    # A branch started from another branch is stacked on it: record that, so the pre-push gate
+    # measures this branch's changes from that branch, not origin/master (tools/push-base.mjs).
+    case "$BASE" in origin/master) ;; origin/*) git -C "$MAIN" config "branch.$BRANCH.prBase" "${BASE#origin/}" ;; esac
 fi
 
 if [ -f "$MAIN/.env" ]; then

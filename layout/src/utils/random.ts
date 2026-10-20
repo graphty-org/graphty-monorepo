@@ -8,10 +8,10 @@
  * Provides consistent random sequences when initialized with the same seed.
  */
 export class RandomNumberGenerator {
-    private seed: number;
-    private m: number;
-    private a: number;
-    private c: number;
+    private readonly seed: number;
+    private readonly m: number;
+    private readonly a: number;
+    private readonly c: number;
     private _state: number;
 
     /**

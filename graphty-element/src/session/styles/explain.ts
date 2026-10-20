@@ -47,10 +47,19 @@ import type {
     TopTies,
 } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { quoteEach } from "../../utils/quote-each";
 import { rankEntries, topOfRanking } from "../results/statistics";
 import type { CodedFact } from "../shared";
-import { CHANNELS, type ChannelValues, isChannel } from "./channels";
-import { type PreparedBinding, requireChannel } from "./encoding";
+import {
+    CHANNEL_DESCRIPTORS,
+    CHANNELS,
+    type ChannelValues,
+    isChannel,
+    labelFieldOf,
+    labelPatchOf,
+    mergeLabelStyle,
+} from "./channels";
+import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
 import type { EncodingLookup, ValueReach } from "./legend";
 import { columnsFor, type ElementColumns, type SelectorSource, type SelectorTarget } from "./predicate";
@@ -116,7 +125,13 @@ export type ChannelRefusalCode = "layer.locked" | "channel.encoded";
 
 /** Everything there is to say about why one element looks the way it does. */
 export interface StyleExplanation {
-    /** Everything the element is painted, with the topmost writer of each channel standing. */
+    /**
+     * Everything the element is painted, with the topmost writer of each channel standing.
+     *
+     * A label style is merged field by field, the highest layer winning each field, and the label
+     * field channels (`node.labelSize` and the rest) are merged into it rather than listed on
+     * their own: this is the label style the canvas draws.
+     */
     readonly merged: ResolvedStyle;
     /** Every layer that painted any of it, BOTTOM FIRST, which is the order they painted in. */
     readonly contributions: readonly StyleContribution[];
@@ -262,6 +277,14 @@ export interface StyleCounts {
      * @since 3.26.0
      */
     readonly tops: readonly CodedFact<TopFactCode>[];
+    /**
+     * What the element draws differently from what the layer worked out on its matched elements,
+     * one fact per code and channel, with `params` `{ channel, count }`: how many elements. See
+     * {@link StyleAdjustmentCode}. Empty when everything is drawn as worked out. Always present on
+     * counts graphty-element returns; optional only so that counts written by hand before it
+     * existed still type-check.
+     */
+    readonly adjusted?: readonly CodedFact<StyleAdjustmentCode>[];
     /**
      * Changes whenever these counts may have changed: on every `style:changed`, and on every change
      * to the data or the run results the layers read. Equal revisions mean equal counts.
@@ -670,7 +693,16 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
 
     paintOne(prepareStack(sources), at, columnsFor(sources.elements, at.target), (layer, prepared, result) => {
         const { channel } = prepared;
-        merged[channel] = result;
+        // Label styles stack field by field, as the repaint stacks them, and a label field
+        // channel lands in its label style: `merged` is what the canvas draws.
+        const labelField = labelFieldOf(channel);
+        if (labelField !== undefined) {
+            merged[labelField.into] = mergeLabelStyle(merged[labelField.into], labelPatchOf(labelField.field, result));
+        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle") {
+            merged[channel] = mergeLabelStyle(merged[channel], result as object);
+        } else {
+            merged[channel] = result;
+        }
         winners.set(channel, { layer, mode: prepared.path === null ? "static" : "encoded", path: prepared.path });
 
         let painting = painted.get(layer.id);
@@ -869,6 +901,35 @@ function readValues(
 }
 
 /**
+ * Count what the element draws differently from what a layer worked out for one element.
+ * @param own - The layer's prepared bindings.
+ * @param columns - What the session can read about elements of the layer's kind.
+ * @param index - The element.
+ * @param tally - The counts so far, keyed by code and channel.
+ */
+function countAdjustments(
+    own: readonly PreparedBinding[],
+    columns: ElementColumns,
+    index: number,
+    tally: Map<string, { code: StyleAdjustmentCode; channel: Channel; count: number }>,
+): void {
+    for (const prepared of own) {
+        const code = prepared.adjustment(prepared.path === null ? undefined : columns.value(index, prepared.path));
+        if (code === undefined) {
+            continue;
+        }
+
+        const key = `${code} ${prepared.channel}`;
+        const entry = tally.get(key);
+        if (entry === undefined) {
+            tally.set(key, { code, channel: prepared.channel, count: 1 });
+        } else {
+            entry.count++;
+        }
+    }
+}
+
+/**
  * Count the channels one layer wins on one element, through the same walk `explain` takes.
  * @param stack - The stack with its bindings.
  * @param at - Where the element sits.
@@ -981,6 +1042,7 @@ export function styleCounts(
     const perChannel = new Map<Channel, Map<LayerId, number>>();
     // The elements once, as an array: the walk below and the tops' ranking both read them.
     const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
+    const adjusted = new Map<string, { code: StyleAdjustmentCode; channel: Channel; count: number }>();
 
     for (const index of indices) {
         if (selector.test !== null && !selector.test(index)) {
@@ -991,6 +1053,7 @@ export function styleCounts(
         const { missing, outside } = readValues(own, columns, index);
         noValue += missing ? 1 : 0;
         outsideScale += outside ? 1 : 0;
+        countAdjustments(own, columns, index, adjusted);
 
         if (layer.enabled) {
             countWins(
@@ -1007,6 +1070,10 @@ export function styleCounts(
     }
 
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
+    const facts = [...adjusted.values()].map(({ code, channel, count }): CodedFact<StyleAdjustmentCode> => ({
+        code,
+        params: { channel, count },
+    }));
 
     return {
         matched,
@@ -1018,6 +1085,7 @@ export function styleCounts(
         covers: coversOf(perChannel),
         undrawn: captions.facts(),
         ...topFacts(layer.selector, columns, indices),
+        adjusted: Object.freeze(facts),
         revision,
     };
 }
@@ -1208,6 +1276,21 @@ function topFact(
 }
 
 /**
+ * The paths a layer reads: its selector's and every encoding's `by`.
+ * @param entry - The compiled layer.
+ * @returns The paths, without repeats.
+ */
+function readPaths(entry: CompiledLayer): Set<Path> {
+    const wanted = new Set<Path>(entry.selector.paths);
+    for (const binding of Object.values(entry.layer.encode ?? {})) {
+        if (binding !== undefined && "by" in binding) {
+            wanted.add(binding.by);
+        }
+    }
+    return wanted;
+}
+
+/**
  * The layers that paint nothing because this session answers none of what they read.
  *
  * NOT A FAILURE, and that is why it is reported rather than thrown: a layer naming a run that has
@@ -1247,13 +1330,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
             continue;
         }
 
-        const wanted = new Set<Path>(selector.paths);
-
-        for (const binding of Object.values(layer.encode ?? {})) {
-            if (binding !== undefined && "by" in binding) {
-                wanted.add(binding.by);
-            }
-        }
+        const wanted = readPaths(entry);
 
         if (wanted.size === 0) {
             continue;
@@ -1265,7 +1342,7 @@ export function unboundLayers(sources: ExplainSources): readonly UnboundLayer[] 
             unbound.push({
                 layerId: layer.id,
                 reason:
-                    `"${layer.name}" reads ${needs.map((path) => `"${path}"`).join(", ")}, ` +
+                    `"${layer.name}" reads ${quoteEach(needs, ", ")}, ` +
                     "which nothing in this session answers, so it paints nothing.",
                 fact: { code: "layer.unanswered", params: { layerId: layer.id, name: layer.name, paths: needs } },
                 needs: Object.freeze(needs),

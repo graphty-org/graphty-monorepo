@@ -41,6 +41,8 @@ const SETTLE_MS = 400;
 interface HighlightArgs {
     /** What a selected node should look like, or undefined to leave the element's own. */
     selectionStyle?: GraphSelectionStyleInput;
+    /** The shape every node is drawn in, or undefined for the element's own. */
+    shape?: "box";
 }
 
 /**
@@ -59,6 +61,16 @@ function render(args: HighlightArgs): Element {
 
     if (args.selectionStyle) {
         element.selectionStyle = args.selectionStyle;
+    }
+
+    if (args.shape) {
+        // Through a style layer, like any node appearance. Queued until the element is ready.
+        void element.session.styles.add({
+            name: `every node a ${args.shape}`,
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shape": args.shape },
+        });
     }
 
     element.nodeData = NODES;
@@ -263,5 +275,20 @@ export const SelectedEdge: Story = {
             `SelectedEdge: the selection is ${String(selection.nodes.length)} nodes and ` +
                 `${String(selection.edges.length)} edges, not the one edge`,
         );
+    },
+};
+
+/**
+ * The halo around a box: a larger box around the selected node, never a sphere behind it. The
+ * halo is the node's own shape scaled out, so a box's corners are ringed too (issue #2643).
+ */
+export const Box: Story = {
+    args: { shape: "box" },
+    play: async ({ canvasElement }) => {
+        const scene = await selected(canvasElement, "Box");
+
+        await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
+
+        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
     },
 };

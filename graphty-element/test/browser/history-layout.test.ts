@@ -19,6 +19,7 @@ import { Graph, operationQueueOf } from "../../src/Graph";
 import { SimulationLayoutEngine } from "../../src/layout/SimulationLayoutEngine";
 import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 
 const cleanups: (() => void)[] = [];
@@ -68,9 +69,7 @@ async function atRest(graph: Graph): Promise<void> {
         await nextFrame();
     }
 
-    for (let frame = 0; frame < 2; frame++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    await drawnFrames(graph.getScene(), 2);
 }
 
 /**
@@ -304,7 +303,7 @@ describe("the element's layout properties", () => {
         assert.strictEqual(element.layout, undefined, "one undo takes both back to the default");
     });
 
-    it("a catalogue id names the layout and its default engine draws it", async () => {
+    it("a catalog id names the layout and its default engine draws it", async () => {
         const element = document.createElement("graphty-element");
         element.style.display = "block";
         element.style.width = "400px";

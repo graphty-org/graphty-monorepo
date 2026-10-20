@@ -12,7 +12,7 @@
  *
  * Usage: node tools/prepush-tests.mjs <affected-projects-json> [<base>]
  *   the JSON array `nx show projects --affected --json` prints, and the commit the push is compared
- *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's ten browser and
+ *   with. A shard whose "local" policy is "when-paths-change" (graphty-element's eleven browser and
  *   storybook shards) runs only when a file changed since <base> is one it tests, as vitest itself
  *   resolves its command (gateShards below); without <base> (PREPUSH_ALL=1) every shard runs. One
  *   whose policy is "never" never runs here. CI runs them all either way.
@@ -45,7 +45,8 @@
  * shard's output goes to tmp/prepush-tests/<shard>.log; the first failure stops the others and
  * prints the end of its log. The failed shard's whole log is also copied to
  * <main checkout>/tmp/push-gate-logs/<time>-<pid>-<shard>.log, which the next push does not overwrite. A shard that runs past PREPUSH_SHARD_TIMEOUT (default 30m, not counting
- * its wait for a browser or test slot) fails; tools/prepush.sh bounds the whole stage, waits included.
+ * its wait for a browser or test slot) fails. The stage itself has no time limit: waiting for slots
+ * other gates hold is not a failure of this push.
  */
 
 import { spawn, execFileSync } from "node:child_process";

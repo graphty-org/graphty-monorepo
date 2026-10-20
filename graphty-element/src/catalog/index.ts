@@ -18,7 +18,7 @@ export type {
     LabelIconPosition,
     LabelLocation,
     LabelPointerDirection,
-    LabelSizeUnit,
+    LabelSizeMode,
     LabelTextAlign,
 } from "./label-style";
 export { LABEL_STYLE_DEFAULTS, LABEL_STYLE_FIELDS } from "./label-style";
@@ -32,6 +32,7 @@ export type {
     AttributeDescriptor,
     AttributeType,
     Binding,
+    BindingStop,
     CameraDescriptor,
     CameraId,
     CatalogApi,
@@ -50,6 +51,7 @@ export type {
     FormatDescriptor,
     FormatExportVariant,
     FormatId,
+    FormatStyles,
     FunctionDescriptor,
     GraphtyErrorCode,
     GroupMatchCode,
@@ -62,6 +64,7 @@ export type {
     LayerUnmatchedGroup,
     LayoutDescriptor,
     LayoutId,
+    LayoutRequirements,
     LogSinkDescriptor,
     LogSinkId,
     Measurement,

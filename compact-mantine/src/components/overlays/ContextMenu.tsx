@@ -65,7 +65,7 @@ export interface ContextMenuProps extends Omit<
 }
 
 /**
- * A dark menu opened at the pointer by a right-click (design/figma-spec.md 8.2):
+ * A menu opened at the pointer by a right-click (design/figma-spec.md 8.2):
  * its top-left corner 3px right of and 5px above the pointer, flipping and
  * shifting to stay on screen, with no row highlighted until a key or the
  * pointer moves to one. On touch and pen, a press held still for half a second

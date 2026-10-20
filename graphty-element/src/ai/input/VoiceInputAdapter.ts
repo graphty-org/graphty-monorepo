@@ -91,7 +91,7 @@ export class VoiceInputAdapter implements InputAdapter {
     private startCallbacks: VoiceStartCallback[] = [];
     private activeCallbacks: VoiceActiveCallback[] = [];
     private failed = false;
-    private SpeechRecognitionCtor: SpeechRecognitionConstructor | null = null;
+    private readonly SpeechRecognitionCtor: SpeechRecognitionConstructor | null = null;
 
     /**
      * Creates a new VoiceInputAdapter instance.

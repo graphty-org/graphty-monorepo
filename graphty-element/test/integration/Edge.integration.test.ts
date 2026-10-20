@@ -6,7 +6,7 @@
  */
 
 import { AbstractMesh, Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
-import { assert, beforeEach, describe, test, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
@@ -112,6 +112,18 @@ function createMinimalStyles(): Styles {
             },
             rendering: {
                 onDemand: false,
+            },
+            camera: {
+                pivotOnSelection: false,
+                autoRotate: 0,
+                fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+                fitBounds: "box",
+            },
+            expand: {
+                trigger: "none",
+                depth: 1,
+                direction: "both",
+                layout: "continue",
             },
         },
         data: {
@@ -232,6 +244,10 @@ describe("Edge Integration", () => {
             line: { width: 1.0, color: "#0000FF" },
             arrowHead: { type: "box", size: 1, color: "#0000FF", opacity: 1 },
         });
+    });
+
+    afterEach(() => {
+        engine.dispose();
     });
 
     describe("Complete Edge Creation", () => {

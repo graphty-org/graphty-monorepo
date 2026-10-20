@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "pr": 2501,
+  "subject": {
+    "builtMerge": "a151fb80ddfe12b2cac1e692c0a2cd1ecf6604f4",
+    "head": "2b2e7c0e3f2c67244892d11f46f657b1bbbd13c7",
+    "runId": 39065349238,
+    "runAttempt": 1,
+    "environment": {
+      "chromium": "143.0.7499.4",
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+      "gpu": false,
+      "cpu": "AMD EPYC 7763 64-Core Processor",
+      "emojiFont": true,
+      "fonts": "018a3f813b3c58238736b0a956f43d73e3e3e2ff63ab6acb147ccd558132de12",
+      "tool": "a151fb80ddfe12b2cac1e692c0a2cd1ecf6604f4"
+    },
+    "scale": 2
+  },
+  "items": [
+    {
+      "path": "visual-baselines/graphty-element/autosave-diagnostics--diagnostics.png",
+      "from": "dda894d25ffcb04084bc8724509530e532a71df82aed51fdb61eb22125054788",
+      "to": "4c59633eccbc8c3fd12a91073265093ded99101fdc0cadb3a2771923e3f90df6",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-autosave--not-saved.dark.png",
+      "from": "0681752a5beb908dc35aea9669bcccb603b70185adcd6b8dc38da04fd67c517c",
+      "to": "ed10c6760915361ce6ceafefbc203d9742e7ddaa56bb469358d10f89b55a83bb",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-autosave--not-saved.light.png",
+      "from": "90bb332fc32686725cd84747e71a797370350d5f9f4bbc9c924b31632b0d5daf",
+      "to": "3aa9406c7a524409355a6cfbc2dc84c0f3879c9258dab59f5656228f95103d7f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-autosave--restored.dark.png",
+      "from": "ac0ce7fa58a44c02fe58c1a83f96001b74fb5ae181c4e01b87d82c2d50748e43",
+      "to": "0c338028855a1c6efe06c587ae99a4e49cba6212f46f7097cf8e92a960ca7bed",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-autosave--restored.light.png",
+      "from": "76a329b22e783e05f437bdcd552d64823eacc4329045cc90abc2b732d9a7e9b9",
+      "to": "60b08cf5a9c8669128afeaa083cb41ec4439f770991dddf25c6566e7e478057f",
+      "reason": null
+    },
+    {
+      "path": "visual-baselines/graphty/shell-status-bar-autosave--saved.light.png",
+      "from": "8f34a3bada784ca2bd52a6f828bb7116edc14effa913f0e78150ec6d4176b49b",
+      "to": "0e41e79a54477efea6f373e8e0c2d78d35dad7ee32168c854df964cd146d7e77",
+      "reason": null
+    }
+  ],
+  "rejects": [],
+  "reviewedAt": "2026-10-18T00:55:03.542Z",
+  "approval": {
+    "credentialId": "738fFZY3-Pa709BzFejFYRRnYVXX9K-eYpqc4bd7JMdzkEG2UGoy1M-r9Qm0l913",
+    "authenticatorData": "eMXhA2qypKDHuqedyDb0Pl-uTkIvHZ2wKAgFSf4SSWAdAAAAAA",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiMWxJMUZvUGZfaGZvQ2R3RlowTGlnM2RZTGtqSm1GWUxDaThuNHpJbUdmMCIsIm9yaWdpbiI6Imh0dHBzOi8vZGV2LmF0by5tczo5MjA5IiwiY3Jvc3NPcmlnaW4iOmZhbHNlfQ",
+    "signature": "MEYCIQDvSvXwKW3MX-yC3qJAAiy9OaKGwn66_VSGNhKGFfk4aAIhANGLhA9ey1a8sB_3TEPWdTOKU4Ov5Pb52muR0MTAVABP"
+  }
+}

@@ -1,7 +1,7 @@
 import { SearchInput } from "@graphty/compact-mantine";
 import type { AlgorithmDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession, Run } from "@graphty/graphty-element/session";
-import { Badge, Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import { Button, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -9,16 +9,7 @@ import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { groupPalettes } from "../style/row";
 import { PATH_ALGORITHM, PathForm } from "./PathForm";
-import {
-    costLine,
-    groupAlgorithms,
-    type Heading,
-    HEADINGS,
-    optionWords,
-    runRefusalWords,
-    wearsStartHere,
-    wordsFor,
-} from "./words";
+import { costLine, groupAlgorithms, type Heading, HEADINGS, optionWords, runRefusalWords, wordsFor } from "./words";
 
 /** The type icon of the row a run adds, by heading. */
 const ROW_ICON: Readonly<Record<Heading["id"], React.ReactNode>> = {
@@ -373,11 +364,10 @@ export function AnalyzePopover({
 
     let index = 0;
     // A Recent entry repeats one listed below: its name says which it is, so the two differ.
-    const entry = (descriptor: AlgorithmDescriptor, showStart: boolean, isRecent = false): React.JSX.Element => {
+    const entry = (descriptor: AlgorithmDescriptor, isRecent = false): React.JSX.Element => {
         const words = wordsFor(descriptor);
         const reason = unavailable(session, descriptor);
         const i = index++;
-        const start = showStart && wearsStartHere(descriptor, groups, filter);
         return (
             <UnstyledButton
                 component="div"
@@ -389,7 +379,7 @@ export function AnalyzePopover({
                 aria-disabled={reason !== null}
                 // The name alone; the mark is part of the description, not of the name.
                 aria-label={isRecent ? `${words.name}, recent` : words.name}
-                aria-description={[...(start ? ["Start here"] : []), reason ?? words.answers].join(". ")}
+                aria-description={reason ?? words.answers}
                 onClick={() => {
                     open(descriptor);
                 }}
@@ -403,11 +393,6 @@ export function AnalyzePopover({
                             <Text size="sm" c={reason === null ? undefined : "dimmed"}>
                                 {words.name}
                             </Text>
-                            {start ? (
-                                <Badge size="xs" variant="light">
-                                    Start here
-                                </Badge>
-                            ) : null}
                         </Group>
                         <Text size="xs" c="dimmed">
                             {reason ?? words.answers}
@@ -452,7 +437,7 @@ export function AnalyzePopover({
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             Recent
                         </Text>
-                        {recent.map((descriptor) => entry(descriptor, false, true))}
+                        {recent.map((descriptor) => entry(descriptor, true))}
                     </div>
                 ) : null}
                 {groups.map(({ heading, entries }) => (
@@ -464,7 +449,7 @@ export function AnalyzePopover({
                         <Text size="xs" fw={600} c="dimmed" className="ws-analyze-heading">
                             {heading.title}
                         </Text>
-                        {entries.map((descriptor) => entry(descriptor, true))}
+                        {entries.map((descriptor) => entry(descriptor))}
                     </div>
                 ))}
                 {groups.length === 0 ? (

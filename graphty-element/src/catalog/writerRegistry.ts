@@ -18,7 +18,7 @@ import type { CommonExportOptions, GraphExporter } from "@graphty/graph-io";
 import { GraphtyError } from "../errors";
 import { registeredFormatById, registeredFormatDescriptors } from "./formatRegistry";
 import { createPluginRegistry, type RegisterOptions } from "./pluginRegistry";
-import { type FormatDescriptor, KNOWN_FORMAT_IDS, type OptionDescriptor } from "./types";
+import { type FormatDescriptor, type FormatStyles, KNOWN_FORMAT_IDS, type OptionDescriptor } from "./types";
 
 /** What `registerFormatWriter` accepts. */
 export interface FormatWriterRegistration {
@@ -29,7 +29,7 @@ export interface FormatWriterRegistration {
     readonly descriptor: FormatDescriptor;
     /**
      * The options the writer accepts beside the common ones (graph-io's `sanitizeIds` and
-     * `onMixedDirection`, and the element's `notes`). An export naming any other option is refused
+     * `onMixedDirection`, and the element's `notes` and `styles`). An export naming any other option is refused
      * with `E_UNKNOWN_OPTION`.
      */
     readonly writerOptions?: readonly OptionDescriptor[];
@@ -40,8 +40,9 @@ export interface FormatWriterRegistration {
 
 /**
  * The options every writer takes, whatever the format: graph-io's `sanitizeIds` and
- * `onMixedDirection`, and the element's own `notes` and `groupRanks`, which the element reads and
- * never hands to the exporter. All `advanced`: a picker can leave them folded away.
+ * `onMixedDirection`, and the element's own `notes`, `groupRanks` and `styles`, which the element
+ * reads and never hands to the exporter as they are. All but `styles` are `advanced`: a picker can
+ * leave them folded away.
  */
 export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
     {
@@ -95,6 +96,18 @@ export const COMMON_WRITER_OPTIONS: readonly OptionDescriptor[] = [
             "its rank by size, 1 for the largest and ties by group id, in the group column and the " +
             "sizes table. Off by default: the file holds the algorithm's own group ids.",
     },
+    {
+        name: "styles",
+        plainName: "Include Styles",
+        technicalName: "styles",
+        type: "boolean",
+        default: false,
+        description:
+            "Write the style layers into the file: each element's look in the format's own style slots and, " +
+            "where the format can keep them, the layers, so loading the file back with styles rebuilds them. " +
+            "What the format cannot hold is reported as a W_STYLE_ loss before anything is written. Off by " +
+            "default, so the file is exactly what it was before styles could be written.",
+    },
 ];
 
 const registry = createPluginRegistry<FormatWriterRegistration, FormatDescriptor>({
@@ -104,10 +117,31 @@ const registry = createPluginRegistry<FormatWriterRegistration, FormatDescriptor
         Object.freeze({
             ...entry.descriptor,
             writerOptions: [...(entry.writerOptions ?? []), ...COMMON_WRITER_OPTIONS],
+            // What the writer keeps of styles, from the exporter itself unless the descriptor says.
+            styles: entry.descriptor.styles ?? { read: false, write: writtenStyles(entry.exporter) },
         }),
     implementationOf: (entry) => entry.exporter,
     builtInIds: () => KNOWN_FORMAT_IDS,
 });
+
+/**
+ * What an exporter keeps of a graph's styles: the rules when it carries graphty's style block
+ * (natively or as attributes), only values when it writes some properties natively, else nothing.
+ * @param exporter - The exporter.
+ * @returns What it keeps.
+ */
+function writtenStyles(exporter: FormatWriterRegistration["exporter"]): FormatStyles["write"] {
+    const capabilities = exporter.styles?.capabilities;
+    if (capabilities === undefined) {
+        return "none";
+    }
+
+    if (capabilities.block !== "none") {
+        return "rules";
+    }
+
+    return capabilities.node.length + capabilities.edge.length > 0 ? "values" : "none";
+}
 
 /**
  * Refuse a registration, naming the field at fault.
@@ -240,18 +274,23 @@ export function catalogFormatDescriptors(): readonly FormatDescriptor[] {
 
     if (merged?.readers !== readers || merged.writers !== writers) {
         const readerIds = new Set(readers.map((descriptor) => descriptor.id));
-        const writerIds = new Set(writers.map((descriptor) => descriptor.id));
-        const writerOptionsById = new Map(writers.map((descriptor) => [descriptor.id, descriptor.writerOptions]));
+        const writerById = new Map(writers.map((descriptor) => [descriptor.id, descriptor]));
         const list = [
-            ...readers.map((descriptor) =>
-                writerIds.has(descriptor.id)
-                    ? Object.freeze({
+            ...readers.map((descriptor) => {
+                const writer = writerById.get(descriptor.id);
+                return writer === undefined
+                    ? descriptor
+                    : Object.freeze({
                           ...descriptor,
                           canExport: true,
-                          writerOptions: writerOptionsById.get(descriptor.id),
-                      })
-                    : descriptor,
-            ),
+                          writerOptions: writer.writerOptions,
+                          // The reader says what it reads; the writer what it keeps.
+                          styles: {
+                              read: descriptor.styles?.read ?? false,
+                              write: writer.styles?.write ?? "none",
+                          },
+                      });
+            }),
             ...writers
                 .filter((descriptor) => !readerIds.has(descriptor.id))
                 .map((descriptor) => Object.freeze({ ...descriptor, canImport: false })),

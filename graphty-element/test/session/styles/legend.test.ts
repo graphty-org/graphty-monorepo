@@ -163,7 +163,7 @@ function harness(specs: readonly LayerSpec[], rows: readonly Row[] = NODES, path
 /** A layer that colours by betweenness, scoped the way `encode()` scopes one. */
 function betweennessColor(extra: Partial<LayerSpec> = {}): LayerSpec {
     return {
-        name: "Betweenness - Node Colour",
+        name: "Betweenness - Node Color",
         kind: "encoding",
         selector: { match: "has", path: "results.betweenness.value" },
         encode: { "node.color": { by: "results.betweenness.value", palette: "viridis" } },
@@ -640,10 +640,10 @@ describe("explain answers why one element looks the way it does", () => {
 
         assert.deepEqual(
             why.contributions.map((entry) => entry.name),
-            ["Default", "Betweenness - Node Colour", "My outline"],
+            ["Default", "Betweenness - Node Color", "My outline"],
         );
         assert.deepEqual(contributionOf(why, "Default").properties, ["node.color", "node.size"]);
-        assert.deepEqual(contributionOf(why, "Betweenness - Node Colour").properties, ["node.color"]);
+        assert.deepEqual(contributionOf(why, "Betweenness - Node Color").properties, ["node.color"]);
         assert.deepEqual(contributionOf(why, "My outline").properties, ["node.outline"]);
     });
 

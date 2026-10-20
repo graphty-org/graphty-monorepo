@@ -9,7 +9,8 @@
  * `defaultDirected` option), then `cy:directed` per edge, overruling Cytoscape, which ignores the
  * root attribute. Ids are kept as written (`ids: "keep"`), so `"1"`, `"01"` and `" 1 "` stay three
  * nodes. Positions are stored y-up (Cytoscape writes screen coordinates). Graphics values are kept
- * as a json column, never interpreted (style import is issue #706).
+ * as a json column; asked for styles, the importer reads them as Cytoscape's resolved visual properties
+ * (styles.ts), with Cytoscape desktop's default style for what an element leaves unset.
  */
 
 import { GraphFormatError, type GraphSink } from "@graphty/graph-format";
@@ -26,7 +27,14 @@ import {
 } from "../../common/options.js";
 import { agree, elementCount } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { isWhitespace, tokenizeXml, xmlDeclaredEncoding, type XmlRepairs, XmlSyntaxError } from "../../common/xml.js";
+import {
+    isWhitespace,
+    tokenizeXml,
+    xmlDeclaredEncoding,
+    XmlNestingError,
+    type XmlRepairs,
+    XmlSyntaxError,
+} from "../../common/xml.js";
 import {
     type CommonImportOptions,
     type GraphChoiceOptions,
@@ -35,7 +43,7 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
-import { EXTENSIONS, FORMAT, MIME_TYPES, XGMML_ISSUE } from "./constants.js";
+import { EXTENSIONS, FORMAT, MIME_TYPES, XGMML_ISSUE, XGMML_NAMESPACE } from "./constants.js";
 import { type GraphRec, type XgmmlDocument, XgmmlParser } from "./document.js";
 import {
     type Dialect,
@@ -46,6 +54,7 @@ import {
     XgmmlEmitter,
     type XgmmlSettings,
 } from "./emit.js";
+import { readXgmmlFileStyles } from "./styles.js";
 
 /**
  * The format-specific options of the XGMML importer.
@@ -174,37 +183,17 @@ export async function parseXgmml(
     common: ResolvedImportOptions,
     options: XgmmlImportOptions | undefined,
 ): Promise<XgmmlDocument> {
-    const repairs: XmlRepairs = {
-        bareAmpersand: booleanOption("repairBareAmpersands", options?.repairBareAmpersands, false)
-            ? (line): void => {
-                  report.warning("parse-error", XGMML_ISSUE.AMPERSAND_REPAIRED, "a bare & was read as &amp;", { line });
-              }
-            : undefined,
-        surrogatePair: booleanOption("pairSurrogateReferences", options?.pairSurrogateReferences, false)
-            ? (line): void => {
-                  report.warning(
-                      "parse-error",
-                      XGMML_ISSUE.SURROGATE_PAIRED,
-                      "two surrogate character references were joined into one character",
-                      { line },
-                  );
-              }
-            : undefined,
-    };
     const parser = new XgmmlParser(report);
     const seen = { content: false };
     try {
         await tokenizeXml(
             watch(textChunks(input, report, { ...common, declaredEncoding: xmlDeclaredEncoding, xml: true }), seen),
             parser,
-            repairs,
+            xmlRepairs(report, options),
         );
     } catch (err) {
         if (err instanceof XmlSyntaxError) {
-            if (!seen.content) {
-                report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
-            }
-            report.fail(XGMML_ISSUE.XML_SYNTAX, err.message, { line: err.line });
+            failSyntax(report, err, seen.content);
         }
         throw err;
     }
@@ -218,6 +207,50 @@ export async function parseXgmml(
         );
     }
     return doc;
+}
+
+/**
+ * The XML repairs the options switch on, each reporting where it repaired.
+ * @param report - the report
+ * @param options - the XGMML options
+ * @returns the repairs
+ */
+function xmlRepairs(report: ImportReportBuilder, options: XgmmlImportOptions | undefined): XmlRepairs {
+    const ampersand = (line: number): void => {
+        report.warning("parse-error", XGMML_ISSUE.AMPERSAND_REPAIRED, "a bare & was read as &amp;", { line });
+    };
+    const surrogate = (line: number): void => {
+        report.warning(
+            "parse-error",
+            XGMML_ISSUE.SURROGATE_PAIRED,
+            "two surrogate character references were joined into one character",
+            { line },
+        );
+    };
+    return {
+        bareAmpersand: booleanOption("repairBareAmpersands", options?.repairBareAmpersands, false)
+            ? ampersand
+            : undefined,
+        surrogatePair: booleanOption("pairSurrogateReferences", options?.pairSurrogateReferences, false)
+            ? surrogate
+            : undefined,
+    };
+}
+
+/**
+ * Fails the report for an XML syntax error: an empty input, nesting too deep, or broken XML.
+ * @param report - the report
+ * @param err - the error
+ * @param content - whether the input held anything but white space
+ * @returns never: it throws the report's ImportError
+ */
+function failSyntax(report: ImportReportBuilder, err: XmlSyntaxError, content: boolean): never {
+    if (!content) {
+        report.fail(XGMML_ISSUE.EMPTY_INPUT, "the input is empty");
+    }
+    return report.fail(err instanceof XmlNestingError ? XGMML_ISSUE.XML_NESTING : XGMML_ISSUE.XML_SYNTAX, err.message, {
+        line: err.line,
+    });
 }
 
 /**
@@ -444,7 +477,9 @@ function sniffXgmml(head: Uint8Array): number {
     }
     const tagEnd = text.indexOf(">", root.index);
     const tag = text.slice(root.index, tagEnd < 0 ? undefined : tagEnd);
-    return tag.includes("http://www.cs.rpi.edu/XGMML") ? 0.95 : 0.5;
+    // the XGMML namespace declared on the root, as a whole attribute value
+    const namespaces = [...tag.matchAll(/\bxmlns(?::[\w.-]+)?\s*=\s*(["'])([^"']*)\1/g)].map((m) => m[2]);
+    return namespaces.includes(XGMML_NAMESPACE) ? 0.95 : 0.5;
 }
 
 /**
@@ -466,4 +501,5 @@ export const xgmmlImporter: GraphImporter<XgmmlImportOptions> = Object.freeze({
     import: importXgmml,
     importAll: importAllXgmml,
     listGraphs: listXgmmlGraphs,
+    styles: readXgmmlFileStyles,
 });

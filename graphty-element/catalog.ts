@@ -79,8 +79,23 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
+
+// The sample datasets `session.data.loadDataset` downloads and the graph generators
+// `session.data.generate` runs, the same lists `session.catalog.datasets()` and
+// `session.catalog.generators()` return, for a page that lists them before any graph exists.
+// `DEFAULT_DATASET_BASE_URL` is where a dataset's file and its `thumbnail` picture are read from
+// when `loadDataset` is given no `baseUrl`.
+export type { DatasetMeta, GeneratorDescriptor, GeneratorParamDescriptor } from "@graphty/graph-samples";
+export {
+    DATASETS as DATASET_DESCRIPTORS,
+    DEFAULT_DATASET_BASE_URL,
+    GENERATOR_CATALOG as GENERATOR_DESCRIPTORS,
+} from "@graphty/graph-samples";
+export type { GeneratorParams } from "@graphty/graph-samples/generators";
 
 // The style channels a layer can paint, described as data: the plain name, the kind of value
 // each accepts, its enum values or numeric bounds, where it lands in a parsed style, and whether

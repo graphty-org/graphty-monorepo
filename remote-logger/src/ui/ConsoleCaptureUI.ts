@@ -51,7 +51,7 @@ const globalConsole = globalThis.console;
  */
 export class ConsoleCaptureUI {
     private logs: CapturedLogEntry[] = [];
-    private originalMethods: Record<ConsoleMethod, typeof globalConsole.log>;
+    private readonly originalMethods: Record<ConsoleMethod, typeof globalConsole.log>;
     private buttonContainer: HTMLElement | null = null;
 
     /**
@@ -395,7 +395,7 @@ export class ConsoleCaptureUI {
         } catch {
             this.showCopyError();
         } finally {
-            document.body.removeChild(textarea);
+            textarea.remove();
         }
     }
 
@@ -585,7 +585,7 @@ export class ConsoleCaptureUI {
         link.download = filename;
         document.body.appendChild(link);
         link.click();
-        document.body.removeChild(link);
+        link.remove();
 
         URL.revokeObjectURL(url);
         globalConsole.log("💾 Console logs downloaded!");
@@ -604,7 +604,7 @@ export class ConsoleCaptureUI {
 
         // Remove UI elements
         if (typeof document !== "undefined" && this.buttonContainer?.parentNode) {
-            this.buttonContainer.parentNode.removeChild(this.buttonContainer);
+            this.buttonContainer.remove();
         }
 
         // Remove modal if open

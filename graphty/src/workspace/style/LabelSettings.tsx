@@ -2,10 +2,12 @@ import {
     type ColorStop,
     colorWord,
     CompactColorInput,
+    FieldRow,
     GradientEditor,
     LabelsProvider,
-    StyleNumberInput,
-    StyleSelect,
+    PanelField,
+    PanelLabelsProvider,
+    ResetButton,
 } from "@graphty/compact-mantine";
 import { channelsFor, LABEL_STYLE_DEFAULTS, labelLook } from "@graphty/graphty-element/catalog";
 import type { LabelStyle } from "@graphty/graphty-element/schema";
@@ -120,6 +122,7 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
         fields: [
             [number("padding", "Padding"), number("cornerRadius", "Corners")],
             [number("borderWidth", "Border width"), color("borderColor", "Border color")],
+            [toggle("panelShadow", "Panel shadow"), toggle("closeButton", "Close button")],
             [number("marginTop", "Margin above"), number("marginBottom", "Margin below")],
             [number("marginLeft", "Margin left"), number("marginRight", "Margin right")],
             toggle("gradient", "Gradient"),
@@ -154,6 +157,7 @@ const LABEL_SETTINGS: readonly FieldGroup[] = [
             [number("pointerWidth", "Pointer width"), number("pointerHeight", "Pointer length")],
             [number("pointerOffset", "Pointer offset"), toggle("pointerCurve", "Curved pointer")],
             toggle("onTop", "Draw over the graph"),
+            toggle("keepInView", "Keep in view"),
             toggle("pickable", "Clicking picks the node"),
         ],
     },
@@ -443,17 +447,34 @@ function FieldControl({
             );
         case "number":
             return (
-                <StyleNumberInput
-                    label={field.word}
-                    value={typeof value === "number" ? value : undefined}
-                    defaultValue={typeof fallback === "number" ? fallback : 0}
-                    emptyText={typeof fallback === "number" ? undefined : NONE}
-                    suffix={suffix}
-                    step={field.step}
-                    onChange={(next) => {
-                        onChange(next);
-                    }}
-                />
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            typeof value === "number" && (
+                                <ResetButton
+                                    label={field.word}
+                                    onClick={() => {
+                                        onChange(undefined);
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label={field.word}
+                            kind="number"
+                            width="fill"
+                            // Nothing set here: the value beneath shows in the field, or "None".
+                            value={typeof value === "number" ? value : typeof fallback === "number" ? fallback : null}
+                            placeholder={typeof value === "number" || typeof fallback === "number" ? undefined : NONE}
+                            unit={suffix?.trim()}
+                            step={field.step}
+                            onChange={(next) => {
+                                onChange(Number(next));
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             );
         default: {
             const options: readonly (readonly [string, string])[] =
@@ -475,22 +496,42 @@ function FieldControl({
             ]
                 .filter((v) => !all.some(([o]) => o === v))
                 .map((v) => [v, v] as const);
+            const data = [...all, ...shown].map(([v, label]) => ({ value: v, label }));
+            const written = wordOf(value);
+            const beneathWord = data.find((option) => option.value === (wordOf(fallback) ?? DEFAULT))?.label ?? "";
             return (
-                <StyleSelect
-                    label={field.word}
-                    value={wordOf(value)}
-                    defaultValue={wordOf(fallback) ?? DEFAULT}
-                    options={[...all, ...shown].map(([v, label]) => ({ value: v, label }))}
-                    onChange={(next) => {
-                        if (next === undefined || next === DEFAULT) {
-                            onChange(undefined);
-                        } else if (field.kind === "switch") {
-                            onChange(next === "true");
-                        } else {
-                            onChange(next);
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            written !== undefined && (
+                                <ResetButton
+                                    label={field.word}
+                                    onClick={() => {
+                                        onChange(undefined);
+                                    }}
+                                />
+                            )
                         }
-                    }}
-                />
+                    >
+                        <PanelField
+                            label={field.word}
+                            kind="select"
+                            width="fill"
+                            data={data}
+                            value={written ?? null}
+                            placeholder={written === undefined ? DEFAULT_WORDS.fieldNotSet(beneathWord) : undefined}
+                            onChange={(next) => {
+                                if (next === DEFAULT) {
+                                    onChange(undefined);
+                                } else if (field.kind === "switch") {
+                                    onChange(next === "true");
+                                } else {
+                                    onChange(String(next));
+                                }
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             );
         }
     }

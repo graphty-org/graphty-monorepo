@@ -159,14 +159,14 @@ export function inlinePalette(stops: readonly string[], categorical: boolean, di
  * @param stops - The stops as authored.
  * @returns A sentence for the refusal, or null.
  */
-export function stopsProblem(stops: unknown): string | null {
+export function colorsProblem(stops: unknown): string | null {
     if (!Array.isArray(stops) || stops.length < 2) {
-        return 'A binding\'s own stops are two or more colours, lowest first, such as ["#fff7bc", "#993404"].';
+        return 'A binding\'s own colors are two or more colors, lowest first, such as ["#fff7bc", "#993404"].';
     }
 
     const bad = stops.find((stop) => typeof stop !== "string" || toColorValue(stop) === null);
 
-    return bad === undefined ? null : `"${String(bad)}" is not a colour, so it cannot be a stop.`;
+    return bad === undefined ? null : `"${String(bad)}" is not a colour, so it cannot be one of a binding's own colors.`;
 }
 
 /** A colour binding with everything knowable worked out, ready to be asked once per element. */

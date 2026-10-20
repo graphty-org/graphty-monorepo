@@ -116,8 +116,8 @@ export interface LayoutOptionFields {
      */
     readonly dim?: 2 | 3;
     /**
-     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral, graphty-planar, graphty-arf and
-     * the three simulations. The same seed gives the same positions; without one, positions that depend on random
+     * Seed of the layouts that draw random numbers: graphty-random, graphty-spectral (above 500 nodes), graphty-arf
+     * and the three simulations. The same seed gives the same positions; without one, positions that depend on random
      * numbers differ from run to run. The other layouts ignore it.
      */
     readonly seed?: number;
@@ -893,10 +893,12 @@ function registrant(run: (layout: LayoutThis) => void, withStop: boolean): unkno
         this.looping = false;
         RUN_BODIES.set(this, run);
     }
-    GraphtyLayout.prototype.run = runLayout;
+    const methods: { run: typeof runLayout; stop?: typeof stopLayout } = { run: runLayout };
     if (withStop) {
-        GraphtyLayout.prototype.stop = stopLayout;
+        methods.stop = stopLayout;
     }
+    // A function's prototype is typed any; assigning through Object.assign keeps the methods typed.
+    Object.assign(GraphtyLayout.prototype, methods);
     return GraphtyLayout;
 }
 

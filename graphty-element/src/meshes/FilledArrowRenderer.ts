@@ -794,9 +794,8 @@ void main() {
             const innerNext = i + segments + 2;
 
             // First triangle: outer-current → inner-current → inner-next
-            indices.push(outerCurrent, innerCurrent, innerNext);
             // Second triangle: outer-current → inner-next → outer-next
-            indices.push(outerCurrent, innerNext, outerNext);
+            indices.push(outerCurrent, innerCurrent, innerNext, outerCurrent, innerNext, outerNext);
         }
 
         const vertexData = new VertexData();

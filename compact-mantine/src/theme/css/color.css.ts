@@ -252,6 +252,13 @@ const css = `
     user-select: none;
     touch-action: none;
 }
+/* A field too narrow for the hex and the opacity box together keeps the hex: the opacity box goes,
+   and the opacity stays editable in the picker. 120 is the chit, the hex's six digits and the
+   54px opacity box. */
+.cm-paint-field { container-type: inline-size; }
+@container (max-width: 119px) {
+    .cm-paint-opacity { display: none; }
+}
 /* The hover color is also what keeps a finger on the "%": Chromium's touch adjustment moves a tap
    off an element that shows no response to it onto the text box beside it, and the scrub never
    starts. */

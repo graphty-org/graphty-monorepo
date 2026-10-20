@@ -102,7 +102,10 @@ function keyOptions(row: FormatRow): readonly OptionDescriptor[] {
  * first choice when none is set), then every other option of the row the reader set; the rest stay
  * the element's defaults. The app's one default of its own: a partition's group is written as its
  * rank by size (`groupRanks`), the "Group 2" the legend and the summaries name it by, so an
- * exported table joins the picture.
+ * exported table joins the picture. Every export also asks for the graph's styles, so every
+ * format that can hold them gets them and the losses name what it cannot, and rewrites node ids a
+ * format cannot hold (text ids in GML), each original kept in the file for reading it back, so
+ * every graph can be saved in every format.
  * @param row - the row.
  * @param values - the choices' values.
  * @returns the options for `exportGraph` / `downloadGraph`.
@@ -120,7 +123,7 @@ export function writerOptions(row: FormatRow, values: DataChoices["values"]): Re
         ]),
     );
     const ranks = row.options.some((option) => option.name === "groupRanks") ? { groupRanks: true } : {};
-    return { ...ranks, ...row.preset, ...set, ...chosen };
+    return { styles: true, sanitizeIds: "mangle", ...ranks, ...row.preset, ...set, ...chosen };
 }
 
 /** The preview stops at this many lines or this many characters, whichever comes first. */

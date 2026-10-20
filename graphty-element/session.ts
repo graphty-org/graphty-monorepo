@@ -181,6 +181,8 @@ export type { ReadonlyElementPositions } from "./src/session";
 // Which arrangement suits a graph
 // ---------------------------------------------------------------------------------------------
 
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
 export type { LayoutRecommendation, LayoutRecommendationCode, LayoutRecommendationOptions } from "./src/session";
 export { recommendLayout } from "./src/session";
 
@@ -188,7 +190,38 @@ export { recommendLayout } from "./src/session";
 // Previewing a load: the column roles a table of each kind takes and requires
 // ---------------------------------------------------------------------------------------------
 
+export type {
+    ExportStyleLossCode,
+    FileStyleCode,
+    FileStyleColumnValues,
+    FileStyleKind,
+    FileStyleLoadValues,
+    FileStyleMappingKind,
+    FileStyleMeaning,
+    FileStyleNote,
+    FileStyleNoteCode,
+    FileStyleOptions,
+    FileStyleOrigin,
+    FileStyleReason,
+    FileStyleRole,
+    FileStyleRuleOrigin,
+    FileStyleScalar,
+    FileStyleShapeTable,
+    FileStyleSummary,
+    FileStyleTool,
+    FileStyleTranslationCode,
+    LoadStyleReport,
+} from "./src/session";
 export { LOAD_ROLES } from "./src/session";
+export {
+    EXPORT_STYLE_LOSS_CODES,
+    FILE_STYLE_CODES,
+    FILE_STYLE_ISSUE,
+    FILE_STYLE_REASONS,
+    FILE_STYLE_SHAPES,
+    FILE_STYLE_TRANSLATION_ISSUE,
+    fileStyleOf,
+} from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
 // Runs: starting a computation, watching it, stopping it, and finding it again
@@ -357,6 +390,9 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// Autosaved work read and deleted without an element (a start screen that offers it first).
+export type { AutosaveLookupOptions } from "./src/autosave/elementAutosave";
+export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 
 // ---------------------------------------------------------------------------------------------
 // What is selected: two sets, five set operations, one selection per session
@@ -423,6 +459,7 @@ export type {
     Binding,
     BindingNumberFormat,
     BindingOverflow,
+    BindingStop,
     Channel,
     CombineMode,
     EdgeId,
@@ -513,6 +550,8 @@ export type {
     LegendFactCode,
     LegendReading,
     LegendSwatch,
+    MarkSpec,
+    MarkSuggestion,
     PreviewDefaultedPart,
     PreviewSpan,
     RepaintReason,
@@ -525,6 +564,7 @@ export type {
     RowWrite,
     RuleSelector,
     SessionStylesApi,
+    StyleAdjustmentCode,
     StyleAgreement,
     StyleChange,
     StyleColor,
@@ -540,6 +580,7 @@ export type {
     StyleSuggestion,
     StyleUpdateOptions,
     TemplateOptions,
+    TemplatePosition,
     TemplateReport,
     TopFactCode,
     UnboundLayer,
@@ -625,3 +666,9 @@ export type FilterDirection = SelectionDirection;
  * operation. Removed in the major version that ships the project file.
  */
 export type SetOp = SelectionOp;
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export * from "./src/session/sources/public";

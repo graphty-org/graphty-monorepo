@@ -8,9 +8,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { APP_HIGHLIGHT_COLOR } from "../../../constants/highlight";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
@@ -254,7 +253,7 @@ describe("the workspace frame on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
 
-        await realInput.keyboard("?");
+        await userEvent.keyboard("?");
 
         await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     });

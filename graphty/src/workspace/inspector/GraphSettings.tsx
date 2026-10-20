@@ -2,8 +2,11 @@ import {
     colorWord,
     CompactColorInput,
     ControlSection,
+    FieldRow,
+    PanelField,
+    PanelLabelsProvider,
+    ResetButton,
     SegmentedControl,
-    StyleNumberInput,
 } from "@graphty/compact-mantine";
 import { DEFAULT_BACKGROUND_COLOR, type Lighting, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
 import type { GraphSettingKey } from "@graphty/graphty-element/session";
@@ -177,18 +180,34 @@ export function GraphSettings(): React.JSX.Element | null {
                     )}
                     {shows("node.outlineWidth") && (
                         <div data-setting="node.outlineWidth">
-                            <StyleNumberInput
-                                label="Outline width"
-                                value={outlineWidth ?? undefined}
-                                defaultValue={1}
-                                min={0.1}
-                                max={10}
-                                step={0.1}
-                                decimalScale={1}
-                                onChange={(next) => {
-                                    store.set({ outlineWidth: next ?? null });
-                                }}
-                            />
+                            <PanelLabelsProvider showLabels>
+                                <FieldRow
+                                    trailing={
+                                        outlineWidth !== null &&
+                                        outlineWidth !== undefined && (
+                                            <ResetButton
+                                                label="Outline width"
+                                                onClick={() => {
+                                                    store.set({ outlineWidth: null });
+                                                }}
+                                            />
+                                        )
+                                    }
+                                >
+                                    <PanelField
+                                        label="Outline width"
+                                        kind="number"
+                                        value={outlineWidth ?? 1}
+                                        min={0.1}
+                                        max={10}
+                                        step={0.1}
+                                        decimalScale={1}
+                                        onChange={(next) => {
+                                            store.set({ outlineWidth: Number(next) });
+                                        }}
+                                    />
+                                </FieldRow>
+                            </PanelLabelsProvider>
                             <Text size="xs" c="dimmed">
                                 Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
                             </Text>

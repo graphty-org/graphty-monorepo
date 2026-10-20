@@ -115,7 +115,7 @@ describe("ComboInput", () => {
         );
         await userEvent.click(screen.getByRole("button", { name: "Open list" }));
         expect(screen.getByRole("option", { name: "Hug", hidden: true })).toHaveAttribute("data-checked");
-        expect(screen.getByRole("separator", { hidden: true })).toBeInTheDocument();
+        expect(screen.getByRole("separator", { hidden: true }).tagName).toBe("HR");
     });
 
     it("shows its mode word and a disabled field refuses the list", () => {

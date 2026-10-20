@@ -45,6 +45,21 @@ const EDGE_COUNT = NODE_COUNT * EDGES_PER_NODE;
  */
 const SLACK = 10;
 
+/**
+ * The most triangles one frame of a per-style case may draw (issue #1716).
+ *
+ * A patterned line places one element per period of its length, so the work a frame does grows
+ * with how long the edges are. Every frame goes through a software GPU in the browser tests, and
+ * the GPU process is shared by every test in the shard: a heavy frame is paid for by whatever
+ * test next waits on the GPU, and under CPU contention that wait ran past the test timeout -- on
+ * the dot line (1.7 million triangles a frame at a layout scale of 0.5), the diamond line and the
+ * dash line in turn. At today's scale the heaviest case, the dot line in 3D, draws about 178,000.
+ * Counting the frame's triangles fails a change that makes this file heavy again (longer edges,
+ * finer dots, more elements per period) on its first run, instead of as a timeout on a loaded
+ * machine.
+ */
+const FRAME_TRIANGLE_BUDGET = 250_000;
+
 describe("the scene grows with styles and nodes, not with edges", () => {
     let container: HTMLElement;
     let graph: Graph;
@@ -116,6 +131,24 @@ describe("the scene grows with styles and nodes, not with edges", () => {
      */
     function bound(appearances: number): number {
         return empty + NODE_COUNT + appearances + SLACK;
+    }
+
+    /**
+     * How many triangles a frame of this scene hands the GPU: every enabled, visible mesh's
+     * triangles, times its thin instances when it is a batch. Counted from the meshes rather than
+     * from the last frame's statistics, so it does not depend on what the camera culled.
+     * @returns The triangles one frame submits.
+     */
+    function trianglesSubmitted(): number {
+        let triangles = 0;
+        for (const mesh of graph.scene.meshes) {
+            if (mesh.isEnabled() && mesh.isVisible) {
+                const instances = mesh instanceof Mesh ? Math.max(mesh.thinInstanceCount, mesh.forcedInstanceCount) : 0;
+                const copies = instances > 0 ? instances : 1;
+                triangles += (copies * mesh.getTotalIndices()) / 3;
+            }
+        }
+        return triangles;
     }
 
     it("draws a few hundred edges of one style as one batch", async () => {
@@ -196,6 +229,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             uploads.push(kind);
             upload(kind);
         };
+        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch).
+        const slots = mesh.getVertexBuffer("pA")?.getWrapperBuffer();
+        if (slots) {
+            const update = slots.update.bind(slots);
+            slots.update = (data): void => {
+                uploads.push("slots");
+                update(data);
+            };
+        }
 
         const moved = graph.getDataManager().nodes.get(node);
         assert.isDefined(moved, `node ${node} exists`);
@@ -221,12 +263,22 @@ describe("the scene grows with styles and nodes, not with edges", () => {
      * @returns True when some instance is translated there.
      */
     function drawsAt(mesh: Mesh, at: Vector3): boolean {
+        // A joined line's slots are its batch's own instanced buffer, read back by the batch.
+        const line = edges().find((edge) => edge.mesh === mesh) as unknown as
+            { lineBatch: { drawnCount: number; centreOf: (slot: number) => Vector3 } } | undefined;
+        if (line) {
+            const { lineBatch } = line;
+            return Array.from({ length: lineBatch.drawnCount }, (_, slot) => lineBatch.centreOf(slot)).some((centre) =>
+                centre.equalsWithEpsilon(at, 1e-4),
+            );
+        }
+
         return mesh
             .thinInstanceGetWorldMatrices()
             .some((matrix) => matrix.getTranslation().equalsWithEpsilon(at, 1e-4));
     }
 
-    it("uploads a line batch's matrices, and draws the moved matrix, when a node moves", async () => {
+    it("uploads a line batch's slots, and draws the moved slot, when a node moves", async () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "none" });
         await frame();
 
@@ -238,10 +290,10 @@ describe("the scene grows with styles and nodes, not with edges", () => {
 
         const uploads = moveAndWatch("n0", lineBatch);
 
-        assert.include(uploads, "matrix", "the frame after a move uploads the line matrices");
+        assert.include(uploads, "slots", "the frame after a move uploads the line's slots");
         const after = edge.drawnCentre;
         assert.isFalse(after.equalsWithEpsilon(before, 1e-3), "the edge's slot moved with its node");
-        assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved matrix");
+        assert.isTrue(drawsAt(lineBatch, after), "the line batch wrote the moved slot");
         assert.isFalse(drawsAt(lineBatch, before), "and no instance is still drawn where the edge was");
     });
 
@@ -346,6 +398,12 @@ describe("the scene grows with styles and nodes, not with edges", () => {
                     bound(style.batches),
                     `${String(EDGE_COUNT)} edges of ${style.name} in ${mode} left ${String(meshes)} meshes ` +
                         `in a scene that started with ${String(empty)}: that is growing with the edges`,
+                );
+                const triangles = trianglesSubmitted();
+                assert.isAtMost(
+                    triangles,
+                    FRAME_TRIANGLE_BUDGET,
+                    `one frame of ${style.name} in ${mode} drew ${String(triangles)} triangles`,
                 );
             });
         }

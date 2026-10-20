@@ -13,6 +13,7 @@ import {
     GraphBuilder,
     type GraphBuilderOptions,
     GraphFormatError,
+    type GraphSink,
     type GraphSnapshot,
 } from "@graphty/graph-format";
 
@@ -23,6 +24,7 @@ import {
     FETCH_CODE,
     OPTION_IGNORED_CODE,
     SELF_LOOPS_DROPPED_CODE,
+    STYLES_NOT_IMPORTED_CODE,
     UNKNOWN_OPTION_CODE,
     WEIGHT_NOT_FOUND_CODE,
 } from "./common/codes.js";
@@ -45,6 +47,24 @@ import { oboExporter, oboImporter } from "./formats/obo/index.js";
 import { pajekExporter, pajekImporter } from "./formats/pajek/index.js";
 import { xgmmlExporter, xgmmlImporter } from "./formats/xgmml/index.js";
 import { type FormatName, rankFormats, SNIFF_HEAD_BYTES, type SniffHints, type SniffResult } from "./sniff.js";
+import { builtinSources } from "./sources/builtins.js";
+import { type SourceParamsMap } from "./sources/params.js";
+import { SourceRegistry } from "./sources/registry.js";
+import {
+    type ExpandRequest,
+    type GraphSource,
+    type LazySource,
+    type LoadFromSourceOptions,
+    type SourceFreshness,
+    type SourceInfo,
+    type SourceListing,
+    type SourceListQuery,
+    type SourceProbe,
+    type SourceValidators,
+} from "./sources/types.js";
+import { extractStyles, type StyleImportOptions } from "./styles/io/generic.js";
+import { isKeptGraphtyProperty, prepareStyleExport } from "./styles/io/writer.js";
+import type { ExtractedStyles } from "./styles/types.js";
 import {
     type CommonExportOptions,
     type CommonImportOptions,
@@ -137,6 +157,13 @@ export interface ImportGraphOptions extends CommonImportOptions, GraphChoiceOpti
      * @defaultValue 16777216
      */
     readonly maxEmptyCells?: number | undefined;
+    /**
+     * Read the file's styles too: `true`, or `{ toolDefaults: false }` to leave out the defaults of the program
+     * that wrote the file. The styles are in `result.styles`; the graph, the report and every export are the same
+     * either way.
+     * @defaultValue false
+     */
+    readonly styles?: boolean | StyleImportOptions | undefined;
     /** Format-specific options, passed to the importer as they are. */
     readonly [formatOption: string]: unknown;
 }
@@ -172,6 +199,12 @@ export interface ImportGraphResult {
      * can ignore it. It is not enumerable, so `console.log(result)` and `{ ...result }` leave it out.
      */
     readonly freeze: FreezeReport;
+    /**
+     * The file's styles, when you passed the `styles` option: the rules that reproduce how the program that wrote
+     * the file draws each node and edge, read by the importer that read the file. Null when the file has none.
+     * Absent without the option.
+     */
+    readonly styles?: ExtractedStyles | null;
 }
 
 /**
@@ -239,6 +272,13 @@ export interface FormatInfo {
  * @category Saving
  */
 export interface ExportGraphOptions extends CommonExportOptions {
+    /**
+     * Write these styles too (`result.styles` of an import, or styles built for this graph): each element's look in
+     * the format's own style slots and, where the format can keep them, the rules, so importing the file back
+     * rebuilds them. What the format cannot hold is a W_STYLE_ note of checkExport(). Styles read from or built for a
+     * different graph fail with E_STYLES_MISMATCH before anything is written.
+     */
+    readonly styles?: ExtractedStyles | null | undefined;
     /** Format-specific options, passed to the exporter as they are. */
     readonly [formatOption: string]: unknown;
 }
@@ -272,6 +312,7 @@ const FUNCTION_OPTIONS: ReadonlySet<string> = new Set([
     "sanitizeIds",
     "selfLoops",
     "signal",
+    "styles",
     "weightDtype",
     "weightFrom",
 ]);
@@ -284,6 +325,7 @@ const REGISTRY_KEYS: ReadonlySet<string> = new Set([
     "builder",
     "freeze",
     "maxEmptyCells",
+    "styles",
 ]);
 
 /**
@@ -296,6 +338,150 @@ export class FormatRegistry {
     private readonly importerMap = new Map<string, GraphImporter>();
 
     private readonly exporterMap = new Map<string, GraphExporter>();
+
+    private readonly sources = new SourceRegistry(this, {
+        newBuilder: (options, format) => seededBuilder(options as ImportGraphOptions, format),
+        freeze: (format, builder, report, options) =>
+            result(
+                { importer: { format } as GraphImporter, sniff: null, source: "", peeked: null, warnings: [] },
+                builder,
+                report,
+                options as ImportGraphOptions,
+            ),
+    });
+
+    /**
+     * Register a network source, or a lazy one whose code loads on first use. Source ids are their
+     * own name space, apart from format names. Throws an ImportError with E_SOURCE_INVALID for a
+     * malformed source or an id already taken. Experimental.
+     * @param source - the source
+     * @returns this registry
+     */
+    registerSource<P>(source: GraphSource<P> | LazySource): this {
+        this.sources.register(source);
+        return this;
+    }
+
+    /**
+     * A registered source by id, its code loaded. Rejects with E_SOURCE_UNKNOWN for an id no
+     * source has. Experimental.
+     * @param id - the source id
+     * @returns the source
+     */
+    source(id: string): Promise<GraphSource<never>> {
+        return this.sources.resolve(id);
+    }
+
+    /**
+     * Whether a source id is registered. Experimental.
+     * @param id - the source id
+     * @returns true when registered
+     */
+    hasSource(id: string): boolean {
+        return this.sources.has(id);
+    }
+
+    /**
+     * Every registered source with its descriptor, loading no source code. Experimental.
+     * @returns one entry per source
+     */
+    listSources(): readonly SourceInfo[] {
+        return this.sources.list();
+    }
+
+    /**
+     * Load a graph from a network source; see the top-level loadFromSource(). Experimental.
+     * @param source - the source id or the source
+     * @param params - its params
+     * @param options - endpoint, credential, cursor, caps and import options
+     * @returns the graph and the report
+     */
+    loadFromSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<ImportGraphResult> {
+        return this.sources.load(source, params, options);
+    }
+
+    /**
+     * Load from a network source into a sink you own. Experimental.
+     * @param source - the source id or the source
+     * @param params - its params
+     * @param sink - where to write
+     * @param options - the options
+     * @returns the report
+     */
+    importFromSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        sink: GraphSink,
+        options?: LoadFromSourceOptions,
+    ): Promise<ImportReport> {
+        return this.sources.import(source, params, sink, options);
+    }
+
+    /**
+     * Fetch the neighborhood of some nodes from a network source. Experimental.
+     * @param source - the source id or the source
+     * @param request - the seeds and how far to go
+     * @param options - the options
+     * @returns a graph of only what was fetched
+     */
+    expandFromSource(
+        source: string | GraphSource<never>,
+        request: ExpandRequest<Readonly<Record<string, unknown>>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<ImportGraphResult> {
+        return this.sources.expand(source, request, options);
+    }
+
+    /**
+     * Check a source's params and credential without loading. Experimental.
+     * @param source - the source id or the source
+     * @param params - its params
+     * @param options - the options
+     * @returns what the service said
+     */
+    probeSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<SourceProbe> {
+        return this.sources.probe(source, params, options);
+    }
+
+    /**
+     * Search what a source holds. Experimental.
+     * @param source - the source id or the source
+     * @param query - the search
+     * @param options - the options
+     * @returns one page of results
+     */
+    listFromSource(
+        source: string | GraphSource<never>,
+        query: SourceListQuery<Readonly<Record<string, unknown>>>,
+        options?: LoadFromSourceOptions,
+    ): Promise<SourceListing> {
+        return this.sources.search(source, query, options);
+    }
+
+    /**
+     * Tell whether data loaded from a source changed. Experimental.
+     * @param source - the source id or the source
+     * @param params - the params it was loaded with
+     * @param seen - the validators recorded then (`report.source.validators`)
+     * @param options - the options
+     * @returns whether it changed
+     */
+    validateSource(
+        source: string | GraphSource<never>,
+        params: Readonly<Record<string, unknown>>,
+        seen: SourceValidators,
+        options?: LoadFromSourceOptions,
+    ): Promise<SourceFreshness> {
+        return this.sources.validate(source, params, seen, options);
+    }
 
     /**
      * Register an importer under its format name, replacing one of the same name in place (the
@@ -687,7 +873,43 @@ export class FormatRegistry {
         format: FormatName,
         options?: ExportGraphOptions | CommonExportOptions,
     ): AsyncIterable<Uint8Array> {
-        return this.exporter(format).export(snapshot, options);
+        const styled = this.styled(snapshot, format, options);
+        if (styled === null) {
+            return this.exporter(format).export(snapshot, options);
+        }
+        if (styled.refusal !== null) {
+            return refuse(styled.refusal);
+        }
+        return styled.exporter.export(styled.snapshot, styled.options);
+    }
+
+    /**
+     * An export with styles worked out, or null when no styles were given (the export is then exactly as before).
+     * @param snapshot - the graph
+     * @param format - the format name
+     * @param options - the caller's options
+     * @returns the exporter, the snapshot and options to hand it, the style losses and any refusal
+     */
+    private styled(
+        snapshot: GraphSnapshot,
+        format: FormatName,
+        options: ExportGraphOptions | CommonExportOptions | undefined,
+    ): StyledExport | null {
+        const styles = (options as ExportGraphOptions | undefined)?.styles;
+        if (styles === undefined || styles === null) {
+            return null;
+        }
+        const exporter = this.exporter(format);
+        const { styles: _given, ...rest } = options as ExportGraphOptions;
+        const prepared = prepareStyleExport(snapshot, exporter, styles, rest);
+        return {
+            exporter,
+            snapshot: prepared.snapshot,
+            options: prepared.input === null ? rest : { ...rest, styles: prepared.input },
+            plain: rest,
+            notes: prepared.notes,
+            refusal: prepared.refusal,
+        };
     }
 
     /**
@@ -702,7 +924,14 @@ export class FormatRegistry {
         format: FormatName,
         options?: ExportGraphOptions | CommonExportOptions,
     ): Promise<string> {
-        return this.exporter(format).exportToString(snapshot, options);
+        const styled = this.styled(snapshot, format, options);
+        if (styled === null) {
+            return this.exporter(format).exportToString(snapshot, options);
+        }
+        if (styled.refusal !== null) {
+            throw refusalError(styled.refusal);
+        }
+        return styled.exporter.exportToString(styled.snapshot, styled.options);
     }
 
     /**
@@ -754,7 +983,28 @@ export class FormatRegistry {
         format: FormatName,
         options?: ExportGraphOptions | CommonExportOptions,
     ): readonly LossNote[] {
-        const notes = this.exporter(format).check(snapshot, options);
+        const styled = this.styled(snapshot, format, options);
+        let notes: readonly LossNote[];
+        if (styled === null) {
+            notes = this.exporter(format).check(snapshot, options);
+        } else if (styled.refusal === null) {
+            // a property graph-io already reports as not written is reported once, whoever else notices
+            const key = (n: LossNote): string =>
+                `${n.code}\u0000${n.style?.target ?? ""}\u0000${n.style?.property ?? ""}`;
+            const reported = new Set(styled.notes.filter((n) => n.style !== undefined).map(key));
+            notes = [
+                ...styled.exporter
+                    .check(styled.snapshot, styled.options)
+                    .filter(
+                        (n) =>
+                            n.style === undefined ||
+                            (!reported.has(key(n)) && !isKeptGraphtyProperty(n, styled.exporter)),
+                    ),
+                ...styled.notes,
+            ];
+        } else {
+            notes = [...styled.exporter.check(snapshot, styled.plain), styled.refusal];
+        }
         const unknown = this.unknownOptions(options);
         if (unknown.length === 0) {
             return notes;
@@ -845,7 +1095,7 @@ export class FormatRegistry {
                 mimeTypes: importer?.mimeTypes ?? exporter?.mimeTypes ?? [],
                 canImport: importer !== undefined,
                 canExport: exporter !== undefined,
-                capabilities: exporter?.capabilities ?? null,
+                capabilities: capabilitiesOf(exporter),
             });
         });
     }
@@ -857,7 +1107,7 @@ export class FormatRegistry {
  * @category Formats and detection
  */
 export function createRegistry(): FormatRegistry {
-    return new FormatRegistry()
+    const formats = new FormatRegistry()
         .registerImporter(jsonImporter)
         .registerExporter(jsonExporter)
         .registerImporter(graphmlImporter)
@@ -884,6 +1134,10 @@ export function createRegistry(): FormatRegistry {
         .registerExporter(oboExporter)
         .registerImporter(cysImporter)
         .registerExporter(cysExporter);
+    for (const source of builtinSources()) {
+        formats.registerSource(source);
+    }
+    return formats;
 }
 
 /**
@@ -1405,6 +1659,16 @@ function result(
         throw freezeFailure(err, report);
     }
     const { warnings } = chosen;
+    const wanted = options.styles;
+    let styles: ExtractedStyles | null | undefined;
+    if (wanted !== undefined && wanted !== false) {
+        styles = extractStyles(chosen.importer, frozen.snapshot, report, {
+            signal: options.signal,
+            toolDefaults: typeof wanted === "object" ? wanted.toolDefaults : undefined,
+        });
+    }
+    const read =
+        styles !== undefined && chosen.importer.styles !== undefined ? withoutStylesNotImported(report) : report;
     const result = {
         format: chosen.importer.format,
         sniff: chosen.sniff,
@@ -1412,11 +1676,11 @@ function result(
         report: withFreezeWarnings(
             weightNotFound(
                 warnings.length === 0
-                    ? report
+                    ? read
                     : Object.freeze({
-                          ...report,
-                          issues: Object.freeze([...warnings, ...report.issues]),
-                          warningCount: report.warningCount + warnings.length,
+                          ...read,
+                          issues: Object.freeze([...warnings, ...read.issues]),
+                          warningCount: read.warningCount + warnings.length,
                       }),
                 frozen.snapshot,
                 options.weightFrom,
@@ -1424,9 +1688,80 @@ function result(
             frozen.report,
         ),
     };
+    if (styles !== undefined) {
+        Object.assign(result, { styles });
+    }
     // not enumerable: it holds one entry per edge, and console.log(result) should show the graph, not that
     Object.defineProperty(result, "freeze", { value: frozen.report, enumerable: false });
     return Object.freeze(result as ImportGraphResult);
+}
+
+/**
+ * A report without its W_STYLES_NOT_IMPORTED warnings: the importer read the styles it would have named.
+ * @param report - the importer's report
+ * @returns the report, a copy only when it held such a warning
+ */
+function withoutStylesNotImported(report: ImportReport): ImportReport {
+    const issues = report.issues.filter((i) => i.code !== STYLES_NOT_IMPORTED_CODE);
+    if (issues.length === report.issues.length) {
+        return report;
+    }
+    return Object.freeze({
+        ...report,
+        issues: Object.freeze(issues),
+        warningCount: report.warningCount - (report.issues.length - issues.length),
+    });
+}
+
+/** An export with styles, worked out by FormatRegistry.styled(). */
+interface StyledExport {
+    /** The exporter. */
+    readonly exporter: GraphExporter;
+    /** The snapshot to hand it. */
+    readonly snapshot: GraphSnapshot;
+    /** The options to hand it: the caller's, with `styles` replaced by the exporter's input or left out. */
+    readonly options: ExportGraphOptions;
+    /** The caller's options without `styles`. */
+    readonly plain: ExportGraphOptions;
+    /** The style losses. */
+    readonly notes: readonly LossNote[];
+    /** E_STYLES_MISMATCH, or null. */
+    readonly refusal: LossNote | null;
+}
+
+/**
+ * The error an export refused for its styles throws.
+ * @param note - the refusal note
+ * @returns the error
+ */
+function refusalError(note: LossNote): GraphFormatError {
+    return new GraphFormatError("E_UNSUPPORTED", note.message, { code: note.code });
+}
+
+/**
+ * Chunks that fail on the first read, before any byte: an export refused for its styles.
+ * @param note - the refusal note
+ * @returns chunks whose first read rejects
+ */
+function refuse(note: LossNote): AsyncIterable<Uint8Array> {
+    return {
+        [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(refusalError(note)) }),
+    };
+}
+
+/**
+ * The capabilities listFormats() reports for an exporter: its table plus, when it writes styles, their capabilities.
+ * @param exporter - the exporter, or undefined
+ * @returns the capabilities, or null
+ */
+function capabilitiesOf(exporter: GraphExporter | undefined): ExportCapabilities | null {
+    if (exporter === undefined) {
+        return null;
+    }
+    if (exporter.styles === undefined) {
+        return exporter.capabilities;
+    }
+    return Object.freeze({ ...exporter.capabilities, styles: exporter.styles.capabilities });
 }
 
 /**
@@ -1756,4 +2091,165 @@ function readerIterator(stream: ReadableStream<Uint8Array>, signal: AbortSignal 
             return { done: true, value: undefined };
         },
     };
+}
+
+// ============================================================ network sources (experimental)
+
+/**
+ * Load a graph from a network source: a built-in one by id ("ndex", "neo4j", "openalex", ...),
+ * one you registered with registerSource(), or a source object. The source fetches through a
+ * guarded fetch that sends the credential only to the endpoint's origin, never over plain http
+ * (except to this machine), never across a redirect, and retries what is safe to retry. Every
+ * failure is an ImportError whose `issue.code` is one of SOURCE_ISSUE and whose `issue.params`
+ * holds its values. A capped load warns W_SOURCE_LIMIT and gives `report.source.next`, which you
+ * pass as `cursor` to continue. `result.format` is "source:<id>", or the format a file source
+ * was read as. Experimental.
+ * @param source - the source id
+ * @param params - its params, typed by SourceParamsMap
+ * @param options - endpoint, credential, cursor, caps, retries and the import options
+ * @returns the graph, the format and the report
+ * @example
+ * ```ts
+ * const { snapshot } = await loadFromSource("people", { team: "core" }, { endpoint: "https://example.com" });
+ * ```
+ * @category Network sources
+ */
+export function loadFromSource<K extends keyof SourceParamsMap>(
+    source: K,
+    params: SourceParamsMap[K],
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult>;
+/**
+ * Load a graph from a network source by id or as an object. Experimental.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param options - endpoint, credential, cursor, caps, retries and the import options
+ * @returns the graph, the format and the report
+ * @category Network sources
+ */
+export function loadFromSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult>;
+/**
+ * The implementation of both loadFromSource() signatures.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param options - the options
+ * @returns the graph, the format and the report
+ */
+export function loadFromSource(
+    source: string | GraphSource<never>,
+    params: unknown,
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult> {
+    return registry.loadFromSource(source, params as Readonly<Record<string, unknown>>, options);
+}
+
+/**
+ * Load from a network source into a sink you own (a GraphBuilder you keep filling). Experimental.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param sink - where to write
+ * @param options - the options of loadFromSource()
+ * @returns the report
+ * @category Network sources
+ */
+export function importFromSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    sink: GraphSink,
+    options?: LoadFromSourceOptions,
+): Promise<ImportReport> {
+    return registry.importFromSource(source, params as Readonly<Record<string, unknown>>, sink, options);
+}
+
+/**
+ * Fetch the neighborhood of some nodes from a source that can expand: a graph of only what was
+ * fetched (the seeds, their neighbors and the edges between them), to merge into the graph you
+ * hold. A source without `expand` rejects with E_SOURCE_UNSUPPORTED. Experimental.
+ * @param source - the source id or the source
+ * @param request - the params, seeds, depth, direction and limit
+ * @param options - the options of loadFromSource()
+ * @returns the fetched part, the format and the report
+ * @category Network sources
+ */
+export function expandFromSource<P>(
+    source: string | GraphSource<P>,
+    request: ExpandRequest<P>,
+    options?: LoadFromSourceOptions,
+): Promise<ImportGraphResult> {
+    return registry.expandFromSource(source, request as ExpandRequest<Readonly<Record<string, unknown>>>, options);
+}
+
+/**
+ * Check a source's params and credential without loading the graph. Experimental.
+ * @param source - the source id or the source
+ * @param params - its params
+ * @param options - the options of loadFromSource()
+ * @returns what the service said
+ * @category Network sources
+ */
+export function probeSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    options?: LoadFromSourceOptions,
+): Promise<SourceProbe> {
+    return registry.probeSource(source, params as Readonly<Record<string, unknown>>, options);
+}
+
+/**
+ * Search what a source holds (NDEx networks, ...). Experimental.
+ * @param source - the source id or the source
+ * @param query - params narrowing the search, the search text, cursor and page size
+ * @param options - the options of loadFromSource()
+ * @returns one page of results
+ * @category Network sources
+ */
+export function listFromSource<P>(
+    source: string | GraphSource<P>,
+    query: SourceListQuery<P>,
+    options?: LoadFromSourceOptions,
+): Promise<SourceListing> {
+    return registry.listFromSource(source, query, options);
+}
+
+/**
+ * Tell whether data loaded from a source earlier changed. Experimental.
+ * @param source - the source id or the source
+ * @param params - the params it was loaded with
+ * @param seen - the validators recorded then (`report.source.validators`)
+ * @param options - the options of loadFromSource()
+ * @returns current, changed or unverifiable
+ * @category Network sources
+ */
+export function validateSource<P>(
+    source: string | GraphSource<P>,
+    params: P,
+    seen: SourceValidators,
+    options?: LoadFromSourceOptions,
+): Promise<SourceFreshness> {
+    return registry.validateSource(source, params as Readonly<Record<string, unknown>>, seen, options);
+}
+
+/**
+ * Register a network source in the default registry, so loadFromSource() and graphty-element
+ * find it by id. Throws an ImportError with E_SOURCE_INVALID for a malformed source or an id
+ * already taken. Experimental.
+ * @param source - the source, or a lazy source that loads its code on first use
+ * @category Network sources
+ */
+export function registerSource<P>(source: GraphSource<P> | LazySource): void {
+    registry.registerSource(source);
+}
+
+/**
+ * Every source in the default registry with its descriptor (what a form asks for), loading no
+ * source code. Experimental.
+ * @returns one entry per source: id, descriptor, whether its code is loaded
+ * @category Network sources
+ */
+export function listSources(): readonly SourceInfo[] {
+    return registry.listSources();
 }

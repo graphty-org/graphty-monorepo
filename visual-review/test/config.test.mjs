@@ -1,11 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { CONFIG_FILE, loadConfig, loadConfigAt, normalizeConfig } from "../trusted/lib/config.mjs";
-import { CONFIG, git, isolateGit } from "./helpers.mjs";
+import { CONFIG, git, isolateGit, tempDir } from "./helpers.mjs";
 
 beforeAll(isolateGit);
 
@@ -52,10 +51,13 @@ describe("normalizeConfig", () => {
             defaultBranch: "main",
             workflow: "visual-review.yml",
             baselines: "visual-baselines",
+            approvals: "visual-review-approvals",
             workDir: ".visual-review",
             commitPrefix: "test",
             issueLabels: ["bug"],
             fontconfig: null,
+            updateCheck: null,
+            usage: false,
             projects: {
                 web: {
                     storybook: "storybook-static",
@@ -84,6 +86,7 @@ describe("normalizeConfig", () => {
         [[], /JSON object/],
         [{ fontconfig: "../fonts.conf", projects: { a: { storybook: "s" } } }, /fontconfig must be/],
         [{ fontconfig: 1, projects: { a: { storybook: "s" } } }, /fontconfig must be/],
+        [{ updateCheck: " ", projects: { a: { storybook: "s" } } }, /updateCheck must be/],
         [{}, /projects must name/],
         [{ projects: {} }, /projects must name/],
         [{ projects: { "a b": { storybook: "s" } } }, /project id/],
@@ -91,6 +94,10 @@ describe("normalizeConfig", () => {
         [{ projects: { a: { storybook: "../elsewhere" } } }, /storybook must be/],
         [{ projects: { a: { storybook: "/abs" } } }, /storybook must be/],
         [{ baselines: "../up", projects: { a: { storybook: "s" } } }, /baselines must be a path/],
+        [
+            { approvals: "visual-baselines/approvals", projects: { a: { storybook: "s" } } },
+            /approvals must be a directory outside/,
+        ],
         [{ projects: { a: { storybook: "s", workers: 0 } } }, /workers/],
         [{ projects: { a: { storybook: "s", gate: false } } }, /gate is not a setting/],
         [{ projects: { a: { storybook: "s", waitFor: { selector: "x" } } } }, /waitFor needs/],
@@ -103,7 +110,7 @@ describe("normalizeConfig", () => {
 
 describe("loadConfig and loadConfigAt", () => {
     const repo = () => {
-        const dir = mkdtempSync(join(tmpdir(), "vr-config-"));
+        const dir = tempDir("vr-config-");
         git(dir, "init", "-q", "-b", "main");
         git(dir, "config", "user.name", "T");
         git(dir, "config", "user.email", "t@example.com");

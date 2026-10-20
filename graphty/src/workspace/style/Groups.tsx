@@ -2,8 +2,8 @@ import {
     DataTable,
     type DataTableColumn,
     MenuShortcut,
-    StyleNumberInput,
-    StyleSelect,
+    PanelField,
+    PanelLabelsProvider,
     ToggleIconButton,
     ToggleRow,
 } from "@graphty/compact-mantine";
@@ -871,16 +871,18 @@ function GroupRows({
                             setSearch(event.currentTarget.value);
                         }}
                     />
-                    <StyleSelect
-                        label="Sort by"
-                        value={sort}
-                        defaultValue="given"
-                        showReset={false}
-                        options={from.sorts.map((each) => ({ ...each }))}
-                        onChange={(next) => {
-                            setSort(from.sorts.find((each) => each.value === next)?.value ?? "given");
-                        }}
-                    />
+                    <PanelLabelsProvider showLabels>
+                        <PanelField
+                            label="Sort by"
+                            kind="select"
+                            width="fill"
+                            value={sort}
+                            data={from.sorts.map(({ value, label }) => ({ value, label }))}
+                            onChange={(next) => {
+                                setSort(from.sorts.find((each) => each.value === next)?.value ?? "given");
+                            }}
+                        />
+                    </PanelLabelsProvider>
                     {from.fold === undefined ? null : (
                         <Group gap={6} wrap="nowrap" align="flex-end">
                             <Box style={{ flex: 1 }}>
@@ -895,18 +897,23 @@ function GroupRows({
                             </Box>
                             {fold === undefined ? null : (
                                 <Box w={72}>
-                                    <StyleNumberInput
-                                        label="Under"
-                                        value={fold}
-                                        defaultValue={FOLD_START}
-                                        min={1}
-                                        step={1}
-                                        onChange={(below) => {
-                                            if (below !== undefined && Number.isInteger(below) && below >= 1) {
-                                                from.fold?.set(below);
-                                            }
-                                        }}
-                                    />
+                                    <PanelLabelsProvider showLabels>
+                                        <PanelField
+                                            label="Under"
+                                            kind="number"
+                                            width="fill"
+                                            value={fold}
+                                            min={1}
+                                            step={1}
+                                            decimalScale={0}
+                                            onChange={(next) => {
+                                                const below = Number(next);
+                                                if (Number.isInteger(below) && below >= 1) {
+                                                    from.fold?.set(below);
+                                                }
+                                            }}
+                                        />
+                                    </PanelLabelsProvider>
                                 </Box>
                             )}
                         </Group>

@@ -50,6 +50,14 @@ const HUBCELL_LADDER: readonly number[] = [1, 5, 12.5, 50];
  * whole-field ratio is already 7.1e-2 at 128 seeds and falls as 1 / sqrt(seeds) (`tmp/p4/close/f2close/ladder-hubcell-1m-nvidia.log`, the G4 record's item 8).
  */
 const UNBIASED_1M_SEEDS = 1024;
+/**
+ * Seeds between two progress lines of the unbiasedness item. The node shard wrapper fails a run that is silent for
+ * 90 s (scripts/run-node-shard.js), and the 1M rung's 1,024 seeds ran 161 s without a line on the Tesla T4 (issue
+ * #2158); 128 seeds are about 20 s there.
+ */
+const PROGRESS_SEEDS = 128;
+/** Iterations between two progress lines of a long layout run, for the same reason (the 262k exact run is 73 s). */
+const PROGRESS_ITERATIONS = 50;
 const DISTRIBUTIONAL_ITERATIONS = 200;
 /** Every NN_STRIDE-th node enters the nearest-neighbour histogram (8,192 of 262,144). */
 const NN_STRIDE = 32;
@@ -81,6 +89,7 @@ function randomGraph(n: number, label: string): { readonly snapshot: GraphSnapsh
  * @param tuning - the tier
  * @param iterations - the iteration count
  * @param batch - the batch size
+ * @param label - the run's name in its progress lines
  * @returns the positions and the final msPerIteration
  */
 async function positionsAfter(
@@ -90,11 +99,18 @@ async function positionsAfter(
     tuning: GpuLayoutTuning,
     iterations: number,
     batch: number,
+    label: string,
 ): Promise<{ readonly positions: F32; readonly msPerIteration: number | null }> {
     return await withSim(ctx, GRID_BASE_OPTIONS, tuning, async (sim) => {
         const positions = Float32Array.from(start);
         sim.load(s, positions);
-        const stats = await sim.run({ maxIter: iterations, batch });
+        // run()'s maxIter is a total, so stopping at whole batches between progress lines submits the same steps
+        const stage = batch * Math.ceil(PROGRESS_ITERATIONS / batch);
+        let stats = await sim.run({ maxIter: Math.min(stage, iterations), batch });
+        for (let done = stage; done < iterations; done += stage) {
+            console.warn(`[layout-1m] ${label}: ${done} of ${iterations} iterations`);
+            stats = await sim.run({ maxIter: Math.min(done + stage, iterations), batch });
+        }
         return { positions, msPerIteration: stats.msPerIteration };
     });
 }
@@ -185,7 +201,13 @@ describe("the 262k and 1M ForceAtlas2 fixtures (node-limits, spec 11.4)", () => 
             const { snapshot: s, start } = gridFixture("hubcell", scale, GRID_BASE_OPTIONS);
             try {
                 const t0 = performance.now();
-                const u = await unbiasedLadder(ctx, s, start, GRID_BASE_OPTIONS, UNBIASED_1M_SEEDS);
+                const u = await unbiasedLadder(ctx, s, start, GRID_BASE_OPTIONS, UNBIASED_1M_SEEDS, (seed) => {
+                    if (seed % PROGRESS_SEEDS === 0) {
+                        console.warn(
+                            `[layout-1m] unbiased/hubcell/n=${s.nodeCount}: ${seed} of ${UNBIASED_1M_SEEDS} seeds`,
+                        );
+                    }
+                });
                 const top = u.rungs[u.rungs.length - 1];
                 console.warn(
                     `[layout-1m] unbiased/hubcell/n=${s.nodeCount}: |mean - exact| / |exact| over the whole force field at ${top.seeds} seeds ${top.field.toExponential(3)} (tolerance ${tolerance.toExponential(3)}); rms of the floored per-node error of the same mean ${top.rms.toExponential(3)}, of one seed ${u.rmsOneSeed.toExponential(3)}; the exact iteration and ${UNBIASED_1M_SEEDS} grid iterations ${(performance.now() - t0).toFixed(0)} ms`,
@@ -213,9 +235,25 @@ describe("the 262k and 1M ForceAtlas2 fixtures (node-limits, spec 11.4)", () => 
             await checkExactVsGrid(ctx, s, start, `random/n=${s.nodeCount}`);
             const tolerance = gridTolerance("grid-distributional").value;
             const t0 = performance.now();
-            const g = await positionsAfter(ctx, s, start, GRID_TUNING, DISTRIBUTIONAL_ITERATIONS, 10);
+            const g = await positionsAfter(
+                ctx,
+                s,
+                start,
+                GRID_TUNING,
+                DISTRIBUTIONAL_ITERATIONS,
+                10,
+                `grid/n=${s.nodeCount}`,
+            );
             const t1 = performance.now();
-            const e = await positionsAfter(ctx, s, start, EXACT_TUNING, DISTRIBUTIONAL_ITERATIONS, 10);
+            const e = await positionsAfter(
+                ctx,
+                s,
+                start,
+                EXACT_TUNING,
+                DISTRIBUTIONAL_ITERATIONS,
+                10,
+                `exact/n=${s.nodeCount}`,
+            );
             const t2 = performance.now();
             expectFinite(g.positions, "grid 262k");
             expectFinite(e.positions, "exact 262k");
@@ -240,13 +278,29 @@ describe("the 262k and 1M ForceAtlas2 fixtures (node-limits, spec 11.4)", () => 
         const { snapshot: s, start } = randomGraph(MILLION, "limits/random-1m-run");
         try {
             const t0 = performance.now();
-            const a = await positionsAfter(ctx, s, start, GRID_TUNING, RUN_ITERATIONS, RUN_BATCH);
+            const a = await positionsAfter(
+                ctx,
+                s,
+                start,
+                GRID_TUNING,
+                RUN_ITERATIONS,
+                RUN_BATCH,
+                `grid/n=${s.nodeCount} run 1`,
+            );
             const wall = (performance.now() - t0) / RUN_ITERATIONS;
             expectFinite(a.positions, "grid 1M");
             console.warn(
                 `[layout-1m] grid/n=${s.nodeCount}: stats.msPerIteration ${a.msPerIteration === null ? "null" : a.msPerIteration.toFixed(2)} ms (wall ${wall.toFixed(2)} ms per iteration over ${RUN_ITERATIONS})`,
             );
-            const b = await positionsAfter(ctx, s, start, GRID_TUNING, RUN_ITERATIONS, RUN_BATCH);
+            const b = await positionsAfter(
+                ctx,
+                s,
+                start,
+                GRID_TUNING,
+                RUN_ITERATIONS,
+                RUN_BATCH,
+                `grid/n=${s.nodeCount} run 2`,
+            );
             expectBitwiseEqual(a.positions, b.positions, "1M grid run twice");
         } finally {
             ctx.release(s);

@@ -376,7 +376,9 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
                             const positions = Float32Array.from(start);
                             sim.load(s, positions);
                             sim.setFixed(pinMask(n, a));
-                            await sim.step(2);
+                            // one iteration on each side of the load: the assertions need A held and B's successor moved,
+                            // and each extra iteration is four more dispatches in the same submit (issue #2160)
+                            await sim.step(1);
                             const nextPositions = new Float32Array(3 * next.nodeCount);
                             for (let i = 0; i < n; i++) {
                                 const j = remap[i];
@@ -396,7 +398,7 @@ describe("FR properties (spec 11.3; fast-check numRuns 200)", () => {
                                 nextPositions[3 * aNew + 1],
                                 nextPositions[3 * aNew + 2],
                             ];
-                            await sim.step(3);
+                            await sim.step(1);
                             expect(nextPositions[3 * aNew]).toBe(held[0]);
                             expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
                             expect(nextPositions[3 * aNew + 2]).toBe(held[2]);

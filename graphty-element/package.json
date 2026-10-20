@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.25.1",
+    "version": "3.29.2",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -54,6 +54,10 @@
             "types": "./dist/ai.d.ts",
             "import": "./dist/ai.js"
         },
+        "./credentials": {
+            "types": "./dist/credentials.d.ts",
+            "import": "./dist/credentials.js"
+        },
         "./bundle": "./dist/graphty.bundle.js",
         "./custom-elements.json": "./dist/custom-elements.json",
         "./graphty-catalog.json": "./dist/graphty-catalog.json"
@@ -97,7 +101,7 @@
         "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
         "directory": "graphty-element"
     },
-    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/graphty-element#readme",
+    "homepage": "https://graphty.app/docs/graphty-element/",
     "bugs": {
         "url": "https://github.com/graphty-org/graphty-monorepo/issues"
     },
@@ -117,6 +121,7 @@
         "test:shard:storybook:run": "vitest run --project=storybook",
         "test:shards": "npm run test:shard:default && npm run test:shard:browser && npm run test:shard:storybook",
         "test:shards:parallel": "pids=''; npm run test:shard:default:run & pids=\"$pids $!\"; npm run test:shard:browser:run & pids=\"$pids $!\"; npm run test:shard:storybook:run & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "test:fidelity": "vitest run --project=fidelity",
         "test:mesh": "vitest run --project=mesh",
         "test:mesh:watch": "vitest --project=mesh",
         "test:mesh:coverage": "vitest run --project=mesh --coverage",
@@ -139,11 +144,12 @@
         "coverage:shard:browser:3": "COVERAGE_DIR=.coverage-parts/browser-3 vitest run --project=browser --project=interactions --shard=3/5 --coverage",
         "coverage:shard:browser:4": "COVERAGE_DIR=.coverage-parts/browser-4 vitest run --project=browser --project=interactions --shard=4/5 --coverage",
         "coverage:shard:browser:5": "COVERAGE_DIR=.coverage-parts/browser-5 vitest run --project=browser --project=interactions --shard=5/5 --coverage",
-        "coverage:shard:storybook": "pids=''; npm run coverage:shard:storybook:1 & pids=\"$pids $!\"; npm run coverage:shard:storybook:2 & pids=\"$pids $!\"; npm run coverage:shard:storybook:3 & pids=\"$pids $!\"; npm run coverage:shard:storybook:4 & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
-        "coverage:shard:storybook:1": "COVERAGE_DIR=.coverage-parts/storybook-1 vitest run --project=storybook --shard=1/4 --coverage",
-        "coverage:shard:storybook:2": "COVERAGE_DIR=.coverage-parts/storybook-2 vitest run --project=storybook --shard=2/4 --coverage",
-        "coverage:shard:storybook:3": "COVERAGE_DIR=.coverage-parts/storybook-3 vitest run --project=storybook --shard=3/4 --coverage",
-        "coverage:shard:storybook:4": "COVERAGE_DIR=.coverage-parts/storybook-4 vitest run --project=storybook --shard=4/4 --coverage",
+        "coverage:shard:storybook": "pids=''; npm run coverage:shard:storybook:1 & pids=\"$pids $!\"; npm run coverage:shard:storybook:2 & pids=\"$pids $!\"; npm run coverage:shard:storybook:3 & pids=\"$pids $!\"; npm run coverage:shard:storybook:4 & pids=\"$pids $!\"; npm run coverage:shard:storybook:5 & pids=\"$pids $!\"; rc=0; for p in $pids; do wait $p || rc=1; done; exit $rc",
+        "coverage:shard:storybook:1": "COVERAGE_DIR=.coverage-parts/storybook-1 vitest run --project=storybook --shard=1/5 --coverage",
+        "coverage:shard:storybook:2": "COVERAGE_DIR=.coverage-parts/storybook-2 vitest run --project=storybook --shard=2/5 --coverage",
+        "coverage:shard:storybook:3": "COVERAGE_DIR=.coverage-parts/storybook-3 vitest run --project=storybook --shard=3/5 --coverage",
+        "coverage:shard:storybook:4": "COVERAGE_DIR=.coverage-parts/storybook-4 vitest run --project=storybook --shard=4/5 --coverage",
+        "coverage:shard:storybook:5": "COVERAGE_DIR=.coverage-parts/storybook-5 vitest run --project=storybook --shard=5/5 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
         "lint": "eslint && node eslint-rules/node-position-funnel.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
@@ -173,9 +179,9 @@
         "@ai-sdk/google": "^2.0.100",
         "@ai-sdk/openai": "^2.0.132",
         "@babylonjs/core": "^8.36.1",
-        "@graphty/graph-samples": "workspace:^",
         "@graphty/remote-logger": "workspace:^",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@hpcc-js/wasm-graphviz": "1.29.2",
         "@playwright/test": "^1.54.1",
         "@storybook/addon-console": "^3.0.0",
         "@storybook/addon-docs": "^9.0.11",
@@ -219,11 +225,13 @@
         "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
+        "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
         "ai": "^5.0.104",
         "encrypt-storage": "^2.14.7",
-        "lit": "^3.0.0"
+        "lit": "^3.0.0",
+        "neo4j-driver": "^5.0.0"
     },
     "peerDependenciesMeta": {
         "@ai-sdk/anthropic": {
@@ -238,6 +246,9 @@
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },
+        "@hpcc-js/wasm-graphviz": {
+            "optional": true
+        },
         "@mlc-ai/web-llm": {
             "optional": true
         },
@@ -249,12 +260,16 @@
         },
         "encrypt-storage": {
             "optional": true
+        },
+        "neo4j-driver": {
+            "optional": true
         }
     },
     "dependencies": {
         "@graphty/algorithms": "workspace:^",
         "@graphty/graph-format": "workspace:^",
         "@graphty/graph-io": "workspace:^",
+        "@graphty/graph-samples": "workspace:^",
         "@graphty/layout": "workspace:^",
         "@jsonhero/schema-infer": "^0.1.5",
         "colorjs.io": "^0.5.2",
@@ -265,7 +280,7 @@
         "ngraph.graph": "^20.0.1",
         "p-queue": "^8.1.1",
         "toposort": "^2.0.2",
-        "zod": "^3.25.28"
+        "zod": "^4.6.5"
     },
     "overrides": {
         "storybook": "$storybook"

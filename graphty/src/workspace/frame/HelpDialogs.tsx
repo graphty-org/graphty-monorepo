@@ -3,6 +3,7 @@ import { CANVAS_KEY_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { Button, Kbd, Modal, Stack, Text, Title } from "@mantine/core";
 import React, { useState } from "react";
 
+import { BrandLogo } from "../../components/BrandLogo";
 import { formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { readBuildStamp } from "./buildStamp";
@@ -21,6 +22,7 @@ function AboutDialog(): React.JSX.Element {
     return (
         <Modal opened={opened} onClose={close} title="About graphty">
             <Stack gap="xs">
+                <BrandLogo variant="lockup" height={40} />
                 <Text size="sm">Graph visualization in your browser. Files are read on this computer.</Text>
                 <Text size="sm" data-testid="build-stamp">
                     {stamp === null ? "Build: not stamped" : `Build ${stamp.commit}, release ${stamp.release}`}

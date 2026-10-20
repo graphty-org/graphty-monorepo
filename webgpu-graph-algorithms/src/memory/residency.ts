@@ -28,7 +28,7 @@ import { BufferUsage } from "../device/webgpu-constants.js";
 import { WebGpuGraphError } from "../errors.js";
 import { type PlanCaps } from "../types/context.js";
 import { type ArcWindow, type Binding } from "../types/memory.js";
-import { planUpload } from "./upload-plan.js";
+import { planUpload, type UploadPlan } from "./upload-plan.js";
 
 /** The core arrays a kernel binds by default (spec 4.1); the cold segments are named explicitly by the caller. */
 const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights"]);
@@ -36,8 +36,11 @@ const DEFAULT_NEED: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx"
 /** The five core arrays in arena (hot-to-cold) order. */
 const CORE_ORDER: readonly CoreArrayName[] = Object.freeze(["rowPtr", "colIdx", "weights", "arcToEdge", "edgeToArc"]);
 
+/** The name of one arc-indexed core array. */
+type ArcIndexedName = "colIdx" | "weights" | "arcToEdge";
+
 /** The arc-indexed core arrays: the ones a windowed plan splits into window buffers (upload-plan.ts ARC_INDEXED). */
-const ARC_INDEXED: readonly ("colIdx" | "weights" | "arcToEdge")[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
+const ARC_INDEXED: readonly ArcIndexedName[] = Object.freeze(["colIdx", "weights", "arcToEdge"]);
 
 /** Every resident buffer is bound by kernels, filled by writeBuffer and readable back (tests, readbacks of state). */
 const RESIDENT_USAGE = BufferUsage.STORAGE | BufferUsage.COPY_DST | BufferUsage.COPY_SRC;
@@ -350,17 +353,7 @@ export class GraphResidency {
             record.plan = "windowed";
             record.windows = plan.windows;
         }
-        for (const name of names) {
-            if (!record.bindings.has(name)) {
-                const planned = plan.kind === "windowed" ? plan.arrays.find((a) => a.name === name) : undefined;
-                record.bindings.set(
-                    name,
-                    planned !== undefined && planned.buffers.length > 0 && record.windows !== null && isArcIndexed(name)
-                        ? this.bindWindowed(record, s, name, planned.buffers, record.windows[0])
-                        : this.bindCore(record, s, name),
-                );
-            }
-        }
+        this.bindMissing(record, s, plan, names);
         const rowPtr = record.bindings.get("rowPtr");
         if (rowPtr === undefined) {
             throw invalid("rowPtr", null, "a bound rowPtr (internal invariant)");
@@ -839,6 +832,33 @@ export class GraphResidency {
      */
     isReleased(serial: number): boolean {
         return this.tombstones.has(serial);
+    }
+
+    /**
+     * Binds every named core array the record has not bound yet, in order: an arc-indexed array of a windowed plan
+     * that has planned buffers through bindWindowed (window 0 as its default binding), everything else whole.
+     * @param record - the snapshot's record
+     * @param s - the snapshot
+     * @param plan - this call's upload plan
+     * @param names - the arrays to bind
+     */
+    private bindMissing(
+        record: ResidencyRecord,
+        s: GraphSnapshot,
+        plan: UploadPlan,
+        names: readonly CoreArrayName[],
+    ): void {
+        for (const name of names) {
+            if (!record.bindings.has(name)) {
+                const planned = plan.kind === "windowed" ? plan.arrays.find((a) => a.name === name) : undefined;
+                record.bindings.set(
+                    name,
+                    planned !== undefined && planned.buffers.length > 0 && record.windows !== null && isArcIndexed(name)
+                        ? this.bindWindowed(record, s, name, planned.buffers, record.windows[0])
+                        : this.bindCore(record, s, name),
+                );
+            }
+        }
     }
 
     /**

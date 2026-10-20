@@ -7,6 +7,7 @@ import {
     type ResultShape,
     type RunId,
 } from "../../../src/catalog/types";
+import { EDGE_CONSTANTS } from "../../../src/constants/meshConstants";
 import type { RunRef } from "../../../src/session/results/types";
 import { ManagedRun, type RunDefinition, type RunSurroundings } from "../../../src/session/runs";
 import { DEFAULT_EDGE_WIDTH_RANGE, DEFAULT_SIZE_RANGE } from "../../../src/session/styles/derive";
@@ -15,7 +16,7 @@ import {
     type EncodingRun,
     type EncodingSource,
     type EncodingSuggestion,
-    type HighlightSuggestion,
+    type MarkSuggestion,
     type StyleSuggestion,
     suggestStyles,
 } from "../../../src/session/styles/index";
@@ -125,15 +126,15 @@ function encodingOf(run: EncodingRun): EncodingSuggestion {
 }
 
 /**
- * The highlight a run suggests, insisting that it suggested a highlight.
+ * The mark a run suggests, insisting that it suggested a mark.
  * @param run - The run.
- * @returns The highlight suggestion.
+ * @returns The mark suggestion.
  */
-function highlightOf(run: EncodingRun): HighlightSuggestion {
+function markOf(run: EncodingRun): MarkSuggestion {
     const suggestion = onlySuggestion(run);
 
-    if (suggestion.as !== "highlight") {
-        throw new Error(`${run.id} suggests an ${suggestion.as} rather than a highlight.`);
+    if (suggestion.as !== "mark") {
+        throw new Error(`${run.id} suggests a ${suggestion.as} rather than a mark.`);
     }
 
     return suggestion;
@@ -172,17 +173,24 @@ describe("what a run suggests be drawn from it", () => {
         assert.strictEqual(spec.channel, "node.color");
     });
 
-    it("suggests a highlight for a route, on both halves it runs through", () => {
-        const { spec, channels } = highlightOf(ROUTE);
+    it("suggests a mark with explicit channels for a route, on both halves it runs through", () => {
+        const { spec, channels } = markOf(ROUTE);
 
         assert.strictEqual(spec.run, "route");
         assert.strictEqual(spec.field, "onPath");
         assert.deepStrictEqual([...channels], ["node.color", "edge.color"]);
+        // The colour and the width are the mark's own, so nothing about it follows the element's
+        // highlight colour: today's vermilion, and an edge three times the default width.
+        assert.deepStrictEqual(spec.set, {
+            "node.color": "#D55E00",
+            "edge.color": "#D55E00",
+            "edge.width": EDGE_CONSTANTS.DEFAULT_LINE_WIDTH * 3,
+        });
     });
 
     it("names only the half a chosen set actually chose", () => {
-        assert.deepStrictEqual([...highlightOf(INFLUENCERS).channels], ["node.color"]);
-        assert.deepStrictEqual([...highlightOf(BRIDGES).channels], ["edge.color"]);
+        assert.deepStrictEqual([...markOf(INFLUENCERS).channels], ["node.color"]);
+        assert.deepStrictEqual([...markOf(BRIDGES).channels], ["edge.color"]);
     });
 
     it("suggests nothing for a result that is read rather than painted", () => {
@@ -204,15 +212,15 @@ describe("what a run suggests be drawn from it", () => {
         // A new shape with no entry here is a shape whose runs quietly paint nothing. The table
         // is the assertion: it fails to compile if a shape is missing and fails to pass if the
         // derivation disagrees with it.
-        const expected: Record<ResultShape, "encoding" | "highlight" | "nothing"> = {
+        const expected: Record<ResultShape, "encoding" | "mark" | "nothing"> = {
             "node-metric": "encoding",
             "edge-metric": "encoding",
             community: "encoding",
             "layered-grouping": "encoding",
             "category-table": "encoding",
-            path: "highlight",
-            "node-set": "highlight",
-            "edge-set": "highlight",
+            path: "mark",
+            "node-set": "mark",
+            "edge-set": "mark",
             "pair-list": "nothing",
             temporal: "nothing",
             fact: "nothing",

@@ -98,6 +98,8 @@ interface CommandServices {
     layout?: LayoutService;
     /** Which layout suits the graph held now, for an import that asks for one. */
     layoutAdvice?: LayoutAdvice;
+    /** Settles once everything `layoutAdvice` reads about the loaded graph is known. */
+    layoutPrepare?: () => Promise<void>;
     /** The project settings in effect, with every unset key at its default. */
     config?: () => ProjectConfig;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
@@ -576,6 +578,8 @@ interface Group {
     readonly jobs: Set<Job>;
     /** A deferred member's transaction step, which it merges into when that step is still on top. */
     readonly after: string | null;
+    /** Labelled by its transaction, whose only work it is: its member starting does not rename it. */
+    named?: true;
     /** Set on a transaction's group. Open until `fn` settles; aborted when it rolled back. */
     readonly tx: { status: "open" | "closed" | "aborted"; readonly controller: AbortController } | null;
     /** Sealed or rolled back. */
@@ -806,6 +810,10 @@ export class Dispatcher {
     private readonly steps = new Map<string, StepMeta>();
     /** Orders dispatches, records, undos and hold acquisitions against each other. */
     private tick = 0;
+    /** The newest `seq` ever listed as pending: no pending group is newer. */
+    private newestEntered = -1;
+    /** How many pending groups amend a recorded step (`after` set). */
+    private openAfter = 0;
     /** Moves whenever the pending list changes. */
     private changes = 0;
     /** Moves whenever a hold is taken, which can change what the next undo does. */
@@ -1046,8 +1054,7 @@ export class Dispatcher {
                 status: "open",
                 controller,
             },
-            options.setup === true,
-            options.compound === true,
+            { setup: options.setup === true, compound: options.compound === true },
         );
         this.enter(group);
         if (options.moves === true) {
@@ -1146,7 +1153,7 @@ export class Dispatcher {
      * @param write - Writes through a draft of its own.
      */
     seed(write: (draft: Draft) => void): void {
-        if (this.history.steps.length > 0 || this.open.size > 0) {
+        if (this.history.length > 0 || this.open.size > 0) {
             throw new GraphtyError({
                 code: "E_INTERNAL",
                 message: "The baseline can only be written before anything is recorded or pending.",
@@ -1655,7 +1662,7 @@ export class Dispatcher {
                 origin?.step ?? null,
                 this.tick,
                 null,
-                isSetup(concrete) || origin?.setup === true,
+                { setup: isSetup(concrete) || origin?.setup === true },
             );
         const job = this.job(concrete, keys, undoable, group, queuedKey);
         for (const key of keys) {
@@ -1887,7 +1894,7 @@ export class Dispatcher {
         if (job.inline) {
             // Its own writes, reverted when it fails; the job that dispatched it goes on.
             job.revert = group.draft.checkpoint();
-        } else if (group.tx === null && group.after === null) {
+        } else if (group.tx === null && group.after === null && group.named === undefined) {
             group.label = definition.undo.label(command, state);
             group.fact = definition.undo.fact(command, state);
             group.key = definition.undo.coalesce?.(command) ?? null;
@@ -2069,22 +2076,34 @@ export class Dispatcher {
     private sealTransaction(group: Group): void {
         const runs = [...group.jobs];
         group.jobs.clear();
-        const stepId = this.seal(group);
+        const recorded = this.seal(group);
+        // A transaction that wrote nothing before its runs went on still continues the step it
+        // was told to (`after`): its runs join that step, not one of their own beside it.
+        const stepId = recorded ?? group.after;
         for (const done of group.executed.splice(0)) {
             this.events.executed?.(done);
         }
         for (const job of runs) {
             const deferred = this.group(
-                {
-                    label: job.definition.undo.label(job.command, this.store.state),
-                    fact: job.definition.undo.fact(job.command, this.store.state),
-                },
+                // A run that is all the transaction did is the transaction's step, under its label.
+                recorded === null
+                    ? { label: group.label, fact: group.fact }
+                    : {
+                          label: job.definition.undo.label(job.command, this.store.state),
+                          fact: job.definition.undo.fact(job.command, this.store.state),
+                      },
                 null,
-                {},
+                // Recorded as its own step when the transaction's is no longer on top: it is
+                // still the transaction's work, by the same hand.
+                group.provenance,
                 stepId,
                 job.seq,
                 null,
             );
+            if (recorded === null) {
+                deferred.named = true;
+            }
+
             job.group = deferred;
             deferred.jobs.add(job);
             for (const key of job.keys) {
@@ -2185,8 +2204,7 @@ export class Dispatcher {
                 // once (design section 5.2).
                 const top = this.adjacent("undo");
                 const since = top === undefined ? undefined : this.steps.get(top.id)?.recorded;
-                const pendingSinceTop =
-                    since !== undefined && [...this.open].some((other) => other !== group && other.seq > since);
+                const pendingSinceTop = since !== undefined && this.openSince(since, group);
                 id = this.history.record({ ...input, provenance, pendingSinceTop });
             }
 
@@ -2246,7 +2264,7 @@ export class Dispatcher {
         }
 
         if (group.setup) {
-            return this.history.steps.length === 0;
+            return this.history.length === 0;
         }
 
         return open && !graph;
@@ -2378,13 +2396,22 @@ export class Dispatcher {
      * @returns True while one is.
      */
     get graphWritesWaiting(): boolean {
+        return this.waiting((job) => job.keys.some((key) => sliceOf(key) === "graph"));
+    }
+
+    /**
+     * Whether a dispatched, unfinished command matches.
+     * @param match - Tests one command.
+     * @returns True while one does.
+     */
+    commandWaiting(match: (command: CommandLike) => boolean): boolean {
+        return this.waiting((job) => match(job.command));
+    }
+
+    private waiting(match: (job: Job) => boolean): boolean {
         for (const group of this.open) {
             for (const job of group.jobs) {
-                if (
-                    job.status !== "done" &&
-                    job.status !== "cancelled" &&
-                    job.keys.some((key) => sliceOf(key) === "graph")
-                ) {
+                if (job.status !== "done" && job.status !== "cancelled" && match(job)) {
                     return true;
                 }
             }
@@ -2450,12 +2477,12 @@ export class Dispatcher {
 
         const meta = target === undefined ? undefined : this.steps.get(target.id);
         const since = (direction === "undo" ? meta?.recorded : meta?.undone) ?? -1;
-        const open = this.ordered();
 
-        // Rule 0: an open group in the way of the step.
+        // Rule 0: an open group in the way of the step. Only a group holding a key of a slice the
+        // step touched can be, so only those are looked at, not every pending group.
         if (meta !== undefined && meta.oplog.length > 0) {
             const touchesGraph = meta.oplog.some((key) => sliceOf(key) === "graph");
-            const inWay = open.filter((group) =>
+            const inWay = this.holdingAny(meta.oplog).filter((group) =>
                 [...group.holds].some(
                     ([key, at]) =>
                         meta.oplog.some((touched) => overlaps(key, touched)) ||
@@ -2467,8 +2494,15 @@ export class Dispatcher {
             }
         }
 
-        // Rule 1: pending work newer than the step.
-        const newer = open.filter((group) => group.seq > since || (direction === "undo" && group.after === target?.id));
+        // Rule 1: pending work newer than the step. None was listed after it, and no pending
+        // group amends it: a run of queued commands behind the step is not walked on every read.
+        if (this.newestEntered <= since && (direction !== "undo" || this.openAfter === 0)) {
+            return target === undefined ? null : { step: target };
+        }
+
+        const newer = this.ordered().filter(
+            (group) => group.seq > since || (direction === "undo" && group.after === target?.id),
+        );
         const newest = newer.at(-1);
         if (newest !== undefined) {
             return { cancel: this.cascade([newest]) };
@@ -2484,12 +2518,13 @@ export class Dispatcher {
      * @returns The step, or undefined at the end of the history.
      */
     private adjacent(direction: "undo" | "redo"): HistoryStepView | undefined {
-        const { steps, position } = this.history;
+        const { history } = this;
+        const { position } = history;
         if (direction === "redo") {
-            return steps[position];
+            return history.stepAt(position);
         }
 
-        return position === 0 ? undefined : steps[position - 1];
+        return position === 0 ? undefined : history.stepAt(position - 1);
     }
 
     /**
@@ -2614,8 +2649,9 @@ export class Dispatcher {
      * @param after - The step it is a deferred member of, or null.
      * @param seq - Its dispatch order.
      * @param tx - Its transaction state, for a transaction's group.
-     * @param setup - Declared at construction.
-     * @param compound - A batch's transaction.
+     * @param flags - What kind of group it is.
+     * @param flags.setup - Declared at construction.
+     * @param flags.compound - A batch's transaction.
      * @returns The group.
      */
     private group(
@@ -2625,8 +2661,7 @@ export class Dispatcher {
         after: string | null,
         seq: number,
         tx: Group["tx"],
-        setup = false,
-        compound = false,
+        { setup = false, compound = false }: { readonly setup?: boolean; readonly compound?: boolean } = {},
     ): Group {
         return {
             seq,
@@ -2719,8 +2754,32 @@ export class Dispatcher {
     private enter(group: Group): void {
         if (!this.open.has(group)) {
             this.open.add(group);
+            this.newestEntered = Math.max(this.newestEntered, group.seq);
+            this.openAfter += group.after === null ? 0 : 1;
             this.changed();
         }
+    }
+
+    /**
+     * Whether a pending group other than `self` was dispatched after `since`. Answered without
+     * walking the pending list when nothing listed since then is newer, so a run of queued
+     * commands -- `addNode` in a loop -- does not cost the whole run at every commit.
+     * @param since - A tick.
+     * @param self - The group to leave out.
+     * @returns True when one was.
+     */
+    private openSince(since: number, self: Group): boolean {
+        if (this.newestEntered <= since) {
+            return false;
+        }
+
+        for (const other of this.open) {
+            if (other !== self && other.seq > since) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2730,8 +2789,27 @@ export class Dispatcher {
     private leave(group: Group): void {
         group.done = true;
         if (this.open.delete(group)) {
+            this.openAfter -= group.after === null ? 0 : 1;
             this.changed();
         }
+    }
+
+    /**
+     * The pending groups holding a key of a slice one of `keys` names.
+     * @param keys - Op-log keys.
+     * @returns The groups, each once.
+     */
+    private holdingAny(keys: readonly SliceKey[]): Group[] {
+        const out = new Set<Group>();
+        for (const slice of new Set(keys.map(sliceOf))) {
+            for (const group of this.bySlice.get(slice) ?? []) {
+                if (this.open.has(group)) {
+                    out.add(group);
+                }
+            }
+        }
+
+        return [...out];
     }
 
     /**
@@ -2777,7 +2855,7 @@ export class Dispatcher {
 
     /** Forget the record times of steps the history no longer has. */
     private prune(): void {
-        if (this.steps.size <= this.history.steps.length * 2) {
+        if (this.steps.size <= this.history.length * 2) {
             return;
         }
 

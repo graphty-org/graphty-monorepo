@@ -160,12 +160,12 @@ function dismissTooltips(pressedOn: EventTarget | null = null): void {
     }
     // A still tooltip was never shown, so there is nothing to dismiss: the Tab that focuses its
     // trigger must still show it.
-    for (const tooltip of document.querySelectorAll(".cm-tooltip:not([data-cm-still])")) {
+    for (const tooltip of document.querySelectorAll<HTMLElement>(".cm-tooltip:not([data-cm-still])")) {
         const trigger = triggerOf(tooltip);
         const offPressed =
             trigger?.matches(DISABLED) === true && pressedOn instanceof Node && trigger.contains(pressedOn);
         if (trigger && !offPressed && (trigger.matches(":hover") || trigger === document.activeElement)) {
-            tooltip.setAttribute("data-cm-dismissed", "");
+            tooltip.dataset.cmDismissed = "";
             if (!trigger.matches(DISABLED)) {
                 turnedOff?.observe(trigger, {
                     attributes: true,
@@ -305,7 +305,7 @@ function menuRows(menu: Element): HTMLElement[] {
     return Array.from(menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')).filter(
         (row) =>
             row.closest(".cm-menu") === menu &&
-            !row.hasAttribute("data-disabled") &&
+            row.dataset.disabled === undefined &&
             row.getAttribute("aria-disabled") !== "true",
     );
 }
@@ -446,11 +446,11 @@ function trackChevronHover(event: PointerEvent): void {
     const menu = event.target instanceof Element ? event.target.closest<HTMLElement>(".cm-menu") : null;
     if (menu) {
         const rect = menu.getBoundingClientRect();
-        if (menu.hasAttribute("data-cm-scroll-up") && event.clientY < rect.top + CHEVRON_ROW) {
+        if (menu.dataset.cmScrollUp !== undefined && event.clientY < rect.top + CHEVRON_ROW) {
             startAutoScroll(menu, -1);
             return;
         }
-        if (menu.hasAttribute("data-cm-scroll-down") && event.clientY > rect.bottom - CHEVRON_ROW) {
+        if (menu.dataset.cmScrollDown !== undefined && event.clientY > rect.bottom - CHEVRON_ROW) {
             startAutoScroll(menu, 1);
             return;
         }

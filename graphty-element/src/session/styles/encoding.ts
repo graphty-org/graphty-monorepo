@@ -84,6 +84,7 @@ import {
     OFF_COLOR,
     toColorValue,
 } from "./channels";
+import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import type { LegendFact } from "./legend";
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
@@ -211,6 +212,39 @@ export interface PreparedBinding {
      * @returns The value to paint, or undefined when the encoding paints nothing for it.
      */
     paintIgnoringHidden(value: unknown): EncodedValue | undefined;
+    /**
+     * What the element does to the value it paints for one element, when what is drawn differs
+     * from what the layer worked out.
+     * @param value - What the element carries for the bound path.
+     * @returns The code, or undefined when the value is drawn as worked out or not painted at all.
+     */
+    adjustment(value: unknown): StyleAdjustmentCode | undefined;
+}
+
+/**
+ * What the element did to a value a layer worked out, because the channel cannot draw it as it is.
+ * Nothing is refused for either; the value is drawn as described.
+ *
+ * - `style.out-of-range` -- a number outside what the channel draws (a negative node size, an
+ *   opacity above 1), drawn at the nearest end the channel does draw.
+ * - `style.alpha-not-drawn` -- a color with transparency on a channel that draws it opaque (a
+ *   node's color; a node's transparency is its `node.opacity`).
+ *
+ * New codes may be added in a minor release: word an unknown one generically.
+ */
+export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
+
+/** The channels that draw a color's red, green and blue but not its alpha. */
+const ALPHA_NOT_DRAWN: ReadonlySet<Channel> = new Set<Channel>(["node.color"]);
+
+/**
+ * Whether a painted value is a transparent color on a channel that draws it opaque.
+ * @param channel - The channel.
+ * @param painted - What was painted.
+ * @returns True when the alpha is dropped.
+ */
+function dropsAlpha(channel: Channel, painted: EncodedValue | undefined): boolean {
+    return ALPHA_NOT_DRAWN.has(channel) && isRgba(painted) && painted.a < 1;
 }
 
 /** Everything {@link prepareBinding} is given. */
@@ -231,6 +265,11 @@ export interface PrepareBindingOptions {
     readonly scales: ScaleRegistry;
     /** How many elements in scope the run measured nothing for, for the legend's departures. */
     readonly unmeasured?: number;
+    /**
+     * Every value one path holds over the layer's elements, for a template's `|count` and
+     * `|rank`. Absent, those read an empty column.
+     */
+    readonly columnOf?: (path: Path) => Iterable<unknown>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -915,10 +954,9 @@ function unsupportedChannel(descriptor: ChannelDescriptor): GraphtyError {
  */
 function outOfRange(descriptor: ChannelDescriptor, value: unknown, what: string): GraphtyError {
     const { max, min, values } = descriptor;
+    const bound = (limit: number | undefined): string => (limit === undefined ? "any" : String(limit));
     const allowed =
-        values === undefined
-            ? `is drawn from ${min === undefined ? "any" : String(min)} to ${max === undefined ? "any" : String(max)}`
-            : `takes one of ${values.join(", ")}`;
+        values === undefined ? `is drawn from ${bound(min)} to ${bound(max)}` : `takes one of ${values.join(", ")}`;
 
     return new GraphtyError({
         code: "E_OPTION_RANGE",
@@ -1031,6 +1069,58 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
         facts: [],
         paint: (): EncodedValue => value,
         paintIgnoringHidden: (): EncodedValue => value,
+        adjustment: dropsAlpha(descriptor.channel, value)
+            ? (): StyleAdjustmentCode => "style.alpha-not-drawn"
+            : (): undefined => undefined,
+    };
+}
+
+/**
+ * Prepare a binding that builds text from several values.
+ *
+ * What it paints is read through a function rather than one value: {@link PreparedBinding.paint}
+ * is handed `(path) => value` for the element, because a template reads several paths.
+ * @param descriptor - The channel.
+ * @param template - The lines, as authored.
+ * @param options - Everything preparing it was given, for the columns `|count` and `|rank` read.
+ * @returns The prepared binding.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` for a channel that is not a text channel, or
+ *   a template that does not parse.
+ */
+function prepareTemplateBinding(
+    descriptor: ChannelDescriptor,
+    template: unknown,
+    options: PrepareBindingOptions,
+): PreparedBinding {
+    if (!TEMPLATE_CHANNELS.includes(descriptor.channel)) {
+        throw badBinding(`${descriptor.plainName} is not text, so it cannot be built from a template.`, {
+            channel: descriptor.channel,
+            candidates: TEMPLATE_CHANNELS,
+        });
+    }
+
+    const text = prepareTemplate(parseTemplate(template), (path) => options.columnOf?.(path) ?? []);
+    const paint = (read: unknown): EncodedValue | undefined =>
+        typeof read === "function" ? text(read as (path: Path) => unknown) : undefined;
+
+    return {
+        channel: descriptor.channel,
+        path: null,
+        scale: null,
+        palette: null,
+        domain: null,
+        categories: [],
+        lumped: [],
+        categoryValues: new Map(),
+        categoryCounts: new Map(),
+        hidden: new Set(),
+        groups: 0,
+        counts: NO_COUNTS,
+        facts: [],
+        paint,
+        paintIgnoringHidden: paint,
+        // Text is drawn as built: nothing is adjusted.
+        adjustment: (): undefined => undefined,
     };
 }
 
@@ -1042,7 +1132,8 @@ function prepareLiteral(descriptor: ChannelDescriptor, binding: LiteralBinding):
  * @returns True when the value is combined with what lies beneath rather than written.
  */
 function isCombineFactor(descriptor: ChannelDescriptor, binding: Binding): boolean {
-    return descriptor.accepts === "number" && (binding.combine === "multiply" || binding.combine === "add");
+    const combine = "combine" in binding ? binding.combine : undefined;
+    return descriptor.accepts === "number" && (combine === "multiply" || combine === "add");
 }
 
 /**
@@ -1181,6 +1272,11 @@ interface Painter {
      * undefined when the element is not painted at all.
      */
     readonly paint: (value: unknown) => EncodedValue | undefined;
+    /**
+     * Whether the number worked out for a value lies outside what the channel draws, so that
+     * `paint` drew it clamped. Absent on a painter that never clamps.
+     */
+    readonly outOfRange?: (value: unknown) => boolean;
 }
 
 /**
@@ -1268,7 +1364,7 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
         thresholds,
         scale: parts.scale,
         palette: binding.palette,
-        ...(binding.stops === undefined ? {} : { stops: binding.stops }),
+        ...(binding.colors === undefined ? {} : { stops: binding.colors }),
         missing: colorMissing(binding.missing, descriptor),
         overflow: binding.overflow,
     };
@@ -1278,18 +1374,23 @@ function colorPainter(descriptor: ChannelDescriptor, binding: RuleBinding, parts
         binding.otherwise === undefined
             ? undefined
             : requireColor(binding.otherwise, `What a value with no entry paints on ${descriptor.channel}`);
+    const skipUnmapped = binding.unmapped === "skip";
 
     return {
         palette: ramp.palette,
         groups: ramp.groups,
         paint:
-            overrides === null && otherwise === undefined
+            overrides === null && otherwise === undefined && !skipUnmapped
                 ? (value): EncodedValue | undefined => ramp.color(value)
                 : (value): EncodedValue | undefined => {
                       const name = readCategory(value);
                       const override = name === null ? undefined : (overrides?.get(name) ?? otherwise);
+                      if (override !== undefined) {
+                          return override;
+                      }
 
-                      return override ?? ramp.color(value);
+                      // A value the map has no entry for is left to the layers beneath.
+                      return skipUnmapped && name !== null ? undefined : ramp.color(value);
                   },
     };
 }
@@ -1460,24 +1561,48 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
     const ends = bounded ? (context.range ?? [0, 1]) : null;
     const low = ends === null ? undefined : convert(ends[0]);
     const high = ends === null ? undefined : convert(ends[1]);
+    const skipUnmapped = binding.unmapped === "skip";
+    const overrideOf = (value: unknown): EncodedValue | undefined => {
+        const name = overrides === null && otherwise === undefined ? null : readCategory(value);
+
+        return name === null ? undefined : (overrides?.get(name) ?? otherwise);
+    };
+    const channelMin = descriptor.min ?? Number.NEGATIVE_INFINITY;
+    const channelMax = descriptor.max ?? Number.POSITIVE_INFINITY;
 
     return {
         palette: null,
         groups,
         ...(typeof low === "number" && typeof high === "number" ? { range: [low, high] as const } : {}),
         paint: (value): EncodedValue | undefined => {
-            if (overrides !== null || otherwise !== undefined) {
-                const name = readCategory(value);
-                const override = name === null ? undefined : (overrides?.get(name) ?? otherwise);
-                if (override !== undefined) {
-                    return override;
-                }
+            const override = overrideOf(value);
+            if (override !== undefined) {
+                return override;
+            }
+
+            // A value the map has no entry for is left to the layers beneath.
+            if (skipUnmapped && readCategory(value) !== null) {
+                return undefined;
             }
 
             const placed = map(value, context);
 
             return isScaleMiss(placed) ? absent : (convert(placed) ?? absent);
         },
+        ...(descriptor.accepts === "number"
+            ? {
+                  outOfRange: (value: unknown): boolean => {
+                      if (overrideOf(value) !== undefined) {
+                          return false;
+                      }
+
+                      const placed = map(value, context);
+                      const number = typeof placed === "number" ? placed : readNumber(placed);
+
+                      return !Number.isNaN(number) && (number < channelMin || number > channelMax);
+                  },
+              }
+            : {}),
     };
 }
 
@@ -1545,7 +1670,7 @@ export function overflowHalf(channel: Channel, binding: Binding): readonly [Chan
             overflow: binding.overflow,
             ...(binding.scale === undefined ? {} : { scale: binding.scale }),
             ...(binding.palette === undefined ? {} : { palette: binding.palette }),
-            ...(binding.stops === undefined ? {} : { stops: binding.stops }),
+            ...(binding.colors === undefined ? {} : { colors: binding.colors }),
             ...(binding.other === undefined ? {} : { other: binding.other }),
             ...(binding.hidden === undefined ? {} : { hidden: binding.hidden }),
         },
@@ -1558,7 +1683,7 @@ export function overflowHalf(channel: Channel, binding: Binding): readonly [Chan
  * @returns The capacity, or null when nothing folds.
  */
 function paletteCapacityOf(binding: RuleBinding): number | null {
-    return binding.stops === undefined ? overflowCapacity(binding.palette) : binding.stops.length;
+    return binding.colors === undefined ? overflowCapacity(binding.palette) : binding.colors.length;
 }
 
 /**
@@ -1657,17 +1782,31 @@ function stepsOf(parts: AssemblyParts): readonly number[] | undefined {
  * @param descriptor - The channel.
  * @param binding - The rule binding.
  * @param parts - What preparing it worked out.
+ * @param given - The painter, when the caller built one itself (stops do); absent, the channel's own.
  * @returns The prepared binding.
  * @throws A `GraphtyError` with code `E_BAD_LAYER` or `E_CAP_EXCEEDED` when the palette, the
  *   channel or the missing value cannot carry what the binding asks of it.
  */
-function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): PreparedBinding {
+function assemble(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    parts: AssemblyParts,
+    given?: Painter,
+): PreparedBinding {
     const painter =
-        descriptor.accepts === "color"
+        given ??
+        (descriptor.accepts === "color"
             ? colorPainter(descriptor, binding, parts)
-            : valuePainter(descriptor, binding, parts);
+            : valuePainter(descriptor, binding, parts));
     const hidden = new Set((binding.hidden ?? []).map((value) => readCategory(value)).filter((name) => name !== null));
     const steps = stepsOf(parts);
+    const paint =
+        hidden.size === 0
+            ? painter.paint
+            : (value: unknown): EncodedValue | undefined => {
+                  const name = readCategory(value);
+                  return name !== null && hidden.has(name) ? undefined : painter.paint(value);
+              };
     const counts: BindingCounts = {
         seen: parts.facts.seen,
         unreadable: parts.facts.unreadable,
@@ -1693,14 +1832,20 @@ function assemble(descriptor: ChannelDescriptor, binding: RuleBinding, parts: As
         ...(painter.range === undefined ? {} : { range: painter.range }),
         counts,
         facts: Object.freeze([...parts.settled.facts, ...countFacts(counts)]),
-        paint:
-            hidden.size === 0
-                ? painter.paint
-                : (value): EncodedValue | undefined => {
-                      const name = readCategory(value);
-                      return name !== null && hidden.has(name) ? undefined : painter.paint(value);
-                  },
+        paint,
         paintIgnoringHidden: painter.paint,
+        adjustment: (value): StyleAdjustmentCode | undefined => {
+            const painted = paint(value);
+            if (painted === undefined) {
+                return undefined;
+            }
+
+            if (painter.outOfRange?.(value) === true) {
+                return "style.out-of-range";
+            }
+
+            return dropsAlpha(descriptor.channel, painted) ? "style.alpha-not-drawn" : undefined;
+        },
     };
 }
 
@@ -1719,6 +1864,10 @@ function prepareRule(
     binding: RuleBinding,
     options: PrepareBindingOptions,
 ): PreparedBinding {
+    if (binding.stops !== undefined) {
+        return prepareStops(descriptor, binding, options);
+    }
+
     const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
@@ -1772,6 +1921,236 @@ function prepareRule(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Stops: a number read against points instead of a scale
+// ---------------------------------------------------------------------------------------------
+
+/** The binding fields `stops` replaces, refused beside it because the points already say them. */
+const NOT_WITH_STOPS = [
+    "palette",
+    "colors",
+    "domain",
+    "clamp",
+    "range",
+    "reverse",
+    "midpoint",
+    "bins",
+    "exponent",
+    "map",
+    "other",
+    "overflow",
+] as const satisfies readonly (keyof RuleBinding)[];
+
+/** One point with its three values read into the form the channel carries. */
+interface ReadStop<T> {
+    readonly at: number;
+    readonly below: T;
+    readonly value: T;
+    readonly above: T;
+}
+
+/**
+ * Whether one stop value is one the channel carries.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param value - The value as authored.
+ * @returns True when it is a finite number on a numeric channel or a color on a color channel.
+ */
+function readableStopValue(descriptor: ChannelDescriptor, value: unknown): boolean {
+    if (descriptor.accepts === "number") {
+        return typeof value === "number" && Number.isFinite(value);
+    }
+
+    return typeof value === "string" && toColorValue(value) !== null;
+}
+
+/**
+ * What is wrong with a binding's `stops`, if anything.
+ *
+ * Numbers outside what the channel draws are NOT wrong here: they are drawn clamped and counted,
+ * as a scale's numbers are, because a file's points often run past what the element draws.
+ * @param descriptor - The channel.
+ * @param binding - The rule binding, which has `stops`.
+ * @returns A sentence saying what is wrong, or null when the stops can be painted.
+ */
+export function stopsProblem(descriptor: ChannelDescriptor, binding: RuleBinding): string | null {
+    const { stops } = binding;
+    if (descriptor.accepts !== "number" && descriptor.accepts !== "color") {
+        return `stops paint numbers or colors, and ${descriptor.channel} carries neither.`;
+    }
+
+    if (binding.scale !== undefined && binding.scale !== "linear") {
+        return `stops replace the scale, so the "${binding.scale}" scale cannot be used beside them.`;
+    }
+
+    const clashing = NOT_WITH_STOPS.filter((field) => binding[field] !== undefined);
+    if (clashing.length > 0) {
+        return `stops already say what ${clashing.join(", ")} would, so they cannot be given beside them.`;
+    }
+
+    if (!Array.isArray(stops) || stops.length === 0) {
+        return "stops is a list of points, such as [{ at: 0, value: 1 }, { at: 10, value: 5 }].";
+    }
+
+    return stopListProblem(descriptor, stops);
+}
+
+/**
+ * What is wrong with the points of a non-empty `stops` list, if anything.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param stops - The points.
+ * @returns A sentence saying what is wrong, or null when the points can be painted.
+ */
+function stopListProblem(descriptor: ChannelDescriptor, stops: NonNullable<RuleBinding["stops"]>): string | null {
+    let previous = Number.NEGATIVE_INFINITY;
+    for (const stop of stops) {
+        if (typeof stop !== "object" || typeof stop.at !== "number" || !Number.isFinite(stop.at)) {
+            return "Every stop has a number at `at`.";
+        }
+
+        if (stop.at < previous) {
+            return "stops are listed in ascending order of `at`.";
+        }
+
+        previous = stop.at;
+        const values = [stop.value, stop.below ?? stop.value, stop.above ?? stop.value];
+        if (!values.every((value) => readableStopValue(descriptor, value))) {
+            const kind = descriptor.accepts === "number" ? "a number" : "a color";
+            return `Every stop's value, below and above on ${descriptor.channel} is ${kind}.`;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Read a number against points, Cytoscape's way.
+ * @param stops - The points, ascending, at least one.
+ * @param x - The number.
+ * @param between - How two values blend at a fraction of the way from the first to the second.
+ * @returns What the number paints.
+ */
+function readAgainstStops<T>(stops: readonly ReadStop<T>[], x: number, between: (a: T, b: T, t: number) => T): T {
+    const [first] = stops;
+    if (x < first.at) {
+        return first.below;
+    }
+
+    for (let index = 0; index < stops.length - 1; index++) {
+        const point = stops[index];
+        const next = stops[index + 1];
+        if (x === point.at) {
+            return point.value;
+        }
+
+        if (x < next.at) {
+            return between(point.above, next.below, (x - point.at) / (next.at - point.at));
+        }
+    }
+
+    const last = stops.at(-1) ?? first;
+
+    return x === last.at ? last.value : last.above;
+}
+
+/**
+ * Blend two colors per component.
+ * @param from - The color at the start.
+ * @param to - The color at the end.
+ * @param t - How far along, 0 to 1.
+ * @returns The blend.
+ */
+function blendColors(from: ColorValue, to: ColorValue, t: number): ColorValue {
+    const at = (a: number, b: number): number => a + (b - a) * t;
+
+    return requireColor(
+        { r: at(from.r, to.r), g: at(from.g, to.g), b: at(from.b, to.b), a: at(from.a, to.a) },
+        "A blend",
+    );
+}
+
+/**
+ * Prepare a binding that reads a number against points.
+ * @param descriptor - The channel, which carries a number or a color.
+ * @param binding - The rule binding, which has `stops`.
+ * @param options - Everything preparing it was given.
+ * @returns The prepared binding.
+ * @throws A `GraphtyError` with code `E_BAD_LAYER` when the stops cannot be painted.
+ */
+function prepareStops(
+    descriptor: ChannelDescriptor,
+    binding: RuleBinding,
+    options: PrepareBindingOptions,
+): PreparedBinding {
+    const problem = stopsProblem(descriptor, binding);
+    if (problem !== null) {
+        throw badBinding(problem, { channel: descriptor.channel, stops: binding.stops });
+    }
+
+    const stops = binding.stops ?? [];
+    const absent = missingValue(descriptor, binding);
+    const read = <T>(convert: (value: string | number) => T): ReadStop<T>[] =>
+        stops.map((stop) => ({
+            at: stop.at,
+            value: convert(stop.value),
+            below: convert(stop.below ?? stop.value),
+            above: convert(stop.above ?? stop.value),
+        }));
+    let painter: Painter;
+
+    if (descriptor.accepts === "color") {
+        const points = read((value) => requireColor(value, "A stop"));
+        painter = {
+            palette: null,
+            groups: 0,
+            paint: (value): EncodedValue | undefined => {
+                const x = readNumber(value);
+
+                return Number.isNaN(x) ? absent : readAgainstStops(points, x, blendColors);
+            },
+        };
+    } else {
+        const points = read(Number);
+        const low = descriptor.min ?? Number.NEGATIVE_INFINITY;
+        const high = descriptor.max ?? Number.POSITIVE_INFINITY;
+        const raw = (x: number): number => readAgainstStops(points, x, (a, b, t) => a + (b - a) * t);
+        painter = {
+            palette: null,
+            groups: 0,
+            paint: (value): EncodedValue | undefined => {
+                const x = readNumber(value);
+
+                return Number.isNaN(x) ? absent : clamp(raw(x), low, high);
+            },
+            outOfRange: (value): boolean => {
+                const x = readNumber(value);
+                const number = Number.isNaN(x) ? Number.NaN : raw(x);
+
+                return number < low || number > high;
+            },
+        };
+    }
+
+    const facts = walkColumn(options.column, true);
+    const domain: [number, number] = [stops[0].at, (stops.at(-1) ?? stops[0]).at];
+
+    return assemble(
+        descriptor,
+        binding,
+        {
+            scale: "linear",
+            map: BUILT_IN_SCALES.linear,
+            scales: options.scales,
+            facts,
+            settled: { domain, notPlottable: 0, clamped: 0, facts: [] },
+            categories: { categories: [], lumped: [], other: 0 },
+            context: { domain },
+            numeric: true,
+            unmeasured: options.unmeasured ?? 0,
+        },
+        painter,
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // The door
 // ---------------------------------------------------------------------------------------------
 
@@ -1799,6 +2178,10 @@ function prepareRule(
 export function prepareBinding(options: PrepareBindingOptions): PreparedBinding {
     const descriptor = requireChannel(options.channel);
     const { binding } = options;
+
+    if ("template" in binding) {
+        return prepareTemplateBinding(descriptor, binding.template, options);
+    }
 
     return "value" in binding ? prepareLiteral(descriptor, binding) : prepareRule(descriptor, binding, options);
 }
@@ -1991,7 +2374,7 @@ function dataAxis(options: PreviewBindingOptions, low: number, high: number): [n
  */
 function defaultedParts(binding: RuleBinding, prepared: PreparedBinding): PreviewDefaultedPart[] {
     const parts: PreviewDefaultedPart[] = [];
-    if (prepared.palette !== null && binding.palette === undefined && binding.stops === undefined) {
+    if (prepared.palette !== null && binding.palette === undefined && binding.colors === undefined) {
         parts.push("palette");
     }
 
@@ -2071,7 +2454,7 @@ export function previewBinding(options: PreviewBindingOptions): BindingPreview {
         scale,
         steps: prepared.steps ?? [],
         noValuePaints: orNull(prepared.paint(undefined)),
-        palette: binding.stops === undefined ? (prepared.palette?.id ?? null) : "custom",
+        palette: binding.colors === undefined ? (prepared.palette?.id ?? null) : "custom",
         defaulted: defaultedParts(options.asWritten ?? binding, prepared),
         ...ends,
     };
@@ -2242,6 +2625,6 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
         channel: descriptor.channel,
         values: paintAll(main),
         cue: half === null || cue === null ? null : { channel: half[0], values: paintAll(cue) },
-        palette: binding.stops === undefined ? (main.palette?.id ?? null) : "custom",
+        palette: binding.colors === undefined ? (main.palette?.id ?? null) : "custom",
     };
 }

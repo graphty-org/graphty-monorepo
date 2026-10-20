@@ -6,6 +6,7 @@
  */
 
 import {
+    fileStyleOf,
     type GraphSession,
     type LayerId,
     RESULT_SHAPE_CONTRACTS,
@@ -14,6 +15,8 @@ import {
     type StyleRow,
     type StyleRowPlace,
 } from "@graphty/graphty-element/session";
+
+import { fileStyleLayerWords } from "../styles/fileStyleWords";
 
 /**
  * A run's kind, the one the inspector's header reads: a grouping, or a run whose primary field is
@@ -195,13 +198,26 @@ export function rowsHeading(session: GraphSession, ids: readonly string[]): stri
 }
 
 /**
- * The name the inspector heads a tree row with, or "Gone".
+ * A tree row's name, or "Gone": for a layer row made from a file's styles, the app's words for
+ * its facts (`fileStyleOf`); otherwise the row's own name.
  * @param session - the element's session.
  * @param id - the row's id.
  * @returns the name.
  */
 export function rowName(session: GraphSession, id: string): string {
-    return findTreeRow(session.styles.tree(), id)?.row.name ?? "Gone";
+    const found = findTreeRow(session.styles.tree(), id);
+    if (found === undefined) {
+        return "Gone";
+    }
+    for (const layerId of found.row.kind === "layer" ? rowLayers(session, id) : []) {
+        const layer = session.styles.get(layerId);
+        const origin = layer === undefined ? null : fileStyleOf(layer);
+        if (origin !== null) {
+            const column = session.data.attributes().find((attribute) => attribute.path === origin.column);
+            return fileStyleLayerWords(origin, column?.plainName);
+        }
+    }
+    return found.row.name;
 }
 
 /**

@@ -19,13 +19,22 @@
  * way, as the same job, so only one of them runs at a time.
  *
  * Passkeys: once any key is known (passkeys.json on the fetched default branch, or one this server
- * registered whose pull request is not merged yet, `<tmp>/state/passkeys-pending.json`), Finish
- * needs the owner's approval. A pending key approves only while the default branch holds none: once
- * it does, only its keys count, as in the gate, so a key registered later (by anyone who can reach
- * this page) approves nothing until its pull request merges. POST /api/finish-prepare builds the
- * record and returns its hash as the WebAuthn challenge; POST /api/finish takes the approval,
- * checks it, and commits exactly that record. The server decides whether approval is required, so
- * leaving it out never skips it. The rpId is the host name of the page's own origin.
+ * registered whose pull request is not merged yet, `<tmp>/state/passkeys-pending.json`), a Finish
+ * that signs needs the owner's approval. A pending key approves only while the default branch holds
+ * none: once it does, only its keys count, as in the gate, so a key registered later (by anyone who
+ * can reach this page) approves nothing until its pull request merges. A Finish signs the baselines
+ * tree it leaves only when it rejects nothing and, on a pull request, leaves nothing undecided and
+ * every project loaded (signingProblem); any other Finish commits its accepts and signs nothing.
+ * POST /api/finish-prepare commits the accepts (not pushed) and returns the hash of the statement
+ * about that commit's baselines tree as the WebAuthn challenge (accept.mjs prepareApproval); POST
+ * /api/finish takes the approval, checks it, and pushes that commit with the signed statement on
+ * it. The server decides whether approval is required, so leaving it out never skips it. The rpId
+ * is the host name of the page's own origin.
+ *
+ * Against the base: a pull request's capture is compared with its own branch's baselines, which an
+ * earlier Finish or a branch merged in may already have changed. Each project is also compared
+ * with the default branch's baselines (againstBase), so every image the signed tree would hold that
+ * differs from the default branch's is shown and decided, those already on the branch too.
  *
  * The list of targets is cached: `GET /api/prs?cached=1` answers at once with the cache, its age,
  * the progress of a refresh, why the last one failed and any network retry under way, and
@@ -44,8 +53,7 @@
  * Safe filters (filters.mjs): an item whose capture is an image the owner already approved for the
  * same story and mode, in a review record on the default branch or an open pull request's branch,
  * counts as accepted ("approved before", never saved in the decisions file, and replaced by any
- * decision the owner takes on it), and Finish names that record in the new one, where the gate
- * checks it. Every refresh adds what the captures show about capture noise to
+ * decision the owner takes on it), and Finish names that record in the new one. Every refresh adds what the captures show about capture noise to
  * `<tmp>/state/noise-evidence.json` and writes the stories proven noisy to
  * `<tmp>/state/known-noise.json` (also `GET /api/noise`); they are labeled, never accepted. `GET
  * /api/pr` groups each project's changed items into clusters the page can decide as one.
@@ -59,6 +67,7 @@
  * `<tmp>/state/groups.jsonl`, to count approvals per group.
  */
 
+import { execFile } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
     appendFileSync,
@@ -73,6 +82,9 @@ import {
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import { contentHash } from "../gate.mjs";
 
 import {
     AcceptError,
@@ -82,20 +94,18 @@ import {
     decisionProblem,
     finish,
     isPreviewOf,
-    legacyApprovalsAsync,
     newerOnMaster,
-    prepareRecord,
+    prepareApproval,
     proposeKey,
     updateFromMaster,
 } from "./accept.mjs";
 import { PASSKEYS_FILE, parsePasskeys, recordHash, verifyApproval, verifyRegistration } from "./approval.mjs";
-import { sha256 } from "./compare.mjs";
+import { isLfsPointer, sha256 } from "./compare.mjs";
 import {
     downloadCaptures,
     exec,
     getRun,
     hurry,
-    newestCiRun,
     openPullRequests,
     pullRequestContext,
     retrying,
@@ -107,6 +117,7 @@ import { approvalIndex, clusters, isNoise, knownNoise, observations } from "./fi
 import { coupledGroups, inboxOf, readyKey, writeJson } from "./inbox.mjs";
 import { isSkipMarker, NOT_AFFECTED, SKIPPED_FILE, validateResults } from "./results.mjs";
 import { SPOT_KINDS, scaled } from "./thumbs.mjs";
+import { USAGE_FILE } from "./usage.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const STATIC = {
@@ -148,6 +159,7 @@ const WRITES = new Set([
     "passkey-challenge",
     "register",
     "update",
+    "usage",
 ]);
 // A registration challenge is good for one use within this long; a prepared approval for this long.
 const CHALLENGE_MS = 5 * 60000;
@@ -167,6 +179,8 @@ const POLL = 2 * 60000;
  * @returns {{ error: string, attempt: number, of: number, until: number } | null} it, or null
  */
 const networkTrouble = () => [...retrying].at(-1) ?? null;
+
+const execFileAsync = promisify(execFile);
 
 /**
  * The image a decision was taken on: the capture, or for a removed item its baseline.
@@ -209,6 +223,33 @@ async function earlierAccepts(repo, head, pr, baselines) {
 }
 
 /**
+ * The accepts of `records` the files at `tip` still hold. An update from the default branch can
+ * take that branch's side of a baseline and leave the record behind: the gate then sees the change
+ * unaccepted, so the accept is not published, whatever the record says.
+ * @param {string} repo the repository
+ * @param {string} tip the branch's commit
+ * @param {Map<string, string | null>} records `to` by baseline path (earlierAccepts)
+ * @returns {Promise<Map<string, string | null>>} those whose file at `tip` has that content
+ */
+async function heldAt(repo, tip, records) {
+    const out = new Map();
+    for (const [path, to] of records) {
+        const held = await execFileAsync("git", ["show", `${tip}:${path}`], {
+            cwd: repo,
+            encoding: "buffer",
+            maxBuffer: 64 << 20,
+        }).then(
+            ({ stdout }) => contentHash(stdout),
+            () => null,
+        );
+        if (held === (to ?? null)) {
+            out.set(path, to);
+        }
+    }
+    return out;
+}
+
+/**
  * Who Finish's commit will be signed by: the git configuration of the server's own environment.
  * An agent that starts the server passes on its GIT_CONFIG_* overrides, and with them its own
  * signing key, so the page shows this before every Finish, with where git found the key.
@@ -238,6 +279,41 @@ async function signingIdentity(repo) {
     };
 }
 
+const USAGE_TYPE = /^[a-z][a-z-]{0,31}$/;
+
+/**
+ * A page's batch of usage events as JSONL lines, or null when it is not one. Each event is a small
+ * object with a short `type`, a time `at` and a session id `s`; one whose JSON holds the session
+ * token is dropped, so the token is never written whatever the page sends.
+ * @param {unknown} events the page's batch
+ * @param {string} token the session token
+ * @returns {string | null} the lines to append
+ */
+export function usageLines(events, token) {
+    if (!Array.isArray(events) || events.length > 100) {
+        return null;
+    }
+    let out = "";
+    for (const e of events) {
+        const line = JSON.stringify(e);
+        if (
+            typeof e !== "object" ||
+            e === null ||
+            Array.isArray(e) ||
+            !USAGE_TYPE.test(e.type) ||
+            !Number.isFinite(e.at) ||
+            typeof e.s !== "string" ||
+            line.length > 2000
+        ) {
+            return null;
+        }
+        if (!line.includes(token)) {
+            out += `${line}\n`;
+        }
+    }
+    return out;
+}
+
 /**
  * The session token, created once so a restart keeps the owner's URL.
  * @param {string} stateDir where the token file lives
@@ -251,6 +327,198 @@ export function sessionToken(stateDir) {
         writeFileSync(file, randomBytes(32).toString("base64url"), { mode: 0o600 });
     }
     return readFileSync(file, "utf8").trim();
+}
+
+/**
+ * Runs git and resolves with its output as bytes.
+ * @param {string} repo the repository
+ * @param {string[]} args git's arguments
+ * @param {Buffer | string} [input] stdin
+ * @returns {Promise<Buffer>} stdout
+ */
+const gitBytes = (repo, args, input) =>
+    new Promise((resolve, reject) => {
+        const child = execFile(
+            "git", // NOSONAR(S4036): the review server runs the owner's own git, as the rest of it does
+            args,
+            { cwd: repo, encoding: "buffer", maxBuffer: 1 << 28 },
+            (err, out, stderr) => (err ? reject(new Error(stderr.toString().trim() || err.message)) : resolve(out)),
+        );
+        child.stdin.on("error", () => {});
+        child.stdin.end(input ?? "");
+    });
+
+/**
+ * The contents of git blobs, read by one `git cat-file --batch`.
+ * @param {string} repo the repository
+ * @param {string[]} names the blobs: ids, or `<commit>:<path>`
+ * @returns {Promise<Map<string, Buffer>>} each blob's bytes, by name; a missing one is left out
+ */
+async function blobsOf(repo, names) {
+    const out = new Map();
+    if (names.length === 0) {
+        return out;
+    }
+    const all = await gitBytes(repo, ["cat-file", "--batch"], `${names.join("\n")}\n`);
+    let at = 0;
+    for (const name of names) {
+        const nl = all.indexOf(10, at);
+        const header = all.subarray(at, nl).toString("utf8");
+        if (header.endsWith(" missing")) {
+            at = nl + 1;
+            continue;
+        }
+        const size = Number(header.split(" ")[2]);
+        out.set(name, all.subarray(nl + 1, nl + 1 + size));
+        at = nl + 2 + size;
+    }
+    return out;
+}
+
+/**
+ * Compares one project's capture of a pull request with the default branch's baselines as well as
+ * the branch's own, changing `results` in place. An item unchanged against a baseline the branch
+ * already changed becomes `changed` against the default branch's image (`new` where it has none),
+ * and a baseline the branch deleted becomes a `removed` item; each is marked `vsBase: true`. The
+ * default branch's image of each is written to `<dir>/baselines/<file>`, where capture writes a
+ * changed item's baseline, and the capture (which capture does not keep for an unchanged item: it
+ * is the branch's baseline) to `<dir>/<file>`, so the page shows, diffs and Finish accepts it like
+ * any other.
+ * @param {object} input the work
+ * @param {string} input.repo the repository
+ * @param {string} input.ref the default branch as fetched
+ * @param {string} input.head the captured head of the pull request, whose baselines are the
+ *     captures of its unchanged items
+ * @param {string} input.baselines the baselines directory
+ * @param {string} input.project the project
+ * @param {string} input.dir the capture's directory
+ * @param {{ items: object[] }} input.results its results.json, validated
+ * @returns {Promise<void>} resolves once the items and images are in place; rejects when the
+ *     default branch's baselines or images cannot be read
+ */
+async function againstBase({ repo, ref, head, baselines, project, dir, results }) {
+    const prefix = `${baselines}/${project}/`;
+    const blobs = await pngBlobs(repo, ref, prefix);
+    const contents = await blobsOf(repo, [...new Set(blobs.values())]);
+    const hashOf = (file) => (blobs.has(file) ? contentHash(contents.get(blobs.get(file))) : null);
+    const shown = compareWithBase(results, blobs, hashOf);
+    for (const file of shown) {
+        await putImage(repo, join(dir, "baselines", file), contents.get(blobs.get(file)), hashOf(file));
+    }
+    const captured = results.items.filter((i) => i.vsBase && i.capture);
+    const names = captured.map((i) => `${head}:${prefix}${i.file}`);
+    let atHead = await blobsOf(repo, names);
+    if (atHead.size < names.length) {
+        await gitBytes(repo, ["fetch", "-q", "--no-tags", "origin", head]).catch(() => null);
+        atHead = await blobsOf(repo, names);
+    }
+    for (const [i, item] of captured.entries()) {
+        await putImage(repo, join(dir, item.file), atHead.get(names[i]) ?? null, item.capture);
+    }
+}
+
+/**
+ * The baseline PNGs under a directory at a ref, with their blob ids.
+ * @param {string} repo the repository
+ * @param {string} ref the ref
+ * @param {string} prefix the directory, with its trailing "/"
+ * @returns {Promise<Map<string, string>>} blob id by file name below the directory
+ */
+async function pngBlobs(repo, ref, prefix) {
+    const blobs = new Map();
+    for (const entry of (await gitBytes(repo, ["ls-tree", "-r", "-z", ref, "--", prefix]))
+        .toString("utf8")
+        .split("\0")) {
+        const [meta, path] = entry.split("\t");
+        if (path?.endsWith(".png")) {
+            blobs.set(path.slice(prefix.length), meta.split(" ")[2]);
+        }
+    }
+    return blobs;
+}
+
+/**
+ * Rewrites a capture's items against the default branch's baselines (againstBase).
+ * @param {{ items: object[] }} results the results.json, changed in place
+ * @param {Map<string, string>} blobs the default branch's baselines, by file
+ * @param {(file: string) => string | null} hashOf the image hash of a default branch baseline
+ * @returns {string[]} the files whose default branch image the page needs
+ */
+function compareWithBase(results, blobs, hashOf) {
+    const seen = new Set();
+    const shown = [];
+    for (const item of results.items) {
+        seen.add(item.file);
+        if (item.from) {
+            seen.add(item.mode === null ? `${item.from}.png` : `${item.from}.${item.mode}.png`);
+        }
+        const base = hashOf(item.file);
+        // Unchanged means within the story's tolerance of `baseline`, not byte for byte: when the
+        // default branch holds that same baseline, the capture's verdict stands.
+        if (item.status !== "unchanged" || base === item.baseline || base === item.capture) {
+            continue;
+        }
+        const status = base === null ? "new" : "changed";
+        // What the branch holds, and what a signature covers, is its baseline: the capture only
+        // matched it within tolerance, and the artifact does not keep an unchanged capture.
+        Object.assign(item, {
+            status,
+            capture: item.baseline,
+            baseline: base,
+            baselineSize: null,
+            changedPixels: null,
+            bbox: null,
+            vsBase: true,
+        });
+        if (base !== null) {
+            shown.push(item.file);
+        }
+    }
+    for (const file of [...blobs.keys()].filter((f) => !seen.has(f))) {
+        const [id, mode = null] = file.slice(0, -".png".length).split(".");
+        results.items.push({
+            id,
+            mode,
+            file,
+            status: "removed",
+            baseline: hashOf(file),
+            capture: null,
+            size: null,
+            baselineSize: null,
+            changedPixels: null,
+            bbox: null,
+            flaky: false,
+            threshold: 0,
+            includeAA: false,
+            reason: null,
+            console: [],
+            vsBase: true,
+        });
+        shown.push(file);
+    }
+    return shown;
+}
+
+/**
+ * Writes the image a blob stands for (a Git LFS pointer is read from Git LFS), unless the file
+ * already holds it.
+ * @param {string} repo the repository
+ * @param {string} path where the image goes
+ * @param {Buffer | null} blob the blob
+ * @param {string} hash the image's SHA-256
+ * @returns {Promise<void>} resolves once the image is there; rejects when it cannot be read
+ */
+async function putImage(repo, path, blob, hash) {
+    const have = await readFile(path).catch(() => null);
+    if (have && sha256(have) === hash) {
+        return;
+    }
+    const bytes = blob && isLfsPointer(blob) ? await gitBytes(repo, ["lfs", "smudge"], blob) : blob;
+    if (!bytes || sha256(bytes) !== hash) {
+        throw new Error(`${basename(path)}: the image ${hash} could not be read (git lfs fetch it)`);
+    }
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, bytes);
 }
 
 /**
@@ -336,8 +604,21 @@ export function createApp({
     // the branch" check.
     let tips = new Map();
     let recordsAt = new Map();
+    // The commit each Finish pushed, by branch, and how many pushes there were: a refresh reads the
+    // branch tips once, and while a Finish runs it fetches nothing, so the tips it read can predate
+    // the push. Without these, that refresh put back the branch as it was before the push, and the
+    // decisions the Finish published read as unpublished again (issue #3040).
+    const pushedTips = new Map();
+    let pushes = 0;
     /** What the last refresh could not read from GitHub (the pull request list, a git fetch). */
     let listWarnings = [];
+    /**
+     * Each pull request run REST answered, by run id, with the list's status, conclusion and update
+     * time it was read at: a run whose three are unchanged is not asked for again, so a steady
+     * refresh costs GitHub one GraphQL query.
+     * @type {Map<number, { stamp: string, run: object }>}
+     */
+    let runsRead = new Map();
     /** The images the owner approved, by `<baseline path> <hash>` (filters.mjs approvalIndex). */
     let approved = new Map();
     /** Review records by blob id: a blob never changes, so each is read once. */
@@ -399,9 +680,10 @@ export function createApp({
     /** Registration challenges (base64url) and when each expires. */
     const challenges = new Map();
     /**
-     * The record each target's Finish was prepared with, waiting for its approval.
-     * @type {Map<string, { challenge: string, record: object, work: object, digest: string,
-     *     expires: number, legacy?: { items: object[], drop: string[] } | null }>}
+     * The accept commit and statement each target's Finish was prepared with, waiting for its
+     * approval.
+     * @type {Map<string, { challenge: string, statement: object, commit: string, branch: string,
+     *     record: string | null, work: object, digest: string, expires: number }>}
      */
     const approvals = new Map();
     // Fails closed: only a missing file means no pending key; any other failure throws.
@@ -578,6 +860,12 @@ export function createApp({
                 mine.set(k, posted && !onBranch(t, project, item, d.decision) ? rest : d);
             }
         }
+        addApprovedBefore(t, mine);
+        return mine;
+    };
+
+    // Adds an accept to `mine` for each undecided item whose exact image was approved before.
+    const addApprovedBefore = (t, mine) => {
         for (const p of t.projects) {
             for (const item of p.results?.items ?? []) {
                 const k = `${p.project}/${item.file}`;
@@ -594,7 +882,6 @@ export function createApp({
                 }
             }
         }
-        return mine;
     };
 
     /**
@@ -704,8 +991,15 @@ export function createApp({
         let evidence = [];
         try {
             evidence = JSON.parse(readFileSync(evidenceFile, "utf8"));
-        } catch {
-            // None kept yet, or unreadable: start again.
+        } catch (err) {
+            // None kept yet, or not JSON: start again. A file that cannot be read is kept as it
+            // is, never overwritten with this refresh's evidence alone.
+            if (err.code && err.code !== "ENOENT") {
+                const warning = `could not read the capture noise evidence (${evidenceFile}): ${err.message}`;
+                console.error(`visual-review: ${warning}`);
+                listWarnings.push(warning);
+                return;
+            }
         }
         const id = (o) => `${o.key} ${o.pr} ${o.baseline} ${o.capture}`;
         const have = new Set(evidence.map(id));
@@ -737,9 +1031,26 @@ export function createApp({
         })),
     });
 
-    // `problem` is what CI said (the job failed, or no artifact); results.json can add its own.
-    async function project(name, dir, problem) {
+    // `problem` is what CI said (the job failed, or no artifact); results.json can add its own. A
+    // pull request's capture (`vsBase`) is also compared with the default branch's baselines.
+    async function project(name, dir, problem, vsBase = false) {
         const loaded = dir ? await loadResults(dir, name) : { results: null, problem: null };
+        if (loaded.results && vsBase) {
+            const ref = `refs/remotes/origin/${defaultBranch}`;
+            const { headSha: head } = loaded.results;
+            await againstBase({
+                repo,
+                ref,
+                head,
+                baselines: config.baselines,
+                project: name,
+                dir,
+                results: loaded.results,
+            }).catch((err) => {
+                loaded.results = null;
+                loaded.problem = `not compared with ${defaultBranch}'s baselines: ${err.message}`;
+            });
+        }
         if (loaded.results) {
             prewarm(dir, loaded.results);
         }
@@ -776,6 +1087,28 @@ export function createApp({
         return answer;
     };
 
+    /**
+     * A listed pull request's CI run as REST answers it: the attempt is only there, so REST is
+     * asked only when the list shows the run changed since the last refresh.
+     * @param {{ run: { id: number, status: string, conclusion: string | null, updatedAt: string } | null }} pr
+     *     the listed pull request
+     * @param {Map<number, { stamp: string, run: object }>} read collects this refresh's runs
+     * @returns {Promise<object | null>} the run, or null when CI never ran on the head
+     */
+    async function runOf({ run }, read) {
+        if (!run) {
+            return null;
+        }
+        const stamp = `${run.status} ${run.conclusion} ${run.updatedAt}`;
+        const was = runsRead.get(run.id);
+        const got = was?.stamp === stamp ? was.run : await getRun(gh, run.id);
+        // Kept only when REST agrees with the list, so an answer that lags it is asked again.
+        if (got.status === run.status && got.conclusion === run.conclusion) {
+            read.set(run.id, { stamp, run: got });
+        }
+        return got;
+    }
+
     async function build(info, run) {
         const g = run.status === "completed" ? kept(run) : gh;
         const jobs = await visualJobs(g, run, run.attempt, names);
@@ -788,7 +1121,12 @@ export function createApp({
         let sizes = {};
         let partial = null;
         const fill = async (name) => {
-            const p = await project(name, landed.get(name)?.dir, problemOf(name, landed.get(name), run, jobs));
+            const p = await project(
+                name,
+                landed.get(name)?.dir,
+                problemOf(name, landed.get(name), run, jobs),
+                info.pr !== null,
+            );
             p.logUrl = jobs[name]?.url ?? run.url;
             p.bytes = sizes[name] ?? null;
             partial.projects[names.indexOf(name)] = p;
@@ -852,7 +1190,12 @@ export function createApp({
         }
         const list = [];
         for (const name of names) {
-            const p = await project(name, downloaded[name]?.dir, problemOf(name, downloaded[name], run, jobs));
+            const p = await project(
+                name,
+                downloaded[name]?.dir,
+                problemOf(name, downloaded[name], run, jobs),
+                info.pr !== null,
+            );
             p.logUrl = jobs[name]?.url ?? run.url;
             list.push(p);
         }
@@ -872,10 +1215,12 @@ export function createApp({
 
     /**
      * Puts a pull request's local preview in place of every project CI has not captured (nor is
-     * downloading): only a complete preview of the head GitHub lists now, so one of an older push,
-     * or one still capturing, is never offered.
+     * downloading): only a complete preview of the head GitHub lists now, or of an older head the
+     * branch has since added only accept commits to (a Finish that left images undecided), so one
+     * of an older push, or one still capturing, is never offered. A draft (whose CI never
+     * captures) with a preview of an older push says a new preview is needed instead.
      * @param {object} t the target, changed in place; `head` is the pull request's head
-     * @returns {Promise<object>} the target
+     * @returns {Promise<object>} the target; `headMoved` is the head when a preview is of an older one
      */
     async function withPreviews(t) {
         if (!previews || t.pr === null) {
@@ -886,13 +1231,62 @@ export function createApp({
             if (p.results || p.downloading || !existsSync(join(dir, "results.json"))) {
                 continue;
             }
-            const local = await project(p.project, dir, null);
+            const local = await project(p.project, dir, null, true);
             const r = local.results;
-            if (r?.complete && isPreviewOf(r, t.pr) && r.headSha === t.head) {
+            if (!r?.complete || !isPreviewOf(r, t.pr)) {
+                continue;
+            }
+            const current = r.headSha === t.head;
+            if (current || (await onlyAccepts(r.headSha, t.head, t.pr))) {
                 t.projects[i] = { ...local, preview: true, ciProblem: p.problem, logUrl: p.logUrl ?? null };
+                if (!current) {
+                    t.headMoved = t.head;
+                }
+            } else if (t.draft) {
+                t.projects[i] = { ...p, problem: newPreviewNeeded(t) };
             }
         }
         return t;
+    }
+
+    // Why a target has no Finish now, as a response; null when it has one.
+    const finishRefused = (t) => {
+        if (t.local) {
+            return [403, { error: "a local preview has no Finish" }];
+        }
+        return t.headMoved ? [409, { error: movedHead(t) }] : null;
+    };
+    const movedHead = (t) =>
+        `the head moved to ${t.headMoved.slice(0, 10)} after a Finish; this preview is of ${t.headSha.slice(0, 10)}: ` +
+        `${newPreviewNeeded(t)} to Finish. Decisions taken here carry over to it`;
+    const newPreviewNeeded = (t) =>
+        `a new preview is needed for this head (${t.head.slice(0, 10)}): run tools/visual-preview.sh ${t.pr}`;
+
+    /**
+     * Whether `tip` is `head` plus nothing but accept commits a Finish pushed for this pull request
+     * (the subject and single parent finishedBefore in accept.mjs recognizes). Unknown commits (a
+     * branch not fetched yet) count as no.
+     * @param {string} head the previewed head
+     * @param {string} tip the pull request's head now
+     * @param {number} pr the pull request
+     * @returns {Promise<boolean>} whether it is
+     */
+    async function onlyAccepts(head, tip, pr) {
+        const subject = `${config.commitPrefix}: accept visual baselines for #${pr}`;
+        const log = await exec("git", ["log", "--format=%P%x09%s", `${head}..${tip}`], { cwd: repo }).catch(() => "");
+        const ancestor = await exec("git", ["merge-base", "--is-ancestor", head, tip], { cwd: repo }).then(
+            () => true,
+            () => false,
+        );
+        const commits = log.split("\n").filter(Boolean);
+        return (
+            ancestor &&
+            commits.length > 0 &&
+            commits.every((line) => {
+                const [parents, ...rest] = line.split("\t");
+                return !parents.includes(" ") && rest.join("\t") === subject;
+            })
+        );
     }
 
     // Why a project's capture is missing, from its download and its CI job; null when it is there.
@@ -930,7 +1324,7 @@ export function createApp({
     const keptOr = (info, err) => {
         const old = targets.get(info.id);
         return old?.runId
-            ? { ...old, warnings: [retryLater("could not refresh", err.message)] }
+            ? { ...old, draft: info.draft, warnings: [retryLater("could not refresh", err.message)] }
             : blank(info, retryLater("failed to load", err.message));
     };
 
@@ -996,7 +1390,9 @@ export function createApp({
             listWarnings = [];
             const kept = [...targets.values()].filter((t) => t.pr !== null);
             step("listing pull requests");
-            const prs = await openPullRequests(gh).catch((err) => {
+            // This refresh's runs (runOf); a failed list keeps what the last one learned.
+            let read = new Map();
+            const prs = await openPullRequests(gh, config).catch((err) => {
                 if (!masterRun && kept.length === 0) {
                     throw err;
                 }
@@ -1006,6 +1402,7 @@ export function createApp({
                 for (const t of kept) {
                     next.set(t.id, { ...t, warnings: [warning] });
                 }
+                read = runsRead;
                 return [];
             });
             // Best effort: the default branch and the pull requests' branches, so the badge below
@@ -1047,9 +1444,10 @@ export function createApp({
                         url: pr.url,
                         branch: pr.branch,
                         head: pr.headSha,
+                        draft: pr.draft,
                     };
                     try {
-                        const run = await newestCiRun(gh, pr.headSha, config);
+                        const run = await runOf(pr, read);
                         return run
                             ? await build(info, run)
                             : await withPreviews(blank(info, `waiting for CI on ${pr.headSha.slice(0, 10)}`));
@@ -1060,6 +1458,7 @@ export function createApp({
                     }
                 }),
             );
+            runsRead = read;
             step("fetching branches");
             await fetched;
             await readPasskeys();
@@ -1083,6 +1482,7 @@ export function createApp({
                 );
             }
         }
+        let seen = pushes;
         await readTips();
         step("checking the baselines", 0, next.size);
         let checked = 0;
@@ -1095,10 +1495,8 @@ export function createApp({
             await readApprovals([...next.values()]);
             recordNoise([...next.values()]);
         }
-        for (const t of next.values()) {
-            await legacyFor(t);
-        }
         signer = await signingIdentity(repo);
+        await republish(next, seen);
         targets = next;
         save();
         prune();
@@ -1164,9 +1562,9 @@ export function createApp({
 
     // One project of the kept list with its results read again; listed as downloading when they
     // are gone.
-    async function restoredProject(p) {
+    async function restoredProject(p, t) {
         const there = p.dir && (existsSync(join(p.dir, "results.json")) || existsSync(join(p.dir, SKIPPED_FILE)));
-        const loaded = there ? await project(p.project, p.dir, p.problem) : null;
+        const loaded = there ? await project(p.project, p.dir, p.problem, t.pr !== null && !t.local) : null;
         return p.dir && !loaded?.results && loaded?.problem !== NOT_AFFECTED
             ? { ...p, dir: null, results: null, problem: null, downloading: true }
             : { ...p, results: loaded?.results ?? null };
@@ -1188,7 +1586,7 @@ export function createApp({
             for (const t of saved.targets) {
                 const list = [];
                 for (const p of t.projects) {
-                    list.push(await restoredProject(p));
+                    list.push(await restoredProject(p, t));
                 }
                 const downloading = t.downloading === true || list.some((p) => p.downloading);
                 next.set(t.id, {
@@ -1212,6 +1610,17 @@ export function createApp({
         }
     }
 
+    // A Finish that pushed while a refresh ran (after `seen` pushes): reads what each branch
+    // publishes again. The caller swaps in the list right after, with no await between.
+    async function republish(next, seen) {
+        while (seen !== pushes) {
+            seen = pushes;
+            for (const t of next.values()) {
+                t.published = await publishedOn(t);
+            }
+        }
+    }
+
     // Every fetched branch tip in one git call, once per refresh.
     async function readTips() {
         const out = await exec(
@@ -1231,19 +1640,29 @@ export function createApp({
     }
 
     // What this pull request's review records at its branch's fetched tip publish: the newest `to`
-    // per path. The captured head's (`earlier`) when the tip is that head, so the usual case reads
-    // nothing more; null when the branch was never fetched, so nothing is known about it.
+    // per path, where the file at the tip still holds it (heldAt). The records are the captured
+    // head's (`earlier`) when the tip is that head; null when the branch was never fetched, so
+    // nothing is known about it.
     async function publishedOn(t) {
-        const tip = t.branch ? tips.get(t.branch) : undefined;
+        const fetched = t.branch ? tips.get(t.branch) : undefined;
+        const mine = t.branch ? pushedTips.get(t.branch) : undefined;
+        // Our own push counts until a fetch shows a tip that holds it, or one that replaced it.
+        const stale =
+            mine !== undefined &&
+            mine !== fetched &&
+            (fetched === undefined ||
+                (await exec("git", ["merge-base", "--is-ancestor", fetched, mine], { cwd: repo }).then(
+                    () => true,
+                    () => false,
+                )));
+        const tip = stale ? mine : fetched;
         if (tip === undefined) {
             return null;
         }
-        if (tip === t.headSha) {
-            return t.earlier;
-        }
         const key = `${tip} ${t.pr}`;
         if (!recordsAt.has(key)) {
-            recordsAt.set(key, await earlierAccepts(repo, tip, t.pr, config.baselines));
+            const records = tip === t.headSha ? t.earlier : await earlierAccepts(repo, tip, t.pr, config.baselines);
+            recordsAt.set(key, await heldAt(repo, tip, records));
         }
         return recordsAt.get(key);
     }
@@ -1277,6 +1696,11 @@ export function createApp({
                       () => null,
                   )
                 : null;
+        await markBehind(t, base, known);
+    }
+
+    // Whether each of a target's projects is behind the default branch, and what is newer there.
+    async function markBehind(t, base, known) {
         t.mergeMasterFirst = false;
         for (const p of t.projects) {
             p.newer = [];
@@ -1328,11 +1752,16 @@ export function createApp({
             title: t.title,
             url: t.url,
             branch: t.branch,
+            // Its author is still working on it: the inbox never offers it (inbox.mjs).
+            draft: t.draft === true,
             runId: t.runId,
             runAttempt: t.runAttempt,
             runUrl: t.runUrl,
             commit: t.commit,
             headSha: t.headSha,
+            // The pull request's head when the preview shown is of an older one it only added
+            // accept commits to: decide here, Finish on a preview of the new head.
+            headMoved: t.headMoved ?? null,
             mergeMasterFirst: t.mergeMasterFirst,
             downloading: t.downloading === true,
             // While downloading: how many artifacts and bytes have landed of how many, and since when
@@ -1342,7 +1771,7 @@ export function createApp({
                 : null,
             defaultBranch,
             // Decisions the next Finish would publish (a reject an earlier Finish posted is not).
-            unpublished: [...decided.values()].filter((d) => !d.posted).length + legacyCount(t),
+            unpublished: [...decided.values()].filter((d) => !d.posted).length,
             warnings,
             signer,
             startCommand,
@@ -1487,7 +1916,8 @@ export function createApp({
 
     // A local capture (--results, or any capture not made by CI) is only looked at: no decision is
     // taken on it and it has no Finish. The exception is a preview of this pull request's head
-    // (tools/visual-preview.sh): Finish accepts it, and the gate checks CI's capture against it.
+    // (tools/visual-preview.sh): Finish accepts it, and the gate checks CI's capture against the
+    // baselines it leaves.
     const isLocal = (t, name) => {
         const r = t.projects.find((x) => x.project === name)?.results;
         return t.local === true || (Boolean(r?.local) && !isPreviewOf(r, t.pr));
@@ -1509,12 +1939,10 @@ export function createApp({
         return { t, p: p?.results ? p : undefined };
     }
 
-    const gone = (id) => [
-        404,
-        {
-            error: `${id === "master" ? defaultBranch : `#${id}`} is not listed any more (closed, or it could not be loaded): reload the list`,
-        },
-    ];
+    const gone = (id) => {
+        const name = id === "master" ? defaultBranch : `#${id}`;
+        return [404, { error: `${name} is not listed any more (closed, or it could not be loaded): reload the list` }];
+    };
 
     // Whether a write is about the capture the page shows: `hash` (the image), or `runId` and
     // `runAttempt`. A page that sends neither is not checked.
@@ -1567,7 +1995,7 @@ export function createApp({
             rejects: count("reject"),
             acceptNotes: notes.filter((n) => n.decision === "accept").length,
             notes,
-            // Accepts taken because the owner approved the same image before; the gate checks each.
+            // Accepts taken because the owner approved the same image before; the sheet lists them.
             approvedBefore: list.filter((x) => x.approvedBefore).length,
             // Each of them, so the sheet lists them and opens any one: none is included unseen.
             approvedBeforeItems: list
@@ -1580,9 +2008,6 @@ export function createApp({
             unloaded,
             // The projects whose capture is a local preview: CI checks them after Finish.
             previews: t.projects.filter((p) => p.preview && p.results).map((p) => p.project),
-            // Approvals from before passkeys a signed Finish signs again, and the unsigned records
-            // it removes.
-            legacy: legacyOf(t) && { files: legacyOf(t).items.length, records: legacyOf(t).drop },
             status: commitStatus({
                 accepted: count("accept"),
                 rejected: count("reject"),
@@ -1610,57 +2035,72 @@ export function createApp({
     });
 
     /**
-     * A pull request's approvals from before passkeys (legacyApprovals): what a signed Finish
-     * signs again and which unsigned records it removes. Cached per captured head and default
-     * branch tip; null when there are none or they cannot be read here. Read in a child process,
-     * one at a time, never on a request: a refresh reads them before it lists the targets, and a
-     * key it missed (a restored list) is read in the background while the list shows the last
-     * value. Finish and its preview wait for the current one (legacyFor).
+     * The owner's approval POST /api/finish carries, checked against what finish-prepare built.
+     * @param {object} t the target
+     * @param {{ digest: string }} work as finishWork returns now
+     * @param {{ challenge?: string, approval?: object }} body the request
+     * @param {boolean} sign whether this Finish signs (signingProblem)
+     * @returns {Promise<{ refused?: Array<unknown>, approval?: object | null, work?: object }>} the
+     *     answer refusing it, or finish's `approval` (null when none is needed) and the prepared
+     *     work it signs
      */
-    const legacyCache = new Map();
-    let legacyQueue = Promise.resolve();
-    const legacyKey = (t) => {
-        // The tip the last refresh (or the restore of a kept list) read.
-        const tip = tips.get(defaultBranch);
-        return t.local || t.pr === null || !t.headSha || tip === undefined ? null : { key: `${t.headSha}:${tip}`, tip };
-    };
-    const legacyFor = (t) => {
-        const k = legacyKey(t);
-        if (k === null) {
-            return Promise.resolve(null);
+    async function approvalOf(t, work, body, sign) {
+        if (body.approval && !sign) {
+            return { refused: [409, { error: "the approval is stale (the decisions changed): press Finish again" }] };
         }
-        const entry = legacyCache.get(t.id);
-        if (entry?.key === k.key) {
-            return entry.pending;
+        const { main, trusted } = await knownKeys();
+        if (trusted.length === 0 || !sign) {
+            return { approval: null };
         }
-        const input = { repo, pr: t.pr, head: t.headSha, base: k.tip, config };
-        legacyQueue = legacyQueue.then(() =>
-            legacyApprovalsAsync(input).catch((err) => {
-                console.error(`visual-review: could not read the approvals of #${t.pr}: ${err.message}`);
-                return null;
-            }),
-        );
-        const pending = legacyQueue.then((value) => {
-            if (legacyCache.get(t.id)?.pending === pending) {
-                legacyCache.set(t.id, { key: k.key, pending, value });
-            }
-            return value;
-        });
-        legacyCache.set(t.id, { key: k.key, pending, value: entry?.value ?? null });
-        return pending;
-    };
-    const legacyOf = (t) => {
-        if (legacyKey(t) === null) {
-            return null;
+        if (!body.approval) {
+            return {
+                refused: [400, { error: "this Finish needs your passkey approval (Face ID): press Finish again" }],
+            };
         }
-        legacyFor(t);
-        return legacyCache.get(t.id).value;
-    };
-    // How many things a signed Finish of the old approvals publishes: the files it signs again,
-    // or, when none are left, the unsigned records it removes.
-    const legacyCount = (t) => {
-        const l = legacyOf(t);
-        return l === null ? 0 : l.items.length || l.drop.length;
+        const stale = {
+            refused: [
+                409,
+                {
+                    error: "the approval is stale (made on another tab, expired, or the decisions changed): press Finish again",
+                },
+            ],
+        };
+        const p = approvals.get(t.id);
+        if (p === undefined) {
+            return stale;
+        }
+        if (p.challenge !== body.challenge || p.expires < Date.now() || p.digest !== work.digest) {
+            return stale;
+        }
+        const statement = { ...p.statement, approval: body.approval };
+        const why = verifyApproval(statement, trusted, { origin });
+        if (why) {
+            return { refused: [403, { error: `the approval was refused: ${why}` }] };
+        }
+        approvals.delete(t.id);
+        const { commit, branch, record } = p;
+        const pendingKeys = main.length > 0 ? [] : trusted;
+        return { approval: { statement, commit, branch, record, pendingKeys, origin }, work: p.work };
+    }
+
+    /**
+     * Why a Finish of this work signs nothing, or null when it signs the baselines tree it leaves.
+     * A reject means the owner did not approve what the branch shows. On a pull request an image
+     * left undecided, or a project not loaded, may be a baseline the branch already changed, which
+     * the signature would cover unseen. A seed's tree holds only what it accepts. A reject an
+     * earlier Finish posted counts while its image is still the one captured.
+     * @param {object} t the target
+     * @param {{ undecided: number, unloaded: string[] }} work as finishWork returns
+     * @returns {"rejects" | "undecided" | null} why not
+     */
+    const signingProblem = (t, work) => {
+        if ([...decisionsOf(t).values()].some((d) => d.decision === "reject")) {
+            return "rejects";
+        }
+        if (t.pr !== null && (work.undecided > 0 || work.unloaded.length > 0)) {
+            return "undecided";
+        }
+        return null;
     };
 
     const capturesOf = (t) =>
@@ -1802,9 +2242,8 @@ export function createApp({
         }
     }
 
-    // The unpublished count after a write, so the page's Finish button stays current: the
-    // decisions, plus the files approved before passkeys that a signed Finish signs again.
-    const unpublishedOf = (t) => finishList(t).list.length + legacyCount(t);
+    // The unpublished count after a write, so the page's Finish button stays current.
+    const unpublishedOf = (t) => finishList(t).list.length;
 
     /**
      * Where a target's image is on this disk, by results.json.
@@ -1900,7 +2339,6 @@ export function createApp({
                 return gone(id);
             }
             if (query?.get("finish") === "1") {
-                await legacyFor(t);
                 return [200, { ...summary(t), finish: finishPreview(t) }];
             }
             return [200, summary(t)];
@@ -2301,16 +2739,19 @@ export function createApp({
             if (!t) {
                 return gone(String(body.id));
             }
-            if (t.local) {
-                return [403, { error: "a local preview has no Finish" }];
+            const refused = finishRefused(t);
+            if (refused) {
+                return refused;
             }
             if (finishing) {
                 return [409, { error: "a Finish is already running" }];
             }
             const { trusted: keys } = await knownKeys();
-            if (keys.length === 0) {
+            const work = finishWork(t);
+            const unsigned = signingProblem(t, work);
+            if (keys.length === 0 || unsigned) {
                 approvals.delete(t.id);
-                return [200, { required: false }];
+                return [200, { required: false, ...(keys.length > 0 && { unsigned }) }];
             }
             const here = keys.filter((k) => k.rpId === rpId);
             if (here.length === 0) {
@@ -2322,31 +2763,36 @@ export function createApp({
                     },
                 ];
             }
-            const legacy = await legacyFor(t);
-            const work = finishWork(t);
             let prepared;
+            // The accept commit is made now, in the accept worktree: nothing else may use it meanwhile.
+            finishing = true;
             try {
-                prepared = await prepareRecord({
+                prepared = await prepareApproval({
                     repo,
                     target: { pr: t.pr, branch: t.branch },
                     projects: work.captures,
                     decisions: work.list,
                     now: new Date(),
                     config,
-                    legacy,
+                    retryDelays,
                 });
             } catch (err) {
                 if (err instanceof AcceptError) {
                     return [409, { error: err.message }];
                 }
                 throw err;
+            } finally {
+                finishing = false;
             }
-            const challenge = recordHash(prepared.record).toString("base64url");
+            const { statement, commit, branch, record } = prepared;
+            const challenge = recordHash(statement).toString("base64url");
             approvals.set(t.id, {
                 challenge,
-                record: prepared.record,
+                statement,
+                commit,
+                branch,
+                record,
                 work,
-                legacy,
                 digest: work.digest,
                 expires: Date.now() + APPROVAL_MS,
             });
@@ -2357,7 +2803,7 @@ export function createApp({
                     challenge,
                     rpId,
                     allowCredentials: here.map((k) => k.id),
-                    record: prepared.record,
+                    statement,
                     accepts: prepared.accepts,
                     excludes: prepared.excludes,
                     rejects: prepared.rejects,
@@ -2369,8 +2815,9 @@ export function createApp({
             if (!t) {
                 return gone(String(body.id));
             }
-            if (t.local) {
-                return [403, { error: "a local preview has no Finish" }];
+            const refused = finishRefused(t);
+            if (refused) {
+                return refused;
             }
             if (finishing) {
                 return [409, { error: "a Finish is already running" }];
@@ -2381,33 +2828,14 @@ export function createApp({
             if (body.digest !== undefined && body.digest !== work.digest) {
                 return [409, { error: CHANGED_SINCE }];
             }
-            let approval = null;
-            let legacy = null;
-            const { main, trusted } = await knownKeys();
-            if (trusted.length > 0) {
-                if (!body.approval) {
-                    return [400, { error: "this Finish needs your passkey approval (Face ID): press Finish again" }];
-                }
-                const p = approvals.get(t.id);
-                if (!p || p.challenge !== body.challenge || p.expires < Date.now() || p.digest !== work.digest) {
-                    return [
-                        409,
-                        {
-                            error: "the approval is stale (made on another tab, expired, or the decisions changed): press Finish again",
-                        },
-                    ];
-                }
-                const record = { ...p.record, approval: body.approval };
-                const why = verifyApproval(record, trusted, { origin });
-                if (why) {
-                    return [403, { error: `the approval was refused: ${why}` }];
-                }
-                approvals.delete(t.id);
-                // The decisions the approved record was built from, not a fresh read of the state.
-                work = p.work;
-                legacy = p.legacy;
-                approval = { record, pendingKeys: main.length > 0 ? [] : trusted, origin };
+            const sign = signingProblem(t, work) === null;
+            const checked = await approvalOf(t, work, body, sign);
+            if (checked.refused) {
+                return checked.refused;
             }
+            const { approval } = checked;
+            // The decisions the approved commit was built from, not a fresh read of the state.
+            work = checked.work ?? work;
             const { list, captures, undecided } = work;
             finishing = true;
             job = {
@@ -2435,11 +2863,27 @@ export function createApp({
                 unloaded: work.unloaded,
                 config,
                 retryDelays,
-                ...(approval && { approval, legacy, now: new Date(approval.record.reviewedAt) }),
+                sign,
+                ...(approval && { approval, now: new Date(approval.statement.approvedAt) }),
             });
             return [202, { job }];
         },
         "GET /api/finish-status": async () => [200, { job }],
+        // Usage events (config `usage`): whether the page sends them, and the page's batches,
+        // appended to usage-events.jsonl. Off, nothing is written.
+        "GET /api/usage-setting": async () => [200, { on: config.usage === true }],
+        "POST /api/usage": async (_, body) => {
+            if (config.usage !== true) {
+                return [404, { error: "usage events are off" }];
+            }
+            const lines = usageLines(body.events, token);
+            if (lines === null) {
+                return [400, { error: "events must be at most 100 small usage events" }];
+            }
+            mkdirSync(stateDir, { recursive: true });
+            appendFileSync(join(stateDir, USAGE_FILE), lines);
+            return [200, { kept: lines.split("\n").length - 1 }];
+        },
         // Update from the default branch: a background job like Finish, followed the same way.
         "POST /api/update": async (_, body) => {
             const t = await targetOf(String(body.id));
@@ -2530,7 +2974,16 @@ export function createApp({
             });
         // The commit Finish pushed is the branch's tip now, before a refresh fetches it.
         const pushed = async (commit) => {
+            if (t.branch) {
+                pushedTips.set(t.branch, commit);
+                pushes++;
+            }
             t.published = await earlierAccepts(repo, commit, t.pr, config.baselines);
+            // A refresh that ended while this Finish ran listed a new object for the target.
+            const shown = targets.get(t.id);
+            if (shown && shown !== t) {
+                shown.published = t.published;
+            }
         };
         try {
             j.result = await finish({
@@ -2553,7 +3006,9 @@ export function createApp({
             const r = j.result;
             const status = r.statusError ? `; status not posted: ${r.statusError}` : "";
             console.log(
-                `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
+                r.alreadyFinished
+                    ? `visual-review: Finish of ${finishLabel(t)} done: already finished as commit ${r.commit}`
+                    : `visual-review: Finish of ${finishLabel(t)} done: commit ${r.commit ?? "none"}, ${r.rejects} rejects${status}`,
             );
         } catch (err) {
             if (err instanceof AcceptError && err.committed && !err.pullRequestMissing) {
@@ -2618,14 +3073,19 @@ export function createApp({
         setInterval(() => refresh().catch(failed("background")), POLL).unref();
     }
 
+    // The page's own files: GET only, and only those it names.
+    async function sendStatic(req, res, pathname) {
+        const entry = req.method === "GET" && Object.hasOwn(STATIC, pathname) ? STATIC[pathname] : null;
+        return entry
+            ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
+            : send(res, 404, { error: "not found" });
+    }
+
     const handler = async (req, res) => {
         try {
             const url = new URL(req.url, origin);
             if (!url.pathname.startsWith("/api/")) {
-                const entry = req.method === "GET" && Object.hasOwn(STATIC, url.pathname) ? STATIC[url.pathname] : null;
-                return entry
-                    ? send(res, 200, await readFile(join(HERE, entry[0])), entry[1])
-                    : send(res, 404, { error: "not found" });
+                return await sendStatic(req, res, url.pathname);
             }
             if (!tokenOk(req.headers["x-review-token"])) {
                 return send(res, 401, { error: "missing or wrong session token: open the URL serve printed" });

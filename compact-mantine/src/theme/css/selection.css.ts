@@ -255,7 +255,7 @@ const css = `
     height: var(--switch-thumb-size);
     inset-inline-start: calc(var(--switch-height) / 4 - 1px);
     border-radius: 9999px;
-    background-color: var(--cm-text-onbrand);
+    background-color: var(--cm-text-onsolid);
     box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline);
     transition: inset-inline-start var(--cm-duration-sm) var(--cm-ease-out);
 }
@@ -274,6 +274,8 @@ const css = `
     background-color: var(--cm-icon-disabled);
     box-shadow: none;
 }
+/* On the accent fill the knob takes the accent's label ink (dark on the graphty lime). */
+.cm-switch-input:is(:checked, [data-indeterminate]):not(:disabled) + * > .cm-switch-thumb { background-color: var(--cm-text-onbrand); }
 .cm-switch-input:disabled:is(:checked, [data-indeterminate]) + * > .cm-switch-thumb { box-shadow: none; }
 
 /* ---------------------------------------------------------------- SegmentedControl (5.2, 5.3) */
@@ -418,6 +420,9 @@ const css = `
 }
 .cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tabs-list { gap: 0; }
 .cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tab { width: 100%; justify-content: flex-start; }
+/* Mantine's label grows to fill the tab and centres its text, and the bold-width reserve centres
+   its column, so both are put back to the start for a row tab. */
+.cm-tabs[data-variant="pills"][data-orientation="vertical"] .cm-tab-label { align-items: flex-start; text-align: start; }
 /* The underline tabs (variant="default"), kept on the tokens. */
 .cm-tabs[data-variant="default"] .cm-tab { padding: 6px 10px; color: var(--cm-text-secondary); }
 .cm-tabs[data-variant="default"] .cm-tab[data-active] { color: var(--cm-text); }
@@ -446,9 +451,9 @@ const css = `
 .cm-slider-bar { background-color: var(--cm-bg-brand); }
 .cm-slider .cm-slider-thumb {
     box-sizing: border-box;
-    border: 2px solid var(--cm-text-onbrand);
-    color: var(--cm-text-onbrand);
-    background-color: var(--cm-text-onbrand);
+    border: 2px solid var(--cm-text-onsolid);
+    color: var(--cm-text-onsolid);
+    background-color: var(--cm-text-onsolid);
     box-shadow: 0 0 0 1px var(--cm-control-knob-off-outline), inset 0 0 0 1px var(--cm-control-knob-off-outline), var(--cm-elevation-300);
     outline: 1px solid transparent;
     outline-offset: -2px;

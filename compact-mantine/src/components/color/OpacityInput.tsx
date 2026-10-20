@@ -68,7 +68,7 @@ export function OpacityInput({
     testId,
     onFocus,
     onBlur,
-}: OpacityInputProps): React.JSX.Element {
+}: Readonly<OpacityInputProps>): React.JSX.Element {
     const format = useNumberFormatter({ maximumFractionDigits: 2 });
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format.format(value));

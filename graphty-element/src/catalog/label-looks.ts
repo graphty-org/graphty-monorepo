@@ -92,14 +92,14 @@ export function labelLook(id: string): LabelLookDescriptor | undefined {
  * graph and whether it takes clicks -- placement and behavior, which no look sets and an editor
  * offers beside the look.
  */
-const NOT_LOOK_FIELDS: ReadonlySet<string> = new Set(["look", "enabled", "location", "sizeUnit", "onTop", "pickable"]);
+const NOT_LOOK_FIELDS: ReadonlySet<string> = new Set(["look", "enabled", "location", "sizeMode", "onTop", "pickable"]);
 
 /**
  * The fields a label style changes from the look it names.
  *
  * A field counts when the style sets it and its value differs from the look's (the default look,
  * when the style names none). `look` itself, `enabled` (the label's on/off switch), `location`,
- * `sizeUnit`, `onTop` and `pickable` (where it sits, what its size is measured in and how it
+ * `sizeMode`, `onTop` and `pickable` (where it sits, what its size is measured in and how it
  * behaves) are never changes. An empty list means the style is exactly its look.
  * @param style - A label style a layer writes.
  * @returns The changed fields, in the style's own order.

@@ -39,6 +39,13 @@ export interface Line {
     readonly binding?: DataBinding;
     /** How a literal number meets what lies beneath, when not "replace". */
     readonly combine?: CombineMode;
+    /** The lines of a `{ template }` binding: text built from several values. */
+    readonly template?: readonly string[];
+}
+
+/** Text built from several values: a `{ template }` binding's lines. */
+export interface TemplateWrite {
+    readonly template: readonly string[];
 }
 
 /** A literal value to write, and how it meets what lies beneath (a number only). */
@@ -88,6 +95,9 @@ export function lineOf(layers: readonly Layer[], channel: Channel): Line | undef
         if (bound !== undefined) {
             if ("by" in bound) {
                 return { layer, binding: bound };
+            }
+            if ("template" in bound) {
+                return { layer, template: bound.template };
             }
             return bound.combine === undefined || bound.combine === "replace"
                 ? { layer, value: bound.value }
@@ -320,6 +330,10 @@ function sameSelector(a: Layer["selector"], b: Layer["selector"]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/** What one line of a row writes: a literal value, a data binding, or a text template. */
+export type LineWrite =
+    { readonly value: ChannelValue } | { readonly binding: DataBinding } | { readonly template: readonly string[] };
+
 /**
  * Writes one line of a row: a literal value or a binding, into the topmost layer of the row the
  * reader may edit. One undoable step of the element's.
@@ -344,7 +358,7 @@ export async function writeLine(
     ids: readonly LayerId[],
     target: Target,
     channel: Channel,
-    write: LiteralWrite | { readonly binding: DataBinding },
+    write: LiteralWrite | { readonly binding: DataBinding } | TemplateWrite,
     fresh: NewLayer | undefined,
     also?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): Promise<LayerId> {
@@ -366,6 +380,8 @@ export async function writeLine(
     let encode: Partial<Record<Channel, Binding>> | undefined;
     if ("binding" in write) {
         encode = { [channel]: write.binding };
+    } else if ("template" in write) {
+        encode = { [channel]: { template: write.template } };
     } else if (combined) {
         encode = { [channel]: { value: write.value, combine: write.combine } };
     }

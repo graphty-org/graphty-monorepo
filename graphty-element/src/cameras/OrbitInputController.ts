@@ -5,6 +5,23 @@ import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
 /**
+ * The frames of motion one press of a camera key gives, however short the press: 8 frames of
+ * keyboardRotationSpeed (0.02) turn the camera 0.16 rad, about 9 degrees. Held longer, the key
+ * keeps moving the camera every frame, so a hold starts as smoothly as a tap.
+ */
+const TAP_FRAMES = 8;
+
+/** Each camera action and the action that moves the camera the other way. */
+const OPPOSITE_ACTION: Readonly<Partial<Record<CanvasKeyAction, CanvasKeyAction>>> = {
+    "turn-left": "turn-right",
+    "turn-right": "turn-left",
+    "turn-up": "turn-down",
+    "turn-down": "turn-up",
+    "roll-left": "roll-right",
+    "roll-right": "roll-left",
+};
+
+/**
  * How much of a wheel notch one auto-repeat of a held zoom key moves: a tap is a whole notch,
  * and a key held down repeats at about 30 a second, so a quarter notch a repeat zooms about 2x a
  * second rather than 17x.
@@ -16,22 +33,21 @@ const REPEAT_SHARE = 0.25;
  * Processes mouse, touch, and keyboard input for camera manipulation.
  */
 export class OrbitInputController {
-    private canvas: HTMLCanvasElement;
-    private controller: OrbitCameraController;
+    private readonly canvas: HTMLCanvasElement;
+    private readonly controller: OrbitCameraController;
     private isPointerDown = false;
     private lastX = 0;
     private lastY = 0;
     private isMultiTouch = false;
-    private rotationVelocityX = 0;
-    private rotationVelocityY = 0;
     /** The camera actions whose keys are held down now. */
     private held = new Set<CanvasKeyAction>();
     /**
-     * The actions whose key went down since the last frame. A key pressed and released between
-     * two frames is never held when a frame looks, so without this a tap did nothing.
+     * Frames of motion each action still owes from its last press (TAP_FRAMES), so a quick tap
+     * turns by a step the reader can see rather than by one frame's sliver -- and a key pressed
+     * and released between two frames still moves the camera.
      */
-    private tapped = new Set<CanvasKeyAction>();
-    private config: OrbitConfig;
+    private readonly owed = new Map<CanvasKeyAction, number>();
+    private readonly config: OrbitConfig;
     private hammer: HammerManager | null = null;
     private enabled = false;
 
@@ -42,7 +58,7 @@ export class OrbitInputController {
     public zoomToPointer = false;
 
     // Store handlers for attach/detach
-    private pointerDownHandler = (evt: PointerEvent): void => {
+    private readonly pointerDownHandler = (evt: PointerEvent): void => {
         if (evt.button === 0 && !this.isMultiTouch) {
             this.isPointerDown = true;
             this.lastX = evt.clientX;
@@ -52,11 +68,11 @@ export class OrbitInputController {
         }
     };
 
-    private pointerUpHandler = (): void => {
+    private readonly pointerUpHandler = (): void => {
         this.isPointerDown = false;
     };
 
-    private pointerMoveHandler = (evt: PointerEvent): void => {
+    private readonly pointerMoveHandler = (evt: PointerEvent): void => {
         if (!this.isPointerDown || this.isMultiTouch) {
             return;
         }
@@ -68,7 +84,7 @@ export class OrbitInputController {
         this.controller.rotate(dx, dy);
     };
 
-    private keyDownHandler = (evt: KeyboardEvent): void => {
+    private readonly keyDownHandler = (evt: KeyboardEvent): void => {
         // A modified key is a shortcut (Shift+A, Mod+S), not a camera move: the shortcut
         // usually moves focus away, so its keyup never reaches the canvas and the key stays held
         const action = canvasKeyAction("3d", evt);
@@ -86,10 +102,19 @@ export class OrbitInputController {
         }
 
         this.held.add(action);
-        this.tapped.add(action);
+        if (!evt.repeat) {
+            // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
+            this.owed.set(action, (this.owed.get(action) ?? 0) + TAP_FRAMES);
+            // A press the other way ends what is left of the last step, rather than cancelling
+            // itself against it.
+            const opposite = OPPOSITE_ACTION[action];
+            if (opposite !== undefined) {
+                this.owed.set(opposite, 0);
+            }
+        }
     };
 
-    private keyUpHandler = (evt: KeyboardEvent): void => {
+    private readonly keyUpHandler = (evt: KeyboardEvent): void => {
         // Released whatever modifiers are down by then.
         const action = canvasKeyAction("3d", {
             key: evt.key,
@@ -123,7 +148,7 @@ export class OrbitInputController {
     // The canvas never sees the keyup of a key released after it lost focus
     private readonly releaseKeys = (): void => {
         this.held.clear();
-        this.tapped.clear();
+        this.owed.clear();
     };
 
     /**
@@ -182,14 +207,29 @@ export class OrbitInputController {
         });
 
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
-            const scaleDelta = ev.scale - lastScale;
-            this.controller.zoom(-scaleDelta * this.config.pinchZoomSensitivity);
+            // The distance follows the finger gap: spreading the fingers to twice the gap halves it
+            this.controller.zoomBy(lastScale / ev.scale);
             lastScale = ev.scale;
 
             const rotationDelta = (ev.rotation - lastRotation) * (Math.PI / 180) * this.config.twistYawSensitivity;
             this.controller.spin(rotationDelta);
             lastRotation = ev.rotation;
         });
+    }
+
+    /**
+     * Whether the reader is moving the camera -- a drag, a pinch, a held arrow, A or D --
+     * or input is switched off, as it is while a node is dragged. `camera.autoRotate` waits.
+     * @returns True while it is.
+     */
+    public get busy(): boolean {
+        return (
+            !this.enabled ||
+            this.isPointerDown ||
+            this.isMultiTouch ||
+            this.held.size > 0 ||
+            [...this.owed.values()].some((frames) => frames > 0)
+        );
     }
 
     /**
@@ -255,23 +295,18 @@ export class OrbitInputController {
             return;
         }
 
+        const { owed } = this;
+        const on = (action: CanvasKeyAction): boolean => this.held.has(action) || (owed.get(action) ?? 0) > 0;
         const cam = this.controller;
-        const on = (action: CanvasKeyAction): boolean => this.held.has(action) || this.tapped.has(action);
+        // A held arrow turns by exactly keyboardRotationSpeed radians every frame, from the first
+        // frame to the last, as A and D spin by keyboardYawSpeed: no velocity, so nothing builds
+        // up while it is held and nothing coasts on after it is let go.
+        const turn = this.config.keyboardRotationSpeed / this.config.trackballRotationSpeed;
+        const yaw = (on("turn-left") ? 1 : 0) - (on("turn-right") ? 1 : 0);
+        const pitch = (on("turn-up") ? 1 : 0) - (on("turn-down") ? 1 : 0);
 
-        if (on("turn-left")) {
-            this.rotationVelocityY += this.config.keyboardRotationSpeed;
-        }
-
-        if (on("turn-right")) {
-            this.rotationVelocityY -= this.config.keyboardRotationSpeed;
-        }
-
-        if (on("turn-up")) {
-            this.rotationVelocityX += this.config.keyboardRotationSpeed;
-        }
-
-        if (on("turn-down")) {
-            this.rotationVelocityX -= this.config.keyboardRotationSpeed;
+        if (yaw !== 0 || pitch !== 0) {
+            cam.rotate(-yaw * turn, -pitch * turn);
         }
 
         if (on("roll-left")) {
@@ -282,16 +317,8 @@ export class OrbitInputController {
             cam.spin(-this.config.keyboardYawSpeed);
         }
 
-        this.tapped.clear();
-
-        if (Math.abs(this.rotationVelocityX) > 0.00001) {
-            cam.rotate(0, -this.rotationVelocityX / this.config.trackballRotationSpeed);
-            this.rotationVelocityX *= this.config.inertiaDamping;
-        }
-
-        if (Math.abs(this.rotationVelocityY) > 0.00001) {
-            cam.rotate(-this.rotationVelocityY / this.config.trackballRotationSpeed, 0);
-            this.rotationVelocityY *= this.config.inertiaDamping;
+        for (const [action, frames] of owed) {
+            owed.set(action, Math.max(0, frames - 1));
         }
 
         cam.updateCameraPosition();

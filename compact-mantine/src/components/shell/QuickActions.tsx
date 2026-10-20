@@ -304,7 +304,7 @@ export function QuickActions({
 
     const name = others["aria-label"] ?? labels.quickActions;
     return (
-        <div
+        <div // NOSONAR(S6819): an inline panel the host places in its own popover; a native dialog adds its own top layer, box and Escape handling
             role={role}
             aria-label={name}
             className={className ? `cm-quick-actions ${className}` : "cm-quick-actions"}
@@ -366,14 +366,19 @@ export function QuickActions({
                 aria-label={name}
             >
                 {sections.map(([section, list]) => (
-                    <div className="cm-qa-group" role="group" aria-label={section || undefined} key={section}>
+                    <div // NOSONAR(S6819): a group of options inside an ARIA listbox; optgroup works only inside a native select
+                        className="cm-qa-group"
+                        role="group"
+                        aria-label={section || undefined}
+                        key={section}
+                    >
                         {section ? (
                             <div className="cm-qa-group-title" aria-hidden="true">
                                 {section}
                             </div>
                         ) : null}
                         {list.map((action) => (
-                            <div
+                            <div // NOSONAR(S6819): an option of an ARIA combobox popup with rich rows; a native option holds text only
                                 key={action.value}
                                 id={optionId(action.value)}
                                 role="option"

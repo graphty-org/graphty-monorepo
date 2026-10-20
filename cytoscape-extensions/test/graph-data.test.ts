@@ -1,13 +1,12 @@
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { ImportError } from "@graphty/graph-io";
-import { DATASETS } from "@graphty/graph-samples";
-import { wikipathwaysSenescenceAutophagy } from "@graphty/graph-samples/datasets/wikipathways-senescence-autophagy";
+import { DATASETS, fetchDataset } from "@graphty/graph-samples";
 import cytoscape from "cytoscape";
 import { describe, expect, it } from "vitest";
 
 import { snapshotToElements } from "../src/elements";
 import graphtyCytoscape, { IdTakenError } from "../src/index";
-import { BUNDLED_DATASET_NAMES, GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
+import { GENERATORS, NAMED_GRAPH_NAMES } from "../src/samples";
 
 cytoscape.use(graphtyCytoscape);
 
@@ -102,21 +101,27 @@ describe("graphtyDataset", () => {
         expect(cy.nodes().map((n) => n.data("label") as string)).toContain("Texas");
     });
 
-    it("loads every dataset graph-samples bundles from its own module", () => {
-        expect([...BUNDLED_DATASET_NAMES].sort()).toEqual(
-            DATASETS.filter((d) => d.hosting !== "remote")
-                .map((d) => d.name)
-                .sort(),
-        );
+    it("downloads every dataset, the formerly bundled ones included", async () => {
+        expect(DATASETS.every((d) => d.hosting === "remote")).toBe(true);
+        const urls: string[] = [];
+        const cy = core();
+        await cy.graphtyDataset("dolphins", {
+            fetch: (input, init) => {
+                urls.push((input as URL).href);
+                return fetch(input, init);
+            },
+        });
+        expect(urls).toEqual(["https://graphty.app/data/graph-samples/v1/dolphins.gsnp.gz"]);
+        expect(cy.nodes()).toHaveLength(62);
     });
 
     it("places a drawn dataset's nodes where Cytoscape drew them (saved y grows upward)", async () => {
-        const saved = wikipathwaysSenescenceAutophagy();
-        const xs = saved.nodeColumns?.x as unknown as ArrayLike<number>;
-        const ys = saved.nodeColumns?.y as unknown as ArrayLike<number>;
+        const saved = await fetchDataset("wikipathways-senescence-autophagy");
+        const xs = saved.nodes.require("x");
+        const ys = saved.nodes.require("y");
         const cy = core();
         await cy.graphtyDataset("wikipathways-senescence-autophagy");
-        expect(cy.nodes()[0].position()).toEqual({ x: xs[0], y: -ys[0] });
+        expect(cy.nodes()[0].position()).toEqual({ x: xs.value(0), y: -(ys.value(0) as number) });
         expect(cy.nodes()[0].data("y")).toBeUndefined();
     });
 });
@@ -185,6 +190,24 @@ describe("graphtyExport and graphtyImport", () => {
         expect(r.elements.nodes().length).toBeGreaterThan(0);
         expect(r.report.errorCount).toBeGreaterThan(0);
     });
+
+    it.each(["cx2", "json"] as const)(
+        "reads its own %s back without a warning when the edges have Cytoscape's generated ids",
+        async (format) => {
+            // integer node ids, as in the bundled datasets; edges without an id get a UUID from Cytoscape
+            const cy = core([
+                { data: { id: "0" } },
+                { data: { id: "1" } },
+                { data: { id: "2" } },
+                { data: { source: "0", target: "1" } },
+                { data: { source: "1", target: "2" } },
+            ]);
+            const back = core();
+            const r = await back.graphtyImport(await cy.graphtyExport(format), format);
+            expect(r.report.issues.map((i) => `${i.code}: ${i.message}`)).toEqual([]);
+            expect(back.edges()).toHaveLength(2);
+        },
+    );
 
     it("sniffs the format when none is given", async () => {
         const r = await core().graphtyImport(await core(sample()).graphtyExport("gexf"));
@@ -389,6 +412,34 @@ describe("integer ids in the integer-id formats", () => {
             await back.graphtyImport(text, format);
             expect(back.nodes().map((n) => n.id())).toEqual(["0", "1", "2", "3"]);
             expect(back.nodes().every((n) => Object.keys(n.data()).length === 1)).toBe(true);
+        }
+    });
+
+    it("do not tell onLoss about renumbered ids, node order or text storage: the ids and values come back", async () => {
+        const cy = core();
+        await cy.graphtyDataset("karate");
+        for (const format of ["pajek", "csv", "gml", "xgmml"] as const) {
+            const codes: string[] = [];
+            const text = await cy.graphtyExport(format, { onLoss: (notes) => codes.push(...notes.map((n) => n.code)) });
+            expect(codes).not.toContain("W_ID_RENUMBERED");
+            expect(codes).not.toContain("W_CSV_NODE_ORDER");
+            expect(codes).not.toContain("W_STORAGE_CLASS_CHANGED");
+            const back = core();
+            await back.graphtyImport(text, format);
+            expect(
+                back
+                    .nodes()
+                    .map((n) => n.id())
+                    .sort(),
+            ).toEqual(
+                cy
+                    .nodes()
+                    .map((n) => n.id())
+                    .sort(),
+            );
+            if (format !== "csv") {
+                expect(back.$("#0").data("club")).toBe(cy.$("#0").data("club"));
+            }
         }
     });
 

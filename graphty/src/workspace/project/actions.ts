@@ -9,12 +9,13 @@
 
 import { browserProjects, type GraphSession, isGraphtyError, projectFileName } from "@graphty/graphty-element/session";
 
+import { forgetKeptWork } from "../autosave/autosave";
 import type { CommandContext } from "../commands/registry";
 import { openDataPage } from "../data-page/request";
 import { focusOpenedGraph } from "../frame/focus";
 import { newProjectId, type WorkspaceStore } from "../state/store";
 import { locateFile, readHandle } from "./files";
-import { entryForHandle, forgetRecent, type RecentProject, refreshStored, rememberRecent } from "./recent";
+import { entryForHandle, forgetRecent, recentEntry, type RecentProject, refreshStored, rememberRecent } from "./recent";
 
 /** The dialog ids this package opens in the workspace's one dialog slot. */
 export const SAVE_AS_DIALOG = "save-as";
@@ -144,12 +145,14 @@ async function remember(store: WorkspaceStore, session: GraphSession, handle?: F
     const known = await entryForHandle(handle);
     const id = known?.id ?? state.recentId ?? crypto.randomUUID();
     state.recentId = id;
+    const picture = (known ?? recentEntry(id))?.thumbnail;
     await rememberRecent({
         id,
         name: headerName(store),
         nodes: session.status.counts.nodes,
         at: Date.now(),
         handle,
+        ...(picture === undefined ? {} : { thumbnail: picture }),
     });
 }
 
@@ -312,14 +315,20 @@ function hasUnsaved({ workspace, session }: CommandContext): boolean {
  * @param proceed - what replaces the project.
  */
 export function unlessUnsaved(ctx: CommandContext, proceed: () => void): void {
-    if (hasUnsaved(ctx)) {
-        askToDiscard(ctx.workspace, () => {
+    // The work left behind is the reader's choice, so it is not offered back on a later visit.
+    const kept = forgetKeptWork(ctx);
+    const leave = (): Promise<void> => {
+        if (kept === null) {
             proceed();
             return Promise.resolve();
-        });
+        }
+        return kept().then(proceed);
+    };
+    if (hasUnsaved(ctx)) {
+        askToDiscard(ctx.workspace, leave);
         return;
     }
-    proceed();
+    void leave();
 }
 
 /**

@@ -157,12 +157,23 @@ describe("layout catalogue", () => {
         }
     });
 
-    it("publishes two arrangements the built-in name list has no name for", () => {
+    it("publishes ten arrangements the built-in name list has no name for: spiral, planar and the Graphviz engines", () => {
         const extra = LAYOUT_DESCRIPTORS.map((descriptor) => String(descriptor.id)).filter(
             (id) => !(KNOWN_LAYOUT_IDS as readonly string[]).includes(id),
         );
 
-        assert.deepEqual(extra, ["spiral", "planar"]);
+        assert.deepEqual(extra, [
+            "spiral",
+            "planar",
+            "graphviz-dot",
+            "graphviz-neato",
+            "graphviz-fdp",
+            "graphviz-sfdp",
+            "graphviz-circo",
+            "graphviz-twopi",
+            "graphviz-osage",
+            "graphviz-patchwork",
+        ]);
     });
 
     it("takes the published engine, options, kind and dimensions from the default implementation", () => {
@@ -331,14 +342,14 @@ describe("format catalogue", () => {
         );
     });
 
-    it("reports that every built-in format but the project file can be read, and all but CX, sessions and OBO written", () => {
+    it("reports that every built-in format but the project file can be read, and all but OBO written", () => {
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canImport).map((descriptor) => descriptor.id),
             ["graphty"],
         );
         assert.deepEqual(
             FORMAT_DESCRIPTORS.filter((descriptor) => !descriptor.canExport).map((descriptor) => descriptor.id),
-            ["cx", "cys", "obo"],
+            ["obo"],
         );
     });
 

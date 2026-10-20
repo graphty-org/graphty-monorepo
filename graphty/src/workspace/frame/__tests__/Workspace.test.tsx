@@ -3,9 +3,8 @@
  * notice slot and the build stamp. The element is not registered in this file, so its tag stays
  * an empty box and no session arrives; `Workspace.real-element.test.tsx` covers the element.
  */
-import userEvent from "@testing-library/user-event";
-import { afterEach, assert, describe, it, vi } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -48,6 +47,12 @@ afterEach(() => {
     document.querySelector('meta[name="graphty-build"]')?.remove();
 });
 
+// The workspace's design width. In the runner's 414 px frame the side panels overlap the canvas,
+// so a real click on a notice's action lands on the panel drawn over it.
+beforeAll(async () => {
+    await page.viewport(1366, 768);
+});
+
 describe("the workspace frame", () => {
     it("opens on the start screen, and a sample opens the frame", async () => {
         renderWorkspace();
@@ -88,7 +93,7 @@ describe("the workspace frame", () => {
         const rail = screen.getByRole("toolbar", { name: "Places" });
         const settings = within(rail).getByRole("button", { name: "Settings" });
         assert.equal(settings.getAttribute("aria-expanded"), "false");
-        await realInput.click(settings);
+        await userEvent.click(settings);
 
         assert.isNotNull(await screen.findByRole("dialog", { name: "Settings" }));
         assert.equal(settings.getAttribute("aria-expanded"), "true");

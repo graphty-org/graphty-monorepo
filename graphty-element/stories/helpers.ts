@@ -119,12 +119,21 @@ const DATA_LOAD_TIMEOUT_MS = 15000;
 
 /**
  * Reject when a promise has not settled in time, with a sentence a reader can act on.
+ *
+ * ONLY FOR A READER. Under a runner -- the Storybook test project or a visual capture -- this awaits
+ * the promise with no deadline of its own, so the runner's timeout is the only backstop: a stalled
+ * machine that outlasts a wall-clock timer while the work still finishes is not a failure.
  * @param promise - What is being waited for.
  * @param timeoutMs - How long to wait.
  * @param whatWasWaitedFor - Named in the error, so the failure says what did not happen.
  * @returns The promise's own resolution, or a rejection describing the timeout.
  */
 async function within(promise: Promise<void>, timeoutMs: number, whatWasWaitedFor: string): Promise<void> {
+    if (isUnderRunner()) {
+        await promise;
+        return;
+    }
+
     let timer: ReturnType<typeof setTimeout> | undefined;
 
     try {
@@ -215,7 +224,9 @@ export async function waitForGraphSettled(canvasElement: HTMLElement): Promise<v
     // answer about the wrong picture.
     await waitForDataLoaded(canvasElement);
 
-    await graphtyElement.waitForStableFrame({ timeoutMs: STABLE_FRAME_TIMEOUT_MS });
+    // Under a runner, the element's own default (30 seconds, started after the runner's clock) is
+    // never the first to expire, so the runner's timeout is what bounds the wait.
+    await graphtyElement.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: STABLE_FRAME_TIMEOUT_MS });
 }
 
 // Helper to wait for skybox to load - only call this if your story actually uses a skybox
@@ -314,6 +325,18 @@ export type StoryArgs = Graphty & { setup: StorySetup };
  */
 export function isVisualCapture(): boolean {
     return /[?&]chromatic=true/.test(globalThis.location?.search ?? "");
+}
+
+/**
+ * True when something other than a reader runs this story and brings its own timeout: the Storybook
+ * test project (`.storybook/vitest.setup.ts` sets `__GRAPHTY_STORY_RUNNER__`) or a visual capture.
+ * A play function's waits then set no deadline of their own, so the runner's is the only one.
+ * @returns Whether a runner bounds this story's waits.
+ */
+export function isUnderRunner(): boolean {
+    return (
+        (globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ === true || isVisualCapture()
+    );
 }
 
 /**
@@ -819,3 +842,27 @@ export const arrowTypes = [
     "half-open",
     "vee",
 ] as const;
+
+/**
+ * Real (browser-trusted) pointer input for play functions.
+ *
+ * A page's own script can only dispatch untrusted events, which skip the browser's hit testing,
+ * pointer capture and event ordering. The storybook test project's setup (.storybook/vitest.setup.ts)
+ * hands test/helpers/real-input.ts to every story as the `realInput` parameter, so a play function
+ * run as a test drives the browser itself. Storybook's own UI has no such input.
+ */
+export interface RealInput {
+    /** Move the mouse, no button held, to a point in CSS pixels from the element's top-left corner. */
+    hover(element: Element, point: { x: number; y: number }): Promise<void>;
+    /** Press and release the left button at a point in CSS pixels from the element's top-left corner. */
+    click(element: Element, point: { x: number; y: number }): Promise<void>;
+}
+
+/**
+ * The real input the test runner supplied, if any.
+ * @param parameters - The story context's parameters.
+ * @returns The real input, or undefined in Storybook's own UI.
+ */
+export function realInput(parameters: Record<string, unknown>): RealInput | undefined {
+    return parameters.realInput as RealInput | undefined;
+}

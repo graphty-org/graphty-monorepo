@@ -9,7 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { ForceAtlas2Simulation, type LayoutSimulation } from "@graphty/layout";
 import type { ProbeResult } from "@graphty/webgpu-graph-algorithms";
 import cytoscape, { type EventObject, type LayoutOptions } from "cytoscape";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { type AcquiredGpu, type GpuAccelerator, GpuUnavailableError, registerGpuProvider } from "../src/gpu";
 import { gpuProvider as browserProvider } from "../src/gpu-platform-browser";
@@ -174,7 +174,7 @@ function refusing(code: ProbeResult["code"], fixes: Record<string, string> = {})
 }
 
 describe("the warning for a large graph on the CPU", () => {
-    let warn: ReturnType<typeof vi.spyOn>;
+    let warn: MockInstance<typeof console.warn>;
     beforeEach(() => {
         warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     });
@@ -388,7 +388,8 @@ describe("the device lifecycle (a fake provider)", () => {
         const r = await mainGraph().graphtyPageRankAsync({ initialRanks: () => 1 });
         expect(r.backend.ran).toBe("cpu");
         expect(r.backend.device).toBe("fake device");
-        expect(r.backend.reason).toMatch(/options or the graph need the CPU/);
+        // the reason the guide's table lists, and nothing more: no remark about the dispatcher
+        expect(r.backend.reason).toBe("the options or the graph need the CPU implementation");
     });
 
     it("an algorithm the fake does not implement runs on the CPU and says so", async () => {

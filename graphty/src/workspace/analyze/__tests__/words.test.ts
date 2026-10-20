@@ -14,7 +14,6 @@ import {
     optionWords,
     pathWords,
     ranOptionWords,
-    wearsStartHere,
     weightName,
     weightRead,
     wordsFor,
@@ -64,12 +63,6 @@ describe("the Analyze popover's words", () => {
         assert.equal(words.name, "Plugin X");
     });
 
-    it("marks at most one Start here per heading", () => {
-        for (const { heading, entries } of groupAlgorithms(BUILT_IN_ALGORITHMS)) {
-            assert.isAtMost(entries.filter((d) => wordsFor(d).startHere === true).length, 1, heading.title);
-        }
-    });
-
     it("hides a heading with no entries: Measure the graph, with the element's own algorithms", () => {
         const titles = groupAlgorithms(BUILT_IN_ALGORITHMS).map((group) => group.heading.title);
         assert.deepEqual(titles, ["Rank nodes and edges", "Find groups", "Find paths and edge sets"]);
@@ -109,13 +102,7 @@ describe("the Analyze popover's words", () => {
         );
     });
 
-    it("draws one Start here while a filter is typed, on the first result, and every heading's with none", () => {
-        const badged = (text: string): string[] => {
-            const groups = groupAlgorithms(BUILT_IN_ALGORITHMS, text);
-            return groups.flatMap((g) => g.entries.filter((d) => wearsStartHere(d, groups, text)).map((d) => d.key));
-        };
-        assert.deepEqual(badged("linked"), ["shortest-path"]);
-        assert.deepEqual(badged(""), ["pagerank", "louvain", "shortest-path"]);
+    it("treats a blank filter as no filter", () => {
         assert.deepEqual(
             groupAlgorithms(BUILT_IN_ALGORITHMS, "  ").map((g) => g.entries.map((d) => d.key)),
             groupAlgorithms(BUILT_IN_ALGORITHMS).map((g) => g.entries.map((d) => d.key)),

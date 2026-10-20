@@ -159,14 +159,14 @@ class MessageRolledBack extends Error {
  * Manages the conversation flow, command dispatch, and status updates.
  */
 export class AiController {
-    private provider: LlmProvider;
-    private commandRegistry: CommandRegistry;
-    private graph: CommandContext["graph"];
-    private statusManager: AiStatusManager;
-    private schemaManager: SchemaManager | null;
+    private readonly provider: LlmProvider;
+    private readonly commandRegistry: CommandRegistry;
+    private readonly graph: CommandContext["graph"];
+    private readonly statusManager: AiStatusManager;
+    private readonly schemaManager: SchemaManager | null;
     private abortController: AbortController | null = null;
     private disposed = false;
-    private emitEvent: AiEventEmitter | undefined;
+    private readonly emitEvent: AiEventEmitter | undefined;
     private currentInput: string | null = null;
     private startTime: number | null = null;
     private lastInput: string | null = null;
@@ -671,7 +671,7 @@ When the user asks you to perform an action, use the appropriate tool. If no too
         // 3) default values applied
         let validatedArguments: Record<string, unknown>;
         try {
-            validatedArguments = command.parameters.parse(toolCall.arguments);
+            validatedArguments = command.parameters.parse(toolCall.arguments) as Record<string, unknown>;
             logger.debug("Validated arguments", {
                 name: command.name,
                 argumentCount: Object.keys(validatedArguments).length,

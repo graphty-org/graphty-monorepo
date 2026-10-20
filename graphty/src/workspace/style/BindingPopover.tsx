@@ -3,8 +3,10 @@ import {
     MenuShortcut,
     RampEditor,
     type RampEditorHandle,
-    StyleNumberInput,
-    StyleSelect,
+    FieldRow,
+    PanelField,
+    PanelLabelsProvider,
+    ResetButton,
     ToggleIconButton,
     ToggleRow,
 } from "@graphty/compact-mantine";
@@ -210,24 +212,29 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                     ) : null}
                     {parts.list}
                     {plain && overflows ? (
-                        <StyleSelect
-                            label={`More ${parts.noun} than colors`}
-                            value={binding.overflow}
-                            defaultValue="other"
-                            options={[...OVERFLOW_WORDS[descriptor.target]]}
-                            onChange={(overflow) => {
-                                // Keep the palette the groups are drawn in: with none named, the
-                                // element picks its own for the new overflow (a ramp for number
-                                // groups), and "Extend the palette" would not extend the one shown.
-                                const shown = session.catalog
-                                    .palettes()
-                                    .find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
-                                patch({
-                                    overflow: overflow as LayerBinding["overflow"],
-                                    palette: binding.palette ?? shown,
-                                });
-                            }}
-                        />
+                        <PanelLabelsProvider showLabels>
+                            <FieldRow>
+                                <PanelField
+                                    label={`More ${parts.noun} than colors`}
+                                    kind="select"
+                                    width="fill"
+                                    data={[...OVERFLOW_WORDS[descriptor.target]]}
+                                    value={binding.overflow ?? "other"}
+                                    onChange={(overflow) => {
+                                        // Keep the palette the groups are drawn in: with none named, the
+                                        // element picks its own for the new overflow (a ramp for number
+                                        // groups), and "Extend the palette" would not extend the one shown.
+                                        const shown = session.catalog
+                                            .palettes()
+                                            .find((p) => p.kind === "categorical" && p.id === parts.palette)?.id;
+                                        patch({
+                                            overflow: String(overflow) as LayerBinding["overflow"],
+                                            palette: binding.palette ?? shown,
+                                        });
+                                    }}
+                                />
+                            </FieldRow>
+                        </PanelLabelsProvider>
                     ) : null}
                 </Stack>
             ) : null}
@@ -238,16 +245,20 @@ export function BindingPopover(props: Readonly<BindingPopoverProps>): React.JSX.
                 <NoValue session={session} descriptor={descriptor} missing={binding.missing ?? "skip"} patch={patch} />
             )}
             {isNumber && !detail ? (
-                <StyleSelect
-                    label="Combine"
-                    aria-label={`How ${name.toLowerCase()} meets the layers beneath`}
-                    value={binding.combine}
-                    defaultValue="replace"
-                    options={COMBINE_WORDS}
-                    onChange={(mode) => {
-                        patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
-                    }}
-                />
+                <PanelLabelsProvider showLabels>
+                    <FieldRow>
+                        <PanelField
+                            label={`How ${name.toLowerCase()} meets the layers beneath`}
+                            kind="select"
+                            width="fill"
+                            data={[...COMBINE_WORDS]}
+                            value={binding.combine ?? "replace"}
+                            onChange={(mode) => {
+                                patch({ combine: mode === "multiply" || mode === "add" ? mode : undefined });
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             ) : null}
         </Stack>
     );
@@ -496,31 +507,31 @@ function PaletteSelect({
 }>): React.JSX.Element {
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
     return (
-        <StyleSelect
-            label="Palette"
-            value={value}
-            defaultValue={shown ?? palettes[0]?.id ?? ""}
-            options={palettes.map((p) => ({
-                value: p.id,
-                label: paletteWord(p.id),
-                glyph: (
-                    <span
-                        aria-hidden
-                        style={{
-                            display: "block",
-                            width: 16,
-                            height: 8,
-                            marginBlock: 4,
-                            borderRadius: 2,
-                            background: `linear-gradient(to right, ${p.colors.slice(0, 8).join(", ")})`,
-                        }}
-                    />
-                ),
-            }))}
-            onChange={(palette) => {
-                patch({ palette });
-            }}
-        />
+        <PanelLabelsProvider showLabels>
+            <FieldRow
+                trailing={
+                    value !== undefined && (
+                        <ResetButton
+                            label="Palette"
+                            onClick={() => {
+                                patch({ palette: undefined });
+                            }}
+                        />
+                    )
+                }
+            >
+                <PanelField
+                    label="Palette"
+                    kind="select"
+                    width="fill"
+                    data={palettes.map((p) => ({ value: p.id, label: paletteWord(p.id) }))}
+                    value={value ?? shown ?? palettes[0]?.id ?? null}
+                    onChange={(palette) => {
+                        patch({ palette: String(palette) });
+                    }}
+                />
+            </FieldRow>
+        </PanelLabelsProvider>
     );
 }
 
@@ -744,17 +755,33 @@ function Ramp({ session, descriptor, layerId, binding, source, preview, patch }:
                 </QuietButton>
             ) : null}
             {scale === "bins" || scale === "quantile" ? (
-                <StyleNumberInput
-                    label="Steps"
-                    value={binding.bins}
-                    defaultValue={preview.stepCounts.length}
-                    emptyText=""
-                    min={2}
-                    max={12}
-                    onChange={(bins) => {
-                        patch({ bins });
-                    }}
-                />
+                <PanelLabelsProvider showLabels>
+                    <FieldRow
+                        trailing={
+                            binding.bins !== undefined && (
+                                <ResetButton
+                                    label="Steps"
+                                    onClick={() => {
+                                        patch({ bins: undefined });
+                                    }}
+                                />
+                            )
+                        }
+                    >
+                        <PanelField
+                            label="Steps"
+                            kind="number"
+                            width="fill"
+                            value={binding.bins ?? preview.stepCounts.length}
+                            min={2}
+                            max={12}
+                            decimalScale={0}
+                            onChange={(bins) => {
+                                patch({ bins: Number(bins) });
+                            }}
+                        />
+                    </FieldRow>
+                </PanelLabelsProvider>
             ) : null}
             {steps.length === 0 ? null : (
                 <Stack gap={2} role="list" aria-label="Steps">
@@ -837,26 +864,36 @@ function Clamp({
             />
             {clamp === undefined ? null : (
                 <Group grow gap={8} role="group" aria-label="Clamp at percentiles">
-                    <StyleNumberInput
-                        label="Lowest percentile"
-                        value={clamp[0]}
-                        defaultValue={clamp[0]}
-                        min={0}
-                        max={clamp[1]}
-                        onChange={(low) => {
-                            patch({ clamp: [low ?? clamp[0], clamp[1]] });
-                        }}
-                    />
-                    <StyleNumberInput
-                        label="Highest percentile"
-                        value={clamp[1]}
-                        defaultValue={clamp[1]}
-                        min={clamp[0]}
-                        max={100}
-                        onChange={(high) => {
-                            patch({ clamp: [clamp[0], high ?? clamp[1]] });
-                        }}
-                    />
+                    <PanelLabelsProvider showLabels>
+                        <FieldRow>
+                            <PanelField
+                                label="Lowest percentile"
+                                kind="number"
+                                width="fill"
+                                value={clamp[0]}
+                                min={0}
+                                max={clamp[1]}
+                                onChange={(low) => {
+                                    patch({ clamp: [Number(low), clamp[1]] });
+                                }}
+                            />
+                        </FieldRow>
+                    </PanelLabelsProvider>
+                    <PanelLabelsProvider showLabels>
+                        <FieldRow>
+                            <PanelField
+                                label="Highest percentile"
+                                kind="number"
+                                width="fill"
+                                value={clamp[1]}
+                                min={clamp[0]}
+                                max={100}
+                                onChange={(high) => {
+                                    patch({ clamp: [clamp[0], Number(high)] });
+                                }}
+                            />
+                        </FieldRow>
+                    </PanelLabelsProvider>
                 </Group>
             )}
         </Stack>
@@ -1138,19 +1175,24 @@ function NoValue({
         );
     return (
         <Stack gap={4}>
-            <StyleSelect
-                label="No value"
-                // Always a choice in force: "Leave as is" is a choice, not a missing one.
-                value={given === null ? "skip" : "value"}
-                defaultValue="skip"
-                options={[
-                    { value: "skip", label: "Leave as is" },
-                    { value: "value", label: "Use one value" },
-                ]}
-                onChange={(choice) => {
-                    patch({ missing: choice === "value" ? { value: start } : "skip" });
-                }}
-            />
+            <PanelLabelsProvider showLabels>
+                <FieldRow>
+                    <PanelField
+                        label="No value"
+                        kind="select"
+                        width="fill"
+                        // Always a choice in force: "Leave as is" is a choice, not a missing one.
+                        data={[
+                            { value: "skip", label: "Leave as is" },
+                            { value: "value", label: "Use one value" },
+                        ]}
+                        value={given === null ? "skip" : "value"}
+                        onChange={(choice) => {
+                            patch({ missing: choice === "value" ? { value: start } : "skip" });
+                        }}
+                    />
+                </FieldRow>
+            </PanelLabelsProvider>
             {field}
         </Stack>
     );

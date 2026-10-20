@@ -7,8 +7,8 @@ import type { NodeId } from "@graphty/graph-format";
  * algorithms like connected components and minimum spanning trees.
  */
 export class UnionFind {
-    private parent: Map<NodeId, NodeId>;
-    private rank: Map<NodeId, number>;
+    private readonly parent: Map<NodeId, NodeId>;
+    private readonly rank: Map<NodeId, number>;
     private componentCount: number;
 
     /**

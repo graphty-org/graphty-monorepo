@@ -1,18 +1,22 @@
 // Tests of tools/test-slots.mjs, the machine-wide limit on concurrent test runs: a slot is taken and
 // given back, waiters start in arrival order, a dead holder's slot is reclaimed, a nested run takes
-// no second slot, the GPU browser runner queues before its time limit starts, and every package's
-// vitest config takes a slot.
+// no second slot, --gpu takes the one GPU slot instead of a test slot, the GPU browser runner queues before its time limit starts, and every package's
+// vitest config takes a slot, caps its Node workers at its share of the cores and adds ciReporters().
 //
 //   node --test tools/test-slots.test.mjs
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { acquire, HELD, liveTickets, slotCount } from "./test-slots.mjs";
+import { acquire, HELD, liveTickets, slotCount, workerShare } from "./test-slots.mjs";
+
+// The temporary directories this file makes go inside this one, removed when the file finishes.
+const TMP = mkdtempSync(join(tmpdir(), "test-slots-"));
+after(() => rmSync(TMP, { recursive: true, force: true }));
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = join(ROOT, "tools/test-slots.mjs");
@@ -27,7 +31,7 @@ function sleeper() {
 }
 after(() => children.forEach((c) => c.kill("SIGKILL")));
 
-const fresh = () => mkdtempSync(join(tmpdir(), "test-slots-"));
+const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
 const quiet = { env: {}, poll: 10, log: () => {} };
 const tick = (ms = 5) => new Promise((r) => setTimeout(r, ms));
 // Whether a promise has settled within a few polls.
@@ -73,6 +77,47 @@ describe("test-slots", () => {
         assert.equal(await settled(second), true);
     });
 
+    it("waits out a full file table (ENFILE, EMFILE) while reading the tickets instead of crashing, and gives up after a bound", async () => {
+        const dir = fresh();
+        const full = (code) => Object.assign(new Error(code), { code });
+        let fails = 2;
+        const lines = [];
+        const flaky = (d) => {
+            if (fails-- > 0) {
+                throw full(fails ? "ENFILE" : "EMFILE");
+            }
+            return liveTickets(d);
+        };
+        const release = await acquire({
+            ...quiet,
+            dir,
+            slots: 1,
+            label: "run",
+            list: flaky,
+            log: (l) => lines.push(l),
+        });
+        assert.deepEqual(
+            liveTickets(dir).map((t) => t.label),
+            ["run"],
+            "the slot is taken once handles are free",
+        );
+        assert.equal(lines.length, 1, "one line says what it waits on");
+        assert.match(lines[0], /no free file handle \(ENFILE\)/);
+        release();
+        const never = () => {
+            throw full("ENFILE");
+        };
+        await assert.rejects(acquire({ ...quiet, dir: fresh(), slots: 1, label: "run", list: never }), {
+            code: "ENFILE",
+        });
+        const broken = () => {
+            throw full("EACCES");
+        };
+        await assert.rejects(acquire({ ...quiet, dir: fresh(), slots: 1, label: "run", list: broken }), {
+            code: "EACCES",
+        });
+    });
+
     it("reclaims the slot of a run that was killed without giving it back", async () => {
         const dir = fresh();
         const [doomed, waiter] = [sleeper(), sleeper()];
@@ -111,16 +156,79 @@ describe("test-slots", () => {
         assert.deepEqual(readdirSync(dir), []);
     });
 
+    it("gives a Node run at most its share of the cores as workers, and no cap where slots are off", () => {
+        assert.equal(workerShare({}, 32), 8);
+        assert.equal(workerShare({}, 4), 2);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "6" }, 32), 5);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "64" }, 32), 1);
+        assert.equal(workerShare({ GRAPHTY_TEST_SLOTS: "0" }, 32), undefined);
+        assert.equal(workerShare({ GITHUB_ACTIONS: "true" }, 32), undefined);
+    });
+
     it("wraps a command: holds a slot while it runs, marks its environment, passes its exit code", () => {
         const dir = fresh();
         const r = spawnSync(
             process.execPath,
             [SCRIPT, process.execPath, "-e", `console.log(process.env.${HELD}); process.exit(3)`],
-            { encoding: "utf8", env: { ...process.env, GRAPHTY_TEST_SLOTS_DIR: dir, GITHUB_ACTIONS: "" } },
+            {
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GRAPHTY_TEST_SLOTS_DIR: dir,
+                    GRAPHTY_TEST_SLOTS: "1",
+                    GITHUB_ACTIONS: "",
+                    [HELD]: "",
+                },
+            },
         );
         assert.equal(r.status, 3);
         assert.match(r.stdout, /^\d+\n$/);
         assert.deepEqual(readdirSync(dir), [], "the slot was given back");
+    });
+
+    it("--gpu holds the one GPU slot instead of a test slot, so a run under it takes no test slot", async () => {
+        const dirs = { GRAPHTY_TEST_SLOTS_DIR: fresh(), GRAPHTY_GPU_SLOTS_DIR: fresh() };
+        const env = { ...process.env, ...dirs, GITHUB_ACTIONS: "", GRAPHTY_TEST_SLOTS: "4", [HELD]: "" };
+        // A test slot held elsewhere does not keep a GPU run out (it is a separate queue).
+        const releaseTest = await acquire({
+            ...quiet,
+            dir: dirs.GRAPHTY_TEST_SLOTS_DIR,
+            slots: 4,
+            pid: sleeper().pid,
+            label: "cpu",
+        });
+        const report = (cmd) =>
+            spawn(process.execPath, [SCRIPT, "--gpu", process.execPath, "-e", cmd], {
+                env,
+                stdio: ["ignore", "pipe", "ignore"],
+            });
+        // The first GPU run reports its ticket, its environment and the test tickets, then runs until it is ended.
+        const first = report(
+            `const fs = require("fs");
+             console.log(JSON.stringify({ pid: process.pid, held: process.env.${HELD}, gpu: fs.readdirSync(${JSON.stringify(dirs.GRAPHTY_GPU_SLOTS_DIR)}).length,
+               test: fs.readdirSync(${JSON.stringify(dirs.GRAPHTY_TEST_SLOTS_DIR)}).length }));
+             setTimeout(() => {}, 600000);`,
+        );
+        children.push(first);
+        const line = await new Promise((resolve, reject) => {
+            first.stdout.once("data", (d) => resolve(JSON.parse(String(d))));
+            first.once("exit", (code) => reject(new Error(`the --gpu run ended (${code}) before its command ran`)));
+        });
+        assert.ok(line.held, `${HELD} is set, so its vitest runs take no test slot`);
+        assert.equal(line.gpu, 1, "one GPU ticket");
+        assert.equal(line.test, 1, "no test ticket of its own (only the other run's)");
+        // A second GPU run waits for the card even though test slots are free.
+        const second = report(`console.log("second ran")`);
+        let out = "";
+        second.stdout.on("data", (d) => (out += d));
+        const exited = new Promise((r) => second.once("exit", r));
+        await tick(500);
+        assert.equal(out, "", "one GPU run at a time");
+        process.kill(line.pid); // its command ends, so the wrapper gives the slot back
+        assert.equal(await exited, 0);
+        assert.match(out, /second ran/);
+        assert.deepEqual(readdirSync(dirs.GRAPHTY_GPU_SLOTS_DIR), [], "the GPU slot was given back");
+        releaseTest();
     });
 
     it("takes the slot before the GPU browser runner's time limit starts, so the wait never counts against it", async () => {
@@ -175,7 +283,7 @@ describe("test-slots", () => {
         assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 
-    it("is listed as a globalSetup by every package's vitest config", () => {
+    it("is listed as a globalSetup, caps the Node workers and adds ciReporters(), in every package's vitest config", () => {
         const configs = readdirSync(ROOT, { withFileTypes: true })
             .filter((d) => d.isDirectory() && !d.name.startsWith("."))
             .flatMap((d) =>
@@ -186,5 +294,12 @@ describe("test-slots", () => {
         assert.ok(configs.length >= 12, `found ${configs.length} configs`);
         const missing = configs.filter((f) => !readFileSync(join(ROOT, f), "utf8").includes("../tools/test-slots.mjs"));
         assert.deepEqual(missing, [], "these vitest configs do not take a test slot");
+        const uncapped = configs.filter(
+            (f) => !/maxWorkers: workerShare\(\)|workerShare\(\) \?\?/.test(readFileSync(join(ROOT, f), "utf8")),
+        );
+        assert.deepEqual(uncapped, [], "these vitest configs do not cap their Node workers at workerShare()");
+        // The CI JUnit report and the time-budget check (tools/vitest-time-budget.mjs) come from ciReporters().
+        const unreported = configs.filter((f) => !/\.\.\.ciReporters\(/.test(readFileSync(join(ROOT, f), "utf8")));
+        assert.deepEqual(unreported, [], "these vitest configs do not add ciReporters() to their reporters");
     });
 });

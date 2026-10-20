@@ -75,6 +75,8 @@ export { Node } from "./src/Node";
 export type {
     AdHocData,
     EdgeStyleConfig,
+    // The room `element.fitInsets` keeps clear when the graph is framed
+    FitInsets,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
@@ -121,7 +123,7 @@ export {
 // The suggested-styles types are gone with the hand-written blocks they described. A run derives
 // what it suggests from its own result shape: `element.getSuggestedStyles(algorithm)` answers with
 // `StyleSuggestion`s, and `session.styles.encode()` / `highlight()` apply them.
-export type { EncodingSuggestion, HighlightSuggestion, StyleSuggestion } from "./src/session/styles";
+export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSuggestion } from "./src/session/styles";
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
@@ -187,6 +189,17 @@ export type {
     SavedProject,
 } from "./src/session/projectFile";
 export { PROJECT_FILE, projectFileName } from "./src/session/projectFile";
+// What autosave reports: its status, its codes, its entries and what a restore found.
+export type { AutosaveAtRisk } from "./src/autosave/elementAutosave";
+export type {
+    AutosaveApi,
+    AutosaveAvailable,
+    AutosaveCode,
+    AutosaveEntry,
+    AutosaveOptions,
+    AutosaveRestored,
+    AutosaveStatus,
+} from "./src/autosave/types";
 
 // Color palettes for visualizations
 export * from "./src/config/palettes/index";
@@ -194,6 +207,10 @@ export * from "./src/config/palettes/index";
 // =============================================================================
 // Layout Engine
 // =============================================================================
+export type { GraphvizCapability } from "./src/layout/graphviz/availability";
+export { graphvizAvailability } from "./src/layout/graphviz/availability";
+export type { GraphvizEngine } from "./src/layout/graphviz/engines";
+export type { GraphvizFailureCode } from "./src/layout/graphviz/protocol";
 export type { EdgePosition, Position, SimpleLayoutConfigType, SimpleLayoutOpts } from "./src/layout/LayoutEngine";
 export { LayoutEngine, SimpleLayoutConfig } from "./src/layout/LayoutEngine";
 // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for layouts written against it
@@ -204,7 +221,13 @@ export { SimpleLayoutEngine } from "./src/layout/LayoutEngine";
 // =============================================================================
 export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSource";
 export { DataSource } from "./src/data/DataSource";
-export type { ExportGraphOptions, ExportLoss, ExportLossCode, ExportResult } from "./src/data/export";
+export type {
+    ExportGraphOptions,
+    ExportLoss,
+    ExportLossCode,
+    ExportResult,
+    ExportStyleLossCode,
+} from "./src/data/export";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -230,6 +253,7 @@ export type {
     SnapshotLayoutInput,
     SnapshotLayoutProgress,
     SnapshotLayoutRegistration,
+    SnapshotLayoutWarning,
 } from "./src/layout/SnapshotLayoutEngine";
 export { registerSnapshotLayout } from "./src/layout/SnapshotLayoutEngine";
 // The simple tier's verbs, so a page with no build step reaches them from the bundle too.
@@ -273,6 +297,7 @@ export type {
     InputTouchEvent,
     InputWheelEvent,
     LayoutChangedEvent,
+    LayoutWarningEvent,
     NodeAddEvent,
     NodeClickEvent,
     NodeDragEndEvent,
@@ -387,7 +412,7 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
 
 // =============================================================================
 // Acceleration
@@ -418,3 +443,10 @@ export {
     CPU_PRECISION,
     isAccelerationPolicy,
 } from "./src/acceleration";
+
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
+export type { CredentialStore, SourceCredentialTarget, StoredCredentialInfo } from "./src/credentials/CredentialStore";
+export * from "./src/session/sources/public";

@@ -39,7 +39,7 @@ async function processFile(filePath) {
                 // but be careful not to affect markdown links [text](url)
                 return part
                     .replace(/([A-Z][a-zA-Z0-9]*)<([A-Za-z][A-Za-z0-9[\]., ]*?)>/g, "$1\\<$2\\>")
-                    .replace(/<([A-Z][a-zA-Z0-9]*)>/g, "\\<$1\\>");
+                    .replaceAll(/<([A-Z][a-zA-Z0-9]*)>/g, String.raw`\<$1\>`);
             }
             return part;
         });

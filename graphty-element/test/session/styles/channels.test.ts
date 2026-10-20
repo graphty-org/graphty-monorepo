@@ -25,25 +25,43 @@ import {
     toColorValue,
 } from "../../../src/session/styles/channels";
 
-/** The fifty-eight channels the element publishes, in the order the table declares them. */
+/** The channels the element publishes, in the order the table declares them. */
 const DECLARED = [
     "node.color",
     "node.size",
+    "node.sizeMode",
     "node.shape",
     "node.label",
     "node.labelStyle",
+    "node.labelColor",
+    "node.labelSize",
+    "node.labelFont",
+    "node.labelWeight",
+    "node.labelItalic",
     "node.tooltip",
     "node.tooltipStyle",
     "node.opacity",
     "node.outline",
     "node.glow",
     "node.glowStrength",
+    "node.halo",
+    "node.haloColor",
+    "node.haloScale",
+    "node.haloOpacity",
     "node.wireframe",
     "node.flat",
-    "node.haloColor",
-    "node.haloSize",
-    "node.haloOpacity",
+    "node.unlit",
     "node.marker",
+    "node.width",
+    "node.height",
+    "node.depth",
+    "node.planar",
+    "node.zIndex",
+    "node.drawOrder",
+    "node.borderColor",
+    "node.borderWidth",
+    "node.borderStyle",
+    "node.cornerRadius",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -53,6 +71,7 @@ const DECLARED = [
     "edge.style",
     "edge.patternCount",
     "edge.curvature",
+    "edge.bends",
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadColor",
@@ -69,8 +88,6 @@ const DECLARED = [
     "edge.label",
     "edge.labelStyle",
     "node.visible",
-    "node.labelSize",
-    "node.labelColor",
     "node.labelBackground",
     "node.tooltipSize",
     "node.tooltipColor",
@@ -85,6 +102,9 @@ const DECLARED = [
     "edge.arrowTailTextSize",
     "edge.arrowTailTextColor",
     "edge.arrowTailTextBackground",
+    "edge.labelFont",
+    "edge.labelWeight",
+    "edge.labelItalic",
 ];
 
 describe("the channel set", () => {
@@ -111,9 +131,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into twenty-four node channels and thirty-four edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 24);
-        assert.strictEqual(channelsFor("edge").length, 34);
+    it("splits into forty node channels and thirty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 40);
+        assert.strictEqual(channelsFor("edge").length, 38);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -310,8 +330,20 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelStyle",
         "node.tooltip",
         "node.tooltipStyle",
+        // Unset, a node is highlighted when it is selected and not otherwise.
+        "node.halo",
         "node.marker",
+        // Unset, a node's width, height and depth follow its size and its shape's proportions.
+        "node.width",
+        "node.height",
+        "node.depth",
+        // Unset, a node is drawn where it always was, with no order among its neighbours.
+        "node.drawOrder",
+        // Unset, a round-rectangle's corners are a quarter of its shorter side.
+        "node.cornerRadius",
         "edge.patternCount",
+        // Unset, an edge runs straight from node to node.
+        "edge.bends",
         "edge.arrowHeadText",
         "edge.arrowHeadTextStyle",
         "edge.arrowTailText",
@@ -324,6 +356,16 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelBackground",
         "edge.arrowHeadTextBackground",
         "edge.arrowTailTextBackground",
+        "node.labelColor",
+        "node.labelSize",
+        "node.labelFont",
+        "node.labelWeight",
+        "node.labelItalic",
+        "edge.labelColor",
+        "edge.labelSize",
+        "edge.labelFont",
+        "edge.labelWeight",
+        "edge.labelItalic",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -409,17 +451,18 @@ describe("what a style editor needs to draw a row", () => {
 });
 
 describe("colour channels", () => {
-    it("are the eighteen that carry a colour, and the type says the same eighteen", () => {
+    it("are the nineteen that carry a colour, and the type says the same nineteen", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
+            "node.labelColor",
             "node.outline",
             "node.glow",
             "node.haloColor",
+            "node.borderColor",
             "edge.color",
             "edge.bandColor",
             "edge.arrowHeadColor",
             "edge.arrowTailColor",
-            "node.labelColor",
             "node.labelBackground",
             "node.tooltipColor",
             "node.tooltipBackground",

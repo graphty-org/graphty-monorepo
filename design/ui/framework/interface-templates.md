@@ -476,7 +476,7 @@ a pick or filters attributes itself.
 - **Instantiates:** chevron menu, zoom and view menu, context menu, header menus.
 - **Figma source:** 32 Dark menu; 33 Context menu.
 - **Departures:** none.
-- **Regions and rows:** Mantine `Menu`, dark in both themes; `ContextMenu` at the pointer;
+- **Regions and rows:** Mantine `Menu`, following the page theme; `ContextMenu` at the pointer;
   `MenuCheckItem` for toggles, in two groups split by a divider: those a saved view captures
   (Labels on canvas, Show arrows, Legend) and the reader's (Note markers, Minimap, Additional
   labels, Follow selection; Minimap and Note markers blocked, `interface-specification.md` 7.4); the split's reason is

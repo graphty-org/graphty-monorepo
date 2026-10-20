@@ -1,4 +1,4 @@
-import { ControlSection, Popout, PopoutButton, StyleSelect, ToggleIconButton } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
     channelsFor,
@@ -6,7 +6,7 @@ import {
     LABEL_STYLE_DEFAULTS,
     labelLookChanges,
 } from "@graphty/graphty-element/catalog";
-import type { Channel, LabelStyle } from "@graphty/graphty-element/schema";
+import { type Channel, type LabelStyle, labelTemplateLine } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
@@ -14,6 +14,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { GLYPHS } from "../glyphs";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { CARD_LOOK, isCard } from "./cardLook";
+import { CardContents, cardLines, cardSummary } from "./LabelCard";
 import { LabelSettings, type VaryField } from "./LabelSettings";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
@@ -28,7 +30,7 @@ import {
     startFor,
     textBinding,
     writeIn,
-    type writeLine,
+    writeLine,
 } from "./row";
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext, lineTarget } from "./useFocusLine";
@@ -144,6 +146,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     const list = useRef<HTMLDivElement>(null);
     // Whether the open source list ended in a pick (focus then goes to the new entry).
     const picked = useRef(false);
+    // Whether the label being added is a card: its first value becomes the card's first row.
+    const asCard = useRef(false);
     useEffect(() => {
         if (refocus) {
             setRefocus(false);
@@ -181,10 +185,25 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             next = { binding: textBinding(session, proposal.binding) };
         }
         focusLineNext(kind.words);
-        // Only the words: a size, a unit or a look is the reader's to add from "+".
-        writeIn(ctx, kind.words, next)
+        const card = asCard.current;
+        asCard.current = false;
+        // A card: the card look and the picked value as its first row, in bold, in one step.
+        // Otherwise only the words: a size, a unit or a look is the reader's to add from "+".
+        const written =
+            card && "binding" in next && ctx.many === undefined
+                ? writeLine(
+                      session,
+                      ctx.row,
+                      target,
+                      kind.words,
+                      { template: [labelTemplateLine({ text: "", path: next.binding.by, bold: true })] },
+                      ctx.fresh,
+                      { [kind.style]: { ...CARD_LOOK } },
+                  )
+                : writeIn(ctx, kind.words, next);
+        written
             .then(() => {
-                store.set({ announcement: `${kindWord} ${kind.name.toLowerCase()} added` });
+                store.set({ announcement: `${kindWord} ${card ? "card" : kind.name.toLowerCase()} added` });
             })
             .catch((error: unknown) => {
                 focusLineNext(null);
@@ -193,7 +212,16 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     };
     const options: AddOption[] = kinds.flatMap((kind) => {
         if (!hasEntry(kind)) {
-            return picking === kind.id || typing === kind.id ? [] : [{ key: kind.id, label: kind.name }];
+            if (picking === kind.id || typing === kind.id) {
+                return [];
+            }
+            // A node or edge label can also start as a card (a row of one layer only).
+            return kind.id === "label" && ctx.many === undefined
+                ? [
+                      { key: kind.id, label: kind.name },
+                      { key: `${kind.id}:card`, label: "Card" },
+                  ]
+                : [{ key: kind.id, label: kind.name }];
         }
         const style = styleOf(lineIn(ctx, kind.style));
         const parts: AddOption[] = [];
@@ -214,8 +242,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
         if (kind === undefined) {
             return;
         }
-        if (part === undefined) {
+        if (part === undefined || part === "card") {
             picked.current = false;
+            asCard.current = part === "card";
             setPicking(kind.id);
             return;
         }
@@ -285,6 +314,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                                         setPicking(null);
                                         setRefocus(!picked.current);
                                         if (!picked.current) {
+                                            asCard.current = false;
                                             // The line goes with its list: said, not silent.
                                             store.set({
                                                 notice: { message: `${kind.name} not added: no value was picked` },
@@ -577,9 +607,13 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     };
 
     const typed = words !== undefined && words.binding === undefined && typeof words.value === "string";
+    // A card's contents are edited in its settings; a card on several rows at once is not.
+    const card = kind.id === "label" && words !== undefined && isCard(style) && ctx.many === undefined;
     let source: string;
     if (words === undefined) {
         source = "No words";
+    } else if (words.template !== undefined) {
+        source = cardSummary(session, words.template);
     } else if (words.binding === undefined) {
         source = typeof words.value === "string" ? words.value : "";
     } else {
@@ -592,7 +626,6 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     const looks = LABEL_LOOKS.map((look) => ({
         value: look.id,
         label: look.id === lookId && edited ? `${look.plainName}, edited` : look.plainName,
-        glyph: <LookPreview background={look.style.background} color={look.style.color} />,
     }));
     const sizeDescriptor = descriptorOf(kind.size);
     const where = `${kindWord} ${noun}`;
@@ -679,6 +712,27 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                         header={{ variant: "title", title: `${kind.name} settings` }}
                     >
                         <Popout.Content>
+                            {card && words !== undefined ? (
+                                <CardContents
+                                    session={session}
+                                    target={target}
+                                    channel={kind.words}
+                                    lines={cardLines(words)}
+                                    onLines={(lines) => {
+                                        writeLine(
+                                            session,
+                                            ctx.row,
+                                            target,
+                                            kind.words,
+                                            { template: lines },
+                                            ctx.fresh,
+                                        ).catch(onFail);
+                                    }}
+                                    onFail={(message) => {
+                                        onFail(new Error(message));
+                                    }}
+                                />
+                            ) : null}
                             <LabelSettings style={style} onChange={writeStyle} vary={vary} />
                         </Popout.Content>
                     </Popout.Panel>
@@ -746,18 +800,14 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                     writeStyle({ look: undefined });
                 }}
             >
-                <StyleSelect
-                    // Keyed by the value: an undefined value leaves the select uncontrolled, so a
-                    // Clear or an Undo would keep showing the old choice.
-                    key={style.look ?? ""}
-                    label=""
-                    aria-label={`${where} look`}
-                    value={style.look ?? ""}
-                    defaultValue={style.look ?? ""}
-                    showReset={false}
-                    options={looks}
+                <PanelField
+                    label={`${where} look`}
+                    kind="select"
+                    width="fill"
+                    data={looks}
+                    value={style.look ?? null}
                     onChange={(look) => {
-                        writeStyle({ look: look as LabelStyle["look"] });
+                        writeStyle({ look: String(look) as LabelStyle["look"] });
                     }}
                 />
             </StyleLine>
@@ -770,16 +820,14 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                     writeStyle({ location: undefined });
                 }}
             >
-                <StyleSelect
-                    key={style.location ?? ""}
-                    label=""
-                    aria-label={`${where} position`}
-                    value={style.location ?? ""}
-                    defaultValue={style.location ?? ""}
-                    showReset={false}
-                    options={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
+                <PanelField
+                    label={`${where} position`}
+                    kind="select"
+                    width="fill"
+                    data={LOCATIONS.map((location) => ({ value: location, label: positionWord(location) }))}
+                    value={style.location ?? null}
                     onChange={(location) => {
-                        writeStyle({ location: location as LabelStyle["location"] });
+                        writeStyle({ location: String(location) as LabelStyle["location"] });
                     }}
                 />
             </StyleLine>
@@ -876,33 +924,5 @@ function StyleLine({
                 </Tooltip>
             </span>
         </div>
-    );
-}
-
-/**
- * A look's small preview: "Ab" in its text color on its background.
- * @param props - Component props
- * @param props.background - the look's background, if it sets one
- * @param props.color - the look's text color, if it sets one
- * @returns The preview
- */
-function LookPreview({ background, color }: Readonly<{ background?: string; color?: string }>): React.JSX.Element {
-    return (
-        <span
-            style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 22,
-                height: 16,
-                borderRadius: 3,
-                fontSize: 10,
-                background: background ?? "transparent",
-                color: color ?? "currentColor",
-                border: background === undefined ? "1px dashed currentColor" : undefined,
-            }}
-        >
-            Ab
-        </span>
     );
 }

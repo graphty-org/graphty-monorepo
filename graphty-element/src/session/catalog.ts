@@ -33,6 +33,8 @@
  * node choices against a scope of this graph.
  */
 
+import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
+
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
@@ -132,6 +134,16 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the scale descriptors
      */
     scales: () => SCALE_DESCRIPTORS,
+    /**
+     * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
+     * @returns the generator descriptors
+     */
+    generators: () => GENERATOR_CATALOG,
+    /**
+     * Every sample dataset `data.loadDataset` downloads: graph-samples' catalogue. Static.
+     * @returns the dataset descriptors
+     */
+    datasets: () => DATASETS,
 });
 
 /**

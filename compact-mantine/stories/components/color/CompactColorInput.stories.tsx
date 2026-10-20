@@ -9,6 +9,7 @@ import { CompactColorInput, LabelsProvider, PopoutManager } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
+import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A color and its opacity in one 24px panel field: a color chit that opens a picker, the hex
@@ -220,7 +221,9 @@ export const PickerOpen: Story = {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
-        const opacity = within(await canvas.findByRole("dialog")).getByRole("textbox", { name: /opacity/i });
+        const opacity = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).getByRole("textbox", {
+            name: /opacity/i,
+        });
         await userEvent.click(opacity);
         await userEvent.keyboard("{ArrowDown}");
         await expect(opacity).toHaveValue("99");

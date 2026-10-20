@@ -53,7 +53,7 @@ interface LocalOperation {
 class LocalRunQueue implements RunQueue {
     #counter = 0;
 
-    #pending: LocalOperation[] = [];
+    readonly #pending: LocalOperation[] = [];
 
     #draining = false;
 

@@ -1,15 +1,20 @@
 import { Camera, Color4, Scalar, Scene, type TransformNode, UniversalCamera, Vector3 } from "@babylonjs/core";
 
-import { type FreeArea, freeArea } from "../camera/insets";
+import { type FreeArea, freeArea, fullInsets } from "../camera/insets";
 import type { ViewInsets } from "../camera/types";
+import type { FitBounds, FitInsets } from "../config/GraphBehavior";
+import { glideTowards } from "./CameraManager";
 import { PivotController } from "./PivotController";
 
 export interface OrbitConfig {
     trackballRotationSpeed: number;
     keyboardRotationSpeed: number;
+    /**
+     * The fraction of the camera's distance that W or S moves the camera each frame it is held,
+     * so a held key zooms by the same factor per frame however far out the camera is.
+     */
     keyboardZoomSpeed: number;
     keyboardYawSpeed: number;
-    pinchZoomSensitivity: number;
     twistYawSensitivity: number;
     minZoomDistance: number;
     maxZoomDistance: number;
@@ -22,6 +27,60 @@ export interface OrbitConfig {
  */
 const DEFAULT_FAR_PLANE = 10000;
 
+/** No room kept clear: framing uses the whole canvas. */
+const NO_INSETS: FitInsets = Object.freeze({ top: 0, right: 0, bottom: 0, left: 0 });
+
+/**
+ * What every fit keeps clear at each edge, in CSS pixels: the larger of the view insets (what
+ * something else covers) and the fit insets (`camera.fitInsets`), side by side.
+ * @param viewInsets - The view insets.
+ * @param fitInsets - The fit insets.
+ * @returns Every side.
+ */
+export function framingInsets(viewInsets: ViewInsets, fitInsets: FitInsets): Required<ViewInsets> {
+    const view = fullInsets(viewInsets);
+    const fit = fullInsets(fitInsets);
+    return {
+        top: Math.max(view.top, fit.top),
+        right: Math.max(view.right, fit.right),
+        bottom: Math.max(view.bottom, fit.bottom),
+        left: Math.max(view.left, fit.left),
+    };
+}
+
+/** A point a fit must keep in view, and how far the thing drawn there reaches around it. */
+export interface FramingSpot {
+    readonly pos: Vector3;
+    readonly half: number;
+}
+
+/**
+ * How far from the center the camera must stand to keep every spot in view at every angle the
+ * view turns to about the vertical axis through the center, for `camera.fitBounds` "turning".
+ *
+ * A spot `r` from that axis and `dy` above the center, seen from a camera `d` away, is drawn
+ * highest when it has turned nearest the camera: it fits when `d >= dy / tan(halfFovY) + r`.
+ * Sideways it sits at `r sin(a)` and `r cos(a)` nearer, and the worst angle needs
+ * `d >= r * sqrt(1 + 1 / tan(halfFovX)^2)`. Spots near the axis, the top and bottom of most
+ * graphs, ask for much less than the corners of the box around them would.
+ * @param center - The center the view turns about.
+ * @param spots - What must stay in view.
+ * @param tanX - The tangent of half the horizontal field of view.
+ * @param tanY - The tangent of half the vertical field of view.
+ * @returns The distance.
+ */
+export function turningFitDistance(center: Vector3, spots: readonly FramingSpot[], tanX: number, tanY: number): number {
+    const sideways = Math.sqrt(1 + 1 / (tanX * tanX));
+    let distance = 0;
+    for (const { pos, half } of spots) {
+        const r = Math.hypot(pos.x - center.x, pos.z - center.z) + half;
+        const dy = Math.abs(pos.y - center.y) + half;
+        distance = Math.max(distance, dy / tanY + r, r * sideways);
+    }
+
+    return distance;
+}
+
 /**
  * Controls a 3D orbit camera with pivot-based rotation and distance-based zoom.
  * Provides trackball-style rotation and keyboard/touch controls.
@@ -31,8 +90,12 @@ export class OrbitCameraController {
     public camera: UniversalCamera;
     public cameraDistance: number;
     public config: OrbitConfig;
+    /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
+    public fitInsets: FitInsets = NO_INSETS;
+    /** What a fit fits into view; see `camera.fitBounds`. */
+    public fitBounds: FitBounds = "box";
 
-    private pivotController: PivotController;
+    private readonly pivotController: PivotController;
 
     /**
      * Margins of the canvas something else covers, in CSS pixels. Every fit keeps the graph out
@@ -100,6 +163,15 @@ export class OrbitCameraController {
     }
 
     /**
+     * Turn the scene about its vertical axis on its own, for `camera.autoRotate`.
+     * @param radians - The angle.
+     */
+    public autoTurn(radians: number): void {
+        this.pivotController.rotate(radians, 0);
+        this.updateCameraPosition();
+    }
+
+    /**
      * Spin the scene around the Z-axis (roll).
      * Delegates to PivotController for consistent rotation behavior.
      * @param dz - Rotation delta around Z-axis in radians
@@ -149,6 +221,14 @@ export class OrbitCameraController {
     }
 
     /**
+     * Zoom by a factor of the current distance, within the same limits as `zoom`.
+     * @param factor - The distance multiplier (< 1 zooms in, > 1 zooms out)
+     */
+    public zoomBy(factor: number): void {
+        this.zoom(this.cameraDistance * (factor - 1));
+    }
+
+    /**
      * The distance rule every programmatic writer of `cameraDistance` follows: floored at
      * `minZoomDistance`, never capped. The ceiling is a zoom-out limit for a reader, not a
      * framing limit -- a saved state for a large graph can sit beyond it, and `zoom` accepts that
@@ -158,6 +238,19 @@ export class OrbitCameraController {
      */
     public clampDistance(distance: number): number {
         return Math.max(distance, this.config.minZoomDistance);
+    }
+
+    /**
+     * Glide the pivot to a point, turning about that point meanwhile, so the camera ends up
+     * looking at it and orbits, spins and zooms about it.
+     * @param point - The point, in world space.
+     * @returns Whether the pivot moved.
+     */
+    public followPoint(point: Vector3): boolean {
+        this.pivotController.center = point;
+        const moved = glideTowards(this.pivot.position, point);
+        this.updateCameraPosition();
+        return moved;
     }
 
     /**
@@ -218,7 +311,7 @@ export class OrbitCameraController {
      */
     #freeArea(): FreeArea {
         const { clientWidth, clientHeight } = this.#canvas;
-        return freeArea(this.viewInsets, clientWidth, clientHeight);
+        return freeArea(framingInsets(this.viewInsets, this.fitInsets), clientWidth, clientHeight);
     }
 
     /**
@@ -246,10 +339,12 @@ export class OrbitCameraController {
      * Positions the pivot at the center and adjusts camera distance.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
+     * @param spots - What the box holds; with `fitBounds` "turning", what is fitted.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
         const center = min.add(max).scale(0.5);
         const size = max.subtract(min);
+        const turning = this.fitBounds === "turning" && spots !== undefined && spots.length > 0;
 
         this.#sceneRadius = size.length() / 2;
 
@@ -288,7 +383,11 @@ export class OrbitCameraController {
 
         let maxRequiredDistance = 0;
 
-        for (const sx of [-1, 1]) {
+        if (turning) {
+            maxRequiredDistance = turningFitDistance(center, spots, tanX * free.width, tanY * free.height);
+        }
+
+        for (const sx of turning ? [] : [-1, 1]) {
             for (const sy of [-1, 1]) {
                 for (const sz of [-1, 1]) {
                     const x = sx * halfWidth;
@@ -306,7 +405,8 @@ export class OrbitCameraController {
         // Apply a reasonable padding factor
         // Since we already include labels in the bounding box, we only need
         // a small padding for visual comfort and edge arrows
-        const PADDING_PERCENT = 5; // 5% padding
+        // The turning fit is already met only at the worst angle, so it gets no more room.
+        const PADDING_PERCENT = turning ? 0 : 5;
         const targetDistance = maxRequiredDistance * (1 + PADDING_PERCENT / 100);
 
         // Only the floor applies: a fit that the configured ceiling cut short would put the

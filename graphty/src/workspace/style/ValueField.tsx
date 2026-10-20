@@ -1,4 +1,4 @@
-import { ComboInput, CompactColorInput, StyleSelect, type StyleSelectOption } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, FieldRow, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
@@ -6,11 +6,11 @@ import React from "react";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
- * A select's choices: a glyph per choice where graphty-element's catalog draws one.
+ * A select's choices, named as graphty-element's catalog names them.
  * @param descriptor - the property.
  * @returns the options.
  */
-function choiceOptions(descriptor: ChannelDescriptor): StyleSelectOption[] {
+function choiceOptions(descriptor: ChannelDescriptor): { value: string; label: string }[] {
     const two = TWO_WORDS[descriptor.channel];
     if (two !== undefined) {
         return two.map(([value, word]) => ({ value: String(value), label: word }));
@@ -21,7 +21,6 @@ function choiceOptions(descriptor: ChannelDescriptor): StyleSelectOption[] {
         return {
             value,
             label: glyph?.plainName ?? enumWords(value),
-            glyph: <CatalogGlyph channel={descriptor.channel} value={value} />,
         };
     });
 }
@@ -162,22 +161,21 @@ export function ValueField({
             name = `${label}, ${chosen}`;
         }
         return (
-            <StyleSelect
-                label=""
-                aria-label={name}
-                value={mixed ? undefined : text(value)}
-                defaultValue={text(shown) ?? ""}
-                mixed={mixed}
-                showReset={false}
-                options={options}
-                layout={GLYPH_TABLES[descriptor.channel] === undefined ? "list" : "grid"}
-                columns={4}
-                onChange={(next) => {
-                    if (next !== undefined) {
-                        onChange(boolean ? next === "true" : next);
-                    }
-                }}
-            />
+            <PanelLabelsProvider showLabels>
+                <FieldRow>
+                    <PanelField
+                        label={name}
+                        kind="select"
+                        width="fill"
+                        data={options.map((o) => ({ value: o.value, label: o.label }))}
+                        value={mixed ? null : (text(value) ?? text(shown) ?? null)}
+                        mixed={mixed}
+                        onChange={(next) => {
+                            onChange(boolean ? next === "true" : String(next));
+                        }}
+                    />
+                </FieldRow>
+            </PanelLabelsProvider>
         );
     }
     if (kind === "text") {

@@ -27,6 +27,7 @@ import {
     layerCount,
     layerKindWords,
     placeOf,
+    rowName,
 } from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
@@ -331,10 +332,11 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             ...states,
             ...(over ? [overWords] : []),
         ];
+        const name = rowName(session, row.id);
         return {
             id: row.id,
-            name: row.name,
-            label: `${row.name}, ${(layerKindWords(session, row.id) ?? "Layer").toLowerCase()}, ${paintsWords(paints)}`,
+            name,
+            label: `${name}, ${(layerKindWords(session, row.id) ?? "Layer").toLowerCase()}, ${paintsWords(paints)}`,
             icon: marks,
             // Everything holding the base look stays at the bottom.
             movable: !isBaseRow(session, row.id),

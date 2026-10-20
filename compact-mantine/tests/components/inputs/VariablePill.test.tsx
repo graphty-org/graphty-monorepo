@@ -35,7 +35,7 @@ describe("VariablePill", () => {
     it("with a swatch it is the bound fill row: a chit and the name", () => {
         const { container } = renderPill(<VariablePill swatch="#0d99ff" name="rsu/brand" />);
         expect(screen.getByRole("button", { name: "rsu/brand" })).toHaveTextContent("rsu/brand");
-        expect(container.querySelector(".cm-var-chit")).toHaveStyle({ background: "#0d99ff" });
+        expect(container.querySelector(".cm-var-chit")).toHaveStyle({ backgroundColor: "#0d99ff" });
     });
 
     it("tone=component marks only the name, in the fill row and the pill", () => {

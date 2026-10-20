@@ -12,8 +12,9 @@ describe("theme", () => {
     // mergeThemeOverrides (its deepMerge does not recurse into functions), which once sent
     // fifteen controls back to Mantine's 36px box. The app now mounts the library's theme
     // itself, so there is nothing left to merge and nothing that can shadow it.
-    it("is the library's theme with the AA option on, and nothing merged over it", () => {
-        expect(theme.other?.compact).toEqual({ highContrast: true });
+    it("is the library's theme with the AA option and the graphty accent on, and nothing merged over it", () => {
+        expect(theme.other?.compact).toEqual({ highContrast: true, accent: "graphty" });
+        expect(theme.primaryColor).toBe("graphty");
         expect(Object.keys(theme.components ?? {})).toEqual(Object.keys(compactThemeOverride.components ?? {}));
     });
 

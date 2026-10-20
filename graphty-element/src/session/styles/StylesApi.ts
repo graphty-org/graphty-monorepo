@@ -31,8 +31,13 @@
  *
  * A HIGHLIGHT IS EXCLUSIVE. `highlight()` takes every highlight layer out of the stack before it
  * adds its own, because a second route or a second chosen set REPLACES the first rather than being
- * painted beside it. Which layers those are is read from the run's shape -- a route, a node set
- * and an edge set are highlights -- and never from the algorithm's name.
+ * painted beside it. Which runs it accepts is read from the run's shape -- a route, a node set and
+ * an edge set -- and never from the algorithm's name.
+ *
+ * A MARK IS NOT. `mark()` paints the same chosen elements with the channel values it is given, as
+ * ordinary layers that stack with everything else; it is what an algorithm's own suggested style
+ * for a chosen subset is applied as, so two algorithms' pictures stay side by side and neither
+ * follows the element's highlight colour.
  *
  * NO WRITE VERB THROWS. A malformed spec, an unknown id, a locked layer: every refusal arrives as
  * a REJECTED run, never as a synchronous exception. A verb that threw would undo the thing the
@@ -95,6 +100,7 @@ import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
 import { GraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
     STYLE_DEFINITIONS,
@@ -192,7 +198,7 @@ import {
     type LegendBlock,
     type LegendSources,
 } from "./legend";
-import { stopsProblem } from "./palettes";
+import { colorsProblem } from "./palettes";
 import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate";
 import { stackChange } from "./repaint";
 import {
@@ -285,6 +291,22 @@ export interface AgreementOptions {
     readonly over?: StyleRowId;
 }
 
+/**
+ * What `mark()` is asked for: a run that named a subset, and the channel values its chosen
+ * elements are painted with.
+ *
+ * The same fields as {@link HighlightSpec}, except that `set` is required: a mark is an ordinary
+ * layer that writes exactly the channels it names, and nothing about it follows the element's
+ * highlight colour.
+ */
+export interface MarkSpec extends HighlightSpec {
+    /**
+     * What a chosen element is painted. Channels of the half the run did not choose are ignored,
+     * so a route's `set` may name node and edge channels together.
+     */
+    readonly set: StaticStyle;
+}
+
 /** What applying a style document did, per layer. */
 export interface TemplateReport {
     /** The layers that bound and now paint, bottom first. */
@@ -307,7 +329,17 @@ export interface TemplateOptions extends RunOptions {
      * its own. That is what lets the whole import be swept away again in one call.
      */
     readonly templateId?: string;
+    /**
+     * Where the document's layers go: `"top"` (the default) above every layer, `"aboveBase"`
+     * directly above the element's own base layers and beneath every layer added since, or
+     * `{ before: id }` directly beneath one layer. A file's styles land above the base so that
+     * the layers a reader added stay on top of them.
+     */
+    readonly at?: TemplatePosition;
 }
+
+/** Where `applyTemplate` puts a document's layers. */
+export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId };
 
 /**
  * How `styles.update` runs: a signal and a progress handler, and whether the layer may be left
@@ -671,6 +703,24 @@ export interface StylesApi {
      * @returns The value, or undefined for a channel with neither a default nor an off value.
      */
     defaultValue(channel: Channel): ChannelValue | undefined;
+    /**
+     * Paint the elements a run chose with fixed channel values, as ordinary layers: what an
+     * algorithm's suggested style for a route, a chosen set of nodes or a chosen set of edges is.
+     *
+     * NOT EXCLUSIVE, unlike {@link StylesApi.highlight}: a mark stacks with every other layer, so
+     * two algorithms' marks both stay, and the one higher in the stack wins only on the elements
+     * both chose. Marking the same run's field again replaces that run's earlier mark rather than
+     * stacking a second copy. Each layer is scoped to the elements whose field is `true`, so an
+     * element the run did not choose is never painted.
+     *
+     * One layer per half the run chose and `set` names a channel of, so it resolves with a list.
+     * @param spec - The run, the field that says which elements it chose, and what they look like.
+     * @param options - A signal to cancel with, and a progress handler.
+     * @returns A run that resolves with the layers it added, bottom first, and rejects with
+     *     `E_UNKNOWN_RUN` for a run this session does not hold and `E_BAD_COMMAND` when the run
+     *     measured every element rather than choosing some, or `set` names nothing to paint.
+     */
+    mark(spec: MarkSpec, options?: RunOptions): Run<readonly Layer[]>;
     /**
      * What the picture is telling a reader, derived from the encoding model and never from the
      * canvas.
@@ -1441,7 +1491,7 @@ const HALVES: readonly SelectorTarget[] = Object.freeze(["node", "edge"]);
  * asked: an encode that replaces a layer is an update to the repaint and an encode to the person
  * who called it, and both facts are worth keeping.
  */
-type StyleVerb = "encode" | "highlight" | "resolve" | "template" | RepaintReason;
+type StyleVerb = "encode" | "highlight" | "mark" | "resolve" | "template" | RepaintReason;
 
 /** Style commands worked out when the edit runs and recorded together as one step. */
 interface StyleBatch {
@@ -1746,7 +1796,7 @@ function checkDocument(document: StyleDocument): void {
         throw new GraphtyError({
             code: "E_UNKNOWN_PALETTE",
             message:
-                `Nothing has registered the palette ${missing.map((id) => `"${id}"`).join(", ")}. ` +
+                `Nothing has registered the palette ${quoteEach(missing, ", ")}. ` +
                 "Register it with `registerPalette` before applying this document; applying it now would " +
                 "paint colours nobody chose.",
             source: "style",
@@ -1942,6 +1992,109 @@ function halfOfStyle(set: StaticStyle | undefined, half: SelectorTarget, color: 
     }
 
     return Object.keys(mine).length === 0 ? null : mine;
+}
+
+/**
+ * The field a highlight or a mark paints from, refusing a run that chose nothing to paint.
+ * @param run - The run.
+ * @param spec - The highlight or mark.
+ * @param exclusive - True for a highlight; false for a mark, which must name its channels.
+ * @returns The field.
+ * @throws `E_BAD_COMMAND` for a run that measured every element, or a mark naming no channel;
+ *     `E_UNKNOWN_ATTRIBUTE` for a field the run did not publish on a node or an edge.
+ */
+function chosenField(run: EncodingRun, spec: HighlightSpec, exclusive: boolean): string {
+    const verb = exclusive ? "highlight" : "mark";
+
+    if (!isHighlightShape(run.shape)) {
+        throw badCommand(
+            `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
+                `with encode() rather than with ${verb}().`,
+            { run: run.id, shape: run.shape },
+        );
+    }
+
+    if (!exclusive && spec.set === undefined) {
+        throw badCommand(`mark() paints only the channels its set names, and this one names none.`, {
+            run: run.id,
+        });
+    }
+
+    const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
+
+    if (!run.fields.some((entry) => entry.name === field && (entry.kind === "node" || entry.kind === "edge"))) {
+        const published = run.fields.map((entry) => entry.name);
+
+        throw new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
+            source: "style",
+            details: { run: run.id, field, available: published, candidates: nearestNames(field, published) },
+        });
+    }
+
+    return field;
+}
+
+/**
+ * What each half a run chose is painted: one entry per half the run chose AND the style has
+ * something to say about, so a route styled with an edge colour alone paints the route's edges and
+ * leaves its nodes to the layers underneath.
+ * @param run - The run.
+ * @param field - The field that says what it chose.
+ * @param set - The style, or undefined for the element's own highlight.
+ * @param color - The highlight colour the session paints with when the style names none.
+ * @returns The style per half.
+ * @throws `E_BAD_COMMAND` when the style paints no half the run chose.
+ */
+function runPainting(
+    run: EncodingRun,
+    field: string,
+    set: StaticStyle | undefined,
+    color: string,
+): Map<SelectorTarget, StaticStyle> {
+    const chosen = run.fields.filter((entry) => entry.name === field);
+    const painting = new Map<SelectorTarget, StaticStyle>();
+
+    for (const half of HALVES) {
+        const style = chosen.some((entry) => entry.kind === half) ? halfOfStyle(set, half, color) : null;
+
+        if (style !== null) {
+            painting.set(half, style);
+        }
+    }
+
+    if (painting.size === 0) {
+        throw badCommand(
+            `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
+                `the run "${run.id}" chose, so it would paint nothing.`,
+            { run: run.id, field, set },
+        );
+    }
+
+    return painting;
+}
+
+/**
+ * Which layers a new highlight or mark takes out of the stack. A highlight replaces every other
+ * highlight. A mark replaces only this run's earlier mark of the same field, so marking it again
+ * does not stack a copy, and every other layer -- another algorithm's mark among them -- stays.
+ * @param exclusive - True for a highlight; false for a mark.
+ * @param runId - The run.
+ * @param where - The selector expression the new layers carry.
+ * @returns Whether a layer is replaced.
+ */
+function replacedBy(exclusive: boolean, runId: RunId, where: string): (layer: Layer) => boolean {
+    if (exclusive) {
+        return (layer) => layer.kind === "highlight";
+    }
+
+    return (layer) =>
+        layer.kind !== "highlight" &&
+        layer.source.by === "run" &&
+        layer.source.runId === runId &&
+        layer.selector.match === "expression" &&
+        layer.selector.where === where;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2353,6 +2506,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const paletteKindOf = (binding: Binding): keyof DefaultPalettes | null => {
         if (
             !("by" in binding) ||
+            binding.colors !== undefined ||
             binding.stops !== undefined ||
             binding.map !== undefined ||
             binding.scale === "passthrough"
@@ -2634,6 +2788,39 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         return length;
+    };
+
+    /**
+     * Where a style document's layers go.
+     * @param at - The position, or undefined for the top.
+     * @returns The index they are inserted at, bottom first.
+     * @throws A `GraphtyError` with `E_BAD_COMMAND` for a position that is none of the three, and
+     *     `E_UNKNOWN_LAYER` when the layer to sit beneath is not in the stack.
+     */
+    const templateIndex = (at: TemplatePosition | undefined): number => {
+        const stack = current();
+        if (at === undefined || at === "top") {
+            return stack.length;
+        }
+
+        if (at === "aboveBase") {
+            // Directly above the last of the element's own base layers, wherever it sits.
+            let index = 0;
+            stack.forEach((entry, position) => {
+                const { source } = entry.layer;
+                if (source.by === "element" && source.reason === "default") {
+                    index = position + 1;
+                }
+            });
+            return index;
+        }
+
+        if (typeof at === "object" && at !== null && typeof at.before === "string") {
+            require(at.before);
+            return positionOf(at.before);
+        }
+
+        throw badCommand('A style document goes at "top", "aboveBase" or { before: <layer id> }.', { field: "at" });
     };
 
     /**
@@ -2928,68 +3115,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
-     * The plan for a highlight, which takes every other highlight out first.
-     * @param spec - The highlight, naming its run by id.
+     * The plan for a highlight, which takes every other highlight out first, or for a mark, which
+     * is an ordinary layer and replaces only the same run's earlier mark of the same field.
+     * @param spec - The highlight or mark, naming its run by id.
      * @param beneath - Place it beneath the authored layers driving a colour it paints.
+     * @param exclusive - True for a highlight; false for a mark.
      * @returns The plan.
      */
     const planHighlight = (
-        spec: Extract<StylePatchCommand, { action: "highlight" }>["spec"],
+        spec: Extract<StylePatchCommand, { action: "highlight" | "mark" }>["spec"],
         beneath = false,
+        exclusive = true,
     ): EditPlan<readonly Layer[]> => {
-        const run = requireRun(spec.run, requireRuns("highlight"));
-
-        if (!isHighlightShape(run.shape)) {
-            throw badCommand(
-                `A "${run.shape}" result measures every element rather than choosing some, so it is painted ` +
-                    "with encode() rather than highlighted.",
-                { run: run.id, shape: run.shape },
-            );
-        }
-
-        const field = spec.field ?? resultShapeContract(run.shape).primaryField ?? "";
-        const chosen = run.fields.filter((entry) => entry.name === field);
-
-        if (!chosen.some((entry) => entry.kind === "node" || entry.kind === "edge")) {
-            const published = run.fields.map((entry) => entry.name);
-
-            throw new GraphtyError({
-                code: "E_UNKNOWN_ATTRIBUTE",
-                message: `The run "${run.id}" publishes no field called "${field}" on its nodes or its edges.`,
-                source: "style",
-                details: {
-                    run: run.id,
-                    field,
-                    available: published,
-                    candidates: nearestNames(field, published),
-                },
-            });
-        }
-
-        // One entry per half the run chose AND the style has something to say about, so a route
-        // styled with an edge colour alone paints the route's edges and leaves its nodes to the
-        // layers underneath.
-        const painting = new Map<SelectorTarget, StaticStyle>();
-
-        for (const half of HALVES) {
-            const set = chosen.some((entry) => entry.kind === half)
-                ? halfOfStyle(spec.set, half, highlightColor)
-                : null;
-
-            if (set !== null) {
-                painting.set(half, set);
-            }
-        }
-
-        if (painting.size === 0) {
-            throw badCommand(
-                `The style names no channel that paints the ${chosen.map((entry) => entry.kind).join(" or ")} ` +
-                    `the run "${run.id}" chose, so the highlight would paint nothing.`,
-                { run: run.id, field, set: spec.set },
-            );
-        }
-
+        const run = requireRun(spec.run, requireRuns(exclusive ? "highlight" : "mark"));
+        const field = chosenField(run, spec, exclusive);
+        const painting = runPainting(run, field, spec.set, highlightColor);
         const path = resultPath(run.id, field);
+        const where = `${quotePath(path)} == \`true\``;
         const called = spec.name ?? englishRunLabel(run);
         const id = minter();
         const added: CompiledLayer[] = [];
@@ -3003,12 +3145,12 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const layerSpec: LayerSpec = {
                 name: called,
                 target: half,
-                kind: "highlight",
+                kind: exclusive ? "highlight" : "encoding",
                 // The membership column carries FALSE for the elements the run looked at and did
                 // not choose, so a presence test would paint the whole neighbourhood of a route in
                 // the colour of the route. The value is what says "chosen", so the value is what
                 // is asked about.
-                selector: { match: "expression", where: `${quotePath(path)} == \`true\`` },
+                selector: { match: "expression", where },
                 set,
                 source: { by: "run", runId: run.id, algorithm: run.algorithm, params: run.params },
                 ...(row === undefined ? {} : { row }),
@@ -3027,10 +3169,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         const stack = current();
+        const replaced = replacedBy(exclusive, run.id, where);
         const removing = new Set(
-            stack
-                .filter((entry) => !entry.layer.locked && entry.layer.kind === "highlight")
-                .map((entry) => entry.layer.id),
+            stack.filter((entry) => !entry.layer.locked && replaced(entry.layer)).map((entry) => entry.layer.id),
         );
 
         const kept = stack.filter((entry) => !removing.has(entry.layer.id));
@@ -3057,10 +3198,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * The plan for applying a style document: every layer lands, bound or disabled, or none does.
      * @param document - The document.
      * @param templateId - What to record as the template.
+     * @param at - Where the layers go.
      * @returns The plan.
      */
-    const planTemplate = (document: StyleDocument, templateId: string | undefined): EditPlan<TemplateReport> => {
+    const planTemplate = (
+        document: StyleDocument,
+        templateId: string | undefined,
+        at: TemplatePosition | undefined,
+    ): EditPlan<TemplateReport> => {
         checkDocument(document);
+        const index = templateIndex(at);
 
         const id = minter();
         const imported: ImportedLayer[] = [];
@@ -3119,13 +3266,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return off.layer;
         });
 
+        const stack = [...current()];
+        stack.splice(index, 0, ...final);
         const written = document.tree;
         let rows: Rows | undefined;
         if (written !== undefined) {
             const read = readDocumentRows(
                 written,
-                (index) => {
-                    const entry = final[index];
+                (at) => {
+                    const entry = final[at];
                     return entry === undefined ? undefined : rowKeyOf(entry);
                 },
                 folderMinter(rowsOf(current())),
@@ -3141,7 +3290,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         return {
             ...(rows === undefined ? {} : { rows }),
-            stack: [...current(), ...final],
+            stack,
             result: Object.freeze({
                 applied: Object.freeze(
                     final.filter((entry) => !disabled.has(entry.layer.id)).map((entry) => entry.layer.id),
@@ -3599,7 +3748,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            return planTemplate(command.document, command.templateId);
+            return planTemplate(command.document, command.templateId, command.at);
         }
 
         switch (command.action) {
@@ -3650,6 +3799,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planSweep(command.ids);
             case "highlight":
                 return planHighlight(command.spec, runBeneath(command.beneathAuthored));
+            case "mark":
+                return planHighlight(command.spec, runBeneath(command.beneathAuthored), false);
             case "resolveToStatic":
                 // The value and the patch are worked out by the same reading that reported the
                 // channel uneditable, and applied by the same update any other patch goes through.
@@ -3740,6 +3891,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             return { result: planned.result, painted } satisfies EditOutcome<unknown>;
         },
+        validate: (spec) => check(spec, mint(spec.name)).result,
     };
 
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
@@ -4179,6 +4331,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
+        mark(spec: MarkSpec, options: RunOptions = {}): Run<readonly Layer[]> {
+            return edit<readonly Layer[]>(
+                "mark",
+                "Mark a result",
+                { op: "style.patch", action: "mark", spec: { ...spec, run: runIdOf(spec.run) } },
+                options,
+            );
+        },
+
         resolveToStatic(id: LayerId, channel: Channel, at?: ExplainTarget, options: RunOptions = {}): Run<Layer> {
             return edit<Layer>(
                 "resolve",
@@ -4326,6 +4487,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     op: "style.template",
                     document,
                     ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
+                    ...(options.at === undefined ? {} : { at: options.at }),
                 },
                 options,
             );
@@ -4413,17 +4575,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 });
             }
 
-            if (binding.stops !== undefined) {
+            if (binding.colors !== undefined) {
                 const problem =
                     binding.palette === undefined
-                        ? stopsProblem(binding.stops)
-                        : "A binding names a palette or carries its own stops, not both.";
+                        ? colorsProblem(binding.colors)
+                        : "A binding names a palette or carries its own colors, not both.";
                 if (problem !== null) {
                     throw new GraphtyError({
                         code: "E_BAD_LAYER",
                         message: problem,
                         source: "style",
-                        details: { stops: binding.stops },
+                        details: { colors: binding.colors },
                     });
                 }
             }

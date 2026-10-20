@@ -60,8 +60,9 @@ const menuSubItemDefaults = {
 };
 
 /**
- * Theme extensions for the overlays (design/figma-spec.md section 8): Figma's dark menu, dark
- * tooltip, light popover, modal, toast and overlay scrollbar.
+ * Theme extensions for the overlays (design/figma-spec.md section 8): the menu (it follows the
+ * page's scheme; variant="inverse" keeps it dark), the dark tooltip, light popover, modal, toast
+ * and overlay scrollbar.
  *
  * Each extension hands Mantine `classNames` that point its parts at ../css/overlays.css.ts (and
  * at the foundation's shared cm-menu-surface / cm-menu-row / cm-popover-surface), plus the
@@ -93,7 +94,11 @@ export const overlayComponentExtensions: MantineThemeComponents = {
             transitionProps: NO_TRANSITION,
             middlewares: compactMenuMiddlewares,
         },
-        classNames: compactMenuClassNames,
+        // variant="inverse" keeps Figma's always-dark menu in both schemes (cm-menu-inverse).
+        classNames: (_theme, props) =>
+            props.variant === "inverse"
+                ? { ...compactMenuClassNames, dropdown: `${compactMenuClassNames.dropdown} cm-menu-inverse` }
+                : compactMenuClassNames,
         // vars runs on every render: the first one installs the document-level type-ahead and
         // scroll chevrons (idempotent; see overlayBehavior.ts).
         vars: () => {

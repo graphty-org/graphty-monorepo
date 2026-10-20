@@ -1,5 +1,5 @@
 import { assert, describe, it } from "vitest";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { DijkstraAlgorithm } from "../../src/algorithms/DijkstraAlgorithm";
 import { LeidenAlgorithm } from "../../src/algorithms/LeidenAlgorithm";
@@ -271,7 +271,7 @@ describe("optionsFromZod", () => {
                 // withdrew it: the session's visibility mask decides whether a node is drawn and
                 // nothing ever read the flag. `visible` is the `node.visible` channel's field:
                 // false stops drawing the node and nothing else.
-                ["shape", "texture", "effect", "label", "tooltip", "visible"],
+                ["shape", "texture", "effect", "border", "label", "tooltip", "visible"],
             );
             for (const option of options) {
                 if (option.type === "unknown") {

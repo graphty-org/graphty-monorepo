@@ -104,7 +104,8 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             return descriptor.max === undefined ? low + 4 : low + (descriptor.max - low) * 0.35;
         }
         case "text":
-            return "CHANNEL PROBE WORDS";
+            // A route is text in a grammar of its own: one bend halfway along, half a length off.
+            return descriptor.channel === "edge.bends" ? "0.5,0.5" : "CHANNEL PROBE WORDS";
         case "boolean":
             // The other state from the default: a switch that is on by default (`node.visible`)
             // changes the picture only when it is turned off.
@@ -220,8 +221,9 @@ describe("every channel the table says is renderable", () => {
                     name: "channel probe prerequisites",
                     target: "node",
                     selector: { match: "everything" },
-                    // A halo's size and opacity have nothing to change until a color draws one.
-                    set: { "node.label": "WORDS", "node.haloColor": "#FFD700" },
+                    // A halo's size and opacity have nothing to change until a color draws one,
+                    // and a border to recolour and restyle: its colour and style draw nothing alone.
+                    set: { "node.label": "WORDS", "node.haloColor": "#FFD700", "node.borderWidth": 0.3 },
                 });
                 await session.styles.add({
                     name: "channel probe prerequisites",

@@ -10,7 +10,7 @@ describe("LABEL_STYLE_DEFAULTS", () => {
         assert.equal(LABEL_STYLE_DEFAULTS.marginTop, 5);
         assert.equal(LABEL_STYLE_DEFAULTS.lineHeight, 1.2);
         assert.equal(LABEL_STYLE_DEFAULTS.location, "top");
-        assert.equal(LABEL_STYLE_DEFAULTS.sizeUnit, "world");
+        assert.equal(LABEL_STYLE_DEFAULTS.sizeMode, "world");
         assert.isFalse(LABEL_STYLE_DEFAULTS.onTop);
     });
 

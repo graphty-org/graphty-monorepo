@@ -247,6 +247,13 @@ export interface CompactColorInputProps {
      * @default "field"
      */
     variant?: "field" | "chip";
+    /**
+     * Whether to use `label` only to name the controls, without drawing it above them or
+     * grouping them under it. For a field whose name is already drawn beside it, such as the
+     * value of a `FieldRow` that shows the property's name in its own column.
+     * @default false
+     */
+    hideLabel?: boolean;
 }
 
 /**
@@ -286,6 +293,7 @@ export interface CompactColorInputProps {
  * @param props."aria-label" - The field's name when nothing draws it, which names its controls
  * @param props.variant - The whole paint field, or the swatch alone as a chip
  * @param props.valueText - The color's spoken words: in the chip form in place of its state and hex, in the field form beside them
+ * @param props.hideLabel - Whether the label only names the controls and is not drawn
  * @returns The paint field, and its reset button when something has been set
  * @example
  * ```tsx
@@ -320,6 +328,7 @@ export function CompactColorInput({
     "aria-label": ariaLabel,
     variant = "field",
     valueText,
+    hideLabel = false,
 }: CompactColorInputProps): React.JSX.Element {
     const labels = useLabels();
     // What names the controls: the drawn label, else the undrawn name.
@@ -593,7 +602,7 @@ export function CompactColorInput({
             className="cm-paint"
             data-testid="compact-color-input"
             // The tooltip belongs to the outermost element only, so one hover matches one title.
-            title={label === undefined ? annotation.title : undefined}
+            title={label === undefined || hideLabel ? annotation.title : undefined}
             data-disabled={disabled ? "true" : undefined}
         >
             <div
@@ -765,15 +774,14 @@ export function CompactColorInput({
         </div>
     );
 
-    if (label === undefined) {
+    if (label === undefined || hideLabel) {
         return controls;
     }
 
     return (
-        <div
+        <fieldset
             data-testid="compact-color-input-labeled"
-            className="cm-paint-labeled"
-            role="group"
+            className="cm-fieldset cm-paint-labeled"
             aria-labelledby={labelId}
             title={annotation.title}
         >
@@ -781,6 +789,6 @@ export function CompactColorInput({
                 {label}
             </div>
             {controls}
-        </div>
+        </fieldset>
     );
 }

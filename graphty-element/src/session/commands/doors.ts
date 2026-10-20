@@ -28,6 +28,9 @@
  * No entry point exports this module.
  */
 
+import { fromEdgeArrays } from "@graphty/graph-format";
+import { defineSource, registerSource, registry } from "@graphty/graph-io";
+
 import type { LayerSpec } from "../../catalog/types";
 import type { SessionCommand } from "../planning";
 import type { ImportSource } from "./data";
@@ -215,6 +218,126 @@ function imports(mode: "replace" | "merge", source: ImportSource, extra: ImportE
     return { op: "data.import", source, mode, ...extra };
 }
 
+/** The network source the doors load from: two pages of one node each, read with no request. */
+const DOOR_SOURCE = "door-source";
+
+/** The one sample the doors' network source lists. */
+const DOOR_SAMPLE = "door-sample";
+
+/**
+ * Register the doors' network source, once.
+ * @returns Its id.
+ */
+function doorSource(): string {
+    if (!registry.hasSource(DOOR_SOURCE)) {
+        registerSource(
+            defineSource({
+                id: DOOR_SOURCE,
+                descriptor: {
+                    plainName: "Door source",
+                    params: [],
+                    samples: [{ id: DOOR_SAMPLE, plainName: "Door sample", params: {} }],
+                },
+                async *records(_params: Record<string, never>, ctx) {
+                    for (let page = Number(ctx.cursor?.page ?? 0); page < 2; page++) {
+                        await Promise.resolve();
+                        yield { nodes: [{ id: `door-s${String(page)}` }], next: page === 0 ? { page: 1 } : null };
+                    }
+                },
+            }),
+        );
+    }
+
+    return DOOR_SOURCE;
+}
+
+/**
+ * What a load from the doors' source dispatches.
+ * @param mode - Replace or merge.
+ * @param ids - The node ids the read held.
+ * @param extra - The other load choices.
+ * @param held - Fields of the held read that differ from a plain first load.
+ * @returns The command.
+ */
+function sourceImport(
+    mode: "replace" | "merge",
+    ids: readonly string[],
+    extra: object = {},
+    held: object = {},
+): SessionCommand {
+    return {
+        op: "data.import-source",
+        source: { type: `source:${DOOR_SOURCE}`, config: {} },
+        mode,
+        held: {
+            nodes: ids.map((id) => ({ id })),
+            edges: [],
+            declaredDirection: null,
+            errors: [],
+            errorLimit: 100,
+            idPath: "id",
+            source: "source",
+            target: "target",
+            ...held,
+        },
+        ...extra,
+    };
+}
+
+/** The saved load an opened project's `runPendingSourceLoad` door runs. */
+const DOOR_PENDING = {
+    version: 1,
+    loads: [
+        {
+            key: "door-load",
+            source: DOOR_SOURCE,
+            version: 1,
+            config: {},
+            endpoint: null,
+            options: {},
+            loadedAt: "2026-10-17T00:00:00.000Z",
+            pages: 1,
+            next: null,
+            validators: {},
+            credential: null,
+            expansions: [],
+        },
+    ],
+};
+
+/** Loading from the doors' network source on the element. */
+const LOAD_FROM_SOURCE = calls(
+    () => [doorSource(), {}],
+    [
+        sourceImport(
+            "replace",
+            ["door-s0", "door-s1"],
+            {},
+            {
+                nodes: ["door-s0", "door-s1"].map((id) => ({
+                    id,
+                    "_source.expansion": "none",
+                    "_source.loads": ["load-1"],
+                })),
+            },
+        ),
+    ],
+);
+
+/** The records `data.generate("path", { n: 2 })` loads. */
+const GENERATED_PATH_JSON = JSON.stringify({
+    directed: false,
+    nodes: [{ id: 0 }, { id: 1 }],
+    edges: [{ source: 0, target: 1 }],
+});
+
+/** The records of the two-node dataset the `loadDataset` door downloads. */
+const DATASET_JSON = JSON.stringify({
+    directed: false,
+    nodes: [{ id: "d1" }, { id: "d2" }],
+    edges: [{ source: "d1", target: "d2" }],
+});
+
 /** The data rows the element and `Graph` share. */
 const DATA_DOORS: Readonly<Record<string, Door>> = {
     addNode: calls([{ id: "door-a" }], [addNodes({ id: "door-a" })]),
@@ -329,6 +452,7 @@ const INPUT = exempt("Input handling and input preferences; the gestures it driv
 const IN_FLIGHT = exempt("Stops or pauses work in flight; work in flight is not saved.");
 const VIEW_SETTING = exempt("A rendering preference of this view, not saved in a project file.");
 const HOST_HOOK = exempt("A function the host supplies; a project file cannot save it.");
+const AUTOSAVE_SETTING = exempt("Where and how this browser keeps the work; not part of the work a project saves.");
 const ASSISTANT = exempt(
     "The assistant's connection and status, not project state; what it does to the graph goes through the doors.",
 );
@@ -352,6 +476,11 @@ const MASK = exempt(
 );
 const LLM = exempt("Talks to a language model; changes nothing in the graph.");
 const BUDGET = exempt("The history's own budget, not project state.");
+const SOURCE_EXPANSION = exempt(
+    "Fetches from the network source that loaded the node, then dispatches data.source-expand (data.collapse " +
+        "for a collapse) as one step; it needs a node a source brought, so it is checked by " +
+        "test/session/sources/expand.test.ts and test/interactions/expand-real-input.test.ts.",
+);
 const GESTURE = exempt(
     "Part of a node drag, which the element records as one step of its own: a transaction opened at drag " +
         "start and recorded at the drop with the positions.set and positions.pin it dispatches; checked by " +
@@ -637,6 +766,10 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     ),
     highlightStyle: READ,
     defaultValue: READ,
+    mark: calls(
+        [{ run: "no-such-run", set: { "node.color": "#ff0000" } }],
+        [{ op: "style.patch", action: "mark", spec: { run: "no-such-run", set: { "node.color": "#ff0000" } } }],
+    ),
     legend: READ,
     proposeEncoding: READ,
     settled: READ,
@@ -785,6 +918,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             labelDeclutter: VIEW_SETTING,
             renderOnDemand: VIEW_SETTING,
             lighting: VIEW_SETTING,
+            autoRotate: VIEW_SETTING,
+            fitInsets: VIEW_SETTING,
+            pixelRatio: VIEW_SETTING,
             selectionStyle: assigns({ color: "#ff0000" }, [
                 { op: "config.set", values: { selectionStyle: { color: "#ff0000" } } },
             ]),
@@ -836,6 +972,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 "Hands the saved project to the reader as a file; it changes nothing a project saves.",
             ),
             downloadGraph: exempt("Hands an export to the reader as a file; it changes nothing a project saves."),
+            autosave: AUTOSAVE_SETTING,
+            autosaveRestore: AUTOSAVE_SETTING,
+            autosaveOptions: AUTOSAVE_SETTING,
+            autosaver: READ,
             importCameraPresets: calls(
                 [{ "door import": { zoom: 3 } }],
                 [{ op: "view.save", views: [{ name: "door import", camera: { zoom: 3 } }] }],
@@ -845,6 +985,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeNodes: REMOVE_NODES,
             addDataFromSource: ADD_FROM_SOURCE,
             loadFromUrl: LOAD_FROM_URL_ELEMENT,
+            loadFromSource: LOAD_FROM_SOURCE,
+            // The reader's remembered credentials: secrets of this machine, never in a project.
+            credentials: READ,
             loadFromFile: LOAD_FROM_FILE,
             pin: pinsN1(PIN_N1),
             unpin: pinsN1(UNPIN_N1),
@@ -1045,6 +1188,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             removeNodes: REMOVE_NODES,
             setCameraMode: CAMERA,
             setRenderSettings: VIEW_SETTING,
+            setPixelRatio: VIEW_SETTING,
+            pixelRatio: READ,
             batchOperations: BATCH,
             getSession: READ,
             getNodeCount: READ,
@@ -1203,6 +1348,9 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             roundRadius: READ,
             drawnFill: READ,
             drawnRadius: READ,
+            borderReach: READ,
+            framingHalf: READ,
+            drawnHalfExtents: READ,
         },
     },
     {
@@ -1310,6 +1458,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             nodes: READ,
             edges: READ,
             edgeVersion: RENDER,
+            nodeVersion: RENDER,
             nodeCache: RENDER,
             edgesByIndex: READ,
             isLoading: READ,
@@ -1324,6 +1473,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             seededNodeCount: READ,
             directionSettledBy: READ,
             lastImport: READ,
+            groups: READ,
             updateStyles: RENDER,
             setGraphContext: LIFECYCLE,
             setLayoutEngine: LIFECYCLE,
@@ -1331,6 +1481,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dispose: LIFECYCLE,
             bindSession: LIFECYCLE,
             reconcile: RENDER,
+            // The draw gate: what the graph pass painted and what a frame has applied.
+            takeLateEdgeRows: RENDER,
+            notePainted: RENDER,
+            notePaintDrawn: RENDER,
+            drawHeld: READ,
             addNode: calls([{ id: "door-c" }], [addNodes({ id: "door-c" })]),
             addNodes: calls([[{ id: "door-d" }]], [addNodes({ id: "door-d" })]),
             getNode: READ,
@@ -1341,6 +1496,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             addEdges: calls([[{ src: "n3", dst: "n2" }]], [addEdges({ src: "n3", dst: "n2" })]),
             getEdge: READ,
             getEdgesBetween: READ,
+            incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
             setEdges: calls(
                 [[{ src: "n1", dst: "n2" }]],
@@ -1406,6 +1562,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             dimension: READ,
             step: TRANSPORT,
             stepBatch: TRANSPORT,
+            placeGroups: TRANSPORT,
+            groupBox: READ,
             getNodePosition: READ,
             isSettled: READ,
             nodes: READ,
@@ -1497,6 +1655,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: KEYS,
     },
     {
+        name: "CredentialStore",
+        file: "src/credentials/CredentialStore.ts",
+        half: "renderer",
+        whole: KEYS,
+    },
+    {
         name: "VoiceInputAdapter",
         file: "src/ai/input/VoiceInputAdapter.ts",
         half: "renderer",
@@ -1519,6 +1683,31 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         file: "src/managers/OperationQueueManager.ts",
         half: "renderer",
         whole: QUEUE,
+    },
+    {
+        name: "AutosaveApi",
+        file: "src/autosave/types.ts",
+        half: "renderer",
+        doors: {
+            status: READ,
+            ready: READ,
+            restored: READ,
+            list: READ,
+            flush: exempt("Writes the work to the browser's storage; it changes nothing a project saves."),
+            remove: exempt("Deletes a saved copy in the browser's storage, not the work in the graph."),
+            removeAll: exempt("Deletes saved copies in the browser's storage, not the work in the graph."),
+            stash: exempt("Keeps the host's own state beside the work; a project file does not save it."),
+            stashed: READ,
+            requestPersistence: exempt("Asks the browser to keep this site's storage; it changes no work."),
+            restore: exempt(
+                "Opens a saved copy through project.open, one transaction whose writes go through the " +
+                    "session's own doors, which have rows of their own.",
+            ),
+            discard: exempt(
+                "Deletes this tab's saved copy and opens the page's own data again through project.open " +
+                    "and the data doors, which have rows of their own.",
+            ),
+        },
     },
     {
         name: "ExportResult",
@@ -1579,8 +1768,11 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             onDragUpdate: GESTURE,
             onDragEnd: GESTURE,
             setPositionDirect: GESTURE,
+            onPointerDown: GESTURE,
+            onPointerMove: GESTURE,
+            onPointerUp: GESTURE,
+            onHover: INPUT,
             getNode: READ,
-            sceneObservers: READ,
             select: SELECTION,
             dispose: LIFECYCLE,
         },
@@ -1658,6 +1850,94 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
+            // Network sources (experimental). The probe and the search ask a service and change nothing;
+            // the records and the waiting loads are read from the session.
+            testSource: READ,
+            listSource: READ,
+            loads: READ,
+            pendingSourceLoads: READ,
+            expand: SOURCE_EXPANSION,
+            collapse: SOURCE_EXPANSION,
+            // The next page after a capped load from a source: its rows, merged.
+            more: {
+                kind: "dispatches",
+                op: "data.import-source",
+                call: {
+                    kind: "call",
+                    args: [],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown, options: unknown): Promise<void> };
+                        await data.import(
+                            { source: doorSource(), config: {} },
+                            { limits: { maxNodes: 1, onLimit: "stop" } },
+                        );
+                        return () => Promise.resolve();
+                    },
+                },
+                // the next page's rows carry the key of the load they continue, so an expansion finds it
+                expect: [
+                    sourceImport(
+                        "merge",
+                        ["door-s1"],
+                        {},
+                        {
+                            nodes: [{ id: "door-s1", "_source.expansion": "none", "_source.loads": ["load-1"] }],
+                            repeated: "first",
+                        },
+                    ),
+                ],
+            },
+            // A sample a source lists, loaded with its params as one source load.
+            loadSample: calls(() => {
+                doorSource();
+                return [DOOR_SAMPLE];
+            }, [
+                {
+                    ...sourceImport(
+                        "replace",
+                        ["door-s0", "door-s1"],
+                        {},
+                        {
+                            nodes: ["door-s0", "door-s1"].map((id) => ({
+                                id,
+                                "_source.expansion": "none",
+                                "_source.loads": ["load-1"],
+                            })),
+                        },
+                    ),
+                    source: { type: `source:${DOOR_SOURCE}`, config: {}, name: "Door sample" },
+                } as SessionCommand,
+            ]),
+            // A saved load of an opened project, run again: its rows, merged over the ones it brought.
+            runPendingSourceLoad: {
+                kind: "dispatches",
+                op: "data.import-source",
+                call: {
+                    kind: "call",
+                    args: ["door-load"],
+                    around: (target) => {
+                        doorSource();
+                        (target as { restoreSourceMember(member: unknown): void }).restoreSourceMember(DOOR_PENDING);
+                        return Promise.resolve(() => Promise.resolve());
+                    },
+                },
+                // a rerun's rows carry the saved load's key, as the first run's did
+                expect: [
+                    sourceImport(
+                        "merge",
+                        ["door-s0", "door-s1"],
+                        { existing: "update" },
+                        {
+                            nodes: ["door-s0", "door-s1"].map((id) => ({
+                                id,
+                                "_source.expansion": "none",
+                                "_source.loads": ["door-load"],
+                            })),
+                            repeated: "first",
+                        },
+                    ),
+                ],
+            },
             attributes: READ,
             readableValues: READ,
             structureValues: READ,
@@ -1716,6 +1996,39 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     imports("replace", { type: "json", config: { data: TINY_JSON } }),
                 ],
             ),
+            // The generated graph's records, through the JSON reader.
+            generate: calls(
+                ["path", { n: 2 }],
+                [imports("replace", { type: "json", name: "path", config: { data: GENERATED_PATH_JSON } })],
+            ),
+            loadDataset: {
+                kind: "dispatches",
+                op: "data.import",
+                call: {
+                    kind: "call",
+                    args: ["door-dataset", { baseUrl: "https://door.invalid/" }],
+                    // The download is answered here, with a two-node dataset file.
+                    around: async () => {
+                        const bytes = fromEdgeArrays({
+                            directed: false,
+                            nodeCount: 2,
+                            src: new Uint32Array([0]),
+                            dst: new Uint32Array([1]),
+                            ids: ["d1", "d2"],
+                        }).toBytes();
+                        const zipped = await new Response(
+                            new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip")),
+                        ).arrayBuffer();
+                        const original = globalThis.fetch;
+                        globalThis.fetch = () => Promise.resolve(new Response(zipped));
+                        return () => {
+                            globalThis.fetch = original;
+                            return Promise.resolve();
+                        };
+                    },
+                },
+                expect: [imports("replace", { type: "json", name: "door-dataset", config: { data: DATASET_JSON } })],
+            },
         },
     },
     {
@@ -1731,6 +2044,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Measured in a scratch session; this one is untouched.
             report: READ,
             rows: READ,
+            styles: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again.
             load: calls(
                 [],
@@ -2134,6 +2448,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ...SELECTION_API,
             applyNow: SELECTION,
             applyAtNextRead: SELECTION,
+            edgeRemovalChangesNothing: READ,
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,
@@ -2336,10 +2651,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             startRenderLoop: RENDER,
             stopRenderLoop: RENDER,
             holdFrames: RENDER,
+            setPixelRatio: RENDER,
+            drawHeld: RENDER,
             requestFrame: RENDER,
             applyBackground: RENDER,
             applyLighting: RENDER,
             getRenderStats: READ,
+            ticks: READ,
         },
     },
     {
@@ -2401,12 +2719,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
 ];
 
 /**
- * The ops a gesture the element handles itself dispatches, with no public member of its own: the
- * gesture is the door. Each names where it is handled; the browser test of that gesture checks
- * that it dispatches the op.
+ * The ops with no public member of their own: a gesture the element handles itself, or a whole
+ * operation that dispatches them as part of its one step. Each names where it is dispatched and
+ * the test that checks it.
  */
 export const GESTURE_DOORS: Readonly<Record<string, string>> = {
     "data.expand":
         "Double-clicking a node when the layout behaviour supplies fetchNodes and fetchEdges (src/NodeBehavior.ts); " +
         "checked by test/browser/expansion-through-behaviour.test.ts.",
+    "data.source-expand":
+        "Clicking or double-clicking a node when behavior.expand.trigger is set and no fetchNodes and fetchEdges " +
+        "are, and session.data.expand (src/NodeBehavior.ts, src/session/sources/expand.ts); checked by " +
+        "test/interactions/expand-real-input.test.ts and test/session/sources/expand.test.ts.",
+    "data.collapse":
+        "session.data.collapse on a node a network source expanded (src/session/sources/expand.ts); checked by " +
+        "test/session/sources/expand.test.ts.",
+    "data.setFileStyles":
+        "Opening a project file that holds file style values (project.open, src/session/projectFile.ts); " +
+        "checked by test/session/styles/file-style-store.test.ts.",
 };

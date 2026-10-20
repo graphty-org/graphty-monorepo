@@ -62,7 +62,7 @@
 
 .dp-auto {
     margin-inline-start: 4px;
-    color: var(--cm-text-menu-secondary);
+    color: var(--cm-text-secondary);
     font-size: 11px;
 }
 

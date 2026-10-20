@@ -292,7 +292,7 @@ export function startingRows(look: {
                 selector: { match: "state", state: "selected" },
                 set: {
                     "node.haloColor": look.color,
-                    "node.haloSize": look.scale,
+                    "node.haloScale": look.scale,
                     "node.haloOpacity": 1,
                     "node.glow": STARTING_SELECTED_LOOK.glow,
                     "edge.bandColor": look.edgeColor,

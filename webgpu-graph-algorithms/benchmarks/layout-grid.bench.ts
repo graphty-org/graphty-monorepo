@@ -94,7 +94,7 @@ const RUNG_OPTIONS: Omit<ForceAtlas2Options, "dim"> & GpuLayoutTuning = {
 };
 
 /** The row-name prefix of the per-iteration rows and the pattern that extracts their n and dimension. */
-const PER_ITERATION_ROW = /^grid ms\/iteration \((?:profiler|wall)\) n=(\d+) (2|3)D /;
+const PER_ITERATION_ROW = /^grid ms\/iteration \((?:profiler|wall)\) n=(\d+) ([23])D /;
 
 /**
  * The per-iteration rows of the grid ladder and of the re-check rungs in one dimension of a session's results (every
@@ -129,7 +129,7 @@ export function gridLadderRowsOf(results: readonly BenchResult[], dim: 2 | 3): L
  */
 function attractionMs(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>): number {
     if (!(sim instanceof ForceSimulation)) {
-        throw new Error("createForceAtlas2 did not return a ForceSimulation");
+        throw new TypeError("createForceAtlas2 did not return a ForceSimulation");
     }
     const timings = sim.lastPassTimings;
     const pass = timings === null ? undefined : timings.find((t) => t.label === ATTRACTION_PASS);
@@ -186,8 +186,8 @@ export async function runLayoutGridBenchmarks(ctx: GpuContext): Promise<BenchRes
                         },
                         { device: ctx.device, items: rung.nodes, unit: "nodes" },
                     );
-                    results.push(wall);
                     results.push(
+                        wall,
                         reportedRow(
                             LAYOUT_GRID_GROUP,
                             `grid ms/iteration (${source}) n=${rung.nodes} ${dim}D [${rung.label}]`,

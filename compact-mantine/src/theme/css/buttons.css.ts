@@ -49,8 +49,10 @@ const css = `
     outline-offset: -1px;
 }
 .cm-button:where([data-block]) { display: flex; }
-/* A full-width button's content spans it, so Mantine's justify prop (--button-justify) can place it. */
-.cm-button:where([data-block]) > .cm-button-inner { flex: 1; }
+/* A full-width button's content spans it, so Mantine's justify prop (--button-justify) can place it,
+   and never grows past its width: a label too long for it ends in an ellipsis. */
+.cm-button:where([data-block]) > .cm-button-inner { flex: 1; min-width: 0; }
+.cm-button:where([data-block]) .cm-button-label { display: block; height: auto; min-width: 0; text-overflow: ellipsis; }
 .cm-button:where([data-with-left-section], [data-with-right-section]) { padding: 0; }
 .cm-button-inner { transition: opacity var(--cm-duration-md) var(--cm-ease-loading); }
 /* The label carries the inset, so the button reports padding 0 (C7). */
@@ -256,14 +258,12 @@ ${JOINED}${FOCUS} {
 .cm-toggle-icon[data-swap][aria-pressed="true"]${HOVER}${ENABLED} { background-color: var(--ai-hover); }
 .cm-toggle-icon[data-swap][aria-pressed="true"]${PRESSED}${ENABLED} { background-color: var(--cm-ai-pressed); }
 .cm-toggle-icon[data-swap][aria-pressed="true"]${DISABLED} { background: transparent; }
-/* Disabled: Figma draws it exactly like the enabled toggle, pointer states included
-   (bc/toggle-icon-off|on-disabled--*); only the press does nothing. */
-.cm-toggle-icon${DISABLED} { color: var(--ai-color); }
-.cm-toggle-icon[aria-pressed]${DISABLED}${HOVER} { background-color: var(--ai-hover); }
-.cm-toggle-icon[aria-pressed]${DISABLED}${PRESSED} { background-color: var(--cm-ai-pressed); }
-.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED} { color: var(--cm-icon-brand); }
-.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED}${HOVER} { background-color: var(--cm-bg-selected-secondary); }
-.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED}${PRESSED} { background-color: var(--cm-bg-selected); }
+/* Disabled (spec 4.4, "disabled off / on"): the glyph takes --cm-icon-disabled and an "on" toggle
+   sits on --cm-bg-disabled (the swap variant is never filled); the pointer states paint nothing.
+   Figma's capture (bc/toggle-icon-off|on-disabled--*) draws it like the enabled toggle, which left
+   a disabled toggle indistinguishable from an enabled one (issue #2102); the spec text wins. */
+.cm-toggle-icon${DISABLED} { color: var(--cm-icon-disabled); }
+.cm-toggle-icon:not([data-swap])[aria-pressed="true"]${DISABLED} { background: var(--cm-bg-disabled); }
 
 /* ---------- SplitButton (4.5) ---------- */
 .cm-split {

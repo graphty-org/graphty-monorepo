@@ -71,7 +71,7 @@ describe("a halo a layer paints", () => {
             name: "ring",
             target: "node",
             selector: { match: "ids", nodes: ["a"] },
-            set: { "node.haloColor": "#0000FF", "node.haloOpacity": 1, "node.haloSize": 1.45 },
+            set: { "node.haloColor": "#0000FF", "node.haloOpacity": 1, "node.haloScale": 1.45 },
         });
         await operationQueueOf(graph).waitForCompletion();
 

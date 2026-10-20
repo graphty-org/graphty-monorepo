@@ -2,6 +2,7 @@ import { type F32, type FreezeReport, type GraphSnapshot, INVALID_INDEX, type U3
 import { assert, describe, it } from "vitest";
 
 import { GraphStore, type GraphStoreOptions, type SnapshotReplacement } from "../../src/data/GraphStore";
+import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
 
 /** Which callback should throw on its next delivery, to prove a freeze survives a consumer bug. */
 interface ThrowOnce {
@@ -683,5 +684,77 @@ describe("GraphStore edge-id index", () => {
         }
 
         assert.strictEqual(store.edgeIndexOf(counter - 1), INVALID_INDEX, "a removed edge is not found");
+    });
+});
+
+describe("GraphStore removal runs", () => {
+    /**
+     * A store holding `size` nodes `v0` to `v<size - 1>`, frozen.
+     * @param size - The node count.
+     * @returns The store.
+     */
+    function filled(size: number): GraphStore {
+        const { store } = makeStore();
+        for (let at = 0; at < size; at++) {
+            store.builder.addNode(`v${String(at)}`);
+        }
+
+        store.touch();
+        store.getSnapshot();
+        return store;
+    }
+
+    /**
+     * Count the entries an in-place `splice` shifts, which `visitsDuring` does not see: inserting
+     * into a sorted list moves every entry after the insertion point.
+     * @param work - The work.
+     * @returns The visits plus the shifted entries.
+     */
+    async function visitsAndShifts(work: () => void): Promise<number> {
+        let shifted = 0;
+        const { splice } = Array.prototype;
+        Array.prototype.splice = function (this: unknown[], start: number, ...rest: unknown[]) {
+            shifted += Math.max(0, this.length - (start < 0 ? this.length + start : start));
+            return splice.call(this, start, ...(rest as [number, ...unknown[]]));
+        } as typeof splice;
+        try {
+            return (await visitsDuring(work)) + shifted;
+        } finally {
+            Array.prototype.splice = splice;
+        }
+    }
+
+    it("record each removal at the row it had once the earlier removals of the run are compacted", () => {
+        const size = 40;
+        const store = filled(size);
+        const order = Array.from({ length: size }, (_, at) => `v${String(at)}`);
+        const picks = [17, 3, 39, 0, 25, 4, 18, 38, 2, 26];
+        for (const pick of picks) {
+            const id = `v${String(pick)}`;
+            const { nodes } = store.removeRows([id], []);
+            assert.strictEqual(nodes.length, 1);
+            assert.strictEqual(nodes[0].index, order.indexOf(id), `the row recorded for ${id}`);
+            order.splice(order.indexOf(id), 1);
+        }
+
+        assert.strictEqual(store.getSnapshot().nodeCount, size - picks.length);
+    });
+
+    it("a run of one-node removals grows its row list without copying it on each call (issue #2788)", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                const store = filled(size);
+                // From the top down, so each row lands at the front of a sorted list.
+                const ids = Array.from({ length: size / 4 }, (_, at) => `v${String(size - 1 - at)}`);
+                const work = await visitsAndShifts(() => {
+                    for (const id of ids) {
+                        store.removeRows([id], []);
+                    }
+                });
+                assert.strictEqual(store.getSnapshot().nodeCount, size - size / 4);
+                return work;
+            },
+            { sizes: [400, 1600], growth: "linear", counter: "elements visited or shifted by a run of removals" },
+        );
     });
 });

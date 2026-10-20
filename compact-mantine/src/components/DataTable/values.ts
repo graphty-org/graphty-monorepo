@@ -72,6 +72,20 @@ function isMissing(value: DataTableValue): boolean {
 }
 
 /**
+ * Compares two booleans for sorting: false before true.
+ * @param a - One row's value
+ * @param b - The other row's value
+ * @returns -1, 0 or 1
+ */
+function compareBooleans(a: boolean, b: boolean): number {
+    if (a === b) {
+        return 0;
+    }
+
+    return a ? 1 : -1;
+}
+
+/**
  * Compares two of a column's values for sorting.
  *
  * Numbers compare as numbers rather than as text, so 9 comes before 10; dates
@@ -104,11 +118,7 @@ export function compareValues(a: DataTableValue, b: DataTableValue, collator: In
     }
 
     if (typeof a === "boolean" && typeof b === "boolean") {
-        if (a === b) {
-            return 0;
-        }
-
-        return a ? 1 : -1;
+        return compareBooleans(a, b);
     }
 
     if (a instanceof Date && b instanceof Date) {

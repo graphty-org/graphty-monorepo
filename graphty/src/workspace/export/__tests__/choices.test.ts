@@ -67,4 +67,13 @@ describe("the Export dialog's choices", () => {
         assert.isTrue(writerOptions(row, {}).groupRanks);
         assert.isFalse(writerOptions(row, { groupRanks: false }).groupRanks);
     });
+
+    it("asks every data export for the graph's styles, with ids the format cannot hold rewritten", () => {
+        const csv = formatDescriptor("csv");
+        assert.isDefined(csv);
+        const [row] = formatRows(csv === undefined ? [] : [csv]);
+        const options = writerOptions(row, {});
+        assert.isTrue(options.styles);
+        assert.strictEqual(options.sanitizeIds, "mangle");
+    });
 });

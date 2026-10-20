@@ -111,7 +111,7 @@ export function UnitField({
     max,
     testId,
     style,
-}: UnitFieldProps): React.JSX.Element {
+}: Readonly<UnitFieldProps>): React.JSX.Element {
     const parse = useNumberParser();
     const [draft, setDraft] = useState(format(value));
 
@@ -198,7 +198,7 @@ interface StopHexFieldProps {
  * @param props.ariaLabel - the accessible name
  * @returns the field
  */
-function StopHexField({ color, onCommit, ariaLabel }: StopHexFieldProps): React.JSX.Element {
+function StopHexField({ color, onCommit, ariaLabel }: Readonly<StopHexFieldProps>): React.JSX.Element {
     const shown = color.replace("#", "").toUpperCase();
     const [draft, setDraft] = useState(shown);
 
@@ -694,10 +694,9 @@ export function GradientEditor({
     return (
         <div className="cm-gradient" data-testid="gradient-editor">
             {showDirection && (
-                <div
-                    className="cm-gradient-row cm-gradient-direction"
+                <fieldset
+                    className="cm-fieldset cm-gradient-row cm-gradient-direction"
                     data-testid="gradient-editor-direction"
-                    role="group"
                     aria-labelledby={directionHeadingId}
                 >
                     <span
@@ -738,13 +737,13 @@ export function GradientEditor({
                     >
                         <RotateShapeGlyph />
                     </ActionIcon>
-                </div>
+                </fieldset>
             )}
 
-            <div role="group" aria-labelledby={stopsHeadingId}>
+            <fieldset className="cm-fieldset" aria-labelledby={stopsHeadingId}>
                 <div ref={areaRef} className="cm-gradient-area" data-testid="gradient-editor-bar-area">
                     {stopsValue.map((stop, index) => (
-                        <div
+                        <div // NOSONAR(S6819): one of several draggable stop handles over a gradient bar; input type=range has one thumb and cannot draw this
                             key={stop.id}
                             className="cm-gradient-handle cm-focus-outside"
                             data-testid="gradient-editor-handle"
@@ -779,7 +778,6 @@ export function GradientEditor({
                     <div
                         className="cm-gradient-bar"
                         // A pointer shortcut only: the "+" button is the keyboard route to a new stop.
-                        role="presentation"
                         aria-hidden
                         data-testid="gradient-editor-bar"
                         style={{ "--cm-gradient": gradientCss } as React.CSSProperties}
@@ -878,7 +876,7 @@ export function GradientEditor({
                         );
                     })}
                 </div>
-            </div>
+            </fieldset>
         </div>
     );
 }

@@ -197,8 +197,8 @@ Compound parent nodes are not laid out. The layout places their children, and Cy
 
 ## Try it
 
-- [Static layouts demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--static-layouts): switch between the 13 static layouts on one graph.
-- [Force simulations demo](https://graphty.app/storybook/cytoscape-extensions/?path=/story/demo-layouts--force-simulations): run, stop and restart the simulations and see which backend ran.
+- [Circular layout story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--circular): one static layout on its example graph or on a generated network; each of the 13 static layouts has a story like it.
+- [ForceAtlas2 story](https://graphty.app/storybook/cytoscape-extensions/?path=/story/gallery-layouts--force-atlas-2): run a simulation on the backend you pick and see which backend ran, why, and how long it took.
 
 ## Next
 

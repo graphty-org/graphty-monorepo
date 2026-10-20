@@ -54,7 +54,7 @@ export class SelectionManager implements Manager {
      * Creates a new selection manager
      * @param eventManager - Event manager for emitting selection events
      */
-    constructor(private eventManager: EventManager) {}
+    constructor(private readonly eventManager: EventManager) {}
 
     /**
      * Initialize the selection manager
@@ -96,12 +96,21 @@ export class SelectionManager implements Manager {
     }
 
     /**
-     * Say which node the pointer is over, or null, so a `{ match: "state", state: "hovered" }`
-     * style layer paints it.
+     * Say which node the pointer is over, or null, so a `{ match: "state", state: "hovered" }` or
+     * `{ match: "hover" }` style layer paints it.
      * @param id - The node, or null.
      */
     hover(id: NodeIdType | null): void {
         this.selection?.hover(id);
+    }
+
+    /**
+     * Whether the session says this node is the one under the pointer.
+     * @param id - The node.
+     * @returns True when it is.
+     */
+    isHovered(id: NodeIdType): boolean {
+        return this.selection?.hovered === id;
     }
 
     /**
@@ -142,6 +151,35 @@ export class SelectionManager implements Manager {
         }
 
         return null;
+    }
+
+    /**
+     * The selected nodes that are drawn, in selection order.
+     * @returns The nodes.
+     */
+    getSelectedNodes(): Node[] {
+        if (!this.selection) {
+            return [...this.selectedNodes.values()];
+        }
+
+        return this.selection.nodes
+            .map((id) => this.selectedNodes.get(id) ?? this.dataManager?.getNode(id))
+            .filter((node) => node !== undefined);
+    }
+
+    /**
+     * Add a node to the selection, or take it out if it is in: what a shift-click on it means.
+     * @param node - The node.
+     */
+    toggle(node: Node): void {
+        const previousNode = this.getSelectedNode();
+        const selected = this.getSelectedNodes();
+        const others = selected.filter((other) => other.id !== node.id);
+        const nodes = others.length < selected.length ? others : [...others, node];
+
+        this.write(nodes, "user");
+
+        this.eventManager.emitSelectionChanged(previousNode, this.getSelectedNode());
     }
 
     /**
@@ -257,7 +295,10 @@ export class SelectionManager implements Manager {
      * @param ids - The ids of the edges that were removed.
      */
     onEdgesRemoved(ids: readonly EdgeId[]): void {
-        if (ids.length === 0) {
+        // With none of these edges selected, there is nothing to take out, and resolving the ids
+        // would freeze the graph: once per removal of a run of them, each over the whole graph
+        // (issues #2733, #2788).
+        if (ids.length === 0 || this.selection?.edgeRemovalChangesNothing(ids) === true) {
             return;
         }
 
@@ -267,18 +308,26 @@ export class SelectionManager implements Manager {
     /**
      * Write one selection through to the session and onto the render objects.
      *
-     * The masks are the record; the highlight is switched by `Node.setSelected`, which is a mesh
-     * operation and touches no style, no material and no layer. Nodes leaving the selection are
-     * un-highlighted before the new ones are highlighted, so a node in both sets is never flashed
-     * off and on again.
+     * The masks are the record, so they are written first and only the nodes they accepted are
+     * highlighted: past the selection cap the masks drop nodes, and a halo on a dropped node would
+     * be one the frame's selection pass never takes off, since it touches only the masks' members
+     * and what it last drew (issue #2978). The highlight is switched by `Node.setSelected`, which
+     * is a mesh operation and touches no style, no material and no layer. Nodes leaving the
+     * selection are un-highlighted before the new ones are highlighted, so a node in both sets is
+     * never flashed off and on again.
      * @param nodes - The nodes that should be selected afterwards.
      * @param cause - Who asked.
      */
     private write(nodes: readonly Node[], cause: SelectionCause): void {
+        const { selection } = this;
+        selection?.applyNow({ nodes: nodes.map((node) => node.id) }, "replace", cause);
+
         const next = new Map<NodeIdType, Node>();
 
         for (const node of nodes) {
-            next.set(node.id, node);
+            if (selection === null || selection.has(node.id)) {
+                next.set(node.id, node);
+            }
         }
 
         for (const [id, node] of this.selectedNodes) {
@@ -293,7 +342,5 @@ export class SelectionManager implements Manager {
             this.selectedNodes.set(id, node);
             node.setSelected(true);
         }
-
-        this.selection?.applyNow({ nodes: nodes.map((node) => node.id) }, "replace", cause);
     }
 }

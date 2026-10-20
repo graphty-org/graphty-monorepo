@@ -4,6 +4,7 @@ import "@graphty/graphty-element";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "storybook/test";
 
+import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { EDGES, NODES } from "./twoRings.fixture";
 
@@ -56,7 +57,10 @@ async function run(element: GraphtyElement, algorithm: string): Promise<void> {
  * @param text - what to type.
  */
 async function find(canvasElement: HTMLElement, text: string): Promise<void> {
-    await userEvent.type(await within(canvasElement).findByRole("combobox", { name: "Find" }), text);
+    await userEvent.type(
+        await within(canvasElement).findByRole("combobox", { name: "Find" }, storyWaitOptions(1000)),
+        text,
+    );
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -98,9 +102,11 @@ export const Hidden: Story = {
         await run(element, "pagerank");
         const [listed] = element.session.runs.list();
         const layer = listed === undefined ? undefined : element.session.runs.bindings(listed.id)[0];
-        const eye = await within(canvasElement).findByRole("button", {
-            name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}`,
-        });
+        const eye = await within(canvasElement).findByRole(
+            "button",
+            { name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}` },
+            storyWaitOptions(1000),
+        );
         await userEvent.click(eye);
         await userEvent.unhover(eye);
         await element.waitForStableFrame();

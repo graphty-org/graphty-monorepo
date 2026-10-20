@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { AdvancedColorStyle, ColorStyle, TextLocation } from "./common";
 
@@ -71,9 +71,13 @@ export const RichTextStyle = z.strictObject({
      * What `fontSize` is measured in. `"world"` (the default): a length in the scene, 48 to one
      * world unit per line, so the label grows and shrinks with the zoom. `"screen"`: CSS pixels
      * on screen, so the letters are drawn at that size at every zoom, as text on a page is.
+     * The same as `sizeMode`: either one set to `"screen"` sizes the label on screen.
      */
     fontSizeUnit: z.enum(["world", "screen"]).optional(),
+    // How tall one line is drawn in the scene, in the units of a node's size; unset, fontSize / 48.
+    size: z.number().positive().optional(),
     fontWeight: z.string().default("normal").optional(),
+    fontStyle: z.enum(["normal", "italic"]).default("normal").optional(),
     lineHeight: z.number().default(1.2).optional(),
 
     // Colors
@@ -104,6 +108,11 @@ export const RichTextStyle = z.strictObject({
     position: Position3D.optional(),
     attachPosition: AttachPosition.optional(),
     attachOffset: z.number().default(0).optional(),
+
+    // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
+    // exactly as before.
+    sizeMode: z.enum(["world", "screen"]).optional(),
+    keepInView: z.boolean().optional(),
 
     // Depth fading
     depthFadeEnabled: z.boolean().default(false).optional(),
@@ -139,6 +148,11 @@ export const RichTextStyle = z.strictObject({
 
     // Background effects
     backgroundPadding: z.number().default(0).optional(),
+    panelShadow: z.boolean().default(false).optional(),
+    panelShadowColor: ColorStyle.default("rgba(0, 0, 0, 0.3)").optional(),
+    panelShadowBlur: z.number().min(0).default(16).optional(),
+    panelShadowOffsetX: z.number().default(0).optional(),
+    panelShadowOffsetY: z.number().default(6).optional(),
     backgroundGradient: z.boolean().default(false).optional(),
     backgroundGradientType: GradientType.default("linear").optional(),
     backgroundGradientColors: z.array(ColorStyle).optional(),
@@ -166,6 +180,9 @@ export const RichTextStyle = z.strictObject({
     smartOverflow: z.boolean().default(false).optional(),
     maxNumber: z.number().default(999).optional(),
     overflowSuffix: z.string().default("+").optional(),
+
+    // An x in the panel's top-right corner that clears the selection when clicked
+    closeButton: z.boolean().default(false).optional(),
 });
 
 // Type export for convenience

@@ -11,9 +11,8 @@
 import "@graphty/graphty-element";
 
 import { browserProjects, type GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
@@ -58,7 +57,7 @@ function snapshot(session: GraphSession): Snapshot {
     const binding = session.styles
         .list()
         .map((layer) => layer.encode?.["node.label"])
-        .find((encode) => encode !== undefined);
+        .find((encode) => encode !== undefined && "by" in encode);
     const position = { x: NaN, y: NaN, z: NaN };
     session.positions.read(0, position);
     return {
@@ -82,7 +81,10 @@ async function elementSession(previous?: GraphSession): Promise<GraphSession> {
     let session: GraphSession | undefined;
     await waitFor(
         () => {
-            session = document.querySelector("graphty-element")?.session;
+            // The project's element, not the start page's graph behind a closed project.
+            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element:not([data-start-page])",
+            )?.session;
             assert.isDefined(session);
             assert.notStrictEqual(session, previous);
         },
@@ -437,7 +439,7 @@ const FRIENDS =
  * @returns left, right, top and bottom.
  */
 function drawnBounds(): number[] {
-    const element = document.querySelector("graphty-element");
+    const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])");
     const session = element?.session;
     assert.isDefined(session);
     const at = (session?.data.nodes() ?? []).flatMap((node) => element?.nodeScreenPosition(node.id) ?? []);
@@ -459,7 +461,7 @@ async function framedWithLegend(store: WorkspaceStore): Promise<void> {
         },
         { timeout: TIMEOUT_MS },
     );
-    await document.querySelector("graphty-element")?.waitForStableFrame();
+    await document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")?.waitForStableFrame();
 }
 
 describe("a reopened project's framing, on the real element", () => {
@@ -479,7 +481,7 @@ describe("a reopened project's framing, on the real element", () => {
             [...new Set(edges.flatMap((edge) => [edge.source, edge.target]))].map((id) => ({ id })),
         );
         await session.data.addEdges(edges);
-        await document.querySelector("graphty-element")?.waitForStableFrame();
+        await document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")?.waitForStableFrame();
         // PageRank paints color, so the legend card comes up after the graph was framed.
         await session.runs.start("pagerank");
         await session.styles.settled();

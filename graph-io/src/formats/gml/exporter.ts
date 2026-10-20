@@ -43,8 +43,20 @@ import { type ResolvedExportOptions, resolveExportOptions } from "../../common/o
 import { agree, plural } from "../../common/plural.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
+import type { ExporterStyleOptions } from "../../styles/io/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
-import { EMPTY_LIST_TEXT, isGmlKey, LIST_START_MARKER, mangleGmlKey, ORIGINAL_ID_KEY } from "./syntax.js";
+import { GML_STYLE_CAPABILITIES, gmlStyledExport } from "./styles.js";
+import {
+    EMPTY_LIST_TEXT,
+    isGmlKey,
+    KEY_MANGLED_CODE,
+    LIST_START_MARKER,
+    mangleGmlKey,
+    ORIGINAL_ID_KEY,
+} from "./syntax.js";
+
+/** What the writer takes: the format's options, the common ones and the styles. */
+type GmlWriteOptions = GmlExportOptions & CommonExportOptions & ExporterStyleOptions;
 
 /**
  * The format-specific options of the GML exporter.
@@ -105,11 +117,7 @@ export const INVALID_KEY_CODE = "E_GML_INVALID_KEY";
  * @category Issue and loss codes
  */
 export const RESERVED_KEY_CODE = "E_GML_RESERVED_KEY";
-/**
- * Keys rewritten under sanitizeKeys "mangle".
- * @category Issue and loss codes
- */
-export const KEY_MANGLED_CODE = "W_GML_KEY_MANGLED";
+export { KEY_MANGLED_CODE } from "./syntax.js";
 /**
  * A position column with more than three components; x, y and z are written.
  * @category Issue and loss codes
@@ -421,6 +429,20 @@ function note(code: string, message: string, column: string | null = null, count
 }
 
 /**
+ * Count a kind of json value once per row.
+ * @param seen - the flags already counted for this row
+ * @param flag - the flag of the kind
+ * @param stats - the counters
+ * @param counter - the counter of the kind
+ */
+function countOnce(seen: SeenFlags, flag: keyof SeenFlags, stats: JsonStats, counter: keyof JsonStats): void {
+    if (!seen[flag]) {
+        seen[flag] = true;
+        stats[counter]++;
+    }
+}
+
+/**
  * Inspect a JSON value for what GML cannot write exactly.
  * @param value - the value
  * @param stats - the counters to update (each counted at most once per call for numbers / booleans / nulls)
@@ -429,24 +451,15 @@ function note(code: string, message: string, column: string | null = null, count
  */
 function inspectJson(value: unknown, stats: JsonStats, inArray: boolean, seen: SeenFlags): void {
     if (value === null) {
-        if (!seen.nulls) {
-            seen.nulls = true;
-            stats.nulls++;
-        }
+        countOnce(seen, "nulls", stats, "nulls");
         return;
     }
     switch (typeof value) {
         case "number":
-            if (!seen.numbers) {
-                seen.numbers = true;
-                stats.numbers++;
-            }
+            countOnce(seen, "numbers", stats, "numbers");
             return;
         case "boolean":
-            if (!seen.booleans) {
-                seen.booleans = true;
-                stats.booleans++;
-            }
+            countOnce(seen, "booleans", stats, "booleans");
             return;
         case "string":
             return;
@@ -454,9 +467,8 @@ function inspectJson(value: unknown, stats: JsonStats, inArray: boolean, seen: S
             break;
     }
     if (Array.isArray(value)) {
-        if (inArray && !seen.nested) {
-            seen.nested = true;
-            stats.nestedArrays++;
+        if (inArray) {
+            countOnce(seen, "nested", stats, "nestedArrays");
         }
         for (const item of value) {
             inspectJson(item, stats, true, seen);
@@ -469,6 +481,29 @@ function inspectJson(value: unknown, stats: JsonStats, inArray: boolean, seen: S
             stats.invalidKeys++;
         }
         inspectJson(record[key], stats, false, seen);
+    }
+}
+
+/**
+ * A row count in words.
+ * @param count - the count
+ * @returns the count and the word row, pluralised
+ */
+function rowCount(count: number): string {
+    return `${count} row${plural(count)}`;
+}
+
+/**
+ * Record a note for a counter that is not zero.
+ * @param notes - where to record
+ * @param count - the counter
+ * @param code - the note code
+ * @param text - the note message
+ * @param column - the column name
+ */
+function pushCounted(notes: LossNote[], count: number, code: string, text: string, column: string): void {
+    if (count > 0) {
+        notes.push(note(code, text, column, count));
     }
 }
 
@@ -487,73 +522,42 @@ function jsonNotes(columns: readonly WrittenColumn[], label: string, plan: GmlEx
         }
         const { name } = column.meta;
         const where = `${label} column "${name}"`;
-        if (stats.numbers > 0) {
-            notes.push(
-                note(
-                    RECORD_NUMBER_TYPE_CODE,
-                    `${where} holds numbers in ${stats.numbers} row${plural(stats.numbers)}; GML records cannot keep the int / real distinction`,
-                    name,
-                    stats.numbers,
-                ),
-            );
-        }
-        if (stats.booleans > 0) {
-            notes.push(
-                note(
-                    RECORD_BOOLEAN_CODE,
-                    `${where} holds booleans in ${stats.booleans} row${plural(stats.booleans)}; written as 1 / 0`,
-                    name,
-                    stats.booleans,
-                ),
-            );
-        }
-        if (stats.nulls > 0) {
-            notes.push(
-                note(
-                    RECORD_NULL_CODE,
-                    `${where} holds nulls in ${stats.nulls} row${plural(stats.nulls)}; GML has no null, the key is omitted`,
-                    name,
-                    stats.nulls,
-                ),
-            );
-        }
-        if (stats.arrays > 0) {
-            notes.push(
-                note(
-                    JSON_ARRAY_CODE,
-                    `${where} holds arrays as values in ${stats.arrays} row${plural(stats.arrays)}; written as repeated keys, they re-import as a list`,
-                    name,
-                    stats.arrays,
-                ),
-            );
-        }
-        if (stats.nestedArrays > 0) {
-            notes.push(
-                note(
-                    NESTED_ARRAY_CODE,
-                    `${where} holds arrays nested in arrays in ${stats.nestedArrays} row${plural(stats.nestedArrays)}; GML cannot write them and the save fails`,
-                    name,
-                    stats.nestedArrays,
-                ),
-            );
-        }
-        if (stats.invalidKeys > 0) {
-            notes.push(
-                plan.mangle
-                    ? note(
-                          KEY_MANGLED_CODE,
-                          `${where}: ${stats.invalidKeys} record key${plural(stats.invalidKeys)} ${agree(stats.invalidKeys, "is", "are")} not GML keys and are rewritten`,
-                          name,
-                          stats.invalidKeys,
-                      )
-                    : note(
-                          INVALID_KEY_CODE,
-                          `${where}: ${stats.invalidKeys} record key${plural(stats.invalidKeys)} ${agree(stats.invalidKeys, "is", "are")} not GML keys; the save fails unless sanitizeKeys is "mangle"`,
-                          name,
-                          stats.invalidKeys,
-                      ),
-            );
-        }
+        const counted = (count: number, code: string, text: string): void => {
+            pushCounted(notes, count, code, text, name);
+        };
+        counted(
+            stats.numbers,
+            RECORD_NUMBER_TYPE_CODE,
+            `${where} holds numbers in ${rowCount(stats.numbers)}; GML records cannot keep the int / real distinction`,
+        );
+        counted(
+            stats.booleans,
+            RECORD_BOOLEAN_CODE,
+            `${where} holds booleans in ${rowCount(stats.booleans)}; written as 1 / 0`,
+        );
+        counted(
+            stats.nulls,
+            RECORD_NULL_CODE,
+            `${where} holds nulls in ${rowCount(stats.nulls)}; GML has no null, the key is omitted`,
+        );
+        counted(
+            stats.arrays,
+            JSON_ARRAY_CODE,
+            `${where} holds arrays as values in ${rowCount(stats.arrays)}; written as repeated keys, they re-import as a list`,
+        );
+        counted(
+            stats.nestedArrays,
+            NESTED_ARRAY_CODE,
+            `${where} holds arrays nested in arrays in ${rowCount(stats.nestedArrays)}; GML cannot write them and the save fails`,
+        );
+        const keys = `${stats.invalidKeys} record key${plural(stats.invalidKeys)} ${agree(stats.invalidKeys, "is", "are")} not GML keys`;
+        counted(
+            stats.invalidKeys,
+            plan.mangle ? KEY_MANGLED_CODE : INVALID_KEY_CODE,
+            plan.mangle
+                ? `${where}: ${keys} and are rewritten`
+                : `${where}: ${keys}; the save fails unless sanitizeKeys is "mangle"`,
+        );
     }
 }
 
@@ -1429,7 +1433,21 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
     format: "gml",
     options: Object.freeze(["sanitizeKeys", "weightKey"]),
     capabilities: GML_CAPABILITIES,
-    check,
+    styles: Object.freeze({ capabilities: GML_STYLE_CAPABILITIES }),
+    /**
+     * Pre-flight: the common capability notes, the GML-specific ones and, with styles, the values written as the
+     * nearest ones yEd's GML has.
+     * @param snapshot - the snapshot
+     * @param options - the options
+     * @returns the notes, empty when the export is exact
+     */
+    check(snapshot: GraphSnapshot, options?: GmlWriteOptions): readonly LossNote[] {
+        const styled = gmlStyledExport(snapshot, options?.styles);
+        if (styled === null) {
+            return check(snapshot, options);
+        }
+        return Object.freeze([...check(styled.snapshot, options), ...styled.notes]);
+    },
     /**
      * Write the snapshot as UTF-8 chunks; the context is resolved on the first pull, so the
      * errors check() announced surface from the iteration.
@@ -1437,7 +1455,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the chunks
      */
-    export(snapshot: GraphSnapshot, options?: GmlExportOptions & CommonExportOptions): AsyncIterable<Uint8Array> {
+    export(snapshot: GraphSnapshot, options?: GmlWriteOptions): AsyncIterable<Uint8Array> {
         return encodeChunks(lazyParts(snapshot, options));
     },
     /**
@@ -1446,7 +1464,7 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
      * @param options - the options
      * @returns the document
      */
-    exportToString(snapshot: GraphSnapshot, options?: GmlExportOptions & CommonExportOptions): Promise<string> {
+    exportToString(snapshot: GraphSnapshot, options?: GmlWriteOptions): Promise<string> {
         return joinText(lazyParts(snapshot, options));
     },
 });
@@ -1458,9 +1476,6 @@ export const gmlExporter: GraphExporter<GmlExportOptions> = Object.freeze({
  * @yields the parts
  * @returns nothing
  */
-function* lazyParts(
-    snapshot: GraphSnapshot,
-    options: (GmlExportOptions & CommonExportOptions) | undefined,
-): Generator<string, void, undefined> {
-    yield* gmlParts(contextOf(snapshot, options));
+function* lazyParts(snapshot: GraphSnapshot, options: GmlWriteOptions | undefined): Generator<string, void, undefined> {
+    yield* gmlParts(contextOf(gmlStyledExport(snapshot, options?.styles)?.snapshot ?? snapshot, options));
 }

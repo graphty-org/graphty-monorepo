@@ -42,7 +42,7 @@ A binding can carry its own colors in place of a named palette, with `stops`, an
 with the layer:
 
 ```ts
-session.styles.preview({ by: "data.score", stops: ["#f7fbff", "#08306b"] }, { channel: "node.color" });
+session.styles.preview({ by: "data.score", colors: ["#f7fbff", "#08306b"] }, { channel: "node.color" });
 ```
 
 ## What lies beneath a row

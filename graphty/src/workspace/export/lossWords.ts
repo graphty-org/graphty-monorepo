@@ -4,7 +4,8 @@
  * `message` is never shown or read here.
  */
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { CHANNEL_DESCRIPTORS, type FormatDescriptor } from "@graphty/graphty-element/catalog";
+import { EXPORT_STYLE_LOSS_CODES, type FileStyleReason, type GraphSession } from "@graphty/graphty-element/session";
 
 import { count } from "../data-place/words";
 import { runName } from "../runWords";
@@ -14,6 +15,8 @@ export interface LossFacts {
     readonly code: string;
     readonly column: string | null;
     readonly count: number | null;
+    /** Its params as the export reported them; the style losses' words read them (target, property, layer). */
+    readonly params?: Readonly<Record<string, unknown>>;
 }
 
 /** A loss's facts as the words need them: the column already named in words, or null. */
@@ -44,6 +47,68 @@ const ELSEWHERE: Words = ({ column }) =>
     `This format stores ${column ?? "one column"} inside another field, so it comes back mixed with other values, not as a column of its own.`;
 const RENAMED: Words = ({ column }) =>
     `When this file is opened again, ${column ?? "one column"} comes back under a different name.`;
+
+/**
+ * The style property a loss is about, as words.
+ * @param params - the loss's params: `target` (node, edge or graph), `property` (a neutral
+ * property such as `borderColor`) and, for one only graphty draws, `channel`.
+ * @returns such as "node border color"; "styles" when the loss names no property.
+ */
+export function property(params: Readonly<Record<string, unknown>>): string {
+    // a property only graphty draws is its channel, whose catalog name already says node or edge
+    if (typeof params.channel === "string" && Object.hasOwn(CHANNEL_DESCRIPTORS, params.channel)) {
+        return CHANNEL_DESCRIPTORS[params.channel as keyof typeof CHANNEL_DESCRIPTORS].plainName.toLowerCase();
+    }
+    const bare = typeof params.channel === "string" ? params.channel : params.property;
+    if (typeof bare !== "string") {
+        return "styles";
+    }
+    const name = bare.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+    const words = name === "fill" ? "fill color" : name;
+    return typeof params.target === "string" ? `${params.target} ${words}` : words;
+}
+
+/**
+ * The elements a style loss counts, as words.
+ * @param params - the loss's params.
+ * @returns such as "8 nodes".
+ */
+function elements(params: Readonly<Record<string, unknown>>): string {
+    const noun = typeof params.target === "string" ? params.target : "element";
+    return typeof params.count === "number" ? count(params.count, noun) : `some ${noun}s`;
+}
+
+/**
+ * Whether a style loss counts one element or rule.
+ * @param params - the loss's params.
+ * @returns true for a count of one.
+ */
+const one = (params: Readonly<Record<string, unknown>>): boolean => params.count === 1;
+
+/** Why a layer is written as its values, by the reason code `W_STYLE_LAYER_FLATTENED` carries. */
+const FLATTENED_BECAUSE: Readonly<Record<Extract<FileStyleReason, "SCALE" | "RESULT_PATH">, string>> = {
+    SCALE: "this format cannot hold its palette or scale",
+    RESULT_PATH: "it reads a value the file does not hold, such as an algorithm result",
+};
+
+/** The style losses' sentences, from their params. */
+const STYLE_WORDS: Readonly<Record<string, (params: Readonly<Record<string, unknown>>) => string>> = {
+    W_STYLE_NOT_WRITTEN: (p) => `${upper(property(p))} on ${elements(p)} is not written.`,
+    W_STYLE_APPROXIMATED: (p) =>
+        `${upper(property(p))} on ${elements(p)} is written as the nearest value this format allows.`,
+    W_STYLE_RULES_NOT_KEPT: (p) =>
+        `${upper(typeof p.count === "number" ? count(p.count, "style rule") : "Style rules")} ${one(p) ? "is" : "are"} written as each element's values, not as rules.`,
+    W_STYLE_LAYER_FLATTENED: (p) => {
+        const because = p.reason === "SCALE" || p.reason === "RESULT_PATH" ? FLATTENED_BECAUSE[p.reason] : undefined;
+        const layer = typeof p.layer === "string" ? `The layer "${p.layer}"` : "A layer";
+        return `${layer} is written as the ${property(p)} it paints on ${elements(p)}, not as a layer${
+            because === undefined ? "" : `: ${because}`
+        }.`;
+    },
+    W_STYLES_NOT_EXPORTED: (p) =>
+        `${upper(typeof p.count === "number" ? count(p.count, "style layer") : "Style layers")} ${one(p) ? "is" : "are"} not written.`,
+    E_STYLES_MISMATCH: () => "The styles belong to another graph, so the file cannot be written.",
+};
 
 /** One sentence per code. A code with no entry gets {@link generic}. */
 const WORDS: Readonly<Record<string, Words>> = {
@@ -171,9 +236,57 @@ export function columnWords(session: GraphSession, column: string): string | nul
  */
 export function lossLines(losses: readonly LossFacts[], nameColumn: (column: string) => string | null): string[] {
     const lines = losses.map((loss) => {
+        const styleWords = STYLE_WORDS[loss.code] as ((params: Readonly<Record<string, unknown>>) => string) | undefined;
+        if (styleWords !== undefined) {
+            return styleWords(loss.params ?? { count: loss.count });
+        }
         const said = { column: loss.column === null ? null : nameColumn(loss.column), count: loss.count };
         const words = WORDS[loss.code] as Words | undefined;
         return words === undefined ? generic(loss.code, said) : words(said);
     });
     return [...new Set(lines)];
+}
+
+/**
+ * Whether a loss is about the graph's styles.
+ * @param loss - one of the export's losses.
+ * @param loss.code - its code.
+ * @returns true for one of the element's `EXPORT_STYLE_LOSS_CODES`.
+ */
+export function isStyleLoss({ code }: { readonly code: string }): boolean {
+    return (EXPORT_STYLE_LOSS_CODES as readonly string[]).includes(code);
+}
+
+/**
+ * The style losses the warning lists: all of them, less the rules not kept by a format that
+ * writes no styles at all, where the sentence after the list already says none come back.
+ * @param format - the format, from the element's catalog.
+ * @param losses - the export's style losses.
+ * @returns the losses to list.
+ */
+export function listedStyleLosses(
+    format: FormatDescriptor | undefined,
+    losses: readonly LossFacts[],
+): readonly LossFacts[] {
+    const none = (format?.styles?.write ?? "none") === "none";
+    return none ? losses.filter((loss) => loss.code !== "W_STYLE_RULES_NOT_KEPT") : losses;
+}
+
+/**
+ * What opening the file in graphty again gives back of the style layers.
+ * @param format - the format, from the element's catalog.
+ * @param losses - the export's losses.
+ * @returns a sentence.
+ */
+export function layersBackWords(format: FormatDescriptor | undefined, losses: readonly LossFacts[]): string {
+    const write = format?.styles?.write ?? "none";
+    if (write === "none") {
+        return "Opening this file in graphty again gives none of the styles back.";
+    }
+    if (write === "values" || losses.some((loss) => loss.code === "W_STYLE_RULES_NOT_KEPT")) {
+        return "Opening this file in graphty again gives each element its colors and sizes back, but not the style layers.";
+    }
+    return losses.some((loss) => loss.code === "W_STYLE_LAYER_FLATTENED")
+        ? "Opening this file in graphty again rebuilds the other style layers as layers."
+        : "Opening this file in graphty again rebuilds the style layers as layers.";
 }

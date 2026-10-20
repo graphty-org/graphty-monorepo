@@ -66,7 +66,7 @@ describe("useLabels", () => {
         expect(defaultLabels.scaleSqrt).toBe("Square root scale");
         expect(defaultLabels.scaleLinear).toBe("Linear scale");
         expect(defaultLabels.scaleLog).toBe("Logarithmic scale");
-        expect(defaultLabels.departure).toBe("Departure");
+        expect(defaultLabels.departure).toBe("Warning");
         expect(defaultLabels.colorSwatch).toBe("Pick color");
         expect(defaultLabels.colorHexValue).toBe("Color hex value");
         expect(defaultLabels.opacity).toBe("Opacity");

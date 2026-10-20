@@ -4,8 +4,19 @@
 
 ```ts
 
+import { DATASETS as DATASET_DESCRIPTORS } from '@graphty/graph-samples';
+import { DatasetMeta } from '@graphty/graph-samples';
+import { DEFAULT_DATASET_BASE_URL } from '@graphty/graph-samples';
+import { GENERATOR_CATALOG as GENERATOR_DESCRIPTORS } from '@graphty/graph-samples';
+import { GeneratorDescriptor } from '@graphty/graph-samples';
+import { GeneratorParamDescriptor } from '@graphty/graph-samples';
+import { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GraphListing } from '@graphty/graph-io';
-import { z } from 'zod/v4';
+import { SourceInfo } from '@graphty/graph-io';
+import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
+import type { StyleRuleReason } from '@graphty/graph-io/styles';
+import type { StyleRuleRole } from '@graphty/graph-io/styles';
+import { z } from 'zod';
 
 // @public
 export const AI_PROVIDER_DESCRIPTORS: readonly AiProviderDescriptor[];
@@ -131,7 +142,6 @@ export interface AlgorithmDescriptor {
     shape: ResultShape;
     // (undocumented)
     technicalName: string;
-    weightMeaning?: "strength" | "distance" | "capacity" | null;
 }
 
 // @public
@@ -143,7 +153,6 @@ export const ATTRIBUTE_TYPES: readonly ["string", "number", "integer", "boolean"
 // @public
 export interface AttributeDescriptor {
     completeness: number;
-    holdsNodeIds?: true;
     // (undocumented)
     kind: "node" | "edge";
     // (undocumented)
@@ -171,11 +180,7 @@ export interface AttributeDescriptor {
     // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
-    valuesAreColors?: true;
 }
-
-// @public
-export type AttributeLeafNodes = "all" | "ends" | "none";
 
 // @public
 export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
@@ -183,18 +188,16 @@ export type AttributeType = (typeof ATTRIBUTE_TYPES)[number];
 // @public
 export type Binding = {
     value: ChannelValue;
-    combine?: CombineMode;
+} | {
+    template: readonly string[];
 } | {
     by: Path;
-    combine?: CombineMode;
     scale?: "linear" | "log" | "neglog10" | "sqrt" | "pow" | "bins" | "quantile" | "ordinal" | "passthrough" | (string & {});
     palette?: PaletteId;
-    stops?: string[];
     domain?: [number, number] | "auto";
     clamp?: [number, number];
     range?: [number, number];
     map?: Record<string, string | number>;
-    otherwise?: string | number;
     other?: {
         threshold: number;
         value: string | number;
@@ -203,14 +206,22 @@ export type Binding = {
     missing?: "skip" | {
         value: string | number;
     };
-    format?: BindingNumberFormat;
+    unmapped?: "skip";
+    stops?: BindingStop[];
     hidden?: (string | number | boolean)[];
     reverse?: boolean;
     midpoint?: number;
     bins?: number;
     exponent?: number;
-    choices?: string[];
 };
+
+// @public
+export interface BindingStop {
+    above?: string | number;
+    at: number;
+    below?: string | number;
+    value: string | number;
+}
 
 // @public
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[];
@@ -254,23 +265,6 @@ export type CameraId = (typeof KNOWN_CAMERA_IDS)[number] | (string & {});
 export function camerasForMode(mode: DrawingMode): readonly CameraDescriptor[];
 
 // @public
-export const CANVAS_KEY_DESCRIPTORS: readonly CanvasKeyDescriptor[];
-
-// @public
-export type CanvasKeyAction = "zoom-in" | "zoom-out" | "pan-up" | "pan-down" | "pan-left" | "pan-right" | "turn-up" | "turn-down" | "turn-left" | "turn-right" | "roll-left" | "roll-right";
-
-// @public
-export interface CanvasKeyDescriptor {
-    readonly action: CanvasKeyAction;
-    readonly keys: readonly string[];
-    readonly plainName: string;
-    readonly view: CanvasKeyView;
-}
-
-// @public
-export type CanvasKeyView = "2d" | "3d";
-
-// @public
 export interface CatalogApi {
     // (undocumented)
     algorithms(): readonly AlgorithmDescriptor[];
@@ -278,10 +272,12 @@ export interface CatalogApi {
     applicable(): readonly MetricAvailability[];
     // (undocumented)
     cameras(): readonly CameraDescriptor[];
+    datasets(): readonly DatasetMeta[];
     // (undocumented)
     formats(): readonly FormatDescriptor[];
     // @deprecated (undocumented)
     functions(): readonly FunctionDescriptor[];
+    generators(): readonly GeneratorDescriptor[];
     // (undocumented)
     layouts(): readonly LayoutDescriptor[];
     // (undocumented)
@@ -304,33 +300,23 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.shape" | "node.label" | "node.labelStyle" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.wireframe" | "node.flat" | "node.haloColor" | "node.haloSize" | "node.haloOpacity" | "node.marker" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "node.visible" | "node.labelSize" | "node.labelColor" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelSize" | "edge.labelColor" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
 
 // @public
-export type ChannelCaveatCode = "outline.sharedWidth";
-
-// @public
 export interface ChannelDescriptor {
     readonly accepts: ChannelValueKind;
     readonly caveat?: string;
-    readonly caveatCode?: ChannelCaveatCode;
     readonly channel: Channel;
     readonly default?: string | number | boolean;
-    readonly exclusiveMin?: boolean;
-    readonly follows?: Channel;
     readonly group: ChannelGroup;
     readonly max?: number;
     readonly min?: number;
-    readonly modifies?: Channel;
-    readonly off?: string | number;
-    readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
     readonly shortName: string;
-    readonly step?: number;
     readonly stylePath: string;
     readonly target: "node" | "edge";
     readonly unsupportedReason?: string;
@@ -378,6 +364,12 @@ export const COST_CLASSES: readonly ["instant", "iterative", "heavy", "cubic", "
 // @public
 export type CostClass = (typeof COST_CLASSES)[number];
 
+export { DATASET_DESCRIPTORS }
+
+export { DatasetMeta }
+
+export { DEFAULT_DATASET_BASE_URL }
+
 // @public
 export interface DefectWaiver {
     readonly expires: string;
@@ -388,9 +380,6 @@ export interface DefectWaiver {
 
 // @public
 export const DEPRECATED_ALGORITHMS: readonly ["all-paths"];
-
-// @public
-export const DEPRECATED_LAYOUT_IDS: readonly ["force-2d"];
 
 // @public
 export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
@@ -414,15 +403,6 @@ export interface DetectionInput {
 export type DrawingMode = "2d" | "3d";
 
 // @public
-export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[];
-
-// @public
-export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[];
-
-// @public
-export type EdgeArrowKind = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
-
-// @public
 export type EdgeId = string;
 
 // @public
@@ -439,7 +419,7 @@ export interface EdgeMember {
 }
 
 // @public
-export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
+export type EdgeReading = "induced" | "listed" | "clipped";
 
 // @public
 export type EdgeRef = EdgeId | EdgeMember;
@@ -460,7 +440,6 @@ export interface FieldBand {
 
 // @public
 export interface FieldDescriptor {
-    directedOnly?: boolean;
     interpretation?: FieldInterpretation;
     // (undocumented)
     kind: "node" | "edge" | "graph";
@@ -500,12 +479,11 @@ export const FORMAT_DESCRIPTORS: readonly FormatDescriptor[];
 
 // @public
 export interface FormatDescriptor {
+    binary?: boolean;
     // (undocumented)
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
-    description?: string;
-    exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
     // (undocumented)
@@ -515,6 +493,7 @@ export interface FormatDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    styles?: FormatStyles;
     writerOptions?: readonly OptionDescriptor[];
 }
 
@@ -522,23 +501,16 @@ export interface FormatDescriptor {
 export function formatDescriptor(id: string): FormatDescriptor | undefined;
 
 // @public
-export interface FormatExportVariant {
-    // (undocumented)
-    extensions: readonly string[];
-    id: string;
-    // (undocumented)
-    mimeTypes: readonly string[];
-    options: readonly OptionDescriptor[];
-    // (undocumented)
-    plainName: string;
-    preset: Readonly<Record<string, unknown>>;
-}
-
-// @public
 export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 // @public
 export function formatsForExtension(extension: string): readonly FormatDescriptor[];
+
+// @public
+export interface FormatStyles {
+    readonly read: boolean;
+    readonly write: "rules" | "values" | "none";
+}
 
 // @public
 export interface FunctionDescriptor {
@@ -551,12 +523,13 @@ export interface FunctionDescriptor {
     returns: "number" | "boolean" | "string";
 }
 
-// @public
-export interface GlyphDescriptor<Id extends string = string> {
-    readonly glyph: string;
-    readonly id: Id;
-    readonly plainName: string;
-}
+export { GENERATOR_DESCRIPTORS }
+
+export { GeneratorDescriptor }
+
+export { GeneratorParamDescriptor }
+
+export { GeneratorParams }
 
 export { GraphListing }
 
@@ -581,12 +554,8 @@ export type GraphtyErrorCode =
 */
 | "E_BAD_LAYER"
 /**
-* A style layer's selector does not parse. `details.reason` is a stable code naming the
-* mistake (such as `number-needs-backticks`), so a consumer writes its own words without
-* reading the message; an expression's refusal also carries the character offset
-* (`details.position`). A `number-needs-backticks` refusal also carries `details.suggestion`,
-* the selector with every bare number put between backticks (`` minutes >= `10` ``). The
-* caller corrects the selector; the layer is not added.
+* A style layer's selector does not parse. `details` carry the character offset. The caller
+* corrects the selector; the layer is not added.
 */
 | "E_BAD_SELECTOR"
 /**
@@ -601,10 +570,8 @@ export type GraphtyErrorCode =
 */
 | "E_SELECTOR_EMPTY"
 /**
-* A universal selector is combined with an encoding bound to a run that paints a value for a
-* missing result (`missing: { value }`), which would ask the element to paint elements the run
-* never measured. Without `missing`, such a layer is accepted: an element with no result is
-* not painted. The caller scopes the layer to the
+* A universal selector is combined with an encoding bound to a run, which would ask the
+* element to paint elements the run never measured. The caller scopes the layer to the
 * elements that carry the run's result.
 */
 | "E_UNSCOPED_RUN_ENCODING"
@@ -627,14 +594,17 @@ export type GraphtyErrorCode =
 | "E_UNKNOWN_OPTION"
 /**
 * An option is known but its value is outside the permitted range or not one of the
-* permitted values. `details` carry the range or the value list alongside what was passed.
-* The caller clamps or corrects the value.
+* permitted values, or a required option is missing. `details` carry `option`, the value that
+* was passed (absent when none was) and, where known, the range or the value list. An
+* algorithm's or layout's own `E_BAD_OPTION` arrives as this code. The caller clamps or
+* corrects the value.
 */
 | "E_OPTION_RANGE"
 /**
 * An expression, selector or formula names an attribute that nothing in the session answers.
-* `details.candidates` carry the nearest three names. The caller corrects the name, or loads
-* the data that would define it.
+* `details.candidates` carry the nearest three names. Also a layout option that names a node
+* column the graph does not hold (`multipartite`'s `subsets`); `details` then carry `option`
+* and `column`. The caller corrects the name, or loads the data that would define it.
 */
 | "E_UNKNOWN_ATTRIBUTE"
 /**
@@ -666,6 +636,16 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_CAMERA"
 /**
+* `data.generate` names a generator the catalogue does not list. `details.available` lists
+* the generator names. The caller picks one from `catalog.generators()`.
+*/
+| "E_UNKNOWN_GENERATOR"
+/**
+* `data.loadDataset` names a dataset the catalogue does not list. `details.available` lists
+* the dataset names. The caller picks one from `catalog.datasets()`.
+*/
+| "E_UNKNOWN_DATASET"
+/**
 * A logging configuration names a log destination nothing registered. `details.available`
 * lists the registered sink ids. The caller registers the sink before naming it, which is
 * what makes a destination configurable by name rather than by holding a live object.
@@ -688,8 +668,10 @@ export type GraphtyErrorCode =
 /**
 * A call names a node or an edge id this graph does not hold -- usually an id kept from
 * before a load or a removal. The call itself is well formed. `details.kind` says whether a
-* node or an edge was asked for and `details.id` carries the id. The caller refreshes the id
-* it holds.
+* node or an edge was asked for and `details.id` carries the id. Also a layout or algorithm
+* option that names a node the graph does not hold (a `bfs` start, a `radial` root); `details`
+* then carry `option` and the `id`, or the node `index` a sibling package was handed. The
+* caller refreshes the id it holds.
 */
 | "E_UNKNOWN_ELEMENT"
 /**
@@ -711,6 +693,16 @@ export type GraphtyErrorCode =
 * again with `{ discard: true }` once the reader agreed to lose them.
 */
 | "E_UNSAVED_CHANGES"
+/**
+* An autosave entry another tab or element is writing, so it cannot be restored or removed
+* from here. `details.id` names it. The caller waits for that tab to close, or picks another.
+*/
+| "E_AUTOSAVE_ENTRY_TAKEN"
+/**
+* An autosave entry that does not exist (it was removed, or never written under this key).
+* `details.id` names it. The caller lists the entries again.
+*/
+| "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -741,12 +733,6 @@ export type GraphtyErrorCode =
 * target. The caller adds its own layer above instead of editing the protected one.
 */
 | "E_PROTECTED"
-/**
-* The target is locked by the reader: a style layer whose row, or a folder holding it, has
-* the reader's lock on (`styles.lockRow`). `details` name the layer and the locked row. The
-* caller unlocks the row first, or leaves the layer as it is.
-*/
-| "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
 * unreadable file. `details` carry the url and the status where there was one, and `cause`
@@ -823,6 +809,77 @@ export type GraphtyErrorCode =
 * or loosens `tolerance`, and runs again; the same params always fail the same way.
 */
 | "E_NOT_CONVERGED"
+/**
+* A layout that only arranges planar graphs (`planar`) was given a graph that cannot be drawn
+* without crossing edges, such as K5 or the Petersen graph. `details` carry `nodeCount` and
+* `edgeCount` of the graph it tested, and `cause` the layout package's own error. The layout
+* places nothing: every node stays where it was before. It stays the chosen layout, and it
+* arranges the graph again when the graph changes. The caller picks another layout, or changes
+* the graph.
+*/
+| "E_NOT_PLANAR"
+/**
+* The graph is not connected, and the layout or algorithm only works on a connected one: the
+* `bfs` layout reaches every node from its start or places none. `details` carry `nodeCount`
+* and, from a layout, `reached`, the nodes it did reach; `cause` is the sibling package's own
+* error. A layout that refuses places nothing: every node stays where it was, and it arranges
+* the graph again when the graph changes. The caller picks another layout or start, or
+* connects the graph.
+*/
+| "E_NOT_CONNECTED"
+/**
+* The graph is not bipartite -- its nodes cannot be split into two sides with every edge
+* running between them -- and the algorithm (bipartite matching) only works on one that is.
+* `cause` is the algorithm's own error. The caller picks another algorithm, or names the two
+* sides itself.
+*/
+| "E_NOT_BIPARTITE"
+/**
+* The graph has no nodes, and the algorithm has nothing to compute over. Distinct from
+* `E_SCOPE_EMPTY`, which a wider scope can get past: here the graph itself is empty. `cause`
+* is the algorithm's own error. The caller loads data first.
+*/
+| "E_EMPTY_GRAPH"
+/**
+* The algorithm is defined for undirected graphs only and was given a directed one. `cause`
+* is the algorithm's own error. The caller loads the graph as undirected, or picks the
+* directed variant of the algorithm.
+*/
+| "E_NEEDS_UNDIRECTED"
+/**
+* The algorithm is defined for directed graphs only (strongly connected components, a
+* topological sort) and was given an undirected one. `cause` is the algorithm's own error. The
+* caller loads the graph as directed, or picks the undirected variant of the algorithm.
+*/
+| "E_NEEDS_DIRECTED"
+/**
+* An edge weight is one the algorithm or layout cannot use: negative where weights are
+* distances (a shortest path, `kamada-kawai`), infinite or NaN. `details.weight` carries the
+* value when the sibling package reported it, and `cause` its own error. The caller corrects
+* the weights, or runs unweighted.
+*/
+| "E_BAD_WEIGHT"
+/**
+* An option names a node or edge attribute whose values are of a type the layout or algorithm
+* cannot read -- a `bipartite` side that is not true or false, layers that are not whole
+* numbers or categories. `details` carry `option`, `column`, the `dtype` it has and the
+* `expected` dtypes. The caller names another attribute, or converts this one.
+*/
+| "E_ATTRIBUTE_TYPE"
+/**
+* A shortest path could not be walked back from the predecessors an accelerator returned: the
+* walk met a gap or went round a cycle. A CPU search never produces such predecessors; this is
+* a fault of the accelerator, surfaced instead of a wrong path. `cause` is the algorithm's own
+* error. The caller runs again with the `acceleration` attribute set to `off`.
+*/
+| "E_BAD_PATH"
+/**
+* An accelerator counted more shortest paths between a pair of nodes than its counters hold,
+* so every betweenness score it computed is wrong, and none is published. `cause` is the
+* algorithm's own error. The caller runs again with the `acceleration` attribute set to
+* `off`; the CPU path counts in double precision and does not overflow.
+*/
+| "E_PATH_COUNT_OVERFLOW"
 /**
 * Acceleration was required (the `acceleration` attribute set to `required`) and no
 * accelerator is available. `details` carry the reason acceleration is absent. The caller
@@ -923,14 +980,79 @@ export type GraphtyErrorCode =
 */
 | "E_HELD_BY_TRANSACTION"
 /**
+* The browser refused a request to a network source and hid why. `details.cause` is `"cors"`, `"unreachable"`, `"local-network"` or `"unknown"`; `details.url` the address, origin and path.
+*/
+| "E_SOURCE_BLOCKED"
+/**
+* A network source wants a credential, or refused the one given. `details.origin` is the host that asked, `details.status` its status, `details.stored` true when the credential came from the element's store. Experimental.
+*/
+| "E_SOURCE_AUTH"
+/**
+* A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+*/
+| "E_SOURCE_FORBIDDEN"
+/**
+* The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+*/
+| "E_SOURCE_NOT_FOUND"
+/**
+* A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+*/
+| "E_SOURCE_QUOTA"
+/**
+* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+*/
+| "E_SOURCE_TIMEOUT"
+/**
+* A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+*/
+| "E_SOURCE_QUERY"
+/**
+* A query returned no node, relationship or path. `details.columns`. Experimental.
+*/
+| "E_SOURCE_NOT_A_GRAPH"
+/**
+* A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+*/
+| "E_SOURCE_RESPONSE"
+/**
+* A redirect, or a changed origin, while a credential was attached; it was not followed. `details.from`, `details.to`. Experimental.
+*/
+| "E_SOURCE_REDIRECT"
+/**
+* The source cannot run here. `details.runtime`, `details.reason` (`"cors"`, `"needs-peer-dependency"`, `"insecure-endpoint"`, ...), `details.package`. Experimental.
+*/
+| "E_SOURCE_RUNTIME"
+/**
+* A source parameter or load option is invalid. `details.name`, `details.reason`. Experimental.
+*/
+| "E_SOURCE_PARAM"
+/**
+* A load cap was reached under `onLimit: "error"`. `details.limit`, `details.value`. Experimental.
+*/
+| "E_SOURCE_LIMIT"
+/**
+* No network source has that id. `details.id`, `details.known`. Experimental.
+*/
+| "E_SOURCE_UNKNOWN"
+/**
+* The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
+*/
+| "E_SOURCE_UNSUPPORTED"
+/**
+* A malformed network source at registration. `details.id`, `details.reason`. Experimental.
+*/
+| "E_SOURCE_INVALID"
+/**
+* A credential whose secret is a function (a token refresher, a custom or AWS credential) cannot be remembered. `details.kind`. Experimental.
+*/
+| "E_CREDENTIAL_NOT_STORABLE"
+/**
 * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
 | "E_INTERNAL";
-
-// @public
-export type GroupMatchCode = "group.new" | "group.gone";
 
 // @public
 export function isAttributeType(value: unknown): value is AttributeType;
@@ -960,7 +1082,7 @@ export const KNOWN_ALGORITHMS: readonly ["degree", "betweenness", "closeness", "
 export const KNOWN_CAMERA_IDS: readonly ["fitToGraph", "topView", "sideView", "frontView", "isometric"];
 
 // @public
-export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo", "graphty"];
+export const KNOWN_FORMAT_IDS: readonly ["json", "csv", "graphml", "gexf", "gml", "dot", "pajek", "sif", "cx2", "xgmml", "cx", "cys", "obo"];
 
 // @public
 export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radial", "hierarchical", "grid", "shell", "spectral", "bipartite", "layers", "fixed", "random"];
@@ -969,16 +1091,10 @@ export const KNOWN_LAYOUT_IDS: readonly ["force", "force-2d", "circular", "radia
 export const KNOWN_LOG_SINK_IDS: readonly ["console", "remote"];
 
 // @public
-export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "kelly", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
+export const KNOWN_PALETTE_IDS: readonly ["viridis", "ylorbr", "plasma", "inferno", "blues", "greens", "oranges", "okabe-ito", "tol-vibrant", "tol-muted", "pastel", "carbon", "purple-green", "blue-orange", "red-blue", "blue-highlight", "green-highlight", "orange-highlight"];
 
 // @public
 export type KnownAlgorithm = (typeof KNOWN_ALGORITHMS)[number];
-
-// @public
-export const LABEL_LOOKS: readonly LabelLookDescriptor[];
-
-// @public
-export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle>;
 
 // @public
 export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[];
@@ -1002,26 +1118,10 @@ export type LabelIconPosition = "left" | "right";
 export type LabelLocation = "top" | "top-right" | "top-left" | "left" | "center" | "right" | "bottom" | "bottom-left" | "bottom-right" | "automatic";
 
 // @public
-export function labelLook(id: string): LabelLookDescriptor | undefined;
-
-// @public
-export function labelLookChanges(style: LabelStyle): (keyof LabelStyle)[];
-
-// @public
-export interface LabelLookDescriptor {
-    readonly id: LabelLookId;
-    readonly plainName: string;
-    readonly style: Readonly<Omit<LabelStyle, "look" | "enabled">>;
-}
-
-// @public
-export type LabelLookId = "default" | "card" | "dark" | "pill" | "callout";
-
-// @public
 export type LabelPointerDirection = "top" | "bottom" | "left" | "right" | "auto";
 
 // @public
-export type LabelSizeUnit = "world" | "screen";
+export type LabelSizeMode = "world" | "screen";
 
 // @public
 export interface LabelStyle {
@@ -1032,6 +1132,7 @@ export interface LabelStyle {
     badge?: LabelBadge;
     borderColor?: string;
     borderWidth?: number;
+    closeButton?: boolean;
     color?: string;
     cornerRadius?: number;
     depthFade?: boolean;
@@ -1045,9 +1146,10 @@ export interface LabelStyle {
     gradientType?: LabelGradientType;
     icon?: string;
     iconPosition?: LabelIconPosition;
+    italic?: boolean;
+    keepInView?: boolean;
     lineHeight?: number;
     location?: LabelLocation;
-    look?: LabelLookId;
     marginBottom?: number;
     marginLeft?: number;
     marginRight?: number;
@@ -1058,7 +1160,11 @@ export interface LabelStyle {
     outlineWidth?: number;
     overflowSuffix?: string;
     padding?: number;
-    pickable?: boolean;
+    panelShadow?: boolean;
+    panelShadowBlur?: number;
+    panelShadowColor?: string;
+    panelShadowOffsetX?: number;
+    panelShadowOffsetY?: number;
     pointer?: boolean;
     pointerCurve?: boolean;
     pointerDirection?: LabelPointerDirection;
@@ -1071,8 +1177,9 @@ export interface LabelStyle {
     shadowColor?: string;
     shadowOffsetX?: number;
     shadowOffsetY?: number;
+    size?: number;
+    sizeMode?: LabelSizeMode;
     sizePx?: number;
-    sizeUnit?: LabelSizeUnit;
     smartOverflow?: boolean;
     textAlign?: LabelTextAlign;
     weight?: number | "normal" | "bold";
@@ -1112,11 +1219,11 @@ export interface LayerSpec {
     enabled?: boolean;
     // (undocumented)
     encode?: Encoding;
+    fileStyle?: FileStyleOrigin;
     // (undocumented)
     kind?: LayerKind;
     // (undocumented)
     name: string;
-    row?: LayerId;
     // (undocumented)
     selector: Selector;
     // (undocumented)
@@ -1125,19 +1232,8 @@ export interface LayerSpec {
     source?: LayerSource;
     // (undocumented)
     target?: "node" | "edge";
-    unmatched?: readonly LayerUnmatchedGroup[];
     // (undocumented)
     userData?: Record<string, unknown>;
-}
-
-// @public
-export interface LayerUnmatchedGroup {
-    readonly code: GroupMatchCode;
-    readonly params: {
-        readonly path: Path;
-        readonly value: string | number | boolean;
-        readonly dropped?: boolean;
-    };
 }
 
 // @public
@@ -1170,6 +1266,7 @@ export interface LayoutDescriptor {
     options: readonly OptionDescriptor[];
     // (undocumented)
     plainName: string;
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     sizeRating: "any" | 10000 | 2000 | 500;
@@ -1207,16 +1304,20 @@ export interface LayoutImplementation {
     plainName: string;
     // @deprecated
     reason: string;
-    requires?: {
-        accelerator?: boolean;
-    };
+    requires?: LayoutRequirements;
     scoped: boolean;
     // (undocumented)
     technicalName: string;
 }
 
 // @public
-export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional";
+export type LayoutImplementationCode = "implementation.only" | "implementation.only-uncrossed-rows" | "implementation.default-processor" | "implementation.d3-tuning" | "implementation.gephi-look" | "implementation.seed-reproducible" | "implementation.accelerator-only" | "implementation.distance-faithful" | "implementation.two-dimensional" | "implementation.graphviz";
+
+// @public
+export interface LayoutRequirements {
+    accelerator?: boolean;
+    package?: string;
+}
 
 // @public
 export interface LegacyAlgorithmKey {
@@ -1291,13 +1392,7 @@ export interface MetricAvailability {
 }
 
 // @public
-export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[];
-
-// @public
 export type NodeId = string | number;
-
-// @public
-export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"]>;
 
 // @public
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];
@@ -1431,35 +1526,6 @@ export interface QueryValidation {
 }
 
 // @public
-export type ReadableChannelKind = "color" | "number" | "enum" | "text" | "boolean";
-
-// @public
-export interface ReadableValue {
-    readonly completeness: number;
-    readonly end?: "source" | "target";
-    readonly fits: readonly ReadableChannelKind[];
-    readonly from: "element" | "data" | "run";
-    readonly holdsNodeIds?: true;
-    readonly kind: ReadableValueKind;
-    readonly on: "node" | "edge";
-    readonly path: Path;
-    readonly plainName: string;
-    readonly range?: {
-        readonly min: number;
-        readonly max: number;
-    };
-    readonly runId?: RunId;
-    readonly technicalName: string;
-    readonly tests: readonly RuleTestKind[];
-    readonly usedBy?: readonly AttributeUse[];
-    readonly valueCount?: number;
-    readonly valuesAreColors?: true;
-}
-
-// @public
-export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
-
-// @public
 export const RESULT_SHAPES: readonly ["node-metric", "edge-metric", "community", "layered-grouping", "category-table", "path", "node-set", "edge-set", "pair-list", "temporal", "fact"];
 
 // @public
@@ -1496,12 +1562,10 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
-    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
-    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -1563,22 +1627,7 @@ export type RuleTree = {
     readonly kind: "threshold";
     readonly path: Path;
     readonly top?: number;
-    readonly ties?: TopTies;
     readonly above?: number;
-}
-/**
-* The elements whose text for one value passes a text test: "name contains bob", "id matches
-* `[13579]$`". The same matcher a selection's text search runs. A number or a yes-or-no value
-* is read as its text; an element without a value fails. Reading `"id"` speaks nodes; a value
-* path speaks each half whose elements carry it, as a `range` leaf does.
-*/
-| {
-    readonly kind: "text";
-    readonly reads: Path;
-    readonly mode: TextMatchMode;
-    readonly text: string;
-    readonly caseSensitive?: boolean;
-    readonly nodes?: AttributeLeafNodes;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -1653,14 +1702,12 @@ export type Selector = {
 /**
 * The top `n` elements by one run field (`results.<run>.<field>`), cut only between tie
 * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
-* See `TopRanking` for the policy. `ties: "all"` takes the group the cut falls in whole
-* instead, so the top can hold more than `n` (see {@link TopTies}).
+* See `TopRanking` for the policy.
 */
 | {
     match: "top";
     path: Path;
     n: number;
-    ties?: TopTies;
 } | {
     match: "everything";
 }
@@ -1675,25 +1722,26 @@ export type Selector = {
     of: Scope;
 }
 /**
-* The elements a rule tree holds, re-evaluated as the data changes: what a rule set holds,
-* without keeping a set. `edges` is how the edges are read beside a rule about nodes (default
-* `clipped`, the edges between its nodes, as the visibility filter reads it). "Top N by" any
-* number is a `threshold` leaf: `{ kind: "threshold", path: "data.age", top: 10 }`.
+* What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
+* or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
+* `invert: true`, everything else -- but only while a node is hovered, so the layer paints
+* nothing at rest. Edges: the edges that touch the hovered node, for either reach. View
+* state: the layer follows the pointer with no undo step. `session.selection.hovered` says
+* which node it is. With `orSelected: true`, while no node is hovered a lone selected node
+* stands in for the hovered one, so a look that follows the pointer stays on the node the
+* reader clicked; several selected nodes, or none, and the layer paints as at rest.
+*
+* ```ts
+* // Fade what the pointed-at node is not linked to.
+* session.styles.add({ name: "Dim the rest", target: "node",
+*     selector: { match: "hover", reach: "neighbors", invert: true }, set: { "node.opacity": 0.25 } });
+* ```
 */
 | {
-    match: "rule";
-    where: RuleTree;
-    edges?: EdgeReading;
-}
-/**
-* The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-* each change with no step.
-* @since 3.26.0
-*/
-| {
-    match: "state";
-    state: "selected" | "hovered";
+    match: "hover";
+    reach?: "node" | "neighbors";
+    invert?: boolean;
+    orSelected?: boolean;
 };
 
 // @public
@@ -1762,14 +1810,12 @@ export type SetOperand = Scope | {
 };
 
 // @public
-export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
+export function sourceDescriptors(): readonly SourceInfo[];
+
+export { SourceInfo }
 
 // @public
-export interface StructureValue {
-    readonly path: Path;
-    readonly plainName: string;
-    readonly technicalName: string;
-}
+export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
 export interface StyleDocument {
@@ -1777,22 +1823,9 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
-    tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;
 }
-
-// @public
-export type StyleDocumentRow = ({
-    layer: number;
-} | {
-    folder: string;
-    children: readonly StyleDocumentRow[];
-}) & {
-    pin?: "top" | "bottom" | "none";
-    locked?: boolean;
-    hidden?: boolean;
-};
 
 // @public
 export interface SuggestedName {
@@ -1801,9 +1834,6 @@ export interface SuggestedName {
     // (undocumented)
     readonly label: string;
 }
-
-// @public
-export type TextMatchMode = "substring" | "exact" | "starts-with" | "ends-with" | "regex";
 
 // @public
 export interface ThemeDescriptor {
@@ -1817,9 +1847,6 @@ export interface ThemeDescriptor {
 
 // @public
 export function toColorValue(value: string | Rgba | null | undefined): ColorValue | null;
-
-// @public
-export type TopTies = "fewer" | "all";
 
 // @public
 export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[];

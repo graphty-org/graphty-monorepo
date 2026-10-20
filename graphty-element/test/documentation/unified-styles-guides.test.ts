@@ -118,8 +118,8 @@ const PAGES: readonly Page[] = [
         check: (session, printed) => {
             assert.deepEqual(printed, ["130", "0.0123", "1,500"]);
             const style = session.styles.explain({ node: "a" }).merged["node.labelStyle"] as
-                { sizeUnit?: string } | undefined;
-            assert.strictEqual(style?.sizeUnit, "screen");
+                { sizeMode?: string } | undefined;
+            assert.strictEqual(style?.sizeMode, "screen");
         },
     },
 ];

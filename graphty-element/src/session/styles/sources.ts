@@ -49,6 +49,8 @@ import { type NoteFacts, type NoteFactsReader, noteFieldOf } from "../notes/path
 import { RESULT_ROOT, type RunResult } from "../results";
 import { edgeSpaceOf } from "../scope/spaces";
 import type { SessionRecordSource } from "../types";
+import { parseFileStylePath } from "./fileStyles/path";
+import type { FileStyleScalar } from "./fileStyles/store";
 import type { SelectorSource, SelectorTarget } from "./predicate";
 
 // ---------------------------------------------------------------------------------------------
@@ -92,6 +94,19 @@ export interface SelectorSourceParts {
      * paths read nothing, as they do on an element no note names.
      */
     readonly notes?: NoteFactsReader;
+    /**
+     * One column of a file's style values, by element id, for the `graphty.style.*` paths. Absent,
+     * or answering undefined, those paths read nothing.
+     * @param namespace - The load's namespace.
+     * @param kind - Nodes or edges.
+     * @param key - The column's key.
+     * @returns The values by element id, or undefined when no load holds that column.
+     */
+    readonly fileStyles?: (
+        namespace: string,
+        kind: SelectorTarget,
+        key: string,
+    ) => ReadonlyMap<NodeId | EdgeId, FileStyleScalar> | undefined;
 }
 
 /**
@@ -261,6 +276,8 @@ type PathKind =
     | "note"
     /** A node's structural value, one of {@link STRUCTURE_PATHS}. */
     | "structure"
+    /** One column of a file's style values, under `graphty.style.`. */
+    | "style"
     /** Nothing this session can answer, so every read of it is absent. */
     | "none"
     /** One per-element field of one run's result. */
@@ -270,11 +287,17 @@ type PathKind =
 interface PathEntry {
     /** Which reader answers it. */
     readonly kind: PathKind;
-    /** The column name and record key, for an attribute path; the end, for an end path; empty otherwise. */
+    /**
+     * The column name and record key, for an attribute path, or the style column's key; the end,
+     * for an end path; empty otherwise.
+     */
     readonly key: string;
-    /** The run, for a result path; empty otherwise. */
+    /** The run, for a result path, or the load's namespace, for a style path; empty otherwise. */
     readonly runId: RunId;
-    /** The field, for a result path, the note value, for a note path, or the node path, for an end path; empty otherwise. */
+    /**
+     * The field, for a result path, the note value, for a note path, the kind of element, for a
+     * style path, the path, for a structure path, or the node path, for an end path; empty otherwise.
+     */
     readonly field: string;
 }
 
@@ -316,9 +339,7 @@ function parsePath(path: Path): PathEntry {
     }
 
     if (path.startsWith(ELEMENT_ROOT)) {
-        const note = noteFieldOf(path);
-        // A `graphty.` path this release does not know reads nothing, so a later one is an addition.
-        return note === undefined ? NOTHING : { kind: "note", key: "", runId: "", field: note };
+        return parseElementPath(path);
     }
 
     // The prefix is stripped rather than required, matching the session's filter value source:
@@ -327,6 +348,26 @@ function parsePath(path: Path): PathEntry {
     const key = path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
 
     return key === "" ? NOTHING : { kind: "attribute", key, runId: "", field: "" };
+}
+
+/**
+ * Work out what a `graphty.` path names: a note field or a file style column. The degrees are
+ * {@link STRUCTURE_PATHS}, read before this.
+ * @param path - The path.
+ * @returns What reads it; a `graphty.` path this release does not know reads nothing, so a later one is an addition.
+ */
+function parseElementPath(path: Path): PathEntry {
+    const note = noteFieldOf(path);
+    if (note !== undefined) {
+        return { kind: "note", key: "", runId: "", field: note };
+    }
+
+    const style = parseFileStylePath(path);
+    if (style !== undefined) {
+        return { kind: "style", key: style.key, runId: style.namespace, field: style.kind };
+    }
+
+    return NOTHING;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -494,7 +535,7 @@ function isPresent(value: unknown): boolean {
  * ```
  */
 export function createSelectorSource(parts: SelectorSourceParts): SessionSelectorSource {
-    const { snapshot: readSnapshot, records, notes } = parts;
+    const { snapshot: readSnapshot, records, notes, fileStyles } = parts;
     const readResult = parts.results;
     const paths = new Map<Path, PathEntry>();
     let frame: Frame | null = null;
@@ -653,6 +694,32 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
     };
 
     /**
+     * One element's file-style value: the column's value under the element's id.
+     * @param target - Whether the asking layer paints nodes or edges.
+     * @param index - The element's dense index.
+     * @param entry - The parsed style path.
+     * @returns The value, or undefined when the element holds none.
+     */
+    const styleOf = (target: SelectorTarget, index: number, entry: PathEntry): unknown => {
+        // A node path read by an edge layer, or the reverse, names nothing that element holds.
+        if (entry.field !== target) {
+            return undefined;
+        }
+
+        const column = fileStyles?.(entry.runId, target, entry.key);
+        if (column === undefined) {
+            return undefined;
+        }
+
+        const held = current();
+        if (target === "node") {
+            return index >= 0 && index < held.nodeCount ? column.get(held.graph.ids.idOf(index)) : undefined;
+        }
+
+        return index >= 0 && index < held.edgeCount ? column.get(edgeIdAt(held, index)) : undefined;
+    };
+
+    /**
      * One element's value for a path.
      * @param target - Whether the asking layer paints nodes or edges.
      * @param index - The element's dense index.
@@ -668,6 +735,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         if (entry.kind === "note") {
             return notes?.(target, index)?.[entry.field as keyof NoteFacts];
+        }
+
+        if (entry.kind === "style") {
+            return styleOf(target, index, entry);
         }
 
         const held = current();
@@ -711,6 +782,10 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
 
         if (entry.kind === "note") {
             return notes?.(target, index) !== undefined;
+        }
+
+        if (entry.kind === "style") {
+            return isPresent(styleOf(target, index, entry));
         }
 
         const held = current();

@@ -9,7 +9,9 @@ import { ToggleIconButton } from "./buttons";
 import { shieldDragSelection } from "./chrome/dragSelectionShield";
 import { SwapGlyph, UnitField } from "./GradientEditor";
 import { HISTOGRAM_AXIS_INSET, HistogramRow } from "./rows/ChartRow";
-import { StyleSelect, type StyleSelectOption } from "./StyleSelect";
+import { FieldRow } from "./rows/FieldRow";
+import { PanelField } from "./rows/PanelField";
+import { ResetButton } from "./rows/TrailingSlot";
 
 // The ramp editor: a mapping from a value to a look, drawn on the value's own axis. The caller
 // computes everything -- the bins, what each paints, the counts, the step bounds -- usually from
@@ -129,7 +131,7 @@ export interface RampEditorProps {
     scale?: string;
     /** The scale in force when none is set here. */
     defaultScale?: string;
-    scales?: StyleSelectOption[];
+    scales?: { value: string; label: string; glyph?: React.ReactNode }[];
     /** Called with a picked scale, or undefined when the reader resets it. */
     onScaleChange?: (scale: string | undefined) => void;
     /** The palette set here (undefined: none is, as for `scale`), and the palettes offered. */
@@ -142,7 +144,7 @@ export interface RampEditorProps {
     /**
      * Words the scale and palette selects show while neither is set here. Given, an unset select
      * is empty under these words instead of showing `defaultScale` or `defaultPalette` as if it
-     * were chosen, and it is offered even with no default; see `StyleSelect`'s `placeholder`.
+     * were chosen, and it is offered even with no default.
      */
     unsetText?: string;
     /** Whether the palette runs high to low. Omit `onReverseChange` to hide the toggle. */
@@ -564,6 +566,63 @@ export function RampEditor({
     const strip = (stops: string[]): string =>
         `linear-gradient(to ${direction === "rtl" ? "left" : "right"}, ${(reverse ? [...stops].reverse() : stops).join(", ")})`;
 
+    /**
+     * A drop-down with its name drawn above it: the value set here, or, while none is, the
+     * default (or `unsetText`) in the placeholder ink. A reset beside it once a value is set.
+     * @param name - its name, drawn and spoken
+     * @param value - the value set here, if any
+     * @param fallback - the value in force when none is set here
+     * @param options - the choices
+     * @param glyphs - a picture per choice, by value
+     * @param onPick - called with a picked value, or undefined on a reset
+     * @returns the field
+     */
+    const choice = (
+        name: string,
+        value: string | undefined,
+        fallback: string | undefined,
+        options: readonly { value: string; label: string }[],
+        glyphs: Record<string, React.ReactNode>,
+        onPick: ((next: string | undefined) => void) | undefined,
+    ): React.JSX.Element => {
+        const fallbackLabel = options.find((option) => option.value === fallback)?.label ?? fallback;
+        const shown = value ?? (unsetText === undefined ? fallback : undefined);
+        return (
+            <Box style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <span className="cm-field-label" aria-hidden="true">
+                    {name}
+                </span>
+                <FieldRow
+                    trailing={
+                        value !== undefined && (
+                            <ResetButton
+                                label={name}
+                                disabled={value === fallback}
+                                onClick={() => {
+                                    onPick?.(undefined);
+                                }}
+                            />
+                        )
+                    }
+                >
+                    <PanelField
+                        label={name}
+                        kind="select"
+                        width="fill"
+                        value={value ?? null}
+                        placeholder={unsetText ?? fallbackLabel}
+                        data={options.map((option) => ({ value: option.value, label: option.label }))}
+                        glyph={shown === undefined ? undefined : glyphs[shown]}
+                        optionGlyphs={glyphs}
+                        onChange={(next) => {
+                            onPick?.(String(next));
+                        }}
+                    />
+                </FieldRow>
+            </Box>
+        );
+    };
+
     return (
         <Box data-testid="ramp-editor" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <Box style={{ position: "relative" }}>
@@ -725,28 +784,28 @@ export function RampEditor({
                 <Box style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8 }}>
                     {scales !== undefined && (shownScale !== undefined || unsetText !== undefined) && (
                         <Box style={{ flex: "1 0 100%", minWidth: 0 }}>
-                            <StyleSelect
-                                label={labels.scale}
-                                value={scale}
-                                defaultValue={shownScale ?? ""}
-                                placeholder={unsetText}
-                                options={scales}
-                                onChange={(value) => onScaleChange?.(value)}
-                            />
+                            {choice(
+                                labels.scale,
+                                scale,
+                                defaultScale,
+                                scales,
+                                Object.fromEntries(scales.map((option) => [option.value, option.glyph])),
+                                onScaleChange,
+                            )}
                         </Box>
                     )}
                     {palettes !== undefined && (shownPalette !== undefined || unsetText !== undefined) && (
                         <Box style={{ flex: "1 1 0", minWidth: 0 }}>
-                            <StyleSelect
-                                label={labels.palette}
-                                value={palette}
-                                defaultValue={shownPalette ?? ""}
-                                placeholder={unsetText}
-                                options={palettes.map((option) => ({
-                                    value: option.value,
-                                    label: option.label,
-                                    glyph: (
+                            {choice(
+                                labels.palette,
+                                palette,
+                                defaultPalette,
+                                palettes,
+                                Object.fromEntries(
+                                    palettes.map((option) => [
+                                        option.value,
                                         <span
+                                            key={option.value}
                                             data-testid="ramp-editor-strip"
                                             style={{
                                                 display: "block",
@@ -756,11 +815,11 @@ export function RampEditor({
                                                 borderRadius: 2,
                                                 background: strip(option.stops),
                                             }}
-                                        />
-                                    ),
-                                }))}
-                                onChange={(value) => onPaletteChange?.(value)}
-                            />
+                                        />,
+                                    ]),
+                                ),
+                                onPaletteChange,
+                            )}
                         </Box>
                     )}
                     {onReverseChange !== undefined && (

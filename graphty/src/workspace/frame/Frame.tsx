@@ -55,6 +55,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     const rightWidth = useWorkspaceState((state) => state.rightWidth);
     const dockOpen = useWorkspaceState((state) => state.dockOpen);
     const dockHeight = useWorkspaceState((state) => state.dockHeight);
+    const autosave = useWorkspaceState((state) => state.autosave);
     const panels = page === "panels";
     // Leaving the Data page (Load, Cancel, Esc) takes away the control that had focus; focus goes
     // to the graph's heading, or the open place's list while the inspector shows something else
@@ -123,7 +124,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         land on it and read it as one place. */}
                     <section className="ws-canvas" aria-label="Graph drawing">
                         <CanvasMenu>
-                            <ElementHost key={projectId} onReady={onElementReady} />
+                            <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         </CanvasMenu>
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />

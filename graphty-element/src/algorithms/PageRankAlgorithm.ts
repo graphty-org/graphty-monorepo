@@ -1,5 +1,5 @@
 import { type F64, type GraphSnapshot, INVALID_INDEX, type NodeId as AlgorithmNodeId } from "@graphty/graph-format";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import type { FieldDescriptor, NodeId } from "../catalog/types";
 import { defineOptions, type InferOptions, parseOptions } from "../config";
@@ -168,7 +168,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
     /**
      * Resolved options using the NEW Zod-based validation
      */
-    private zodOptions: PageRankSchemaOptions;
+    private readonly zodOptions: PageRankSchemaOptions;
 
     /**
      * The two Map-valued options, kept from what the caller passed.

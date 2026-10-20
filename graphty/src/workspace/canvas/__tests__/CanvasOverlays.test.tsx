@@ -5,8 +5,8 @@
  */
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession, LegendBlock, ProgressChange, RunPainting } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, describe, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { type Command, createRegistry, defineRegistration } from "../../commands/registry";
@@ -37,10 +37,12 @@ function standIn(facts: StandInFacts = {}): {
     emit: (event: string, payload: unknown) => void;
     encode: ReturnType<typeof vi.fn>;
     highlight: ReturnType<typeof vi.fn>;
+    mark: ReturnType<typeof vi.fn>;
 } {
     const listeners = new Map<string, Set<(payload: unknown) => void>>();
     const encode = vi.fn();
     const highlight = vi.fn();
+    const mark = vi.fn();
     const session = {
         on: (event: string, listener: (payload: unknown) => void) => {
             const set = listeners.get(event) ?? new Set();
@@ -56,6 +58,7 @@ function standIn(facts: StandInFacts = {}): {
                     : { id, name: facts.layers[id], selector: { match: "everything" } },
             encode,
             highlight,
+            mark,
             settled: () => Promise.resolve(),
             // No layer above covers a block, and no layer lists its own groups.
             counts: () => ({ covers: {} }),
@@ -99,6 +102,7 @@ function standIn(facts: StandInFacts = {}): {
         emit,
         encode,
         highlight,
+        mark,
     };
 }
 
@@ -243,7 +247,8 @@ describe("the canvas's state cards", () => {
         renderOver(standIn({ nodeCount: 0 }).session, {}, [command]);
         const button = screen.getByRole("button", { name: "Add data..." });
         assert.equal(button.getAttribute("aria-disabled"), "true");
-        await userEvent.click(button);
+        // force: a reader can still press a disabled control, and it must do nothing
+        await userEvent.click(button, { force: true });
         assert.equal(vi.mocked(command.run).mock.calls.length, 0);
         await userEvent.hover(button);
         assert.isNotNull(await screen.findByText("Close the dialog first"));
@@ -532,7 +537,7 @@ describe("the legend card", () => {
 });
 
 describe("the notice a held-back run gives", () => {
-    const suppressed = (as: "encoding" | "highlight"): RunPainting =>
+    const suppressed = (as: "encoding" | "highlight" | "mark"): RunPainting =>
         ({
             state: "decided",
             suggestions: [{ outcome: "suppressed", suggestion: { as, spec: { name: "x" } }, byLayerId: "mine" }],
@@ -551,6 +556,13 @@ describe("the notice a held-back run gives", () => {
         runNotice(session, "run-1")?.action?.run();
         assert.equal(highlight.mock.calls.length, 1);
         assert.equal(encode.mock.calls.length, 0);
+    });
+
+    it("hands an algorithm's mark back as a mark, never as a highlight", () => {
+        const { session, highlight, mark } = standIn({ painting: suppressed("mark"), layers: { mine: "Mine" } });
+        runNotice(session, "run-1")?.action?.run();
+        assert.equal(mark.mock.calls.length, 1);
+        assert.equal(highlight.mock.calls.length, 0);
     });
 
     it("still says what happened when the layer is gone", () => {

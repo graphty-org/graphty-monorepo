@@ -4,6 +4,8 @@ import "@babylonjs/core/Meshes/thinInstanceMesh";
 
 import { BoundingBox, Color3, Matrix, type Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
 
+import { batchUploadFrames } from "./FrameRoster";
+
 /** Floats in one 4x4 world matrix, which is what every slot holds. */
 const FLOATS_PER_MATRIX = 16;
 
@@ -110,7 +112,8 @@ export class ArrowCapBatch {
 
     private gone = false;
 
-    private readonly flushOnRender: () => void;
+    /** Ends this batch's per-frame upload; see {@link batchUploadFrames}. */
+    private readonly stopFlush: () => void;
 
     /**
      * Start a batch on one cap mesh.
@@ -198,11 +201,9 @@ export class ArrowCapBatch {
         // than on the update loop means a render from anywhere -- the element's own frame, a
         // story that steps the graph by hand, a test that renders once -- draws what was written
         // for it, and still uploads once rather than once per cap.
-        this.flushOnRender = (): void => {
+        this.stopFlush = batchUploadFrames.join(scene, () => {
             this.flush();
-        };
-
-        scene.onBeforeRenderObservable.add(this.flushOnRender);
+        });
     }
 
     /**
@@ -481,6 +482,15 @@ export class ArrowCapBatch {
 
     /** Upload everything written since the last upload, one call per buffer that changed. */
     flush(): void {
+        // Babylon rebuilds a thin-instance buffer empty after a lost GL context (it keeps no copy
+        // of data uploaded in part), so the first frame after one uploads every buffer again.
+        if (batchUploadFrames.isRestoring(this.mesh.getScene())) {
+            this.dirty.add("matrix");
+            for (const kind of this.billboard ? Object.keys(BILLBOARD_BUFFERS) : []) {
+                this.dirty.add(kind);
+            }
+        }
+
         if (this.gone || this.dirty.size === 0) {
             return;
         }
@@ -499,7 +509,7 @@ export class ArrowCapBatch {
         }
 
         this.gone = true;
-        this.mesh.getScene().onBeforeRenderObservable.removeCallback(this.flushOnRender);
+        this.stopFlush();
         // Its material is this batch's own -- one for all its caps -- so it goes with it.
         this.mesh.dispose(false, true);
     }

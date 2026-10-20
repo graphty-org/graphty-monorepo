@@ -2,7 +2,6 @@ import {
     createTheme,
     DEFAULT_THEME,
     type MantineTheme,
-    type MantineThemeComponent,
     type MantineThemeComponents,
     type MantineThemeOverride,
     mergeMantineTheme,
@@ -11,7 +10,7 @@ import {
 import { PANEL_GRID } from "../constants/panel";
 import { compactColors } from "./colors";
 import { componentExtensions } from "./components";
-import { type CompactThemeOptions, ensureCompactStyles, followPrimaryColor } from "./global-styles";
+import { type CompactAccent, type CompactThemeOptions, ensureCompactStyles, followPrimaryColor } from "./global-styles";
 import {
     CM_FONT_FAMILY,
     CM_FONT_FAMILY_MONO,
@@ -38,7 +37,7 @@ declare module "@mantine/core" {
          */
         panelGrid?: typeof PANEL_GRID;
         /** The options this theme was created with, resolved. */
-        compact?: { highContrast: boolean };
+        compact?: { highContrast: boolean; accent?: CompactAccent };
     }
 }
 
@@ -56,17 +55,32 @@ function withStyleInjection(
 ): MantineThemeComponents {
     const wrapped: MantineThemeComponents = {};
     for (const [name, extension] of Object.entries(components)) {
-        const { vars } = extension;
+        const resolver: unknown = extension.vars;
         wrapped[name] = {
             ...extension,
-            vars: (...args: Parameters<NonNullable<MantineThemeComponent["vars"]>>) => {
+            vars: (...args: Parameters<VarsResolver>) => {
                 ensureCompactStyles(options);
-                followPrimaryColor((args[0] as MantineTheme).primaryColor);
-                return vars ? vars(...args) : {};
+                followPrimaryColor(args[0].primaryColor);
+                return isVarsResolver(resolver) ? resolver(...args) : {};
             },
         };
     }
     return wrapped;
+}
+
+/**
+ * A component's `vars` resolver, as Mantine calls it. Mantine types the field `any`
+ * (`MantineThemeComponent["vars"]`), so this names the shape the wrapper relies on.
+ */
+type VarsResolver = (theme: MantineTheme, props: unknown, ctx: unknown) => unknown;
+
+/**
+ * Whether a component extension's `vars` is a resolver to call.
+ * @param vars - the extension's `vars`
+ * @returns true when it is a function
+ */
+function isVarsResolver(vars: unknown): vars is VarsResolver {
+    return typeof vars === "function";
 }
 
 /**
@@ -75,7 +89,8 @@ function withStyleInjection(
  *
  * Light and dark are Mantine's own color scheme (`defaultColorScheme`, `forceColorScheme`,
  * `useMantineColorScheme`); one theme object serves both.
- * @param options - `highContrast` switches on the AA tokens
+ * @param options - `highContrast` switches on the AA tokens; `accent: "graphty"` the graphty
+ * brand accent
  * @returns a theme override for `MantineProvider`
  * @example
  * ```tsx
@@ -85,14 +100,14 @@ function withStyleInjection(
  * ```
  */
 export function createCompactTheme(options: CompactThemeOptions = {}): MantineThemeOverride {
-    const resolved = { highContrast: options.highContrast ?? false };
+    const resolved = { highContrast: options.highContrast ?? false, accent: options.accent ?? "figma" };
     // Inject the stylesheet now, so a page whose only compact styling is a `var(--cm-*)` on a
     // plain Box has its tokens before any themed component renders. The vars wrapper below
     // re-injects if the sheet is removed and re-asserts the contrast mode of the theme in use.
     ensureCompactStyles(resolved);
     return createTheme({
         colors: compactColors,
-        primaryColor: "brand",
+        primaryColor: resolved.accent === "graphty" ? "graphty" : "brand",
         primaryShade: { light: 6, dark: 8 },
         white: "#ffffff",
         black: "#000000",
@@ -142,5 +157,5 @@ export const compactThemeOverride = createCompactTheme();
  */
 export const compactTheme: MantineTheme = mergeMantineTheme(DEFAULT_THEME, compactThemeOverride);
 
-export { compactBrandColors, compactColors, compactDarkColors } from "./colors";
-export { compactGlobalCss, type CompactThemeOptions, ensureCompactStyles } from "./global-styles";
+export { compactBrandColors, compactColors, compactDarkColors, compactGraphtyColors } from "./colors";
+export { type CompactAccent, compactGlobalCss, type CompactThemeOptions, ensureCompactStyles } from "./global-styles";

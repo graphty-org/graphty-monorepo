@@ -1,7 +1,7 @@
 # What a Run Painted
 
 When an algorithm run finishes, graphty-element draws its result for you: a ranking colors the
-nodes, communities get one color each, a route is highlighted. Each of these is a _suggestion_
+nodes, communities get one color each, a route is marked in its own color. Each of these is a _suggestion_
 the run makes, and the element decides once, when the run first completes, whether to add it to
 the style stack.
 
@@ -22,12 +22,15 @@ for (const s of session.runs.painting(run.id)?.suggestions ?? []) {
         console.log("added", s.suggestion.channels);
     } else if (s.outcome === "suppressed") {
         console.log("hidden by layer", session.styles.get(s.byLayerId)?.name);
-        // Paint it anyway, on top of that layer
         if (s.suggestion.as === "encoding") await session.styles.encode(s.suggestion.spec);
+        else if (s.suggestion.as === "mark") await session.styles.mark(s.suggestion.spec);
         else await session.styles.highlight(s.suggestion.spec);
     } else console.log(s.outcome); // "superseded", "refused", or one added later
 }
 ```
+
+A suppressed suggestion can still be painted on top of the layer that hid it, by passing its
+`spec` to the verb its `as` names, as the example does.
 
 The decision is ready as soon as `await run` returns. Pass the run's `id`; the value `await run`
 resolves to carries the same id as `runId`.
@@ -45,15 +48,21 @@ Every suggestion the run made gets one entry in `suggestions`, with an `outcome`
 
 Every entry also carries `suggestion`, the suggestion itself:
 
-- `suggestion.as` is `"encoding"` or `"highlight"`: which of `session.styles.encode()` or
-  `session.styles.highlight()` applies it.
+- `suggestion.as` is `"encoding"`, `"mark"` or `"highlight"`: which of `session.styles.encode()`,
+  `session.styles.mark()` or `session.styles.highlight()` applies it. A run that measured every
+  element suggests an encoding; a run that chose some elements (a route, a spanning tree, a cut, a
+  matching) suggests a mark. The element never suggests a highlight itself; the value is there
+  for a suggestion your app builds.
 - `suggestion.spec` is what that method takes, already bound to the run (its `run` is the run's
   id), so passing it back applies the suggestion yourself.
 - `suggestion.channels` is an array of `Channel` values (the type is exported from
-  `@graphty/graphty-element/catalog`), such as `["node.color"]`. A route
-  highlight names two, `"node.color"` and `"edge.color"`.
+  `@graphty/graphty-element/catalog`), such as `["node.color"]`. A route's
+  mark names two, `"node.color"` and `"edge.color"`. A mark's `spec.set` holds the values it
+  paints: `#D55E00` on a chosen node or edge, and `edge.width` three times the default on a chosen
+  edge. They are the mark's own values, so changing the element's highlight color does not change
+  them.
 
-`layerIds` lists every layer the suggestion added: one for an encoding, two for a highlight that
+`layerIds` lists every layer the suggestion added: one for an encoding, two for a mark that
 paints nodes and edges. Each id works with `session.styles.get(id)`, which returns the layer (or
 `undefined` once it is removed), and with every other `session.styles` method that takes a layer
 id.
@@ -100,7 +109,8 @@ sets the same channel:
   suggestion is suppressed. Your layer would hide it anyway.
 - If your layer sets it on some elements, the suggestion is placed directly beneath your layer.
 
-Layers that came from earlier runs never hold a later run back.
+Layers that came from earlier runs never hold a later run back. Marks from two runs both stay in
+the stack, the later one on top, so it wins only on the elements both runs chose.
 
 ## A run's layers in the style tree
 
@@ -153,4 +163,4 @@ session.on("run:changed", (change) => {
 
 All of these types are exported from `@graphty/graphty-element` and
 `@graphty/graphty-element/session`: `RunPainting`, `SuggestionOutcome`, `StyleSuggestion`,
-`EncodingSuggestion` and `HighlightSuggestion`.
+`EncodingSuggestion`, `MarkSuggestion` and `HighlightSuggestion`.

@@ -268,7 +268,7 @@ describe("CompactColorInput", () => {
             );
 
             const group = screen.getByRole("group", { name: "Fill Color" });
-            expect(group).toBeInTheDocument();
+            expect(group.tagName).toBe("FIELDSET");
             expect(group).toContainElement(screen.getByRole("textbox", { name: /^Fill Color(,|$)/ }));
             expect(group).toContainElement(screen.getByRole("button", { name: "Pick fill Color" }));
             expect(group).toContainElement(screen.getByRole("textbox", { name: "Fill Color opacity" }));
@@ -281,6 +281,19 @@ describe("CompactColorInput", () => {
                 </TestWrapper>,
             );
             expect(screen.queryByRole("group")).not.toBeInTheDocument();
+        });
+
+        it("names the controls from a hidden label without drawing it", () => {
+            render(
+                <TestWrapper>
+                    <CompactColorInput defaultColor="#FF0000" label="Fill" hideLabel />
+                </TestWrapper>,
+            );
+            expect(screen.queryByText("Fill")).not.toBeInTheDocument();
+            expect(screen.queryByRole("group")).not.toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: /^Fill color(,|$)/ })).toHaveValue("FF0000");
+            expect(screen.getByRole("button", { name: "Pick fill color" })).toBeInTheDocument();
+            expect(screen.getByRole("textbox", { name: "Fill opacity" })).toBeInTheDocument();
         });
 
         it("marks the swatch as opening a dialog", () => {
@@ -684,6 +697,27 @@ describe("CompactColorInput", () => {
 
             await user.click(screen.getByLabelText("red FF6B6B80"));
             expect(onChange).toHaveBeenCalledTimes(2);
+        });
+
+        it("offers the caller's swatches in the picker in place of the built-in set", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+
+            render(
+                <TestWrapper>
+                    <CompactColorInput
+                        defaultColor="#FF0000"
+                        label="Fill"
+                        swatches={["#123456FF"]}
+                        onChange={onChange}
+                    />
+                </TestWrapper>,
+            );
+
+            await user.click(screen.getByRole("button", { name: /^pick/i }));
+            expect(screen.queryByRole("button", { name: /5B8FF9/ })).not.toBeInTheDocument();
+            await user.click(screen.getByRole("button", { name: /123456/ }));
+            expect(onChange).toHaveBeenCalledWith("#123456", 100);
         });
 
         it("fires onChange on the hex commit with both halves", async () => {

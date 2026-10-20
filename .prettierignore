@@ -5,6 +5,9 @@ node_modules/
 dist/
 coverage/
 storybook-static/
+# graph-samples' hosted datasets: written by `npm run datasets:hosted`, ignored by
+# graph-samples/.gitignore, which prettier does not read (it reads only the root .gitignore)
+graph-samples/public-data/
 
 # Generated files
 # API reports: written by tools/api-report.mjs (api-extractor), compared byte for byte
@@ -12,9 +15,14 @@ storybook-static/
 # graphty-element's ./jsx entry: written by graphty-element/scripts/generate-jsx-types.ts and
 # compared byte for byte by graphty-element/test/packaging/jsx-types.test.ts
 graphty-element/jsx.ts
+# Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
+# compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
+graphty-element/test/layout/graphviz-fixtures/
+# Vitest file snapshots: written by the tests that compare them byte for byte
+**/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
 # nothing formats them. Prettier would also rewrite the commit subjects they quote (A* -> A\*,
-# __proto__ -> **proto**), and a release pull request must never fail CI on its own changelogs.
+# __proto__ -> **proto**), and a release commit must never fail CI on its own changelogs.
 **/CHANGELOG.md
 *.min.js
 *.bundle.js
@@ -53,8 +61,25 @@ graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
 graph-io/test/conformance/schemas/
 
+# Network source recordings: live services' answers, one response per line (graph-io/scripts/record-rest.ts)
+graph-io/test/sources/*/recordings/
+
+# githerd's replay data: GitHub's recorded answers, one record per line
+githerd/test/replay/data/
+
+# githerd's snapshots of the worker files it generates, byte for byte as it writes them
+githerd/test/worker-settings/
+
 # Generated benchmark reports
 algorithms/benchmark-results/
+
+# The style corpus: real files kept byte for byte, and RESULTS.md, which the style harness compares as written
+graph-io/test/corpus/styles/
+
+# Style fidelity references: scenes written by graph-io/test/fidelity/regenerate.sh, and the samples
+# they hash byte for byte
+graph-io/test/fidelity/scenes/
+graph-io/test/fidelity/samples/
 
 # Deliberately malformed input for the importer tests; formatting would repair or reject it
 **/corpus/malformed/
@@ -72,6 +97,11 @@ visual-review/trusted/vendor/
 # the frozen design record the framework cites.
 design/ui/framework/
 design/ui/object-first-ux/
+
+# The githerd design and plan are hand-formatted: prettier breaks inline code that wraps across
+# lines out of its list item and folds the paragraph after a list into the last item, which
+# changes what the steps say.
+design/githerd/
 
 # Prettier's markdown output for these files is not a fixed point: it re-indents fenced code
 # inside lists (or flips escapes) on every pass, so `prettier --check` can never pass on them.

@@ -12,9 +12,8 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -120,7 +119,7 @@ describe("the Graph place on the real element", () => {
         };
 
         // Plain text that reads as no rule: No match, then an example rule over the open data.
-        await realInput.type(box, "chapters 10");
+        await userEvent.type(box, "chapters 10");
         assert.isNotNull(await screen.findByText('No match for "chapters 10"'));
         // The example is a node rule in the plain form the box reads: no backticks, no "=", and
         // never over the ids (numbers here, as karate's are), which teach nothing about the data.
@@ -132,29 +131,29 @@ describe("the Graph place on the real element", () => {
         assert.isNull(screen.queryByRole("option"));
 
         // A rule with a bare number reads as typed: Enter runs it.
-        await realInput.clear(box);
-        await realInput.type(box, "=minutes >= 10");
+        await userEvent.clear(box);
+        await userEvent.type(box, "=minutes >= 10");
         assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
         assert.equal(session.selection.size, 0);
-        await realInput.keyboard("{Enter}");
+        await userEvent.keyboard("{Enter}");
         await linksOfTenOrMore();
         assert.equal((box as HTMLInputElement).value, "=minutes >= 10");
 
         // A condition typed without "=": the text as a rule is what Enter picks.
         session.selection.clear();
-        await realInput.clear(box);
-        await realInput.type(box, "minutes >= 10");
+        await userEvent.clear(box);
+        await userEvent.type(box, "minutes >= 10");
         // The line under the box, and the status line that speaks it.
         assert.isNotEmpty(await screen.findAllByText("Select by a value:"));
         const offered = await screen.findByRole("option", { name: /^minutes >= 10/ });
         assert.equal(box.getAttribute("aria-activedescendant"), offered.id);
-        await realInput.keyboard("{Enter}");
+        await userEvent.keyboard("{Enter}");
         await linksOfTenOrMore();
     });
 
     it("keeps the example under the box while the session changes, rather than taking it down to ask again", async () => {
         const { session } = await openGraph();
-        await realInput.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
+        await userEvent.type(screen.getByRole("combobox", { name: "Find" }), "chapters 10");
         const example = await screen.findByText(/^\w+ == '[^']+'$/);
 
         // Any session change asks the element again; the element's own late history step after a
@@ -206,7 +205,7 @@ describe("the Graph place on the real element", () => {
             { timeout: TIMEOUT_MS },
         );
 
-        await realInput.click(element, { position: point });
+        await userEvent.click(element, { position: point });
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], [2]);
         });

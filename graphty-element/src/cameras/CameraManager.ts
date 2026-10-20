@@ -2,10 +2,37 @@
 import { Camera, Scene, Vector3 } from "@babylonjs/core";
 
 import type { ViewInsets } from "../camera/types";
+import type { FitBounds, FitInsets } from "../config/GraphBehavior";
+import type { FramingSpot } from "./OrbitCameraController";
+import type { XRPivotCameraController } from "./XRPivotCameraController";
+
+/** The share of the way to its target a gliding pivot covers each frame: most of it in 20 frames. */
+const GLIDE = 0.2;
+
+/**
+ * Move a point a share of the way to a target, and onto it once it is within a thousandth of a
+ * unit, so a pivot that has arrived stops changing and a frame drawn on demand can rest.
+ * @param from - The point, moved in place.
+ * @param to - The target.
+ * @returns Whether the point moved.
+ */
+export function glideTowards(from: Vector3, to: Vector3): boolean {
+    if (from.equals(to)) {
+        return false;
+    }
+
+    if (Vector3.DistanceSquared(from, to) < 1e-6) {
+        from.copyFrom(to);
+    } else {
+        Vector3.LerpToRef(from, to, GLIDE, from);
+    }
+
+    return true;
+}
 
 export interface CameraController {
     camera: Camera;
-    zoomToBoundingBox(min: Vector3, max: Vector3): void;
+    zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void;
     /** Margins of the canvas something else covers, in CSS pixels, that every fit keeps clear. */
     viewInsets?: ViewInsets;
     /**
@@ -17,6 +44,17 @@ export interface CameraController {
     setViewInsets?(insets: ViewInsets): void;
     /** Told each time the reader's own input moves this camera; set by {@link CameraManager}. */
     onReaderMove?: () => void;
+    /**
+     * Called each frame with the point the camera should pivot on, while there is one: the
+     * controller glides its pivot there.
+     */
+    followPoint?(point: Vector3): boolean;
+    /** Room framing leaves clear at each edge, in CSS pixels; see `camera.fitInsets`. */
+    fitInsets?: FitInsets;
+    /** What a 3D fit fits into view; see `camera.fitBounds`. */
+    fitBounds?: FitBounds;
+    /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
+    autoTurn?(radians: number): void;
 }
 
 interface InputHandler {
@@ -25,6 +63,8 @@ interface InputHandler {
     update(): void;
     /** Whether the wheel zooms toward the point under the pointer; absent, the input has no wheel. */
     zoomToPointer?: boolean;
+    /** Whether the reader is moving the camera, or the input is switched off for a node drag. */
+    readonly busy?: boolean;
 }
 
 export type CameraKey = "orbit" | "2d" | "xr";
@@ -48,11 +88,11 @@ export function cameraForViewMode(viewMode: string): CameraKey | undefined {
  * Provides functionality to register, activate, and switch between different camera types.
  */
 export class CameraManager {
-    private scene: Scene;
+    private readonly scene: Scene;
     private activeCameraController: CameraController | null = null;
     private activeInputHandler: InputHandler | null = null;
-    private controllers = new Map<CameraKey, CameraController>();
-    private inputs = new Map<CameraKey, InputHandler>();
+    private readonly controllers = new Map<CameraKey, CameraController>();
+    private readonly inputs = new Map<CameraKey, InputHandler>();
 
     /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
     public onReaderMove: (() => void) | null = null;
@@ -110,10 +150,11 @@ export class CameraManager {
      * Zooms the active camera to fit a bounding box in view.
      * @param min - The minimum corner of the bounding box
      * @param max - The maximum corner of the bounding box
+     * @param spots - What the box holds, for a fit that frames the nodes rather than the box.
      */
-    public zoomToBoundingBox(min: Vector3, max: Vector3): void {
+    public zoomToBoundingBox(min: Vector3, max: Vector3, spots?: readonly FramingSpot[]): void {
         if (this.activeCameraController) {
-            this.activeCameraController.zoomToBoundingBox(min, max);
+            this.activeCameraController.zoomToBoundingBox(min, max, spots);
         }
     }
 
@@ -133,6 +174,33 @@ export class CameraManager {
     }
 
     /**
+     * Make a point the camera's pivot, called each frame while there is one. In VR and AR the
+     * reader's turns and zooms happen about it and nothing moves; otherwise the active camera
+     * glides its pivot to it.
+     * @param point - The point, in world space.
+     * @returns Whether the camera moved, so the picture is not final yet.
+     */
+    public followPoint(point: Vector3): boolean {
+        const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
+        if (xr) {
+            xr.pivotController.center = point;
+            return false;
+        }
+
+        return this.activeCameraController?.followPoint?.(point) ?? false;
+    }
+
+    /**
+     * Hand every camera the room framing leaves clear at each edge.
+     * @param insets - The insets, in CSS pixels.
+     */
+    public setFitInsets(insets: FitInsets): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitInsets = insets;
+        }
+    }
+
+    /**
      * Make every camera's wheel zoom toward the point under the pointer, or toward the view's
      * center.
      * @param on - True to zoom toward the pointer.
@@ -143,6 +211,31 @@ export class CameraManager {
                 input.zoomToPointer = on;
             }
         }
+    }
+
+    /**
+     * Tell every camera what a 3D fit fits into view.
+     * @param bounds - The nodes' box, or the ball around them.
+     */
+    public setFitBounds(bounds: FitBounds): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitBounds = bounds;
+        }
+    }
+
+    /**
+     * Turn the active camera on its own by an angle, unless the reader is moving it.
+     * @param radians - The angle.
+     * @returns Whether it turned, so the next frame has to be drawn.
+     */
+    public autoTurn(radians: number): boolean {
+        const controller = this.activeCameraController;
+        if (radians <= 0 || controller?.autoTurn === undefined || this.activeInputHandler?.busy === true) {
+            return false;
+        }
+
+        controller.autoTurn(radians);
+        return true;
     }
 
     /**

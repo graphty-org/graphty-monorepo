@@ -43,8 +43,9 @@ import { StoryState, StoryStates } from "../../helpers/story-panel";
  * ## Keyboard and accessibility
  *
  * - The reading is a plain paragraph, with no role and no label, so the sentence itself is read.
- * - The departure line is a `note` named "Departure", so the severity the yellow triangle draws is
- *   also said in words; the triangle is hidden from assistive technology.
+ * - The departure line is a `note` named by the word "Warning" and its own text, so the severity
+ *   the yellow triangle draws is also said in words; the triangle is hidden from assistive
+ *   technology.
  * - The run record keeps its whole line in the document when it is shortened, and the details
  *   chevron (drawn only with `onDetails`) is a button described by that line. Tab reaches it;
  *   Enter and Space activate it.
@@ -147,7 +148,7 @@ export const ReadingAboutOneNode: Story = {
 /**
  * The departure line, drawn only when there is a departure. It names what the result is not --
  * approximate, or computed over part of the data -- and never says a result was exact, which a
- * reader already assumes. A screen reader announces it as a note called "Departure".
+ * reader already assumes. A screen reader announces it as a note: "Warning", then its text.
  */
 export const Departure: Story = {
     args: {
@@ -277,7 +278,7 @@ export const AnnouncedWhenItArrives: Story = {
  */
 export const Translated: Story = {
     render: (): React.JSX.Element => (
-        <LabelsProvider locale="de-DE" labels={{ departure: "Abweichung", details: "Einzelheiten" }}>
+        <LabelsProvider locale="de-DE" labels={{ departure: "Warnung", details: "Einzelheiten" }}>
             <Stack gap="md">
                 <ProseBlock variant="reading">
                     17 Katzen, 2 Menschen und 1 Hund, verbunden durch 43 Beziehungen.

@@ -22,6 +22,7 @@ import type { BatchCommand } from "./commands";
 import type { DataImportCommand, HeldRows, ImportSource } from "./commands/data";
 import { isStorableId, unreadableSource, untilAborted } from "./project/ingest";
 import { documentKind } from "./projectFile";
+import { HELD_READERS } from "./styles/fileStyles/apply";
 import type {
     ColumnRole,
     DraftColumn,
@@ -66,8 +67,10 @@ interface HeldTable {
 }
 
 /** What reading a source produced. */
-interface ReadSource {
+export interface ReadSource {
     readonly source: ImportSource;
+    /** The data source that read it, which says what styles the file carries. */
+    readonly reader: DataSource;
     readonly tables: readonly HeldTable[];
     readonly declaredDirection: DeclaredDirection | null;
     readonly errors: readonly DataLoadingError[];
@@ -244,7 +247,7 @@ export async function readSource(
             tables.reduce((sum, held) => sum + held.rows.length, 0),
             1,
         );
-        return { source, tables, declaredDirection: null, ...errorsOf(reader) };
+        return { source, reader, tables, declaredDirection: null, ...errorsOf(reader) };
     }
 
     const nodes: Record<string, unknown>[] = [];
@@ -273,6 +276,7 @@ export async function readSource(
     const graphtyDocument = nodes.length + edges.length === 0 ? await graphtyDocumentOf(config) : null;
     return {
         source,
+        reader,
         tables: [heldTable("nodes", named, true, nodes, null), heldTable("edges", named, true, edges, null)],
         declaredDirection: reader.declaredDirection,
         ...errorsOf(reader),
@@ -295,6 +299,29 @@ async function graphtyDocumentOf(config: Readonly<Record<string, unknown>>): Pro
     } catch {
         return null;
     }
+}
+
+/**
+ * Whether a source's file carries styles, and how many rules they hold.
+ * @param read - What reading the source produced.
+ * @param signal - Abandons the reading.
+ * @returns The facts, or null when the file carries none.
+ */
+export async function draftStyles(read: ReadSource, signal?: AbortSignal): Promise<LoadDraft["styles"]> {
+    const styles = await read.reader.fileStyles(signal === undefined ? {} : { signal });
+    if (styles === null) {
+        return null;
+    }
+
+    const { rules, source } = styles.extracted.styles;
+    return Object.freeze({
+        declared: rules.length > 0,
+        summary: Object.freeze({
+            nodeRules: rules.filter((rule) => rule.target === "node").length,
+            edgeRules: rules.filter((rule) => rule.target === "edge").length,
+            tool: source.tool,
+        }),
+    });
 }
 
 /**
@@ -408,6 +435,7 @@ export class Draft implements LoadDraft {
     readonly tables: readonly DraftTable[];
     readonly mapping: LoadMappingRead;
     readonly graphtyDocument?: "project" | "document";
+    readonly styles: LoadDraft["styles"];
 
     private read: ReadSource | null;
     private readonly host: DraftHost;
@@ -416,10 +444,12 @@ export class Draft implements LoadDraft {
      * Hold what was read.
      * @param read - The source's rows.
      * @param host - The session.
+     * @param styles - Whether the file carries styles; see {@link draftStyles}.
      */
-    constructor(read: ReadSource, host: DraftHost) {
+    constructor(read: ReadSource, host: DraftHost, styles: LoadDraft["styles"] = null) {
         this.read = read;
         this.host = host;
+        this.styles = styles;
         this.type = read.source.type ?? "";
         if (read.graphtyDocument !== undefined) {
             this.graphtyDocument = read.graphtyDocument;
@@ -577,6 +607,8 @@ export class Draft implements LoadDraft {
             ...(read.tables.every((held) => held.table.fixed) ? {} : { tableRows: [...named.values()] }),
             mode: choices.mode ?? "replace",
             ...(choices.layout === undefined ? {} : { layout: choices.layout }),
+            ...(choices.styles === undefined ? {} : { styles: choices.styles }),
+            ...(choices.styleOptions === undefined ? {} : { styleOptions: choices.styleOptions }),
             held: plan.held,
             ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
             ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
@@ -726,17 +758,16 @@ export class Draft implements LoadDraft {
                 : { ...named, nodeLabelPath: label };
         if (read.tables.every((held) => held.table.fixed)) {
             const [nodes, edges] = read.tables;
-            return {
-                mapping,
-                knownFields,
-                held: {
-                    nodes: nodes.rows,
-                    edges: edges.rows,
-                    declaredDirection: read.declaredDirection,
-                    errors: read.errors,
-                    errorLimit: read.errorLimit,
-                },
+            const held: HeldRows = {
+                nodes: nodes.rows,
+                edges: edges.rows,
+                declaredDirection: read.declaredDirection,
+                errors: read.errors,
+                errorLimit: read.errorLimit,
             };
+            // The file's styles are read from the source that read these rows, when a load asks.
+            HELD_READERS.set(held, read.reader);
+            return { mapping, knownFields, held };
         }
 
         const of = (rowsAre: "nodes" | "edges"): HeldTable | undefined => {

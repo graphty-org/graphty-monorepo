@@ -50,12 +50,15 @@ export class ScreenshotCapture {
      * @param scene - The Babylon.js scene to capture
      * @param canvas - The HTML canvas element being rendered to
      * @param graph - The graph instance for accessing layout and camera state
+     * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
+     *     looks final: a graph drawn on demand draws none for a background cleared for a moment
      */
     constructor(
-        private engine: Engine | WebGPUEngine,
-        private scene: Scene,
-        private canvas: HTMLCanvasElement,
-        private graph: Graph,
+        private readonly engine: Engine | WebGPUEngine,
+        private readonly scene: Scene,
+        private readonly canvas: HTMLCanvasElement,
+        private readonly graph: Graph,
+        private readonly requestFrame: () => void = () => undefined,
     ) {}
 
     /**
@@ -217,7 +220,7 @@ export class ScreenshotCapture {
         // reads the canvas at the end of the next tick and a tick can skip drawing.
         const hiddenHalos =
             options.showSelection === false
-                ? this.scene.meshes.filter((m) => m.name === SELECTION_HALO_MESH && m.isEnabled(false))
+                ? this.scene.meshes.filter((m) => m.name.startsWith(SELECTION_HALO_MESH) && m.isEnabled(false))
                 : [];
         for (const halo of hiddenHalos) {
             halo.setEnabled(false);
@@ -261,6 +264,10 @@ export class ScreenshotCapture {
             if (finalOptions.transparentBackground) {
                 const skyboxMesh = this.findSkyboxMesh();
                 backgroundState = enableTransparentBackground(this.scene, skyboxMesh);
+                // A graph drawn on demand would hand back its last frame, background and all:
+                // draw one with the background cleared before reading the canvas.
+                this.requestFrame();
+                await this.waitForRender();
             }
 
             // Handle quality enhancement (supersampling + optional MSAA/FXAA)
@@ -540,7 +547,8 @@ export class ScreenshotCapture {
             // the scene at another aspect would show a different part of the graph.
             // ponytail: a mismatched aspect stays an enlarged copy; render it at the fitted size
             // and pad it if anyone asks for sharp output there.
-            const size = { width: captureWidth, height: captureHeight };
+            // Babylon's precision scales the size; quality is only the encoder's, below.
+            const size = { width: captureWidth, height: captureHeight, precision: 1 };
             const camera = this.scene.activeCamera;
             const sameSize = captureWidth === this.canvas.width && captureHeight === this.canvas.height;
             const sameShape =

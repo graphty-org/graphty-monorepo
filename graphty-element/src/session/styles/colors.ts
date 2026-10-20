@@ -86,6 +86,10 @@ function writesOf(layer: Layer): { hex: string; write: ColorWrite }[] {
             continue;
         }
 
+        if (!("by" in binding)) {
+            continue;
+        }
+
         for (const [entry, value] of Object.entries(binding.map ?? {})) {
             push(value, channel, entry);
         }
@@ -146,7 +150,7 @@ export function replaceColorPatch(layer: Layer, from: string, to: string): Pick<
                 return [channel, { ...binding, value: swap(binding.value) }];
             }
 
-            return binding.map === undefined
+            return !("by" in binding) || binding.map === undefined
                 ? [channel, binding]
                 : [
                       channel,

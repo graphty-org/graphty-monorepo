@@ -3,9 +3,8 @@
  * and the commands it registers. The element is not registered in this file, so no session
  * arrives; `tasks.real-element.test.tsx` walks the tier 1 tasks on the real element.
  */
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, within } from "../../../test/test-utils";
 import { createRegistry, defineRegistration, stubCommands } from "../../commands/registry";

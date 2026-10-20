@@ -61,6 +61,13 @@ export interface NodeLabel {
      * true, as it does in {@link NodeLabelCounts}.
      */
     readonly drawn: boolean;
+    /**
+     * Where a click reaches the label's close button, in CSS pixels from the graph canvas's
+     * top-left corner, as of the last frame. Undefined when the label's style has no
+     * `closeButton`, when the label is not drawn, or when it is behind the camera.
+     * @since 3.29.0
+     */
+    readonly closeRect?: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
 }
 
 /** The counts before any label is drawn. */
@@ -103,7 +110,9 @@ const EMPTY_CELL = 64;
 
 /**
  * How many frames the labels must stay put before their counts are published, so a camera
- * gesture or a moving layout publishes once when it stops rather than every frame.
+ * gesture or a moving layout publishes once when it stops rather than every frame. A caller of
+ * {@link LabelDeclutter.whenPublished} does not wait for them: its counts are published on the
+ * first frame with nothing to re-decide.
  */
 const QUIET_FRAMES = 10;
 
@@ -147,10 +156,15 @@ interface Entry {
     down: number;
     perPixelX: number;
     perPixelY: number;
-    /** On screen, this pass: its node's centre and radius, and the node's slot, -1 when not drawn. */
+    /**
+     * On screen, this pass: its node's centre, how far the node reaches across and down from it
+     * (its radius twice for a round node, its box's half-size otherwise), and the node's slot,
+     * -1 when not drawn.
+     */
     nx: number;
     ny: number;
-    nr: number;
+    nrx: number;
+    nry: number;
     slot: number;
 }
 
@@ -185,6 +199,9 @@ const Y_AXIS = new Vector3(0, 1, 0);
 /** A grid cell never shrinks below this many pixels, so a graph of tiny labels is not all cells. */
 const MIN_CELL = 16;
 
+/** How many numbers each projected node takes in the declutter's node areas. */
+const NODE_STRIDE = 5;
+
 /**
  * Hides node labels that would be drawn on top of each other, when the graph's behavior
  * configuration asks for it (`labels.declutter`, off by default).
@@ -216,7 +233,8 @@ const MIN_CELL = 16;
  * the way `NodeEffects` keeps the glow layer.
  *
  * WITH `labels.avoidNodesAndEdges` the same pass also moves labels. Every drawn node is projected
- * to a screen circle and every drawn edge to a screen segment, bucketed in the same grid, and
+ * to a screen circle (a rectangle, for a node that is not round) and every drawn edge to a
+ * screen segment, bucketed in the same grid, and
  * each label in priority order tries its own place and then eight places around its node,
  * taking the first that covers nothing and otherwise the one that covers least (a label worst,
  * then a node, then an edge). A moved label's plane is moved on its node; it goes back to its
@@ -255,7 +273,11 @@ export class LabelDeclutter {
     private nodesSeen = 0;
     /** Reused every pass while avoiding: each drawn node and edge on screen, and their buckets. */
     private readonly nodeSlots = new Map<Node, number>();
-    private circles = new Float64Array(0);
+    /**
+     * Each drawn node on screen, {@link NODE_STRIDE} numbers a slot: centre x and y, how far it
+     * reaches across and down, and 1 when it is a circle of that radius, 0 when a rectangle.
+     */
+    private nodeAreas = new Float64Array(0);
     private segments = new Float64Array(0);
     private readonly nodeGrid = new Map<number, number[]>();
     private readonly edgeGrid = new Map<number, number[]>();
@@ -340,7 +362,8 @@ export class LabelDeclutter {
                 perPixelY: 0,
                 nx: 0,
                 ny: 0,
-                nr: 0,
+                nrx: 0,
+                nry: 0,
                 slot: -1,
             });
         }
@@ -417,7 +440,12 @@ export class LabelDeclutter {
 
             this.quiet = 0;
             this.releaseFrames ??= animatesEveryFrame(this.scene);
-        } else if (++this.quiet === QUIET_FRAMES) {
+        } else if (++this.quiet === QUIET_FRAMES || this.waiters.length > 0) {
+            // Someone waiting for the counts (`waitForStableFrame`) gets them on the first frame
+            // with nothing to re-decide: the labels have settled, and the QUIET_FRAMES wait only
+            // keeps a gesture from publishing every frame. Counting those frames instead made the
+            // wait take ten drawn frames however settled the picture, which a slow GPU cannot
+            // draw in time (issue #2983).
             this.publish();
             this.releaseFrames?.();
             this.releaseFrames = null;
@@ -428,8 +456,9 @@ export class LabelDeclutter {
      * Resolves once the counts of the last pass have been published -- at once when they already
      * are -- so a wait for the finished picture (`waitForStableFrame`) also waits for the
      * `graphty-label-change` that announces them. Without it a picture taken on the stable frame
-     * shows whatever the page last read, which depends on whether the {@link QUIET_FRAMES} frames
-     * after it happened to be drawn before the picture was taken.
+     * shows whatever the page last read. While anyone waits, the counts are published on the
+     * first frame with nothing to re-decide rather than after {@link QUIET_FRAMES} of them, so
+     * the wait is bounded by the label work left, not by how fast frames are drawn.
      * @returns A promise that resolves when nothing is left to publish.
      */
     whenPublished(): Promise<void> {
@@ -437,12 +466,20 @@ export class LabelDeclutter {
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
         const on = declutter || avoidNodesAndEdges;
-        if (
-            !this.dirty &&
-            on === this.wasOn &&
-            avoidNodesAndEdges === this.wasAvoiding &&
-            sameCounts(this.counts, this.published)
-        ) {
+        const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
+        if (settled && sameCounts(this.counts, this.published)) {
+            return Promise.resolve();
+        }
+
+        // The caller waits for the finished picture, and a frame has been drawn since the last
+        // pass with nothing moved: the counts are final, so they are published now rather than
+        // after QUIET_FRAMES more frames. That debounce is for a gesture or a moving layout; on a
+        // software GPU drawing a few hundred labels a frame takes most of a second, and waiting
+        // ten of them made a still graph's wait last many seconds.
+        if (settled && this.quiet > 0) {
+            this.publish();
+            this.releaseFrames?.();
+            this.releaseFrames = null;
             return Promise.resolve();
         }
 
@@ -1041,14 +1078,14 @@ export class LabelDeclutter {
     }
 
     /**
-     * Project every drawn node to a circle and every drawn edge to a segment on screen, and
+     * Project every drawn node to a circle (round) or a rectangle (any other shape) and every drawn edge to a segment on screen, and
      * bucket them in the grid the labels use.
      * @param size - The grid's cell size in pixels.
      */
     private projectGraph(size: number): void {
         const { nodes, edges } = this.context.getDataManager();
-        if (this.circles.length < 3 * nodes.size) {
-            this.circles = new Float64Array(3 * nodes.size);
+        if (this.nodeAreas.length < NODE_STRIDE * nodes.size) {
+            this.nodeAreas = new Float64Array(NODE_STRIDE * nodes.size);
         }
 
         if (this.segments.length < 4 * edges.size) {
@@ -1080,7 +1117,8 @@ export class LabelDeclutter {
     }
 
     /**
-     * Project one drawn node to a screen circle in `slot` and bucket it when it is in view.
+     * Project one drawn node to a screen circle, or for a node that is not round a screen
+     * rectangle, in `slot` and bucket it when it is in view.
      * @param node - The node.
      * @param slot - Its slot.
      * @param size - The grid's cell size in pixels.
@@ -1092,7 +1130,7 @@ export class LabelDeclutter {
             return false;
         }
 
-        const { view, viewport, circles } = this;
+        const { view, viewport, nodeAreas } = this;
         // Forced, for the reason given in `placeNodes`.
         const centre = mesh.computeWorldMatrix(true).getTranslationToRef(this.centre);
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
@@ -1100,22 +1138,37 @@ export class LabelDeclutter {
             return false;
         }
 
-        const root = mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
+        const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
+        const at = NODE_STRIDE * slot;
+        nodeAreas[at] = c.x;
+        nodeAreas[at + 1] = c.y;
         // A node ringed by its halo (the selection ring) reaches as far as the ring: a label moved
         // beside it, its own or another node's, keeps clear of the ring, not of the node inside it.
         const ring = node.label?.ringScale ?? 1;
-        const corner = this.corner.copyFrom(centre);
-        this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(root), corner);
-        const c = Vector3.TransformCoordinatesToRef(centre, this.worldToPixels, this.centreOnScreen);
-        const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
-        const r = Math.hypot(k.x - c.x, k.y - c.y);
-        circles[3 * slot] = c.x;
-        circles[3 * slot + 1] = c.y;
-        circles[3 * slot + 2] = r;
+        if (node.roundRadius === null && ring <= 1 && this.projectBox(mesh, at)) {
+            nodeAreas[at + 4] = 0;
+        } else {
+            const root =
+                mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
+            const corner = this.corner.copyFrom(centre);
+            this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(root), corner);
+            const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
+            const r = Math.hypot(k.x - c.x, k.y - c.y);
+            nodeAreas[at + 2] = r;
+            nodeAreas[at + 3] = r;
+            nodeAreas[at + 4] = 1;
+        }
+
+        const rx = nodeAreas[at + 2];
+        const ry = nodeAreas[at + 3];
         this.nodeSlots.set(node, slot);
         // Bucketed as far as a label must keep from it, so the cells a label is tested in hold it.
-        const reach = r + LABEL_CLEARANCE;
-        const box = { left: c.x - reach, top: c.y - reach, right: c.x + reach, bottom: c.y + reach };
+        const box = {
+            left: c.x - rx - LABEL_CLEARANCE,
+            top: c.y - ry - LABEL_CLEARANCE,
+            right: c.x + rx + LABEL_CLEARANCE,
+            bottom: c.y + ry + LABEL_CLEARANCE,
+        };
         if (
             box.right >= viewport.x &&
             box.left <= viewport.x + viewport.width &&
@@ -1124,6 +1177,37 @@ export class LabelDeclutter {
         ) {
             this.bucket(this.nodeGrid, slot, box, size);
         }
+
+        return true;
+    }
+
+    /**
+     * Write a node's screen rectangle -- the eight corners of its world bounding box, projected --
+     * into its slot, as half-sizes about the centre already there. A box, a tall cylinder or a
+     * torus is not the circle its largest half-extent draws: a box's corners reach past it, and a
+     * tall or flat node's circle hides labels beside it for nothing.
+     * @param mesh - The node's mesh, its world matrix computed.
+     * @param at - Where its slot starts.
+     * @returns False, writing nothing, when a corner is behind the camera and cannot be projected.
+     */
+    private projectBox(mesh: Node["mesh"], at: number): boolean {
+        const { view, nodeAreas } = this;
+        const cx = nodeAreas[at];
+        const cy = nodeAreas[at + 1];
+        let rx = 0;
+        let ry = 0;
+        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+            if (corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14] <= 0) {
+                return false;
+            }
+
+            const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
+            rx = Math.max(rx, Math.abs(k.x - cx));
+            ry = Math.max(ry, Math.abs(k.y - cy));
+        }
+
+        nodeAreas[at + 2] = rx;
+        nodeAreas[at + 3] = ry;
 
         return true;
     }
@@ -1143,11 +1227,11 @@ export class LabelDeclutter {
             return false;
         }
 
-        const { circles, segments, viewport } = this;
-        const x0 = circles[3 * from];
-        const y0 = circles[3 * from + 1];
-        const x1 = circles[3 * to];
-        const y1 = circles[3 * to + 1];
+        const { nodeAreas, segments, viewport } = this;
+        const x0 = nodeAreas[NODE_STRIDE * from];
+        const y0 = nodeAreas[NODE_STRIDE * from + 1];
+        const x1 = nodeAreas[NODE_STRIDE * to];
+        const y1 = nodeAreas[NODE_STRIDE * to + 1];
         const span = clip(x0, y0, x1, y1, {
             left: viewport.x,
             top: viewport.y,
@@ -1211,13 +1295,15 @@ export class LabelDeclutter {
         entry.slot = this.nodeSlots.get(entry.node) ?? -1;
         const { slot } = entry;
         if (slot >= 0) {
-            entry.nx = this.circles[3 * slot];
-            entry.ny = this.circles[3 * slot + 1];
-            entry.nr = this.circles[3 * slot + 2];
+            entry.nx = this.nodeAreas[NODE_STRIDE * slot];
+            entry.ny = this.nodeAreas[NODE_STRIDE * slot + 1];
+            entry.nrx = this.nodeAreas[NODE_STRIDE * slot + 2];
+            entry.nry = this.nodeAreas[NODE_STRIDE * slot + 3];
         } else {
             entry.nx = entry.cx;
             entry.ny = entry.cy;
-            entry.nr = 0;
+            entry.nrx = 0;
+            entry.nry = 0;
         }
 
         let best = 0;
@@ -1260,8 +1346,8 @@ export class LabelDeclutter {
         if (place > 0) {
             const [dx, dy] = AROUND[place - 1];
             // Out from the node's edge along the direction, far enough that the plane clears it.
-            x = entry.nx + dx * (entry.nr + LABEL_GAP) + Math.sign(dx) * entry.across;
-            y = entry.ny + dy * (entry.nr + LABEL_GAP) + Math.sign(dy) * entry.down;
+            x = entry.nx + dx * (entry.nrx + LABEL_GAP) + Math.sign(dx) * entry.across;
+            y = entry.ny + dy * (entry.nry + LABEL_GAP) + Math.sign(dy) * entry.down;
         }
 
         const { text } = entry;
@@ -1318,17 +1404,9 @@ export class LabelDeclutter {
      * @returns True when it does.
      */
     private coversNode(entry: Entry, slots: number[] | undefined): boolean {
-        const { circles } = this;
+        const { nodeAreas } = this;
         for (const slot of slots ?? []) {
-            if (
-                slot !== entry.slot &&
-                rectMeetsCircle(
-                    entry,
-                    circles[3 * slot],
-                    circles[3 * slot + 1],
-                    circles[3 * slot + 2] + LABEL_CLEARANCE,
-                )
-            ) {
+            if (slot !== entry.slot && rectMeetsNode(entry, nodeAreas, NODE_STRIDE * slot, LABEL_CLEARANCE)) {
                 return true;
             }
         }
@@ -1509,6 +1587,35 @@ function rectMeetsCircle(
     const dx = x - Math.max(rect.left, Math.min(x, rect.right));
     const dy = y - Math.max(rect.top, Math.min(y, rect.bottom));
     return dx * dx + dy * dy < r * r;
+}
+
+/**
+ * Whether a rectangle meets one projected node: its circle, or its rectangle.
+ * @param rect - The rectangle.
+ * @param rect.left - Its left edge.
+ * @param rect.right - Its right edge.
+ * @param rect.top - Its top edge.
+ * @param rect.bottom - Its bottom edge.
+ * @param areas - The projected nodes.
+ * @param at - Where the node's slot starts.
+ * @param clearance - How far around the node also counts, in pixels.
+ * @returns True when they overlap.
+ */
+function rectMeetsNode(
+    rect: { left: number; right: number; top: number; bottom: number },
+    areas: Float64Array,
+    at: number,
+    clearance = 0,
+): boolean {
+    const x = areas[at];
+    const y = areas[at + 1];
+    const rx = areas[at + 2] + clearance;
+    if (areas[at + 4] === 1) {
+        return rectMeetsCircle(rect, x, y, rx);
+    }
+
+    const ry = areas[at + 3] + clearance;
+    return rect.left < x + rx && rect.right > x - rx && rect.top < y + ry && rect.bottom > y - ry;
 }
 
 /**

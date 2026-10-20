@@ -66,9 +66,9 @@ export class AiManager {
     private graph: Graph | null = null;
     private controller: AiController | null = null;
     private provider: LlmProvider | null = null;
-    private commandRegistry: CommandRegistry;
-    private apiKeyManager: ApiKeyManager;
-    private statusManager: AiStatusManager;
+    private readonly commandRegistry: CommandRegistry;
+    private readonly apiKeyManager: ApiKeyManager;
+    private readonly statusManager: AiStatusManager;
     private schemaManager: SchemaManager | null = null;
     private dataAddedListenerId: symbol | null = null;
     private debouncedSchemaUpdate: ReturnType<typeof debounce> | null = null;

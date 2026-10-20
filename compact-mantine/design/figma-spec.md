@@ -69,7 +69,13 @@ These restate the owner's settled decisions. They are not open for re-argument i
    window), 300 ms hide. Dark (#1e1e1e) in both themes. They KEEP `aria-describedby` (Figma
    hides them from assistive technology; we do not).
 9. **One popover at a time.** Opening another light popover (Popout) replaces the open one.
-10. **Menus and listboxes are dark in both themes** (#1e1e1e surface, #0c8ce9 inset highlight).
+10. **Menus and listboxes follow the page theme**: in light mode a #ffffff surface, #000000e5
+    rows, #0000008c shortcuts and a #0768cf inset highlight; in dark mode #1e1e1e, white rows,
+    #ffffffb2 shortcuts and a #0a6dc2 highlight. Row text on the highlight is white (5.4:1 light,
+    5.3:1 dark), the highlight is 5.4:1 / 3.2:1 against the surface and shortcuts are at least
+    4.7:1. `variant="inverse"` on a Menu, or the class `cm-menu-inverse` on any dropdown, keeps
+    Figma's menu: #1e1e1e and the #0c8ce9 highlight in both themes. Tooltips and the toast stay
+    dark in both themes.
 11. **Accessibility we keep beyond Figma**: tooltip `aria-describedby`; a real ARIA tree for the
     layer tree with arrow-key navigation; every control's keyboard behavior at least as good as
     today (see section 14 for the list).
@@ -95,66 +101,69 @@ Source for every value in this section: `design/ui/figma/tokens/css-variables.js
 
 ### 2.1 Color roles
 
-| Token                                                          | Light                           | Dark                        | Figma variable                              |
-| -------------------------------------------------------------- | ------------------------------- | --------------------------- | ------------------------------------------- |
-| `--cm-bg`                                                      | #ffffff                         | #2c2c2c                     | `--color-bg`                                |
-| `--cm-bg-secondary` (field fill, track, joined group)          | #f5f5f5                         | #383838                     | `--color-bg-secondary`                      |
-| `--cm-bg-hover` (row / tab / tool hover)                       | #f5f5f5                         | #383838                     | `--color-bg-hover`                          |
-| `--cm-bg-pressed` (= tertiary)                                 | #e6e6e6                         | #444444                     | `--color-bg-pressed`, `--color-bg-tertiary` |
-| `--cm-bg-secondary-hover` (checkbox / switch hover)            | #e6e6e6                         | #444444                     | `--color-bg-secondary-hover`                |
-| `--cm-bg-secondary-pressed`                                    | #d9d9d9                         | #757575                     | `--color-bg-secondary-pressed`              |
-| `--cm-bg-transparent-hover`                                    | #0000000d                       | #ffffff0d                   | `--color-bg-transparent-hover`              |
-| `--cm-bg-transparent-pressed`                                  | #0000001a                       | #ffffff1a                   | `--color-bg-transparent-pressed`            |
-| `--cm-bg-selected`                                             | #e5f4ff                         | #394360                     | `--color-bg-selected`                       |
-| `--cm-bg-selected-hover`                                       | #bde3ff                         | #4a5878                     | `--color-bg-selected-hover`                 |
-| `--cm-bg-selected-secondary`                                   | #f2f9ff                         | #32394d                     | `--color-bg-selected-secondary`             |
-| `--cm-bg-selected-pressed`                                     | #80caff                         | #394360                     | `--color-bg-selected-pressed`               |
-| `--cm-bg-brand`                                                | #0d99ff                         | #0c8ce9                     | `--color-bg-brand`                          |
-| `--cm-bg-brand-hover`                                          | #007be5                         | #0a6dc2                     | `--color-bg-brand-hover`                    |
-| `--cm-bg-brand-pressed`                                        | #0768cf                         | #105cad                     | `--color-bg-brand-pressed`                  |
-| `--cm-bg-disabled`                                             | #d9d9d9                         | #757575                     | `--color-bg-disabled`                       |
-| `--cm-bg-menu` (menus, listboxes; same in both)                | #1e1e1e                         | #1e1e1e                     | `--color-bg-menu`                           |
-| `--cm-bg-tooltip` (same in both)                               | #1e1e1e                         | #1e1e1e                     | `--color-bg-tooltip`                        |
-| `--cm-bg-toolbar` (toast; same in both)                        | #2c2c2c                         | #2c2c2c                     | `--color-bg-toolbar`                        |
-| `--cm-bg-inverse` / hover / pressed                            | #2c2c2c / #383838 / #444444     | #ffffff / #f5f5f5 / #e6e6e6 | `--color-bg-inverse*`                       |
-| `--cm-bg-danger` / hover / pressed                             | #f24822 / #dc3412 / #bd2915     | #e03e1a / #c4381c / #963323 | `--color-bg-danger*`                        |
-| `--cm-bg-success` / hover / pressed                            | #14ae5c / #009951 / #008043     | #198f51 / #078348 / #0a5c35 | `--color-bg-success*`                       |
-| `--cm-bg-warning`                                              | #ffcd29                         | #f3c11b                     | `--color-bg-warning`                        |
-| `--cm-bg-component-tertiary`                                   | #f1e5ff                         | #473956                     | `--color-bg-component-tertiary`             |
-| `--cm-bg-mode-switcher` / hover                                | #f5f5f5 / #e6e6e6               | #444444 / #383838           | `--color-bgtoolbarmodeswitcher*`            |
-| `--cm-bg-info` (hint banner)                                   | #e5f4ff                         | #394360                     | `--color-bg-info`                           |
-| `--cm-text`                                                    | #000000e5                       | #ffffff                     | `--color-text`                              |
-| `--cm-text-secondary`                                          | #00000080                       | #ffffffb2                   | `--color-text-secondary`                    |
-| `--cm-text-tertiary` (placeholder)                             | #0000004d                       | #ffffff66                   | `--color-text-tertiary`                     |
-| `--cm-text-disabled`                                           | #0000004d                       | #ffffff66                   | `--color-text-disabled`                     |
-| `--cm-text-brand` (links, brand text)                          | #007be5                         | #7cc4f8                     | `--color-text-brand`                        |
-| `--cm-text-onbrand` / `-secondary`                             | #ffffff / #ffffffcc             | #ffffff / #ffffffcc         | `--color-text-onbrand*`                     |
-| `--cm-text-ondisabled`                                         | #ffffff                         | #2c2c2c                     | `--color-text-ondisabled`                   |
-| `--cm-text-oninverse`                                          | #ffffffe5                       | #000000e5                   | `--color-text-oninverse`                    |
-| `--cm-text-component`                                          | #8638e5                         | #d1a8ff                     | `--color-text-component`                    |
-| `--cm-text-danger`                                             | #dc3412                         | #fca397                     | `--color-text-danger`                       |
-| `--cm-text-menu` / `-secondary` / `-disabled` (same in both)   | #ffffff / #ffffffb2 / #ffffff66 | same                        | `--color-text-menu*`                        |
-| `--cm-icon`                                                    | #000000e5                       | #ffffff                     | `--color-icon`                              |
-| `--cm-icon-secondary`                                          | #00000080                       | #ffffffb2                   | `--color-icon-secondary`                    |
-| `--cm-icon-tertiary`                                           | #0000004d                       | #ffffff66                   | `--color-icon-tertiary`                     |
-| `--cm-icon-brand`                                              | #007be5                         | #7cc4f8                     | `--color-icon-brand`                        |
-| `--cm-icon-disabled`                                           | #0000004d                       | #ffffff66                   | `--color-icon-disabled`                     |
-| `--cm-icon-ondisabled`                                         | #ffffff                         | #2c2c2c                     | `--color-icon-ondisabled`                   |
-| `--cm-icon-component-tertiary`                                 | #c5b2dc                         | #7f699b                     | `--color-icon-component-tertiary`           |
-| `--cm-border` (dividers, field hover outline, select trigger)  | #e6e6e6                         | #444444                     | `--color-border`                            |
-| `--cm-border-strong`                                           | #2c2c2c                         | #ffffffe5                   | `--color-border-strong`                     |
-| `--cm-border-selected` (focus ring, selected border)           | #0d99ff                         | #0c8ce9                     | `--color-border-selected`                   |
-| `--cm-border-selected-strong` (primary-button and switch ring) | #007be5                         | #7cc4f8                     | `--color-border-selected-strong`            |
-| `--cm-border-disabled`                                         | #e6e6e6                         | #444444                     | `--color-border-disabled`                   |
-| `--cm-border-danger` / `-strong`                               | #ffc7c2 / #dc3412               | #864537 / #fca397           | `--color-border-danger*`                    |
-| `--cm-border-translucent` (secondary button, panel edge)       | #0000001a                       | #ffffff1a                   | `--color-bordertranslucent`                 |
-| `--cm-border-translucent-strong` (checkbox, switch track)      | #00000033                       | #ffffff33                   | `--color-bordertranslucentstrong`           |
-| `--cm-control-icon-outline` (knob on, blue-check halo)         | #0000001a                       | #0000001a                   | `--color-controliconoutline`                |
-| `--cm-control-knob-off-outline`                                | #00000033                       | #00000033                   | `--color-controlknoboffoutline`             |
-| `--cm-border-menu` (legacy context separator)                  | #383838                         | #383838                     | `--color-border-menu`                       |
-| `--cm-scrollbar`                                               | #b3b3b380                       | #b3b3b380                   | `--color-scrollbar`                         |
-| `--cm-text-highlight` (text selection)                         | #0d99ff66                       | #0d99ff66                   | `--color-texthighlight`                     |
-| `--cm-modal-backdrop`                                          | #00000080                       | #00000080                   | `--color-modalbackdrop`                     |
+| Token                                                          | Light                             | Dark                            | Figma variable                              |
+| -------------------------------------------------------------- | --------------------------------- | ------------------------------- | ------------------------------------------- |
+| `--cm-bg`                                                      | #ffffff                           | #2c2c2c                         | `--color-bg`                                |
+| `--cm-bg-secondary` (field fill, track, joined group)          | #f5f5f5                           | #383838                         | `--color-bg-secondary`                      |
+| `--cm-bg-hover` (row / tab / tool hover)                       | #f5f5f5                           | #383838                         | `--color-bg-hover`                          |
+| `--cm-bg-pressed` (= tertiary)                                 | #e6e6e6                           | #444444                         | `--color-bg-pressed`, `--color-bg-tertiary` |
+| `--cm-bg-secondary-hover` (checkbox / switch hover)            | #e6e6e6                           | #444444                         | `--color-bg-secondary-hover`                |
+| `--cm-bg-secondary-pressed`                                    | #d9d9d9                           | #757575                         | `--color-bg-secondary-pressed`              |
+| `--cm-bg-transparent-hover`                                    | #0000000d                         | #ffffff0d                       | `--color-bg-transparent-hover`              |
+| `--cm-bg-transparent-pressed`                                  | #0000001a                         | #ffffff1a                       | `--color-bg-transparent-pressed`            |
+| `--cm-bg-selected`                                             | #e5f4ff                           | #394360                         | `--color-bg-selected`                       |
+| `--cm-bg-selected-hover`                                       | #bde3ff                           | #4a5878                         | `--color-bg-selected-hover`                 |
+| `--cm-bg-selected-secondary`                                   | #f2f9ff                           | #32394d                         | `--color-bg-selected-secondary`             |
+| `--cm-bg-selected-pressed`                                     | #80caff                           | #394360                         | `--color-bg-selected-pressed`               |
+| `--cm-bg-brand`                                                | #0d99ff                           | #0c8ce9                         | `--color-bg-brand`                          |
+| `--cm-bg-brand-hover`                                          | #007be5                           | #0a6dc2                         | `--color-bg-brand-hover`                    |
+| `--cm-bg-brand-pressed`                                        | #0768cf                           | #105cad                         | `--color-bg-brand-pressed`                  |
+| `--cm-bg-disabled`                                             | #d9d9d9                           | #757575                         | `--color-bg-disabled`                       |
+| `--cm-bg-menu` (inverse menus; same in both)                   | #1e1e1e                           | #1e1e1e                         | `--color-bg-menu`                           |
+| `--cm-bg-menu-page` (menus, listboxes; follows the page)       | #ffffff                           | #1e1e1e                         | --                                          |
+| `--cm-text-menu-page` / `-secondary` / `-disabled`             | #000000e5 / #0000008c / #0000004d | #ffffff / #ffffffb2 / #ffffff66 | --                                          |
+| `--cm-border-menu-page`                                        | #e6e6e6                           | #383838                         | --                                          |
+| `--cm-bg-tooltip` (same in both)                               | #1e1e1e                           | #1e1e1e                         | `--color-bg-tooltip`                        |
+| `--cm-bg-toolbar` (toast; same in both)                        | #2c2c2c                           | #2c2c2c                         | `--color-bg-toolbar`                        |
+| `--cm-bg-inverse` / hover / pressed                            | #2c2c2c / #383838 / #444444       | #ffffff / #f5f5f5 / #e6e6e6     | `--color-bg-inverse*`                       |
+| `--cm-bg-danger` / hover / pressed                             | #f24822 / #dc3412 / #bd2915       | #e03e1a / #c4381c / #963323     | `--color-bg-danger*`                        |
+| `--cm-bg-success` / hover / pressed                            | #14ae5c / #009951 / #008043       | #198f51 / #078348 / #0a5c35     | `--color-bg-success*`                       |
+| `--cm-bg-warning`                                              | #ffcd29                           | #f3c11b                         | `--color-bg-warning`                        |
+| `--cm-bg-component-tertiary`                                   | #f1e5ff                           | #473956                         | `--color-bg-component-tertiary`             |
+| `--cm-bg-mode-switcher` / hover                                | #f5f5f5 / #e6e6e6                 | #444444 / #383838               | `--color-bgtoolbarmodeswitcher*`            |
+| `--cm-bg-info` (hint banner)                                   | #e5f4ff                           | #394360                         | `--color-bg-info`                           |
+| `--cm-text`                                                    | #000000e5                         | #ffffff                         | `--color-text`                              |
+| `--cm-text-secondary`                                          | #00000080                         | #ffffffb2                       | `--color-text-secondary`                    |
+| `--cm-text-tertiary` (placeholder)                             | #0000004d                         | #ffffff66                       | `--color-text-tertiary`                     |
+| `--cm-text-disabled`                                           | #0000004d                         | #ffffff66                       | `--color-text-disabled`                     |
+| `--cm-text-brand` (links, brand text)                          | #007be5                           | #7cc4f8                         | `--color-text-brand`                        |
+| `--cm-text-onbrand` / `-secondary`                             | #ffffff / #ffffffcc               | #ffffff / #ffffffcc             | `--color-text-onbrand*`                     |
+| `--cm-text-ondisabled`                                         | #ffffff                           | #2c2c2c                         | `--color-text-ondisabled`                   |
+| `--cm-text-oninverse`                                          | #ffffffe5                         | #000000e5                       | `--color-text-oninverse`                    |
+| `--cm-text-component`                                          | #8638e5                           | #d1a8ff                         | `--color-text-component`                    |
+| `--cm-text-danger`                                             | #dc3412                           | #fca397                         | `--color-text-danger`                       |
+| `--cm-text-menu` / `-secondary` / `-disabled` (same in both)   | #ffffff / #ffffffb2 / #ffffff66   | same                            | `--color-text-menu*`                        |
+| `--cm-icon`                                                    | #000000e5                         | #ffffff                         | `--color-icon`                              |
+| `--cm-icon-secondary`                                          | #00000080                         | #ffffffb2                       | `--color-icon-secondary`                    |
+| `--cm-icon-tertiary`                                           | #0000004d                         | #ffffff66                       | `--color-icon-tertiary`                     |
+| `--cm-icon-brand`                                              | #007be5                           | #7cc4f8                         | `--color-icon-brand`                        |
+| `--cm-icon-disabled`                                           | #0000004d                         | #ffffff66                       | `--color-icon-disabled`                     |
+| `--cm-icon-ondisabled`                                         | #ffffff                           | #2c2c2c                         | `--color-icon-ondisabled`                   |
+| `--cm-icon-component-tertiary`                                 | #c5b2dc                           | #7f699b                         | `--color-icon-component-tertiary`           |
+| `--cm-border` (dividers, field hover outline, select trigger)  | #e6e6e6                           | #444444                         | `--color-border`                            |
+| `--cm-border-strong`                                           | #2c2c2c                           | #ffffffe5                       | `--color-border-strong`                     |
+| `--cm-border-selected` (focus ring, selected border)           | #0d99ff                           | #0c8ce9                         | `--color-border-selected`                   |
+| `--cm-border-selected-strong` (primary-button and switch ring) | #007be5                           | #7cc4f8                         | `--color-border-selected-strong`            |
+| `--cm-border-disabled`                                         | #e6e6e6                           | #444444                         | `--color-border-disabled`                   |
+| `--cm-border-danger` / `-strong`                               | #ffc7c2 / #dc3412                 | #864537 / #fca397               | `--color-border-danger*`                    |
+| `--cm-border-translucent` (secondary button, panel edge)       | #0000001a                         | #ffffff1a                       | `--color-bordertranslucent`                 |
+| `--cm-border-translucent-strong` (checkbox, switch track)      | #00000033                         | #ffffff33                       | `--color-bordertranslucentstrong`           |
+| `--cm-control-icon-outline` (knob on, blue-check halo)         | #0000001a                         | #0000001a                       | `--color-controliconoutline`                |
+| `--cm-control-knob-off-outline`                                | #00000033                         | #00000033                       | `--color-controlknoboffoutline`             |
+| `--cm-border-menu` (legacy context separator)                  | #383838                           | #383838                         | `--color-border-menu`                       |
+| `--cm-scrollbar`                                               | #b3b3b380                         | #b3b3b380                       | `--color-scrollbar`                         |
+| `--cm-text-highlight` (text selection)                         | #0d99ff66                         | #0d99ff66                       | `--color-texthighlight`                     |
+| `--cm-modal-backdrop`                                          | #00000080                         | #00000080                       | `--color-modalbackdrop`                     |
 
 Inside a dark-scoped surface (`color-scheme: dark`), `--cm-bg-brand` resolves to #0c8ce9 and
 `--cm-text-secondary` to #ffffffb2: that is exactly what Figma's menu highlight and shortcut text
@@ -286,7 +295,7 @@ with `light-dark()` per color stop and `transparent` where a layer exists in onl
 | `--cm-elevation-500`   | `0 0 .5px rgba(0,0,0,.08), 0 10px 24px rgba(0,0,0,.18), 0 2px 5px rgba(0,0,0,.15)`                                                          | `0 10px 24px rgba(0,0,0,.45), 0 3px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.35)` | modals                                       |
 | `--cm-elevation-toast` | `0 1px 3px rgba(0,0,0,.4), inset 0 0 .5px rgba(255,255,255,.3), inset 0 .5px 0 rgba(255,255,255,.1), 0 0 .5px rgba(0,0,0,.5)` (both themes) | same                                                                                                                               | toast (C37)                                  |
 
-Menus, listboxes and tooltips are dark surfaces, but their SHADOW follows the page theme: in
+Tooltips and inverse menus are dark surfaces, but their SHADOW follows the page theme: in
 the light app Figma measured the light column on a menu (bc/tab-design--default #40:
 `0 2px 5px .15, 0 10px 16px .12, 0 0 .5px .12`) and on a tooltip (ii/tooltip-with-shortcut #63).
 So the surface element keeps the page's `color-scheme` (its `box-shadow` resolves light in the
@@ -326,7 +335,7 @@ shows a 1px ring on keyboard focus, so "never" cannot silently leave a control w
 Every Mantine overlay (Menu, Popover, Tooltip, HoverCard, Modal, Combobox dropdowns, Notification,
 Collapse where it is chrome) gets `transitionProps: { duration: 0 }` in its theme `defaultProps`
 (Mantine animates them 100-150ms by default: cr/README "what actually animates"). `Collapse`
-inside ControlSection / ControlSubGroup opens in one frame as well (`transitionDuration: 0`). The
+inside ControlSection opens in one frame as well (`transitionDuration: 0`). The
 SegmentedControl indicator does not slide (`transitionDuration: 0`).
 
 What DOES move (C6):
@@ -778,7 +787,7 @@ Outlined variant (NEW `variant="outlined"`, also the effect-settings popover fie
 
 Textarea: min 56 tall, padding 4 8. Rename variant: section 10.3 (the tree package draws it).
 
-### 6.1 Scrubbable number input (Mantine `NumberInput`; `PanelField kind="number"`; `StyleNumberInput`)
+### 6.1 Scrubbable number input (Mantine `NumberInput`; `PanelField kind="number"`)
 
 (C22; ii/number-input-default|hover|label-hover|focus-click|focus-keyboard,
 dt/dark-number-input-x--_ #27 #30, rs/state-input-_)
@@ -801,7 +810,7 @@ dt/dark-number-input-x--_ #27 #30, rs/state-input-_)
   reverts the typed text and blurs. Tab commits and moves on.
 - Mixed: `value="mixed"` (new, where the component's value type allows a sentinel -- PanelField
   `mixed` prop) shows the word "Mixed" in `--cm-text`.
-- NO stepper chevrons ever (`hideControls` default true). `StyleNumberInput`'s reset button stays
+- NO stepper chevrons ever (`hideControls` default true). A field's reset button (`ResetButton`) stays
   (compatibility) as a 24 ghost icon button in the trailing slot, not inside the field.
 - `role=spinbutton` with `aria-valuenow`; `aria-description` "Use arrow keys to change the value".
 
@@ -835,7 +844,7 @@ dt/dark-number-input-x--_ #27 #30, rs/state-input-_)
   (parse / scrub like 6.1), `suffix` (the "Hug" mode word, `--cm-text-secondary`, right-aligned
   before the chevron), `label`.
 
-### 6.4 Select trigger (Mantine `Select`, `NativeSelect`, `StyleSelect`, `PanelField kind="select"`)
+### 6.4 Select trigger (Mantine `Select`, `NativeSelect`, `PanelField kind="select"`)
 
 (C26; ii/select-trigger-default #27-#30, dt/dark-select-prototype-device--default #26-#29,
 dt/dark-select-font-family--default #45)
@@ -850,13 +859,13 @@ dt/dark-select-font-family--default #45)
 - Select is `variant="outlined"` by default now (it was `filled`); `variant="filled"` stays
   available and is what ComboInput looks like.
 
-### 6.5 Dark listbox (the dropdown of Select, Autocomplete, MultiSelect, TagsInput, ComboInput)
+### 6.5 Listbox (the dropdown of Select, Autocomplete, MultiSelect, TagsInput, ComboInput)
 
 (C26 listbox, C32; ii/select-listbox-open, ii/select-listbox-option-hover (pseudo `li::before`
 inset 0 8px, #0c8ce9), cr/export-format-select-_, dt/dark-select-_--open)
 
-- Surface `--cm-bg-menu` #1e1e1e in both themes, radius 13, `--cm-elevation-400` (page scheme),
-  padding 8px 0, no border; `color-scheme: dark` inside.
+- Surface: the menu surface of 8.1 (follows the page theme; `cm-menu-inverse` keeps it dark),
+  radius 13, `--cm-elevation-400` (page scheme), padding 8px 0, no border.
 - Position: OVER the trigger with the selected option exactly on top of the trigger (macOS
   style); the list starts 8px left of the trigger and is 16px wider than its longest option.
   Mantine Combobox cannot do this natively: implement with the dropdown `position` middleware
@@ -1000,30 +1009,33 @@ rgba(0,0,0,.2), inset 0 0 0 1px rgba(0,0,0,.2)`, with a 12 x 12 under-layer carr
 Package: overlays. Theme files: `src/theme/components/overlays.ts`, `src/theme/styles/overlays.ts`,
 `src/theme/components/feedback.ts`, `src/theme/styles/feedback.ts`, `src/theme/css/overlays.css.ts`.
 
-### 8.1 Dark menu (Mantine `Menu`)
+### 8.1 Menu (Mantine `Menu`)
+
+The menu follows the page theme. The values below are the light / dark pair; `variant="inverse"`
+(the class `cm-menu-inverse`) draws the dark column in both themes with Figma's #0c8ce9 highlight.
 
 (C32; ii/menu-v2-item-hover, pm/main-menu-root|item-hover|disabled-item-hover|sub-view,
 cr/main-menu-hover-highlight, bt/flyout-\*, bc/tab-design--default #40)
 
-| Part                      | Value                                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Surface                   | `--cm-bg-menu` #1e1e1e in both themes, radius 13, `--cm-elevation-400` (page scheme), no border, padding 8px 0, `color-scheme: dark` inside. Width hugs content (min 152) |
-| Row (`Menu.Item`)         | 24 tall, padding 0 8px, full width; the highlight is an inner pill inset 8px each side, radius 5, `padding-inline-end: 8`                                                 |
-| Label                     | 11/16 450 0.055px `--cm-text-menu`; text starts 16px from the menu edge (32 with a check column)                                                                          |
-| Leading slot              | 16 x 16 check column (white 9 x 8.5 check, `opacity: 0` when unchecked) and/or a 24 x 24 icon with 4px gap                                                                |
-| Shortcut (`rightSection`) | right-aligned, same font, `--cm-text-menu-secondary` #ffffffb2, at least 16px after the label                                                                             |
-| Submenu chevron           | 24 x 24 box, 3 x 5 glyph, shortcut color                                                                                                                                  |
-| Divider (`Menu.Divider`)  | 1px `--cm-border-translucent` (dark scope #ffffff1a) with 8px above and below: 17px between two rows                                                                      |
-| Label (`Menu.Label`)      | same row, text `--cm-text-menu-secondary`                                                                                                                                 |
-| Scroll                    | clamp to viewport - 6px each side; 24px chevron rows at the ends that auto-scroll on hover; native scrollbar hidden                                                       |
+| Part                      | Value                                                                                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surface                   | `--cm-bg-menu-page` #ffffff / #1e1e1e, radius 13, `--cm-elevation-400` (page scheme), no border, padding 8px 0. Width hugs content (min 152) |
+| Row (`Menu.Item`)         | 24 tall, padding 0 8px, full width; the highlight is an inner pill inset 8px each side, radius 5, `padding-inline-end: 8`                    |
+| Label                     | 11/16 450 0.055px `--cm-text-menu-page` #000000e5 / #fff; text starts 16px from the menu edge (32 with a check column)                       |
+| Leading slot              | 16 x 16 check column (white 9 x 8.5 check, `opacity: 0` when unchecked) and/or a 24 x 24 icon with 4px gap                                   |
+| Shortcut (`rightSection`) | right-aligned, same font, `--cm-text-menu-page-secondary` #0000008c / #ffffffb2, at least 16px after the label                               |
+| Submenu chevron           | 24 x 24 box, 3 x 5 glyph, shortcut color                                                                                                     |
+| Divider (`Menu.Divider`)  | 1px `--cm-border-translucent` (#0000001a / #ffffff1a) with 8px above and below: 17px between two rows                                        |
+| Label (`Menu.Label`)      | same row, text `--cm-text-menu-secondary`                                                                                                    |
+| Scroll                    | clamp to viewport - 6px each side; 24px chevron rows at the ends that auto-scroll on hover; native scrollbar hidden                          |
 
-| State                                               | Look                                                                                                                                               |
-| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| hover, keyboard highlight (`data-hovered`), pressed | highlight `--cm-bg-brand` (dark scope #0c8ce9), text #fff, shortcut and chevron `--cm-text-onbrand-secondary` #ffffffcc. No separate pressed color |
-| checked (`menuitemcheckbox` / `menuitemradio`)      | white check in the check column                                                                                                                    |
-| submenu open                                        | parent row stays highlighted                                                                                                                       |
-| disabled                                            | label and shortcut `--cm-text-menu-disabled` #ffffff66, no highlight on hover                                                                      |
-| danger (`color="red"`)                              | text `--cm-text-danger` (dark scope #fca397); highlight `--cm-bg-danger`                                                                           |
+| State                                               | Look                                                                                                                                      |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| hover, keyboard highlight (`data-hovered`), pressed | highlight #0768cf / #0a6dc2 (`--cm-bg-brand-pressed` / `--cm-bg-brand-hover`), text, shortcut and chevron #fff. No separate pressed color |
+| checked (`menuitemcheckbox` / `menuitemradio`)      | a check in the row's text color in the check column                                                                                       |
+| submenu open                                        | parent row stays highlighted                                                                                                              |
+| disabled                                            | label and shortcut `--cm-text-menu-page-disabled` #0000004d / #ffffff66, no highlight on hover                                            |
+| danger (`color="red"`)                              | text `--cm-text-danger` (#dc3412 / #fca397); highlight #bd2915 / #c4381c (`--cm-bg-danger-pressed` / `-hover`)                            |
 
 Placement: 4px below its trigger, start-aligned (`offset: 4`, `position: "bottom-start"`);
 submenus 4px beside the parent menu, first row aligned with the parent row (top = row top - 8),
@@ -1241,13 +1253,11 @@ ii/tooltip-panel-below #25-#39, cr/empty-section-title-hover)
 - `ControlGroup`'s title becomes the legend (9/14 500 0.27px secondary), not 10px 500 primary; its
   divider goes (groups inside a section are not divided in Figma).
 
-### 9.4 Sub-group (`ControlSubGroup`) -- "Advanced ... settings"
+### 9.4 Sub-group -- "Advanced ... settings"
 
 Figma never folds settings away inside the panel; it opens a light popover from a 24 icon button
-(C35 "Advanced settings", `AdvancedButton`). Keep `ControlSubGroup` working (compatibility) but
-restyle it as a 32 row: a 16 chevron in the gutter + 11/16 450 `--cm-text-secondary` label that
-turns `--cm-text` on hover over 100ms; content opens in one frame. Recommend `AdvancedButton` +
-Popout in the docs.
+(C35 "Advanced settings", `AdvancedButton`). The library has no in-panel fold: `ControlSubGroup`
+was removed on 2026-10-16.
 
 ### 9.5 Trailing slot and AdvancedButton (`TrailingSlot`, `AdvancedButton`)
 
@@ -1270,15 +1280,15 @@ glyph and the open look while its popout is up.
 
 ### 9.7 Dividers
 
-| Where                          | Style                                                             |
-| ------------------------------ | ----------------------------------------------------------------- |
-| between sections               | 1px `--cm-border` bottom border, full panel width                 |
-| popover / modal header, footer | `box-shadow: inset 0 -1px 0` / `inset 0 1px 0` `--cm-border`      |
-| panel edge against content     | 1px `--cm-border-translucent`                                     |
-| toolbar                        | 1 x 48 (secondary bar 1 x 40) `--cm-border`                       |
-| rail                           | 16 x 1 `--cm-border`, margins 8 top 7 bottom                      |
-| dark menu                      | 1px `--cm-border-translucent` (dark scope) with 8 above and below |
-| sticky tree row                | `box-shadow: 0 1px 0 0 var(--cm-border)`                          |
+| Where                          | Style                                                        |
+| ------------------------------ | ------------------------------------------------------------ |
+| between sections               | 1px `--cm-border` bottom border, full panel width            |
+| popover / modal header, footer | `box-shadow: inset 0 -1px 0` / `inset 0 1px 0` `--cm-border` |
+| panel edge against content     | 1px `--cm-border-translucent`                                |
+| toolbar                        | 1 x 48 (secondary bar 1 x 40) `--cm-border`                  |
+| rail                           | 16 x 1 `--cm-border`, margins 8 top 7 bottom                 |
+| menu                           | 1px `--cm-border-translucent` with 8 above and below         |
+| sticky tree row                | `box-shadow: 0 1px 0 0 var(--cm-border)`                     |
 
 Mantine `Divider` default color becomes `--cm-border` (a theme extension owned by the chrome
 package in its CSS: `.mantine-Divider-root` border color).
@@ -1462,8 +1472,8 @@ bt/chevron-open-_)
 | open (flyout up)               |                                                          | `--cm-bg-pressed` |
 | focus-visible                  | 1px ring at -1px; on the selected tool `cm-focus-double` | ring at -1px      |
 
-Flyout: the dark menu (8.1) opened ABOVE the chevron (bottom 4px above it, start-aligned to the
-chevron), rows `menuitemradio` with the 16 check at x+12 on the current face, a 24 white icon,
+Flyout: the menu (8.1) opened ABOVE the chevron (bottom 4px above it, start-aligned to the
+chevron), rows `menuitemradio` with the 16 check at x+12 on the current face, a 24 icon,
 label from x+60, shortcut 16 after the longest label. Picking a row selects the tool, makes it the
 group face and closes. Tooltips ABOVE the toolbar ("Frame F"; chevron "Region tools").
 The mode switch at the toolbar end is `SegmentedControl variant="toolbar"` (5.3).
@@ -1509,8 +1519,8 @@ shows and hides immediately (`openDelay` 0). Opens a dark Menu (the caller's ite
 (C51; bt/mode-metronome-full, ls/rail-library-updates-hover)
 
 - Badge default (`variant="outline"` look, "Beta"): height 16, padding 0 4, radius 5, transparent,
-  `outline: 1px solid var(--cm-border)` at -1px, 11/16 450 `--cm-text`. Inside a dark menu the
-  outline is #383838 (dark scope `--cm-border-menu`) and the text `--cm-text-menu-secondary`.
+  `outline: 1px solid var(--cm-border)` at -1px, 11/16 450 `--cm-text`. Inside a menu the
+  outline is `--cm-border-menu` (#e6e6e6 / #383838) and the text `--cm-text-menu-secondary`.
 - `variant="filled"`: `--cm-bg-brand`, white text; `variant="light"`: `--cm-bg-selected`,
   `--cm-text-brand`.
 - Indicator (notification dot): 5 x 5 `--cm-bg-brand` with a 2px `--cm-bg` border (9 x 9),
@@ -1581,13 +1591,10 @@ library card yet. Add them when a panel needs one.
 | `CompactColorInput`                                                                              | component  | color                        | paint row field 7.2 + picker 7.3                                                          |
 | `ControlGroup`                                                                                   | component  | chrome                       | legend row 9.3                                                                            |
 | `ControlSection`                                                                                 | component  | chrome                       | section header 9.2                                                                        |
-| `ControlSubGroup`                                                                                | component  | chrome                       | 9.4                                                                                       |
 | `DataTable`                                                                                      | component  | tree                         | 10.6                                                                                      |
 | `GradientEditor`                                                                                 | component  | color                        | 7.5                                                                                       |
 | `InfoCircle`                                                                                     | component  | overlays                     | 8.4                                                                                       |
 | `Popout`, `PopoutButton`, `PopoutManager`, `PopoutRegion`, `usePopoutManager`, `usePopoutRegion` | components | overlays                     | light popover 8.4, one at a time                                                          |
-| `StyleNumberInput`                                                                               | component  | inputs                       | 6.1                                                                                       |
-| `StyleSelect`                                                                                    | component  | inputs                       | 6.4                                                                                       |
 | `ToggleWithContent`                                                                              | component  | selection                    | 5.10                                                                                      |
 | `ActionRow`, `CompoundRow`                                                                       | rows       | chrome                       | 9.6                                                                                       |
 | `AdvancedButton`, `TrailingSlot`                                                                 | rows       | chrome                       | 9.5                                                                                       |
@@ -1636,8 +1643,8 @@ ColorPicker (color).
       transparent outline slot at -1px, hover `--cm-border`, `:focus-within`
       `--cm-border-selected`, `[data-disabled]`, `[data-error]`, the AA `--cm-field-edge`) and
       `cm-field-outlined`;
-    - `cm-menu-surface` (dark surface, radius 13, `--cm-elevation-400` from the page scheme,
-      padding 8px 0, inner `color-scheme: dark`) and `cm-menu-row` (24 tall row, 11/16 450,
+    - `cm-menu-surface` (the menu surface, following the page scheme, or dark in both with
+      `cm-menu-inverse`; radius 13, `--cm-elevation-400` from the page scheme, padding 8px 0) and `cm-menu-row` (24 tall row, 11/16 450,
       `::before` highlight inset 0 8px radius 5 on `[data-hovered]`, `[data-combobox-selected]`,
       `[aria-selected="true"]` and `:hover`; disabled rule; the 16 check column), used by the
       overlays package's Menu and the inputs package's listbox;
@@ -1676,30 +1683,29 @@ ColorPicker (color).
 
 These are the places the result will NOT match Figma, and why. Everything else matches.
 
-| Where                                                                 | Figma                                          | Ours                                                           | Why                                                                   |
-| --------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Tooltips                                                              | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
-| Layer tree                                                            | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
-| Tree rows, find results, quick actions                                | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
-| Context menu                                                          | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
-| Shortcuts sheet                                                       | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
-| Quick actions                                                         | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
-| Enter in a number / text field, rename commit                         | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
-| Resize handle                                                         | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
-| Alignment matrix                                                      | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
-| Existing props                                                        | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
-| `InfoCircle`                                                          | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
-| `ControlSubGroup` in-panel foldaway                                   | never (always a popover)                       | kept, restyled                                                 | existing export                                                       |
-| `StyleNumberInput` / `StyleSelect` / `CompactColorInput` reset button | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
-| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras   | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
-| Nested popouts                                                        | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
-| Checkbox default                                                      | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
-| `highContrast` option                                                 | --                                             | section 2.9                                                    | owner decision; off by default                                        |
-| Tree row with a count                                                 | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
-| Selected parent in the tree                                           | `bg-selected`, 1.05:1 / 1.2:1 from the band    | `bg-selected-hover`; a hovered child takes `bg-selected`       | the selected row could not be told from its children                  |
-| Segmented control, unchecked label                                    | 50% ink (secondary)                            | body text color; the face and edge mark the choice             | a gray word beside the raised face read as a disabled option          |
-| Context menu opened by the pointer                                    | --                                             | no row highlighted; keyboard opens still highlight the first   | a pre-highlighted row read as the suggested choice                    |
-| Escape in an open list field                                          | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
+| Where                                                               | Figma                                          | Ours                                                           | Why                                                                   |
+| ------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Tooltips                                                            | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
+| Layer tree                                                          | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
+| Tree rows, find results, quick actions                              | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
+| Context menu                                                        | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
+| Shortcuts sheet                                                     | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
+| Quick actions                                                       | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
+| Enter in a number / text field, rename commit                       | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
+| Resize handle                                                       | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
+| Alignment matrix                                                    | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
+| Existing props                                                      | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
+| `InfoCircle`                                                        | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
+| `ResetButton` / `CompactColorInput` reset button                    | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
+| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
+| Nested popouts                                                      | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
+| Checkbox default                                                    | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
+| `highContrast` option                                               | --                                             | section 2.9                                                    | owner decision; off by default                                        |
+| Tree row with a count                                               | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
+| Selected parent in the tree                                         | `bg-selected`, 1.05:1 / 1.2:1 from the band    | `bg-selected-hover`; a hovered child takes `bg-selected`       | the selected row could not be told from its children                  |
+| Segmented control, unchecked label                                  | 50% ink (secondary)                            | body text color; the face and edge mark the choice             | a gray word beside the raised face read as a disabled option          |
+| Context menu opened by the pointer                                  | --                                             | no row highlighted; keyboard opens still highlight the first   | a pre-highlighted row read as the suggested choice                    |
+| Escape in an open list field                                        | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
 
 ## 15. Breaking changes for the release notes (0.x)
 
@@ -1757,10 +1763,10 @@ exact file lists are in the plan the orchestrator holds; in short:
 | 1            | foundation | 2, 3, 9.1, 13 | theme assembly, tokens, colors, fonts, global stylesheet, `PANEL_GRID` / `PANEL_INK`, icons, harness, Storybook preview, cross-cutting token tests                                |
 | 2 (parallel) | buttons    | 4 (not 4.2)   | `theme/components/buttons.ts`, `theme/styles/buttons.ts`                                                                                                                          |
 | 2            | selection  | 4.2, 5        | `theme/components/controls.ts` + `navigation.ts` and their styles; IconGroupRow, ToggleRow, ToggleWithContent                                                                     |
-| 2            | inputs     | 6             | `theme/components/inputs.ts` + styles; PanelField, StyleNumberInput, StyleSelect                                                                                                  |
+| 2            | inputs     | 6             | `theme/components/inputs.ts` + styles; PanelField                                                                                                                                 |
 | 2            | color      | 7             | `theme/components/color.ts` (new); CompactColorInput, GradientEditor, color constants and utils                                                                                   |
 | 2            | overlays   | 8             | `theme/components/overlays.ts` + `feedback.ts` and their styles; the popout family, InfoCircle, `constants/popout.ts`                                                             |
-| 2            | chrome     | 9 (not 9.1)   | ControlSection, ControlGroup, ControlSubGroup, FieldRow, TrailingSlot, ActionRow, CompoundRow, RampRow, ChartRow, ProseBlock                                                      |
+| 2            | chrome     | 9 (not 9.1)   | ControlSection, ControlGroup, FieldRow, TrailingSlot, ActionRow, CompoundRow, RampRow, ChartRow, ProseBlock                                                                       |
 | 2            | tree       | 10            | DataRow, DataTable, the new tree components                                                                                                                                       |
 | 3            | shell      | 11, 12, 15    | `theme/components/display.ts` + styles; `src/index.ts`, `src/types/index.ts`, rows barrel, i18n, README, docs pages, exports test; graphty integration                            |
 

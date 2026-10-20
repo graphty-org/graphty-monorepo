@@ -19,6 +19,24 @@ import * as errors from "../../src/errors/index";
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
+    // the network sources (design/graph-io/network-sources-design.md section 8), experimental
+    "E_SOURCE_BLOCKED",
+    "E_SOURCE_AUTH",
+    "E_SOURCE_FORBIDDEN",
+    "E_SOURCE_NOT_FOUND",
+    "E_SOURCE_QUOTA",
+    "E_SOURCE_TIMEOUT",
+    "E_SOURCE_QUERY",
+    "E_SOURCE_NOT_A_GRAPH",
+    "E_SOURCE_RESPONSE",
+    "E_SOURCE_REDIRECT",
+    "E_SOURCE_RUNTIME",
+    "E_SOURCE_PARAM",
+    "E_SOURCE_LIMIT",
+    "E_SOURCE_UNKNOWN",
+    "E_SOURCE_UNSUPPORTED",
+    "E_SOURCE_INVALID",
+    "E_CREDENTIAL_NOT_STORABLE",
     "E_BAD_COMMAND",
     "E_BAD_QUERY",
     "E_BAD_LAYER",
@@ -36,6 +54,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
     "E_UNKNOWN_CAMERA",
+    "E_UNKNOWN_GENERATOR",
+    "E_UNKNOWN_DATASET",
     "E_UNKNOWN_SINK",
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
@@ -43,6 +63,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
+    "E_AUTOSAVE_ENTRY_TAKEN",
+    "E_AUTOSAVE_UNKNOWN_ENTRY",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -60,6 +82,16 @@ const CODES_FROM_THE_DESIGN = [
     "E_CAP_EXCEEDED",
     "E_SCOPE_EMPTY",
     "E_NOT_CONVERGED",
+    "E_NOT_PLANAR",
+    "E_NOT_CONNECTED",
+    "E_NOT_BIPARTITE",
+    "E_EMPTY_GRAPH",
+    "E_NEEDS_UNDIRECTED",
+    "E_NEEDS_DIRECTED",
+    "E_BAD_WEIGHT",
+    "E_ATTRIBUTE_TYPE",
+    "E_BAD_PATH",
+    "E_PATH_COUNT_OVERFLOW",
     "E_NO_ACCELERATOR",
     "E_NO_WEBGPU",
     "E_NO_ADAPTER",
@@ -103,6 +135,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
         case "E_UNKNOWN_CAMERA":
+        case "E_UNKNOWN_GENERATOR":
+        case "E_UNKNOWN_DATASET":
         case "E_UNKNOWN_SINK":
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
@@ -115,6 +149,8 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PROTECTED":
         case "E_LOCKED":
         case "E_UNSAVED_CHANGES":
+        case "E_AUTOSAVE_ENTRY_TAKEN":
+        case "E_AUTOSAVE_UNKNOWN_ENTRY":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
@@ -143,8 +179,36 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
+        case "E_NOT_PLANAR":
+        case "E_NOT_CONNECTED":
+        case "E_NOT_BIPARTITE":
+        case "E_EMPTY_GRAPH":
+        case "E_NEEDS_UNDIRECTED":
+        case "E_NEEDS_DIRECTED":
+        case "E_BAD_WEIGHT":
+        case "E_ATTRIBUTE_TYPE":
+        case "E_BAD_PATH":
+        case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
+        case "E_SOURCE_BLOCKED":
+        case "E_SOURCE_AUTH":
+        case "E_SOURCE_FORBIDDEN":
+        case "E_SOURCE_NOT_FOUND":
+        case "E_SOURCE_QUOTA":
+        case "E_SOURCE_TIMEOUT":
+        case "E_SOURCE_QUERY":
+        case "E_SOURCE_NOT_A_GRAPH":
+        case "E_SOURCE_RESPONSE":
+        case "E_SOURCE_REDIRECT":
+        case "E_SOURCE_RUNTIME":
+        case "E_SOURCE_PARAM":
+        case "E_SOURCE_LIMIT":
+        case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_UNSUPPORTED":
+        case "E_SOURCE_INVALID":
+        case "E_CREDENTIAL_NOT_STORABLE":
+            return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
         default: {
@@ -413,6 +477,51 @@ describe("GraphtyError.wrap", () => {
 
         assert.strictEqual(wrapped.code, "E_TOO_LARGE");
         assert.deepStrictEqual(wrapped.details, { nodeCount: 9, maxNodes: 8, bytes: 648, runId: "r1" });
+    });
+
+    it("reads a sibling's other spelling of an element code in place of E_INTERNAL, keeping the original", () => {
+        const sibling = Object.assign(new Error("numClusters must be a positive integer"), {
+            code: "E_BAD_OPTION",
+            params: { option: "numClusters", value: 0 },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run" });
+
+        assert.strictEqual(wrapped.code, "E_OPTION_RANGE");
+        assert.deepStrictEqual(wrapped.details, { option: "numClusters", value: 0, sourceCode: "E_BAD_OPTION" });
+
+        const node = GraphtyError.wrap(Object.assign(new Error("no node 9"), { code: "E_BAD_NODE" }), {
+            code: "E_INTERNAL",
+            source: "run",
+        });
+        assert.strictEqual(node.code, "E_UNKNOWN_ELEMENT");
+        assert.strictEqual(node.details.kind, "node");
+    });
+
+    it("keeps the caller's own code over a sibling's other spelling", () => {
+        const sibling = Object.assign(new Error("no column"), { code: "E_UNKNOWN_COLUMN" });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_PARSE_FAILED", source: "data" });
+
+        assert.strictEqual(wrapped.code, "E_PARSE_FAILED");
+        assert.strictEqual(wrapped.details.sourceCode, "E_UNKNOWN_COLUMN");
+    });
+
+    it("does not read an inherited property name as a sibling spelling", () => {
+        const sibling = Object.assign(new Error("odd"), { code: "constructor" });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "run" });
+
+        assert.strictEqual(wrapped.code, "E_INTERNAL");
+        assert.strictEqual(wrapped.details.sourceCode, "constructor");
+    });
+
+    it("reads a sibling's details as its facts when it carries no params", () => {
+        const sibling = Object.assign(new Error("unknown node id nope"), {
+            code: "E_UNKNOWN_NODE",
+            details: { id: "nope" },
+        });
+        const wrapped = GraphtyError.wrap(sibling, { code: "E_INTERNAL", source: "layout" });
+
+        assert.strictEqual(wrapped.code, "E_UNKNOWN_ELEMENT");
+        assert.deepStrictEqual(wrapped.details, { kind: "node", id: "nope", sourceCode: "E_UNKNOWN_NODE" });
     });
 
     it("uses the caller's message when one is given", () => {

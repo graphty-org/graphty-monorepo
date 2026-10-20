@@ -3,6 +3,7 @@ import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre
 import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
+import { firstSight } from "../input/first-sight";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
@@ -40,7 +41,7 @@ export class InputController {
     private pointerObserverHandle: Observer<PointerInfo> | null = null;
     private prePointerObserverHandle: Observer<PointerInfoPre> | null = null;
 
-    private pointerDownHandler = (): void => {
+    private readonly pointerDownHandler = (): void => {
         this.cam.canvas.focus({ preventScroll: true });
     };
 
@@ -80,9 +81,9 @@ export class InputController {
      * @param config - Configuration options for 2D camera controls
      */
     constructor(
-        private cam: TwoDCameraController,
-        private canvas: HTMLCanvasElement,
-        private config: TwoDCameraControlsConfigType,
+        private readonly cam: TwoDCameraController,
+        private readonly canvas: HTMLCanvasElement,
+        private readonly config: TwoDCameraControlsConfigType,
     ) {
         this.canvas.setAttribute("tabindex", "0"); // Make focusable
         // Note: setupMouse() and setupTouch() are called in enable() to allow re-enabling
@@ -115,8 +116,12 @@ export class InputController {
                         const orthoLeft = this.cam.camera.orthoLeft ?? 1;
                         const orthoTop = this.cam.camera.orthoTop ?? 1;
                         const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-                        const scaleX = (orthoRight - orthoLeft) / this.cam.engine.getRenderWidth();
-                        const scaleY = (orthoTop - orthoBottom) / this.cam.engine.getRenderHeight();
+                        const scaleX =
+                            (orthoRight - orthoLeft) /
+                            (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+                        const scaleY =
+                            (orthoTop - orthoBottom) /
+                            (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
                         const dx = e.clientX - lastX;
                         const dy = e.clientY - lastY;
@@ -134,9 +139,10 @@ export class InputController {
             }
         });
 
+        const newWheel = firstSight();
         this.prePointerObserverHandle = this.cam.scene.onPrePointerObservable.add((pi) => {
             const e = pi.event as WheelEvent;
-            if (pi.type === PointerEventTypes.POINTERWHEEL) {
+            if (pi.type === PointerEventTypes.POINTERWHEEL && newWheel(e)) {
                 const delta = e.deltaY > 0 ? this.config.mouseWheelZoomSpeed : 1 / this.config.mouseWheelZoomSpeed;
                 if (this.zoomToPointer) {
                     const rect = this.canvas.getBoundingClientRect();
@@ -190,8 +196,12 @@ export class InputController {
             const orthoLeft = this.cam.camera.orthoLeft ?? 1;
             const orthoTop = this.cam.camera.orthoTop ?? 1;
             const orthoBottom = this.cam.camera.orthoBottom ?? 1;
-            const scaleX = (orthoRight - orthoLeft) / this.cam.engine.getRenderWidth();
-            const scaleY = (orthoTop - orthoBottom) / this.cam.engine.getRenderHeight();
+            const scaleX =
+                (orthoRight - orthoLeft) /
+                (this.cam.engine.getRenderWidth() * this.cam.engine.getHardwareScalingLevel());
+            const scaleY =
+                (orthoTop - orthoBottom) /
+                (this.cam.engine.getRenderHeight() * this.cam.engine.getHardwareScalingLevel());
 
             const dx = ev.center.x - this.gestureSession.panX;
             const dy = ev.center.y - this.gestureSession.panY;
@@ -287,6 +297,11 @@ export class InputController {
         const c = this.config;
         const before = v.x + v.y + v.zoom + v.rotate;
         const on = (action: CanvasKeyAction): boolean => this.held.has(action) || this.tapped.has(action);
+        // The velocity is damped every frame, so a held key settles at push / (1 - damping).
+        // Scaling the push by (1 - damping) makes a held key zoom and turn by the configured
+        // amount per frame, rather than many times it.
+        const zoomPush = c.zoomFactorPerFrame * (1 - c.zoomDamping);
+        const rotatePush = c.rotateSpeedPerFrame * (1 - c.rotateDamping);
 
         if (on("pan-up")) {
             v.y += c.panAcceleration;
@@ -305,19 +320,19 @@ export class InputController {
         }
 
         if (on("zoom-in")) {
-            v.zoom -= c.zoomFactorPerFrame;
+            v.zoom -= zoomPush;
         }
 
         if (on("zoom-out")) {
-            v.zoom += c.zoomFactorPerFrame;
+            v.zoom += zoomPush;
         }
 
         if (on("roll-left")) {
-            v.rotate += c.rotateSpeedPerFrame;
+            v.rotate += rotatePush;
         }
 
         if (on("roll-right")) {
-            v.rotate -= c.rotateSpeedPerFrame;
+            v.rotate -= rotatePush;
         }
 
         this.tapped.clear();

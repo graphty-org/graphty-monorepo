@@ -4,10 +4,9 @@
  * in this file; `Project.real-element.test.tsx` walks save and reopen on it.
  */
 import { browserProjects, type GraphSession, GraphtyError } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
@@ -16,7 +15,7 @@ import { Workspace } from "../../Workspace";
 import { problemSentence, SAVE_AS_DIALOG, saveProblemSentence } from "../actions";
 import { registration } from "../commands";
 import { clearRecent, refreshStored, rememberRecent } from "../recent";
-import { whenWords } from "../words";
+import { agoWords, whenWords } from "../words";
 
 const OPEN: Partial<WorkspaceState> = { project: { name: "Les Miserables", id: 1 } };
 
@@ -98,7 +97,7 @@ describe("the Project package", () => {
         await userEvent.click(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Back to start" }));
         assert.isNull(store.get().project);
-        assert.isNotNull(screen.getByText("Projects you save appear here. They are kept in this browser."));
+        assert.isNotNull(screen.getByRole("heading", { level: 1, name: /^Analyze any network\./ }));
     });
 
     it("lists recent projects with their size, asks for a downloaded file with Locate..., and removes one", async () => {
@@ -235,5 +234,16 @@ describe("Recent projects' date", () => {
             tops.set(top, (tops.get(top) ?? 0) + 1);
         }
         assert.notInclude([...tops.values()], 1, `words per line: ${[...tops.values()].join(", ")}`);
+    });
+
+    it("says when a project was saved as a reader does", () => {
+        const now = new Date(2026, 9, 17, 15, 0).getTime();
+        const hour = 3600 * 1000;
+        assert.equal(agoWords(now - 20_000, now), "Just now");
+        assert.equal(agoWords(now - 5 * 60_000, now), "5 minutes ago");
+        assert.equal(agoWords(now - 2 * hour, now), "2 hours ago");
+        assert.equal(agoWords(now - 20 * hour, now), "Yesterday");
+        assert.equal(agoWords(new Date(2026, 9, 9, 10, 0).getTime(), now), "Oct 9");
+        assert.equal(agoWords(new Date(2025, 9, 9, 10, 0).getTime(), now), "Oct 9, 2025");
     });
 });

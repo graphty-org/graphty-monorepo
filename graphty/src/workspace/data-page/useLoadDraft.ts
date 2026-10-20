@@ -15,7 +15,7 @@ import type {
 } from "@graphty/graphty-element/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { INITIAL_CHOICES, loadChoices, type PageChoices } from "./choices";
+import { INITIAL_CHOICES, initialChoices as freshChoices, loadChoices, type PageChoices } from "./choices";
 
 /** What the reader handed over. */
 export type PageSource =
@@ -134,7 +134,7 @@ export function useLoadDraft(
     const [draft, setDraft] = useState<LoadDraft | null>(null);
     const [reading, setReading] = useState(false);
     const [readError, setReadError] = useState<unknown>(null);
-    const [choices, setChoices] = useState<PageChoices>(INITIAL_CHOICES);
+    const [choices, setChoices] = useState<PageChoices>(initialChoices);
     const [report, setReport] = useState<LoadReport | null>(null);
     const [reportError, setReportError] = useState<unknown>(null);
     const [tableId, setTableId] = useState<string | null>(null);
@@ -157,7 +157,13 @@ export function useLoadDraft(
         setReportError(null);
         setReadError(null);
         setRows(null);
-        setChoices(source === initial && Object.keys(settings).length === 0 ? initialChoices : INITIAL_CHOICES);
+        // The choices a door handed over hold for its own source; any other starts from the
+        // reader's preferences (whether a file's styles are imported).
+        setChoices(
+            source === initial && Object.keys(settings).length === 0 && initialChoices !== INITIAL_CHOICES
+                ? initialChoices
+                : freshChoices(),
+        );
         setLoadError(null);
         setFilter("all");
         if (session === null || source === null) {

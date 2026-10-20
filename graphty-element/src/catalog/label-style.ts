@@ -35,9 +35,6 @@ export type LabelLocation =
     | "bottom-right"
     | "automatic";
 
-/** What a label's size is measured in: a length in the scene, or pixels on screen. */
-export type LabelSizeUnit = "world" | "screen";
-
 /** How the words inside a label are lined up. */
 export type LabelTextAlign = "left" | "center" | "right";
 
@@ -68,6 +65,12 @@ export type LabelBadge =
 /** Which side of a label's words its icon sits on. */
 export type LabelIconPosition = "left" | "right";
 
+/**
+ * What a label's `sizePx` is measured in: `"world"` scales the label with the scene, so it grows
+ * as the camera comes closer; `"screen"` keeps its letters `sizePx` CSS pixels tall at any zoom.
+ */
+export type LabelSizeMode = "world" | "screen";
+
 /** How a label is drawn. */
 export interface LabelStyle {
     /**
@@ -95,25 +98,26 @@ export interface LabelStyle {
 
     /** The typeface, as a CSS font family. */
     font?: string;
-    /** How tall the letters are drawn on the label's own canvas. */
-    sizePx?: number;
     /**
-     * What a label's size (`sizePx`, and the bound size channels such as `node.labelSize`) is
-     * measured in.
-     *
-     * `"world"`, the default: a length in the scene. A size of 48 draws one line one world unit
-     * tall, so the label grows and shrinks with the zoom, as the node it labels does.
-     *
-     * `"screen"`: CSS pixels on screen, as a font size on a web page. A size of 14 draws letters
-     * at 14 px at every zoom; the label's place beside its node, the overlap pass and a pulse
-     * follow the size it is drawn at.
-     * @since 3.26.0
+     * How tall the letters are drawn on the label's own canvas; with `sizeMode: "screen"`, how
+     * tall they are on screen, in CSS pixels.
      */
-    sizeUnit?: LabelSizeUnit;
+    sizePx?: number;
+    /** What `sizePx` is measured in. The default, `"world"`, scales the label with the scene. */
+    sizeMode?: LabelSizeMode;
+    /**
+     * How tall one line of the label is drawn in the scene, in the same units as a node's `size`:
+     * `size: 1` beside a node of size 1 draws a line as tall as the node. Unset, a line is
+     * `sizePx / 48` tall, so the letters' canvas size also sets their size in the scene. Set,
+     * `sizePx` only sets how sharply the letters are drawn.
+     */
+    size?: number;
     /** How heavy the letters are. */
     weight?: number | "normal" | "bold";
     /** The colour of the letters. */
     color?: string;
+    /** Whether the letters are drawn italic. */
+    italic?: boolean;
     /** The gap between one line of text and the next, as a multiple of the font size. */
     lineHeight?: number;
     /** How the lines are lined up against each other. */
@@ -142,6 +146,12 @@ export interface LabelStyle {
     location?: LabelLocation;
     /** How far from the node or edge it sits, in world units. */
     attachOffset?: number;
+    /**
+     * Whether the panel is kept inside the canvas. One that would cross an edge first moves to
+     * the other side of its node (right to left, top to bottom), then is moved in if it still
+     * does not fit. Off by default.
+     */
+    keepInView?: boolean;
     /** Empty space above the panel. */
     marginTop?: number;
     /** Empty space below the panel. */
@@ -178,6 +188,20 @@ export interface LabelStyle {
     shadowOffsetX?: number;
     /** How far the shadow is thrown downwards. */
     shadowOffsetY?: number;
+
+    /**
+     * Whether the panel casts a drop shadow. The label grows by the shadow's blur and offset, so
+     * the shadow is never cut off; the panel stays where it was.
+     */
+    panelShadow?: boolean;
+    /** The color of the panel's shadow. */
+    panelShadowColor?: string;
+    /** How far the panel's shadow is blurred, on the label's own canvas. */
+    panelShadowBlur?: number;
+    /** How far the panel's shadow is thrown to the right. */
+    panelShadowOffsetX?: number;
+    /** How far the panel's shadow is thrown downwards. */
+    panelShadowOffsetY?: number;
 
     /** How the label moves. */
     animation?: LabelAnimation;
@@ -227,6 +251,16 @@ export interface LabelStyle {
     maxNumber?: number;
     /** What is drawn after a shortened number. */
     overflowSuffix?: string;
+
+    /**
+     * Whether the panel draws an x in its top-right corner, in the label's text colour.
+     *
+     * A click on the x clears the selection, as a click on empty canvas does. A click anywhere
+     * else on a label with this on does nothing: it does not reach the node or the background
+     * behind the label. Off, a click on the label is a click on no node, as it always was.
+     * @since 3.29.0
+     */
+    closeButton?: boolean;
 }
 
 /**
@@ -243,9 +277,11 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     enabled: 0,
     font: 0,
     sizePx: 0,
-    sizeUnit: 0,
+    sizeMode: 0,
+    size: 0,
     weight: 0,
     color: 0,
+    italic: 0,
     lineHeight: 0,
     textAlign: 0,
     background: 0,
@@ -259,6 +295,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     gradientDirection: 0,
     location: 0,
     attachOffset: 0,
+    keepInView: 0,
     marginTop: 0,
     marginBottom: 0,
     marginLeft: 0,
@@ -276,6 +313,11 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     shadowBlur: 0,
     shadowOffsetX: 0,
     shadowOffsetY: 0,
+    panelShadow: 0,
+    panelShadowColor: 0,
+    panelShadowBlur: 0,
+    panelShadowOffsetX: 0,
+    panelShadowOffsetY: 0,
     animation: 0,
     animationSpeed: 0,
     depthFade: 0,
@@ -290,6 +332,7 @@ export const LABEL_STYLE_FIELDS: readonly (keyof LabelStyle)[] = Object.keys({
     smartOverflow: 0,
     maxNumber: 0,
     overflowSuffix: 0,
+    closeButton: 0,
 } satisfies Record<keyof LabelStyle, 0>) as (keyof LabelStyle)[];
 
 /**
@@ -307,7 +350,6 @@ export const RICH_TEXT_KEYS = {
     enabled: "enabled",
     font: "font",
     sizePx: "fontSize",
-    sizeUnit: "fontSizeUnit",
     color: "textColor",
     lineHeight: "lineHeight",
     textAlign: "textAlign",
@@ -377,7 +419,7 @@ export const LABEL_STYLE_DEFAULTS: Readonly<LabelStyle> = Object.freeze({
         }),
     ) as LabelStyle),
     weight: defaultRichTextLabelStyle.fontWeight === "bold" ? "bold" : "normal",
-    sizeUnit: defaultRichTextLabelStyle.fontSizeUnit ?? "world",
+    sizeMode: "world",
     onTop: defaultRichTextLabelStyle.onTop ?? false,
     pickable: defaultRichTextLabelStyle.pickable ?? false,
     gradientColors: DEFAULT_LABEL_GRADIENT_COLORS,

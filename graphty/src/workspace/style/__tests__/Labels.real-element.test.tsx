@@ -142,7 +142,7 @@ describe("label entries on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("'+' lists Label and Tooltip; Label picks a source and writes only it; a look applies; a font edit reads edited and its reset clears it", async () => {
+    it("'+' lists Label, Card and Tooltip; Label picks a source and writes only it; a look applies; a font edit reads edited and its reset clears it", async () => {
         const { session, element } = await openWithGraph();
         await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
         const keyRows = document.querySelectorAll(".ws-legend-section").length;
@@ -151,8 +151,8 @@ describe("label entries on the real element", () => {
         const items = await screen.findAllByRole("menuitem");
         assert.deepEqual(
             items.map((item) => item.textContent),
-            ["Label", "Tooltip"],
-            "the Text menu lists both kinds of node text",
+            ["Label", "Card", "Tooltip"],
+            "the Text menu lists both kinds of node text, and a label as a card",
         );
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Label(?! at )/ }));
         // Nothing is written before a source is picked.

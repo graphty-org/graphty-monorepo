@@ -1,5 +1,5 @@
 /**
- * @file A label sized on screen (`sizeUnit: "screen"`) draws its words at that many CSS pixels at
+ * @file A label sized on screen (`sizeMode: "screen"`) draws its words at that many CSS pixels at
  * every zoom, on Les Miserables framed whole and again zoomed in 2x, in 3D and in 2D. A label
  * sized in the scene (the default) grows with the zoom, as before.
  *
@@ -153,7 +153,7 @@ function pageHeight(): number {
 describe("a label sized on screen", () => {
     for (const viewMode of ["3d", "2d"] as const) {
         it(`draws ${String(SIZE)} px letters framed whole and zoomed in 2x (${viewMode})`, async () => {
-            const graph = await framed({ sizePx: SIZE, sizeUnit: "screen" }, viewMode);
+            const graph = await framed({ sizePx: SIZE, sizeMode: "screen" }, viewMode);
             const expected = pageHeight();
 
             const whole = wordsHeight(graph);
@@ -166,7 +166,7 @@ describe("a label sized on screen", () => {
     }
 
     it("sits on its node at the size it is drawn at", async () => {
-        const graph = await framed({ sizePx: SIZE, sizeUnit: "screen" }, "3d");
+        const graph = await framed({ sizePx: SIZE, sizeMode: "screen" }, "3d");
         const mesh = graph.getNode("Valjean")?.label?.labelMesh;
         assert.isOk(mesh);
         const before = mesh.position.y;

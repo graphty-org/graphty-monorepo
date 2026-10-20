@@ -1,7 +1,7 @@
 /**
- * The run inspector's left edges on the REAL graphty-element: the "Advanced run settings" fold's
- * chevron hangs in the section gutter, left of the section titles, and the line under the measure's
- * histogram starts where the histogram's min label does.
+ * The run inspector on the REAL graphty-element: the "Advanced run settings" button sits in the
+ * Made with section, and the line under the measure's histogram starts where the histogram's min
+ * label does.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -69,16 +69,11 @@ function left(element: Element): number {
 }
 
 describe("the run inspector's left edges", () => {
-    it("hangs the Advanced run settings chevron in the gutter, left of the section titles", async () => {
+    it("puts the Advanced run settings behind a button in the Made with section", async () => {
         const inspector = await inspectRun("shortest-path", { source: "b", target: "d" });
-        const fold = await inspector.findByRole("button", { name: /Advanced run settings/ });
-        const made = inspector.getByRole("heading", { name: /Made with/ });
-        const foldChevron = fold.querySelector(".cm-subgroup-chevron");
-        assert.isNotNull(foldChevron);
-        if (foldChevron === null) {
-            return;
-        }
-        assert.isBelow(left(foldChevron), left(made), "the chevron sits in the gutter");
+        const advanced = await inspector.findByRole("button", { name: /Advanced run settings/ });
+        const made = inspector.getByRole("group", { name: /Made with/ });
+        assert.isTrue(made.contains(advanced));
     });
 
     it("starts the histogram's summary line at the min label", async () => {

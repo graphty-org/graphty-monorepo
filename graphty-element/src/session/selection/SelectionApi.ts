@@ -349,8 +349,8 @@ export interface SelectionApi {
     clear(): SelectionDelta;
     /**
      * The node under the pointer now, or null. Not part of the selection and never a step: the
-     * element writes it as the pointer moves, and a `{ match: "state", state: "hovered" }` style
-     * layer paints it.
+     * element writes it as the pointer moves, and a `{ match: "state", state: "hovered" }` or a
+     * `{ match: "hover" }` style layer paints it.
      * @since 3.26.0
      */
     readonly hovered: NodeId | null;
@@ -426,6 +426,15 @@ export interface SelectionOwner extends SelectionApi {
      * @param cause - Who asked.
      */
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void;
+    /**
+     * Whether taking edges out of the selection would change nothing: no edge is selected (or,
+     * given the edges, none of them is), no change is waiting, and the cap has truncated nothing.
+     * Answered without reading the graph, so a removal that selects no edge does not freeze it to
+     * find that out.
+     * @param ids - The edges about to be taken out; absent, any selected edge counts.
+     * @returns True when it would change nothing.
+     */
+    edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean;
     /**
      * The node mask itself, for the scope resolver's `selection` source.
      * @returns The live mask, which the caller must not mutate.
@@ -975,6 +984,30 @@ class Selection implements SelectionOwner {
 
     applyAtNextRead(target: SelectionTarget, op: SelectionOp, cause: SelectionCause): void {
         this.#pending = { target, op, cause };
+    }
+
+    edgeRemovalChangesNothing(ids?: readonly EdgeId[]): boolean {
+        if (this.#pending !== null || this.#truncated) {
+            return false;
+        }
+
+        if (this.#edges.size === 0) {
+            return true;
+        }
+
+        // The masks as they stand, as `has` reads them: one lookup per edge, no freeze. A frame a
+        // renumbering freeze left stale cannot answer, so that case takes the full path.
+        if (ids === undefined || this.#frameStale) {
+            return false;
+        }
+
+        for (const id of ids) {
+            if (this.#edges.hasId(id)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

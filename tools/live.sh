@@ -82,7 +82,8 @@ fi
 
 # 1. Merge in a scratch worktree at the live commit.
 SCRATCH="$MAIN/tmp/live/$TOOL-$$"
-HOOKS="$(mktemp -d)"
+mkdir -p "$MAIN/tmp/live"
+HOOKS="$(mktemp -d "$MAIN/tmp/live/hooks.XXXXXX")"
 cleanup() {
     git -C "$MAIN" worktree remove --force "$SCRATCH" >/dev/null 2>&1 || rm -rf "$SCRATCH"
     git -C "$MAIN" worktree prune >/dev/null 2>&1 || true

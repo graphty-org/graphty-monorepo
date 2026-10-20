@@ -33,7 +33,9 @@ requirements:
     - Support UTF-8, UTF-16, and ISO-8859-1 file encodings
     - Auto-detect file encoding with 95% accuracy for common encodings
     - Report parse errors with line number and column position
-    - Report 'File too large' error with size limit when file exceeds 100MB
+    # Corrected 2026-10-19 by design/data/data-management-requirements.md (a too-large file gets a way through).
+    - For a file over the drawing limit, show its size and the limit before loading and pre-choose a way through
+      (the busiest nodes or the first rows), stating what was left out; never refuse it without one
     - Report 'Unsupported format' error listing supported formats when format unrecognized
     - Report 'Encoding error' with detected vs expected encoding on character decode failure
     - Allow partial import to continue after non-fatal parse errors

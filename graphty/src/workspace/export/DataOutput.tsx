@@ -1,8 +1,8 @@
 import { ModalFooter } from "@graphty/compact-mantine";
 import type { OptionDescriptor } from "@graphty/graphty-element/catalog";
 import { projectFileName } from "@graphty/graphty-element/session";
-import { Alert, Button, Select, Text } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import { Alert, Button, Group, Select, Text } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
@@ -15,7 +15,7 @@ import {
     SAVED_LOCALLY,
     writerOptions,
 } from "./choices";
-import { columnWords, type LossFacts, lossLines } from "./lossWords";
+import { columnWords, isStyleLoss, layersBackWords, listedStyleLosses, type LossFacts, lossLines } from "./lossWords";
 
 /** Props for DataOutput. */
 interface DataOutputProps {
@@ -37,7 +37,9 @@ interface DataOutputProps {
 function lossFacts({ code, params }: { code: string; params: Readonly<Record<string, unknown>> }): LossFacts[] {
     const count = typeof params.count === "number" ? params.count : null;
     const columns = Array.isArray(params.columns) ? params.columns.map(String) : [];
-    return columns.length === 0 ? [{ code, column: null, count }] : columns.map((column) => ({ code, column, count }));
+    return columns.length === 0
+        ? [{ code, column: null, count, params }]
+        : columns.map((column) => ({ code, column, count, params }));
 }
 
 /**
@@ -91,8 +93,14 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
     const [preview, setPreview] = useState<{ lines: string; losses: readonly LossFacts[] } | null>(null);
     const [failure, setFailure] = useState<Failure | null>(null);
     const [busy, setBusy] = useState(false);
+    /** The style losses of the export the reader asked to save, until they save anyway or choose again. */
+    const [styleLosses, setStyleLosses] = useState<readonly LossFacts[] | null>(null);
+    const formatField = useRef<HTMLInputElement>(null);
 
-    const rows = formatRows(session?.catalog.formats() ?? []);
+    const formats = session?.catalog.formats() ?? [];
+    const rows = formatRows(formats);
+    const format = formats.find((entry) => entry.id === choices.format);
+    const binary = format?.binary === true;
     const rowId = choices.variant === undefined ? choices.format : `${choices.format}/${choices.variant}`;
     const row = rows.find((entry) => entry.id === rowId);
     const options = row === undefined ? {} : writerOptions(row, choices.values);
@@ -113,10 +121,13 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         let live = true;
         setPreview(null);
         setFailure(null);
+        setStyleLosses(null);
         element
             .exportGraph(choices.format, JSON.parse(optionsKey) as Record<string, unknown>)
             .then(async (result) => {
-                const lines = await previewOf(result);
+                const lines = binary
+                    ? `${format?.plainName ?? choices.format} files are not text, so there is no preview.`
+                    : await previewOf(result);
                 if (live) {
                     // Only the coded facts, one per column they name: the element writes no words.
                     setPreview({
@@ -133,14 +144,36 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         return () => {
             live = false;
         };
-    }, [element, choices.format, optionsKey]);
+    }, [element, choices.format, optionsKey, binary, format?.plainName]);
 
-    const save = async (): Promise<void> => {
+    /**
+     * Writes the file and hands it over; first, unless the reader already said to save anyway,
+     * stops at a warning when the format loses part of the styles. A refusal (an E_ code) means
+     * the file cannot be written: it says why and never offers "Save anyway".
+     * @param anyway - the reader saw the warning and chose to save.
+     */
+    const save = async (anyway = false): Promise<void> => {
         if (element === null) {
             return;
         }
         setBusy(true);
         try {
+            const losses = preview?.losses ?? (await element.exportGraph(choices.format, options)).losses.flatMap(lossFacts);
+            const refused = losses.filter((loss) => loss.code.startsWith("E_"));
+            if (refused.length > 0) {
+                setStyleLosses(null);
+                setFailure({
+                    title: "The file was not written",
+                    words: lossLines(refused, (column) => (session === null ? null : columnWords(session, column))).join(" "),
+                });
+                return;
+            }
+            const lost = losses.filter(isStyleLoss);
+            if (!anyway && lost.length > 0) {
+                setStyleLosses(lost);
+                return;
+            }
+            setStyleLosses(null);
             await element.downloadGraph(choices.format, { ...options, fileName: name });
             onDone(`Exported ${name}`);
         } catch (error) {
@@ -150,10 +183,8 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
         }
     };
 
-    const notes =
-        preview === null
-            ? []
-            : lossLines(preview.losses, (column) => (session === null ? null : columnWords(session, column)));
+    const nameColumn = (column: string): string | null => (session === null ? null : columnWords(session, column));
+    const notes = preview === null ? [] : lossLines(preview.losses, nameColumn);
 
     const summary =
         choices.format === "graphty"
@@ -173,8 +204,15 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                 </div>
                 <div className="ws-export-fields">
                     <Select
+                        ref={formatField}
                         label="Format"
-                        data={rows.map((entry) => ({ value: entry.id, label: entry.plainName }))}
+                        data={rows.map((entry) => ({
+                            value: entry.id,
+                            label:
+                                formats.find((each) => each.id === entry.format)?.styles?.write === "rules"
+                                    ? `${entry.plainName} (keeps style layers)`
+                                    : entry.plainName,
+                        }))}
                         value={rowId}
                         allowDeselect={false}
                         onChange={(id) => {
@@ -203,7 +241,36 @@ export function DataOutput({ choices, onChange, onCancel, onDone }: Readonly<Dat
                         {failure.words}
                     </Alert>
                 )}
-                {failure === null && notes.length > 0 ? (
+                {failure === null && styleLosses !== null ? (
+                    <Alert
+                        color="orange"
+                        role="alertdialog"
+                        title={`${row?.plainName ?? choices.format} does not keep all of the graph's styles`}
+                    >
+                        <ul className="ws-export-notes">
+                            {lossLines(listedStyleLosses(format, styleLosses), nameColumn).map((note) => (
+                                <li key={note}>{note}</li>
+                            ))}
+                        </ul>
+                        <Text size="sm">{layersBackWords(format, styleLosses)}</Text>
+                        <Group gap="xs" mt="xs">
+                            <Button size="xs" disabled={busy} onClick={() => void save(true)}>
+                                Save anyway
+                            </Button>
+                            <Button
+                                size="xs"
+                                variant="default"
+                                onClick={() => {
+                                    setStyleLosses(null);
+                                    formatField.current?.focus();
+                                }}
+                            >
+                                Choose another format
+                            </Button>
+                        </Group>
+                    </Alert>
+                ) : null}
+                {failure === null && styleLosses === null && notes.length > 0 ? (
                     <Alert
                         color="yellow"
                         role="note"

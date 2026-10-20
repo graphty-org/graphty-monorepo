@@ -1,5 +1,7 @@
 # Visual review: design, roadmap and plan
 
+> The Mergify merge queue, the `hold` label and per-change pull requests were retired on 2026-10-18; changes now land through one integration branch (design/ci/golden-local.md). Read the merge-queue parts below as history.
+
 Date: 2026-09-27
 
 This is the design for the system that replaces Chromatic in the graphty monorepo. Chromatic
@@ -690,6 +692,11 @@ act no pull request can make on its own.
 
 ### The record
 
+Since 2026-10-19 the gate no longer reads records: it checks the owner's signed approval of the
+baselines tree ("Signed tree approvals" below). Finish still writes a record of every decision, as
+version 3 with no `approval` of its own; versions 1 and 2 stay in the tree as history. The rest of
+this subsection, "Finish" and "The gate" describe the per-pull-request records as they were.
+
 ```json
 {
     "version": 2,
@@ -784,6 +791,99 @@ loosening settings file.
 **Existing records.** The milestone 1 and 2 records stay as they are, unproven history; the
 baselines they accepted are grandfathered and are not approved again. From the day the gate starts
 checking approvals, every new accept needs one.
+
+### Signed tree approvals (2026-10-19)
+
+**Why.** A record was signed for one pull request, and the gate counted it only on that pull
+request. Under golden-local (`design/ci/golden-local.md`) many branches land in the integration
+branch `golden`, and a cut pull request (`golden-cut` into master) ships them; the owner's
+approvals were made on the original pull requests, so the cut failed the gate with "the record is
+for pull request #3026, not #3234", twenty times on cut #3234. The cut's preview also compared the
+capture with the branch's own baselines, which those approvals had already updated, so it never
+showed the owner the images being shipped.
+
+**The approval.** The owner signs, with the passkey and the WebAuthn ceremony above, a statement
+about the git tree of the baselines directory:
+
+```json
+{
+    "version": 1,
+    "commit": "<the commit X the owner reviewed: Finish's accept commit>",
+    "tree": "<git rev-parse X:visual-baselines>",
+    "baselines": "visual-baselines",
+    "pr": 3234,
+    "approvedAt": "2026-10-19T12:00:00.000Z",
+    "approval": { "credentialId": "...", "authenticatorData": "...", "clientDataJSON": "...", "signature": "..." }
+}
+```
+
+The challenge is SHA-256 of the canonical JSON of the statement without `approval` (the same
+`recordHash` as records). `pr` is recorded only. The file is `<approvals>/<tree>.json`, where
+`approvals` is a config key, `visual-review-approvals` by default and in this repository, a
+directory at the repository root that config validation keeps apart from the baselines directory,
+so adding the file does not change the tree it signs. Baseline PNGs are Git LFS pointer files
+whose text holds each image's SHA-256, so the tree hash covers every pixel, every settings file
+and every record; a test changes one byte of an image and shows the approval no longer holds.
+
+**The gate** (`treeApprovalProblems` in `gate.mjs`) passes the merge commit H when:
+
+1. H's baselines tree equals the base's (no baseline change at all): no approval is needed;
+2. otherwise `<approvals>/<tree of H>.json` at H holds a statement whose `tree` and `baselines`
+   are H's, whose `commit` X is an ancestor of H (`git merge-base --is-ancestor`) and holds that
+   tree, and, once the base branch's `passkeys.json` holds a key, whose approval verifies against
+   those keys exactly as a record's did;
+3. CI's captures of H match H's baselines within each story's tolerance, as before.
+
+Records under `<baselines>/reviews/` are only part of the tree. Once approvals are enforced, a
+change to `passkeys.json` fails, so an administrator merges it (the old "record for
+passkeys.json" path is gone); a pull request that moves the approvals directory in its config
+fails like one that moves the baselines. `--pr` is reported only. The gate's checkout in
+`ci.yml` and in the workflow template is full history (`fetch-depth: 0`, `filter: blob:none`), so
+the ancestor check can see X.
+
+**Finish.** The decisions stay per image, by hash, in the server's state file. A Finish signs only
+when nothing is rejected (a reject of an image the branch already holds would otherwise be
+signed into the tree) and, on a pull request, nothing is left undecided and every project's
+capture loaded (an image the owner never saw could otherwise be signed). Any other Finish commits
+its accepts and record unsigned and posts its rejects, as before. The order, so the signed tree is
+the tree that lands:
+
+1. `POST /api/finish-prepare` builds the accept commit X (accepted baselines, exclusions, the
+   version 3 record) in the throwaway accept worktree and does not push it; when an earlier
+   unsigned Finish already pushed exactly these decisions, X is that commit.
+2. The statement is built from X (`treeStatement`) and its hash is the challenge; Face ID.
+3. `POST /api/finish` verifies the approval with the gate's code, commits the statement as
+   `<approvals>/<tree>.json` in a commit Y on X, which touches nothing under the baselines
+   directory, so Y's baselines tree is still the signed tree, and pushes X and Y together. The
+   push is the staleness check: a branch that moved since step 1 refuses it.
+
+Without a passkey the same statement is committed unsigned. The re-signing of version 1 records
+("approvals from before passkeys") is removed: a tree approval covers what they covered, and it
+deleted records, which the owner ruled out.
+
+**The review page.** A pull request's capture is compared with the default branch's baselines as
+well as its own (`againstBase` in `serve.mjs`): an item `unchanged` against a baseline the branch
+already changed becomes `changed` (or `new`) against the default branch's image, and a baseline
+the branch deleted becomes `removed`, each marked `vsBase`. The default branch's image is written
+to the capture's `baselines/` directory and the capture (the branch's baseline, which capture
+does not keep for an unchanged item) beside it, both read from git and Git LFS and checked against
+their hashes; a project whose images cannot be read is not loaded, so nothing is signed. Decisions
+carry over by image hash as before, and an image approved in a signed version 2 record on another
+pull request still reads "approved before".
+
+**Compatibility.** CI runs the base branch's gate (`git archive HEAD^1`), so the first cut
+carrying this change is judged by the old record gate, which wants a record for that pull request
+for every changed baseline. That cut must therefore change no baselines: its `visual-baselines/`
+tree must equal master's. This change itself adds nothing under `visual-baselines/` (only the
+`approvals` key in the config, which the old config reader ignores), so cut it from a golden
+commit whose baselines tree is master's, or ship it in a cut of its own. Every later cut is judged
+by the tree rule.
+
+**What it does not change.** It still proves the owner's device approved a tree, not that the
+owner looked at each image; the limits below hold. An approval made on one branch holds on any
+branch that contains its commit with the same tree, which is the point (the cut contains golden's
+commits); a branch that does not contain the commit, or whose baselines differ by a byte, needs
+its own.
 
 ### Limits
 

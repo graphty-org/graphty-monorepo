@@ -40,8 +40,6 @@ interface AlgorithmWords {
     readonly answers: string;
     /** Words a reader might type for it ("brokers" finds Betweenness). */
     readonly aliases: readonly string[];
-    /** The one "Start here" of its heading (at most one per heading). */
-    readonly startHere?: boolean;
 }
 
 /** The words for the element's own algorithms, by key. */
@@ -70,7 +68,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "PageRank",
         answers: "Which nodes are connected to other well-connected nodes.",
         aliases: ["influence", "important", "importance", "random walk", "central"],
-        startHere: true,
     },
     eigenvector: {
         name: "Eigenvector",
@@ -91,7 +88,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
         name: "Louvain",
         answers: "Which nodes form densely linked groups.",
         aliases: ["communities", "clusters", "groups", "modularity"],
-        startHere: true,
     },
     leiden: {
         name: "Leiden",
@@ -142,7 +138,6 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
             "in between",
             "fewest",
         ],
-        startHere: true,
     },
     astar: {
         name: "Guided route",
@@ -299,25 +294,6 @@ export function groupAlgorithms(algorithms: readonly AlgorithmDescriptor[], text
     return groups
         .map(({ heading, entries }) => ({ heading, entries: [...entries].sort((a, b) => byName(a) - byName(b)) }))
         .sort((a, b) => byName(a.entries[0]) - byName(b.entries[0]));
-}
-
-/**
- * Whether an entry wears "Start here": with a blank filter, each heading's marked entry; while
- * text is typed, only the first result, and only when it is a marked one.
- * @param descriptor - the entry.
- * @param groups - the list as drawn (`groupAlgorithms`).
- * @param text - the filter text.
- * @returns true when the badge is drawn on it.
- */
-export function wearsStartHere(
-    descriptor: AlgorithmDescriptor,
-    groups: readonly HeadingEntries[],
-    text: string,
-): boolean {
-    if (wordsFor(descriptor).startHere !== true) {
-        return false;
-    }
-    return text.trim() === "" || groups[0]?.entries[0] === descriptor;
 }
 
 /**

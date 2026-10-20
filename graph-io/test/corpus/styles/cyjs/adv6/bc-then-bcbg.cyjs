@@ -1,0 +1,1 @@
+{"elements": [{"data": {"id": "a", "p": true, "q": false}}, {"data": {"id": "b", "p": true, "q": true}}, {"data": {"id": "c", "p": false, "q": true}}, {"data": {"id": "d", "p": false, "q": false}}], "style": [{"selector": "node[?q]", "style": {"border-color": "red"}}, {"selector": "node[?p]", "style": {"border-color": "blue", "background-color": "green"}}]}

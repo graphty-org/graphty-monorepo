@@ -4,7 +4,7 @@
  *
  * Colors become CSS custom properties `--cm-<name>` written with `light-dark()`, so each one
  * resolves from the `color-scheme` of the element that USES it. Mantine sets `color-scheme` on
- * `:root`; a subtree that must render dark in the light app (menus, tooltips, the toast) sets
+ * `:root`; a subtree that must render dark in the light app (tooltips, the toast, an inverse menu) sets
  * `color-scheme: dark` on a wrapper (`cm-dark-surface`) and every token inside it resolves dark.
  *
  * Components never write a raw color: they read `var(--cm-*)` (or PANEL_INK, which resolves to
@@ -74,9 +74,24 @@ export const CM_COLORS = {
     "text-oninverse": t("#ffffffe5", "#000000e5", "--color-text-oninverse"),
     "text-component": t("#8638e5", "#d1a8ff", "--color-text-component"),
     "text-danger": t("#dc3412", "#fca397", "--color-text-danger"),
+    // Warning text. Figma has no warning text variable: these are darkened / lightened from its
+    // warning fill to meet 4.5:1 on the panel and on a field in both schemes.
+    "text-warning": t("#a65900", "#f7d15f"),
+    // Success text and glyphs. The success fill (#14ae5c) is 2.90:1 on the light panel; these meet
+    // 4.5:1 on the panel and on a field in both schemes (Figma's success-pressed fill in light).
+    "text-success": t("#008043", "#79d297"),
     "text-menu": t("#ffffff", "#ffffff", "--color-text-menu"),
     "text-menu-secondary": t("#ffffffb2", "#ffffffb2", "--color-text-menu-secondary"),
     "text-menu-disabled": t("#ffffff66", "#ffffff66", "--color-text-menu-disabled"),
+    // The menu that follows the page's scheme (cm-menu-surface): a light surface with dark ink
+    // in the light app, Figma's dark menu in the dark app. The `-menu` tokens above stay the
+    // always-dark values the inverse menu, the tooltip and the toast draw with. The secondary ink
+    // is the AA value (4.74:1 on white; Figma's #00000080 is 3.95:1).
+    "bg-menu-page": t("#ffffff", "#1e1e1e"),
+    "text-menu-page": t("#000000e5", "#ffffff"),
+    "text-menu-page-secondary": t("#0000008c", "#ffffffb2"),
+    "text-menu-page-disabled": t("#0000004d", "#ffffff66"),
+    "border-menu-page": t("#e6e6e6", "#383838"),
     icon: t("#000000e5", "#ffffff", "--color-icon"),
     "icon-secondary": t("#00000080", "#ffffffb2", "--color-icon-secondary"),
     "icon-tertiary": t("#0000004d", "#ffffff66", "--color-icon-tertiary"),
@@ -109,6 +124,14 @@ export const CM_COLORS = {
     "segment-edge": t("#e6e6e6", "#444444"),
     /** the 1px inset ring round a color chit or strip: 3:1 against the panel in both schemes, so a pale or a dark color keeps its edge */
     "swatch-ring": t("#00000073", "#ffffff80"),
+    /** the white label on a danger, success or inverse fill, which no accent changes */
+    "text-onsolid": t("#ffffff", "#ffffff"),
+    /** the dimmed white label on those fills (a pressed button, a shortcut) */
+    "text-onsolid-secondary": t("#ffffffcc", "#ffffffcc"),
+    /** text on a selected (accent-tinted) ground: the brand text, unless the accent asks for ink */
+    "text-onselected": t("var(--cm-text-brand)", "var(--cm-text-brand)"),
+    /** an accent graphic that must be seen against the panel (a dot, a meter's fill, a stroke) */
+    "graphic-brand": t("var(--cm-bg-brand)", "var(--cm-bg-brand)"),
 } as const satisfies Record<string, CmColorToken>;
 
 /** The name of a color token, without the `--cm-` prefix. */
@@ -154,6 +177,37 @@ const CM_PRIMARY_ACCENT: Partial<Record<CmColorName, { light: string; dark: stri
 };
 
 /**
+ * The graphty brand accent, `createCompactTheme({ accent: "graphty" })`: the lime and ink roles
+ * of the graphty brand kit (graphty-org/brand, colors/tokens.css, "Color in interfaces").
+ *
+ * Light: fills are the mark green #97c800 with ink labels (white on lime is 2:1); accent text is
+ * the text-safe olive #588300 (4.5:1 on white); focus rings, selection edges and accent graphics
+ * are the olive too, because the kit's #75a300 is only 3:1 on white and 2.75:1 on a field. Text on
+ * the lime-50 selected tint is ink, not olive (4.2:1). Dark: the bright lime #c4f23a with
+ * near-black labels, and lime for text, rings and graphics. Applied after the AA block, so it
+ * wins in both contrast modes. tests/constants/panel.test.ts measures every pair.
+ */
+export const CM_GRAPHTY_ACCENT: Partial<Record<CmColorName, { light: string; dark: string }>> = {
+    "bg-brand": { light: "#97c800", dark: "#c4f23a" },
+    "bg-brand-hover": { light: "#86b200", dark: "#aedf10" },
+    "bg-brand-pressed": { light: "#7aa600", dark: "#94be0e" },
+    "bg-selected": { light: "#f1fbd3", dark: "#4a542f" },
+    "bg-selected-hover": { light: "#e2f7a8", dark: "#566330" },
+    "bg-selected-secondary": { light: "#f8fde9", dark: "#3e442e" },
+    "bg-selected-pressed": { light: "#d3f47c", dark: "#4a542f" },
+    "bg-info": { light: "#f1fbd3", dark: "#4a542f" },
+    "text-brand": { light: "#588300", dark: "#c4f23a" },
+    "text-onbrand": { light: "#14161f", dark: "#111111" },
+    "text-onbrand-secondary": { light: "#14161fcc", dark: "#111111cc" },
+    "text-onselected": { light: "#14161f", dark: "#c4f23a" },
+    "icon-brand": { light: "#588300", dark: "#c4f23a" },
+    "graphic-brand": { light: "#588300", dark: "#c4f23a" },
+    "border-selected": { light: "#588300", dark: "#c4f23a" },
+    "border-selected-strong": { light: "#588300", dark: "#c4f23a" },
+    "text-highlight": { light: "#c4f23a99", dark: "#c4f23a66" },
+};
+
+/**
  * The WCAG 2.2 AA option (spec 2.9): the ONLY tokens `createCompactTheme({ highContrast: true })`
  * changes. Every value is a Figma palette color, so the look stays inside Figma's palette.
  *
@@ -176,6 +230,9 @@ export const CM_HIGH_CONTRAST: Partial<Record<CmColorName, { light: string; dark
     "bg-brand-pressed": { light: "#105cad", dark: "#105cad" },
     "text-brand": { light: "#0768cf", dark: "#7cc4f8" },
     "icon-brand": { light: "#0768cf", dark: "#7cc4f8" },
+    // Figma's #dc3412 is 4.24:1 on a field or hover ground (#f5f5f5); #c4381c, the palette's next
+    // darker red, is 4.90:1 there.
+    "text-danger": { light: "#c4381c", dark: "#fca397" },
     "bg-danger": { light: "#bd2915", dark: "#963323" },
     "bg-success": { light: "#008043", dark: "#0a5c35" },
 };
@@ -373,8 +430,7 @@ export function tokenDeclarations(): string {
     for (const [name, value] of Object.entries(CM_MOTION)) {
         lines.push(`--cm-${name}: ${value};`);
     }
-    lines.push(`--cm-font-family: ${CM_FONT_FAMILY};`);
-    lines.push(`--cm-font-family-mono: ${CM_FONT_FAMILY_MONO};`);
+    lines.push(`--cm-font-family: ${CM_FONT_FAMILY};`, `--cm-font-family-mono: ${CM_FONT_FAMILY_MONO};`);
     return lines.join("\n    ");
 }
 
@@ -394,6 +450,16 @@ export function highContrastDeclarations(): string {
  */
 export function primaryAccentDeclarations(): string {
     return Object.entries(CM_PRIMARY_ACCENT)
+        .map(([name, token]) => `--cm-${name}: ${colorValue(token as CmColorToken)};`)
+        .join("\n    ");
+}
+
+/**
+ * The declarations the graphty brand accent overrides.
+ * @returns CSS declarations, one per line
+ */
+export function graphtyAccentDeclarations(): string {
+    return Object.entries(CM_GRAPHTY_ACCENT)
         .map(([name, token]) => `--cm-${name}: ${colorValue(token as CmColorToken)};`)
         .join("\n    ");
 }

@@ -9,9 +9,9 @@
 import { BUILT_IN_MODEL_FORMATS, detectModelFormat, isZip, type ModelFormat } from "../../catalog/detectModel";
 import type { CodedFact } from "../shared";
 import type { AddAssetOptions, AssetSource, ModelLimits, ModelSummary, NamedBlob } from "./AssetsApi";
-import { checkGltf, parseGltfJson, readGlb } from "./gltfChecks";
-import { cut, imageSize, normalizePath, Refusal, refuse } from "./references";
-import { scanObj, scanPly, scanStl } from "./textFormats";
+import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks";
+import { baseName, cut, type Findings, imageSize, normalizePath, Refusal, refuse, refuseAll } from "./references";
+import { findObjParts, scanObj, scanPly, scanStl } from "./textFormats";
 import { unzipModel } from "./unzip";
 
 /** Something with bytes to read: a Blob, a File, or anything shaped like one. */
@@ -259,12 +259,83 @@ export async function fetchModel(
 /** The most files a model fetched by URL may load beside its main file. */
 export const MAX_COMPANION_FILES = 64;
 
+/** The most requests the automatic tries make for one part beyond its first (design 12.2). */
+export const MAX_EXTRA_REQUESTS = 16;
+
+/** The most addresses `E_MODEL_MISSING_FILE.tried` lists. */
+const MAX_TRIED_SHOWN = 4;
+
+/**
+ * Whether a file is a web page (design 12.6): after a byte order mark and whitespace, within its
+ * first 1,024 bytes, it opens with `<!doctype html`, `<html`, `<head` or `<body`, and its bytes
+ * match no model or picture format. The type header decides nothing.
+ * @param bytes - The file.
+ * @returns True for an HTML page.
+ */
+export function isWebPage(bytes: Uint8Array): boolean {
+    if (isZip(bytes) || imageFormatOf(bytes) !== undefined) {
+        return false;
+    }
+
+    let at = bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf ? 3 : 0;
+    while (at < 1024 && at < bytes.length && [0x20, 0x09, 0x0a, 0x0d, 0x0c].includes(bytes[at])) {
+        at++;
+    }
+
+    if (at >= 1024) {
+        return false;
+    }
+
+    const head = String.fromCharCode(...bytes.subarray(at, at + 14)).toLowerCase();
+    return /^(?:<!doctype html|<html|<head|<body)/.test(head);
+}
+
+/**
+ * The params of `E_MODEL_WEB_PAGE`, with `suggested` when the file behind the page is known by
+ * the page's address alone: a GitHub or GitLab `blob` page's raw file. Nothing is fetched.
+ * @param url - The address that answered with a page.
+ * @param part - The part's name, for a part.
+ * @returns The params.
+ */
+export function webPageParams(url: URL, part?: string): Record<string, string> {
+    let suggested: string | undefined;
+    const github = /^\/([^/]+)\/([^/]+)\/blob\/(.+)$/.exec(url.pathname);
+    const gitlab = url.pathname.indexOf("/-/blob/");
+    if (url.hostname === "github.com" && github !== null) {
+        suggested = `https://raw.githubusercontent.com/${github[1]}/${github[2]}/${github[3]}`;
+    } else if (gitlab > 0) {
+        suggested = `${url.origin}${url.pathname.slice(0, gitlab)}/-/raw/${url.pathname.slice(gitlab + 8)}`;
+    }
+
+    return {
+        url: shownUrl(url),
+        host: cut(url.host),
+        ...(part === undefined ? {} : { part: cut(part) }),
+        ...(suggested === undefined ? {} : { suggested: cut(suggested) }),
+    };
+}
+
+/**
+ * The paths the automatic tries ask for, in order (design 12.2): beside the main file, then for
+ * a picture its base name beside the main file and in `textures/` and `Textures/` below it.
+ * @param name - The missing part's path in the set.
+ * @param role - The part's role.
+ * @returns The paths, each once.
+ */
+function triesFor(name: string, role: unknown): string[] {
+    const base = baseName(name);
+    const paths = role === "texture" ? [name, base, `textures/${base}`, `Textures/${base}`] : [name];
+    return [...new Set(paths)];
+}
+
 /**
  * Fetch a model by URL with the files it references: a .gltf's .bin and images, an .obj's .mtl
- * and the images the .mtl names. Each is fetched relative to the main file, so it comes from the
- * same origin and from the main file's folder or below; the set's total is held to `maxBytes` and
- * at most {@link MAX_COMPANION_FILES} files are added. A reference outside that tree, or to
- * another host, stays refused by the checks (`E_MODEL_EXTERNAL_URL`).
+ * and the images the .mtl names. Each is tried at the addresses of design 12.2, all on the main
+ * file's origin and in its folder or below; the set's total, misses included, is held to
+ * `maxBytes`, at most {@link MAX_COMPANION_FILES} files are added and at most
+ * {@link MAX_EXTRA_REQUESTS} requests beyond the first are made for one part. A reference outside
+ * that tree, or to another host, stays refused by the checks (`E_MODEL_EXTERNAL_URL`). Every part
+ * still missing after its tries is reported at once, with the addresses tried.
  * @param url - The main file's URL.
  * @param limits - The limits in force.
  * @param signal - The caller's signal.
@@ -277,6 +348,11 @@ export async function fetchModelSet(
 ): Promise<{ given: Map<string, Uint8Array>; main?: string }> {
     const given = await fetchModel(url, limits, signal);
     const [[main, first]] = given;
+    if (isWebPage(first)) {
+        refuse("E_MODEL_WEB_PAGE", webPageParams(url));
+    }
+
+    // A zip is unpacked by the checks as a dropped one is, and never triggers the tries.
     if (isZip(first)) {
         return { given };
     }
@@ -286,32 +362,91 @@ export async function fetchModelSet(
     }
 
     let total = first.length;
+    const tried = new Map<string, string[]>();
     for (;;) {
+        let facts: readonly CodedFact[];
         try {
             await checkFileSet(given, { main }, limits);
             return { given, main };
         } catch (error) {
-            if (!(error instanceof Refusal) || error.fact.code !== "E_MODEL_MISSING_FILE") {
+            if (!(error instanceof Refusal)) {
                 throw error;
             }
 
-            const name = String(error.fact.params.name);
-            if (given.has(name)) {
-                throw error;
-            }
+            ({ facts } = error);
+        }
 
-            if (given.size > MAX_COMPANION_FILES) {
-                refuse("E_MODEL_TOO_LARGE", { what: "count", found: given.size, limit: MAX_COMPANION_FILES });
-            }
+        const parts = facts.every((f) => f.code === "E_MODEL_MISSING_FILE" || f.code === "E_MODEL_PART_AMBIGUOUS");
+        const fresh = facts.filter((f) => f.code === "E_MODEL_MISSING_FILE" && !tried.has(String(f.params.name)));
+        if (!parts || fresh.length === 0) {
+            refuseAll(
+                facts.map((f) => {
+                    const shown = f.code === "E_MODEL_MISSING_FILE" ? tried.get(String(f.params.name)) : undefined;
+                    return shown === undefined ? f : { code: f.code, params: { ...f.params, tried: shown } };
+                }),
+            );
+        }
 
-            // The path is relative to the main file's folder, normalized, with no ".." left: the
-            // URL it resolves to is on the same origin and inside that folder.
-            const companion = new URL(name.split("/").map(encodeURIComponent).join("/"), url);
-            const [bytes] = (
-                await fetchModel(companion, { ...limits, maxBytes: Math.max(0, limits.maxBytes - total) }, signal)
-            ).values();
-            given.set(name, bytes);
-            total += bytes.length;
+        for (const fact of fresh) {
+            const name = String(fact.params.name);
+            const shown: string[] = [];
+            tried.set(name, shown);
+            let requests = 0;
+            for (const path of triesFor(name, fact.params.role)) {
+                if (given.size > MAX_COMPANION_FILES) {
+                    refuse("E_MODEL_TOO_LARGE", { what: "count", found: given.size, limit: MAX_COMPANION_FILES });
+                }
+
+                // The path is normalized with no ".." left: the URL it resolves to is on the same
+                // origin and inside the main file's folder.
+                const address = new URL(path.split("/").map(encodeURIComponent).join("/"), url);
+                if (shown.length < MAX_TRIED_SHOWN) {
+                    shown.push(shownUrl(address));
+                }
+
+                // Beside the address as written, the same one with the main URL's query once, when
+                // a signed URL's companion is refused without it.
+                const signed = new URL(address);
+                signed.search = url.search;
+                const attempts = url.search === "" ? [address] : [address, signed];
+                let bytes: Uint8Array | undefined;
+                for (const attempt of attempts) {
+                    if (requests > MAX_EXTRA_REQUESTS) {
+                        break;
+                    }
+
+                    requests++;
+                    try {
+                        [bytes] = (
+                            await fetchModel(
+                                attempt,
+                                { ...limits, maxBytes: Math.max(0, limits.maxBytes - total) },
+                                signal,
+                            )
+                        ).values();
+                        break;
+                    } catch (error) {
+                        if (!(error instanceof Refusal) || error.fact.code !== "E_MODEL_FETCH") {
+                            throw error;
+                        }
+
+                        if (error.fact.params.status !== 401 && error.fact.params.status !== 403) {
+                            break;
+                        }
+                    }
+                }
+
+                if (bytes === undefined) {
+                    continue;
+                }
+
+                total += bytes.length;
+                // A host that answers every miss with its own page has not got the file.
+                if (!isWebPage(bytes)) {
+                    given.set(path, bytes);
+                    break;
+                }
+            }
         }
     }
 }
@@ -406,6 +541,9 @@ export interface CheckedModel {
     readonly warnings: readonly CodedFact[];
 }
 
+/** The most candidates `E_MODEL_AMBIGUOUS` lists; `more` counts the rest. */
+const MAX_CANDIDATES = 64;
+
 /** Ranks of formats graphty-element recognizes but does not load: after every built-in one. */
 const UNSUPPORTED_RANK = BUILT_IN_MODEL_FORMATS.length;
 
@@ -457,7 +595,11 @@ function chooseMain(
     const best = Math.min(...kept.map((c) => c.rank));
     const top = kept.filter((c) => c.rank === best);
     if (top.length > 1) {
-        refuse("E_MODEL_AMBIGUOUS", { candidates: top.map((c) => cut(c.path)).sort() });
+        const candidates = top.map((c) => cut(c.path)).sort();
+        refuse("E_MODEL_AMBIGUOUS", {
+            candidates: candidates.slice(0, MAX_CANDIDATES),
+            ...(candidates.length > MAX_CANDIDATES ? { more: candidates.length - MAX_CANDIDATES } : {}),
+        });
     }
 
     return { ...top[0], ...(forced === undefined ? {} : { format: forced, supported: true }) };
@@ -509,12 +651,22 @@ export async function checkFileSet(
     }
 
     const bytes = files.get(main.path) as Uint8Array;
+    // Every part the model names is looked up first, so every missing one is reported at once.
+    const findings: Findings = { warnings: [], missing: [] };
+    const found = (): void => {
+        if (findings.missing.length > 0) {
+            refuseAll(findings.missing);
+        }
+    };
     let checked: { summary: ModelSummary; warnings: readonly CodedFact[] };
     switch (main.format) {
         case "glb": {
             const { text, bin } = readGlb(bytes);
+            const json = parseGltfJson(text);
+            findGltfParts(json, main.path, files, findings);
+            found();
             checked = checkGltf({
-                json: parseGltfJson(text),
+                json,
                 ...(bin === undefined ? {} : { bin }),
                 path: main.path,
                 files,
@@ -531,10 +683,15 @@ export async function checkFileSet(
                 refuse("E_MODEL_STRUCTURE", { rule: "json" });
             }
 
-            checked = checkGltf({ json: parseGltfJson(text), path: main.path, files, limits, format: "gltf" });
+            const json = parseGltfJson(text);
+            findGltfParts(json, main.path, files, findings);
+            found();
+            checked = checkGltf({ json, path: main.path, files, limits, format: "gltf" });
             break;
         }
         case "obj":
+            findObjParts(main.path, files, limits, findings);
+            found();
             checked = scanObj(main.path, files, limits);
             break;
         case "stl":
@@ -544,5 +701,11 @@ export async function checkFileSet(
             checked = scanPly(bytes, limits);
     }
 
-    return { files, main: main.path, format: main.format, ...checked };
+    return {
+        files,
+        main: main.path,
+        format: main.format,
+        summary: checked.summary,
+        warnings: [...findings.warnings, ...checked.warnings],
+    };
 }

@@ -11,6 +11,8 @@
 
 import { Tools } from "@babylonjs/core/Misc/tools";
 
+import { matchInSet, normalizePath } from "../session/assets/references";
+
 /** The root every model load's files are named under, below a root of the load's own. Unresolvable against any page. */
 const MODEL_ROOT = "graphty-model:/";
 
@@ -45,7 +47,12 @@ function resolve(url: string): string | undefined {
                 return undefined;
             }
 
-            return files.get(path.replace(/^\.\//, ""));
+            // The same tolerant matching the intake accepted the model by (design 12.5): a
+            // reference written in another case, with backslashes or as a path on its author's
+            // disk reaches the one file of the set it was checked against, and nothing else.
+            const normalized = normalizePath(path) ?? "";
+            const match = matchInSet(normalized, files);
+            return match !== undefined && "path" in match ? files.get(match.path) : undefined;
         }
 
         if ([...files.values()].includes(url)) {

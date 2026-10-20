@@ -13,7 +13,7 @@
 
 import type { CodedFact } from "../shared";
 import type { ModelLimits, ModelSummary } from "./AssetsApi";
-import { cut, refuse, resolveReference, textureBytesOf } from "./references";
+import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references";
 
 /** What a scan returns. */
 export interface Scanned {
@@ -119,6 +119,61 @@ class Box {
 
     get value(): ModelSummary["bounds"] {
         return this.min[0] === Infinity ? undefined : Object.freeze({ min: this.min, max: this.max });
+    }
+}
+
+/**
+ * The `mtllib` file names an OBJ's text holds.
+ * @param text - The OBJ.
+ * @returns The names, in order.
+ */
+function mtlNames(text: string): string[] {
+    return text
+        .split("\n")
+        .map((raw) => raw.trim())
+        .filter((line) => line.startsWith("mtllib"))
+        .map((line) => line.slice(6).trim());
+}
+
+/**
+ * The picture file names an MTL's text holds.
+ * @param text - The MTL.
+ * @returns The names, in order.
+ */
+function mapNames(text: string): string[] {
+    const names: string[] = [];
+    for (const raw of text.split("\n")) {
+        const tokens = raw.trim().split(/\s+/);
+        if (MAP_STATEMENT.test(tokens[0] ?? "")) {
+            names.push(mapFileName(tokens.slice(1)));
+        }
+    }
+
+    return names;
+}
+
+/**
+ * Look up every file an OBJ names -- its `.mtl` files and the pictures they name -- before the
+ * scan, so every missing or ambiguous part is found at once (design 12.4). The pictures of an
+ * `.mtl` that is missing are found once it is in.
+ * @param path - The OBJ's path in the set.
+ * @param files - The set.
+ * @param limits - The limits in force.
+ * @param findings - Where missing parts and substitutions go.
+ */
+export function findObjParts(
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+    findings: Findings,
+): void {
+    for (const name of mtlNames(textOf(files.get(path) as Uint8Array, limits))) {
+        const mtl = findReference(name, path, files, "materials", findings);
+        if (mtl !== undefined) {
+            for (const image of mapNames(textOf(mtl.bytes, limits))) {
+                findReference(image, mtl.path, files, "texture", findings);
+            }
+        }
     }
 }
 

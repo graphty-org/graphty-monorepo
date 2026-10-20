@@ -187,7 +187,7 @@ describe("a model fetched by URL brings the files beside it", () => {
         }
     });
 
-    it("holds the files together to the byte limit, and a missing one is a fetch failure", async () => {
+    it("holds the files together to the byte limit, and a missing one is reported missing", async () => {
         const set = gltfPair();
         serve(under("https://models.example.com/kit/", set));
         const assets = createAssetsApi();
@@ -197,8 +197,8 @@ describe("a model fetched by URL brings the files beside it", () => {
 
         serve(new Map([["https://models.example.com/kit/tri.gltf", set.get("tri.gltf") ?? new Uint8Array()]]));
         const missing = await createAssetsApi().add("https://models.example.com/kit/tri.gltf");
-        assert.equal(missing.problems[0]?.code, "E_MODEL_FETCH");
-        assert.equal(missing.problems[0]?.params.status, 404);
+        assert.equal(missing.problems[0]?.code, "E_MODEL_MISSING_FILE");
+        assert.isAbove((missing.problems[0]?.params.tried as unknown[] | undefined)?.length ?? 0, 0);
     });
 
     it("loads a GLB, which needs nothing beside it, with one request", async () => {

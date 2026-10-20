@@ -494,7 +494,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                 throw error;
             }
 
-            settled = record({ id, digest, byteLength, format: "", state: "rejected", problems: [error.fact] });
+            settled = record({ id, digest, byteLength, format: "", state: "rejected", problems: error.facts });
         }
 
         (sample ? samples : entries).set(id, {
@@ -556,8 +556,15 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * @param provisional - The provisional id.
      * @returns The record.
      */
-    const early = (fact: CodedFact, provisional: AssetId): AssetRecord =>
-        record({ id: provisional, digest: "", byteLength: 0, format: "", state: "rejected", problems: [fact] });
+    const early = (fact: CodedFact | readonly CodedFact[], provisional: AssetId): AssetRecord =>
+        record({
+            id: provisional,
+            digest: "",
+            byteLength: 0,
+            format: "",
+            state: "rejected",
+            problems: Array.isArray(fact) ? fact : [fact as CodedFact],
+        });
 
     /**
      * Fetch a URL once and settle its record, shared by every caller asking for it.
@@ -607,7 +614,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                     throw error;
                 }
 
-                settled = early(error.fact, provisional);
+                settled = early(error.facts, provisional);
             }
 
             entry.record = settled;

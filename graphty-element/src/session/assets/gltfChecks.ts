@@ -18,7 +18,7 @@
 
 import type { CodedFact } from "../shared";
 import type { ModelLimits, ModelSummary } from "./AssetsApi";
-import { cut, refuse, resolveReference, textureBytesOf } from "./references";
+import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references";
 
 /** The counts a glTF may hold, so a file cannot stall the main thread on shader or hierarchy work. */
 export const GLTF_CAPS = Object.freeze({
@@ -230,6 +230,33 @@ function trianglesOf(mode: unknown, count: number): number {
 }
 
 /** What {@link checkGltf} reads. */
+/**
+ * Look up every file a glTF names -- buffers, then images -- before any structure check, so every
+ * missing or ambiguous part is found at once (design 12.4).
+ * @param json - The glTF.
+ * @param path - Its path in the set.
+ * @param files - The set.
+ * @param findings - Where missing parts and substitutions go.
+ */
+export function findGltfParts(
+    json: Record<string, unknown>,
+    path: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    findings: Findings,
+): void {
+    for (const [key, role] of [
+        ["buffers", "geometry"],
+        ["images", "texture"],
+    ] as const) {
+        const entries = Array.isArray(json[key]) ? (json[key] as unknown[]) : [];
+        for (const entry of entries) {
+            if (isObject(entry) && typeof entry.uri === "string") {
+                findReference(entry.uri, path, files, role, findings);
+            }
+        }
+    }
+}
+
 export interface GltfInput {
     /** The parsed JSON. */
     readonly json: Record<string, unknown>;

@@ -1732,13 +1732,34 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_FORMAT_UNKNOWN"
 /**
-* Two different main files in one set, or two paths that differ only in case. `params.candidates`; settle it with `add`'s `main` option.
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
 */
 | "E_MODEL_AMBIGUOUS"
 /**
-* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. `params.name`, `params.referencedBy`.
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
 */
 | "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
 /**
 * A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
 */
@@ -1899,7 +1920,20 @@ export type GraphtyWarningCode =
 * project was saved with: the file at the URL changed. It is drawn. `params.url`,
 * `params.expected` and `params.found` (SHA-256 digests).
 */
-| "W_MODEL_CHANGED";
+| "W_MODEL_CHANGED"
+/**
+* A model reference was resolved by case or by base name to the one file of the set that
+* matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+*/
+| "W_MODEL_PART_SUBSTITUTED"
+/**
+* A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+*/
+| "W_MODEL_PART_SKIPPED"
+/**
+* A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+*/
+| "W_MODEL_PART_UNUSED";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;

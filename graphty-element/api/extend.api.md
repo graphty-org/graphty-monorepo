@@ -1543,13 +1543,34 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_FORMAT_UNKNOWN"
 /**
-* Two different main files in one set, or two paths that differ only in case. `params.candidates`; settle it with `add`'s `main` option.
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
 */
 | "E_MODEL_AMBIGUOUS"
 /**
-* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. `params.name`, `params.referencedBy`.
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
 */
 | "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
 /**
 * A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
 */

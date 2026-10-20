@@ -150,11 +150,11 @@ pass while a task is unjudged.
 | T43 bigger for more, sources (B)                 | 2      | Dev, Nadia          |
 | T45 ties apart, neighbors (A)                    | 2      | Alex, Grace         |
 | T45 ties apart, Les Miserables (B)               | 2      | Tom, Dev            |
-| T46 one cluster red, Les Miserables (A)          | 2      | Dev, Nadia          |
+| T46 one cluster red, Les Miserables (A)          | 2      | Alex, Nadia         |
 | T46 one cluster red, College football (B)        | 2      | Elena, Grace        |
 | T47 every cluster at once, Les Miserables (A)    | 3      | Grace, Elena, Alex  |
 | T47 every cluster at once, College football (B)  | 3      | Nadia, Ruth, Sam    |
-| T48 colors on only some, volunteers (A)          | 3      | Sam, Alex, Ruth     |
+| T48 colors on only some, volunteers (A)          | 3      | Sam, Dev, Ruth      |
 | T48 colors on only some, sources (B)             | 3      | Nadia, Grace, Elena |
 | T49 put it back, Les Miserables (A)              | 2      | Dev, Tom            |
 | T49 put it back, karate club (B)                 | 2      | Alex, Ruth          |
@@ -173,6 +173,12 @@ the start each task names (`tasks.md`, "Rules"; the table above, "Where each ses
 Run order: the core tasks first (T39, T40, T47, T48), then the rest; at most 4 sessions at once.
 
 ## Change log
+
+- 2026-10-20 (fifth review, before the freeze): Alex takes Dev's T46 A and Dev takes Alex's T48 A.
+  A core half now holds bar 1 only with 2 S or SD from sessions other than Alex's and Maren's, and
+  T48 A held Alex beside Sam, whose key presses can use up the half's one allowed F; it now has two
+  pointer newcomers. Every persona keeps its count, the newcomers keep 43 of 56, no one has both
+  halves of a task, and every session still starts `empty`, Sam's `empty --keys`.
 
 - 2026-10-19 (fourth review, before the freeze): T51 runs at 4 and is judged in round 1; T44
   joins T42 in round 2. Nadia and Alex add T51 A and B; Tom takes Nadia's T40 A; Alex's and Tom's

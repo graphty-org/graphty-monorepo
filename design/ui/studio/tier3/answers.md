@@ -58,6 +58,18 @@ These override any line below that says otherwise.
 - **T46 to T48, a method whose two runs differ** (preflight 5 marks it in Reference values): the
   session is graded against its own run. The target group and its count are read from that
   session's `styles.json`, never from a fixed number.
+- **T50 B, a reading from "Select what it paints"** ("31 or more hours and trained", from the
+  summary's "hours 31 to 52" and "trained Yes (6)"): S. No volunteer has exactly 30 hours, so the
+  summary and the card's rule (30 to 52) name the same six people. Every T50 grade adds
+  `Read from: rule|selection|other` for question 5 (2026-10-20).
+- **An asked color** (A of T39 "any dark green", "bright red" on T41 and T46, and every other color
+  a prompt names) is judged by `colorWord` in compact-mantine's `color-utils.ts` on the drawn
+  value: it holds when that name contains the asked hue word (green, orange, purple, red, blue,
+  yellow); "dark" and "bright" are recorded, not graded. Graders write the drawn hex and its
+  `colorWord` in grade.md (2026-10-20).
+- **The camera and framing** follow `decided.md` (2026-10-20, golden): the camera glides to center
+  every pick. A line below that says the drawing moves right and shrinks describes an older build;
+  no grade turns on the framing.
 - **A styled node left selected** (the find-box detours on T40 A, T40 B and T50 A) is graded by
   its color in the style tree, not by how its selection ring tints it. A tint that makes it read
   as a color the key does not say is recorded for the audit as a key-and-drawing disagreement.
@@ -985,9 +997,8 @@ path meets on this build:
   value / Has no value over Add a condition and Done.
   Right-click > "Select what it paints" on the layer selects its nodes, but the selection names
   none of them. On B its summary reads "hours 31 to 52, mean 41.67", "trained Yes (6)" and "role
-  staff (4), volunteer (2)": the selection's range, not the layer's rule. How a reading of "31 or
-  more hours and trained" taken from that summary alone is graded is left to the Director
-  (`criteria.md` log). Everything's Color line on B
+  staff (4), volunteer (2)": the selection's range, not the layer's rule. A reading of "31 or
+  more hours and trained" taken from that summary alone is S ("Rules settled before round 1"). Everything's Color line on B
   reads "Covered by Thank-you cards on 6 of 24", the layer's name a link to it (A: "Covered by
   Poster on 3 of 77"). Members on the Values tab are listed by id; Enter or a click on one selects
   it and replaces the layer's inspector with the node's (titled by id), and Escape there clears
@@ -1052,6 +1063,10 @@ path meets on this build:
   reading `data.role` (or `data.kind`), palette okabe-ito.
 
 ## Change log
+
+- 2026-10-20 (fifth criteria review): T50 B's summary reading is S with a `Read from:` line; an
+  asked color is judged by `colorWord`; framing lines from older builds no longer grade anything.
+  The success paths are read again on the build that holds golden (`criteria.md`, preflight 1).
 
 - 2026-10-19 (round 1 pilots on e3c5bca8e6): the success paths and their notes match the frozen
   build e3c5bca8e6 as the pilots in `rounds/r1/pilot/` saw it. A new layer's collapsed Which

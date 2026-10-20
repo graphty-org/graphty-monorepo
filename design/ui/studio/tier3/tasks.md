@@ -189,13 +189,13 @@ category column, read back from the key: T51.
 - **Prompt A (Les Miserables):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of the characters of Les Miserables. Have the program work
   out the circles of characters who appear together, each circle in its own color. Then make
-  the circle Javert belongs to bright red, while every other circle keeps its own color. Tell us
+  the circle Javert belongs to bright red, and leave the colors of the other circles as they are. Tell us
   how many characters are in Javert's circle."
 - **Prompt B (College football):** "This is your first time using this program, and it has just
   opened. Open the ready-made network of American college football teams. Have the program work
   out clusters of teams that often play one another, each cluster in its own color --
   not the conferences in the file, the program's own clusters. Then make Nebraska's cluster
-  bright red, while every other cluster keeps its own color. Tell us how many teams are in it."
+  bright red, and leave the colors of the other clusters as they are. Tell us how many teams are in it."
 - **Kept on purpose:** `javert`, `nebraska`, `conference` -- data. `circle` (A) and `cluster` (B,
   also T47 B and T48 B) -- the everyday words for what the program works out; `cluster` is also
   the trade's word, and the analysis filter matches it to the community analyses, so what each B
@@ -204,8 +204,8 @@ category column, read back from the key: T51.
 
 ### T47. Every cluster at once, colors kept (two datasets)
 
-- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Have the program work out the circles of characters who appear together, each circle in its own color. Then draw the characters of every circle as cubes instead of balls, while every circle keeps its own color."
-- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of American college football teams. Have the program work out clusters of teams that often play one another, each cluster in its own color -- not the conferences in the file, the program's own clusters. Then draw the teams of every cluster as cubes instead of balls, while every cluster keeps its own color."
+- **Prompt A (Les Miserables):** "This is your first time using this program, and it has just opened. Open the ready-made network of the characters of Les Miserables. Have the program work out the circles of characters who appear together, each circle in its own color. Then draw the characters of every circle as cubes instead of balls, without changing the color of any circle."
+- **Prompt B (College football):** "This is your first time using this program, and it has just opened. Open the ready-made network of American college football teams. Have the program work out clusters of teams that often play one another, each cluster in its own color -- not the conferences in the file, the program's own clusters. Then draw the teams of every cluster as cubes instead of balls, without changing the color of any cluster."
 - **Route under study:** whether the clusters are changed together, and whether the field that
   holds a different color for each cluster is left alone. A route through the whole drawing's own
   look also passes and is recorded.
@@ -320,6 +320,11 @@ path again by keyboard only. They come from the pilot walks of the combined Styl
   read instead of the picker.
 
 ## Change log
+
+- 2026-10-20 (fifth criteria review): T46 and T47 no longer say "keeps its own color"; they ask to
+  leave the other colors as they are (T46) or to change no color (T47). The purple token is spoken
+  "each layer's own value", and question 3 asks whether readers take it to mean that, so the prompt
+  must not hand them the meaning.
 
 - 2026-10-19 (pilots on build e3c5bca8e6): the T41/T48 detour line says what drops an unfinished
   card on this build (Enter, Escape in its empty box, a click on the drawing) and that a click in

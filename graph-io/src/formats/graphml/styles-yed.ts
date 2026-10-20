@@ -754,6 +754,10 @@ function realizerShape(real: Realizer, at: SiteOf): string | null {
     if (real.type === "ShapeNode" || real.type === "GroupNode" || real.type === "GenericGroupNode") {
         return null;
     }
+    if (real.type === "TableNode") {
+        // a yEd table or pool is a rectangle of bands
+        return canonEnum("shape", "rectangle", "yed", at("shape"));
+    }
     if (real.type === "GenericNode") {
         const conf = treeAttr(real.r, "configuration") ?? "";
         const known = configurationOutline(conf);
@@ -801,6 +805,61 @@ function readFill(real: Realizer, put: PutValue, at: SiteOf): void {
     if (second !== null) {
         put("fillGradient", second.color);
         put("fillGradientAngle", YED_GRADIENT_ANGLE);
+    }
+}
+
+/**
+ * A `y:TableNode`'s `yed.table.*` style property, as a color.
+ * @param real - the table realizer
+ * @param name - the property's name
+ * @param at - the sites
+ * @returns the `#rrggbb` color, or null when the table does not set it
+ */
+function tableColor(real: Realizer, name: string, at: SiteOf): string | null {
+    const props = treeChildren(treeChild(real.r, "StyleProperties"), "Property");
+    const prop = props.find((p) => treeAttr(p, "name") === name);
+    return prop === undefined ? null : (canonColor(treeAttr(prop, "value"), "yed", at("stripeColors"))?.color ?? null);
+}
+
+/**
+ * Reads a `y:TableNode` (a yEd table or BPMN pool) as bands over the node: its header (the table's top inset, or
+ * its left one for columns side by side) in `yed.table.header.color.main`, then its rows top to bottom (or its
+ * columns left to right) in `yed.table.lane.color.main` and `.alternating` by turns, then the opposite inset. A
+ * color the table does not set is the node's fill. The lines between the lanes and the row and column headers
+ * (`yed.table.header.color.alternating`) are not drawn.
+ * @param real - the realizer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readTable(real: Realizer, put: PutValue, at: SiteOf): void {
+    const table = treeChild(real.r, "Table");
+    const rows = treeChildren(treeChild(table, "Rows"), "Row");
+    const columns = treeChildren(treeChild(table, "Columns"), "Column");
+    const across = columns.length > 1 && rows.length <= 1;
+    const lanes = (across ? columns : rows).map((l) => Number(treeAttr(l, across ? "width" : "height")));
+    const insets = treeChild(table, "Insets");
+    const inset = (side: string): number => Math.max(0, Number(treeAttr(insets, side) ?? 0) || 0);
+    const [head, tail] = across ? [inset("left"), inset("right")] : [inset("top"), inset("bottom")];
+    const sizes = [head, ...lanes, tail];
+    const total = sizes.reduce((a, b) => a + b, 0);
+    if (lanes.length === 0 || !sizes.every(Number.isFinite) || total <= 0) {
+        return;
+    }
+    const fill =
+        canonColor(treeAttr(treeChild(real.r, "Fill"), "color"), "yed", at("stripeColors"))?.color ?? "#ffffff";
+    const main = tableColor(real, "yed.table.lane.color.main", at) ?? fill;
+    const alternating = tableColor(real, "yed.table.lane.color.alternating", at) ?? main;
+    const header = tableColor(real, "yed.table.header.color.main", at) ?? fill;
+    const bands = (
+        [[head, header], ...lanes.map((size, i) => [size, i % 2 === 0 ? main : alternating]), [tail, fill]] as [
+            number,
+            string,
+        ][]
+    ).filter(([size]) => size > 0);
+    put("stripeColors", bands.map(([, color]) => color).join(" "));
+    put("stripeSizes", bands.map(([size]) => String(Number((size / total).toFixed(6)))).join(" "));
+    if (across) {
+        put("stripeDirection", "right");
     }
 }
 
@@ -885,6 +944,9 @@ function readNode(real: Realizer, put: PutValue, at: SiteOf, resources?: Readonl
         real.type === "GenericNode" ? configurationOutline(treeAttr(r, "configuration") ?? "")?.points : undefined;
     if (points !== undefined) {
         put("shapePoints", points);
+    }
+    if (real.type === "TableNode") {
+        readTable(real, put, at);
     }
     if (resources !== undefined && (real.type === "ImageNode" || real.type === "SVGNode")) {
         readPicture(real, resources, put);

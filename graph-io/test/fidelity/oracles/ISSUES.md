@@ -2464,15 +2464,19 @@ Fixed (unit tests in `graph-io/test/formats/graphml/styles.test.ts`):
 
 Not fixed, and why:
 
-- Table nodes and BPMN pools (`groups`, `groups-p2`: `table-*`, `bpmn-pool-*`). yEd draws a `y:TableNode` as a header
-  band in `yed.table.header.color.*` over rows or columns in `yed.table.lane.color.*`, parted by lines, inside the
-  node's `y:Geometry` (90 tall on these sheets, which graphty draws). graph-io reads the node's `y:Fill` (a gradient
-  to `#0042F440`) and its `y:BorderStyle hasColor="false"`, so graphty draws one gradient box with no outline.
-  Neither graph-io's neutral styles nor graphty-element have a node made of a header and lanes, so the fix is in
-  both: a lane structure in the neutral model and its drawing in graphty-element. Which colors yEd paints where
-  (whether the `y:Fill` gradient shows under the lanes, what color the lines are) is not documented, and draw.io
-  draws its own table (63 tall lanes in `#C0C0C0` with black lines and the header label above them), so it cannot
-  judge graphty: the owner's yEd export decides it.
+- Table nodes and BPMN pools (`groups`, `groups-p2`: `table-*`, `bpmn-pool-*`). PARTLY FIXED (fix round 3,
+  2026-10-20): graph-io reads a `y:TableNode` as bands over the node (the neutral `stripe*` slots graphty-element
+  already draws): the table's header inset (`y:Table/y:Insets` top, or left for columns side by side) in
+  `yed.table.header.color.main`, then each `y:Row` top to bottom (or `y:Column` left to right) at its own height in
+  `yed.table.lane.color.main` and `.alternating` by turns, then the opposite inset. A color the table leaves unset
+  is the node's `y:Fill` color (one lane color unset is the other). So a 90-tall pool now draws as a 30 header and
+  two 30 lanes in the file's colors, where it drew one gradient box. Still open: the lines between lanes and around
+  the header (`yed.table.section.color`; graphty-element has no band divider), row and column headers
+  (`yed.table.header.color.alternating`, row and column `y:Insets`), a table with both several rows and several
+  columns (bands run one way only; its rows are drawn), and yEd's own defaults for an unset color, which are not
+  documented. None of this can be judged here: draw.io draws its own table (63 tall lanes in `#C0C0C0` with black
+  lines and the header label above them), so the stand-in's `node.stroke` and height rows keep failing until the
+  owner's yEd export of `groups` and `groups-p2` replaces it.
 - Group containers on the stand-in (`groups`: `group.extra` on 9 group specimens), arrows, edge label models, fill
   alpha and default fills (`arrows`, `edge-labels`, `edges-lines`, `node-sizes-opacity`, `labels`), and the
   `graphml-*` corpus samples (draw.io's own arrows, newlines drawn as spaces): draw.io's drawings, not yEd's (see

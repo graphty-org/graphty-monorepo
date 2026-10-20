@@ -287,6 +287,57 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Variable Binding");
     });
 
+    it("reads a TableNode's header and lanes as bands in its table colors", async () => {
+        const table = (id: string, props: string, rows: string, cols: string, insets: string): string =>
+            `<node id="${id}"><data key="d6"><y:TableNode configuration="YED_TABLE_NODE">` +
+            '<y:Geometry height="90.0" width="150.0" x="0" y="0"/><y:Fill color="#ECF5FF" color2="#0042F440"/>' +
+            `<y:StyleProperties>${props}</y:StyleProperties><y:Table><y:Insets ${insets}/>` +
+            `<y:Columns>${cols}</y:Columns><y:Rows>${rows}</y:Rows></y:Table></y:TableNode></data></node>`;
+        const prop = (name: string, value: string): string =>
+            `<y:Property class="java.awt.Color" name="yed.table.${name}" value="${value}"/>`;
+        const row = '<y:Row height="30.0" id="r"/>';
+        const col = (w: number): string => `<y:Column id="c" width="${w}"/>`;
+        const doc = [
+            YED_HEAD,
+            table(
+                "rows",
+                prop("lane.color.main", "#C0C0C0") +
+                    prop("lane.color.alternating", "#FFCC00") +
+                    prop("header.color.main", "#FF9999"),
+                row + row,
+                col(150),
+                'top="30.0" left="0.0"',
+            ),
+            table("plain", prop("lane.color.main", "#C0C0C0"), row + row, col(150), 'top="30.0"'),
+            table(
+                "cols",
+                prop("lane.color.main", "#C0C0C0"),
+                '<y:Row height="70.0" id="r"/>',
+                col(50) + col(80),
+                'left="20.0" top="0.0"',
+            ),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const at = (id: string): number => snapshot.ids.indexOf(id);
+        const colors = resolveStyles(styles, "node", "stripeColors", snapshot);
+        const sizes = resolveStyles(styles, "node", "stripeSizes", snapshot);
+        const direction = resolveStyles(styles, "node", "stripeDirection", snapshot);
+        expect([colors[at("rows")], sizes[at("rows")]]).toEqual([
+            "#ff9999 #c0c0c0 #ffcc00",
+            "0.333333 0.333333 0.333333",
+        ]);
+        // a color the table leaves unset is the node's fill; one lane color unset is the other
+        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0 #c0c0c0");
+        expect([colors[at("cols")], sizes[at("cols")], direction[at("cols")]]).toEqual([
+            "#ecf5ff #c0c0c0 #c0c0c0",
+            "0.133333 0.333333 0.533333",
+            "right",
+        ]);
+        expect(direction[at("rows")]).toBeNull();
+        expect(resolveStyles(styles, "node", "shape", snapshot)[at("rows")]).toBe("rectangle");
+    });
+
     it("reads no fill for transparent and hasColor=false fills, gradients into color2, alpha last", async () => {
         const { snapshot, styles } = await load(corpusBytes(join(GENERATED, "fill-oddities.graphml")));
         const fill = resolveStyles(styles, "node", "fill", snapshot);

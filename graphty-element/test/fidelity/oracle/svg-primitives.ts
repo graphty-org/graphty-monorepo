@@ -350,7 +350,11 @@ const PAJEK_MARK = /^\s*(Vertex|Arc|Edge):\s+(\d+)(?:\s+(\d+))?\s*$/;
 /**
  * Pajek: inside its network layer (`<g id="PajekNet">`) each vertex, arc and edge is the run of
  * elements after a comment naming it (`<!-- Vertex: 3 -->`, `<!-- Arc: 1 12 -->`); vertex numbers
- * are graphty's node ids. Each comment is its own key, so parallel lines stay apart.
+ * are graphty's node ids. Each comment is its own key, so parallel lines stay apart. A line's label
+ * (a `<text>` in its own `<g transform>`) is the one exception: Pajek 6.02 writes it before its
+ * line's comment, after the line before (`pajek-specimen-edge-labels.svg`: the label of `3 4`, at
+ * the middle of `3 4`, comes after the line `1 2`, which has none), so it belongs to the next comment;
+ * a vertex's turned label, in the same markup, follows its vertex's comment.
  * @param el - an element of the oracle
  * @returns the hint, or null outside a Pajek network layer
  */
@@ -363,21 +367,34 @@ function pajekHint(el: Element): Prim["hint"] {
     while (top.parentElement !== null && top.parentElement !== layer) {
         top = top.parentElement;
     }
-    for (let n = top.previousSibling; n !== null; n = n.previousSibling) {
-        if (n.nodeType !== Node.COMMENT_NODE) {
-            continue;
+    const mark = (from: Node, back: boolean): { m: RegExpExecArray | null; n: Node } | null => {
+        for (
+            let n = back ? from.previousSibling : from.nextSibling;
+            n !== null;
+            n = back ? n.previousSibling : n.nextSibling
+        ) {
+            if (n.nodeType === Node.COMMENT_NODE) {
+                return { m: PAJEK_MARK.exec(n.textContent ?? ""), n };
+            }
         }
-        const m = PAJEK_MARK.exec(n.textContent ?? "");
-        if (m === null) {
-            return null;
+        return null;
+    };
+    let found = mark(top, true);
+    if (el.localName === "text" && top !== el && found?.m?.[1] !== "Vertex") {
+        const next = mark(top, false);
+        if (next?.m !== null && next?.m !== undefined && next.m[1] !== "Vertex") {
+            found = next;
         }
-        if (m[1] === "Vertex") {
-            return { role: "node", id: m[2], key: m[2] };
-        }
-        const key = [...layer.childNodes].indexOf(n);
-        return { role: "edge", id: `${m[2]}->${m[3]}`, key: `${m[2]}->${m[3]}@${String(key)}`, ends: [m[2], m[3]] };
     }
-    return null;
+    const m = found?.m ?? null;
+    if (found === null || m === null) {
+        return null;
+    }
+    if (m[1] === "Vertex") {
+        return { role: "node", id: m[2], key: m[2] };
+    }
+    const key = [...layer.childNodes].indexOf(found.n as ChildNode);
+    return { role: "edge", id: `${m[2]}->${m[3]}`, key: `${m[2]}->${m[3]}@${String(key)}`, ends: [m[2], m[3]] };
 }
 
 /**
@@ -521,11 +538,15 @@ function textOf(
     const y = el.y.baseVal.numberOfItems > 0 ? el.y.baseVal.getItem(0).value : 0;
     const [ax, ay] = at(m, x, y);
     const color = parseCssColor(cs.fill) ?? { hex: "#000000", alpha: 1 };
-    const family = cs.fontFamily.replace(/["']/g, "");
+    const computed = cs.fontFamily.replace(/["']/g, "");
     // A Java font name Cytoscape's SVG export could not map to a CSS family (`Dialog.bolditalic`) still names the
     // face its own canvas draws: bold, italic or both, whatever the font-weight and font-style beside it say.
     // (read from the attribute: a name with a dot is no CSS family, so the computed style has fallen back)
-    const declared = el.closest("[font-family]")?.getAttribute("font-family") ?? family;
+    const declared = el.closest("[font-family]")?.getAttribute("font-family") ?? computed;
+    // A family CSS rejects outright (Java's `Default`, a CSS-wide keyword, or a dotted Java name) leaves the computed
+    // style at the browser's own default face, which the program never drew: the program drew the name it wrote.
+    const first = declared.split(",")[0].replace(/["']/g, "").trim().toLowerCase();
+    const family = computed.toLowerCase().includes(first) ? computed : declared.replace(/["']/g, "");
     const javaStyle = /\.(bold|italic|bolditalic)["']?$/i.exec(declared.trim())?.[1].toLowerCase() ?? "";
     let style: "normal" | "italic" | "oblique" = javaStyle.includes("italic") ? "italic" : "normal";
     if (cs.fontStyle === "italic" || cs.fontStyle === "oblique") {

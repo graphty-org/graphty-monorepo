@@ -1079,10 +1079,18 @@ export function namedCaptions(scene: PScene, captionOf: ReadonlyMap<string, stri
         return scene;
     }
     const name = (id: string): string => captionOf.get(id) ?? id;
+    // an edge named by its ends (`1->2#0`, a Pajek line by its vertex numbers) is named by theirs too, so a failure
+    // names the settings it runs between
+    const edgeId = (id: string): string => {
+        const m = /^(.+?)->(.+?)(#g?\d+)?$/.exec(id);
+        return m !== null && (captionOf.has(m[1]) || captionOf.has(m[2]))
+            ? `${name(m[1])}->${name(m[2])}${m[3] ?? ""}`
+            : id;
+    };
     return {
         ...scene,
         nodes: scene.nodes.map((n) => (captionOf.has(n.id) ? { ...n, id: name(n.id) } : n)),
-        edges: scene.edges.map((e) => ({ ...e, source: name(e.source), target: name(e.target) })),
+        edges: scene.edges.map((e) => ({ ...e, id: edgeId(e.id), source: name(e.source), target: name(e.target) })),
         texts: scene.texts.map((t) => (t.owner === undefined ? t : { ...t, owner: name(t.owner) })),
     };
 }

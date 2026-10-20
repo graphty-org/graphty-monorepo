@@ -446,6 +446,7 @@ export function measureArrow(
     }
     dx /= len;
     dy /= len;
+    [dx, dy] = capAxis(outline, tip, [dx, dy]);
     const along = outline.map(([x, y]) => x * dx + y * dy);
     const across = outline.map(([x, y]) => -x * dy + y * dx);
     return {
@@ -456,6 +457,45 @@ export function measureArrow(
         shape: look.shape ?? arrowShapeOf(outline, [dx, dy]),
         color,
     };
+}
+
+/** How far a cap's own axis may turn from the line's end direction and still be read as its axis. */
+const CAP_AXIS_TURN = (30 * Math.PI) / 180;
+/** How closely a cap's tip and its middle must agree on its axis for it to count as symmetric about it. */
+const CAP_AXIS_AGREE = (5 * Math.PI) / 180;
+
+/**
+ * The direction a cap points in. A cap drawn on from where its line stops (its back on the line's end) points along
+ * its own axis, which on a curved line need not be the line's end direction: Gephi ends an arc short of its node and
+ * aims the arrowhead from there at the node's center, about 14 degrees off the arc's end on `gexf-specimen-arrows-p4`.
+ * The axis is from the line's end through the cap's tip (its point furthest along the line) when its middle (the mean
+ * of its points) lies on that same axis -- a cap symmetric about it -- and it turns less than CAP_AXIS_TURN from the
+ * line; otherwise, and for a cap the line runs into, the line's end direction.
+ * @param outline - the cap's drawn points
+ * @param end - where the line ends
+ * @param dir - the line's unit end direction
+ * @returns the unit direction to read the cap along
+ */
+function capAxis(outline: readonly Pt[], end: Pt, dir: Pt): Pt {
+    const along = outline.map(([x, y]) => (x - end[0]) * dir[0] + (y - end[1]) * dir[1]);
+    const length = Math.max(...along) - Math.min(...along);
+    // the line runs into the cap (it ends at the tip, or at its middle): its end direction is the cap's. A cap drawn on
+    // from the line's end may still poke a back corner behind it, by up to sin(CAP_AXIS_TURN) of its half width.
+    if (!(length > 1e-9) || Math.min(...along) < -0.3 * length) {
+        return dir;
+    }
+    const tip = outline[along.indexOf(Math.max(...along))];
+    const mid: Pt = [
+        outline.reduce((sum, p) => sum + p[0], 0) / outline.length,
+        outline.reduce((sum, p) => sum + p[1], 0) / outline.length,
+    ];
+    const angle = ([x, y]: Pt): number => Math.atan2(y - end[1], x - end[0]);
+    const turn = (a: number, b: number): number => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+    const axis = angle(tip);
+    if (turn(axis, angle(mid)) > CAP_AXIS_AGREE || turn(axis, Math.atan2(dir[1], dir[0])) > CAP_AXIS_TURN) {
+        return dir;
+    }
+    return [Math.cos(axis), Math.sin(axis)];
 }
 
 /**

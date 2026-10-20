@@ -1,7 +1,13 @@
 import "./timeline.css";
 
 import { EntityChip, Toolbar, ToolButton } from "@graphty/compact-mantine";
-import type { GraphSession, TimeHistogram, TimeStep, TimeWindow } from "@graphty/graphty-element/session";
+import {
+    addTimeStep,
+    type GraphSession,
+    type TimeHistogram,
+    type TimeStep,
+    type TimeWindow,
+} from "@graphty/graphty-element/session";
 import { ActionIcon, Popover, Select, Stack, Switch } from "@mantine/core";
 import { Pause, Play, Settings, SkipBack, SkipForward } from "lucide-react";
 import React, { useEffect, useState } from "react";
@@ -10,13 +16,11 @@ import { useSessionVersion } from "../inspector/hooks";
 import { formatKey } from "../keys/keys";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
-    addStep,
     applyWindow,
     boundsOf,
     DATE_UNITS,
     type DateUnit,
     firstWindow,
-    floorTo,
     numberSizes,
     readout,
     steppedWindow,
@@ -44,7 +48,7 @@ const NONE = "__none__";
  * @returns the unit, or undefined.
  */
 function unitOf(from: number, to: number): DateUnit | undefined {
-    return DATE_UNITS.find((unit) => addStep(from, unit, 1) === to);
+    return DATE_UNITS.find((unit) => addTimeStep(from, unit, 1) === to);
 }
 
 /**
@@ -148,11 +152,11 @@ function Strip({ session }: Readonly<{ session: GraphSession }>): React.JSX.Elem
      * @param at - the instant.
      */
     const moveTo = (at: number): void => {
-        if (window === null || bounds === null || width === undefined) {
+        if (window === null || width === undefined) {
             return;
         }
-        const from = widthUnit === undefined ? at : floorTo(at, widthUnit);
-        set({ ...window, from, to: widthUnit === undefined ? from + width : addStep(from, widthUnit, 1) });
+        const moved = session.visibility.firstWindow(window.attribute, { step: widthUnit ?? width, at });
+        set(moved === null ? null : { ...window, from: moved.from, to: moved.to });
     };
     const instantAt = (event: React.PointerEvent<SVGSVGElement>): number => {
         const box = event.currentTarget.getBoundingClientRect();
@@ -260,7 +264,7 @@ function Strip({ session }: Readonly<{ session: GraphSession }>): React.JSX.Elem
                         return;
                     }
                     const step = stepOf(picked);
-                    set({ ...window, step, to: addStep(bounds.from, step, 1) });
+                    set({ ...window, step, to: addTimeStep(bounds.from, step, 1) });
                 }}
             />
             <EntityChip kind="node">

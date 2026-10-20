@@ -910,6 +910,8 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
     timeHistogram: READ,
+    firstWindow: READ,
+    stepWindow: READ,
     steps: READ,
     setSteps: calls(
         [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],

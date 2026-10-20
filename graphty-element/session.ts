@@ -428,6 +428,7 @@ export type { RuleSide, SourceKey } from "./src/catalog/types";
 export type {
     FilterResult,
     FilterStep,
+    FirstWindowOptions,
     RuleTree,
     StepCounts,
     TimeHistogram,
@@ -438,6 +439,7 @@ export type {
     VisibilityChange,
     VisibilitySummary,
 } from "./src/session/visibility";
+export { addTimeStep } from "./src/session/visibility";
 
 // ---------------------------------------------------------------------------------------------
 // Asking what something would do and cost, before doing it

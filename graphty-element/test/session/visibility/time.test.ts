@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
-import type { RuleTree, TimeWindow } from "../../../src/session/visibility";
+import { addTimeStep, type RuleTree, type TimeWindow } from "../../../src/session/visibility";
 import { edgeBetween, type Harness, makeSession } from "../helpers";
 
 /**
@@ -256,5 +256,83 @@ describe("a time window over intervals", () => {
             "E_BAD_COMMAND",
         );
         harness.session.dispose();
+    });
+});
+
+describe("visibility.firstWindow and visibility.stepWindow", () => {
+    const day = (iso: string): number => Date.parse(`${iso}T00:00:00Z`);
+
+    it("opens one step wide at the first value, rounded down to the step", () => {
+        const harness = authLog();
+        const { visibility } = harness.session;
+
+        const window = visibility.firstWindow("data.at", { step: "day", nodes: "follow-edges" });
+
+        assert.deepStrictEqual(window, {
+            attribute: "data.at",
+            from: day("2024-03-01"),
+            to: day("2024-03-02"),
+            step: "day",
+            nodes: "follow-edges",
+        });
+        // 2024-03-01 was a Friday; its week starts on Monday 2024-02-26.
+        assert.strictEqual(visibility.firstWindow("data.at", { step: "week" })?.from, day("2024-02-26"));
+        assert.deepStrictEqual(
+            [
+                visibility.firstWindow("data.at", { step: "quarter" })?.from,
+                visibility.firstWindow("data.at", { step: "quarter" })?.to,
+            ],
+            [day("2024-01-01"), day("2024-04-01")],
+        );
+        assert.strictEqual(visibility.firstWindow("data.at", { step: "year" })?.from, day("2024-01-01"));
+        assert.strictEqual(
+            visibility.firstWindow("data.at", { step: "day", at: "2024-03-03T12:00:00Z" })?.from,
+            day("2024-03-03"),
+        );
+        assert.strictEqual(visibility.firstWindow("data.nope", { step: "day" }), null);
+        harness.session.dispose();
+    });
+
+    it("steps the window in force by its step until it leaves the range", async () => {
+        const harness = authLog();
+        const { visibility } = harness.session;
+        assert.strictEqual(visibility.stepWindow(), null);
+
+        await visibility.setWindow(visibility.firstWindow("data.at", { step: "day" }));
+        const second = visibility.stepWindow(1);
+        assert.deepStrictEqual([second?.from, second?.to], [day("2024-03-02"), day("2024-03-03")]);
+        assert.strictEqual(visibility.stepWindow(-1), null);
+
+        await visibility.setWindow({ attribute: "data.at", from: day("2024-03-03"), to: day("2024-03-04") });
+        // No step: it moves by its own width, and off the end of the log there is nowhere to go.
+        assert.strictEqual(visibility.stepWindow(1), null);
+        assert.strictEqual(visibility.stepWindow(-1)?.from, day("2024-03-02"));
+        harness.session.dispose();
+    });
+
+    it("floors a number column to a multiple of its step", () => {
+        const harness = makeSession();
+        harness.add(
+            [
+                { id: "a", n: 13 },
+                { id: "b", n: 47 },
+            ],
+            [],
+        );
+
+        const window = harness.session.visibility.firstWindow("data.n", { step: 10 });
+
+        assert.deepStrictEqual([window?.from, window?.to], [10, 20]);
+        harness.session.dispose();
+    });
+});
+
+describe("addTimeStep", () => {
+    it("adds calendar steps in UTC and plain numbers as they are", () => {
+        assert.strictEqual(addTimeStep(Date.UTC(2024, 2, 1), "week", -1), Date.UTC(2024, 1, 23));
+        assert.strictEqual(addTimeStep(Date.UTC(2024, 2, 1), "hour", 2), Date.UTC(2024, 2, 1, 2));
+        assert.strictEqual(addTimeStep(Date.UTC(2024, 10, 1), "quarter", 1), Date.UTC(2025, 1, 1));
+        assert.strictEqual(addTimeStep(Date.UTC(2024, 1, 29), "year", 1), Date.UTC(2025, 2, 1));
+        assert.strictEqual(addTimeStep(10, 5, 2), 20);
     });
 });

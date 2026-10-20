@@ -109,6 +109,9 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export function addTimeStep(at: number, step: TimeStep, times: number): number;
+
+// @public
 export interface AlgorithmRunCommand {
     readonly algorithm: AlgorithmKey;
     readonly applySuggestedStyles?: boolean;
@@ -1052,6 +1055,14 @@ export interface FindValueRow {
     readonly path: Path;
     readonly target: SelectionTarget;
     readonly value: string | number | boolean;
+}
+
+// @public
+export interface FirstWindowOptions {
+    readonly at?: number | string;
+    readonly end?: Path;
+    readonly nodes?: "own" | "follow-edges";
+    readonly step: TimeStep;
 }
 
 // @public
@@ -4923,6 +4934,7 @@ export interface VisibilityApi {
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
     readonly filter: RuleTree | null;
+    firstWindow(attribute: Path, options: FirstWindowOptions): TimeWindow | null;
     isVisible(id: NodeId | EdgeId): boolean;
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
@@ -4931,6 +4943,7 @@ export interface VisibilityApi {
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
     readonly steps: readonly FilterStep[];
+    stepWindow(direction?: 1 | -1): TimeWindow | null;
     readonly summary: VisibilitySummary;
     summaryOf(source: SourceKey): VisibilitySummary;
     timeHistogram(attribute: Path, options?: {

@@ -9,7 +9,7 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
+import { addTimeStep as addStep, type GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -17,7 +17,7 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { PROTOTYPE_SAMPLES, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-import { addStep, boundsOf, floorTo, numberSizes, readout } from "../commands";
+import { boundsOf, numberSizes, readout } from "../commands";
 
 /** A hang guard for the element coming up and loading, not a pass/fail timing. */
 const TIMEOUT_MS = 60_000;
@@ -96,17 +96,7 @@ const shownEdges = (session: GraphSession): number => session.visibility.summary
 const windowStart = (session: GraphSession): number => boundsOf(session.visibility.window)?.from ?? Number.NaN;
 
 describe("the timeline's steps and words", () => {
-    it("steps by calendar units in UTC and rounds to their starts", () => {
-        const at = Date.UTC(2024, 2, 6, 15, 30);
-        assert.strictEqual(floorTo(at, "day"), Date.UTC(2024, 2, 6));
-        assert.strictEqual(floorTo(at, "hour"), Date.UTC(2024, 2, 6, 15));
-        // 2024-03-06 was a Wednesday; its week starts Monday the 4th.
-        assert.strictEqual(floorTo(at, "week"), Date.UTC(2024, 2, 4));
-        assert.strictEqual(floorTo(at, "month"), Date.UTC(2024, 2, 1));
-        assert.strictEqual(floorTo(17, 5), 15);
-        assert.strictEqual(addStep(Date.UTC(2024, 0, 31), "month", 1), Date.UTC(2024, 2, 2));
-        assert.strictEqual(addStep(Date.UTC(2024, 2, 1), "week", -1), Date.UTC(2024, 1, 23));
-        assert.strictEqual(addStep(10, 5, 2), 20);
+    it("offers window sizes of about 1/50 to 1/5 of a number range", () => {
         assert.deepEqual(numberSizes(0, 100), [2, 5, 10, 20]);
         assert.deepEqual(numberSizes(0, 3), [1]);
     });
@@ -144,7 +134,7 @@ describe("the timeline strip on the real element", () => {
 
         await userEvent.click(clock);
         const strip = await screen.findByRole("region", { name: "Timeline" });
-        const first = floorTo(Math.min(...rows.map((r) => r.at)), "day");
+        const first = Math.floor(Math.min(...rows.map((r) => r.at)) / 86_400_000) * 86_400_000;
         const inDay = (from: number, keep: (row: Row) => boolean = () => true): number =>
             rows.filter((r) => r.at >= from && r.at < addStep(from, "day", 1) && keep(r)).length;
         await waitFor(() => {

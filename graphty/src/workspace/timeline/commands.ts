@@ -5,7 +5,7 @@
  * where the window goes next; the element masks, counts and composes it with the filters.
  */
 
-import type { AttributeDescriptor, GraphSession, TimeStep, TimeWindow } from "@graphty/graphty-element/session";
+import type { AttributeDescriptor, GraphSession, TimeWindow } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
 
@@ -14,63 +14,6 @@ export const DATE_UNITS = ["hour", "day", "week", "month"] as const;
 
 /** One calendar unit. */
 export type DateUnit = (typeof DATE_UNITS)[number];
-
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
-
-/**
- * Moves an instant by whole steps: a number adds, a calendar unit adds in UTC (a month keeps its
- * day of the month where it can).
- * @param at - the instant, in ms or a plain number.
- * @param step - the step.
- * @param times - how many steps, negative to go back.
- * @returns the moved instant.
- */
-export function addStep(at: number, step: TimeStep, times: number): number {
-    if (typeof step === "number") {
-        return at + step * times;
-    }
-    switch (step) {
-        case "hour":
-            return at + HOUR * times;
-        case "day":
-            return at + DAY * times;
-        case "week":
-            return at + 7 * DAY * times;
-        default: {
-            const months = { month: 1, quarter: 3, year: 12 }[step] * times;
-            const date = new Date(at);
-            date.setUTCMonth(date.getUTCMonth() + months);
-            return date.getTime();
-        }
-    }
-}
-
-/**
- * Rounds an instant down to the start of its step: the hour, the UTC day, the Monday of its week,
- * the first of its month; a number to a multiple of the step.
- * @param at - the instant.
- * @param step - the step.
- * @returns the start.
- */
-export function floorTo(at: number, step: TimeStep): number {
-    if (typeof step === "number") {
-        return Math.floor(at / step) * step;
-    }
-    if (step === "hour") {
-        return Math.floor(at / HOUR) * HOUR;
-    }
-    const day = Math.floor(at / DAY) * DAY;
-    if (step === "day") {
-        return day;
-    }
-    if (step === "week") {
-        // 1970-01-01 was a Thursday; Monday is 3 days later.
-        return day - ((new Date(day).getUTCDay() + 6) % 7) * DAY;
-    }
-    const date = new Date(day);
-    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
-}
 
 /**
  * The integer sizes a window over a number column offers: about 1/50, 1/20, 1/10 and 1/5 of the
@@ -115,28 +58,22 @@ export function timeFields(session: GraphSession): AttributeDescriptor[] {
 }
 
 /**
- * The window the strip opens on: the first step of the field's range, one day for dates and
- * about 1/20 of the range for numbers, nodes following edges when the field is an edge column.
+ * The window the strip opens on: graphty-element's first window over the field, one day wide for
+ * dates and about 1/20 of the range for numbers (the strip's default step), nodes following edges
+ * when the field is an edge column.
  * @param session - the element's session.
  * @param field - the time column.
- * @param end - an interval's end column, if any.
  * @returns the window, or null when no element carries a time.
  */
-export function firstWindow(session: GraphSession, field: AttributeDescriptor, end?: string): TimeWindow | null {
+export function firstWindow(session: GraphSession, field: AttributeDescriptor): TimeWindow | null {
     const { min, max, kind } = session.visibility.timeHistogram(field.path, { bins: 1 });
     if (min === null || max === null) {
         return null;
     }
-    const step: TimeStep = kind === "date" ? "day" : numberSizes(min, max)[1];
-    const from = floorTo(min, step);
-    return {
-        attribute: field.path,
-        from,
-        to: addStep(from, step, 1),
-        step,
-        ...(end === undefined ? {} : { end }),
+    return session.visibility.firstWindow(field.path, {
+        step: kind === "date" ? "day" : numberSizes(min, max)[1],
         nodes: field.kind === "edge" ? "follow-edges" : "own",
-    };
+    });
 }
 
 /**
@@ -167,27 +104,17 @@ export function applyWindow(session: GraphSession, window: TimeWindow | null, on
 }
 
 /**
- * The window one step on (or back): moved by its `step`, its width kept. With no window, the
- * first one. Returns null at either end of the field's range, so play stops there.
+ * The window one step on (or back), from graphty-element; with no window, the first one.
  * @param session - the element's session.
  * @param direction - 1 forward, -1 back.
  * @returns the next window, or null when there is nowhere to go.
  */
 export function steppedWindow(session: GraphSession, direction: 1 | -1): TimeWindow | null {
-    const { window } = session.visibility;
-    const bounds = boundsOf(window);
-    if (window === null || bounds === null) {
-        const field = timeColumn(session);
-        return field === undefined ? null : firstWindow(session, field);
+    if (session.visibility.window !== null) {
+        return session.visibility.stepWindow(direction);
     }
-    const { min, max } = session.visibility.timeHistogram(window.attribute, { bins: 1 });
-    const step = window.step ?? bounds.to - bounds.from;
-    const from = addStep(bounds.from, step, direction);
-    const to = addStep(bounds.to, step, direction);
-    if (min === null || max === null || from > max || to <= min) {
-        return null;
-    }
-    return { ...window, from, to };
+    const field = timeColumn(session);
+    return field === undefined ? null : firstWindow(session, field);
 }
 
 /**

@@ -30,6 +30,7 @@ export {
     type TimeWindow,
     type VisibilityPass,
 } from "./filter";
+export { addTimeStep, type FirstWindowOptions } from "./timeSteps";
 export {
     createVisibilityApi,
     type FilterResult,

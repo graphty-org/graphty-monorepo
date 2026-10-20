@@ -5,39 +5,37 @@ the participants say, break ties with evidence, and own the success criteria and
 I want a small, sharp, coherent product. Read this file at the start of every session; update it
 whenever I decide something, learn something, or change my mind.
 
-Last updated: 2026-10-20 (fifth criteria review and freeze).
+Last updated: 2026-10-20 (dry run pass 1 on build 7d87760756).
 Summarized on 2026-10-17, 2026-10-18, 2026-10-19 and 2026-10-20; the full earlier text is in this file's git
 history.
 
 ## Top of mind
 
-- (2026-10-20) Criteria FROZEN after the fifth review. Line 1 still names 3ef9e6c1ec, which does
-  NOT hold the golden merge f9d8b44b9; preflight 1 now requires a build that does. The workflow's
-  build freeze rewrites line 1; no walk or value on 3ef9e6c1ec counts. No owner decision needed.
-- (2026-10-20) ONE round only (owner). Round 1 cannot pass (T37, T42, T44 unjudged) and has no
-  stall rule; its report is held / failed / not scored per bar, never "passed".
-- (2026-10-20) Dry run to the session-ready bar, at most two fix passes. Fix only crashes,
-  blocked tasks and grading-spoiling wrong results (now defined: unreachable success state, or a
-  count/key/drawn color that disagrees with the style tree); a keyboard block on Sam's four halves
-  is a blocked task; every backlog row gets a severity, a known 3-4 counts once in bar 5.
-- (2026-10-20) Keyboard walks only on Sam's halves (T39 A, T40 A, T47 B, T48 A). After a fix pass a
-  half holds with a fresh success walk plus older walks on routes no fix touched.
-- (2026-10-20) Owed tool work, unbuilt through three reviews, now gate refusals: `WALKS3` five
-  screens, "Starts with" typing, `spoken.json`; `wording.mjs` irregular forms, `spoken.json`,
-  phrase echoes; `gateCheck` keyed by half. Each with the planted case preflight 3 lists.
-- (2026-10-20) Owed values: all six community methods on T46-T48 twice, T51 palette, on the new
-  build. `answers.md` success paths were read on e3c5bca8e6; re-read them.
+- (2026-10-20) Dry run pass 1 on 7d87760756 (`tier3/dry-run-r1-1.md`): 495 lines, 10 (a) in three
+  units. T50 is BLOCKED on both halves: the golden merge renamed `node.haloSize` to
+  `node.haloScale`, and one unknown channel makes `project.open` drop the whole style member. Fix
+  in the element (read the old name), then re-walk T50 A and B whole.
+- (2026-10-20) The session-ready bar is narrow on purpose: crash, block, spoiled grading. Jumps,
+  "Which nodes" without its list, F6, heading ring, node names by id all broke `decided.md` and
+  went to the backlog (84 entries); each has a route past it. Do not pull them back in.
+- (2026-10-20) The answer key already grades around many screen faults (demo layers in
+  `styles.json`, the tool's start line, counts from the key). Read `answers.md` before calling a
+  wrong-looking screen a grading spoil.
+- (2026-10-20) Pass 5's reverts were batch reverts: fa2316520 (node names), f7abdac93 (Which
+  nodes), ab5c74c0b (F6), 65c1c08e7 (heading ring) were pulled for a neighbor's regression, not
+  their own. The backlog loop can re-apply them one at a time with a re-walk each.
+- (2026-10-20) ONE round only (owner). Round 1 cannot pass (T37, T42, T44 unjudged); its report
+  is held / failed / not scored per bar, never "passed". At most two dry-run fix passes.
+- (2026-10-20) Keyboard walks only on Sam's halves (T39 A, T40 A, T47 B, T48 A); a keyboard block
+  there is a blocked task. None of the four was blocked on 7d87760756.
+- (2026-10-20) Owed tool work, now gate refusals: `WALKS3` five screens, "Starts with" typing,
+  `spoken.json`; `wording.mjs` irregular forms, phrase echoes; `gateCheck` keyed by half.
+- (2026-10-20) Owed values: all six community methods on T46-T48 twice, T51 palette.
 - (2026-10-20) A design problem is confirmed only across two task halves (or one session plus a
-  repro); a build defect keeps the old rule.
-- (2026-10-20) Core halves need 2 S/SD from sessions other than Alex and Maren; Alex now on T46 A,
-  Dev on T48 A.
-- (2026-10-20) Colors graded by compact-mantine `colorWord` hue word; "dark"/"bright" recorded.
-- (2026-10-20) T50 B summary reading = S (no one at exactly 30 hours); `Read from:` on T50 grades.
-- (2026-10-19) Three pass-4 fixes made 29 of 37 regressions; before a fix lands, list the routes
-  that cross the switch it flips and re-walk those.
-- (2026-10-19) A docs-only commit never refreezes (empty diff of graphty, graphty-element,
-  compact-mantine, lockfile against the named build).
-- (2026-10-16) Combined Style panel spec is DECIDED (`tier3/design.md`).
+  repro); a build defect keeps the old rule. Core halves need 2 S/SD without Alex and Maren.
+- (2026-10-19) Before a fix lands, list the routes that cross the switch it flips and re-walk
+  those (three pass-4 fixes made 29 of 37 regressions).
+- (2026-10-19) A docs-only commit never refreezes.
 - (2026-10-13) PUSH BLOCKED by SonarQube findings on the studio branch's lines; needs an engineer
   unit with the owner's leave. No bypass trailer.
 - Owner items open: default label font fallback; the five tier 3 breaking items; whether label
@@ -82,6 +80,19 @@ history.
 
 ## Decisions and reasons
 
+- **2026-10-20, dry run pass 1 on 7d87760756 (`tier3/dry-run-r1-1.md`).** Three units, all (a):
+  (1) T50 projects open with no look -- element reads the renamed halo channel (regression of the
+  golden merge; reproduced in Node, `tmp/director-r1-1/channels.mjs`: 13 of 14 channels open, only
+  `node.haloSize` fails); (2) the table's community column prints raw group values where the key
+  says "Group N" by size rank -- a T46A participant who paints the table's group is graded F
+  (new); (3) Control+O > Replace with the same CSV empties hand-picked edge layers -- session edge
+  ids never rewind (new; lost work on a listed detour). Settled in `decided.md` (2026-10-20): those
+  three plus "a project file opens in place of the work" (Replace/Load is for data files). Team
+  entry in `owner-decisions.md` for the two element changes (non-breaking). Not (a), with reasons:
+  every drawing jump (Frame recovers; nothing on the graph is wrong), the key covering a dot (the
+  key accepts the layer's and key's counts), the demo's answers (answer key grades around them),
+  `styles-start.json` holding the demo (answer key rule), and the 25 PASS INCOMPLETE lines that
+  only lacked `report.md` or a route walked elsewhere on this build.
 - **2026-10-20, fifth review of the tier 3 criteria, frozen.** Taken: the round 1 build must hold
   golden (all three; I checked `git merge-base --is-ancestor f9d8b44b9 3ef9e6c1ec`: fails); round
   1 verdict rule (all three); design problems confirmed across two halves (researcher); colors by
@@ -108,23 +119,11 @@ history.
   the value box; Tab and remove never pull focus back; F6 cycles five regions, never a separator;
   a node is called by its element label everywhere; Control+A selects all; "New layer from
   selection" makes the layer. Kept (b): the list in Top of mind. No API change.
-- **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b.** Taken: bar 2 states
-  T49's exception (researcher); bar 5 unscored when the walk skipped a success-path screen, and
-  experts/audit count only via repro or measurement (user advocate); bar 6 checks typing after
-  "Starts with" (all three; T40 B walk lost `GAL`); bar 7 confirmed by a `--keys` repro or two Sam
-  sessions (red team); selected styled nodes graded by the tree's color, a misleading tint is a
-  key-and-drawing finding (user advocate); `spoken.json` for accessible names, live-region text and
-  notices, irregular forms joined, round 1 wording baseline = `tasks.md`'s kept lists (all three);
-  docs-only commits do not refreeze (researcher; 1fa51e2b0b reset the count for nothing); the dry
-  run walks only planned halves, blockers first, a stopped pass is finished (researcher, user
-  advocate: 9 of 33 walks went to unplanned T37/T42); gate keyed by half with three walks
-  (red team; I read `gateCheck`: it keys by `basename(dir)`, the walk folder, confirmed); a
-  non-repeating community method graded against the session's own run (researcher); card types
-  reported with their domain count (researcher); T51 to 4, T44 to round 2 (user advocate; T51
-  answers question 6, T44 none); T50 "color them", `draw` kept in T43/T47/T51 (all three);
-  "Owed before round 1" list in every freeze entry (red team). Not taken: T41 B "missing" in one
-  half only (mixes wording with data; echoes no screen word); T51 B on College football's
-  conferences (unpiloted half, new reference values, B changed a day ago).
+- **2026-10-19, fourth review of the tier 3 criteria, frozen on 1fa51e2b0b** (summarized
+  2026-10-20; full text in git history). Bar 2 states T49's exception; bar 5 unscored when a walk
+  skipped a success-path screen; bar 6 checks typing after "Starts with"; bar 7 confirmed by a
+  `--keys` repro or two Sam sessions; `spoken.json`; docs-only commits never refreeze; the dry run
+  walks only planned halves; gate keyed by half; T51 to 4, T44 to round 2.
 - **2026-10-17..18, earlier tier 3 criteria reviews and dry-run triages r1-1 to r1-4**
   (summarized 2026-10-20; full text in git history, the dry-run files, the criteria change log and
   `tier3/decided.md`). The exit test and `decided.md` came from the third review; bar 4 fixed at
@@ -166,6 +165,14 @@ history.
 
 ## Tried: worked / did not work
 
+- 2026-10-20 (dry run pass 1) -- Worked: reproducing the T50 blocker in Node against the built
+  element's `./session` entry before writing the unit (two short scripts in
+  `tmp/director-r1-1/`): the report's one problem code led to the one channel in two minutes, and
+  the unit names a cause, not a symptom. Worked: reading `answers.md` "How a session is graded"
+  before classing spoils; four candidates were already graded around. Worked: a script that checks
+  every pilot line is classed exactly once (`tmp/director-r1-1/count.py`), and a second that turns
+  the backlog sections into `backlog.md` entries. Did not work: the workflow's file name for this
+  pass reused `dry-run-r1-1.md`, overwriting the 2026-10-17 triage; it lives in git (7c241de4b).
 - 2026-10-20 (criteria review) -- Worked: reading the design-studio skill before taking the red
   team's "owner picks the build": the workflow writes line 1 when it freezes a build after the
   criteria, so the right fix is a checkable rule (`--is-ancestor f9d8b44b9`), not a question.
@@ -188,24 +195,11 @@ history.
   new build for a docs-only commit on 2026-10-18; it reset the dry run's count and spent a night's
   walks on halves already walked. Did not work: my 2026-10-18 note that the gate "already refuses
   a half with no pilot": true only for a pilot directly under the half folder.
-- 2026-10-18 (criteria review) -- Worked: checking each reviewer claim against the tool before
-  writing a rule: `real.mjs` gateCheck already refuses a half with no pilot on the frozen build,
-  `score.mjs` already accepts `Route: around` outside the bulk routes, and the stemmer keeps
-  "draw" and "drawn" apart, so only the "drawn" prompts needed rewording. Saved two tool changes.
-  Did not work (four builds running): logging "bar 4 still reads 6 against a key of 5" in each
-  change log and deferring it "between rounds" when no round came; a known wrong bar should be
-  fixed at the next freeze, not carried.
-- 2026-10-18 (r1-4) -- Worked: counting the input lines per task against my rows before writing
-  the header (283 both); it catches a dropped line cheaply. Worked: reading `NodeBehavior.ts`
-  before classing the stuck Hovered count: hover ends only in a canvas `onPrePointerObservable`
-  callback, so any exit that is not a canvas pointer event leaves it on. Did not work: launching
-  about seven pilots against four browser slots; three never ran and one returned nothing.
-- 2026-10-18 -- Worked: reading each pilot's `session.json` (`commit`, `uncommittedChanges`) before
-  classing. It showed which lines came from the old build, which tasks were never piloted on the
-  new one, and that the frozen build had uncommitted source. Worked: grepping the on-screen string
-  (`exampleRule` in `FindBox.tsx`, `colorWord` hue bands in compact-mantine `color-utils.ts`) to
-  find the mechanism; 800080 sits at hue 300, inside the "pink" band. Did not work: r1-2's Escape
-  fix in the find box, judged alone again; it turned Escape-to-leave into clearing.
+- 2026-10-18 (summarized 2026-10-20) -- Worked: checking reviewer claims against the tool before
+  writing a rule; counting input lines per task against the triage rows; reading `session.json`
+  (`commit`, `uncommittedChanges`) before classing; grepping the on-screen string to find the
+  owning file. Did not work: carrying a known wrong bar "between rounds" across four builds;
+  launching more pilots than browser slots; judging a find-box Escape fix alone.
 - 2026-10-17 -- Worked: reading `owner-decisions.md` before classing. Six "defects" were decided
   behavior (menu starts on its first row, Reset drawn disabled at the default, Tab closes a pop-out,
   right-click inside a selection keeps it, one Clear glyph, tree as one Tab stop), and two showed a
@@ -231,6 +225,10 @@ history.
 
 ## Thinking
 
+- **2026-10-20, dry run pass 1:** a merge from upstream is a fix pass nobody triaged. The only
+  blocker on this build came from the golden merge, not from the studio's own fixes, and it broke
+  saved files, which no pilot opens unless a task brings one. Every merge into a frozen line needs
+  one walk that opens a file saved by the previous build.
 - **2026-10-20, criteria review:** the build line went stale the same way twice (a docs commit,
   then a golden merge after the freeze). A frozen document that names a build needs a rule that a
   script can check against the build, not a sentence about what the build contains.
@@ -281,7 +279,7 @@ history.
 
 ## Sources
 
-- Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-1.md`, `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
+- Tier 3 study: `tier3/{criteria,tasks,answers,roster,decided}.md`; dry runs `tier3/dry-run-r1-1.md` (build 7d87760756, 2026-10-20; the 2026-10-17 pass on 58556989e8 is at 7c241de4b), `tier3/dry-run-r1-2.md` (build ed4351b258), `tier3/dry-run-r1-4.md` (build 6dd0b00bd7, pilots in `tier3/rounds/r1d2/pilot/<task>/<route>/`), `tier3/dry-run-r1-3.md` (build 5bd16cda6e; pilots in `tier3/rounds/r1d1/pilot/<task>/5bd16cda6e/` or the task's top folders, see each `session.json`); tools `tool/{real,bars,score,wording}.mjs`,
   `tool/bars-limits.json`; pilots `tier3/pilot-materials/`, `tier3/build/{walk-p1..p3,pilot-bulk*}/`.
 - Tier 3 reviews: `notes/{researcher,user,redteam}.md` (2026-10-17: 05f4ee91a, 863ebb9a8,
   de16901f7; 2026-10-19: c1ebeeff4, 34b1e3ce0, 881ad2550; 2026-10-20: 16b22cb0d, 70575b0cf, 3bdcc279b); stopped pass 5 in `tier3/rounds/r1/pilot/`; my walk of the proposed screens in the worktree's `tmp/director-freeze/explore*`.

@@ -4,6 +4,18 @@ Changes made locally on the studio branch that add to or change graphty-element'
 one is a contract with third-party consumers once it is published, so each needs the owner's yes
 before it lands on master. Newest first.
 
+## 2026-10-20 -- Decided by the team: a saved project reads a renamed channel, and a reload keeps picked ties (graphty-element)
+
+graphty-element, non-breaking, both fixes of documents and loads that failed. (1) `project.open`
+reads `node.haloSize` in a saved style member as `node.haloScale`, the name golden gave the
+channel; the channel set is unchanged (`node.haloSize` is not accepted anywhere else, and new
+documents write `node.haloScale`). Without it every project saved before the golden merge opens
+with no layer at all, because one unknown channel refuses the whole style member
+(`E_UNKNOWN_CHANNEL`). (2) A replacing load of the same file keeps a hand-picked layer's ties: the
+layer's ids follow the ties through the element's stable edge identity, as a project open already
+remaps them. Today the layer is left naming session ids the reload no longer issues, and matches
+nothing. Only calls that lost the reader's work change. Recorded in `tier3/decided.md`, 2026-10-20.
+
 ## 2026-10-19 -- For the owner: should a value beyond a written domain be drawn past the range's end?
 
 graphty-element's continuous scales (linear, log, pow, sqrt and the rest) place a value between the

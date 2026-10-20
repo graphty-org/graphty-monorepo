@@ -190,3 +190,26 @@ Each entry below is new unless it says what it narrows, corrects or reverses.
   route color (`APP_HIGHLIGHT_COLOR`, which now colors only explicit highlights). Reason: as layers,
   algorithm pictures stack -- a route over a spanning tree keeps both -- where a highlight swept
   every other highlight away.
+
+## Added 2026-10-20 (dry run on build 7d87760756)
+
+Each entry is new; none reverses an earlier one.
+
+- **A project opens with its look, whatever build saved it.** A style channel the element has
+  renamed is read under its new name when a saved project names the old one (`node.haloSize`
+  reads as `node.haloScale`), and the project's layers open with it. (2026-10-20.) Both T50
+  projects, written by build e3c5bca8e6, opened on 7d87760756 with no layer at all: the golden
+  merge renamed the channel, and one unknown channel made the element refuse the whole style
+  part. Every project saved before the merge would lose its look the same way.
+- **Opening a file over itself keeps the hand-picked layers.** Replace with the same file leaves
+  a layer of picked nodes or ties painting the same ones. (2026-10-20.) On T45A, Control+O >
+  Replace on neighbors.csv left the "8 edges" layer matching none: CSV ties have no file ids, and
+  the reload issued new session ids.
+- **A community run's groups have one name everywhere**: the table's cells say "Group 3" where the
+  key, the layer tree and the table's own run tab say "Group 3", ranked by size. (2026-10-20.) The
+  Nodes tab showed the run's raw values (Javert's row read 2 for Group 3), so a reader who painted
+  the group the table named painted the wrong one.
+- **A project file opens in place of the open work**; "Replace first and Load beside it"
+  (2026-10-19) is for a data file, which can be added to the open graph. Opening a project asks
+  only to discard unsaved changes. (2026-10-20.) A project cannot be added to a graph, so a
+  Replace or Load page for it would offer a choice that does not exist (T50A, Control+O).

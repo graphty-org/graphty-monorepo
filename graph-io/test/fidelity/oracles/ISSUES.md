@@ -1260,6 +1260,84 @@ groups 3 -> 2, groups-p2 3 -> 2, json-vis-synth 57 -> 37. Still open, and why:
   200 nodes and 284 arrowheads. The comparator finds 83 of the nodes and 77 of the edges in it, so graphty's
   others count as extra: comparator work, not an import gap.
 
+## Specimen sheets: vis-network settings graph-io now reads (fix round 2, 2026-10-20)
+
+graph-io's vis-network reader (`graph-io/src/formats/json/styles.ts`) now reads these the way vis-network 9.1.9 draws
+them; tests in `graph-io/test/styles/vis-fix-round-2.test.ts`:
+
+- Multi-font labels (`font.multi` true, html, markdown, and `font.bold`, `ital`, `boldital`, `mono` as objects or
+  text): each block is a run of the new neutral `labelRuns` (a JSON array of `{ text, weight, italic, font, size,
+color }`), its font from its modifier's own options over the label's (mono is 15 px monospace unless given).
+  graphty-element draws the runs through its label markup, a run's size as a share of the label's (`<size='150%'>`
+  is new in the markup); tests in `graphty-element/test/session/styles/label-runs.test.ts`.
+- An `icon` node is its glyph alone (shape none): vis-network draws no body, fill or border for it.
+- A color's alpha fades the border too (`color-rgba`, `color-hex-alpha`).
+- `font.strokeWidth` with no `strokeColor` strokes the label white, vis-network's default (`font-stroke-default-color`).
+- `scaling.label.drawThreshold` hides a label drawn under `drawThreshold - 1` screen pixels (`labelMinScreenSize`).
+- `font.vadjust` moves the label down (`labelOffsetY`); a node's `font.align` left or right aligns its lines
+  (`labelTextAlign`); a box's or text's uneven `margin` moves its label off center by half the difference of
+  opposite sides (`margin-sides`). graphty-element now draws a label its offset moves over its own node in front of
+  the node, as a center label is (`font-vadjust-neg` was hidden behind the dot);
+  `graphty-element/test/browser/label-offset-over-target.test.ts`.
+- A node takes none of a group's options it sets itself, each option whole (`Node.updateGroupOptions`): a node with a
+  `color` of its own keeps vis-network's default border, not its group's (`group-border`).
+- The style planner folds a tool's defaults rule last when a file has more than 15 rules, so a node the file does not
+  style keeps vis-network's default colors and shape (`default` on the groups sheets drew graphty's #6366f1).
+- A circle arrowhead is 0.8 of the arrow's length across (vis-network's `Circle`, radius 0.4 of it): it was drawn
+  the whole length across, and the line under it judged off (mappings-bypass `edge-default` curve 0.24 against 0.18).
+- `font.background` asks for a box round the words alone (`labelPadding` 0, `labelLineHeight` 1).
+
+Comparator and oracle fixes, each with a test under `graphty-element/test/fidelity/oracle/`:
+
+- A node graphty draws no body for (shape none, no image) is its label and glyph as free texts, unless the oracle
+  draws a node there: vis-network's text and icon nodes (`node.extra` on `shape-text`, `shape-icon`, `icon-*`).
+- Texts side by side on one line are one text, with a space where they are apart or one keeps a blank: vis-network
+  draws each multi-font block as its own text (`label.present` o=None on every multi-font label). The web oracles now
+  keep a text's blanks (`xml:space`): svgcanvas wrote the block " x" and the SVG collapsed its space; the
+  vis-network label sheets were drawn again (`tools/web/regenerate-web.sh`).
+- A curved open stroke across an edge's end is that end's arrowhead, a hollow half circle, also beside a node smaller
+  than it (`curve`, `inv_curve`: `edge.arrow` o=false). graphty's curve cap is read as the hollow half circle it draws.
+- graphty's line is carried on to the tip of a cap placed by its middle, as the oracle's is (`edge.route` 0.14 to
+  0.28 under `circle` and `inv_triangle` caps).
+- A dash gap of a tenth of its pattern still shows (`dashes-wide`, [5, 5] at width 4 under round caps, read solid by
+  rounding while the same edge read dashed on mappings-bypass).
+- A whole circle on a node's outline is the node's self-loop where graphty draws one, its route run from inside the
+  node and the way graphty's turns (`self-loop`, `self-reference-size*`, `label-loop` were stray paths, graphty's
+  loops extra edges).
+- Lines flush right are one wrapped label (`font-align-right`); a caption's first line that is another caption's
+  words still starts its wrapped caption; a text drawn off the canvas is judged nowhere (`font-shorthand` on
+  edge-labels draws its label beyond the right edge).
+
+Failing elements before -> after on the sheets: arrows 14 -> 6, edge-labels 29 -> 4, edge-labels-p2 4 -> 0,
+edges-lines 10 -> 2, edges-lines-p3 2 -> 2, groups 2 -> 0, groups-p2 2 -> 0, images-charts 22 -> 8, labels 13 -> 4,
+labels-p2 24 -> 4, labels-p3 3 -> 1, mappings-bypass 3 -> 1, node-fills-borders 3 -> 1, node-shapes 24 -> 5,
+node-sizes-opacity 3 -> 2. Still open, and why:
+
+- A modifier's own `vadjust` (`font.bold.vadjust` and the others: `font-*-vadjust` on labels-p2 and edge-labels, 4
+  rows each): the run is drawn that far lower; graphty-element's label markup has no vertical shift for a run, and the
+  comparator does not join a run drawn that far off the line. graphty-element work: a run offset in the markup.
+- A line of runs of mixed sizes (`font-multi-html`, `font-multi-markdown`, `font-mono-shorthand`: `label.offset` 33.9
+  against 27.8): vis-network draws every block middle-baselined on the line's middle and adds a mono block's
+  vadjust 2, graphty-element sets the runs on one baseline. graphty-element work.
+- `font.background` box (`label.backgroundBox` 22.4 x 9.2 against 25.2 x 15.7): graph-io asks for `labelPadding` 0
+  and `labelLineHeight` 1, and the label is built with `boxPadding` 0 and `lineHeight` 1, yet the box graphty-element
+  draws keeps its size: graphty-element.
+- `widthConstraint.maximum` (`width-constraint-max`: 2 lines against 3, node 53 x 30 against 39 x 38): vis-network
+  measures each blank between words as three when it wraps (`LabelSplitter.getLongestFit` joins its word list, the
+  blanks included, with a blank), so "a long box label" at 50 wraps after every word. graphty-element's wrap counts a
+  blank once; it needs a wrap option for it, and graph-io a neutral property to ask for it.
+- `edges.background` with `dashes` (`background-curved-dashes`, edges-lines-p3): vis-network draws the band dashed;
+  the neutral vocabulary has no line style for an edge's outline, nor graphty-element a dashed outline.
+- `json-vis-siblings` (200 nodes / 284 edges drawn, 83 / 104 associated): not an import gap. The file has no hidden or
+  duplicate record and vis-network draws all of them (`observed` 200 / 284 in the oracle's metadata); it stores no
+  positions, so graphty lays it out itself and the geometric association pairs 83 of its nodes by chance. Shared
+  with the other vis-network documents without positions (`unpositioned-layout-scale`).
+- `json-vis-synth` `curve`, `inv_curve` and `image` arrows (5->6, 6->7, 11->12) read as no arrow on the oracle: the
+  arc sits against the target dot where the next edge starts at the same center, and the comparator gives it to
+  neither; the image arrow is read as a stray picture.
+- Unchanged from round 1: `database` (no stroke on the oracle, sized from its label's width), `border-radius-12`
+  (shape class), `coordinate-origin-circular` and `image-background` (images-charts), `self-reference-front`.
+
 ## Specimen sheets: Pajek
 
 The Pajek specimen sheets (`graph-io/test/fidelity/specimens/pajek/`, written by `generators/specimens/pajek.py`

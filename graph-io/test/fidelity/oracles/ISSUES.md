@@ -712,6 +712,31 @@ Still open after fix round 1:
   `RectangleNodeStyle` corners, `ArrowNodeStyle`; `node-fills-borders`, `node-shapes`): the stand-in's, above. They
   wait for the owner's yEd Live export; yEd Live's license is treated as yEd's, so it is not driven by a script.
 
+## Specimen sheets: yEd Live settings graph-io now reads (fix round 2, 2026-10-19)
+
+What graph-io now reads (unit tests in `graph-io/test/formats/graphml/styles-yfiles3.test.ts`, "edge geometry, stroke
+alpha and hollow arrows"):
+
+- Edge bends: the `EdgeGeometry` key's `<x:List><y:Bend Location="x,y"/></x:List>` is the edge's `bends`, relative
+  to the centers of its two nodes' `NodeGeometry` boxes (a self-loop's to its node's size). Before, every yEd Live
+  edge was drawn straight (`bends-one`, `bends-two`, the smoothing and path auto-rotation specimens of
+  `edges-lines`, `-p2`, `-p3` and `edge-labels`).
+- Smoothing: a `PolylineEdgeStyle` with a `smoothingLength` above 0 and bends is `curved`, as the yEd reader treats a
+  smoothed `y:BendStyle`. yFiles rounds each bend with an arc of that length and keeps the straight runs; graphty
+  draws a curve through the bends, so a long straight run between two rounded bends is drawn bowed.
+- Stroke alpha: a node stroke's `#AARRGGBB` alpha is the `borderOpacity` (`stroke-alpha-40`, `stroke-alpha-80`).
+- An `Arrow` whose `fill` is `{x:Null}` is the open outline of its type (`triangle-open`, `diamond-open`,
+  `circle-open`) in its `stroke`'s color (`arrow-fill-null`).
+
+Not import defects, judged against the stand-in (wait for the owner's yEd Live export):
+
+- Arrow colors on `color-*`, `v2-stroke-color-ff0000` and `mappings-bypass`: each file gives its arrows their own
+  `fill="#FF505050"` beside a colored edge stroke, and yFiles fills an `Arrow` with its `fill`, so graphty's #505050
+  cap is what the file says; draw.io colors the cap with the edge stroke. `arrow-fill-ff0000` and
+  `v2-arrow-fill-ff0000` are drawn red by graphty (the arrow's fill) where draw.io draws #505050.
+- `arrow-stroke-ff0000` (`v2-arrow-stroke-ff0000`): a #505050 arrow with a red outline. The neutral vocabulary has
+  one arrow color, the fill; an arrow's separate outline color is not drawn (graphty-element has no arrow outline).
+
 ## Specimen sheets: Cytoscape.js
 
 The Cytoscape.js specimen sheets (`graph-io/test/fidelity/specimens/cytoscapejs/`, cy.json() documents written by
@@ -823,30 +848,81 @@ Fix round 1 (2026-10-19), what graph-io now reads as Cytoscape.js 3.34.3 draws i
 - The comparator no longer counts a group graphty draws nothing for (no fill, outline or label):
   `json-cyjs-tokyo`'s 204 invisible compound parents (`group.extra`).
 
-Still open after fix round 1:
+Fix round 2 (2026-10-19), what graph-io now reads (unit tests in `graph-io/test/styles/cyjs-specimen-fixes.test.ts`,
+the writer's round trip in `cyjs.test.ts`):
 
-- `text-opacity`, and the opacities of a label's outline and box between 0 and 1: graph-io's neutral styles have no
-  label opacity, and graphty-element's label style has none either (its colors carry an alpha, the neutral colors
-  do not). Needs a label opacity in both (`text-opacity-0-4`, the 809 translucent labels of `json-cyjs-tokyo`).
-- `text-margin-x` / `-y` (and the source and target forms): neither the neutral styles nor graphty-element's label
-  style have an offset of the label from its anchor; graphty-element's margins pad the label's box instead.
-- `text-background-padding`, `-shape` and the `text-border-*` box outline: no neutral slot; graphty-element's label
-  style has a padding, a corner radius and a border, which the neutral styles do not carry yet.
-- `text-wrap: ellipsis` (cut at `text-max-width` with an ellipsis): graph-io cannot measure text; graphty-element
-  needs an ellipsis wrap.
-- `width: label` / `height: label`: the neutral `labelFit` sizes both axes and the Cytoscape.js writer cannot write it
-  back; Cytoscape.js sizes one axis at a time. Needs a per-axis label fit.
-- `border-dash-pattern`, `-dash-offset`, `border-cap`, `line-dash-pattern`, `line-dash-offset`, `line-cap`: the
-  neutral styles carry the dash class only, and graphty-element draws its own fixed patterns; both need a dash
-  array.
-- Compound bounds (`padding`, `min-width` / `min-height` and their biases, `compound-sizing-wrt-labels`): graphty
-  places a Cytoscape.js parent around its members padded by its largest member's radius (`LayoutManager.placeGroups`)
-  because the file's compound position is not read (Cytoscape.js recomputes it); graphty-element needs a group
-  padding and minimum size, and graph-io to read them (11 `group.box` and the `min-width-80` `group.extra` on
-  `cytoscapejs-specimen-groups`).
-- An edge's `autorotate` label on a `segments`, `taxi` or `unbundled-bezier` route, or on a loop: Cytoscape.js turns
-  it along the route's middle segment or tangent (`midDispX` / `midDispY`); graph-io turns it along the line between
-  the nodes' centers, and a loop's label is not turned.
+- `text-opacity`, drawn times the element's `opacity` (`drawText`: `effectiveOpacity() * text-opacity`), as
+  `labelOpacity`; the label's box (`text-background-opacity`) is drawn at its own opacity times the element's, as
+  `labelBackgroundOpacity` (was drawn opaque). An edge's label follows the edge's `opacity`, not its `line-opacity`.
+  `json-cyjs-tokyo`'s edge labels at `opacity: 0.5` are its 533 `label.opacity` rows. The writer writes
+  `text-opacity` back divided by the opacity it writes.
+- `text-margin-x` / `-y` (negative too), a node's and an edge's, as `labelOffsetX` / `labelOffsetY`.
+- `text-border-width`, `-color` and `-opacity` as `labelBorderWidth` / `labelBorderColor`, drawn only with a width
+  and an opacity above 0 (both 0 by default); an opacity below 1 and the dotted, dashed and double styles are drawn
+  as a solid opaque line, noted. The writer writes them back.
+- `border-position` as `borderPosition`.
+- `width: label` / `height: label` as `labelFit: bounds` with that side 0 and the node's padding as the label
+  padding, the other side kept; written back as `width: label`.
+- `source-endpoint` / `target-endpoint` as `sourcePort` / `targetPort`: `inside-to-node` the center, `x y` offsets
+  (pixels or percentages of the outer size), an angle on the outline (a polygon's measured as its box); taxi edges
+  ignore them, as Cytoscape.js does. A `haystack` edge runs between the centers (its default `haystack-radius: 0`).
+- `unbundled-bezier` with no `control-point-distances`: its one control point at the step size (40 px), where it
+  was drawn as graphty's own arc. `round-segments` and `round-taxi`: each corner replaced by the arc
+  `calcCornerArc` draws (`segment-radii`, `taxi-radius`, default 15, `radius-type` arc or influence radius).
+- `line-style: dashed` and `border-style: dashed` as the line their dash pattern draws at their width
+  (`line-dash-pattern` 6 3, `border-dash-pattern` 4 2 in pixels, `line-cap` / `border-cap` lengthening each dash):
+  dotted where no dash is longer than one and a half widths (`json-cyjs-graphmaker`'s 5 px dashed edges, 32
+  `edge.dash` rows), dash-dot for long and short dashes. The exact lengths still need a dash array (below).
+
+graphty-element and the comparator in the same round:
+
+- A node's whole `opacity` now reaches its border (`translate.ts` composes `borderOpacity` with `opacity`), as the
+  neutral `opacity` says; it reached the fill alone (`opacity-0-15`: border drawn at 1).
+- Comparator: Cytoscape.js erases the canvas under a translucent edge's arrowhead before painting it (`drawArrowhead`,
+  `destination-out`, which the SVG replay records as a white fill of the same shape); the erasure was read as a hollow
+  arrowhead (`json-cyjs-graphmaker`'s 31 `edge.arrowFill` rows at `opacity: 0.2`). The arrow painted over it is now
+  the arrowhead (`compare-oracle-lines.test.ts`).
+
+`json-cyjs-graphmaker` fell from 73 failing elements to 12, the 24 Cytoscape.js samples from 3157 to 3049 before the
+label opacities (tokyo) were added.
+
+Still open after fix round 2:
+
+- The opacity of a label's outline (`text-outline-opacity`), and a label border's opacity and style: no neutral slot,
+  and graphty-element's label outline and border take none.
+- `text-background-padding` and `text-background-shape` (round-rectangle, circle): no neutral slot; graphty-element's
+  label style has a padding and a corner radius the neutral styles do not carry (`label-background-box`, shared with
+  six other formats: one slot for all of them).
+- Numeric font weights (100, 200, 900, `lighter`): the neutral `labelWeight` and graphty-element's
+  `LabelWeightValue` are `normal | bold` only; widening graphty-element's exported value type may break a consumer
+  that switches over it, so it waits for the owner.
+- `text-wrap: ellipsis` (graph-io cannot measure text; graphty-element needs an ellipsis wrap) and
+  `text-overflow-wrap: anywhere` (graphty-element breaks only at spaces).
+- `background-fill: radial-gradient` and stops between the first and last (`background-gradient-stop-colors` with
+  three colors, `-stop-positions`): graphty-element's mesh draws radial and many-stop fills, but its channels
+  (`node.gradientColor`, `node.gradientDirection`) carry one linear two-stop gradient and the neutral styles likewise
+  (`node-gradient`, shared with DOT and Pajek).
+- Exact dash lengths (`*-dash-pattern`, `*-dash-offset`): the dash class is read; the lengths need a dash array in
+  both packages.
+- `source-distance-from-node` / `target-distance-from-node` (8 px gaps): no neutral slot.
+- `haystack-radius` above 0: Cytoscape.js puts each end at a random point that far toward the outline
+  (`findHaystackPoints`, `Math.random`), which no reader can repeat; drawn from the centers.
+- `border-position: inside` / `outside`: read and drawn by graphty-element, but the comparator ignores the SVG's
+  `clip-path` (an inside border is Cytoscape.js's doubled stroke clipped to the node, `drawNode`), so it reads an
+  11.6 wide stroke for a 5.8 border; and the replay records an outside border's clip as the bare rectangle (the
+  `evenodd` path Cytoscape.js adds is dropped), so that oracle is wrong (`cytoscapejs-specimen-node-fills-borders`).
+- The haystack edges of `cytoscapejs-specimen-edges-lines` keep failing `edge.route` and `edge.arrow`: the comparator
+  attaches the neighboring straight-triangle edge's filled sliver (a 65 px triangle at the same height) to the
+  haystack edge as its source arrow and its route.
+- Compound bounds (`padding`, `min-width` / `-height` and biases, one child): graphty-element places a parent around
+  its members itself; it needs a group padding and minimum size, and graph-io to read them (`group-box-geometry`).
+- `json-cyjs-perf` and `json-cyjs-tokyo` have no compound parents: their `node.extra` / `group.extra` rows are plain
+  nodes the comparator leaves unpaired among overlapping nodes, and the unpaired bundled and haystack edges
+  (`edge.present` / `edge.extra`) are the comparator's (`comparator-edge-association`), as is an edge's translucent
+  overlay band read as a second edge (`edge-overlay-opacity-0-5`).
+- An edge line under a circle cap (`arrows`, `arrows-p2`, `comparator-arrow-line-reach`): open for the comparator.
+- An edge's `autorotate` label on a route or a loop, and the end labels' margins and rotations
+  (`source-text-margin-*`, `source-text-rotation`): as before.
 - The Cytoscape.js writer writes no `curve-style` for a straight edge, so Cytoscape.js draws a file graphty wrote with
   haystack edges and no arrows; it should write `curve-style: straight` where an arrow is drawn.
 

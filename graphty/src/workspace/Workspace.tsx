@@ -12,6 +12,8 @@ import { ReportDialog } from "./privacy/ReportDialog";
 import { ProjectDialogs } from "./project/ProjectDialogs";
 import { REGISTRATIONS } from "./registrations";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { useDropToOpen } from "./start/open";
+import { SamplesDialog } from "./start/SamplesDialog";
 import { StartScreen } from "./start/StartScreen";
 import { createWorkspaceStore, useStoreValue, type WorkspaceState, type WorkspaceStore } from "./state/store";
 import { makeWorkspaceValue, WorkspaceContext } from "./state/WorkspaceContext";
@@ -55,6 +57,7 @@ export function Workspace({
         [store, registry, element],
     );
     useCommandKeys(value);
+    useDropToOpen(value);
     // Once a project's element is up, a project opened from the start screen loads its sample or
     // file.
     useEffect(() => {
@@ -113,6 +116,7 @@ export function Workspace({
             <SettingsDialog />
             <ReportDialog />
             <ProjectDialogs />
+            <SamplesDialog />
         </WorkspaceContext.Provider>
     );
 }

@@ -8,7 +8,7 @@
  */
 
 import type { AutosaveEntry, Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadDraft } from "@graphty/graphty-element/session";
 import { useSyncExternalStore } from "react";
 
 import type { InspectedKind } from "../commands/registry";
@@ -54,6 +54,17 @@ export interface WorkspaceState {
     readonly rightWidth: number;
     readonly dockHeight: number;
     readonly dockOpen: boolean;
+    /**
+     * Whether the open table dock fills the canvas area, with the configuration beside it (data
+     * prototype spec section 3.5). A file with problems opens it so.
+     */
+    readonly dockMaximized: boolean;
+    /**
+     * A table read to join onto the graph, waiting for the join screen (spec section 3.6): a second
+     * file dropped, picked, pasted or chosen in Samples while the graph holds data. The join screen
+     * loads or disposes the draft and sets this back to null.
+     */
+    readonly joining: { readonly name: string; readonly draft: LoadDraft } | null;
     /** Whether the timeline strip is open above the toolbar; `timeline.toggle` flips it. */
     readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
@@ -101,6 +112,8 @@ const INITIAL: WorkspaceState = {
     rightWidth: PANEL_MIN,
     dockHeight: 240,
     dockOpen: false,
+    dockMaximized: false,
+    joining: null,
     timelineOpen: false,
     legendShown: true,
     exportOn: "image",

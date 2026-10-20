@@ -44,7 +44,7 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openFile, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openFiles, openGenerated, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -729,10 +729,7 @@ export function StartScreen(): React.JSX.Element {
         const drop = (event: DragEvent): void => {
             event.preventDefault();
             setDragging(false);
-            const file = event.dataTransfer?.files.item(0) ?? null;
-            if (file !== null) {
-                openFile(workspace, file);
-            }
+            openFiles(workspace, [...(event.dataTransfer?.files ?? [])]);
         };
         globalThis.addEventListener("dragover", over);
         globalThis.addEventListener("dragleave", leave);

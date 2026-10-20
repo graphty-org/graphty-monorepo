@@ -40,7 +40,8 @@ const chooseNextFile: BrowserCommand<[name: string, mimeType: string, text: stri
 const chromium = () => ({
     enabled: true,
     headless: true,
-    provider: playwright(),
+    // The clipboard, so Paste reads what a test wrote, as a reader's browser lets it after asking.
+    provider: playwright({ contextOptions: { permissions: ["clipboard-read", "clipboard-write"] } }),
     instances: [{ browser: "chromium" as const }],
     commands: { chooseNextFile },
 });

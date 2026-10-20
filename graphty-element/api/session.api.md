@@ -2240,6 +2240,7 @@ export interface LoadedSource extends DataSourceDescriptor {
         readonly nodes: number;
         readonly edges: number;
     };
+    readonly choices?: LoadChoices;
     readonly counts: {
         readonly nodes: number;
         readonly edges: number;
@@ -2248,6 +2249,9 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly joinedOnto?: SourceKey;
     readonly key: SourceKey;
     readonly kind: LoadedSourceKind;
+    readonly loadKey?: string;
+    readonly mapping?: LoadMappingRead;
+    readonly reloadable?: true;
     readonly tableRows?: readonly ("nodes" | "edges")[];
     readonly tables: readonly string[];
 }
@@ -3963,7 +3967,8 @@ export interface SessionDataApi {
     removeEdges(ids: readonly EdgeId[]): Promise<void>;
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
-    renameSource(name: string): Promise<void>;
+    reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
+    renameSource(name: string, key?: SourceKey): Promise<void>;
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;

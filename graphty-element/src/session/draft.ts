@@ -113,6 +113,25 @@ const ROLES: Readonly<Record<"nodes" | "edges", ReadonlySet<string>>> = {
     edges: new Set(["rowsAre", ...LOAD_ROLES.edges.takes]),
 };
 
+/** The choices a load keeps with it, for `data.reloadSource` to read the rows again the same way. */
+const KEPT_CHOICES = ["mapping", "unmatched", "duplicateIds", "kindIds", "directed"] as const;
+
+/**
+ * The choices a load keeps, as `{ choices }`, or nothing when it was given none.
+ * @param choices - What the load was given.
+ * @returns `{ choices }` or `{}`.
+ */
+function keptChoices(choices: LoadChoices): { choices?: LoadChoices } {
+    const kept: Record<string, unknown> = {};
+    for (const name of KEPT_CHOICES) {
+        if (choices[name] !== undefined) {
+            kept[name] = choices[name];
+        }
+    }
+
+    return Object.keys(kept).length === 0 ? {} : { choices: Object.freeze(kept) };
+}
+
 /** The endpoint column pairs a CSV edge table is probed for, as the CSV reader probes them. */
 const ENDPOINT_PAIRS: readonly (readonly [string, string])[] = [
     ["source", "target"],
@@ -661,6 +680,9 @@ export class Draft implements LoadDraft {
             held: plan.held,
             ...(choices.unmatched === undefined ? {} : { unmatched: choices.unmatched }),
             ...(choices.duplicateIds === undefined ? {} : { duplicateIds: choices.duplicateIds }),
+            ...keptChoices(choices),
+            // A graph file's tables are the format's own, so only a table's roles are worth keeping.
+            ...(read.tables.every((held) => held.table.fixed) ? {} : { mapping: plan.mapping }),
         };
         const data = {
             ...(choices.directed === undefined ? {} : { directed: choices.directed }),

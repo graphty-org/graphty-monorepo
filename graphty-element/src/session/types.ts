@@ -956,12 +956,16 @@ export interface SessionDataApi {
      * await session.data.renameSource("Les Miserables characters");
      * session.data.source()?.name; // "Les Miserables characters"
      * ```
+     * With a key, it renames that load of {@link SessionDataApi.sources} instead of the newest
+     * (`renameSource("ships.csv", "s1")`); {@link source} follows only when it is the newest.
      * @param name - the new name; not empty
+     * @param key - the load to rename (since 3.30.0); the newest when absent
      * @returns settles once the step is recorded
      * @throws A `GraphtyError` with `E_BAD_COMMAND` (`details.reason` `"no-source"`) when no
-     *     source is loaded, and (`"empty-name"`) for an empty name.
+     *     source is loaded, and (`"empty-name"`) for an empty name, and `E_SOURCE_UNKNOWN` for a
+     *     key `sources()` does not list.
      */
-    renameSource(name: string): Promise<void>;
+    renameSource(name: string, key?: SourceKey): Promise<void>;
     /**
      * The loads that supplied one node or edge, oldest first: every load whose rows named it, so
      * a node two files both list answers with both keys. Empty for an element the graph does not
@@ -1017,6 +1021,29 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    /**
+     * Read one load again from what it was read from, with changed choices -- another id, source
+     * or target column, the kinds of its ends, kept or scoped ids -- as one undoable step that
+     * keeps everything else, as {@link SessionDataApi.replaceSource} does. The choices are laid
+     * over the ones the load was read with (`LoadedSource.choices`); a mapping key set to `null`
+     * goes back to the element's own reading. Only a load this session read itself can be read
+     * again (`LoadedSource.reloadable`): what a file was is never saved in a project.
+     *
+     * ```ts
+     * const [log] = session.data.sources();
+     * if (log.reloadable === true) {
+     *     await session.data.reloadSource(log.key, { mapping: { sourceKind: "user", targetKind: "host" } });
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @param choices - What to change, as `draft.load` takes it; `mode` and `join` are ignored.
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does
+     *     not list, and `E_UNSUPPORTED` (`details.reason: "not-reloadable"`) for a load this session
+     *     did not read itself.
+     * @since 3.30.0
+     */
+    reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport>;
     /**
      * The load whose rows carry the same columns as a file's header (in any order), newest
      * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
@@ -1709,6 +1736,39 @@ export interface LoadedSource extends DataSourceDescriptor {
      * @since 3.30.0
      */
     readonly join?: JoinRecord;
+    /**
+     * The choices its rows were read with (the mapping, kinds, unmatched ends, repeated ids),
+     * as `draft.load` was given them; absent when it was given none. A role absent here is the
+     * element's own reading.
+     * @since 3.30.0
+     */
+    readonly choices?: LoadChoices;
+    /**
+     * The roles each table of the load was read with, by table id: the element's own reading
+     * with the choices laid over it (`draft.mapping` as loaded). Absent for a graph file, whose
+     * format sets its roles, and for a load that did not go through a draft (`import` with no
+     * choices, a network source).
+     *
+     * ```ts
+     * const edges = Object.values(source.mapping?.tables ?? {}).find((t) => t.rowsAre === "edges");
+     * edges?.source?.column; // "bait"
+     * ```
+     * @since 3.30.0
+     */
+    readonly mapping?: LoadMappingRead;
+    /**
+     * True when this session holds what the load was read from, so
+     * {@link SessionDataApi.reloadSource} can read it again; absent otherwise (a project opened
+     * from a file, a network source, a generated graph).
+     * @since 3.30.0
+     */
+    readonly reloadable?: true;
+    /**
+     * For a network source's load: its key in {@link SessionDataApi.loads}, which `data.more`,
+     * `data.refresh` and `data.checkSource` take.
+     * @since 3.30.0
+     */
+    readonly loadKey?: string;
 }
 
 /**
@@ -1952,7 +2012,7 @@ export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
  * `data` is the element's data configuration in its own shape: the on-load `algorithms`, the
  * `directed` policy, and `knownFields` with every known field (`nodeIdPath`, `nodeLabelPath`,
  * `nodeWeightPath`, `nodeTimePath`, `edgeSrcIdPath`, `edgeDstIdPath`, `edgeIdPath`,
- * `repeatedEdges`, `edgeWeightPath`, `edgeTimePath`, `positionScale`, `idCoercion`). A setting
+ * `repeatedEdges`, `edgeWeightPath`, `edgeWeightMeaning`, `edgeTimePath`, `positionScale`, `idCoercion`). A setting
  * nobody has set reads as its default.
  */
 export interface ProjectConfig {

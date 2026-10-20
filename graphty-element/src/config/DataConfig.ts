@@ -72,6 +72,11 @@ const GraphKnownFields = z.strictObject({
     // Without that fallback every weighted dataset here would silently read as unweighted, so the
     // fallback goes away only once nothing ships a "value" key.
     edgeWeightPath: z.string().or(z.null()).default("weight"),
+    // What a larger edge weight means: further apart ("distance"), more alike ("similarity") or
+    // more that can flow ("capacity"). Absent -- the default -- means nobody said; a reader of the
+    // weight then takes it as a strength, as it always has. Optional, so a config written in full
+    // before it existed still type-checks.
+    edgeWeightMeaning: z.enum(["distance", "similarity", "capacity"]).optional(),
     edgeTimePath: z.string().or(z.null()).default(null),
     // graph-format design 14.4's addNodes row: a record's data.position is written into the
     // importer-seed column SCALED to scene units by this factor. It must be > 0. Zero collapses

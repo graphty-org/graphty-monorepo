@@ -46,8 +46,10 @@ import { deepEquals } from "../styles/predicate";
 import type {
     HistoryCode,
     JoinRecord,
+    LoadChoices,
     LoadedSource,
     LoadedSourceKind,
+    LoadMappingRead,
     NodeRecordInput,
     RowUpdate,
 } from "../types";
@@ -182,6 +184,15 @@ export interface DataImportCommand {
     readonly join?: JoinRecord;
     /** The load's key, in place of the next one: an edited join keeps its key. */
     readonly key?: SourceKey;
+    /** The choices the rows were read with, kept with the load in `data.sources()`. */
+    readonly choices?: LoadChoices;
+    /** The roles each table was read with, the element's own reading included, kept with the load. */
+    readonly mapping?: LoadMappingRead;
+    /**
+     * A token for what the rows were read from, kept with the load; only the session that read
+     * them can resolve it, so `data.reloadSource` can read them again.
+     */
+    readonly input?: string;
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */

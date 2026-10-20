@@ -198,6 +198,8 @@ function batchOf(label: keyof typeof BATCH_CODES, ...steps: SessionCommand[]): S
 interface ImportExtra {
     readonly coalesce?: string;
     readonly origin?: "sample";
+    /** The token of what the rows were read from, for a file the session can read again. */
+    readonly input?: string;
 }
 
 /**
@@ -385,6 +387,19 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/** The roles the `replaceSource` and `reloadSource` doors read their edge table with. */
+const DOOR_SHIPS_MAPPING = {
+    tables: {
+        rows: {
+            rowsAre: "edges" as const,
+            source: { column: "source" },
+            target: { column: "target" },
+            weight: null,
+            time: null,
+            edgeId: null,
+        },
+    },
+};
 /** The load the `replaceSource` door replaces. */
 const DOOR_SHIPS_CSV = "source,target\nr1,r2\nr2,r3\n";
 /** The newer copy the `replaceSource` door replaces it with: r2-r3 gone, r1-r4 new. */
@@ -422,9 +437,63 @@ const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
             weight: null,
             repeated: "first",
         },
+        mapping: DOOR_SHIPS_MAPPING,
+        input: "i2",
         key: "s1",
         origin: "file",
     },
+];
+/** The `reloadSource` door's load, as the step that reads it again names it. */
+const DOOR_SHIPS_SOURCE = { type: "csv", config: { data: DOOR_SHIPS_CSV }, name: "door-ships.csv" };
+/** What `data.reloadSource("s1", {})` dispatches inside its batch: the same rows, read again. */
+const RELOAD_SOURCE_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-edges", ids: [] } },
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: [] } },
+    {
+        op: "data.setSource",
+        source: { type: "csv", name: "door-ships.csv", config: {} },
+        sources: [],
+        provenance: {},
+    },
+    {
+        op: "data.import",
+        source: DOOR_SHIPS_SOURCE,
+        tables: ["door-ships.csv"],
+        tableRows: ["edges"],
+        mode: "merge",
+        held: {
+            nodes: [],
+            edges: [
+                { source: "r1", target: "r2" },
+                { source: "r2", target: "r3" },
+            ],
+            declaredDirection: null,
+            errors: [],
+            errorLimit: 100,
+            idPath: "id",
+            source: "source",
+            target: "target",
+            weight: null,
+            repeated: "first",
+        },
+        mapping: DOOR_SHIPS_MAPPING,
+        input: "i2",
+        key: "s1",
+        origin: "file",
+    },
+];
+/** What `data.reloadSource("s1", {})` dispatches: the batch, then its steps. */
+const RELOAD_SOURCE_EXPECT: readonly unknown[] = [
+    {
+        op: "batch",
+        label: "Replaced door-ships.csv",
+        fact: {
+            code: "data.replace-source",
+            params: { key: "s1", name: "door-ships.csv", added: 0, removed: 0, changed: 0 },
+        },
+        steps: RELOAD_SOURCE_STEPS,
+    },
+    ...RELOAD_SOURCE_STEPS,
 ];
 /** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
 const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
@@ -1918,6 +1987,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                                 config: {},
                                 key: "s1",
                                 kind: "file",
+                                input: "i1",
                                 tables: [],
                                 added: { nodes: 2, edges: 1 },
                                 counts: { nodes: 2, edges: 1 },
@@ -1946,6 +2016,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     },
                 },
                 expect: REPLACE_SOURCE_EXPECT,
+            },
+            // Reads the load again from what it was read from, as replaceSource's one batch.
+            reloadSource: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1", {}],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import(DOOR_SHIPS_SOURCE);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: RELOAD_SOURCE_EXPECT,
             },
             // The values the join wrote go back, and the table joins anew, as one batch.
             editJoin: {
@@ -2118,7 +2203,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             clear: calls([], [CLEAR]),
             import: calls(
                 [{ type: "json", config: { data: TINY_JSON } }],
-                [imports("replace", { type: "json", config: { data: TINY_JSON } })],
+                // The token of what the rows were read from, so the load can be read again.
+                [imports("replace", { type: "json", config: { data: TINY_JSON } }, { input: "i1" })],
             ),
             // The generated graph's records, through the JSON reader.
             generate: calls(
@@ -2432,6 +2518,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         get id() {
                             return DOOR_NOTE.id;
                         },
+                        input: "i1",
                     },
                 ],
             ),

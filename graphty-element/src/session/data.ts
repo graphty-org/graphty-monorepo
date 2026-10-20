@@ -133,6 +133,7 @@ import type {
     LoadChoices,
     LoadedSource,
     LoadedSourceKind,
+    LoadMapping,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -154,6 +155,7 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    TableMapping,
     ValueCounts,
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
@@ -486,6 +488,13 @@ export class SessionData implements SessionDataApi {
         readonly snapshot: GraphSnapshot;
         readonly result: readonly LoadedSource[];
     } | null = null;
+    /**
+     * What each file load this session read was read from, by the token its `data.import`
+     * command and its `sources()` entry carry (`input`), for `reloadSource`. Memory only: a file is
+     * never saved in a project, so an opened project's token resolves to nothing.
+     */
+    private readonly kept = new Map<string, DataSourceInput>();
+    private keptSerial = 0;
     /** The loads whose rows carry each column, and what they were read from. */
     private columnSourcesMemo: {
         readonly described: readonly AttributeDescriptor[];
@@ -618,7 +627,35 @@ export class SessionData implements SessionDataApi {
 
         // Taken before the first await: a transaction routes only what a verb dispatches
         // synchronously, and detecting the format may have to read the file or fetch the URL.
-        await this.importVia(this.writes.importer(), source, options);
+        await this.importVia(this.keeping(this.writes.importer(), source), source, options);
+    }
+
+    /**
+     * Remember what a load is read from, under a new token.
+     * @param source - What it is read from.
+     * @returns The token, for the load's `data.import` command.
+     */
+    private keep(source: DataSourceInput): string {
+        const token = `i${String(++this.keptSerial)}`;
+        this.kept.set(token, source);
+        return token;
+    }
+
+    /**
+     * A dispatch that tags each `data.import` it sends, alone or in a batch, with the token of what
+     * the rows were read from, so the load's `sources()` entry says it can be read again.
+     * @param send - The dispatch.
+     * @param source - What the rows are read from.
+     * @returns The tagging dispatch.
+     */
+    private keeping<C extends DataImportCommand | BatchCommand>(
+        send: (command: C) => Promise<unknown>,
+        source: DataSourceInput,
+    ): (command: C) => Promise<unknown> {
+        const tag = (command: SessionCommand): SessionCommand =>
+            command.op === "data.import" ? { ...command, input: this.keep(source) } : command;
+        return (command) =>
+            send((command.op === "batch" ? { ...command, steps: command.steps.map(tag) } : tag(command)) as C);
     }
 
     /**
@@ -1019,7 +1056,7 @@ export class SessionData implements SessionDataApi {
                     const slice = this.writes.slice();
                     return { nodes: new Set(slice.nodes.keys()), edges: slice.edges.size };
                 },
-                importer: () => this.writes.importer(),
+                importer: () => this.keeping(this.writes.importer(), source),
                 measure: (command, config) => this.writes.measure(command, config),
                 released: (released) => {
                     if (this.draft === released) {
@@ -1415,7 +1452,8 @@ export class SessionData implements SessionDataApi {
             return { measuredBy: null, read: null };
         }
 
-        const measuredBy: WeightMeaning = { attribute, meaning: "strength" };
+        const meaning = this.readConfig().knownFields.edgeWeightMeaning === "distance" ? "distance" : "strength";
+        const measuredBy: WeightMeaning = { attribute, meaning };
         const carried = this.attributes().some((column) => column.kind === "edge" && column.name === attribute);
         // A session with no view holds no record attributes, only the store's weights, where a
         // missing number already weighs 1.
@@ -1687,10 +1725,11 @@ export class SessionData implements SessionDataApi {
     /**
      * Give the loaded source a new name, as one undoable step.
      * @param name - the new name
+     * @param key - the load to rename; the newest when absent
      * @returns settles once the step is recorded
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when no source is loaded or the name is empty.
      */
-    async renameSource(name: string): Promise<void> {
+    async renameSource(name: string, key?: SourceKey): Promise<void> {
         this.requireLive("renameSource");
         const current = this.source();
         if (current === null) {
@@ -1714,11 +1753,24 @@ export class SessionData implements SessionDataApi {
         // The last load is the one `source()` describes, so it takes the new name too. Read as
         // stored, not recounted: a rename costs the same however big the graph is.
         const sources = (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+        // An entry saved before loads had keys has its place in the list as its key, as `sources()` reads it.
+        const at =
+            key === undefined
+                ? sources.length - 1
+                : sources.findIndex((each, index) => (each.key ?? `s${String(index + 1)}`) === key);
+        if (key !== undefined && at < 0) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+                source: "data",
+                details: { key, known: this.sources().map((each) => each.key) },
+            });
+        }
+
+        const newest = at === sources.length - 1;
         await this.writes.setSource(
-            { ...current, name },
-            sources.length === 0
-                ? undefined
-                : [...sources.slice(0, -1), ...sources.slice(-1).map((last) => ({ ...last, name }))],
+            newest ? { ...current, name } : current,
+            sources.length === 0 ? undefined : sources.map((each, index) => (index === at ? { ...each, name } : each)),
         );
     }
 
@@ -1743,10 +1795,16 @@ export class SessionData implements SessionDataApi {
             stored.map((each, at) => {
                 const key = (each as Partial<LoadedSource>).key ?? `s${String(at + 1)}`;
                 const supplied = provenance?.[key];
+                const kind = (each as Partial<LoadedSource>).kind ?? "file";
+                const loadKey = kind === "server" ? this.networkLoadOf(supplied?.nodes ?? []) : undefined;
+                // The token is the session's own; the entry says only whether it resolves.
+                const { input, ...entry } = each as LoadedSource & { readonly input?: string };
                 return Object.freeze({
-                    ...each,
+                    ...entry,
                     key,
-                    kind: (each as Partial<LoadedSource>).kind ?? "file",
+                    kind,
+                    ...(input !== undefined && this.kept.has(input) ? { reloadable: true as const } : {}),
+                    ...(loadKey === undefined ? {} : { loadKey }),
                     counts: Object.freeze(
                         supplied === undefined
                             ? { ...each.added }
@@ -2117,6 +2175,8 @@ export class SessionData implements SessionDataApi {
                 ...(config === undefined ? [] : [config]),
                 {
                     ...captured,
+                    // The copy is what the load is read from now.
+                    input: this.keep(source),
                     mode: "merge",
                     // A pair the graph holds is that edge again: the merge keeps it and notes it supplied.
                     held: { ...held, repeated: "first" },
@@ -2250,6 +2310,60 @@ export class SessionData implements SessionDataApi {
     joins(): readonly JoinRecord[] {
         this.requireLive("joins");
         return Object.freeze(this.sources().flatMap((each) => (each.join === undefined ? [] : [each.join])));
+    }
+
+    /**
+     * The network load a load's nodes came from: the first load key a node it supplied carries.
+     * @param nodes - The nodes the load supplied.
+     * @returns The key in `loads()`, or undefined when none of them is in the graph.
+     */
+    private networkLoadOf(nodes: readonly NodeId[]): string | undefined {
+        const snapshot = this.current();
+        for (const id of nodes) {
+            const index = snapshot.ids.indexOf(id);
+            if (index !== INVALID_INDEX) {
+                // An expansion's key is `<load>/x<n>`: the load is the part before the slash.
+                const [first] = sourceLoadsOf(this.records?.nodeAttributes(index, id));
+                if (first !== undefined) {
+                    return first.split("/")[0];
+                }
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Read one load again from what it was read from, with changed choices, as one undoable step.
+     * @param key - The load's key.
+     * @param choices - What to change, laid over the choices it was read with.
+     * @returns What was added, removed and changed.
+     */
+    async reloadSource(key: SourceKey, choices: LoadChoices): Promise<ReplaceReport> {
+        this.requireLive("reloadSource");
+        const entry = this.sources().find((each) => each.key === key);
+        const token = (this.storedSources().find((each) => each.key === key) as { readonly input?: string } | undefined)
+            ?.input;
+        const input = token === undefined ? undefined : this.kept.get(token);
+        if (entry === undefined) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+                source: "data",
+                details: { key, known: this.sources().map((each) => each.key) },
+            });
+        }
+
+        if (input === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: `This session did not read load ${JSON.stringify(key)} itself, so it cannot read it again.`,
+                source: "data",
+                details: { reason: "not-reloadable", key },
+            });
+        }
+
+        return this.replaceSource(key, input, overChoices(entry.choices ?? {}, choices));
     }
 
     /**
@@ -3353,6 +3467,37 @@ function resolveImportSource(source: DataSourceInput): ImportSource | Promise<Im
     }
 
     return detect(undefined);
+}
+
+/**
+ * Choices laid over the ones a load was read with: each choice given wins, and a mapping's roles
+ * are laid over the earlier mapping's role by role (per table when either names tables).
+ * @param earlier - What the load was read with.
+ * @param later - What changes.
+ * @returns The choices to read it with now.
+ */
+function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
+    const { mode: _mode, join: _join, ...rest } = later;
+    const a = earlier.mapping;
+    const b = rest.mapping;
+    if (a === undefined || b === undefined) {
+        return { ...earlier, ...rest, ...(a === undefined && b === undefined ? {} : { mapping: b ?? a }) };
+    }
+
+    let mapping: LoadMapping;
+    if ("tables" in a || "tables" in b) {
+        // A bare mapping cannot be placed among named tables, so the later one wins whole.
+        const tables: Record<string, TableMapping> = "tables" in a && "tables" in b ? { ...a.tables } : {};
+        for (const [id, roles] of Object.entries("tables" in b ? b.tables : {})) {
+            tables[id] = { ...tables[id], ...roles };
+        }
+
+        mapping = "tables" in b ? { tables } : b;
+    } else {
+        mapping = { ...a, ...b };
+    }
+
+    return { ...earlier, ...rest, mapping };
 }
 
 /**

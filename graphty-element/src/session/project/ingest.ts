@@ -55,6 +55,16 @@ import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
 /**
+ * A load's input token as its `data.sources()` entry keeps it, out of sight of the entry's type.
+ * @param command - The import.
+ * @param command.input - The token, when the rows were read from something the session holds.
+ * @returns `{ input }`, or nothing.
+ */
+function inputOf(command: { readonly input?: string }): { readonly input?: string } {
+    return command.input === undefined ? {} : { input: command.input };
+}
+
+/**
  * Whether a value may be used as a graph-format node id.
  *
  * graph-format accepts a string or a FINITE number and throws `E_INVALID_ID` for anything else
@@ -541,6 +551,9 @@ export class Ingest<K extends KnownEdge> {
                 kind,
                 ...(command.joinedOnto === undefined ? {} : { joinedOnto: command.joinedOnto }),
                 ...(command.join === undefined ? {} : { join: command.join }),
+                ...(command.choices === undefined ? {} : { choices: command.choices }),
+                ...(command.mapping === undefined ? {} : { mapping: command.mapping }),
+                ...inputOf(command),
                 tables: Object.freeze([...(command.tables ?? [])]),
                 ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
                 added,

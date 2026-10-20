@@ -3,7 +3,7 @@
  * guard (design/rendering/node-models.md, sections 3.3 and 3.4).
  *
  * Every file of the set becomes a `blob:` URL for the length of the load and is revoked after it.
- * The main file is named under {@link MODEL_ROOT}, so its references resolve to names the guard
+ * The main file is named under a root of the load's own (requestGuard.ts), so its references resolve to names the guard
  * maps to those `blob:` URLs, and anything else Babylon asks for throws. The model chunk, which
  * carries the loaders and their shaders, is imported here on first use and never before.
  */
@@ -12,7 +12,7 @@ import type { AssetContainer } from "@babylonjs/core/assetContainer";
 import type { Scene } from "@babylonjs/core/scene";
 
 import type { CodedFact } from "../session/shared";
-import { guardRequests, MODEL_ROOT, REFUSED } from "./requestGuard";
+import { guardRequests, REFUSED } from "./requestGuard";
 
 /** The model chunk, as its one dynamic import resolves. */
 export type ModelChunk = typeof import("./chunk");
@@ -88,15 +88,10 @@ export async function loadModel(
         urls.set(path, URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>])));
     }
 
-    const release = guardRequests(urls);
+    const { root, release } = guardRequests(urls);
     try {
         const slash = main.lastIndexOf("/");
-        return await module.loadModelFiles(
-            scene,
-            MODEL_ROOT + main.slice(0, slash + 1),
-            main.slice(slash + 1),
-            extension,
-        );
+        return await module.loadModelFiles(scene, root + main.slice(0, slash + 1), main.slice(slash + 1), extension);
     } catch (error) {
         const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : "";
         const text = error instanceof Error ? `${error.message} ${cause}` : String(error);

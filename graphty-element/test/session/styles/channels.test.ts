@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { EdgeLinePattern } from "../../../src/catalog/types";
+import type { Binding, EdgeLinePattern } from "../../../src/catalog/types";
 import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
@@ -18,6 +18,7 @@ import {
     type ColorChannel,
     type EdgeLineValue,
     isChannel,
+    modelBindingProblem,
     type NodeShapeValue,
     type PaintedValue,
     toColorValue,
@@ -575,5 +576,31 @@ describe("the arrow-end channels", () => {
                 assert.deepStrictEqual(asHead, head, suffix);
             }
         }
+    });
+});
+
+describe("modelBindingProblem", () => {
+    const at = "encode.node.model";
+
+    it("accepts a value map of asset ids that skips unlisted categories", () => {
+        assert.isNull(modelBindingProblem({ by: "data.kind", map: { a: "asset:a" }, unmapped: "skip" }, at));
+        assert.isNull(modelBindingProblem({ value: "https://example.com/x.glb" }, at), "a literal is judged by origin");
+    });
+
+    it("refuses a URL anywhere among the listed values", () => {
+        const url = "https://example.com/x.glb";
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: url }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", missing: { value: url } },
+            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: url } },
+        ];
+        for (const binding of bindings) {
+            assert.equal(modelBindingProblem(binding, at)?.code, "E_MODEL_URL_BLOCKED");
+        }
+    });
+
+    it("refuses a value read from the data", () => {
+        assert.equal(modelBindingProblem({ by: "data.url", scale: "passthrough" }, at)?.path, `${at}.unmapped`);
+        assert.equal(modelBindingProblem({ template: ["{data.url}"] }, at)?.path, `${at}.template`);
     });
 });

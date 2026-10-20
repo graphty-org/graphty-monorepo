@@ -199,13 +199,14 @@ encoding draws each kind as its own model:
 
 ```ts
 await graph.session.styles.encode({
-    column: "kind",
+    column: { kind: "node", name: "kind" },
     channel: "node.model",
     values: { server: "asset:sample/server", person: "asset:sample/person" },
 });
 ```
 
-This uses the existing `styles.encode` with a value map. Encoded and computed values of
+This uses the existing `styles.encode` with a value map (`values`, written as the binding's `map`
+with `unmapped: "skip"`, so a kind the map does not list keeps `node.shape`). Encoded and computed values of
 `node.model` may name **asset ids only**, never URLs: a column of URLs would make one request per
 node to any host, and an expression could build a URL out of node data and leak it. A URL there
 is refused with `E_MODEL_URL_BLOCKED`.

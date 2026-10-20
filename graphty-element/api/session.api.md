@@ -397,6 +397,7 @@ export interface CollapseResult {
 // @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
+    readonly values?: Readonly<Record<string, string | number>>;
 }
 
 // @public

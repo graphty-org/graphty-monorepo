@@ -66,7 +66,14 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
+import {
+    type ChannelDescriptor,
+    channelDescriptor,
+    channelsFor,
+    labelFieldOf,
+    modelBindingProblem,
+    toColorValue,
+} from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
@@ -1164,6 +1171,10 @@ function checkChannels(
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
+            const blocked = descriptor.channel === "node.model" ? modelBindingProblem(binding, path) : null;
+            if (blocked !== null) {
+                report(log, blocked);
+            }
         }
     }
 }

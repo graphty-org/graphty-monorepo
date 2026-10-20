@@ -56,7 +56,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
+import type { Binding, Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
@@ -70,6 +70,7 @@ import {
     NodeSizeModes,
     type NodeStyleConfig,
 } from "../../config/NodeStyle";
+import { isAssetId } from "../assets/assetId";
 
 // ---------------------------------------------------------------------------------------------
 // Colour: one string parse, kept
@@ -1453,4 +1454,62 @@ export function channelDescriptor(channel: string): ChannelDescriptor | undefine
  */
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[] {
     return CHANNELS.map((channel) => CHANNEL_DESCRIPTORS[channel]).filter((descriptor) => descriptor.target === target);
+}
+
+/**
+ * Why a binding may not write `node.model`, or null when it may (design/rendering/node-models.md,
+ * section 2.2).
+ *
+ * An encoded `node.model` names ASSET IDS ONLY. A URL in a value map would make one request per
+ * category to any host, and a value read from the data -- a column of URLs, a template -- would let
+ * a file the reader opened choose what the page fetches. So the only values such a binding may
+ * paint are the ones it lists (`map`, `other.value`, `missing.value`), every one an asset id, and a
+ * category it does not list must be left to the layers beneath (`unmapped: "skip"`). A literal
+ * `set` is not judged here: who may fetch a literal URL is decided by where the layer came from.
+ * @param binding - The binding written to `node.model`.
+ * @param path - Where in the specification it sits, such as `encode.node.model`.
+ * @returns The `E_MODEL_URL_BLOCKED` problem, or null.
+ */
+export function modelBindingProblem(
+    binding: Binding,
+    path: string,
+): { readonly code: "E_MODEL_URL_BLOCKED"; readonly message: string; readonly path: string } | null {
+    if ("value" in binding) {
+        return null;
+    }
+
+    const computed = (where: string): { code: "E_MODEL_URL_BLOCKED"; message: string; path: string } => ({
+        code: "E_MODEL_URL_BLOCKED",
+        message:
+            "An encoded node.model paints only the asset ids its value map lists; a value read from the " +
+            'data is never a model. List every category in "map" and set unmapped: "skip".',
+        path: `${path}${where}`,
+    });
+
+    if (!("by" in binding)) {
+        return computed(".template");
+    }
+
+    if (binding.unmapped !== "skip") {
+        return computed(".unmapped");
+    }
+
+    const listed: [string, unknown][] = [
+        ...Object.entries(binding.map ?? {}).map(([name, value]): [string, unknown] => [`.map.${name}`, value]),
+        ...(binding.other === undefined ? [] : [[".other.value", binding.other.value] as [string, unknown]]),
+        ...(typeof binding.missing === "object"
+            ? [[".missing.value", binding.missing.value] as [string, unknown]]
+            : []),
+    ];
+    const bad = listed.find(([, value]) => !isAssetId(value));
+
+    return bad === undefined
+        ? null
+        : {
+              code: "E_MODEL_URL_BLOCKED",
+              message:
+                  `An encoded node.model names asset ids only, never a URL: ${JSON.stringify(bad[1])} is not one. ` +
+                  "Add the file with session.assets.add and map the category to the id it returns.",
+              path: `${path}${bad[0]}`,
+          };
 }

@@ -394,6 +394,18 @@ export interface StylesApi {
      * ```ts
      * await session.styles.encode({ column: { kind: "node", name: "department" }, channel: "node.color" });
      * ```
+     *
+     * `values` names what each category paints, and leaves a category it does not list alone.
+     * That is how each kind of node is drawn as its own model; `node.model` takes asset ids only,
+     * and a URL there is refused with `E_MODEL_URL_BLOCKED` before anything is fetched:
+     *
+     * ```ts
+     * await session.styles.encode({
+     *     column: { kind: "node", name: "kind" },
+     *     channel: "node.model",
+     *     values: { server: "asset:server", person: "asset:person" },
+     * });
+     * ```
      * @param spec - The run or the column, the channel and the taste.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer, and rejects with `E_UNKNOWN_RUN` for a run this

@@ -24,6 +24,8 @@ import {
     setUpQuietly,
     uploadPremultiplied,
 } from "./LabelBatch";
+import { closeGlyphRect, closeHitFractions, closeReserve, drawCloseGlyph, markCloseLabel } from "./labelClose";
+import { fitToScreen, type LabelPlacement, type PlacementBounds } from "./labelScreenFit";
 import { type ContentArea as PointerContentArea, type PointerDirection, PointerRenderer } from "./PointerRenderer";
 import { RichTextAnimator } from "./RichTextAnimator";
 import { measureLine, RichTextParser, wrapLines } from "./RichTextParser";
@@ -34,6 +36,9 @@ import { pixelsPerUnit } from "./screenSize";
 const depthFadeFrames = new FrameRoster();
 /** The labels with a `minScreenSize`, each shown or hidden by its size on screen before every frame. */
 const minScreenSizeFrames = new FrameRoster();
+
+/** What a label hangs beside before it has been placed. */
+const NO_BOUNDS: PlacementBounds = { min: Vector3.Zero(), max: Vector3.Zero(), z: 0 };
 
 /** The Babylon rendering group a label drawn on top uses: after nodes and edges (group 0). */
 const ON_TOP_RENDERING_GROUP = 1;
@@ -196,6 +201,8 @@ type ResolvedRichTextLabelOptions = RequiredExceptOptional<
     | "textPath"
     | "location"
     | "borders"
+    | "sizeMode"
+    | "keepInView"
 > & {
     badge: BadgeType;
     icon: string | undefined;
@@ -388,6 +395,8 @@ export class RichTextLabel {
     /** One line's canvas height (the line, its margins, padding and borders), as `heightInLines` measures it. */
     private oneLinePx = 0;
     private totalBorderWidth = 0;
+    /** The room around the panel its drop shadow is drawn in, on every side; zero without one. */
+    private shadowMargin = 0;
     private pointerInfo: PointerInfo | null = null;
     private _progressValue = 0;
     private readonly id: string;
@@ -401,11 +410,17 @@ export class RichTextLabel {
     private stopDepthFade: (() => void) | null = null;
     /** Ends this label's screen size check; see {@link minScreenSizeFrames}. */
     private stopMinScreenSize: (() => void) | null = null;
+    /** Ends this label's screen sizing and keeping in view; see labelScreenFit. */
+    private stopScreenFit: (() => void) | null = null;
+    /** What the label hangs beside, in its parent's coordinates, once attached. */
+    private placementBounds: PlacementBounds | null = null;
     /** What a "center" label hangs from: a point at its node's centre that faces the camera. */
     private centerPivot: TransformNode | null = null;
     /** Whether the label last undid a stretch of its target, so a target back at its own size resets it. */
     private undoesStretch = false;
     private animationStarted = false;
+    /** Takes the plane off its scene's count of labels with a close button. */
+    private unmarkClose: (() => void) | null = null;
 
     /** Set while {@link RichTextLabel.measureWords} builds a label that is only measured, never drawn. */
     private static measuring = false;
@@ -491,6 +506,11 @@ export class RichTextLabel {
             textShadowBlur: 4,
             textShadowOffsetX: 2,
             textShadowOffsetY: 2,
+            panelShadow: false,
+            panelShadowColor: "rgba(0, 0, 0, 0.3)",
+            panelShadowBlur: 16,
+            panelShadowOffsetX: 0,
+            panelShadowOffsetY: 6,
             textOutline: false,
             textOutlineColor: "black",
             textOutlineWidth: 2,
@@ -514,6 +534,7 @@ export class RichTextLabel {
             smartOverflow: false,
             maxNumber: 999,
             overflowSuffix: "+",
+            closeButton: false,
             _badgeType: undefined,
             _smartSizing: undefined,
             _paddingRatio: undefined,
@@ -558,6 +579,11 @@ export class RichTextLabel {
         // An opacity of the words or of the panel is drawn as their colour's alpha.
         finalOptions.textColor = withOpacity(finalOptions.textColor, finalOptions.textOpacity);
         finalOptions.backgroundColor = withOpacity(finalOptions.backgroundColor, finalOptions.backgroundOpacity);
+
+        // The x keeps the words clear of it by taking room from their right.
+        if (finalOptions.closeButton) {
+            finalOptions.marginRight += closeReserve(finalOptions.fontSize);
+        }
 
         this.options = finalOptions;
         this.id = `richLabel_${Math.random().toString(36).substring(2, 11)}`;
@@ -625,6 +651,7 @@ export class RichTextLabel {
         } else if (this.mesh) {
             this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
             this.originalPosition ??= this.mesh.position.clone();
+            this.placementBounds = this._pointBounds(this.mesh.position);
         }
 
         if (this.options.depthFadeEnabled) {
@@ -640,6 +667,10 @@ export class RichTextLabel {
                     this.mesh.visibility = this.tooSmall(camera) ? 0 : 1;
                 }
             });
+        }
+
+        if (this.options.sizeMode === "screen" || this.options.keepInView === true) {
+            this._setupScreenFit();
         }
 
         // Don't start animations immediately - wait for startAnimation() to be called
@@ -669,15 +700,7 @@ export class RichTextLabel {
         this.textSize = { width: maxWidth, height: totalHeight };
         const bgPadding = this.options.backgroundPadding * 2;
 
-        this.totalBorderWidth = 0;
-        if (this.options.borders.length > 0) {
-            for (let i = 0; i < this.options.borders.length; i++) {
-                this.totalBorderWidth += this.options.borders[i].width;
-                if (i < this.options.borders.length - 1 && this.options.borders[i].spacing > 0) {
-                    this.totalBorderWidth += this.options.borders[i].spacing;
-                }
-            }
-        }
+        this.totalBorderWidth = this._sumBorderWidth();
 
         const contentWidth = maxWidth + this.options.marginLeft + this.options.marginRight + bgPadding;
         const contentHeight = totalHeight + this.options.marginTop + this.options.marginBottom + bgPadding;
@@ -711,6 +734,42 @@ export class RichTextLabel {
                 this.actualDimensions.width = minDimension;
                 this.contentArea.x += extraWidth / 2;
             }
+        }
+
+        this._addShadowRoom();
+    }
+
+    /**
+     * The width of every border plus the spacing between them.
+     * @returns The total, in canvas pixels.
+     */
+    private _sumBorderWidth(): number {
+        const { borders } = this.options;
+        let total = 0;
+        for (let i = 0; i < borders.length; i++) {
+            total += borders[i].width;
+            if (i < borders.length - 1 && borders[i].spacing > 0) {
+                total += borders[i].spacing;
+            }
+        }
+
+        return total;
+    }
+
+    /** Grow the canvas evenly on every side to make room for the panel's shadow. */
+    private _addShadowRoom(): void {
+        // ROOM FOR THE SHADOW, THE SAME ON EVERY SIDE, so the panel stays centered on the plane and
+        // the shadow is not cut off at the canvas edge. The plane grows with it, in proportion, so
+        // the letters keep their size.
+        const { panelShadowBlur: blur, panelShadowOffsetX: dx, panelShadowOffsetY: dy } = this.options;
+        this.shadowMargin = this.options.panelShadow ? Math.max(0, blur) + Math.max(Math.abs(dx), Math.abs(dy)) : 0;
+        if (this.shadowMargin > 0) {
+            const panelHeight = this.actualDimensions.height;
+            this.actualDimensions.width += this.shadowMargin * 2;
+            this.actualDimensions.height += this.shadowMargin * 2;
+            this.contentArea.x += this.shadowMargin;
+            this.contentArea.y += this.shadowMargin;
+            this.heightInLines *= this.actualDimensions.height / panelHeight;
         }
     }
 
@@ -785,13 +844,17 @@ export class RichTextLabel {
 
     private _createTexture(): void {
         const MAX_TEXTURE_SIZE = 4096;
+        // A label sized for the screen draws one canvas unit per CSS pixel, so its texture needs
+        // a texel per device pixel to stay sharp on a high-density screen.
+        const screenDensity = this.options.sizeMode === "screen" ? Math.max(1, globalThis.devicePixelRatio || 1) : 1;
 
         // AT MOST LABEL_MAX_FONT_PX TEXTURE PIXELS PER EM. The plane's size in the scene comes from
         // the font size, not from the texture, so a label drawn very large in the scene (a file whose
         // labels are many times its nodes) needs no more pixels than one drawn at that cap: without
         // it a 1000 px font asked a 4096 x 1024 texture of every label, and a hundred such labels
         // took gigabytes of GPU memory and crashed the browser.
-        const density = Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
+        const fontCap = Math.min(1, LABEL_MAX_FONT_PX / this.options.fontSize);
+        const density = screenDensity * fontCap;
         let textureWidth = this.options.autoSize
             ? Math.pow(2, Math.ceil(Math.log2(this.actualDimensions.width * density)))
             : this.options.resolution;
@@ -873,13 +936,20 @@ export class RichTextLabel {
 
         this.renderer.drawText(ctx, this.parsedContent, textArea);
 
+        if (this.options.closeButton) {
+            drawCloseGlyph(ctx, this.closeGlyph(), this.options.textColor);
+        }
+
         ctx.restore();
         uploadPremultiplied(this.texture);
     }
 
     private _drawBackgroundWithBorders(ctx: CanvasRenderingContext2D): void {
-        const { width } = this.actualDimensions;
-        const { height } = this.actualDimensions;
+        this._drawPanelShadow(ctx);
+
+        const m = this.shadowMargin;
+        const width = this.actualDimensions.width - m * 2;
+        const height = this.actualDimensions.height - m * 2;
         const radius = this.options.cornerRadius;
 
         if (this.options.borders.length > 0) {
@@ -895,8 +965,8 @@ export class RichTextLabel {
                 ctx.save();
                 ctx.fillStyle = border.color ?? "rgba(255, 255, 255, 0.8)";
 
-                const x = currentOffset;
-                const y = currentOffset;
+                const x = m + currentOffset;
+                const y = m + currentOffset;
                 const w = width - currentOffset * 2;
                 const h = height - currentOffset * 2;
                 const r = Math.max(0, radius - currentOffset);
@@ -929,8 +999,8 @@ export class RichTextLabel {
 
                     this._createRoundedRectPath(
                         ctx,
-                        innerOffset,
-                        innerOffset,
+                        m + innerOffset,
+                        m + innerOffset,
                         width - innerOffset * 2,
                         height - innerOffset * 2,
                         innerRadius,
@@ -963,6 +1033,8 @@ export class RichTextLabel {
     }
 
     private _drawBackgroundWithPointer(ctx: CanvasRenderingContext2D): void {
+        this._drawPanelShadow(ctx);
+
         const radius = this.options.cornerRadius;
 
         if (this.options.borders.length > 0 && this.pointerInfo) {
@@ -1079,6 +1151,76 @@ export class RichTextLabel {
         }
         const value = toColorValue(bg);
         return value !== null && value.a < 1;
+    }
+
+    /**
+     * Draw the panel's drop shadow, and only the shadow: the panel's outline is filled far off the
+     * canvas and its shadow thrown back onto it, so a see-through panel does not show a filled
+     * shape through itself.
+     * @param ctx - The label's canvas, already scaled to label units.
+     */
+    private _drawPanelShadow(ctx: CanvasRenderingContext2D): void {
+        if (this.shadowMargin === 0) {
+            return;
+        }
+
+        // Shadow blur and offset are in canvas pixels; the transform does not scale them.
+        const { a: sx, d: sy } = ctx.getTransform();
+        const away = this.actualDimensions.width * 2;
+
+        ctx.save();
+        ctx.shadowColor = this.options.panelShadowColor;
+        ctx.shadowBlur = this.options.panelShadowBlur * Math.min(sx, sy);
+        ctx.shadowOffsetX = (this.options.panelShadowOffsetX + away) * sx;
+        ctx.shadowOffsetY = this.options.panelShadowOffsetY * sy;
+        ctx.fillStyle = "black";
+        this._tracePanelOutline(ctx, -away);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    /**
+     * Trace the outside edge of the panel -- its outermost border, or the panel itself when it has
+     * none -- as the current path.
+     * @param ctx - The label's canvas.
+     * @param dx - How far to the right to trace it.
+     */
+    private _tracePanelOutline(ctx: CanvasRenderingContext2D, dx: number): void {
+        const border = this.totalBorderWidth;
+        const radius = this.options.cornerRadius;
+        if (this.options.pointer && this.pointerInfo) {
+            ctx.beginPath();
+            this.pointerRenderer.createSpeechBubblePath(
+                ctx,
+                {
+                    x: this.contentArea.x - border + dx,
+                    y: this.contentArea.y - border,
+                    width: this.contentArea.width + border * 2,
+                    height: this.contentArea.height + border * 2,
+                },
+                radius,
+                {
+                    width: this.pointerInfo.width,
+                    height: this.pointerInfo.height,
+                    offset: this.pointerInfo.offset,
+                    direction: this.pointerInfo.direction as PointerDirection,
+                    curved: this.pointerInfo.curve,
+                },
+            );
+            ctx.closePath();
+            return;
+        }
+
+        const m = this.shadowMargin;
+        ctx.beginPath();
+        if (this.options.borders.length > 0) {
+            const { width, height } = this.actualDimensions;
+            this._createRoundedRectPath(ctx, m + dx, m, width - m * 2, height - m * 2, radius);
+            return;
+        }
+
+        const { x, y, width, height } = this.contentArea;
+        this._createRoundedRectPath(ctx, x + dx, y, width, height, radius);
     }
 
     private _fillBackground(ctx: CanvasRenderingContext2D): void {
@@ -1250,16 +1392,15 @@ export class RichTextLabel {
         // asks for 999 to mean "a pill", and every one of them was drawn as a square.
         const radius = Math.max(0, Math.min(wanted, width / 2, height / 2));
 
-        // no beginPath here: a caller cutting a hole adds a second rectangle to the same path
+        // CIRCULAR ARCS, NOT QUADRATICS. A quadratic corner bulges towards the corner, and two of
+        // them a border's width apart are not parallel: the ring between them was thicker along
+        // the diagonal than along the edges (#3158).
+        // No beginPath here: a caller cutting a hole adds a second rectangle to the same path.
         ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + width - radius, y);
-        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-        ctx.lineTo(x + width, y + height - radius);
-        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-        ctx.lineTo(x + radius, y + height);
-        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-        ctx.lineTo(x, y + radius);
-        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.arcTo(x + width, y, x + width, y + height, radius);
+        ctx.arcTo(x + width, y + height, x, y + height, radius);
+        ctx.arcTo(x, y + height, x, y, radius);
+        ctx.arcTo(x, y, x + width, y, radius);
         ctx.closePath();
     }
 
@@ -1374,6 +1515,13 @@ export class RichTextLabel {
         );
 
         this.mesh.material = this.material;
+        // A label with a close button is told apart from other labels by a click; see labelClose.
+        // Every label plane is pickable, as Babylon makes it, so one without a button still
+        // stops a click as it always has: a click on it reaches no node behind it.
+        if (this.options.closeButton) {
+            this.unmarkClose = markCloseLabel(this.mesh, () => this.closeBounds);
+        }
+
         this.mesh.billboardMode = this.options.billboardMode;
         // Turned in its own plane, which faces the camera: clockwise on screen is a negative turn about z.
         this.mesh.rotation.z = (-(this.options.rotation ?? 0) * Math.PI) / 180;
@@ -1403,6 +1551,7 @@ export class RichTextLabel {
         } else {
             this.dropPivot();
             this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
+            this.placementBounds = this._pointBounds(this.mesh.position);
             return;
         }
 
@@ -1430,6 +1579,14 @@ export class RichTextLabel {
                 height: labelHeight,
                 offset: this.options.attachOffset,
             });
+            // What a screen fit places it beside: the bounds in the pivot's frame, whose origin is
+            // the node's centre.
+            const centre = bounds.min.add(bounds.max).scaleInPlace(0.5);
+            this.placementBounds = {
+                min: bounds.min.subtract(centre),
+                max: bounds.max.subtract(centre),
+                z: -Vector3.Distance(bounds.min, bounds.max) / 2,
+            };
         } else {
             placeBeside(
                 newPos,
@@ -1439,6 +1596,7 @@ export class RichTextLabel {
                 this.options.attachOffset,
                 stretch ?? undefined,
             );
+            this.placementBounds = { min: bounds.min, max: bounds.max, z: newPos.z };
         }
 
         // Moved by its offset and its shift, right and down on screen: y is up in every frame here. The shift is along
@@ -1479,6 +1637,52 @@ export class RichTextLabel {
         if (this.animator) {
             this.animator.updateOriginalPosition(newPos);
         }
+    }
+
+    private _pointBounds(point: Vector3): PlacementBounds {
+        return { min: point.clone(), max: point.clone(), z: point.z };
+    }
+
+    private _setupScreenFit(): void {
+        const { mesh } = this;
+        if (!mesh) {
+            return;
+        }
+
+        const { options } = this;
+        const size = (): ActualDimensions => this.actualDimensions;
+        const lines = (): number => this.heightInLines;
+        const lineHeight = (): number => this.lineHeightInWorld();
+        const bounds = (): PlacementBounds => this.placementBounds ?? NO_BOUNDS;
+        this.stopScreenFit = fitToScreen(this.scene, {
+            mesh,
+            get planeWidth() {
+                return (size().width / size().height) * this.planeHeight;
+            },
+            get planeHeight() {
+                return lineHeight() * lines();
+            },
+            // `fontSize` is `sizePx`, so one canvas unit is one CSS pixel and the letters are
+            // `sizePx` CSS pixels tall.
+            get screenHeight() {
+                return options.sizeMode === "screen" ? size().height : undefined;
+            },
+            get keepInView() {
+                return options.keepInView === true;
+            },
+            get bounds() {
+                return bounds();
+            },
+            // A label with nothing to hang from sits exactly where it was put.
+            get placement() {
+                const at = options.attachPosition;
+                // A label inside its target is fitted as a centred one.
+                return options.attachTo && !Object.hasOwn(INSIDE, at) ? (at as LabelPlacement) : "center";
+            },
+            get offset() {
+                return options.attachTo ? options.attachOffset : 0;
+            },
+        });
     }
 
     /**
@@ -1683,6 +1887,9 @@ export class RichTextLabel {
         this.stopDepthFade = null;
         this.stopMinScreenSize?.();
         this.stopMinScreenSize = null;
+        this.stopScreenFit?.();
+        this.stopScreenFit = null;
+        this.unmarkClose?.();
 
         if (this.animator) {
             this.animator.dispose();
@@ -1792,8 +1999,9 @@ export class RichTextLabel {
         }
 
         // The same arithmetic RichTextRenderer.drawText lays the widest line out with.
-        const areaX = this.contentArea.x + this.options.marginLeft;
-        const areaWidth = this.contentArea.width - this.options.marginLeft - this.options.marginRight;
+        const pad = this.options.backgroundPadding;
+        const areaX = this.contentArea.x + this.options.marginLeft + pad;
+        const areaWidth = this.contentArea.width - this.options.marginLeft - this.options.marginRight - pad * 2;
         let x = areaX + (areaWidth - this.textSize.width) / 2;
         if (this.options.textAlign === "left") {
             x = areaX;
@@ -1801,7 +2009,7 @@ export class RichTextLabel {
             x = areaX + areaWidth - this.textSize.width;
         }
 
-        const y = this.contentArea.y + this.options.marginTop;
+        const y = this.contentArea.y + this.options.marginTop + pad;
 
         return {
             left: x / width,
@@ -1809,6 +2017,28 @@ export class RichTextLabel {
             top: y / height,
             bottom: (y + this.textSize.height) / height,
         };
+    }
+
+    /**
+     * Where a click reaches the label's close button, as fractions of the plane (as
+     * {@link textBounds} measures), or undefined when the label has none.
+     * @returns The hit area.
+     */
+    public get closeBounds(): { left: number; right: number; top: number; bottom: number } | undefined {
+        return this.options.closeButton ? closeHitFractions(this.closeGlyph(), this.actualDimensions) : undefined;
+    }
+
+    /**
+     * The close button's box on the label's canvas.
+     * @returns The box.
+     */
+    private closeGlyph(): ReturnType<typeof closeGlyphRect> {
+        return closeGlyphRect(
+            this.contentArea,
+            this.options.fontSize,
+            this.options.backgroundPadding,
+            Math.max(0, this.options.cornerRadius - this.totalBorderWidth),
+        );
     }
 
     /**

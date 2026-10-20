@@ -107,15 +107,16 @@ export interface LayoutService {
 
 /**
  * Which layout suits the graph the session holds now: what `data.import` with a recommended layout
- * asks. `unplaced` names the nodes the data arrived without a coordinate for when it placed the
- * others, and `placed` where each placed node is now: the import then keeps every placed node
- * where the data put it, in the unit the fixed layout would draw it in, and runs the advised layout
- * over the unplaced ones only.
+ * asks. `options` are the layout options the advice comes with. `unplaced` names the nodes the
+ * data arrived without a coordinate for when it placed the others, and `placed` where each placed
+ * node is now: the import then keeps every placed node where the data put it, in the unit the
+ * fixed layout would draw it in, and runs the advised layout over the unplaced ones only.
  */
 export type LayoutAdvice = () =>
     | {
           readonly id: LayoutId;
           readonly engine: string;
+          readonly options?: Readonly<Record<string, unknown>>;
           readonly unplaced?: readonly NodeId[];
           readonly placed?: readonly PositionEntry[];
       }

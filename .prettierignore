@@ -18,6 +18,9 @@ graphty-element/jsx.ts
 # The oracle scorecard's known failures: written by graphty-element/test/fidelity/oracle/run-oracle.ts one line per
 # sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
 graphty-element/test/fidelity/oracle-known-failures.json
+# Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
+# compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
+graphty-element/test/layout/graphviz-fixtures/
 # Vitest file snapshots: written by the tests that compare them byte for byte
 **/__snapshots__/
 # Changelogs: written by `nx release` (tools/changelog-renderer.cjs) inside the release commit, so
@@ -57,6 +60,9 @@ gh-pages/
 graph-io/test/conformance/fixtures/
 graph-io/test/conformance/REPORT.md
 graph-io/test/conformance/schemas/
+
+# Network source recordings: live services' answers, one response per line (graph-io/scripts/record-rest.ts)
+graph-io/test/sources/*/recordings/
 
 # githerd's replay data: GitHub's recorded answers, one record per line
 githerd/test/replay/data/

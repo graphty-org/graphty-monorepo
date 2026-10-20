@@ -960,8 +960,11 @@ export class NodeMesh {
             }
         }
 
+        // `node.unlit` draws a 3D node the way 2D draws every node: its own colour, no light.
+        const unlit = is2D || createOptions.effect?.unlit === true;
+
         if (gradientTexture) {
-            if (is2D) {
+            if (unlit) {
                 // EMISSIVE ONLY. With lighting off the shader draws the emissive term times the
                 // diffuse texture, so the ramp in both drew it squared: a #E8EEF7 to #B7C9E3 fill
                 // came out #CAD8EC to #8BA6CF, darker than either end.
@@ -971,7 +974,7 @@ export class NodeMesh {
                 mat.diffuseTexture = gradientTexture;
             }
         } else if (color3) {
-            if (is2D) {
+            if (unlit) {
                 mat.disableLighting = true;
                 mat.emissiveColor = color3;
             } else {

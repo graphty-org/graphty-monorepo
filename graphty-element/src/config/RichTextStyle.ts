@@ -140,6 +140,11 @@ export const RichTextStyle = z.strictObject({
     shiftX: z.number().optional(),
     shiftY: z.number().optional(),
 
+    // Screen fit (labelScreenFit.ts). No defaults, so a label that names neither is painted
+    // exactly as before.
+    sizeMode: z.enum(["world", "screen"]).optional(),
+    keepInView: z.boolean().optional(),
+
     // Depth fading
     depthFadeEnabled: z.boolean().default(false).optional(),
     depthFadeNear: z.number().default(10).optional(),
@@ -163,6 +168,11 @@ export const RichTextStyle = z.strictObject({
     // How far the panel reaches past the words' line box on every side; set, it replaces the
     // margins and backgroundPadding.
     boxPadding: z.number().min(0).optional(),
+    panelShadow: z.boolean().default(false).optional(),
+    panelShadowColor: ColorStyle.default("rgba(0, 0, 0, 0.3)").optional(),
+    panelShadowBlur: z.number().min(0).default(16).optional(),
+    panelShadowOffsetX: z.number().default(0).optional(),
+    panelShadowOffsetY: z.number().default(6).optional(),
     backgroundGradient: z.boolean().default(false).optional(),
     backgroundGradientType: GradientType.default("linear").optional(),
     backgroundGradientColors: z.array(ColorStyle).optional(),
@@ -190,6 +200,9 @@ export const RichTextStyle = z.strictObject({
     smartOverflow: z.boolean().default(false).optional(),
     maxNumber: z.number().default(999).optional(),
     overflowSuffix: z.string().default("+").optional(),
+
+    // An x in the panel's top-right corner that clears the selection when clicked
+    closeButton: z.boolean().default(false).optional(),
 });
 
 // Type export for convenience

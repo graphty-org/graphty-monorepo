@@ -422,8 +422,13 @@ export { compareNodeIds } from "./src/simple/view";
 // How a plugin reports a failure
 // ---------------------------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------------------------
+// Network sources (experimental): graph-io's source contract and the element's load types
+// ---------------------------------------------------------------------------------------------
+
 export type { GraphtyErrorCode, GraphtyErrorInit, GraphtyErrorSource, GraphtyErrorTarget } from "./src/errors";
 export { GraphtyError, isGraphtyError } from "./src/errors";
+export * from "./src/session/sources/public";
 
 // ---------------------------------------------------------------------------------------------
 // Acceleration: internal, and not one of the six. A factory, registered by name, called with the

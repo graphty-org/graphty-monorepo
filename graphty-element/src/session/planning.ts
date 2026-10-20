@@ -26,6 +26,7 @@ import type { LayoutCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
 import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
+import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
 import type { VisibilityCommand } from "./commands/visibility";
@@ -89,6 +90,7 @@ export type SessionCommand =
     | AlgoLegacyCommand
     | AlgoRemoveCommand
     | DataCommand
+    | SourceExpandOpCommand
     | StyleCommand
     | VisibilityCommand
     | SetCommand

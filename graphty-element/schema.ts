@@ -137,6 +137,13 @@ export {
 export type { RgbColor } from "./src/utils/styleHelpers/color/interpolation";
 export { hexToRgb, interpolatePalette, MISSING_DATA_COLOR } from "./src/utils/styleHelpers/color/interpolation";
 
+// ---------------------------------------------------------------------------------------------
+// Label templates: a `{ template }` line read as a row (words and one value) and written back
+// ---------------------------------------------------------------------------------------------
+
+export type { LabelTemplateRow } from "./src/session/styles/labelTemplate";
+export { labelTemplateLine, labelTemplateRow } from "./src/session/styles/labelTemplate";
+
 /**
  * A rule tree: what the visibility filter keeps.
  * @deprecated Use {@link RuleTree}, the same type under the name the rule grammar uses: a rule

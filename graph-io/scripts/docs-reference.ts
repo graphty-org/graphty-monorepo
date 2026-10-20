@@ -39,7 +39,7 @@ const NON_FORMAT_ENTRIES: Readonly<Record<string, string>> = {
 const ENTRIES: Readonly<Record<string, string>> = Object.fromEntries(
     Object.keys((JSON.parse(readFileSync(`${pkg}package.json`, "utf8")) as { exports: object }).exports).map((k) => [
         k === "." ? "graph-io" : k.slice(2),
-        NON_FORMAT_ENTRIES[k] ?? `src/formats/${k.slice(2)}/index.ts`,
+        NON_FORMAT_ENTRIES[k] ?? `src/${k.startsWith("./sources/") ? "" : "formats/"}${k.slice(2)}/index.ts`,
     ]),
 );
 const docsDir = `${pkg}docs/`;

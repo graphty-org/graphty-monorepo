@@ -1,0 +1,6 @@
+[
+    { "id": "ana", "name": "Ana", "knows": ["bo", "cy"] },
+    { "id": "bo", "name": "Bo", "knows": ["cy"] },
+    { "id": "cy", "name": "Cy", "knows": [] },
+    { "id": "di", "name": "Di", "knows": ["ana", "eve"] }
+]

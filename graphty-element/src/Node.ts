@@ -1074,7 +1074,7 @@ export class Node {
      */
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
-        NodeEffects.applyOutlineEffect(this.mesh, style.effect);
+        NodeEffects.applyOutlineEffect(this.mesh, style.effect, this.context.getMeshCache());
         NodeEffects.applyGlowEffect(this.mesh, style.effect);
     }
 
@@ -1237,6 +1237,7 @@ export class Node {
             this.applyInstancePaint(o, color);
             this.syncLabel(o, false);
             this.syncTooltip(o);
+            this.syncHalo();
             this.context.getStatsManager().endMeasurement("Node.updateMesh");
             return;
         }
@@ -1356,7 +1357,15 @@ export class Node {
         // with it -- so the label that was on screen a moment ago went with the mesh disposed
         // above, whatever the new style says about it.
         this.syncLabel(o, true);
+        // A tooltip's plane is parented to the mesh too, so one on screen went with the mesh
+        // disposed above: put it back on the new one. Pointing at a node often restyles it (a
+        // hover layer), so without this the tooltip vanished the moment it was drawn.
+        const tooltipShown = this.tooltip !== undefined;
+        this.hideTooltip();
         this.syncTooltip(o);
+        if (tooltipShown) {
+            this.showTooltip();
+        }
 
         // Dispose old drag handler before creating new one to prevent duplicate event listeners
         if (this.dragHandler) {
@@ -1385,21 +1394,15 @@ export class Node {
      * (RichTextLabel builds its own plane and dynamic texture) and its drag handler's observers.
      * See Edge.dispose for the visible half of the same bug, the arrowheads.
      *
-     * ORDER MATTERS. The highlight layer is told first, because it keeps this mesh's uniqueId in
-     * a list and does not watch for disposal; then the label and drag handler, which hold their
-     * own meshes and scene observers; then the mesh itself last, so nothing is asked about a mesh
-     * that is already gone.
+     * ORDER MATTERS. The label and drag handler go first, which hold their own meshes and scene
+     * observers; then the mesh itself last, so nothing is asked about a mesh that is already gone.
+     * The outline ring is a child of the mesh and goes with it.
      *
-     * NEITHER EFFECT IS DELIBERATELY REMOVED HERE. Membership of both the glow layer and the
-     * highlight layer is keyed by the SHARED source mesh that MeshCache hands out instances of --
-     * one source per style id -- so calling `NodeEffects.applyGlowEffect(mesh, undefined)` from
-     * here would darken every OTHER node that still uses this style, and resolving the source
-     * before removing it from the highlight layer would take those nodes' outlines away too. The
-     * source is owned by the cache, so it is freed when the cache is cleared, and the layer's
-     * leftover uniqueId is inert: Babylon's uniqueIds are monotonic per scene and never reused,
-     * so no future mesh can inherit a dead style's glow or its outline. The
-     * `removeFromHighlight` call below is what is safe to do: it removes THIS mesh, which for an
-     * instanced node the layer never held.
+     * THE GLOW IS DELIBERATELY NOT REMOVED HERE. Membership of the glow layer is keyed by the
+     * SHARED source mesh that MeshCache hands out instances of -- one source per style id -- so
+     * calling `NodeEffects.applyGlowEffect(mesh, undefined)` from here would darken every OTHER
+     * node that still uses this style. The source is owned by the cache, so it is freed when the
+     * cache is cleared.
      *
      * A DISPOSED NODE STILL RECEIVES CALLS, which is why the private `disposed` flag exists rather than
      * this method simply freeing things. `DataManager.dispose()` does not take nodes out of the
@@ -1415,8 +1418,6 @@ export class Node {
         }
 
         this.disposed = true;
-
-        NodeEffects.removeFromHighlight(this.mesh);
 
         if (this.dragHandler) {
             this.dragHandler.dispose();
@@ -1568,7 +1569,7 @@ export class Node {
         this.showOverlay("context", this.renderState === "context");
         // A hidden node draws no halo: the selection is still the selection, but there is nothing
         // on screen for it to ring.
-        this.showOverlay("halo", drawn && this.selected);
+        this.syncHalo();
     }
 
     /**
@@ -1584,28 +1585,72 @@ export class Node {
     }
 
     /**
+     * The look this node's halo is drawn in, or null when it draws none.
+     *
+     * ONE HALO, TWO SOURCES. The selection draws one on a selected node, in the configured
+     * selection style; a layer draws one on any node through the `node.halo*` channels. A
+     * node with both shows one halo: each value the layer set wins and the selection style gives
+     * the rest, and a layer's `node.halo: false` takes the halo off even a selected node.
+     * @returns The colour, scale and opacity, or null.
+     */
+    private haloLook(): GraphSelectionStyleConfig | null {
+        const layer = this.drawnStyle?.effect?.halo;
+        const color = layer?.color;
+        const scale = layer?.scale !== undefined && layer.scale > 0 ? layer.scale : undefined;
+        const opacity = layer?.opacity;
+        const lookSet = color !== undefined || scale !== undefined || opacity !== undefined;
+
+        if (!(layer?.enabled ?? (lookSet || this.selected))) {
+            return null;
+        }
+
+        const base = this.selectionStyle();
+
+        return lookSet
+            ? { color: color ?? base.color, scale: scale ?? base.scale, opacity: opacity ?? base.opacity }
+            : base;
+    }
+
+    /**
+     * Draw or take down this node's halo from the selection and the layers as they now stand.
+     */
+    private syncHalo(): void {
+        const look = this.renderState === "visible" ? this.haloLook() : null;
+        this.showOverlay("halo", look !== null, look ?? undefined);
+    }
+
+    /**
      * Redraw this node's selection halo from the configuration as it now stands.
      *
-     * Called for every node when `graph.setSelectionStyle()` changes it. A node that is not
-     * selected has no halo and nothing happens.
+     * Called for every node when `graph.setSelectionStyle()` changes it. A node with no halo has
+     * nothing to redraw and nothing happens.
      */
     refreshSelectionOverlay(): void {
         if (this.disposed) {
             return;
         }
 
-        this.showOverlay("halo", this.renderState === "visible" && this.selected);
+        this.syncHalo();
     }
 
     /**
      * Turn one of this node's two overlays on or off, building it the first time it is needed.
      * @param kind - Which overlay.
      * @param wanted - Whether it should be drawn.
+     * @param look - The halo's look; the selection style when absent.
      */
-    private showOverlay(kind: "halo" | "context", wanted: boolean): void {
+    private showOverlay(
+        kind: "halo" | "context",
+        wanted: boolean,
+        look: GraphSelectionStyleConfig = this.selectionStyle(),
+    ): void {
         const existing = kind === "halo" ? this.halo : this.contextPoint;
 
-        if (!wanted) {
+        // A HALO OF OPACITY 0 IS NOT DRAWN AT ALL. Drawn invisible it still covered the node in
+        // the depth and stencil buffers, so an outline on a selected node (`node.outline`) was
+        // painted over the whole node instead of around it. The halo's OWN look: a layer's
+        // halo is drawn even while the selection's own halo is hidden at opacity 0.
+        if (!wanted || (kind === "halo" && look.opacity === 0)) {
             if (existing && !existing.isDisposed()) {
                 existing.setEnabled(false);
             }
@@ -1613,14 +1658,15 @@ export class Node {
             return;
         }
 
-        const selection = this.selectionStyle();
-        // A halo is the node's own shape, so a node redrawn in another shape needs another halo.
-        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey();
+        const selection = look;
+        // A halo is the node's own shape, so a node redrawn in another shape needs another halo,
+        // and its own look's material, so a halo changing look needs another one too.
+        const stale = kind === "halo" && existing !== null && this.haloKey !== this.haloSourceKey(selection);
         if (stale && !existing.isDisposed()) {
             existing.dispose();
         }
 
-        const overlay = existing && !stale && !existing.isDisposed() ? existing : this.createOverlay(kind);
+        const overlay = existing && !stale && !existing.isDisposed() ? existing : this.createOverlay(kind, selection);
 
         if (kind === "halo") {
             this.halo = overlay;
@@ -1734,12 +1780,12 @@ export class Node {
      * one sphere and one material per overlay kind: turning the context layer on for 40,000 hidden
      * nodes allocates 40,000 instances of one mesh, not 40,000 meshes.
      * @param kind - Which overlay.
+     * @param selection - The halo's look.
      * @returns The instance, parented and ready to be positioned.
      */
-    private createOverlay(kind: "halo" | "context"): AbstractMesh {
+    private createOverlay(kind: "halo" | "context", selection: GraphSelectionStyleConfig): AbstractMesh {
         const scene = this.context.getScene();
-        const selection = this.selectionStyle();
-        const name = kind === "halo" ? this.haloSourceKey() : CONTEXT_POINT_MESH;
+        const name = kind === "halo" ? this.haloSourceKey(selection) : CONTEXT_POINT_MESH;
         const color = kind === "halo" ? selection.color : CONTEXT_POINT_COLOR;
         const alpha = kind === "halo" ? selection.opacity : CONTEXT_POINT_ALPHA;
         const shape = kind === "halo" ? this.nodeSourceMesh() : null;
@@ -1783,6 +1829,17 @@ export class Node {
     }
 
     /**
+     * Whether a mesh is flat: its geometry has no depth along one axis.
+     * @param mesh - The mesh.
+     * @returns True when one extent is (next to) zero beside the largest.
+     */
+    private static isFlat(mesh: Mesh): boolean {
+        const { extendSize } = mesh.getBoundingInfo().boundingBox;
+        const largest = Math.max(extendSize.x, extendSize.y, extendSize.z);
+        return Math.min(extendSize.x, extendSize.y, extendSize.z) <= largest * 1e-3;
+    }
+
+    /**
      * Build the one source mesh a kind of overlay is instanced from.
      * @param name - The mesh name, which is also its cache key.
      * @param color - The colour, as a hex string.
@@ -1821,8 +1878,16 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
-        // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
-        material.backFaceCulling = false;
+        // A halo around a solid draws only its far side. The near side lies in front of the node
+        // it surrounds, and blending it over the node tinted the whole node the halo's colour (a
+        // selected blue node drew gray-brown) instead of ringing it. The far side lies behind the
+        // node, so the node hides it inside its own outline and it shows only around it, as a
+        // ring; and from inside the halo every face seen is a far face, so the ring survives the
+        // camera there. A flat node's halo has no far side -- it is one sheet in the node's own
+        // plane, which the zOffset below keeps behind the node -- so it keeps both faces, and so
+        // does a context point, drawn in place of a hidden node with nothing in front of it.
+        material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
+        material.cullBackFaces = false;
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
         // instead of fighting it for the same pixels. Too small to move a 3D halo visibly.
@@ -1845,12 +1910,21 @@ export class Node {
     }
 
     /**
-     * The cache key of the halo source for this node's current shape: one per node source mesh,
-     * so every selected node of one shape shares one halo source.
+     * The cache key of the halo source for this node's current shape and the halo's look: one per
+     * node source mesh in the selection's own look, so every selected node of one shape shares
+     * one halo source, and one more per colour and opacity a layer's halo asks for. Every
+     * halo of one source shares one material, so two looks cannot share a source.
+     * @param look - The halo's look.
      * @returns The key.
      */
-    private haloSourceKey(): string {
-        return `${SELECTION_HALO_MESH}:${this.mesh.name}`;
+    private haloSourceKey(look: GraphSelectionStyleConfig): string {
+        const key = `${SELECTION_HALO_MESH}:${this.mesh.name}`;
+        const selection = this.selectionStyle();
+        // ponytail: one cached source per halo colour and opacity ever drawn; evict unused
+        // ones if a continuous halo colour encoding ever shows up in a profile.
+        return look.color === selection.color && look.opacity === selection.opacity
+            ? key
+            : `${key}:${look.color}:${String(look.opacity)}`;
     }
 
     /**

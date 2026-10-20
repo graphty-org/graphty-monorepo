@@ -221,6 +221,18 @@ export interface SelectionApi {
      */
     has(id: NodeId | EdgeId): boolean;
     /**
+     * The node under the pointer, or null. Not part of the selection: pointing at a node selects
+     * nothing and records no step. A `{ match: "hover" }` style layer paints from it.
+     */
+    readonly hovered: NodeId | null;
+    /**
+     * Say which node the pointer is over, or null when it is over none. The element's renderer
+     * calls it as the pointer moves; a consumer drawing its own pointer (a test, a headless
+     * session) calls it the same way. Records no step.
+     * @param id - The node, or null.
+     */
+    hover(id: NodeId | null): void;
+    /**
      * The selected nodes as one byte per node, for a worker.
      * @returns A detached copy, one byte per node of the current graph.
      */
@@ -377,6 +389,8 @@ export interface SelectionSources {
     readonly onChange?: (delta: SelectionDelta) => void;
     /** Called on every version bump of either mask, which is what advances the session input tick. */
     readonly onMaskVersion?: () => void;
+    /** Called when the hovered node changes, with the new one or null. */
+    readonly onHover?: (id: NodeId | null) => void;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -523,6 +537,9 @@ class Selection implements SelectionOwner {
     /** The target the selection is exactly, while nothing else has changed it. */
     #origin: SelectionTarget | null = null;
 
+    /** The node under the pointer. */
+    #hovered: NodeId | null = null;
+
     /** A change {@link Selection.applyAtNextRead} is holding for the next read. */
     #pending: { readonly target: SelectionTarget; readonly op: SelectionOp; readonly cause: SelectionCause } | null =
         null;
@@ -593,6 +610,27 @@ class Selection implements SelectionOwner {
      */
     get truncated(): boolean {
         return this.#truncated;
+    }
+
+    /**
+     * The node under the pointer.
+     * @returns The node, or null.
+     */
+    get hovered(): NodeId | null {
+        return this.#hovered;
+    }
+
+    /**
+     * Say which node the pointer is over.
+     * @param id - The node, or null.
+     */
+    hover(id: NodeId | null): void {
+        if (id === this.#hovered) {
+            return;
+        }
+
+        this.#hovered = id;
+        this.#sources.onHover?.(id);
     }
 
     /**

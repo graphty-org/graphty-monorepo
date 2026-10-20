@@ -22,6 +22,7 @@ import { createRunResult, type ResultElementValues } from "./results/RunResult";
 import { type Caveats, ENGINE_VERSIONS, type RunExecutionContext, type RunExecutor, type RunOutcome } from "./runs";
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
+import { SOURCE_RECORD_MEMBER } from "./sources/ids";
 import {
     asFileStyleStore,
     FILE_STYLES_VALUE,
@@ -61,6 +62,8 @@ const MEMBER_KINDS = [
     "graphty-style",
     "graphty-notes",
     "graphty-view-state",
+    // Experimental: the loads from network sources (design/graph-io/network-sources-design.md 16.1).
+    "graphty-sources",
 ] as const;
 
 /** One of the member kinds a project file writes. */
@@ -101,6 +104,20 @@ export interface ProjectSaveOptions {
      * project dirty, and so does any change made while the write was under way. Default `true`.
      */
     readonly markSaved?: boolean;
+}
+
+/** What the session lends the project file for the loads from network sources. */
+interface NetworkSourceRecords {
+    /**
+     * The `graphty-sources` member to write.
+     * @returns it, or null when nothing was loaded from a source
+     */
+    member(): unknown;
+    /**
+     * Take an opened project's member; its loads wait until they are run.
+     * @param member - the member, or undefined when the file holds none
+     */
+    restore(member: unknown): void;
 }
 
 /** Where the project was last saved: a history step, and whether that step has changed since. */
@@ -702,11 +719,13 @@ export function documentAround(
  * Write the session as a graphty document: every member's builder, in file order.
  * @param sources - The session, its dispatcher and which run ids the element minted.
  * @param options - What to leave out, and the caller's extensions.
+ * @param networkSources - The loads from network sources, when the session has any.
  * @returns The document and what was left out.
  */
 function write(
     sources: ProjectSources,
     options: ProjectSaveOptions,
+    networkSources?: NetworkSourceRecords,
 ): { document: Record<string, unknown>; leftOut: ProjectProblem[] } {
     const { session, dispatcher } = sources;
     const extensions = checkedExtensions(options.extensions ?? {});
@@ -727,6 +746,10 @@ function write(
         notesMember(session),
         viewStateMember(session, ids),
     ].filter((member) => !leaveOut.has(member.kind as string));
+    const sourceMember = networkSources?.member() as Record<string, unknown> | null | undefined;
+    if (sourceMember !== null && sourceMember !== undefined) {
+        members.push({ kind: SOURCE_RECORD_MEMBER, ...sourceMember });
+    }
 
     const leftOut: ProjectProblem[] = session.runs
         .list()
@@ -1569,15 +1592,20 @@ export function markProjectUnsaved(session: GraphSession): void {
  * @param hooks - What the session lends it.
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
+ * @param hooks.sources - Writes and restores the loads from network sources.
  * @returns The API.
  */
 export function projectOf(
     session: GraphSession,
     dispatcher: Dispatcher,
     canned: CannedOutcomes,
-    hooks: { readonly announce: (change: ProjectStatus) => void; readonly isDerived: (id: RunId) => boolean },
+    hooks: {
+        readonly announce: (change: ProjectStatus) => void;
+        readonly isDerived: (id: RunId) => boolean;
+        readonly sources?: NetworkSourceRecords;
+    },
 ): ProjectApi {
-    const { announce, isDerived } = hooks;
+    const { announce, isDerived, sources: networkSources } = hooks;
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
     // `markSaved: false` keeps its own point, followed the same way, until `markSaved` adopts it.
@@ -1668,6 +1696,94 @@ export function projectOf(
         tell();
     });
 
+    /**
+     * Open a project over the session: its graph and slices in one transaction, its network
+     * loads waiting, and a fresh history.
+     * @param doc - the read document
+     * @param fileName - the file's name, if it had one
+     * @param discard - whether unsaved changes may be lost
+     * @param problems - collects what could not be restored
+     * @param restored - collects the slices that were
+     */
+    const openProject = async (
+        doc: ReadDocument,
+        fileName: unknown,
+        discard: boolean,
+        problems: ProjectProblem[],
+        restored: Set<ProjectSlice>,
+    ): Promise<void> => {
+        refuseUnsaved(isDirty(), discard);
+
+        const data = doc.members.get("graphty-data")?.[0];
+        if (data === undefined) {
+            throw badDocument({ member: "graphty-data" });
+        }
+
+        const graph = nodeLinkOf(data);
+        const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
+        const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
+        projectBoundary(session, "open");
+        await session.transaction(
+            "Open project",
+            (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
+            opening,
+        );
+        // The loads from network sources wait, fetching nothing, until the application runs them.
+        try {
+            networkSources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
+        } catch (error) {
+            problems.push({
+                code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+                params: { kind: SOURCE_RECORD_MEMBER },
+            });
+        }
+        // A project opens with a fresh history: its opened state is the baseline.
+        session.history.clear();
+        fresh = false;
+        adopt(pointNow());
+    };
+
+    /**
+     * Open a plain graphty document into the session: its graph when the session is empty, its
+     * styles and notes, and a problem for each project slice it cannot hold.
+     * @param doc - the read document
+     * @param problems - collects what could not be restored
+     * @param restored - collects the slices that were
+     */
+    const openDocument = async (
+        doc: ReadDocument,
+        problems: ProjectProblem[],
+        restored: Set<ProjectSlice>,
+    ): Promise<void> => {
+        const data = doc.members.get("graphty-data")?.[0];
+        const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        fresh = false;
+        await session.transaction(
+            "Open document",
+            async (tx) => {
+                const opening = { tx, problems, restored };
+                if (graph !== undefined) {
+                    await importInto(tx, graph, data?.source);
+                    restored.add("graph");
+                }
+
+                for (const kind of [
+                    "graphty-session",
+                    "graphty-arrangement",
+                    "graphty-results",
+                    "graphty-view-state",
+                ] as const) {
+                    if (doc.members.has(kind)) {
+                        problems.push({ code: "E_UNSUPPORTED", params: { kind } });
+                    }
+                }
+
+                await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
+            },
+            OPEN_DOCUMENT,
+        );
+    };
+
     return {
         get name() {
             return nameNow();
@@ -1679,7 +1795,7 @@ export function projectOf(
             return session.config.set({ name });
         },
         save(options = {}) {
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            const { document, leftOut } = write({ session, dispatcher, isDerived }, options, networkSources);
             const text = JSON.stringify(document);
             const saved: SavedProject = Object.freeze({
                 text,
@@ -1728,54 +1844,9 @@ export function projectOf(
             const restored = new Set<ProjectSlice>();
 
             if (isProject) {
-                refuseUnsaved(isDirty(), options.discard);
-
-                const data = doc.members.get("graphty-data")?.[0];
-                if (data === undefined) {
-                    throw badDocument({ member: "graphty-data" });
-                }
-
-                const graph = nodeLinkOf(data);
-                const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
-                const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
-                projectBoundary(session, "open");
-                await session.transaction(
-                    "Open project",
-                    (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
-                    opening,
-                );
-                // A project opens with a fresh history: its opened state is the baseline.
-                session.history.clear();
-                fresh = false;
-                adopt(pointNow());
+                await openProject(doc, fileName, options.discard === true, problems, restored);
             } else {
-                const data = doc.members.get("graphty-data")?.[0];
-                const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
-                fresh = false;
-                await session.transaction(
-                    "Open document",
-                    async (tx) => {
-                        const opening = { tx, problems, restored };
-                        if (graph !== undefined) {
-                            await importInto(tx, graph, data?.source);
-                            restored.add("graph");
-                        }
-
-                        for (const kind of [
-                            "graphty-session",
-                            "graphty-arrangement",
-                            "graphty-results",
-                            "graphty-view-state",
-                        ] as const) {
-                            if (doc.members.has(kind)) {
-                                problems.push({ code: "E_UNSUPPORTED", params: { kind } });
-                            }
-                        }
-
-                        await addStylesAndNotes(opening, doc.members, (value) => value, doc.name ?? null);
-                    },
-                    OPEN_DOCUMENT,
-                );
+                await openDocument(doc, problems, restored);
             }
 
             return Object.freeze({

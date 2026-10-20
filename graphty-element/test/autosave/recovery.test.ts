@@ -453,6 +453,47 @@ describe("the page's own data and settings", () => {
         assert.strictEqual(reload.session.config.name, "Edited while loading");
     });
 
+    it("reports, flush() writes, and the final write keeps a change made while a page load is still finishing", async () => {
+        const store = memoryAutosaveStore();
+        const page = load(store);
+        await page.saver.recover();
+        const first = rows(["a", "b"]);
+        let edited = (): void => undefined;
+        const editDone = new Promise<void>((resolve) => {
+            edited = resolve;
+        });
+        let finish = (): void => undefined;
+        const finished = new Promise<void>((resolve) => {
+            finish = resolve;
+        });
+        // The rows are in and the reader has changed something, but the load has not settled yet
+        // (a large graph still being drawn): the change is held, and must not read as saved.
+        const loading = page.saver.admit(first.source, async () => {
+            await first.apply(page.session)();
+            await page.session.config.set({ name: "Edited while loading" });
+            edited();
+            await finished;
+        });
+        await editDone;
+        assert.strictEqual(page.saver.status.state, "pending", "the held change is outstanding work");
+
+        await page.saver.flush();
+        assert.strictEqual(page.saver.status.state, "saved");
+        assert.isNotNull(page.saver.status.entry, "flush() wrote the change while the load ran");
+        assert.strictEqual(page.saver.status.revision, 1);
+
+        // A second change in the same load, then the element leaves before the load settles.
+        await page.session.config.set({ name: "Edited again while loading" });
+        assert.strictEqual(page.saver.status.state, "pending");
+        await page.saver.depart();
+        finish();
+        await loading;
+
+        const reload = load(store);
+        await reload.saver.recover();
+        assert.strictEqual(reload.session.config.name, "Edited again while loading");
+    });
+
     it("keeps a change the reader makes while a page load runs, when the load then fails", async () => {
         const store = memoryAutosaveStore();
         const page = load(store);

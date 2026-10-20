@@ -95,8 +95,12 @@ const SUBJECT_TREE = "Styles/";
  * label's text, of a chart or drawn over a node; in a story name -- `LineOpacity`, `TwoDAllLines`
  * -- it is the edge itself. "box" came with `pieFitBox`, a pie's fit to its node's box; in a story
  * name -- `Box` -- it is a node shape. Neither names one subject.
+ *
+ * "screen" came with `labelMinScreenSize`, the screen size below which a label is hidden; in a
+ * story name -- `ScreenSizedLabels` -- it is the label style's `sizeMode: "screen"`, a value
+ * rather than a channel. The minimum-size stories are still checked under "min" and "size".
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on", "line", "box"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "on", "line", "box", "screen"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

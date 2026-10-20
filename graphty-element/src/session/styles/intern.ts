@@ -81,6 +81,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.shape": "mesh",
     "node.wireframe": "mesh",
     "node.flat": "mesh",
+    "node.unlit": "mesh",
     // Width, height, depth and flatness are baked into the source mesh like the size. A border is
     // its own source mesh keyed under the node's, its colour in its material: like an outline's,
     // a colour per style rather than per instance.
@@ -185,8 +186,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.gradientKind": "mesh",
     // An effect's COLOUR is geometry here, and the renderer is why. Babylon draws an instanced
     // node through its SOURCE mesh: a glow layer's `customEmissiveColorSelector` is handed the
-    // source, and a highlight layer keys its per-mesh colour by the source's uniqueId. So two
-    // nodes that share a source mesh cannot be given two outline colours or two glow colours --
+    // source. So two nodes that share a source mesh cannot be given two glow colours --
     // whichever was applied last is what both are drawn in. A source mesh per distinct effect
     // colour is therefore not a cost this table is choosing to pay, it is the only granularity
     // the renderer can express, and it is exactly the one `NodeEffects.resolveRenderedMesh`
@@ -202,6 +202,13 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // ponytail: quantize the strength in the key (or evict source meshes left with no instances)
     // if a continuous glow encoding ever shows up in a profile.
     "node.glowStrength": "mesh",
+    // The highlight is the selection halo: an overlay beside the node's mesh, keyed by the node's
+    // shape and the halo's own look, so it never mints a node source mesh. `Node.syncHalo` reads
+    // it on every paint, which is what lets a hover layer turn it on and off without a rebuild.
+    "node.halo": "content",
+    "node.haloColor": "content",
+    "node.haloScale": "content",
+    "node.haloOpacity": "content",
     "edge.width": "mesh",
     "edge.minScreenWidth": "mesh",
     "edge.style": "mesh",

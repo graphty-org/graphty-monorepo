@@ -137,6 +137,7 @@ const RICH_TEXT_KEYS = {
     enabled: "enabled",
     font: "font",
     sizePx: "fontSize",
+    sizeMode: "sizeMode",
     size: "size",
     letterSize: "letterSize",
     wrapWidth: "wrapWidth",
@@ -171,6 +172,7 @@ const RICH_TEXT_KEYS = {
     offsetY: "offsetY",
     shiftX: "shiftX",
     shiftY: "shiftY",
+    keepInView: "keepInView",
     marginTop: "marginTop",
     marginBottom: "marginBottom",
     marginLeft: "marginLeft",
@@ -188,6 +190,11 @@ const RICH_TEXT_KEYS = {
     shadowBlur: "textShadowBlur",
     shadowOffsetX: "textShadowOffsetX",
     shadowOffsetY: "textShadowOffsetY",
+    panelShadow: "panelShadow",
+    panelShadowColor: "panelShadowColor",
+    panelShadowBlur: "panelShadowBlur",
+    panelShadowOffsetX: "panelShadowOffsetX",
+    panelShadowOffsetY: "panelShadowOffsetY",
     animation: "animation",
     animationSpeed: "animationSpeed",
     depthFade: "depthFadeEnabled",
@@ -200,6 +207,7 @@ const RICH_TEXT_KEYS = {
     smartOverflow: "smartOverflow",
     maxNumber: "maxNumber",
     overflowSuffix: "overflowSuffix",
+    closeButton: "closeButton",
 } as const satisfies Partial<Record<keyof LabelStyle, string>>;
 
 /** Every key the renderer's own label schema holds, which is what may be written into it. */

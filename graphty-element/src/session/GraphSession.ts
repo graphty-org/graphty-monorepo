@@ -49,17 +49,18 @@ import { otherIdSpelling, rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
+import { graphvizAvailability } from "../layout/graphviz/availability";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey } from "./commands/data";
+import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
-import { recommendLayout } from "./layout";
+import { graphvizEngineFor, recommendLayout } from "./layout";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -140,6 +141,7 @@ import {
 import { atStylePath, channelsFor } from "./styles/channels";
 import { computedOf, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
 import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
+import { createHoverSource } from "./styles/hover";
 import type { CompiledLayer } from "./styles/Layer";
 import { createLayerRepaint, type ElementPaint, type ElementRemaps, type RepaintEngine } from "./styles/repaint";
 import { createScaleRegistry } from "./styles/scales";
@@ -261,7 +263,7 @@ const PLANNED_CAVEATS: Caveats = Object.freeze({
 });
 
 /** The status a disposed session reports, so a teardown path can still ask and get an answer. */
-const DISPOSED_STATUS: SessionStatus = Object.freeze({
+export const DISPOSED_STATUS: SessionStatus = Object.freeze({
     ready: false,
     counts: Object.freeze({ nodes: 0, edges: 0, visibleNodes: 0, visibleEdges: 0 }),
     directed: false,
@@ -533,16 +535,32 @@ class Session implements ElementSession {
         this.views = viewsOf(this.dispatcher);
         this.layout = layoutOf(this.dispatcher, (command) => this.dispatcher.dispatch(command));
         // What an import asking for a recommended layout chooses, for the graph it loaded.
+        const fileGraph = (): FileGraphValue | undefined =>
+            this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
+        let graphviz: boolean | undefined;
+        this.dispatcher.services.layoutPrepare = async () => {
+            const file = fileGraph();
+            if (graphviz === undefined && file !== undefined && graphvizEngineFor(file) !== null) {
+                graphviz = await graphvizAvailability().then(({ available }) => available);
+            }
+        };
         this.dispatcher.services.layoutAdvice = () => {
             // A group with no stored position is drawn as the box around its members, so it is
             // placed whenever they are.
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
             const advice = recommendLayout(this.data.statistics(), {
                 placedNodes: this.store.seededNodeCount + groups.length,
+                file: fileGraph(),
+                graphvizAvailable: graphviz === true,
             });
             if (advice === undefined) {
                 return undefined;
             }
+            const advised = {
+                id: advice.layout.id,
+                engine: advice.layout.engine,
+                ...(advice.options === undefined ? {} : { options: advice.options }),
+            };
 
             // A file that placed some nodes and not others: its placed nodes stay where it put
             // them, and only the rest are laid out. An advised layout that cannot hold nodes still
@@ -552,12 +570,10 @@ class Session implements ElementSession {
             const following = new Set(groups.map((g) => g.group));
             const unplaced = (partial?.unseeded ?? []).filter((id) => !following.has(id));
             if (partial === null || unplaced.length === 0 || partial.placed.length === 0) {
-                return { id: advice.layout.id, engine: advice.layout.engine };
+                return advised;
             }
 
-            const base = advice.layout.scoped
-                ? { id: advice.layout.id, engine: advice.layout.engine }
-                : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
+            const base = advice.layout.scoped ? advised : { id: DEFAULT_LAYOUT.id, engine: DEFAULT_LAYOUT.engine };
             return { ...base, unplaced, placed: partial.placed };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
@@ -566,6 +582,12 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            sources: {
+                member: () => this.sessionData.sourceMember(),
+                restore: (member) => {
+                    this.sessionData.restoreSourceMember(member);
+                },
+            },
         });
     }
 
@@ -1978,6 +2000,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // policy's own `styles` member states: a session that paints nothing is a legitimate session,
     // and the stack does not exist yet at the moment the runs are constructed.
     let stack: SessionStylesApi | null = null;
+    // Set once the stack exists; until then no layer reads the pointer.
+    let repaintHover = (): void => undefined;
     // The query engine, late-bound for the same reason: it reads the style layers' selector
     // source, which reads the runs, and the scope and visibility APIs are built before both.
     let query: QueryEngine | null = null;
@@ -2048,6 +2072,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             declarations: () => dispatcher.state.attributes,
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
+            },
+            send: (command) => dispatcher.dispatch(command),
+            emit: (event, detail) => {
+                publish(watchers, event, detail);
             },
             readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },
@@ -2553,8 +2581,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onChange: (delta) => {
             notifier.notify({ kind: "selection" });
             publish(watchers, "selection:changed", delta);
+            // A hover layer that falls back to the selection follows it too.
+            repaintHover();
         },
         onMaskVersion: advanceTick,
+        // The pointer moved to another node, or off every node: repaint what a hover layer paints.
+        onHover: () => {
+            repaintHover();
+        },
     });
 
     // ONE registry for the stack and for the pass that paints from it. Two would let a layer be
@@ -2608,9 +2642,27 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     const nodeIndex = nodeIndexOf(snapshot);
     const edgeIndex = edgeIndexOf(snapshot);
+    const hoverSource = createHoverSource(snapshot, () => {
+        const id = selection?.hovered ?? null;
+        return id === null ? undefined : nodeIndex(id);
+    });
+    // The hovered node, else the one selected node: what an `orSelected` hover layer follows.
+    const focusSource = createHoverSource(snapshot, () => {
+        const hovered = selection?.hovered ?? null;
+        const selected = selection?.nodes ?? [];
+        const id = hovered ?? (selected.length === 1 ? selected[0] : null);
+        return id === null ? undefined : nodeIndex(id);
+    });
     const styles = createStylesApi({
         dispatcher,
-        elements: { ...elements, nodeIndex, edgeIndex, scope: (spec: Scope) => layerScopes.live(spec) },
+        elements: {
+            ...elements,
+            nodeIndex,
+            edgeIndex,
+            scope: (spec: Scope) => layerScopes.live(spec),
+            hover: hoverSource,
+            focus: focusSource,
+        },
         admitScope: (spec: unknown) => scope.admit(spec),
         base: elementBaseLayers(),
         paths,
@@ -2644,6 +2696,29 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
 
     stack = styles;
+    // ponytail: a hover change repaints every element when any layer reads the pointer (an
+    // inverted hover layer flips the whole graph anyway); repaint only the old and new
+    // neighborhoods if a graph large enough to feel it needs that.
+    repaintHover = (): void => {
+        const compiled = styles.compiled();
+        if (!compiled.some((entry) => entry.selector.match === "hover")) {
+            return;
+        }
+
+        const graph = snapshot();
+        const all = (count: number): number[] => Array.from({ length: count }, (_, index) => index);
+        painter
+            .repaintElements(
+                compiled,
+                { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
+                { signal: teardown.signal, report: () => undefined },
+            )
+            .catch((error: unknown) => {
+                if (!teardown.signal.aborted) {
+                    console.error("[graphty] Could not repaint the layers that follow the pointer.", error);
+                }
+            });
+    };
 
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,

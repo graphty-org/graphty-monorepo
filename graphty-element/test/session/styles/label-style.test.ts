@@ -291,6 +291,7 @@ const EVERY_FIELD: Required<LabelStyle> = {
     enabled: true,
     font: "'JetBrains Mono', monospace",
     sizePx: 64,
+    sizeMode: "screen",
     size: 1.3,
     letterSize: 0.9,
     weight: "bold",
@@ -328,6 +329,7 @@ const EVERY_FIELD: Required<LabelStyle> = {
     offsetY: -2.25,
     shiftX: -0.5,
     shiftY: 0.5,
+    keepInView: true,
     marginTop: 11,
     marginBottom: 12,
     marginLeft: 13,
@@ -346,6 +348,11 @@ const EVERY_FIELD: Required<LabelStyle> = {
     shadowBlur: 6,
     shadowOffsetX: 8,
     shadowOffsetY: 9,
+    panelShadow: true,
+    panelShadowColor: "#888888",
+    panelShadowBlur: 10,
+    panelShadowOffsetX: 3,
+    panelShadowOffsetY: 4,
     animation: "bounce",
     animationSpeed: 3,
     depthFade: true,
@@ -358,6 +365,7 @@ const EVERY_FIELD: Required<LabelStyle> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
+    closeButton: true,
 };
 
 /** Where each of those fields must land in the block `RichTextLabel` is built from. */
@@ -365,6 +373,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     enabled: true,
     font: "'JetBrains Mono', monospace",
     fontSize: 64,
+    sizeMode: "screen",
     size: 1.3,
     letterSize: 0.9,
     fontWeight: "bold",
@@ -402,6 +411,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     offsetY: -2.25,
     shiftX: -0.5,
     shiftY: 0.5,
+    keepInView: true,
     marginTop: 11,
     marginBottom: 12,
     marginLeft: 13,
@@ -421,6 +431,11 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     textShadowBlur: 6,
     textShadowOffsetX: 8,
     textShadowOffsetY: 9,
+    panelShadow: true,
+    panelShadowColor: "#888888",
+    panelShadowBlur: 10,
+    panelShadowOffsetX: 3,
+    panelShadowOffsetY: 4,
     animation: "bounce",
     animationSpeed: 3,
     depthFadeEnabled: true,
@@ -433,6 +448,7 @@ const EVERY_KEY: Readonly<Record<string, unknown>> = {
     smartOverflow: true,
     maxNumber: 42,
     overflowSuffix: "...",
+    closeButton: true,
 };
 
 describe("the whole vocabulary reaches the renderer", () => {

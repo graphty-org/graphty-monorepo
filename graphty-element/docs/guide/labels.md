@@ -125,6 +125,36 @@ negative is above). Where runs of different sizes meet on one line is the label 
 (`node.labelRunAlign`): on their alphabetic baselines (the default), on their hanging baselines so
 their tops line up, or on their middles.
 
+## Text from several values
+
+A `template` binding builds a label from several values, one string per line. `{path}` reads a
+value with the same paths `by` takes. `{path|count}` is how many distinct values that path holds
+across the nodes, and `{path|rank}` is this node's value's place among them, counting from 1 in
+sorted order. A line with any value missing is left out, so a row about a result appears only once
+the result exists:
+
+```typescript
+await element.session.styles.add({
+    name: "Card",
+    target: "node",
+    selector: { match: "everything" },
+    encode: {
+        "node.label": {
+            template: [
+                "<bold>{data.name}</bold>",
+                "Connections: {results.degree.value}",
+                "Community {results.louvain.group|rank} of {results.louvain.group|count}",
+            ],
+        },
+    },
+});
+```
+
+Louvain numbers its groups by id, not from 1, so `rank` and `count` are what give "Community 2 of
+5". Every word is yours; the element adds none. A value is drawn as written: a name holding
+`<bold>` shows the tag, and only the template's own markup is read. Templates work on `node.label`,
+`edge.label` (where `count` and `rank` are taken across the edges) and `node.tooltip`.
+
 ## One node's label
 
 `element.labelOf(id)` returns the label of one node as the element draws it: `{ text, drawn }`, or
@@ -151,7 +181,7 @@ console.log(label?.drawn); // true, or false when the label is hidden
 ```
 
 - `text` is the words on screen: the value the label was bound to, with its markup (`<bold>`,
-  `<color='...'>`) applied, so the tags are not part of it. A label of several lines has them
+  `<color='...'>`) applied, so the tags are not part of it. `<lt>` in markup draws a literal `<`. A label of several lines has them
   joined with `"\n"`.
 - `drawn` is `false` when the label is not on screen because its node is hidden (a filter or the
   time window), or because declutter hid it to avoid an overlap (with `avoidNodesAndEdges`, also

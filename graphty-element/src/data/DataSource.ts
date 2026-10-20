@@ -4,8 +4,10 @@ import {
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
+    type GraphSource,
     type ImportReport,
     ImportReportBuilder,
+    loadFromSource,
     readText,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
@@ -20,14 +22,17 @@ import type { FormatDescriptor } from "../catalog/types";
 import { assertReaderAgreesWithWriter } from "../catalog/writerRegistry";
 import { AdHocData } from "../config";
 import { GraphtyError } from "../errors";
+import { toGraphtyError } from "../session/sources/errors";
 import type { FileStylesRead } from "../session/styles/fileStyles/apply";
 import { ErrorAggregator } from "./ErrorAggregator.js";
 import { filePositionsOf } from "./filePositions.js";
 import {
+    aggregateErrors,
     columnsMapping,
     emptyLoad,
     importWhole,
     readerImport,
+    sourceGraph,
     toRecords,
     withoutStyleSlots,
 } from "./graph-io-import.js";
@@ -276,6 +281,34 @@ export interface ImporterSourceOptions<Opts> {
     readonly statedBy?: (snapshot: GraphSnapshot, report: ImportReport) => string | null;
 }
 
+/**
+ * The reader {@link DataSource.fromSource} returns: constructed with the source's params and the
+ * load options (`endpoint`, `credential`, `limits`, `retry`, `cursor`, `fetch`, `idPrefix`)
+ * side by side in one config. Experimental.
+ */
+export type SourceDataSourceClass = (new (
+    config: BaseDataSourceConfig & Readonly<Record<string, unknown>>,
+) => DataSource) & {
+    readonly type: string;
+};
+
+/** The config keys of a source reader that are load options, never the source's params. */
+const SOURCE_OPTION_KEYS: ReadonlySet<string> = new Set([
+    "endpoint",
+    "credential",
+    "limits",
+    "retry",
+    "cursor",
+    "fetch",
+    "idPrefix",
+    "userAgent",
+    "allowInsecure",
+    "signal",
+]);
+
+/** The config keys every reader takes, which are neither params nor load options. */
+const READER_KEYS: ReadonlySet<string> = new Set(["chunkSize", "errorLimit"]);
+
 /** The registrable reader {@link DataSource.fromImporter} returns. */
 export type ImporterDataSourceClass = (new (config: BaseDataSourceConfig) => DataSource) & {
     readonly type: string;
@@ -364,6 +397,8 @@ export abstract class DataSource {
     protected chunkSize: number;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
+    /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
+    private graphValues: Readonly<Record<string, unknown>> | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -674,7 +709,13 @@ export abstract class DataSource {
 
     /**
      * Shared chunking helper
-     * Yields nodes in chunks, with all edges in the first chunk
+     * Yields nodes in chunks, with all edges in the LAST chunk.
+     *
+     * EDGES AFTER EVERY NODE. With the edges in the first chunk, every edge whose endpoint was not
+     * in the first chunk's nodes waited in the renderer's pending queue, and each later chunk
+     * scanned that queue: Gene Ontology (48,340 nodes) took about 9 s to open instead of 3, and
+     * com-dblp (317,080 nodes) left a million edges waiting behind 1,000 drawn nodes until the
+     * page stopped answering.
      * @param nodes - Array of node data objects
      * @param edges - Array of edge data objects
      * @yields DataSourceChunk objects containing chunked nodes and edges
@@ -683,7 +724,7 @@ export abstract class DataSource {
         // Yield nodes in chunks
         for (let i = 0; i < nodes.length; i += this.chunkSize) {
             const nodeChunk = nodes.slice(i, i + this.chunkSize);
-            const edgeChunk = i === 0 ? edges : [];
+            const edgeChunk = i + this.chunkSize >= nodes.length ? edges : [];
             yield { nodes: nodeChunk, edges: edgeChunk };
         }
 
@@ -729,6 +770,26 @@ export abstract class DataSource {
      */
     protected declareDirection(directed: boolean, statedBy: string, conflictingEdges = 0): void {
         this.declaration = { directed, statedBy, conflictingEdges };
+    }
+
+    /**
+     * The graph-level attributes the file declared (DOT's `layout`, `rankdir`, ...), or null when
+     * the format has none or the source has not parsed yet. Read it after the last chunk.
+     * @returns the values by name
+     * @since 3.29.0
+     */
+    get declaredGraphValues(): Readonly<Record<string, unknown>> | null {
+        return this.graphValues;
+    }
+
+    /**
+     * Record the graph-level attributes the file being parsed declared. The element keeps them
+     * with the graph, where a layout chosen for the file reads them.
+     * @param values - the values by name
+     * @since 3.29.0
+     */
+    protected declareGraphValues(values: Readonly<Record<string, unknown>>): void {
+        this.graphValues = Object.freeze({ ...values });
     }
 
     /**
@@ -1035,6 +1096,62 @@ export abstract class DataSource {
                         : columnsMapping(snapshot),
                     this,
                 );
+                yield* this.chunkData(nodes, edges);
+            }
+        };
+    }
+
+    /**
+     * Make a reader from a network source (`defineSource` from `./extend`, or the id of one
+     * `registerSource` registered): its params and the load options arrive together in the
+     * reader's config, the load runs through graph-io's guarded fetch, and a failure is a
+     * `GraphtyError` carrying the source's code (`E_SOURCE_AUTH`, `E_SOURCE_BLOCKED`, ...) and
+     * its params as details. Experimental.
+     * @param source - the source, or a registered source's id
+     * @returns a `DataSource` subclass whose `type` is the source's id
+     * @example
+     * ```ts
+     * const People = DataSource.fromSource(people);
+     * const reader = new People({ team: "core", endpoint: "https://example.com" });
+     * ```
+     */
+    static fromSource<P>(source: GraphSource<P> | string): SourceDataSourceClass {
+        const id = typeof source === "string" ? source : source.id;
+        return class SourceDataSource extends DataSource {
+            static override readonly type: string = id;
+
+            readonly #config: BaseDataSourceConfig & Readonly<Record<string, unknown>>;
+
+            constructor(config: BaseDataSourceConfig & Readonly<Record<string, unknown>>) {
+                super(config.errorLimit ?? 100, config.chunkSize);
+                this.#config = config;
+            }
+
+            protected getConfig(): BaseDataSourceConfig {
+                return this.#config;
+            }
+
+            async *sourceFetchData(): AsyncGenerator<DataSourceChunk, void, unknown> {
+                const params: Record<string, unknown> = {};
+                const options: Record<string, unknown> = {};
+                for (const [key, value] of Object.entries(this.#config)) {
+                    if (SOURCE_OPTION_KEYS.has(key)) {
+                        options[key] = value;
+                    } else if (!READER_KEYS.has(key)) {
+                        params[key] = value;
+                    }
+                }
+                let loaded: Awaited<ReturnType<typeof loadFromSource>>;
+                try {
+                    loaded = await loadFromSource(source as string | GraphSource, params, options); // NOSONAR(S4325): picks the overload; tsc refuses the call without it
+                } catch (error) {
+                    throw toGraphtyError(error);
+                }
+                aggregateErrors(loaded.report, this.errorAggregator);
+                const { snapshot } = loaded;
+                // ponytail: the whole load is held, then chunked; hand each page to the ingest as it
+                // arrives once a paged source is big enough for that to matter
+                const { nodes, edges } = toRecords(sourceGraph(loaded), columnsMapping(snapshot));
                 yield* this.chunkData(nodes, edges);
             }
         };

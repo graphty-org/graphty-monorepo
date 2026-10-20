@@ -1,16 +1,25 @@
-import { AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
-import type { Channel, LabelStyle, LayerId } from "@graphty/graphty-element/schema";
+import { AdvancedButton, AlignmentMatrix, FieldRow } from "@graphty/compact-mantine";
+import {
+    type Channel,
+    type LabelStyle,
+    labelTemplateLine,
+    labelTemplateRow,
+    type LayerId,
+} from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Popover, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Checkbox, ColorSwatch, Group, Menu, Popover, Stack, Text, Tooltip } from "@mantine/core";
 import { Minus, Plus } from "lucide-react";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
+import { CARD_LOOK, isCard, plainLook } from "./cardLook";
 import { FromDataList } from "./FromDataList";
+import { CardContents, CardOptions } from "./LabelCard";
 import {
     type DataChoice,
     type Line,
     lineOf,
+    type LineWrite,
     propose,
     readsNothing,
     removeLine,
@@ -18,6 +27,7 @@ import {
     sourceName,
     type Target,
     writeLine,
+    writeLines,
 } from "./row";
 import { cellOfLocation, labelStatement, locationOfCell, positionWord } from "./words";
 
@@ -31,9 +41,17 @@ interface LabelSectionProps {
     layers: readonly Layer[];
 }
 
-/** Why the Label "+" adds nothing now, or null when it adds a line. */
-const ONE_LINE = "One label line per row for now";
+/** Why the Label "+" adds nothing now. */
 const PICK_FIRST = "Pick an attribute for the new label line first";
+
+/** The "+" name and tooltip. */
+const ADD = "Add label or card";
+
+/** The two ways a layer shows its label: a plain label line, or a card. */
+type Kind = "label" | "card";
+
+/** Each kind's name, in the "+" menu and on its row. */
+const KIND_WORD = { label: "Label", card: "Card" } as const satisfies Record<Kind, string>;
 
 /** The label channel and its style channel, by target. */
 const CHANNELS = {
@@ -42,16 +60,64 @@ const CHANNELS = {
 } as const satisfies Record<Target, { label: Channel; style: Channel }>;
 
 /**
- * Why the Label "+" adds nothing now.
- * @param line - the row's label line, if it has one.
- * @param empty - whether an empty line is waiting for its attribute.
- * @returns the reason, or null when "+" adds a line.
+ * The row's label style: the style line's value, or no style when it has none.
+ * @param layers - the row's layers on this side.
+ * @param styleChannel - the label style channel.
+ * @returns the label style.
  */
-function blockedReason(line: Line | undefined, empty: boolean): string | null {
-    if (line !== undefined) {
-        return ONE_LINE;
+function labelStyleOf(layers: readonly Layer[], styleChannel: Channel): LabelStyle {
+    const styleValue = lineOf(layers, styleChannel)?.value;
+    return typeof styleValue === "object" && !("r" in styleValue) ? styleValue : {};
+}
+
+/**
+ * The kinds the "+" offers. A layer shows its label one way: with a row there, "+" offers the
+ * other kind, which replaces it.
+ * @param line - the row's label line, if it has one.
+ * @param card - whether the row is a card.
+ * @returns the kinds offered.
+ */
+function offeredKinds(line: Line | undefined, card: boolean): readonly Kind[] {
+    if (line === undefined) {
+        return ["label", "card"];
     }
-    return empty ? PICK_FIRST : null;
+    return card ? ["label"] : ["card"];
+}
+
+/**
+ * The writes that turn a row into the other kind, as one undo step. Card: the card look, and the
+ * plain label's one value as the card's first row, in bold. Label: the look taken off, and the
+ * card's first row as the label's one value.
+ * @param kind - the kind the row becomes.
+ * @param channels - the label channel and its style channel.
+ * @param channels.label - the label channel.
+ * @param channels.style - the label style channel.
+ * @param labelStyle - the row's label style now.
+ * @param line - the row's label line, if it has one.
+ * @returns the channel writes.
+ */
+function kindLines(
+    kind: Kind,
+    channels: { label: Channel; style: Channel },
+    labelStyle: LabelStyle,
+    line: Line | undefined,
+): [Channel, LineWrite][] {
+    if (kind === "card") {
+        const lines: [Channel, LineWrite][] = [[channels.style, { value: { ...labelStyle, ...CARD_LOOK } }]];
+        if (line?.binding !== undefined) {
+            lines.push([
+                channels.label,
+                { template: [labelTemplateLine({ text: "", path: line.binding.by, bold: true })] },
+            ]);
+        }
+        return lines;
+    }
+    const lines: [Channel, LineWrite][] = [[channels.style, { value: plainLook(labelStyle) }]];
+    const first = line?.template?.map(labelTemplateRow).find((r) => r !== null);
+    if (first !== undefined) {
+        lines.push([channels.label, { binding: { by: first.path } }]);
+    }
+    return lines;
 }
 
 /**
@@ -67,6 +133,9 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
     if (line === undefined) {
         return null;
     }
+    if (line.template !== undefined) {
+        return "Several values";
+    }
     if (line.binding === undefined) {
         return JSON.stringify(line.value) ?? "";
     }
@@ -76,12 +145,15 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
 }
 
 /**
- * The Label section (tier1-design.md section 3, item 1, and 5.T10): the Label "+" and the heading
- * word both add an empty label line at the next free position (Above) and open its attribute list.
- * The Show checkbox sits on the header, only when a layer beneath this row draws a label. One
- * label line per row until the element has labels keyed by position. The line states its result
- * from the element's `nodeLabelCounts`. An empty line writes nothing and is dropped when the
- * selection changes (the Style tab remounts this section per row).
+ * The Label section (tier1-design.md section 3, item 1, and 5.T10), Figma's add-with-type list:
+ * the "+" (and the heading word) offers Label or Card. Either starts as an empty row at Above with
+ * its attribute list open; picking writes it. A layer shows its label one way, so once a row is
+ * there "+" offers only the other kind, which replaces it and keeps what it reads (one undo step).
+ * A plain label is one row (position, value, "-"); a card is one row (position, panel color and
+ * contents, the Card settings button that opens everything else in a popover, "-"). The Show
+ * checkbox sits on the header, only when a layer beneath this row draws a label. The line states
+ * its result from the element's `nodeLabelCounts`. An empty row writes nothing and is dropped when
+ * the selection changes (the Style tab remounts this section per row).
  * @param props - Component props
  * @param props.target - nodes or edges
  * @param props.row - the row's layers
@@ -90,34 +162,54 @@ function readsOf(session: GraphSession, target: Target, channel: Channel, line: 
  */
 export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps>): React.JSX.Element | null {
     const { session, element, store } = useWorkspace();
-    const [empty, setEmpty] = useState(false);
+    const [empty, setEmpty] = useState<Kind | null>(null);
     const [listOpen, setListOpen] = useState(false);
+    const [menuOpen, setMenuOpen] = useState(false);
+    // Off when a pick opens a new row's attribute list, so the closing menu leaves focus in the list.
+    const [menuReturnsFocus, setMenuReturnsFocus] = useState(true);
     if (session === null) {
         return null;
     }
     const { label: channel, style: styleChannel } = CHANNELS[target];
     const line = lineOf(layers, channel);
-    const styleValue = lineOf(layers, styleChannel)?.value;
-    const labelStyle: LabelStyle = typeof styleValue === "object" && !("r" in styleValue) ? styleValue : {};
+    const labelStyle = labelStyleOf(layers, styleChannel);
     const fail = (): void => {
         store.set({ notice: { message: "The label could not be changed" } });
     };
     const writeStyle = (change: LabelStyle): void => {
         writeLine(session, row, target, styleChannel, { value: { ...labelStyle, ...change } }).catch(fail);
     };
+    const card = line !== undefined && isCard(labelStyle);
+    const setKind = (kind: Kind): void => {
+        writeLines(session, row, target, kindLines(kind, CHANNELS[target], labelStyle, line)).catch(fail);
+    };
     const pick = (choice: DataChoice): void => {
         setListOpen(false);
         const proposal = propose(session, choice, channel);
-        if (proposal.ok) {
-            setEmpty(false);
+        if (!proposal.ok) {
+            return;
+        }
+        const kind = empty;
+        setEmpty(null);
+        if (kind === "card" && "by" in proposal.binding) {
+            // The new card: its look and the picked value as its first row, in bold. One undo step.
+            writeLines(session, row, target, [
+                [styleChannel, { value: { ...labelStyle, ...CARD_LOOK } }],
+                [channel, { template: [labelTemplateLine({ text: "", path: proposal.binding.by, bold: true })] }],
+            ]).catch(fail);
+        } else {
             writeLine(session, row, target, channel, { binding: proposal.binding }).catch(fail);
         }
     };
-    const blocked = blockedReason(line, empty);
-    const add = (): void => {
-        if (blocked === null) {
-            setEmpty(true);
+    const blocked = empty === null ? null : PICK_FIRST;
+    const offered = offeredKinds(line, card);
+    const add = (kind: Kind): void => {
+        if (line === undefined) {
+            setMenuReturnsFocus(false);
+            setEmpty(kind);
             setListOpen(true);
+        } else {
+            setKind(kind);
         }
     };
     const reads = readsOf(session, target, channel, line);
@@ -132,7 +224,10 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                     color="dark"
                     fw={600}
                     aria-disabled={blocked !== null}
-                    onClick={add}
+                    onClick={() => {
+                        setMenuReturnsFocus(true);
+                        setMenuOpen(blocked === null);
+                    }}
                 >
                     Label
                 </Button>
@@ -146,25 +241,77 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                         }}
                     />
                 ) : null}
-                <Tooltip label={blocked ?? "Add label line"}>
-                    <ActionIcon
-                        variant="subtle"
-                        size="sm"
-                        ml="auto"
-                        aria-label="Add label line"
-                        aria-disabled={blocked !== null}
-                        data-disabled={blocked === null ? undefined : true}
-                        onClick={add}
-                    >
-                        <Plus size={14} aria-hidden />
-                    </ActionIcon>
-                </Tooltip>
+                <Menu
+                    opened={menuOpen}
+                    onChange={(opened) => {
+                        if (opened) {
+                            setMenuReturnsFocus(true);
+                        }
+                        setMenuOpen(opened && blocked === null);
+                    }}
+                    returnFocus={menuReturnsFocus}
+                    position="bottom-end"
+                >
+                    <Menu.Target>
+                        <Tooltip label={blocked ?? ADD}>
+                            <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                ml="auto"
+                                aria-label={ADD}
+                                aria-disabled={blocked !== null}
+                                data-disabled={blocked === null ? undefined : true}
+                            >
+                                <Plus size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                        {offered.map((kind) => (
+                            <Menu.Item
+                                key={kind}
+                                onClick={() => {
+                                    add(kind);
+                                }}
+                            >
+                                <div>{KIND_WORD[kind]}</div>
+                                {line === undefined ? null : (
+                                    <Text size="xs" c="dimmed">
+                                        Replaces the {card ? "card" : "label"}
+                                    </Text>
+                                )}
+                            </Menu.Item>
+                        ))}
+                    </Menu.Dropdown>
+                </Menu>
             </Group>
-            {line === undefined && !empty ? null : (
+            {line !== undefined && card ? (
+                <CardLine
+                    session={session}
+                    target={target}
+                    channel={channel}
+                    line={line}
+                    labelStyle={labelStyle}
+                    onStyle={writeStyle}
+                    onLines={(lines) => {
+                        writeLine(session, row, target, channel, { template: lines }).catch(fail);
+                    }}
+                    onRemove={() => {
+                        if (!line.layer.locked) {
+                            removeLine(session, line.layer, [channel, styleChannel]).catch(fail);
+                        }
+                    }}
+                    onFail={(message) => {
+                        store.set({ notice: { message } });
+                    }}
+                />
+            ) : null}
+            {(line === undefined && empty === null) || card ? null : (
                 <LabelLine
                     session={session}
                     target={target}
                     channel={channel}
+                    kind={KIND_WORD[line === undefined ? (empty ?? "label") : "label"]}
                     line={line}
                     reads={reads}
                     location={labelStyle.location}
@@ -175,7 +322,7 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
                         writeStyle({ location });
                     }}
                     onDropEmpty={() => {
-                        setEmpty(false);
+                        setEmpty(null);
                     }}
                     onFail={fail}
                 />
@@ -189,12 +336,212 @@ export function LabelSection({ target, row, layers }: Readonly<LabelSectionProps
     );
 }
 
+/** Props for CardLine. */
+interface CardLineProps {
+    session: GraphSession;
+    target: Target;
+    /** The label channel. */
+    channel: Channel;
+    /** The row's label line. */
+    line: Line;
+    /** The label's style. */
+    labelStyle: LabelStyle;
+    /** Merges a change into the label's style. */
+    onStyle: (change: LabelStyle) => void;
+    /** Writes the card's lines. */
+    onLines: (lines: string[]) => void;
+    /** Removes the card. */
+    onRemove: () => void;
+    /** Reports a change that cannot be written. */
+    onFail: (message: string) => void;
+}
+
+/**
+ * The card's one row (Figma's effect row): its position, its panel color and what it shows first,
+ * and the Card settings button, which opens everything else in a popover beside the panel: the
+ * contents rows, shadow, close button, keep in view, screen size, corners and colors. "-" removes
+ * the card, its look with it. Escape closes the popover (an open list inside it first) and focus
+ * goes back to the button.
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.target - nodes or edges
+ * @param props.channel - the label channel
+ * @param props.line - the row's label line
+ * @param props.labelStyle - the label's style
+ * @param props.onStyle - merges a style change
+ * @param props.onLines - writes the card's lines
+ * @param props.onRemove - removes the card
+ * @param props.onFail - reports a refused change
+ * @returns The row
+ */
+function CardLine({
+    session,
+    target,
+    channel,
+    line,
+    labelStyle,
+    onStyle,
+    onLines,
+    onRemove,
+    onFail,
+}: Readonly<CardLineProps>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const settingsButton = useRef<HTMLButtonElement>(null);
+    const lines = cardLines(line);
+    const first = lines.map(labelTemplateRow).find((r) => r !== null);
+    const firstName =
+        first === undefined ? (lines[0] ?? "Empty") : (sourceName(session, { by: first.path }) ?? first.path);
+    const summary = lines.length > 1 ? `${firstName} +${String(lines.length - 1)}` : firstName;
+    return (
+        <FieldRow
+            data-line={channel}
+            data-card
+            groupLabel={`Card, ${positionWord(labelStyle.location)}: ${summary}`}
+            trailing={
+                <Tooltip label="Remove card">
+                    <ActionIcon variant="subtle" size="sm" aria-label="Remove card" onClick={onRemove}>
+                        <Minus size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            }
+        >
+            <Position
+                location={labelStyle.location}
+                onLocation={(location) => {
+                    onStyle({ location });
+                }}
+            />
+            <Group gap={4} wrap="nowrap" miw={0}>
+                <Popover
+                    opened={open}
+                    onChange={setOpen}
+                    position="left-start"
+                    width={264}
+                    trapFocus
+                    returnFocus
+                    // Escape is handled below, so it closes an open list inside first.
+                    closeOnEscape={false}
+                >
+                    <Popover.Target>
+                        <AdvancedButton
+                            ref={settingsButton}
+                            label="Card settings"
+                            aria-expanded={open}
+                            onClick={() => {
+                                setOpen(!open);
+                            }}
+                        />
+                    </Popover.Target>
+                    <Popover.Dropdown
+                        aria-label="Card settings"
+                        onKeyDown={(event) => {
+                            // Only an Escape from the popover itself, not from a list or menu open in it.
+                            const from = event.target instanceof Element ? event.target : null;
+                            if (
+                                event.key === "Escape" &&
+                                from?.closest('[role="dialog"], [role="menu"]') === event.currentTarget
+                            ) {
+                                // Back to the button now, as Mantine's own Escape does (its onTrigger):
+                                // returnFocus alone waits 10 ms after the dropdown unmounts, and in
+                                // between focus is on the page body.
+                                settingsButton.current?.focus({ preventScroll: true });
+                                setOpen(false);
+                            }
+                        }}
+                    >
+                        <Stack gap={8}>
+                            <CardContents
+                                session={session}
+                                target={target}
+                                channel={channel}
+                                lines={lines}
+                                onLines={onLines}
+                                onFail={onFail}
+                            />
+                            <CardOptions style={labelStyle} onChange={onStyle} />
+                        </Stack>
+                    </Popover.Dropdown>
+                </Popover>
+                <ColorSwatch size={14} radius="sm" color={labelStyle.background ?? "#ffffff"} aria-hidden />
+                <Text size="xs" truncate title={summary}>
+                    {summary}
+                </Text>
+            </Group>
+        </FieldRow>
+    );
+}
+
+/**
+ * The card's lines: the template's, or the one value a plain label read, as one row.
+ * @param line - the row's label line.
+ * @returns the lines.
+ */
+function cardLines(line: Line): readonly string[] {
+    if (line.template !== undefined) {
+        return line.template;
+    }
+    return line.binding === undefined ? [] : [labelTemplateLine({ text: "", path: line.binding.by })];
+}
+
+/**
+ * Where the label sits: its position word, and the button that opens the alignment matrix.
+ * @param props - Component props
+ * @param props.location - where the label sits
+ * @param props.onLocation - called with a new position
+ * @returns The control
+ */
+function Position({
+    location,
+    onLocation,
+}: Readonly<{
+    location: LabelStyle["location"];
+    onLocation: (location: LabelStyle["location"]) => void;
+}>): React.JSX.Element {
+    const [positionOpen, setPositionOpen] = useState(false);
+    return (
+        <Group gap={4} wrap="nowrap">
+            <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
+                <Popover.Target>
+                    <Tooltip label="Label position">
+                        <ActionIcon
+                            variant="default"
+                            size="sm"
+                            aria-label="Label position"
+                            onClick={() => {
+                                setPositionOpen(!positionOpen);
+                            }}
+                        >
+                            <Text size="xs" component="span">
+                                Aa
+                            </Text>
+                        </ActionIcon>
+                    </Tooltip>
+                </Popover.Target>
+                <Popover.Dropdown>
+                    <AlignmentMatrix
+                        label="Label position"
+                        value={cellOfLocation(location)}
+                        onChange={(cell) => {
+                            onLocation(locationOfCell(cell));
+                        }}
+                    />
+                </Popover.Dropdown>
+            </Popover>
+            <Text size="xs" truncate>
+                {positionWord(location)}
+            </Text>
+        </Group>
+    );
+}
+
 /** Props for LabelLine. */
 interface LabelLineProps {
     session: GraphSession;
     target: Target;
     /** The label channel. */
     channel: Channel;
+    /** What the row is: Label, or Card while a new card waits for its first value. */
+    kind: string;
     /** The row's label line, or undefined for the empty line waiting for its attribute. */
     line: Line | undefined;
     /** What the line draws, in words. */
@@ -218,6 +565,7 @@ interface LabelLineProps {
  * @param props.session - The element's session
  * @param props.target - nodes or edges
  * @param props.channel - the label channel
+ * @param props.kind - Label, or Card for a new card's empty row
  * @param props.line - the row's label line, or undefined for the empty line
  * @param props.reads - what the line draws, in words
  * @param props.location - where the label sits
@@ -233,6 +581,7 @@ function LabelLine({
     session,
     target,
     channel,
+    kind,
     line,
     reads,
     location,
@@ -243,7 +592,6 @@ function LabelLine({
     onDropEmpty,
     onFail,
 }: Readonly<LabelLineProps>): React.JSX.Element {
-    const [positionOpen, setPositionOpen] = useState(false);
     const position = positionWord(location);
     const remove = (): void => {
         if (line === undefined) {
@@ -257,45 +605,19 @@ function LabelLine({
         <FieldRow
             data-line={channel}
             trailing={
-                <Tooltip label="Remove label line">
-                    <ActionIcon variant="subtle" size="sm" aria-label="Remove label line" onClick={remove}>
+                <Tooltip label={`Remove ${kind.toLowerCase()} line`}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        aria-label={`Remove ${kind.toLowerCase()} line`}
+                        onClick={remove}
+                    >
                         <Minus size={14} aria-hidden />
                     </ActionIcon>
                 </Tooltip>
             }
         >
-            <Group gap={4} wrap="nowrap">
-                <Popover opened={positionOpen} onChange={setPositionOpen} position="left-start" trapFocus>
-                    <Popover.Target>
-                        <Tooltip label="Label position">
-                            <ActionIcon
-                                variant="default"
-                                size="sm"
-                                aria-label="Label position"
-                                onClick={() => {
-                                    setPositionOpen(!positionOpen);
-                                }}
-                            >
-                                <Text size="xs" component="span">
-                                    Aa
-                                </Text>
-                            </ActionIcon>
-                        </Tooltip>
-                    </Popover.Target>
-                    <Popover.Dropdown>
-                        <AlignmentMatrix
-                            label="Label position"
-                            value={cellOfLocation(location)}
-                            onChange={(cell) => {
-                                onLocation(locationOfCell(cell));
-                            }}
-                        />
-                    </Popover.Dropdown>
-                </Popover>
-                <Text size="xs" truncate>
-                    {position}
-                </Text>
-            </Group>
+            <Position location={location} onLocation={onLocation} />
             <Popover opened={listOpen} onChange={onListOpen} position="left-start" trapFocus>
                 <Popover.Target>
                     <Button
@@ -306,8 +628,8 @@ function LabelLine({
                         justify="flex-start"
                         aria-label={
                             line === undefined
-                                ? `Label, ${position}: no attribute, draws nothing`
-                                : `Label, ${position}: ${reads ?? ""}`
+                                ? `${kind}, ${position}: no attribute, draws nothing`
+                                : `${kind}, ${position}: ${reads ?? ""}`
                         }
                         onClick={() => {
                             onListOpen(!listOpen);

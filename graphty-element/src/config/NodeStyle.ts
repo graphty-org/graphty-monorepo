@@ -308,19 +308,28 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // https://forum.babylonjs.com/t/how-to-get-the-perfect-outline/31711
-                    //
-                    // COLOUR ONLY, and it is a renderer limit rather than an oversight. The
-                    // outline is drawn by Babylon's HighlightLayer, whose blur size belongs to
-                    // the LAYER and not to a mesh, so every outline on screen is one width
-                    // whatever a style asks for. A declared `width` was therefore accepted,
-                    // validated and ignored; drawing per-mesh widths needs one highlight layer
-                    // per width, which is a full-screen pass each.
+                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
+                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
+                    // `width` would be accepted and ignored.
                     color: ColorStyle.optional(),
+                })
+                .optional(),
+            // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any
+            // node a layer picks. Any of the look's fields switches it on; `enabled` alone switches
+            // it on with the selection's look, and `enabled: false` takes it off, even off a
+            // selected node. A field left unset is the selection style's.
+            halo: z
+                .strictObject({
+                    enabled: z.boolean().optional(),
+                    color: ColorStyle.optional(),
+                    scale: z.number().min(0).optional(), // 0 leaves the selection style's scale, as the channel does
+                    opacity: z.number().min(0).max(1).optional(),
                 })
                 .optional(),
             wireframe: z.boolean().optional(),
             flatShaded: z.boolean().optional(),
+            // Drawn in the node's own colour with no light or shade, as 2D draws every node.
+            unlit: z.boolean().optional(),
         })
         .optional(),
     // A ring drawn around the node's outline, outside its fill. The width is in the units of

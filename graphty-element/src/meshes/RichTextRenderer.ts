@@ -46,9 +46,12 @@ export class RichTextRenderer {
         parsedContent: TextSegment[][],
         contentArea: { x: number; y: number; width: number; height: number },
     ): void {
-        const textAreaWidth = contentArea.width - this.options.marginLeft - this.options.marginRight;
-        const textAreaX = contentArea.x + this.options.marginLeft;
-        let currentY = contentArea.y + this.options.marginTop;
+        // The panel is sized for the words plus margins plus padding on every side (#3157), so the
+        // words are inset by both.
+        const pad = this.options.backgroundPadding;
+        const textAreaWidth = contentArea.width - this.options.marginLeft - this.options.marginRight - pad * 2;
+        const textAreaX = contentArea.x + this.options.marginLeft + pad;
+        let currentY = contentArea.y + this.options.marginTop + pad;
 
         for (const lineSegments of parsedContent) {
             const { width, lineBox, baseline, offsets } = measureLine(ctx, lineSegments, this.options);

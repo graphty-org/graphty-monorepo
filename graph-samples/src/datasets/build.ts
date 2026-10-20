@@ -39,4 +39,10 @@ export interface DatasetMeta {
     readonly bytes?: number;
     /** The checksum: the SHA-256 of its `.gsnp.gz` file, lowercase hex. */
     readonly sha256?: string;
+    /**
+     * A small picture of the graph (a 480 x 300 WebP with a transparent background, drawn by
+     * graphty-element): its file name beside the dataset's file, so its address is the dataset base
+     * URL plus this name. Absent when the dataset has none.
+     */
+    readonly thumbnail?: string;
 }

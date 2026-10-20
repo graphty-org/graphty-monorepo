@@ -848,12 +848,15 @@ export class DataManager implements Manager {
             removedNodes.push(...doomed);
         }
 
-        // Edges after nodes: an edge is built only once both its endpoints are drawn.
+        // Edges after nodes: an edge is built only once both its endpoints are drawn. The waiting
+        // ones looked up by id from one index, not one scan of the queue per edge: a scan per edge
+        // is edges x waiting, which never finished on a million of each.
+        const waiting = new Map(this.pendingEdges.map((entry) => [entry.edgeId, entry]));
         for (const id of edgeKeys) {
             const record = slice.edges.get(id);
             const edge = this.edges.get(id);
             const counter = edgeCounterOf(id);
-            const pending = this.pendingEdges.find((entry) => entry.edgeId === counter);
+            const pending = waiting.get(counter);
             if (record === undefined) {
                 if (edge !== undefined) {
                     this.teardownEdge(edge, edge.index);

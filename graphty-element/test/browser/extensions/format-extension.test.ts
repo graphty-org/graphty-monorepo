@@ -921,7 +921,11 @@ describe("a third party's file format", () => {
             progress.map((event) => event.chunksProcessed),
             [1, 2, 3],
         );
-        assert.strictEqual(progress[0].edgeRecordsLoaded, LINKS, "the links arrive with the first chunk");
+        assert.deepStrictEqual(
+            progress.map((event) => event.edgeRecordsLoaded),
+            [0, 0, LINKS],
+            "the links arrive with the last chunk, after every node they join",
+        );
     });
 
     it("announces completion under its own format name, with what it loaded", async () => {

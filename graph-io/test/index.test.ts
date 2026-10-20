@@ -287,6 +287,33 @@ const VALUE_EXPORTS = [
     "reportUnusedOptions",
     "tokenizeXml",
     "xmlIllegalTextNotes",
+    // network sources (experimental)
+    "SOURCE_ISSUE",
+    "credentials",
+    "storableCredential",
+    "fromStorableCredential",
+    "defineSource",
+    "registerSource",
+    "listSources",
+    "loadFromSource",
+    "importFromSource",
+    "expandFromSource",
+    "probeSource",
+    "listFromSource",
+    "validateSource",
+    "replayFetch",
+    "recordingFrom",
+    "NDEX_SOURCE_ID",
+    "CYPHER_SOURCE_ID",
+    "NEO4J_SOURCE_ID",
+    "NEPTUNE_SOURCE_ID",
+    "REST_SOURCE_ID",
+    "OPENALEX_SOURCE_ID",
+    "SOURCE_ATTR_PREFIX",
+    "SOURCE_STUB_ATTR",
+    "SOURCE_DEGREE_ATTR",
+    "SOURCE_ENTITY_ATTR",
+    "SOURCE_FORMAT_PREFIX",
 ];
 
 describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
@@ -364,7 +391,10 @@ describe("public barrel (design sections 8.2, 12.4, 13.1)", () => {
     });
 
     it("lists the codes of refused elements, which any importer can record, in every format's issue table", () => {
-        const tables = Object.entries(graphIo).filter(([name]) => name.endsWith("_ISSUE") && name !== "INPUT_ISSUE");
+        // SOURCE_ISSUE is the network sources' table, keyed by full code, not a format's
+        const tables = Object.entries(graphIo).filter(
+            ([name]) => name.endsWith("_ISSUE") && name !== "INPUT_ISSUE" && name !== "SOURCE_ISSUE",
+        );
         expect(tables.length).toBeGreaterThan(10);
         for (const [name, table] of tables) {
             const codes = new Set(Object.values(table as Record<string, string>));

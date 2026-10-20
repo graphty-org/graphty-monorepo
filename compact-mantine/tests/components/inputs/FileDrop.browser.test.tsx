@@ -83,14 +83,23 @@ describe("FileDrop", () => {
         expect(transfer).toBeInstanceOf(DataTransfer);
     });
 
-    it("is drawn as a target while files are held over it", async () => {
-        await renderDrop(() => undefined);
+    it("is drawn as a target while files are held over it, and not after they leave", async () => {
+        const onFiles = vi.fn();
+        await renderDrop(onFiles);
         const zone = screen.getByRole("group", { name: "Model files" });
         const rest = getComputedStyle(zone).backgroundColor;
+        let held = "";
+        new MutationObserver(() => {
+            if (zone.hasAttribute("data-over")) {
+                held = getComputedStyle(zone).backgroundColor;
+            }
+        }).observe(zone, { attributes: true, attributeFilter: ["data-over"] });
         await commands.dropFiles('[role="group"][aria-label="Model files"]', MODEL, true);
+        expect(held).not.toBe("");
+        expect(held).not.toBe(rest);
         await waitFor(() => {
-            expect(zone).toHaveAttribute("data-over");
+            expect(zone).not.toHaveAttribute("data-over");
         });
-        expect(getComputedStyle(zone).backgroundColor).not.toBe(rest);
+        expect(onFiles).not.toHaveBeenCalled();
     });
 });

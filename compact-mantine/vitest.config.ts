@@ -270,7 +270,8 @@ const chooseNextFiles: BrowserCommand<[files: TestFile[], folder?: string]> = (c
  * @param ctx - the browser command context
  * @param selector - where to drop, inside the test frame
  * @param files - the files
- * @param hold - true to stop over the element without dropping (its hover state)
+ * @param hold - true to hold the files over the element until it shows its held look, then carry
+ *   them off it and cancel the drag, so no drag is left in progress for the next test
  */
 const dropFiles: BrowserCommand<[selector: string, files: TestFile[], hold?: boolean]> = async (
     ctx,
@@ -285,9 +286,20 @@ const dropFiles: BrowserCommand<[selector: string, files: TestFile[], hold?: boo
     const data = { items: [], files: writeTestFiles(files).paths, dragOperationsMask: 1 };
     const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const cdp = await ctx.page.context().newCDPSession(ctx.page);
-    const types = hold ? ["dragEnter", "dragOver"] : ["dragEnter", "dragOver", "drop"];
-    for (const type of types) {
+    for (const type of ["dragEnter", "dragOver"]) {
         await cdp.send("Input.dispatchDragEvent", { type, ...at, data });
+    }
+    if (hold) {
+        // The zone's held look, read while the files are still over it.
+        await (await ctx.frame()).locator(`${selector}[data-over]`).first().waitFor();
+    }
+    if (hold) {
+        // Carried off the element (below it, still in the test frame), then let go with nothing to take it.
+        const off = { x: at.x, y: box.y + box.height + 40 };
+        await cdp.send("Input.dispatchDragEvent", { type: "dragOver", ...off, data });
+        await cdp.send("Input.dispatchDragEvent", { type: "dragCancel", ...off, data });
+    } else {
+        await cdp.send("Input.dispatchDragEvent", { type: "drop", ...at, data });
     }
     await cdp.detach();
 };

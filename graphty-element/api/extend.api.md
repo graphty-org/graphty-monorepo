@@ -1914,11 +1914,15 @@ class Node_2 {
     // (undocumented)
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
+    // @internal
+    refreshShaderPaint(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderStateChanged(state: NodeShaderState, on: boolean): void;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
     // (undocumented)

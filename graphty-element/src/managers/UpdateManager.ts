@@ -18,6 +18,7 @@ import type { NodeIdType } from "../config/GraphBehavior";
 import { Edge } from "../Edge";
 import { SimulationLayoutEngine } from "../layout/SimulationLayoutEngine";
 import { disposeLabelsTogether } from "../meshes/LabelBatch";
+import { NodeShaderDrawing } from "../meshes/NodeShaderDrawing";
 import { collectResizedNodes, type Node, nodeRebuildsFor, type NodeRenderState, releaseNodeMesh } from "../Node";
 import type { ElementMask } from "../session/scope/index";
 import { type DataManager, disposeReleased } from "./DataManager";
@@ -349,6 +350,43 @@ export class UpdateManager implements Manager {
         this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
         });
+        this.lendShaderRepaint();
+    }
+
+    /**
+     * Lend the scene's node shader drawing the bulk repaint, so nodes waking on a shader that
+     * became drawable are rebuilt together rather than one dispose at a time.
+     */
+    private lendShaderRepaint(): void {
+        NodeShaderDrawing.lendRepaint(this.graphContext.getScene(), (nodes) => {
+            this.repaintNodes(nodes as readonly Node[]);
+        });
+    }
+
+    /**
+     * Draw nodes again from the paints the session holds for them, as a style pass does: every
+     * mesh about to be rebuilt disposed together first, the edges of the resized nodes found in
+     * one walk. For a change the style stack did not make -- a shader a node names became drawable.
+     * @param nodes - The nodes.
+     * @internal
+     */
+    repaintNodes(nodes: readonly Node[]): void {
+        const painter = this.graphContext.getStylePainter?.();
+        if (painter?.owns !== true) {
+            return;
+        }
+
+        const painted: [Node, NodePaint][] = [];
+        for (const node of nodes) {
+            const paint = node.isDisposed() ? null : painter.nodePaint(node.index);
+            if (paint !== null) {
+                painted.push([node, paint]);
+            }
+        }
+
+        this.paintNodes(painted);
+        this.graphContext.getMeshCache().prune();
+        this.sceneChanged = true;
     }
 
     /**
@@ -361,6 +399,7 @@ export class UpdateManager implements Manager {
         this.drawWatcher = this.graphContext.getScene().onAfterRenderObservable.add(() => {
             this.noteFrameDrawn();
         });
+        this.lendShaderRepaint();
     }
 
     /**

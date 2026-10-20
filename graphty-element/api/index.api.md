@@ -3761,11 +3761,15 @@ class Node_2 {
     // (undocumented)
     pinOnDrag: boolean;
     refreshSelectionOverlay(): void;
+    // @internal
+    refreshShaderPaint(): void;
     get roundRadius(): number | null;
     // @internal
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    // @internal
+    shaderStateChanged(state: NodeShaderState, on: boolean): void;
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
     // (undocumented)
@@ -5608,6 +5612,8 @@ export class UpdateManager implements Manager {
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
     renderFrames(count: number): void;
+    // @internal
+    repaintNodes(nodes: readonly Node_2[]): void;
     stepFrames(count: number): void;
     stopAutoZoomToFit(): void;
     syncStyles(): void;

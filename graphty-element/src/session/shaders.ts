@@ -312,6 +312,15 @@ export interface ShadersController {
     /** The project's shaders as the catalog lists them. */
     descriptors(): readonly ShaderDescriptor[];
     /**
+     * A shader the element may draw now, for the node and edge batches: a preset or a registered
+     * shader at once, a project shader once it is trusted and has compiled and passed its test
+     * frame here. A project shader's state changing is published as `shader:status`, which is when
+     * to ask again.
+     * @param id - The shader's id.
+     * @returns The shader, or null when it may not draw (unknown, held, failed, compiling, off).
+     */
+    drawable(id: string): Promise<HostShader | null>;
+    /**
      * What to run before a shader nobody has approved is compiled or test-drawn: the element's
      * autosave flushes, so a GPU that dies under it loses no work.
      * @param hook - The hook.
@@ -1131,6 +1140,26 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         },
         onRisk(hook) {
             riskHook = hook;
+        },
+        async drawable(id) {
+            const project = projectShader(id);
+            if (project !== undefined) {
+                return statusOf(project).state === "ready"
+                    ? { id, hash: project.hash, registration: project.registration, bodyLine: project.bodyLine }
+                    : null;
+            }
+
+            const descriptor = shaderDescriptor(id);
+            if (descriptor === undefined || (descriptor.webgpu === "none" && host?.renderer === "webgpu")) {
+                return null;
+            }
+
+            const glsl = registeredShaderSource(id)?.glsl ?? (await presetBody(id));
+            if (glsl === undefined) {
+                return null;
+            }
+
+            return { id, hash: sha256Hex(`${id}\n${glsl}`), registration: { descriptor, glsl }, bodyLine: 1 };
         },
         descriptors() {
             return [...state().shaders.keys()].flatMap((id) => {

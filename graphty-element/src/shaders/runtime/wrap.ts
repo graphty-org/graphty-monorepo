@@ -25,6 +25,9 @@
 import { tokenize } from "../../catalog/shaderGlsl";
 import type { ShaderDescriptor, ShaderKind, ShaderParamDescriptor, ShaderProblem } from "../../catalog/shaders";
 import { GLSL_HELPERS, GLSL_STRUCTS } from "./glsl";
+import { uniformValueOf } from "./nodeLayout";
+
+export { uniformValueOf };
 
 /** The line the wrapper's code after the body is numbered from, so its errors are told apart. */
 export const WRAPPER_LINE = 100_000;
@@ -303,30 +306,6 @@ function paramAssignment(param: ShaderParamDescriptor): string {
     }
 }
 
-/**
- * The value a parameter's uniform takes for one of its values.
- * @param param - The parameter.
- * @param value - A value of it, or undefined for its default.
- * @returns The uniform's value: three floats for a color, else one.
- */
-export function uniformValueOf(param: ShaderParamDescriptor, value: unknown): number[] {
-    const given = value ?? param.default;
-    switch (param.type) {
-        case "color": {
-            const hex = typeof given === "string" && /^#[\da-fA-F]{6}$/.test(given) ? given : "#ffffff";
-            return [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255);
-        }
-        case "boolean":
-            return [given === true ? 1 : 0];
-        case "enum": {
-            const index = (param.values ?? []).findIndex((entry) => entry.value === given);
-            return [Math.max(0, index)];
-        }
-        default:
-            return [typeof given === "number" && Number.isFinite(given) ? given : 0];
-    }
-}
-
 /** What the sample program draws for a pixel whose result is not a number: the color beneath. */
 const SAMPLE_FALLBACK: Readonly<Record<ShaderKind, string>> = {
     "node-surface": "graphty_in.color",
@@ -486,6 +465,17 @@ export function paramDeclarations(params: readonly ShaderParamDescriptor[]): str
                 `uniform ${uniformTypeOf(param)} graphty_p_${param.name};\n${globalTypeOf(param)} ${BODY_PREFIX}${param.name};`,
         )
         .join("\n");
+}
+
+/**
+ * The globals a shader's parameters are in the body, without their uniforms: for programs that
+ * read the values from somewhere else (a data texture, an instanced attribute) into locals named
+ * `graphty_p_<name>` before {@link mainPrelude} assigns them.
+ * @param params - The parameters.
+ * @returns The GLSL.
+ */
+export function paramGlobals(params: readonly ShaderParamDescriptor[]): string {
+    return params.map((param) => `${globalTypeOf(param)} ${BODY_PREFIX}${param.name};`).join("\n");
 }
 
 /**

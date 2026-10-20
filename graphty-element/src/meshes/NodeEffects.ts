@@ -593,7 +593,7 @@ export class NodeEffects {
      * @param color - Color configuration object or string
      * @returns Extracted color string or undefined
      */
-    private static extractColorValue(color: unknown): string | undefined {
+    static extractColorValue(color: unknown): string | undefined {
         if (typeof color === "string") {
             return color;
         }

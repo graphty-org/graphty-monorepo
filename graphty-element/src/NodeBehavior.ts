@@ -849,6 +849,7 @@ export class NodeDragHandler {
         if (isOverThisNode && !this.isHovered) {
             this.isHovered = true;
             this.roster.hovered.add(this);
+            this.node.shaderStateChanged("hovered", true);
 
             // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
             // an answer to pointing at something, so no style pass knows when to draw one:
@@ -896,6 +897,7 @@ export class NodeDragHandler {
         }
 
         this.isHovered = false;
+        this.node.shaderStateChanged("hovered", false);
         this.node.hideTooltip();
         this.getContext().getSelectionManager?.()?.leave(this.node.id);
     };

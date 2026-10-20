@@ -29,6 +29,13 @@ import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { NodeMesh } from "./meshes/NodeMesh";
+import {
+    NodeShaderDrawing,
+    type NodeShaderLook,
+    type NodeShaderState,
+    type NodeShaderStyle,
+    type SurfacePath,
+} from "./meshes/NodeShaderDrawing";
 import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isFlatShape } from "./meshes/shapeOutlines";
@@ -207,6 +214,49 @@ export function collectResizedNodes(work: () => void): Set<Node> {
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
 /**
+ * What the shader channels painted on a node: the `shader` block of its resolved style, which the
+ * painter writes from `node.shader`, `node.shaderParams` and `node.effects`.
+ * @param style - The resolved style.
+ * @returns The block, or undefined when no shader channel painted it.
+ */
+function shaderStyleOf(style: NodeStyleConfig): NodeShaderStyle | undefined {
+    return (style as NodeStyleConfig & { shader?: NodeShaderStyle }).shader;
+}
+
+/**
+ * Whether a shader block names anything to draw: a surface or sprite other than "none", or an effect.
+ * @param shader - The block.
+ * @returns True when it does.
+ */
+function namesShader(shader: NodeShaderStyle | undefined): boolean {
+    return (
+        (shader?.id !== undefined && shader.id !== "none") ||
+        (shader?.effects !== undefined && Object.keys(shader.effects).length > 0)
+    );
+}
+
+/**
+ * The shader path part of a mesh key (`|shader:<path>:<id>`), or "" for a node drawn plainly.
+ * @param meshKey - The key.
+ * @returns The part.
+ */
+function shaderPartOf(meshKey: string): string {
+    const at = meshKey.indexOf("|shader:");
+    return at === -1 ? "" : meshKey.slice(at);
+}
+
+/**
+ * A color for the shader batch, as `#rrggbb`, with its alpha apart.
+ * @param value - The color as a style holds it.
+ * @param fallback - The color when it does not read.
+ * @returns The hex and the alpha.
+ */
+function hexOf(value: unknown, fallback: string): { hex: string; alpha: number } {
+    const { rgb, alpha } = readColor(typeof value === "string" ? value : undefined, fallback);
+    return { hex: rgb.toHexString(), alpha };
+}
+
+/**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
@@ -223,8 +273,16 @@ export class Node {
         };
         writeRecord = (node, record) => {
             node.#record = frozenRecord(record);
+            node.shaderDrawing?.dataChanged(node);
         };
-        rebuildsFor = (node, paint) => !node.disposed && !node.keepsMeshFor(paint.meshKey, paint.style, paint.color);
+        rebuildsFor = (node, paint) => {
+            if (node.disposed) {
+                return false;
+            }
+
+            const shaded = node.shadedPaint(paint.meshKey, paint.style);
+            return !node.keepsMeshFor(shaded.meshKey, shaded.style, paint.color);
+        };
     }
 
     /**
@@ -392,6 +450,17 @@ export class Node {
     /** The cache key of the halo's source mesh, so a node that changes shape rebuilds its halo. */
     private haloKey: string | null = null;
 
+    /**
+     * Which shader path draws this node's surface or sprite (design/rendering/shader-styles.md
+     * section 5), or null while it is drawn plainly. Part of its source mesh's key: an impostor or
+     * a sprite keeps its mesh only as an invisible pick proxy, and the mesh path's shader is a
+     * plugin on the source's material.
+     */
+    private shaderPath: SurfacePath | null = null;
+
+    /** The shader drawing of this node's scene, once this node has drawn a shader. */
+    private shaderDrawing: NodeShaderDrawing | null = null;
+
     /** The faint point drawn in this node's place while it is a context node, or null. */
     private contextPoint: AbstractMesh | null = null;
 
@@ -485,6 +554,9 @@ export class Node {
         this.applyInstancePaint(o, paint.color);
 
         NodeBehavior.addDefaultBehaviors(this, this.opts);
+
+        // A node arriving in a graph already drawing shaders plays the entrances it starts with.
+        NodeShaderDrawing.peek(this.context.getScene())?.arrived(this);
     }
 
     /**
@@ -715,6 +787,7 @@ export class Node {
      */
     setMeshPosition(x: number, y: number, z: number): void {
         this.mesh.position.set(x, y, z);
+        this.shaderDrawing?.moved(this, x, y, z);
         // The overlays follow here, not only in update(): over a settled layout the update loop
         // visits no node, so a dragged node's halo stayed where the drag began until the drop.
         this.syncOverlayPositions();
@@ -833,13 +906,161 @@ export class Node {
      */
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
-        NodeEffects.applyOutlineEffect(this.mesh, style.effect, this.context.getMeshCache());
-        NodeEffects.applyGlowEffect(this.mesh, style.effect);
+        // A node drawn by the shader batch draws its outline ring and glow there, from its radius:
+        // on its invisible pick proxy they would ring nothing.
+        const effect = this.drawnByBatch() ? undefined : style.effect;
+        NodeEffects.applyOutlineEffect(this.mesh, effect, this.context.getMeshCache());
+        NodeEffects.applyGlowEffect(this.mesh, effect);
         const hidden = style.visible === false;
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
             this.applyRenderState();
         }
+
+        this.syncShaders();
+    }
+
+    /**
+     * Whether the shader batch draws this node in place of its mesh: an impostor or a sprite.
+     * @returns True when it does.
+     */
+    private drawnByBatch(): boolean {
+        return this.shaderPath === "impostor" || this.shaderPath === "sprite";
+    }
+
+    /**
+     * The mesh key and style a paint is drawn with once its shader is taken into account: the
+     * shader path joins the key, and a sprite's proxy is a sphere, so it is picked by its radius.
+     * @param meshKey - The paint's key.
+     * @param style - The paint's style.
+     * @returns The key and style to build the mesh from, and the path.
+     */
+    private shadedPaint(
+        meshKey: string,
+        style: NodeStyleConfig,
+    ): { meshKey: string; style: NodeStyleConfig; path: SurfacePath | null } {
+        const id = shaderStyleOf(style)?.id;
+        if (id === undefined || id === "none" || this.drawnAsGroup) {
+            return { meshKey, style, path: null };
+        }
+
+        const drawing = NodeShaderDrawing.of(this.context.getScene(), this.context.getSession?.());
+        const round = ROUND_SHAPES.has(style.shape?.type ?? "");
+        const path = drawing?.surfacePath(this, id, round) ?? null;
+        if (path === null) {
+            return { meshKey, style, path };
+        }
+
+        const shaped = path === "sprite" ? { ...style, shape: { ...style.shape, type: "sphere" as const } } : style;
+        return { meshKey: `${meshKey}|shader:${path}:${id}`, style: shaped, path };
+    }
+
+    /**
+     * Hand the shader drawing what this node looks like now: its surface or sprite, its effects,
+     * and the halo, ring and glow the batch draws for it.
+     */
+    private syncShaders(): void {
+        const style = this.drawnStyle;
+        if (style === null) {
+            return;
+        }
+
+        const shader = shaderStyleOf(style);
+        const scene = this.context.getScene();
+        const drawing = namesShader(shader)
+            ? NodeShaderDrawing.of(scene, this.context.getSession?.())
+            : (this.shaderDrawing ?? NodeShaderDrawing.peek(scene) ?? null);
+        if (drawing === null) {
+            return;
+        }
+
+        this.shaderDrawing = drawing;
+        drawing.paint(this, this.shaderLook(style, shader));
+        this.syncShaderStates();
+    }
+
+    /**
+     * What the shader drawing draws this node with.
+     * @param style - The resolved style.
+     * @param shader - Its shader block.
+     * @returns The look.
+     */
+    private shaderLook(style: NodeStyleConfig, shader: NodeShaderStyle | undefined): NodeShaderLook {
+        const painted = style.texture?.color;
+        const opacity = typeof painted === "object" ? (painted.opacity ?? 1) : 1;
+        const color = this.drawnColor ?? { r: 255, g: 255, b: 255, a: 1 };
+        const batch = this.drawnByBatch();
+        const halo = batch && this.renderState === "visible" ? this.haloLook() : null;
+        const haloColor = halo === null ? null : hexOf(halo.color, DEFAULT_SELECTION_STYLE.color);
+        const outline = style.effect?.outline;
+        const glow = style.effect?.glow;
+        const glowColor = glow?.color;
+        return {
+            mesh: this.mesh,
+            style: shader,
+            path: this.shaderPath,
+            color,
+            opacity,
+            radius: this.roundRadius ?? this.size / 2,
+            drawn: this.getRenderState() === "visible",
+            halo:
+                halo === null || haloColor === null || halo.opacity === 0
+                    ? null
+                    : { color: haloColor.hex, scale: halo.scale, opacity: halo.opacity * haloColor.alpha },
+            ring: batch && outline ? hexOf(NodeEffects.extractColorValue(outline.color), "#000000").hex : null,
+            glow:
+                batch && glow && glowColor !== undefined && (glow.strength ?? 1) > 0
+                    ? {
+                          color: hexOf(NodeEffects.extractColorValue(glowColor), "#FFFFFF").hex,
+                          strength: glow.strength ?? 1,
+                      }
+                    : null,
+        };
+    }
+
+    /** The states the shader drawing has stamped, brought up to date: selected, hovered, pinned. */
+    private readonly shaderStates = { selected: false, hovered: false, pinned: false };
+
+    /** Tell the shader drawing which states changed since it last heard. */
+    private syncShaderStates(): void {
+        const now: Record<NodeShaderState, boolean> = {
+            selected: this.selected,
+            hovered: this.context.getSelectionManager?.()?.isHovered(this.id) ?? false,
+            pinned: this.isPinned(),
+        };
+        for (const state of ["selected", "hovered", "pinned"] as const) {
+            if (now[state] !== this.shaderStates[state]) {
+                this.shaderStateChanged(state, now[state]);
+            }
+        }
+    }
+
+    /**
+     * A state the shaders read changed: stamp it.
+     * @param state - The state.
+     * @param on - Its value now.
+     * @internal
+     */
+    shaderStateChanged(state: NodeShaderState, on: boolean): void {
+        if (this.shaderStates[state] === on) {
+            return;
+        }
+
+        this.shaderStates[state] = on;
+        this.shaderDrawing?.stateChanged(this, state, on);
+    }
+
+    /**
+     * Draw this node again from the paint it holds: a shader it names became drawable.
+     * @internal
+     */
+    refreshShaderPaint(): void {
+        const paint = this.sessionPaint;
+        if (this.disposed || paint === null) {
+            return;
+        }
+
+        this.paintFrom(paint.meshKey, paint.style, paint.color);
     }
 
     /**
@@ -851,8 +1072,11 @@ export class Node {
      * @returns Whether the mesh stays.
      */
     private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
+        // An equal style on another shader path is another source mesh: a plain node and an
+        // impostor's pick proxy must never share one, since the proxy's source is not drawn.
+        const samePath = shaderPartOf(meshKey) === shaderPartOf(this.meshKey);
         const sameGeometry =
-            meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
+            meshKey === this.meshKey || (samePath && isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
         return sameGeometry && !this.mesh.isDisposed();
     }
 
@@ -903,13 +1127,17 @@ export class Node {
     }
 
     /**
-     * Draw a paint as it is: see `paintFrom`.
-     * @param meshKey - Which source mesh the paint draws from.
-     * @param o - The resolved style.
+     * Draw a paint as it is, with its shader path taken into account: see `paintFrom` and
+     * `shadedPaint`.
+     * @param paintKey - Which source mesh the paint draws from.
+     * @param paintStyle - The resolved style.
      * @param color - The per-instance colour.
      */
-    private drawPaint(meshKey: string, o: NodeStyleConfig, color: Rgba | null): void {
+    private drawPaint(paintKey: string, paintStyle: NodeStyleConfig, color: Rgba | null): void {
         this.context.getStatsManager().startMeasurement("Node.updateMesh");
+        const shaded = this.shadedPaint(paintKey, paintStyle);
+        const { meshKey, style: o } = shaded;
+        this.shaderPath = shaded.path;
 
         // Only skip update if the source mesh is the same AND mesh is not disposed
         // (mesh can be disposed when switching 2D/3D modes via meshCache.clear())
@@ -1156,6 +1384,9 @@ export class Node {
             this.contextPoint = null;
         }
 
+        this.shaderDrawing?.forget(this);
+        this.shaderDrawing = null;
+
         if (!this.mesh.isDisposed()) {
             this.mesh.dispose();
         }
@@ -1224,6 +1455,7 @@ export class Node {
 
         this.selected = selected;
         this.applyRenderState();
+        this.shaderStateChanged("selected", selected);
 
         return true;
     }
@@ -1317,6 +1549,14 @@ export class Node {
      */
     private syncHalo(): void {
         const look = this.renderState === "visible" ? this.haloLook() : null;
+        if (this.drawnByBatch()) {
+            // The shader batch draws the halo from the radius; the mesh halo would be the proxy's.
+            this.showOverlay("halo", false);
+            this.ringLabel(look === null || look.opacity === 0 ? null : look.scale);
+            this.syncShaders();
+            return;
+        }
+
         this.showOverlay("halo", look !== null, look ?? undefined);
     }
 

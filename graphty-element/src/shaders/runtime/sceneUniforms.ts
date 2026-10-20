@@ -22,7 +22,10 @@ import { SCENE_BLOCK, SCENE_MEMBERS } from "./wrap";
  * ponytail: a fixed wrap keeps float32 precision; a loop whose period does not divide it jumps
  * once every 17 minutes. Reset the epoch while no motion is claimed if that ever shows.
  */
-const TIME_PERIOD = 1024;
+export const TIME_PERIOD = 1024;
+
+/** The key light's direction in view space. */
+const LIGHT = new Vector3(-0.6, 0.6, -1).normalize();
 
 /** The quality levels, as the `Q()` helper reads them. */
 const QUALITY_LEVEL = { low: 0, medium: 1, high: 2 } as const;
@@ -65,6 +68,15 @@ export class SceneUniforms {
     }
 
     /**
+     * The time the buffer would hold if it were written now: what an element state stamps its
+     * change with, so `time - stamp` in a shader is the seconds since it.
+     * @returns Seconds, wrapped as the buffer wraps them.
+     */
+    now(): number {
+        return ((performance.now() - this.epoch) / 1000) % TIME_PERIOD;
+    }
+
+    /**
      * Set the quality level `Q()` reads.
      * @param level - The level.
      */
@@ -81,13 +93,22 @@ export class SceneUniforms {
      */
     write(time = this.time): void {
         this.time = time % TIME_PERIOD;
-        this.buffer.updateFloat4("graphty_scene_time", this.time, QUALITY_LEVEL[this.quality], 0, 0);
-        // The key light of the studio lighting, toward the camera's upper right, in view space.
-        const light = new Vector3(-0.6, 0.6, -1).normalize();
-        this.buffer.updateFloat4("graphty_scene_lightDir", light.x, light.y, light.z, 0);
-        this.buffer.updateFloat4("graphty_scene_lightColor", 1, 1, 1, 0);
-        this.buffer.updateFloat4("graphty_scene_ambient", 0.35, 0.35, 0.38, 0);
+        this.copyInto(this.buffer);
         this.buffer.update();
+    }
+
+    /**
+     * Write the members, as they stand, into another uniform buffer that declares them: a
+     * material's own block, which a material plugin fills on every draw instead of binding this
+     * buffer beside the material's.
+     * @param target - The buffer.
+     */
+    copyInto(target: Pick<UniformBuffer, "updateFloat4">): void {
+        target.updateFloat4("graphty_scene_time", this.time, QUALITY_LEVEL[this.quality], 0, 0);
+        // The key light of the studio lighting, toward the camera's upper right, in view space.
+        target.updateFloat4("graphty_scene_lightDir", LIGHT.x, LIGHT.y, LIGHT.z, 0);
+        target.updateFloat4("graphty_scene_lightColor", 1, 1, 1, 0);
+        target.updateFloat4("graphty_scene_ambient", 0.35, 0.35, 0.38, 0);
     }
 
     /**

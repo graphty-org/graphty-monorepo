@@ -291,6 +291,7 @@ export interface CatalogApi {
     // (undocumented)
     scales(): readonly ScaleDescriptor[];
     // @deprecated (undocumented)
+    screenshotPresets(): readonly ScreenshotPreset[];
     themes(): readonly ThemeDescriptor[];
     // @deprecated (undocumented)
     timeAttributes(): readonly AttributeDescriptor[];
@@ -1695,6 +1696,29 @@ export type ScopeInput = Exclude<Scope, {
 };
 
 // @public
+// @public
+export const SCREENSHOT_PRESET_DESCRIPTORS: readonly ScreenshotPreset[];
+
+// @public
+export interface ScreenshotPreset {
+    readonly destination?: {
+        readonly download?: boolean;
+        readonly clipboard?: boolean;
+    };
+    readonly enhanceQuality?: boolean;
+    readonly format: "png" | "jpeg" | "webp";
+    readonly height?: number;
+    // (undocumented)
+    readonly id: ScreenshotPresetId;
+    readonly multiplier?: number;
+    readonly quality?: number;
+    readonly transparentBackground?: boolean;
+    readonly width?: number;
+}
+
+// @public
+export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
+
 export type SelectionDirection = "in" | "out" | "all";
 
 // @public

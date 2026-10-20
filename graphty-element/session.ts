@@ -167,9 +167,18 @@ export { createGraphSession } from "./src/session";
  */
 export type { EndpointSpelling } from "./src/data/endpoints";
 export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 
 // ---------------------------------------------------------------------------------------------
+export type {
+    RecipeColumn,
+    RecipeDocument,
+    RecipeIgnoredIssue,
+    RecipeJoin,
+    RecipeLeftOutCode,
+    RecipeSource,
+} from "./src/session/recipe";
 // The node coordinates
 // ---------------------------------------------------------------------------------------------
 
@@ -537,6 +546,7 @@ export type {
     StyleExplanation,
     StylesApi,
     StyleSuggestion,
+    StyleFileDocument,
     TemplateOptions,
     TemplatePosition,
     TemplateReport,

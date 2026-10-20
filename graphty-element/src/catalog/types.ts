@@ -25,6 +25,7 @@ import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
+import type { ScreenshotPreset } from "./screenshotPresets";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -1497,6 +1498,12 @@ export interface CatalogApi {
      */
     themes(): readonly ThemeDescriptor[];
     /**
+    /**
+     * Every screenshot preset `captureScreenshot({ preset })` takes, with the size, format and
+     * background each sets, so an export dialog can show them. Static; also published as
+     * `SCREENSHOT_PRESET_DESCRIPTORS` from the `./catalog` entry.
+     */
+    screenshotPresets(): readonly ScreenshotPreset[];
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #332).
      */

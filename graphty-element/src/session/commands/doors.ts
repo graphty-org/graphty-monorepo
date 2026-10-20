@@ -732,6 +732,7 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     size: READ,
     cap: READ,
     truncated: READ,
+    recipe: READ,
     origin: READ,
     has: READ,
     hovered: READ,
@@ -873,6 +874,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     removes("remove-nodes", ["n1", "n2", "n3"]),
                     addNodesBy("id", { id: "x1" }),
                 ),
+    toFile: READ,
             ),
             // The row above took every edge with the nodes, so there is nothing to remove.
             edgeData: assigns(

@@ -80,6 +80,7 @@ export type {
     MarkSpec,
     SessionStylesApi,
     StyleChange,
+    StyleFileDocument,
     StylesApi,
     StylesSources,
     TemplateOptions,

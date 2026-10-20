@@ -1095,6 +1095,7 @@ export interface GraphSession {
     readonly project: ProjectApi;
     redo(): Promise<HistoryOutcome>;
     readonly results: ResultsApi;
+    recipe(): RecipeDocument;
     run(command: AlgorithmRunCommand, options?: RunOptions): Run;
     readonly runs: RunsApi;
     readonly scope: ScopeApi;
@@ -2910,6 +2911,76 @@ export { RecordBatch }
 
 export { Recording }
 
+// @public
+export interface RecipeColumn {
+    // (undocumented)
+    readonly hidden?: true;
+    // (undocumented)
+    readonly kind: "node" | "edge";
+    readonly measurement?: Measurement;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly roles?: readonly AttributeRole[];
+    // (undocumented)
+    readonly type: AttributeType;
+}
+
+// @public
+export interface RecipeDocument {
+    readonly columns: readonly RecipeColumn[];
+    readonly filter: {
+        readonly rule: RuleTree | null;
+        readonly steps: readonly FilterStep[];
+    };
+    readonly ignoredIssues: readonly RecipeIgnoredIssue[];
+    readonly joins: readonly RecipeJoin[];
+    // (undocumented)
+    readonly kind: "graphty-recipe";
+    readonly leftOut: readonly CodedFact<RecipeLeftOutCode>[];
+    readonly sources: readonly RecipeSource[];
+    readonly styles: StyleFileDocument;
+    // (undocumented)
+    readonly version: 1;
+}
+
+// @public
+export interface RecipeIgnoredIssue {
+    // (undocumented)
+    readonly code: IssueCode;
+    // (undocumented)
+    readonly column?: ColumnRef;
+    // (undocumented)
+    readonly source?: SourceKey;
+}
+
+// @public
+export interface RecipeJoin {
+    // (undocumented)
+    readonly choices: JoinChoices;
+    // (undocumented)
+    readonly onto: SourceKey | null;
+    // (undocumented)
+    readonly shape: JoinShape;
+    // (undocumented)
+    readonly source: SourceKey;
+}
+
+// @public
+export type RecipeLeftOutCode = "names-elements";
+
+// @public
+export interface RecipeSource {
+    readonly format?: FormatId;
+    readonly joinedOnto?: SourceKey;
+    readonly key: SourceKey;
+    // (undocumented)
+    readonly kind: LoadedSourceKind;
+    readonly name?: string;
+    readonly tableRows?: readonly ("nodes" | "edges")[];
+    readonly tables: readonly string[];
+}
+
 export { recordingFrom }
 
 // @public
@@ -3598,6 +3669,26 @@ export interface SelectionApi {
     clear(): SelectionDelta;
     edgeMask(): Uint8Array;
     readonly edges: readonly EdgeId[];
+// @public
+export interface ScreenshotPreset {
+    readonly destination?: {
+        readonly download?: boolean;
+        readonly clipboard?: boolean;
+    };
+    readonly enhanceQuality?: boolean;
+    readonly format: "png" | "jpeg" | "webp";
+    readonly height?: number;
+    // (undocumented)
+    readonly id: ScreenshotPresetId;
+    readonly multiplier?: number;
+    readonly quality?: number;
+    readonly transparentBackground?: boolean;
+    readonly width?: number;
+}
+
+// @public
+export type ScreenshotPresetId = "print" | "web-share" | "thumbnail" | "documentation";
+
     has(id: NodeId | EdgeId): boolean;
     hover(id: NodeId | null): void;
     readonly hovered: NodeId | null;
@@ -4461,6 +4552,12 @@ export interface StylesApi {
     agreement(scope: Scope, channel?: Channel): StyleAgreement;
     applyTemplate(document: StyleDocument, options?: TemplateOptions): Run<TemplateReport>;
     counts(id: LayerId): StyleCounts;
+// @public
+export interface StyleFileDocument extends StyleDocument {
+    // (undocumented)
+    readonly kind: "graphty-style";
+}
+
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
@@ -4492,6 +4589,7 @@ export type SuggestionOutcome = {
     readonly outcome: "added";
     readonly suggestion: StyleSuggestion;
     readonly layerIds: readonly LayerId[];
+    toFile(): StyleFileDocument;
     readonly placedBeneathLayerId?: LayerId;
 } | {
     readonly outcome: "suppressed";

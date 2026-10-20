@@ -609,6 +609,15 @@ export interface StylesApi {
      */
     toDocument(): StyleDocument;
     /**
+     * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
+     * same member a project file holds. It carries the layers (and the palettes they name) and
+     * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
+     * columns. Apply one with {@link StylesApi.applyTemplate}.
+     * @returns The style file.
+     * @since 3.30.0
+     */
+    toFile(): StyleFileDocument;
+    /**
      * Choose the palette a colour binding uses when it names none, one per palette kind: a
      * binding on groups takes the categorical default, one on amounts the sequential default, and
      * one with a `midpoint` the diverging default. A kind left out keeps its current default.
@@ -625,6 +634,11 @@ export interface StylesApi {
      *   of the wrong kind or a slot that is not a palette kind.
      */
     setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+}
+
+/** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
+export interface StyleFileDocument extends StyleDocument {
+    readonly kind: "graphty-style";
 }
 
 /** The palette a colour binding naming none uses, per palette kind. */
@@ -2786,6 +2800,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 // the element's own palettes saves byte for byte what it saved before.
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
             });
+        },
+
+        toFile(): StyleFileDocument {
+            return Object.freeze({ kind: "graphty-style", ...api.toDocument() });
         },
     };
 

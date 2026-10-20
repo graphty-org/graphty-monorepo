@@ -87,6 +87,7 @@ import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graph
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
+import { type RecipeDocument, recipeOf } from "./recipe";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
 import { resultExecutionOf } from "./results/ResultsApi";
 import { shareNodeIndex } from "./results/RunResult";
@@ -847,6 +848,14 @@ class Session implements ElementSession {
      */
     fingerprint(): string {
         return this.sessionData.fingerprint();
+    }
+
+    /**
+     * What was done to the data and how it is drawn, naming columns and never elements.
+     * @returns The recipe.
+     */
+    recipe(): RecipeDocument {
+        return recipeOf(this);
     }
 
     /**

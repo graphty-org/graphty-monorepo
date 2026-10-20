@@ -79,6 +79,8 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
+export { SCREENSHOT_PRESET_DESCRIPTORS } from "./src/catalog/screenshotPresets";
 export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
 export type { SourceInfo } from "@graphty/graph-io";

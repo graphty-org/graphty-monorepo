@@ -57,6 +57,7 @@ import type { JournalApi, JournalEntry } from "./journal";
 import type { NoteChange, NoteId, NotesApi } from "./notes/types";
 import type { AlgorithmRunCommand, Plan, SessionCommand } from "./planning";
 import type { ProjectApi, ProjectStatus } from "./projectFile";
+import type { RecipeDocument } from "./recipe";
 import type { ResultsApi, RunRef } from "./results";
 import type { Histogram, HistogramOptions } from "./results/types";
 import type {
@@ -2980,6 +2981,16 @@ export interface SessionRunsOptions {
     /** Reads the most recent timing of each algorithm on this machine. */
     readonly measurements?: () => ReadonlyMap<AlgorithmKey, CostMeasurement> | undefined;
 }
+    /**
+     * What was done to the data and how it is drawn, as a document that names columns by name
+     * and role and never names a node or an edge: the sources, the columns (roles, types,
+     * declarations, hidden), the joins, the ignored issues, the filter and the style layers. A
+     * filter leaf or a style layer that names elements is left out and counted in `leftOut`.
+     * Read from the current state, so an undone step is not in it.
+     * @returns The recipe, frozen.
+     * @since 3.30.0
+     */
+    recipe(): RecipeDocument;
 
 /**
  * The part of the acceleration controller a session uses.

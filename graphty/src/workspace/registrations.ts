@@ -22,6 +22,7 @@ import { registration as settings } from "./settings/commands";
 import { registration as start } from "./start/commands";
 import { registration as style } from "./style/commands";
 import { registration as table } from "./table/commands";
+import { registration as timeline } from "./timeline/commands";
 import { registration as toolbar } from "./toolbar/commands";
 
 export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
@@ -38,6 +39,7 @@ export const REGISTRATIONS: readonly WorkspaceRegistration[] = [
     inspector,
     style,
     table,
+    timeline,
     join,
     replace,
     server,

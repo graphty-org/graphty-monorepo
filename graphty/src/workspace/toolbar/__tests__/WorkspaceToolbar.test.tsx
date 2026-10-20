@@ -57,7 +57,12 @@ describe("the canvas toolbar", () => {
             ],
         });
         const store = createWorkspaceStore(OPEN);
-        render(<Workspace store={store} registrations={[...REGISTRATIONS, timeline]} />);
+        render(
+            <Workspace
+                store={store}
+                registrations={[...REGISTRATIONS.filter((r) => r.owner !== "timeline"), timeline]}
+            />,
+        );
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
         assert.isNull(within(toolbar).queryByRole("button", { name: "Timeline" }));
 

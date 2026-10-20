@@ -15,6 +15,7 @@ import { NodeMenu } from "../server/NodeMenu";
 import { DOCK_MAX, DOCK_MIN, PANEL_MAX, PANEL_MIN } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { TableDock } from "../table/TableDock";
+import { TimelineStrip } from "../timeline/TimelineStrip";
 import { WorkspaceToolbar } from "../toolbar/WorkspaceToolbar";
 import { ElementHost } from "./ElementHost";
 import { Header } from "./Header";
@@ -82,6 +83,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">
+                                <TimelineStrip />
                                 <WorkspaceToolbar />
                             </div>
                             <NoticeSlot />

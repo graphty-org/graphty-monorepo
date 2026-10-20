@@ -10,8 +10,18 @@ import { BUILT_IN_MODEL_FORMATS, detectModelFormat, isZip, type ModelFormat } fr
 import type { CodedFact } from "../shared";
 import type { AddAssetOptions, AssetSource, ModelLimits, ModelSummary, NamedBlob } from "./AssetsApi";
 import { checkGltf, findGltfParts, parseGltfJson, readGlb } from "./gltfChecks";
-import { baseName, cut, type Findings, imageSize, normalizePath, Refusal, refuse, refuseAll } from "./references";
-import { findObjParts, scanObj, scanPly, scanStl } from "./textFormats";
+import {
+    baseName,
+    cut,
+    type Findings,
+    imageSize,
+    normalizePath,
+    Refusal,
+    refuse,
+    refuseAll,
+    roleOfName,
+} from "./references";
+import { findObjParts, scanObj, scanPly, scanStl, withSkips } from "./textFormats";
 import { unzipModel } from "./unzip";
 
 /** Something with bytes to read: a Blob, a File, or anything shaped like one. */
@@ -122,6 +132,30 @@ export async function readSource(
     }
 
     return { given: stripped, ...(main === undefined ? {} : { main }) };
+}
+
+/**
+ * A set that is one `.zip` as its entries (design 3.1), so a model's id covers the files it holds
+ * however they arrived: a zip, a folder or parts supplied one by one.
+ * @param given - The set as given.
+ * @param limits - The limits in force.
+ * @returns The zip's entries without their common folder, or the set unchanged.
+ * @throws Refusal `E_MODEL_ZIP` or `E_MODEL_TOO_LARGE` for a zip that cannot be read safely.
+ */
+export async function unpackZip(
+    given: ReadonlyMap<string, Uint8Array>,
+    limits: ModelLimits,
+): Promise<ReadonlyMap<string, Uint8Array>> {
+    if (given.size !== 1) {
+        return given;
+    }
+
+    const [[name, only]] = given;
+    if (!isZip(only) || detectModelFormat({ filename: name, head: only })?.format !== "zip") {
+        return given;
+    }
+
+    return stripCommonFolder(await unzipModel(only, limits.maxBytes));
 }
 
 /**
@@ -379,12 +413,17 @@ export async function fetchModelSet(
         const parts = facts.every((f) => f.code === "E_MODEL_MISSING_FILE" || f.code === "E_MODEL_PART_AMBIGUOUS");
         const fresh = facts.filter((f) => f.code === "E_MODEL_MISSING_FILE" && !tried.has(String(f.params.name)));
         if (!parts || fresh.length === 0) {
-            refuseAll(
-                facts.map((f) => {
-                    const shown = f.code === "E_MODEL_MISSING_FILE" ? tried.get(String(f.params.name)) : undefined;
-                    return shown === undefined ? f : { code: f.code, params: { ...f.params, tried: shown } };
-                }),
-            );
+            const [first, ...more] = facts.map((f) => {
+                const shown = f.code === "E_MODEL_MISSING_FILE" ? tried.get(String(f.params.name)) : undefined;
+                return shown === undefined ? f : { code: f.code, params: { ...f.params, tried: shown } };
+            });
+            const refusal = new Refusal(first.code, { ...first.params }, more);
+            // Only parts are missing: the session holds what was fetched, for supply (design 12.4).
+            if (parts) {
+                refusal.held = { given, main };
+            }
+
+            throw refusal;
         }
 
         for (const fact of fresh) {
@@ -484,13 +523,25 @@ export function imageFormatOf(bytes: Uint8Array): ImageFormat | undefined {
  */
 export async function checkAsset(
     given: ReadonlyMap<string, Uint8Array>,
-    options: Pick<AddAssetOptions, "main" | "format">,
+    options: Pick<AddAssetOptions, "main" | "format" | "skipped">,
     limits: ModelLimits,
 ): Promise<CheckedModel & { readonly kind: "model" | "image" }> {
     const [[path, bytes]] = given;
     const format = given.size === 1 ? imageFormatOf(bytes) : undefined;
     if (format === undefined) {
-        return { kind: "model", ...(await checkFileSet(given, options, limits)) };
+        const skipped = options.skipped ?? [];
+        const checked = await checkFileSet(withSkips(given, skipped), options, limits);
+        return {
+            kind: "model",
+            ...checked,
+            warnings: [
+                ...checked.warnings,
+                ...skipped.map((name) => ({
+                    code: "W_MODEL_PART_SKIPPED",
+                    params: { name: cut(name), role: roleOfName(name) },
+                })),
+            ],
+        };
     }
 
     const size = imageSize(bytes);

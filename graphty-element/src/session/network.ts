@@ -24,9 +24,10 @@ export type NetworkRequestKind = "model" | "texture" | "source";
 /**
  * What asked for it: a layer from a project or style file or a template (`file`), a layer an AI
  * command wrote (`ai`), a value an encoding or expression read from the data (`data`), or a saved
- * network-source load of a reopened project (`source`). OPEN UNION.
+ * network-source load of a reopened project (`source`), or a part of a model handed to
+ * `assets.supply` by its URL on another host (`supplied`). OPEN UNION.
  */
-export type NetworkRequestAsker = "file" | "ai" | "data" | "source";
+export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied";
 
 /** A fetch waiting for the page's answer: `{ code, params }`, as every fact the element reports. */
 export interface NetworkRequest {
@@ -83,6 +84,42 @@ export interface NetworkApi {
      * @param policy - The policy.
      */
     setPolicy(policy: NetworkPolicy): void;
+}
+
+/**
+ * Whether a host is private, loopback or link-local, which a fetch not from the page's code never reaches.
+ * @param host - The URL's host name.
+ * @returns True for such a host.
+ */
+export function isPrivateHost(host: string): boolean {
+    const name = host.replaceAll(/(?:^\[)|(?:\]$)/g, "").toLowerCase();
+    if (name === "localhost" || name.endsWith(".localhost") || name.endsWith(".local") || name === "0.0.0.0") {
+        return true;
+    }
+
+    const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(name);
+    if (v4 !== null) {
+        const a = Number(v4[1]);
+        const b = Number(v4[2]);
+        return (
+            a === 0 ||
+            a === 10 ||
+            a === 127 ||
+            (a === 100 && b >= 64 && b <= 127) ||
+            (a === 169 && b === 254) ||
+            (a === 172 && b >= 16 && b <= 31) ||
+            (a === 192 && b === 168)
+        );
+    }
+
+    return (
+        name.includes(":") &&
+        (name === "::1" ||
+            name === "::" ||
+            /^f[cd]/.test(name) ||
+            name.startsWith("fe80") ||
+            name.startsWith("::ffff:"))
+    );
 }
 
 /** What a model or texture asks the gate. */

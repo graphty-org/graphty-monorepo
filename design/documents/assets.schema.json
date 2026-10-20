@@ -71,6 +71,11 @@
                     "const": "url",
                     "description": "Kept by URL: no files; the asset loads from source when the reader allows it, and a file whose digest is not sha256 is reported (W_MODEL_CHANGED). Absent: the files are embedded."
                 },
+                "skipped": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "description": "Parts the model is drawn without (pictures and .mtl files, by their path in the set): a reader applies the same skips before checking. Not in the digest."
+                },
                 "files": {
                     "type": "array",
                     "minItems": 1,

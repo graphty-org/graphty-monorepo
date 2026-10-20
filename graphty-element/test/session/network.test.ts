@@ -8,7 +8,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { createGraphSession } from "../../session";
 import { createAssetsApi } from "../../src/session/assets/AssetsApi";
-import { createNetworkApi, type NetworkRequest } from "../../src/session/network";
+import { createNetworkApi, isPrivateHost, type NetworkRequest } from "../../src/session/network";
 import { gltfPair, objSet, PNG_1X1, sphereGlb, triangleGltf, utf8 } from "../fixtures/models/fixtures";
 
 /**
@@ -92,6 +92,28 @@ describe("session.network", () => {
         const { network } = gate();
         const error = await network.allow("nope").catch((caught: unknown) => caught);
         assert.equal((error as { code?: string }).code, "E_BAD_COMMAND");
+    });
+
+    it("asks for a part supplied on another host as by: supplied, and knows private hosts", async () => {
+        const { network, published } = gate();
+        const answer = network.ask({
+            url: new URL("https://pictures.example.org/colormap.png?sig=abc"),
+            kind: "texture",
+            by: "supplied",
+            layerIds: [],
+        });
+        assert.deepInclude(published[0].params, {
+            url: "https://pictures.example.org/colormap.png",
+            kind: "texture",
+            by: "supplied",
+        });
+        network.deny(published[0].params.id);
+        assert.isFalse(await answer);
+        for (const host of ["localhost", "127.0.0.1", "10.0.0.2", "192.168.1.4", "169.254.0.1", "[::1]", "nas.local"]) {
+            assert.isTrue(isPrivateHost(host), host);
+        }
+
+        assert.isFalse(isPrivateHost("pictures.example.org"));
     });
 
     it("saves the project's policy and reads it back; a file without it asks", async () => {

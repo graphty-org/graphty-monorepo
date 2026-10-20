@@ -545,3 +545,4 @@ its section and number on the page the section heading names, or by page when it
 | asset-18 | an entry stored by URL whose URL now serves another file | nothing added on open; when the URL loads (after the reader allows it) the model is drawn and reports `W_MODEL_CHANGED` | Reading 9 |
 | asset-19 | an entry with `"stored": "url"` and `files`, or with no `source` | skipped, `E_BAD_DOCUMENT` at `/assets/<n>/stored` | Reading 9 |
 | asset-20 | a layer naming a picture (`node.texture`) | the picture embedded as an entry of format `png`, `jpeg` or `webp`; reopened, an asset of kind `"image"` | Writing 1 |
+| asset-21 | a layer naming a model drawn without a picture it was missing (`assets.supply` with `skip`), saved and reopened | an entry with `skipped` naming the picture and the digest of the files without it; reopened, the same id, accepted with `W_MODEL_PART_SKIPPED`, and nothing asked | Writing 7; Reading 6 |

@@ -62,6 +62,7 @@ function shown(url: string): string {
  * @param files - The file set, by path relative to the main file's folder.
  * @param main - The main file's path.
  * @param format - Its detected format.
+ * @param skipped - Parts drawn without: a picture is a 1 x 1 white PNG, and an OBJ's MTL lines naming it are dropped.
  * @returns The container.
  * @throws {ModelLoadFailure} With `E_MODEL_FORMAT_UNSUPPORTED`, `E_MODEL_EXTERNAL_URL` or `E_MODEL_PARSE`.
  */
@@ -70,6 +71,7 @@ export async function loadModel(
     files: ReadonlyMap<string, Uint8Array>,
     main: string,
     format: string,
+    skipped: readonly string[] = [],
 ): Promise<AssetContainer> {
     const extension = EXTENSIONS[format] as (typeof EXTENSIONS)[string] | undefined;
     if (extension === undefined) {
@@ -81,6 +83,10 @@ export async function loadModel(
         module = await loadChunk();
     } catch {
         throw new ModelLoadFailure({ code: "E_MODEL_PARSE", params: { format } });
+    }
+
+    if (skipped.length > 0) {
+        files = (await import("../session/assets/textFormats")).withSkips(files, skipped, format === "obj");
     }
 
     const urls = new Map<string, string>();

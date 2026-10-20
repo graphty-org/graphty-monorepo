@@ -16,7 +16,8 @@
  *
  * It also writes two story fixtures that are not shipped, in stories/fixtures/models/: an STL made
  * with +Y up (stories/NodeModels.stories.ts turns it upright) and a GLB cut short (a model that
- * fails).
+ * fails); and a test fixture, test/fixtures/models/police.glb, laid out as the Kenney car kit's
+ * models are: a GLB whose one picture is the separate file Textures/colormap.png.
  *
  * The output is byte-for-byte deterministic. Usage: node scripts/make-sample-models.mjs
  */
@@ -380,15 +381,15 @@ function pngChunk(type, data) {
     return out;
 }
 
-function png(rgba) {
+function png(rgba, size = SIZE) {
     const header = new Uint8Array(13);
     const hv = new DataView(header.buffer);
-    hv.setUint32(0, SIZE);
-    hv.setUint32(4, SIZE);
+    hv.setUint32(0, size);
+    hv.setUint32(4, size);
     header.set([8, 6, 0, 0, 0], 8); // 8-bit RGBA
-    const raw = new Uint8Array(SIZE * (SIZE * 4 + 1));
-    for (let y = 0; y < SIZE; y++) {
-        raw.set(rgba.subarray(y * SIZE * 4, (y + 1) * SIZE * 4), y * (SIZE * 4 + 1) + 1);
+    const raw = new Uint8Array(size * (size * 4 + 1));
+    for (let y = 0; y < size; y++) {
+        raw.set(rgba.subarray(y * size * 4, (y + 1) * size * 4), y * (size * 4 + 1) + 1);
     }
     const parts = [
         new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
@@ -437,3 +438,88 @@ writeFileSync(
     `${FIXTURES}column-y-up.stl`,
     binaryStl([...box(0, 0.5, 0, 0.3, 1, 0.3), ...frustum(0, 0, 1, 1.4, 0.3, 0, 4)]),
 );
+
+// ---------------------------------------------------------------------------------------------
+// Test fixture (not shipped): a box whose texture is a separate file, as a Kenney kit's GLB is.
+// ---------------------------------------------------------------------------------------------
+
+/** A GLB of one box with UVs, whose material's base color texture is the file `imageUri`. */
+function externalTextureGlb(name, imageUri) {
+    const tris = box(0, 0.5, 0, 1, 1, 1);
+    const positions = new Float32Array(tris.flat(2).map(f32));
+    const normals = new Float32Array(tris.flatMap((tri) => [0, 1, 2].flatMap(() => faceNormal(tri))).map(f32));
+    // Each vertex samples the palette by its x and z, so every face shows a few of its colors.
+    const uvs = new Float32Array(tris.flatMap((tri) => tri.flatMap(([x, , z]) => [x + 0.5, z + 0.5])).map(f32));
+    const parts = [positions, normals, uvs].map((typed) => new Uint8Array(typed.buffer));
+    const bin = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+    const bufferViews = [];
+    let at = 0;
+    for (const part of parts) {
+        bin.set(part, at);
+        bufferViews.push({ buffer: 0, byteOffset: at, byteLength: part.length, target: 34962 });
+        at += part.length;
+    }
+
+    const count = tris.length * 3;
+    const json = {
+        asset: { version: "2.0", generator: GENERATOR, copyright: COPYRIGHT },
+        scene: 0,
+        scenes: [{ name, nodes: [0] }],
+        nodes: [{ name, mesh: 0 }],
+        meshes: [{ name, primitives: [{ attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, material: 0 }] }],
+        materials: [
+            {
+                name: "colormap",
+                pbrMetallicRoughness: { baseColorTexture: { index: 0 }, metallicFactor: 0, roughnessFactor: 0.8 },
+            },
+        ],
+        textures: [{ source: 0, sampler: 0 }],
+        samplers: [{ magFilter: 9728, minFilter: 9728 }],
+        images: [{ uri: imageUri }],
+        accessors: [
+            { bufferView: 0, componentType: 5126, count, type: "VEC3", min: [-0.5, 0, -0.5], max: [0.5, 1, 0.5] },
+            { bufferView: 1, componentType: 5126, count, type: "VEC3" },
+            { bufferView: 2, componentType: 5126, count, type: "VEC2" },
+        ],
+        bufferViews,
+        buffers: [{ byteLength: bin.length }],
+    };
+    const jsonBytes = new TextEncoder().encode(JSON.stringify(json));
+    const jsonChunk = new Uint8Array(Math.ceil(jsonBytes.length / 4) * 4).fill(0x20);
+    jsonChunk.set(jsonBytes);
+    const total = 12 + 8 + jsonChunk.length + 8 + bin.length;
+    const out = new Uint8Array(total);
+    const view = new DataView(out.buffer);
+    view.setUint32(0, 0x46546c67, true);
+    view.setUint32(4, 2, true);
+    view.setUint32(8, total, true);
+    view.setUint32(12, jsonChunk.length, true);
+    view.setUint32(16, 0x4e4f534a, true);
+    out.set(jsonChunk, 20);
+    view.setUint32(20 + jsonChunk.length, bin.length, true);
+    view.setUint32(24 + jsonChunk.length, 0x004e4942, true);
+    out.set(bin, 28 + jsonChunk.length);
+    return out;
+}
+
+/** An 8 x 8 palette of four saturated colors in 4 x 4 blocks, as a kit's colormap is. */
+function colormap() {
+    const colors = [
+        [0x1f, 0x4e, 0xd8],
+        [0xf2, 0xf2, 0xf2],
+        [0xd8, 0x2b, 0x2b],
+        [0x22, 0x22, 0x28],
+    ];
+    const rgba = new Uint8Array(8 * 8 * 4);
+    for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+            rgba.set([...colors[(y >> 2) * 2 + (x >> 2)], 255], (y * 8 + x) * 4);
+        }
+    }
+    return png(rgba, 8);
+}
+
+const TEST_FIXTURES = fileURLToPath(new URL("../test/fixtures/models/", import.meta.url));
+mkdirSync(`${TEST_FIXTURES}Textures`, { recursive: true });
+writeFileSync(`${TEST_FIXTURES}police.glb`, externalTextureGlb("police", "Textures/colormap.png"));
+writeFileSync(`${TEST_FIXTURES}Textures/colormap.png`, colormap());

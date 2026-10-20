@@ -24,6 +24,7 @@ interface AssetEntry {
     source?: string; // the URL a layer named, when the model came from one
     stored?: "url"; // kept by URL: no files; source is required
     files?: AssetFile[]; // absent (and not stored by URL): the files of the earlier entry with the same sha256
+    skipped?: string[]; // parts drawn without: pictures and .mtl files, by path in the set; not in the digest
 }
 
 interface AssetFile {
@@ -85,7 +86,9 @@ digest, so the same files have the same id in every file and every release.
    left out and reported as `E_MODEL_TOO_LARGE { what: "documentBytes", found, limit, id }`.
 7. A model or picture a layer names by URL is kept by URL instead when the caller asks
    (`project.save({ assets: { [url]: "url" } })`): the entry carries `source`, `sha256`, `format`,
-   `main` and `"stored": "url"`, and no files.
+   `main` and `"stored": "url"`, and no files. A model whose parts were supplied one by one
+   (`assets.supply`) has no one URL that brings it back: it is embedded anyway, and the save reports
+   `W_MODEL_NOT_KEPT_BY_URL { url, reason: "parts" }`. A part's URL is never written.
 8. A writer writes the member only when it holds an entry, and then lists `graphty-assets` in the
    document's `requires`: the layers would draw their placeholder shapes without it, and an older
    reader that skipped it would drop the models when it saved the file back.
@@ -115,7 +118,10 @@ an asset finds it.
 6. **Then the files are added as a dropped file is** (`session.assets.add`, with the entry's `id`
    as the name and `main` as the main file): format detected from the bytes, every reference
    checked against the set, the structure, triangle, texture and session byte limits. A refusal
-   there is the entry's problem with its `E_MODEL_*` code.
+   there is the entry's problem with its `E_MODEL_*` code. An entry's `skipped` parts are applied
+   first, as `add`'s `skipped` option: the model is drawn without them and asks for nothing. A
+   `skipped` that is not a list of normalized paths, or names a geometry part, skips the entry,
+   `E_BAD_DOCUMENT` at `/assets/<n>/skipped`.
 7. **An id held by other files** is `E_MODEL_NAME_TAKEN`, never a replacement; one held by the same
    files is the same model. An id under `asset:sample/` is `E_MODEL_NAME_TAKEN`.
 8. **A `source`** makes the URL resolve to the entry's files: a layer naming that URL draws the

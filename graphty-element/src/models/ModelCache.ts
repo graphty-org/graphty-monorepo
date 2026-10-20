@@ -90,6 +90,8 @@ interface Entry {
     readonly image?: string;
     template: ModelTemplate | null;
     readonly users: Set<ModelUser>;
+    /** The shape block that first asked for it, to load again after a part is supplied. */
+    readonly shape: NonNullable<NodeStyleConfig["shape"]>;
     /** Frames since no layer named it and no node drew it; -1 while it is in use. */
     idle: number;
 }
@@ -177,6 +179,7 @@ export class ModelCache {
     private flushScheduled = false;
     private reportScheduled = false;
     private readonly unwatch: () => void;
+    private readonly unwatchSupplied: () => void;
     private readonly frames: Observer<Scene>;
 
     /**
@@ -190,6 +193,14 @@ export class ModelCache {
     ) {
         this.unwatch = session.on("style:changed", () => {
             this.recount();
+        });
+        // A model given a missing part (assets.supply) loads again for every layer naming it.
+        this.unwatchSupplied = session.assets.watchSupplied((names) => {
+            for (const entry of this.entries.values()) {
+                if (entry.template === null && names.includes(entry.ref)) {
+                    this.load(entry, entry.shape);
+                }
+            }
         });
         this.frames = scene.onAfterRenderObservable.add(() => {
             this.tick();
@@ -250,6 +261,7 @@ export class ModelCache {
                 ref,
                 ...(image === undefined || image === "" ? {} : { image }),
                 template: null,
+                shape,
                 users: new Set(),
                 idle: -1,
             };
@@ -362,7 +374,7 @@ export class ModelCache {
             this.settle(ref, "accepted", [...record.problems]);
             try {
                 const files = this.session.assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format);
+                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
                 const chunk = await loadChunk();
                 entry.template = await chunk.prepareTemplate(
                     this.scene,
@@ -661,6 +673,7 @@ export class ModelCache {
     /** Free every template and stop listening. */
     private dispose(): void {
         this.unwatch();
+        this.unwatchSupplied();
         this.scene.onAfterRenderObservable.remove(this.frames);
         for (const entry of this.entries.values()) {
             entry.template?.dispose();

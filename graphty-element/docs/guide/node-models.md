@@ -199,6 +199,48 @@ What the element loads, and what to do with anything else:
 | `.fbx`, `.usdz`, `.dae`, `.blend`, `.3mf`       | Not loaded (`E_MODEL_FORMAT_UNSUPPORTED`). Open it in a 3D program such as Blender and export it as `.glb`                                           |
 | A `.glb` compressed with Draco, meshopt or KTX2 | Not loaded yet (`E_MODEL_DECODER_UNAVAILABLE`). Export it again without compression                                                                  |
 
+## A model missing a file
+
+Some models arrive without a file they name. Kenney's kits, for one, ship each `.glb` beside a
+`Textures/colormap.png` it reads. A model missing a file is rejected with one
+`E_MODEL_MISSING_FILE` per missing file, and the session holds on to it, so your page can hand the
+file over afterwards with `assets.supply` and the model loads from where it stopped. Every layer
+that names the model draws it then, with no new call:
+
+```ts
+const car = await element.session.assets.add(policeGlb); // rejected: Textures/colormap.png is missing
+await element.session.styles.add({
+    name: "Car",
+    target: "node",
+    selector: { match: "everything" },
+    set: { "node.model": car.id },
+});
+
+// Later, when the reader picks the picture. With no name, it is matched by its file name.
+const ready = await element.session.assets.supply(car.id, { file: colormapFile });
+// ready.state === "accepted"; the layer's model event goes pending, accepted, drawn
+```
+
+Each problem's `params.name` names the missing file, `role` says what it is for (`geometry`,
+`materials` or `texture`) and `optional` whether the model can be drawn without it. The answers:
+
+| Answer                         | What it does                                                                                                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `{ file }` or `{ name, file }` | This file is the missing one. With no `name`, it is matched by its folder path, then by its file name, in any case                                             |
+| `{ name, url }`                | Fetch it from this address. On the model's own site it is fetched at once; on another site the reader is asked first (`network:pending` with `by: "supplied"`) |
+| `{ name, skip: true }`         | Draw without it: a picture or an `.mtl` only. A picture is drawn plain white, so the material's own color still shows                                          |
+| `{ name, use }`                | For `E_MODEL_PART_AMBIGUOUS`: which of the files given is the one meant                                                                                        |
+| `{ main }`                     | For `E_MODEL_AMBIGUOUS`: which file of a `.zip` or folder is the model                                                                                         |
+
+`supply` resolves with the new record: accepted, or still rejected with what is left (an `.mtl`,
+once given, may name pictures of its own). A file that matches nothing missing adds
+`W_MODEL_PART_UNUSED` and changes nothing; asking to skip a `.bin` or other geometry throws
+`E_MODEL_PART_REQUIRED`. The accepted model's id covers every file it holds, so the same files
+added as a folder, as a `.zip` or one by one get the same id. A model drawn without a file lists
+it in `record.skipped`, and a saved project remembers the skip, so reopening it asks for nothing.
+An address on this machine or the local network is never fetched as a missing file unless it is
+the model's own site, and an address's query is used for the request and never shown or saved.
+
 ## Color
 
 A model keeps its own colors. To color it from your data, turn on `node.modelTint`: the model's
@@ -364,7 +406,7 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | Code                          | params                                              | When                                                                                                                                                                                                                      |
 | ----------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `E_MODEL_FETCH`               | `url`, `status`, `offline`                          | The address answered with an error, or not at all. `status` is `null` when nothing answered (offline, CORS and an unknown host look alike)                                                                                |
-| `E_MODEL_URL_BLOCKED`         | `hosts`, `denied`                                   | The address may not be fetched: the reader said no, an address on the local network not from your code, or not `http`/`https`                                                                                             |
+| `E_MODEL_URL_BLOCKED`         | `hosts`, `denied`, `part`                           | The address may not be fetched: the reader said no, an address on the local network not from your code, or not `http`/`https`. `part` names the missing file, for an address given to `assets.supply`                     |
 | `E_MODEL_TOO_LARGE`           | `what`, `found`, `limit`                            | Over a limit; `what` says which one                                                                                                                                                                                       |
 | `E_MODEL_STRUCTURE`           | `rule`                                              | The file is damaged or unsafe to read                                                                                                                                                                                     |
 | `E_MODEL_FORMAT_UNSUPPORTED`  | `format`, `fileName`                                | A 3D format graphty-element recognizes but does not load (FBX, USDZ, DAE, .blend, 3MF, PLY)                                                                                                                               |
@@ -393,4 +435,5 @@ keeps its ordinary shape); `W_` means it is drawn and something is worth telling
 | `W_MODEL_PART_SUBSTITUTED`    | `name`, `used`, `referencedBy`                      | A file the model names was found under another case or folder; `used` is the file drawn                                                                                                                                   |
 | `W_MODEL_PART_SKIPPED`        | `name`, `role`                                      | The model is drawn without a picture or `.mtl` that was left out                                                                                                                                                          |
 | `W_MODEL_PART_UNUSED`         | `fileName`                                          | A file given for a model matched none of the files it is missing, and was not used                                                                                                                                        |
+| `W_MODEL_NOT_KEPT_BY_URL`     | `url`, `reason`                                     | A model asked to be kept by its address was saved with its files, because its missing files came from elsewhere (`reason: "parts"`)                                                                                       |
 | `W_URL_NEEDS_APPROVAL`        | `id`, `url`, `host`, `kind`, `by`                   | An address waits for the reader in `session.network` (not a model's own event: `network:pending`)                                                                                                                         |

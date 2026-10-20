@@ -1150,7 +1150,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_FETCH"
 /**
-* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`.
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
 */
 | "E_MODEL_URL_BLOCKED"
 /**

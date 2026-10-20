@@ -16,7 +16,7 @@ import type { GraphSession } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import type { AssetRecord, AssetsApiInternal } from "./AssetsApi";
 import { digestFileSet } from "./digest";
-import { normalizePath } from "./references";
+import { normalizePath, roleOfName } from "./references";
 
 /** The member's kind. */
 export const ASSETS_MEMBER = "graphty-assets";
@@ -40,7 +40,7 @@ interface SavedFile {
 
 /** The members an entry and a file may have; anything else refuses the entry. */
 const MEMBER_KEYS = new Set(["kind", "version", "assets", "extensions"]);
-const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "stored", "files"]);
+const ENTRY_KEYS = new Set(["id", "sha256", "format", "main", "source", "stored", "files", "skipped"]);
 const FILE_KEYS = new Set(["path", "mediaType", "byteLength", "data"]);
 
 /** Media types by file ending; anything else is application/octet-stream. */
@@ -169,7 +169,16 @@ export function assetsMember(
             continue;
         }
 
-        if (url && storage[ref] === "url") {
+        // A model whose parts came from several places has no one URL that brings it back.
+        const pieced = url && storage[ref] === "url" && assets.assembled(record.id);
+        if (pieced) {
+            leftOut.push({
+                code: "W_MODEL_NOT_KEPT_BY_URL",
+                params: { url: ref.split(/[?#]/)[0].slice(0, 256), reason: "parts" },
+            });
+        }
+
+        if (url && storage[ref] === "url" && !pieced) {
             written.add(key);
             entries.push({
                 id: record.id,
@@ -208,6 +217,7 @@ export function assetsMember(
             format: record.format,
             main: record.path ?? "",
             ...(url ? { source: ref } : {}),
+            ...(record.skipped === undefined ? {} : { skipped: [...record.skipped] }),
             // Later entries with the same digest share the first one's files.
             ...(first
                 ? {
@@ -307,6 +317,26 @@ interface Entry {
     readonly source?: string;
     readonly stored?: "url";
     readonly files?: readonly SavedFile[];
+    readonly skipped?: readonly string[];
+}
+
+/**
+ * Whether an entry's `skipped` is absent or a list of normalized paths of pictures and `.mtl` files.
+ * @param skipped - The member.
+ * @returns True when it may be applied.
+ */
+function skipsOk(skipped: unknown): boolean {
+    return (
+        skipped === undefined ||
+        (Array.isArray(skipped) &&
+            skipped.every(
+                (name) =>
+                    typeof name === "string" &&
+                    name !== "" &&
+                    normalizePath(name) === name &&
+                    roleOfName(name) !== "geometry",
+            ))
+    );
 }
 
 /**
@@ -339,6 +369,10 @@ function checkEntry(entry: unknown): Entry | string {
 
     if (source !== undefined && typeof source !== "string") {
         return "/source";
+    }
+
+    if (!skipsOk(entry.skipped)) {
+        return "/skipped";
     }
 
     if (entry.stored !== undefined && (entry.stored !== "url" || typeof source !== "string" || files !== undefined)) {
@@ -487,6 +521,7 @@ export async function restoreAssets(session: GraphSession, member: Record<string
             { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
             {
                 name: entry.id,
+                ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
             },
         );
         if (record.state !== "accepted") {

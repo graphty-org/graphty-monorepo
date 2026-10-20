@@ -115,6 +115,7 @@ export interface AddAssetOptions {
     readonly name?: AssetId;
     // (undocumented)
     readonly signal?: AbortSignal;
+    readonly skipped?: readonly string[];
 }
 
 // @public
@@ -149,6 +150,7 @@ export interface AssetRecord {
     readonly kind: "model" | "image";
     readonly path?: string;
     readonly problems: readonly CodedFact[];
+    readonly skipped?: readonly string[];
     readonly state: AssetState;
     readonly url?: string;
 }
@@ -164,9 +166,12 @@ export interface AssetsApi {
     ready(ref: string, options?: {
         readonly signal?: AbortSignal;
     }): Promise<AssetRecord>;
-    remove(id: AssetId): void;
+    remove(id: string): void;
     setLimits(limits: Partial<ModelLimits>): void;
     states(): readonly ModelChange[];
+    supply(ref: string, answer: PartAnswer, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetRecord>;
 }
 
 // @public
@@ -1894,7 +1899,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_FETCH"
 /**
-* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`.
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
 */
 | "E_MODEL_URL_BLOCKED"
 /**
@@ -2098,7 +2103,8 @@ export type GraphtyWarningCode =
 | "W_MODEL_NOT_EMBEDDED"
 /**
 * A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
-* from a project or style file, an AI command or the data, or a reopened project's source load.
+* from a project or style file, an AI command or the data, a reopened project's source load, or
+* a part handed to `assets.supply` by its URL on another host (`by: "supplied"`).
 * `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
 * `params.layerIds`.
 */
@@ -2121,7 +2127,13 @@ export type GraphtyWarningCode =
 /**
 * A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
 */
-| "W_MODEL_PART_UNUSED";
+| "W_MODEL_PART_UNUSED"
+/**
+* A project was asked to keep a model by its URL, but its parts came from several places
+* (`assets.supply`), so no one URL brings it back: it was embedded instead. `params.url` (no
+* query), `params.reason` (`parts`).
+*/
+| "W_MODEL_NOT_KEPT_BY_URL";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;
@@ -2840,7 +2852,7 @@ export interface NetworkRequest {
 }
 
 // @public
-export type NetworkRequestAsker = "file" | "ai" | "data" | "source";
+export type NetworkRequestAsker = "file" | "ai" | "data" | "source" | "supplied";
 
 // @public
 export type NetworkRequestKind = "model" | "texture" | "source";
@@ -3055,6 +3067,33 @@ export function parseScope(value: unknown): Scope;
 
 // @public
 export function parseSetDefinition(value: unknown): SetDefinition;
+
+// @public
+export type PartAnswer =
+/** Fetch this URL as the part. Another host is asked through `session.network` (`by: "supplied"`). */
+    {
+    readonly name: string;
+    readonly url: string;
+}
+/** This file is the part. With no name, it is matched to a missing part by its path, then by its base name. */
+| {
+    readonly name?: string;
+    readonly file: NamedBlob | Uint8Array;
+}
+/** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+| {
+    readonly name: string;
+    readonly use: string;
+}
+/** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+| {
+    readonly name: string;
+    readonly skip: true;
+}
+/** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
+| {
+    readonly main: string;
+};
 
 // @public
 export type PartialCode = "partial.iteration-cap" | "partial.time-box" | "partial.canceled" | "partial.stopped" | "partial.batch-incomplete";

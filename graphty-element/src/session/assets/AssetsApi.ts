@@ -13,12 +13,12 @@
 
 import type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
 import { GraphtyError } from "../../errors";
-import type { NetworkApiInternal } from "../network";
+import { isPrivateHost, type NetworkApiInternal } from "../network";
 import type { CodedFact } from "../shared";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
-import { Refusal } from "./references";
+import { baseName, cut, normalizePath, Refusal, roleOfName } from "./references";
 
 /**
  * The intake checks, loaded on the first add, so a page that never adds a model never
@@ -75,8 +75,31 @@ export interface AddAssetOptions {
     readonly main?: string;
     /** Force a format when the bytes are ambiguous. Default: detected. */
     readonly format?: ModelFormat;
+    /**
+     * Parts to draw without: pictures and `.mtl` files the model names, by their path in the set.
+     * A picture is drawn as plain white, so the material's own color still applies; an OBJ
+     * without its `.mtl` draws with the default material. The record lists them in `skipped`.
+     * Default: none.
+     */
+    readonly skipped?: readonly string[];
     readonly signal?: AbortSignal;
 }
+
+/**
+ * What `assets.supply` hands a model that is missing a part (design 12.4). `name` is the part's
+ * `params.name` in the record's `E_MODEL_MISSING_FILE` or `E_MODEL_PART_AMBIGUOUS`.
+ */
+export type PartAnswer =
+    /** Fetch this URL as the part. Another host is asked through `session.network` (`by: "supplied"`). */
+    | { readonly name: string; readonly url: string }
+    /** This file is the part. With no name, it is matched to a missing part by its path, then by its base name. */
+    | { readonly name?: string; readonly file: NamedBlob | Uint8Array }
+    /** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+    | { readonly name: string; readonly use: string }
+    /** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
+    | { readonly name: string; readonly skip: true }
+    /** Which file of the set is the model (`E_MODEL_AMBIGUOUS`). */
+    | { readonly main: string };
 
 /** Where an asset stands. */
 export type AssetState = "pending" | "accepted" | "rejected";
@@ -104,6 +127,8 @@ export interface AssetRecord {
     readonly problems: readonly CodedFact[];
     /** The URL it was fetched from, as the layer or the caller named it; absent for files and bytes. */
     readonly url?: string;
+    /** The parts it is drawn without (`supply`'s `skip`, `add`'s `skipped`), by their path in the set. */
+    readonly skipped?: readonly string[];
 }
 
 /** What a model holds, read from its files without drawing it. */
@@ -219,10 +244,10 @@ export interface AssetsApi {
      */
     inspect(id: AssetId): ModelSummary;
     /**
-     * Remove an asset. Nothing happens for an unknown id.
-     * @param id - The id.
+     * Remove an asset, or let go of a model held for `supply`. Nothing happens for an unknown ref.
+     * @param id - The id, or the URL a layer named.
      */
-    remove(id: AssetId): void;
+    remove(id: string): void;
     /**
      * The stored files exactly as given, by path (copies).
      * @param id - The id.
@@ -254,6 +279,41 @@ export interface AssetsApi {
      * ```
      */
     states(): readonly ModelChange[];
+    /**
+     * Answer what a rejected model is missing, then check it again: a part by URL or by file, a
+     * file the set holds for an ambiguous reference, a picture or `.mtl` to draw without, or the
+     * main file of a set holding several models. A model missing parts is held by the session
+     * until it is accepted or removed. Calls for one model run one at a time, in order. Once it is
+     * accepted, every layer that names it draws it with no new call.
+     * @param ref - What a layer named (a URL or an asset id), or the record's id.
+     * @param answer - The part.
+     * @param options - A signal that stops waiting.
+     * @param options.signal - Stops waiting.
+     * @returns The new record: accepted (with its digest id), or rejected with what is still
+     *     missing. A file or name that matches no missing part adds `W_MODEL_PART_UNUSED`.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold,
+     *     `E_BAD_COMMAND` for a model that is not missing a part, `E_MODEL_PART_REQUIRED` for a
+     *     skip of a part the model cannot be drawn without.
+     * @example
+     * ```ts
+     * const car = await graph.session.assets.add(policeGlb);
+     * if (car.state === "rejected") {
+     *     await graph.session.assets.supply(car.id, { file: colormapPng });
+     * }
+     * ```
+     */
+    supply(ref: string, answer: PartAnswer, options?: { readonly signal?: AbortSignal }): Promise<AssetRecord>;
+}
+
+/** A model missing parts, held for `supply` (design 12.4). */
+interface Held {
+    given: Map<string, Uint8Array>;
+    main?: string;
+    skipped: string[];
+    /** The caller's name and format. */
+    readonly options: AddAssetOptions;
+    /** The main file's URL as named, for a model fetched by URL. */
+    readonly url?: string;
 }
 
 /** What the session keeps per asset. */
@@ -262,7 +322,15 @@ interface Entry {
     settled: Promise<AssetRecord>;
     given?: ReadonlyMap<string, Uint8Array>;
     summary?: ModelSummary;
+    held?: Held;
+    /** Parts came by `supply`: no single URL brings it back. */
+    assembled?: boolean;
+    /** The `supply` calls for it, one at a time. */
+    chain?: Promise<unknown>;
 }
+
+/** The codes a held model can be supplied for. */
+const PART_CODES = new Set(["E_MODEL_MISSING_FILE", "E_MODEL_PART_AMBIGUOUS", "E_MODEL_AMBIGUOUS"]);
 
 /** The assets API plus what the drawing side reads and the public interface does not offer. */
 export interface AssetsApiInternal extends AssetsApi {
@@ -305,6 +373,20 @@ export interface AssetsApiInternal extends AssetsApi {
      * @returns The digest, or undefined.
      */
     expectedDigest(ref: string): string | undefined;
+    /**
+     * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
+     * brings it back.
+     * @param id - The id.
+     * @returns True for such an asset.
+     */
+    assembled(id: AssetId): boolean;
+    /**
+     * Call back after every `supply`, with every name the model is known by (its ids and URLs), so
+     * the layers naming it draw again.
+     * @param listener - The callback.
+     * @returns Stops calling it.
+     */
+    watchSupplied(listener: (names: readonly string[]) => void): () => void;
 }
 
 /**
@@ -314,6 +396,50 @@ export interface AssetsApiInternal extends AssetsApi {
  */
 function shownUrlOf(url: URL): string {
     return `${url.origin}${url.pathname}`.slice(0, 256);
+}
+
+/**
+ * The bytes of a file set.
+ * @param files - The set.
+ * @returns The total.
+ */
+function byteLengthOf(files: ReadonlyMap<string, Uint8Array>): number {
+    return [...files.values()].reduce((sum, bytes) => sum + bytes.length, 0);
+}
+
+/**
+ * An object without its undefined members, for types whose optional members may not hold undefined.
+ * @param value - The object.
+ * @returns A copy with only its defined members.
+ */
+function withoutUndefined<T extends object>(value: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+    return Object.fromEntries(Object.entries(value).filter(([, each]) => each !== undefined)) as {
+        [K in keyof T]?: Exclude<T[K], undefined>;
+    };
+}
+
+/**
+ * What the session holds of a model missing parts, for `supply` (design 12.4).
+ * @param files - The set.
+ * @param options - The caller's options; only the name and format are kept.
+ * @param skipped - The parts it is drawn without.
+ * @param main - The main file named, if any.
+ * @param url - The main file's URL as named, if any.
+ * @returns The hold.
+ */
+function holdOf(
+    files: ReadonlyMap<string, Uint8Array>,
+    options: AddAssetOptions,
+    skipped: string[],
+    main?: string,
+    url?: string,
+): Held {
+    return {
+        given: new Map(files),
+        skipped,
+        options: withoutUndefined({ name: options.name, format: options.format }),
+        ...withoutUndefined({ main, url }),
+    };
 }
 
 /**
@@ -365,6 +491,145 @@ function abortable<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
 }
 
 /**
+ * Thrown by `supply` (and `add`'s `skipped`) for a call it cannot take.
+ * @param code - Why.
+ * @param details - What names the problem.
+ * @returns The error.
+ */
+function supplyError(code: "E_BAD_COMMAND" | "E_MODEL_PART_REQUIRED", details: Record<string, string>): GraphtyError {
+    return new GraphtyError({
+        code,
+        source: "data",
+        message:
+            code === "E_BAD_COMMAND"
+                ? "This model is not missing a part."
+                : "A model cannot be drawn without its geometry.",
+        details,
+    });
+}
+
+/**
+ * The missing or ambiguous part a name means: as written, then with its path normalized, in any case.
+ * @param parts - The record's part facts.
+ * @param name - The name.
+ * @returns The fact, or undefined.
+ */
+function partNamed(parts: readonly CodedFact[], name: string): CodedFact | undefined {
+    const normalized = (normalizePath(name) ?? name).toLowerCase();
+    return (
+        parts.find((fact) => fact.params.name === name) ??
+        parts.find((fact) => String(fact.params.name).toLowerCase() === normalized)
+    );
+}
+
+/**
+ * The missing part a file with no name means: by its folder path, then by its base name, in any
+ * case; only when exactly one part matches.
+ * @param parts - The missing parts.
+ * @param file - The file.
+ * @returns The fact, or undefined.
+ */
+function partForFile(parts: readonly CodedFact[], file: NamedBlob): CodedFact | undefined {
+    const path = (normalizePath(file.webkitRelativePath ?? "") ?? "").toLowerCase();
+    const base = (path === "" ? file.name : baseName(path)).toLowerCase();
+    const steps: ((name: string) => boolean)[] = [
+        (name) => path !== "" && (path === name || path.endsWith(`/${name}`)),
+        (name) => baseName(name) === base,
+    ];
+    for (const step of steps) {
+        const found = parts.filter((fact) => step(String(fact.params.name).toLowerCase()));
+        if (found.length > 0) {
+            return found.length === 1 ? found[0] : undefined;
+        }
+    }
+
+    return undefined;
+}
+
+/** A part answer that brings bytes. */
+type BytesAnswer = Extract<PartAnswer, { readonly url: string } | { readonly file: unknown }>;
+
+/**
+ * The missing part an answer that brings bytes is for.
+ * @param missing - The missing parts.
+ * @param answer - The answer.
+ * @returns The fact, or undefined.
+ */
+function partFor(missing: readonly CodedFact[], answer: BytesAnswer): CodedFact | undefined {
+    if ("url" in answer || answer.name !== undefined) {
+        return partNamed(missing, String(answer.name));
+    }
+
+    return answer.file instanceof Uint8Array ? undefined : partForFile(missing, answer.file);
+}
+
+/**
+ * What a file answer is called in `W_MODEL_PART_UNUSED`.
+ * @param answer - The answer.
+ * @returns Its name, or "" for unnamed bytes.
+ */
+function fileNameOf(answer: BytesAnswer): string {
+    if ("url" in answer) {
+        return answer.name;
+    }
+
+    if (answer.name !== undefined) {
+        return answer.name;
+    }
+
+    return answer.file instanceof Uint8Array ? "" : answer.file.name;
+}
+
+/** What one answer does to a held model: a change to check, a part it could not take, or nothing. */
+type Step =
+    | { readonly unused: string }
+    | { readonly refused: CodedFact }
+    | { readonly main?: string; readonly skip?: string; readonly part?: readonly [string, Uint8Array] };
+
+/**
+ * The step of a skip: a picture or `.mtl` the model is missing.
+ * @param missing - The missing parts.
+ * @param name - The part.
+ * @returns The step.
+ * @throws A `GraphtyError` coded `E_MODEL_PART_REQUIRED` for geometry.
+ */
+function skipStep(missing: readonly CodedFact[], name: string): Step {
+    const part = partNamed(missing, name);
+    const role = String(part?.params.role ?? roleOfName(name));
+    if (role === "geometry") {
+        throw supplyError("E_MODEL_PART_REQUIRED", { name: cut(name), role });
+    }
+
+    return part?.code === "E_MODEL_MISSING_FILE" ? { skip: String(part.params.name) } : { unused: name };
+}
+
+/**
+ * The step of a `use`: one of an ambiguous reference's candidates, stored under the name the model uses.
+ * @param missing - The missing and ambiguous parts.
+ * @param answer - The answer.
+ * @param answer.name - The ambiguous part.
+ * @param answer.use - The file meant.
+ * @param given - The held files.
+ * @returns The step.
+ */
+function useStep(
+    missing: readonly CodedFact[],
+    answer: { readonly name: string; readonly use: string },
+    given: ReadonlyMap<string, Uint8Array>,
+): Step {
+    const part = partNamed(missing, answer.name);
+    const candidates = (part?.params.candidates ?? []) as readonly string[];
+    const bytes = given.get(answer.use);
+    if (part?.code !== "E_MODEL_PART_AMBIGUOUS" || !candidates.includes(answer.use) || bytes === undefined) {
+        return { unused: answer.name };
+    }
+
+    // ponytail: the chosen file is stored again under the name the model uses; a resolution table
+    // would keep the set smaller if ambiguous parts turn out to be common.
+    return { part: [String(part.params.name), bytes] };
+}
+
+/**
  * Build `session.assets`.
  * @param network - The session's fetch gate, which `allowHosts` also opens.
  * @returns The API.
@@ -383,18 +648,140 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
     const lookup = (id: AssetId): Entry | undefined => entries.get(id) ?? samples.get(id);
 
     /**
-     * Bytes held, counting each digest once.
+     * Every entry once, whatever names it.
+     * @returns The entries.
+     */
+    const allEntries = (): Set<Entry> => new Set([...entries.values(), ...urls.values()]);
+
+    /**
+     * Bytes held: accepted models counting each digest once, and every model held for `supply`.
      * @returns The total.
      */
     const storedBytes = (): number => {
         const seen = new Map<string, number>();
-        for (const entry of entries.values()) {
+        let held = 0;
+        for (const entry of allEntries()) {
             if (entry.record.state === "accepted") {
                 seen.set(entry.record.digest, entry.record.byteLength);
+            } else if (entry.held !== undefined) {
+                held += [...entry.held.given.values()].reduce((sum, bytes) => sum + bytes.length, 0);
             }
         }
 
-        return [...seen.values()].reduce((sum, n) => sum + n, 0);
+        return [...seen.values()].reduce((sum, n) => sum + n, held);
+    };
+
+    /**
+     * Whether a record was rejected only for parts `supply` can answer.
+     * @param problems - Its problems.
+     * @returns True when every error is a missing, ambiguous or unchosen part.
+     */
+    const onlyParts = (problems: readonly CodedFact[]): boolean =>
+        problems.length > 0 && problems.every((fact) => PART_CODES.has(fact.code));
+
+    /**
+     * A set as its entries: a `.zip` unpacked (its id is its entries' digest, so a zip, a folder
+     * and supplied parts agree), anything else as given. A zip that cannot be read is left for the
+     * checks to refuse.
+     * @param given - The files as given.
+     * @returns The files.
+     */
+    const asEntries = async (given: ReadonlyMap<string, Uint8Array>): Promise<ReadonlyMap<string, Uint8Array>> => {
+        try {
+            return await (await loadIntake()).unpackZip(given, limits);
+        } catch (error) {
+            if (!(error instanceof Refusal)) {
+                throw error;
+            }
+
+            return given;
+        }
+    };
+
+    /**
+     * The record of an id that cannot be taken: a reserved sample name, or a name held by other files.
+     * @param id - The id.
+     * @param digest - The files' digest.
+     * @param byteLength - Their bytes.
+     * @param sample - True for one of the element's samples.
+     * @returns The held record, a refusal, or undefined when the id is free.
+     */
+    const takenRecord = (id: AssetId, digest: string, byteLength: number, sample: boolean): AssetRecord | undefined => {
+        const held = entries.get(id);
+        if (held !== undefined && held.record.state !== "pending" && held.record.digest === digest) {
+            return held.record;
+        }
+
+        const reserved = id.startsWith(SAMPLE_PREFIX) && !sample;
+        if (!reserved && (held === undefined || held.record.state === "pending")) {
+            return undefined;
+        }
+
+        const problems = [{ code: "E_MODEL_NAME_TAKEN", params: { id } }];
+        return record({ id, digest, byteLength, format: "", state: "rejected", problems });
+    };
+
+    /** What a set's record is made from. */
+    interface Settling {
+        readonly id: AssetId;
+        /** The id it takes once accepted. */
+        readonly acceptedId: AssetId;
+        readonly digest: string;
+        readonly byteLength: number;
+        readonly extra: Pick<AssetRecord, "url" | "skipped">;
+        readonly sample: boolean;
+        /** Bytes this set already counts toward `sessionBytes` while held. */
+        readonly heldBytes: number;
+    }
+
+    /**
+     * Run every check on a set and make its record.
+     * @param files - The set.
+     * @param options - The caller's main file, format and skips.
+     * @param at - What the record is made from.
+     * @returns The record, and the summary of an accepted one.
+     */
+    const settle = async (
+        files: ReadonlyMap<string, Uint8Array>,
+        options: AddAssetOptions,
+        at: Settling,
+    ): Promise<{ settled: AssetRecord; summary?: ModelSummary }> => {
+        const { id, digest, byteLength } = at;
+        let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkAsset"]>>;
+        try {
+            checked = await (await loadIntake()).checkAsset(files, options, limits);
+        } catch (error) {
+            if (!(error instanceof Refusal)) {
+                throw error;
+            }
+
+            const problems = error.facts;
+            return {
+                settled: record({ id, digest, byteLength, format: "", state: "rejected", problems, ...at.extra }),
+            };
+        }
+
+        const already = [...entries.values()].some((e) => e.record.digest === digest && e.record.state === "accepted");
+        const found = storedBytes() - at.heldBytes + byteLength;
+        if (!at.sample && !already && found > limits.sessionBytes) {
+            const problems = [
+                { code: "E_MODEL_TOO_LARGE", params: { what: "sessionBytes", found, limit: limits.sessionBytes } },
+            ];
+            return { settled: record({ id, digest, byteLength, format: checked.format, state: "rejected", problems }) };
+        }
+
+        const settled = record({
+            id: at.acceptedId,
+            kind: checked.kind,
+            digest,
+            byteLength,
+            format: checked.format,
+            path: checked.main.slice(0, 256),
+            state: "accepted",
+            problems: checked.warnings,
+            ...at.extra,
+        });
+        return { settled, summary: checked.summary };
     };
 
     /**
@@ -404,6 +791,7 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
      * @param main - A main file the source itself named.
      * @param sample - True for one of the element's samples, which is kept apart from the session's assets.
      * @param url - The URL it was fetched from, as named, when it was.
+     * @param into - A held entry `supply` checks again: it is updated in place, keeping its id while rejected.
      * @returns The settled record.
      */
     const intake = async (
@@ -412,96 +800,51 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         main?: string,
         sample = false,
         url?: string,
+        into?: Entry,
     ): Promise<AssetRecord> => {
-        const digest = await digestFileSet(given);
+        const skipped = [...(options.skipped ?? [])];
+        const files = await asEntries(given);
+        const digest = await digestFileSet(files);
         options.signal?.throwIfAborted();
-        const byteLength = [...given.values()].reduce((sum, bytes) => sum + bytes.length, 0);
-        const id: AssetId = options.name ?? `asset:${digest}`;
-        if (id.startsWith(SAMPLE_PREFIX) && !sample) {
-            return record({
-                id,
-                digest,
-                byteLength,
-                format: "",
-                state: "rejected",
-                problems: [{ code: "E_MODEL_NAME_TAKEN", params: { id } }],
-            });
+        const byteLength = byteLengthOf(files);
+        const named = options.name ?? `asset:${digest}`;
+        const id: AssetId = into === undefined ? named : into.record.id;
+        const taken = into === undefined ? takenRecord(id, digest, byteLength, sample) : undefined;
+        if (taken !== undefined) {
+            return taken;
         }
 
-        const held = entries.get(id);
-        if (held !== undefined && held.record.state !== "pending") {
-            if (held.record.digest === digest) {
-                return held.record;
-            }
-
-            return record({
+        const { settled, summary } = await settle(
+            files,
+            { main, ...withoutUndefined(options) },
+            {
                 id,
+                acceptedId: named,
                 digest,
                 byteLength,
-                format: "",
-                state: "rejected",
-                problems: [{ code: "E_MODEL_NAME_TAKEN", params: { id } }],
-            });
-        }
-
-        let settled: AssetRecord;
-        let summary: ModelSummary | undefined;
-        try {
-            const checked = await (
-                await loadIntake()
-            ).checkAsset(
-                given,
-                { ...options, ...(options.main === undefined && main !== undefined ? { main } : {}) },
-                limits,
-            );
-            ({ summary } = checked);
-            settled = record({
-                id,
-                kind: checked.kind,
-                digest,
-                byteLength,
-                format: checked.format,
-                path: checked.main.slice(0, 256),
-                state: "accepted",
-                problems: checked.warnings,
-                ...(url === undefined ? {} : { url }),
-            });
-            const already = [...entries.values()].some(
-                (e) => e.record.digest === digest && e.record.state === "accepted",
-            );
-            if (!sample && !already && storedBytes() + byteLength > limits.sessionBytes) {
-                summary = undefined;
-                settled = record({
-                    id,
-                    digest,
-                    byteLength,
-                    format: checked.format,
-                    state: "rejected",
-                    problems: [
-                        {
-                            code: "E_MODEL_TOO_LARGE",
-                            params: {
-                                what: "sessionBytes",
-                                found: storedBytes() + byteLength,
-                                limit: limits.sessionBytes,
-                            },
-                        },
-                    ],
-                });
-            }
-        } catch (error) {
-            if (!(error instanceof Refusal)) {
-                throw error;
+                extra: withoutUndefined({ url, skipped: skipped.length === 0 ? undefined : Object.freeze(skipped) }),
+                sample,
+                heldBytes: into?.held === undefined ? 0 : byteLengthOf(into.held.given),
+            },
+        );
+        if (into !== undefined) {
+            if (summary !== undefined) {
+                into.summary = summary;
             }
 
-            settled = record({ id, digest, byteLength, format: "", state: "rejected", problems: error.facts });
+            return settled;
         }
 
-        (sample ? samples : entries).set(id, {
+        const entry: Entry = {
             record: settled,
             settled: Promise.resolve(settled),
-            ...(summary === undefined ? {} : { summary, given }),
-        });
+            ...(summary === undefined ? {} : { summary, given: files }),
+        };
+        if (!sample && settled.state === "rejected" && onlyParts(settled.problems)) {
+            entry.held = holdOf(files, options, skipped, main, url);
+        }
+
+        (sample ? samples : entries).set(id, entry);
         return settled;
     };
 
@@ -615,6 +958,11 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                 }
 
                 settled = early(error.facts, provisional);
+                if (error.held !== undefined) {
+                    // Missing parts only: held, so the reader can supply them (design 12.4).
+                    entry.held = { ...error.held, skipped: [], options: shared, url: named };
+                    settled = record({ ...settled, url: named });
+                }
             }
 
             entry.record = settled;
@@ -627,14 +975,240 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
     /**
      * Parse what a layer named as a URL.
      * @param ref - The string.
+     * @param base - What it is relative to. Default: the page.
      * @returns The URL, or undefined.
      */
-    const parseUrl = (ref: string): URL | undefined => {
+    const parseUrl = (ref: string, base?: string): URL | undefined => {
         try {
-            return new URL(ref, (globalThis as { location?: { href?: string } }).location?.href);
+            return new URL(ref, base ?? (globalThis as { location?: { href?: string } }).location?.href);
         } catch {
             return undefined;
         }
+    };
+
+    const supplyWatchers = new Set<(names: readonly string[]) => void>();
+
+    /**
+     * The entry a ref names: an id (or an id it had while rejected), a URL, or a URL's provisional id.
+     * @param ref - The ref.
+     * @returns The entry, or undefined.
+     */
+    const findEntry = (ref: string): Entry | undefined => {
+        const byId = isAssetId(ref) ? entries.get(ref) : undefined;
+        if (byId !== undefined) {
+            return byId;
+        }
+
+        const url = isAssetId(ref) ? undefined : parseUrl(ref);
+        return (
+            (url === undefined ? undefined : urls.get(url.href)) ?? [...urls.values()].find((e) => e.record.id === ref)
+        );
+    };
+
+    /**
+     * Every name an entry is known by: its ids and the URLs that resolve to it.
+     * @param entry - The entry.
+     * @returns The names.
+     */
+    const namesOf = (entry: Entry): string[] => {
+        const names = new Set<string>();
+        for (const [key, value] of [...entries, ...urls]) {
+            if (value === entry) {
+                names.add(key);
+            }
+        }
+
+        names.add(entry.record.id);
+        if (entry.record.url !== undefined) {
+            names.add(entry.record.url);
+        }
+
+        return [...names];
+    };
+
+    /**
+     * Whether a supplied part's URL may be fetched (design 12.7): the main file's own origin at
+     * once; a private, loopback or link-local host never; any other host once the page, the reader
+     * or the project allows it (`by: "supplied"`).
+     * @param held - The held model.
+     * @param target - The part's URL.
+     * @param part - The missing part.
+     * @returns Why not, or undefined to fetch.
+     */
+    const refusalFor = async (held: Held, target: URL, part: CodedFact): Promise<CodedFact | undefined> => {
+        const origin = held.url === undefined ? undefined : parseUrl(held.url)?.origin;
+        if (target.origin === origin) {
+            return undefined;
+        }
+
+        const params = { hosts: [cut(target.host)], part: cut(String(part.params.name)) };
+        if (isPrivateHost(target.hostname)) {
+            return { code: "E_MODEL_URL_BLOCKED", params };
+        }
+
+        const allowed =
+            network === undefined
+                ? api.hostAllowed(target.host)
+                : await network.ask({
+                      url: target,
+                      kind: part.params.role === "texture" ? "texture" : "model",
+                      by: "supplied",
+                      layerIds: [],
+                  });
+        return allowed ? undefined : { code: "E_MODEL_URL_BLOCKED", params: { ...params, denied: true } };
+    };
+
+    /**
+     * Fetch a part supplied by URL, its query kept for the request only.
+     * @param held - The held model.
+     * @param part - The missing part.
+     * @param address - The URL as given.
+     * @param room - Bytes left under `maxBytes`.
+     * @param signal - Stops the fetch.
+     * @returns The bytes, or why not.
+     */
+    const fetchPart = async (
+        held: Held,
+        part: CodedFact,
+        address: string,
+        room: number,
+        signal?: AbortSignal,
+    ): Promise<Uint8Array | CodedFact> => {
+        const name = cut(String(part.params.name));
+        const target = parseUrl(address, held.url === undefined ? undefined : parseUrl(held.url)?.href);
+        if (target === undefined) {
+            const url = cut(address.split(/[?#]/)[0]);
+            return { code: "E_MODEL_FETCH", params: { url, status: null, offline: false, part: name } };
+        }
+
+        const refusal = await refusalFor(held, target, part);
+        if (refusal !== undefined) {
+            return refusal;
+        }
+
+        const intakeModule = await loadIntake();
+        let bytes: Uint8Array;
+        try {
+            [bytes] = (await intakeModule.fetchModel(target, { ...limits, maxBytes: room }, signal)).values();
+        } catch (error) {
+            if (!(error instanceof Refusal)) {
+                throw error;
+            }
+
+            return { code: error.fact.code, params: { ...error.fact.params, part: name } };
+        }
+
+        return intakeModule.isWebPage(bytes)
+            ? { code: "E_MODEL_WEB_PAGE", params: intakeModule.webPageParams(target, name) }
+            : bytes;
+    };
+
+    /**
+     * What one answer does to a held model.
+     * @param held - The held model.
+     * @param parts - Its missing, ambiguous and unchosen parts.
+     * @param answer - The answer.
+     * @param signal - Stops a fetch.
+     * @returns The step.
+     */
+    const stepFor = async (
+        held: Held,
+        parts: readonly CodedFact[],
+        answer: PartAnswer,
+        signal?: AbortSignal,
+    ): Promise<Step> => {
+        const missing = parts.filter((fact) => fact.code !== "E_MODEL_AMBIGUOUS");
+        if ("main" in answer) {
+            return { main: answer.main };
+        }
+
+        if ("skip" in answer) {
+            return skipStep(missing, answer.name);
+        }
+
+        if ("use" in answer) {
+            return useStep(missing, answer, held.given);
+        }
+
+        const part = partFor(missing, answer);
+        if (part === undefined) {
+            return { unused: fileNameOf(answer) };
+        }
+
+        const name = String(part.params.name);
+        const room = limits.maxBytes - byteLengthOf(held.given);
+        if ("url" in answer) {
+            const fetched = await fetchPart(held, part, answer.url, room, signal);
+            return fetched instanceof Uint8Array ? { part: [name, fetched] } : { refused: fetched };
+        }
+
+        const size = answer.file instanceof Uint8Array ? answer.file.length : answer.file.size;
+        if (size > room) {
+            const params = { what: "bytes", found: limits.maxBytes - room + size, limit: limits.maxBytes, part: name };
+            return { refused: { code: "E_MODEL_TOO_LARGE", params } };
+        }
+
+        const bytes =
+            answer.file instanceof Uint8Array ? answer.file.slice() : new Uint8Array(await answer.file.arrayBuffer());
+        return { part: [name, bytes] };
+    };
+
+    /**
+     * One `supply` call, run in its model's turn.
+     * @param entry - The held model.
+     * @param answer - The part.
+     * @param signal - Stops a fetch.
+     * @returns The new record.
+     */
+    const supplyOne = async (entry: Entry, answer: PartAnswer, signal?: AbortSignal): Promise<AssetRecord> => {
+        const { held } = entry;
+        const parts = entry.record.problems.filter((fact) => PART_CODES.has(fact.code));
+        if (entry.record.state !== "rejected" || held === undefined || parts.length === 0) {
+            throw supplyError("E_BAD_COMMAND", { id: entry.record.id });
+        }
+
+        // A part that could not be taken: the record says why, beside what is still missing.
+        const refused = (fact: CodedFact): AssetRecord => {
+            entry.record = record({ ...entry.record, problems: [fact, ...parts] });
+            entry.settled = Promise.resolve(entry.record);
+            return entry.record;
+        };
+        const step = await stepFor(held, parts, answer, signal);
+        if ("unused" in step) {
+            const fact = { code: "W_MODEL_PART_UNUSED", params: { fileName: cut(step.unused) } };
+            return record({ ...entry.record, problems: [...entry.record.problems, fact] });
+        }
+
+        if ("refused" in step) {
+            return refused(step.refused);
+        }
+
+        const given = new Map(held.given);
+        if (step.part !== undefined) {
+            given.set(...step.part);
+        }
+
+        const main = step.main ?? held.main;
+        const skipped = step.skip === undefined ? held.skipped : [...held.skipped, step.skip];
+        const settled = await intake(given, { ...held.options, skipped }, main, false, held.url, entry);
+        if (settled.state === "rejected" && !onlyParts(settled.problems)) {
+            // The part itself was refused (a picture that is not one, a size over a limit): keep
+            // what was held, and say why beside what is still missing.
+            return refused(settled.problems[0]);
+        }
+
+        entry.assembled = true;
+        entry.record = settled;
+        entry.settled = Promise.resolve(settled);
+        if (settled.state === "accepted") {
+            entry.given = given;
+            delete entry.held;
+            entries.set(settled.id, entry);
+        } else {
+            entry.held = { ...held, given, ...(main === undefined ? {} : { main }), skipped };
+        }
+
+        return settled;
     };
 
     const unknownAsset = (id: AssetId): never => {
@@ -655,6 +1229,11 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
                     message: "An asset name is \"asset:\" and letters, digits, '.', '_', '-' or '/'.",
                     details: { name: String(options.name) },
                 });
+            }
+
+            const geometry = (options.skipped ?? []).find((name) => roleOfName(name) === "geometry");
+            if (geometry !== undefined) {
+                throw supplyError("E_MODEL_PART_REQUIRED", { name: cut(geometry), role: "geometry" });
             }
 
             options.signal?.throwIfAborted();
@@ -719,11 +1298,11 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         },
 
         list() {
-            return Object.freeze(
-                [...entries.values(), ...[...urls.values()].filter((e) => e.record.state === "pending")].map(
-                    (e) => e.record,
-                ),
-            );
+            const listed = new Set([
+                ...entries.values(),
+                ...[...urls.values()].filter((e) => e.record.state === "pending"),
+            ]);
+            return Object.freeze([...listed].map((e) => e.record));
         },
 
         inspect(id) {
@@ -731,12 +1310,56 @@ export function createAssetsApi(network?: NetworkApiInternal): AssetsApiInternal
         },
 
         remove(id) {
-            entries.delete(id);
-            for (const [href, entry] of urls) {
-                if (entry.record.id === id) {
-                    urls.delete(href);
+            // Also a URL or a provisional id, so a model held for supply can be let go.
+            const entry = findEntry(id);
+            for (const map of [entries, urls]) {
+                for (const [key, each] of map) {
+                    if (each === entry || each.record.id === id) {
+                        map.delete(key);
+                    }
                 }
             }
+        },
+
+        supply(ref, answer, options = {}) {
+            const entry = findEntry(ref);
+            if (entry === undefined) {
+                return Promise.reject(
+                    new GraphtyError({
+                        code: "E_MODEL_UNKNOWN_ASSET",
+                        source: "data",
+                        message: `No model is held as ${ref}.`,
+                        details: { id: ref },
+                    }),
+                );
+            }
+
+            const run = async (): Promise<AssetRecord> => {
+                // A URL still downloading settles first, so its parts are known.
+                await entry.settled;
+                try {
+                    return await supplyOne(entry, answer, options.signal);
+                } finally {
+                    const names = namesOf(entry);
+                    for (const watcher of supplyWatchers) {
+                        watcher(names);
+                    }
+                }
+            };
+            const result = (entry.chain ?? Promise.resolve()).then(run, run);
+            entry.chain = result.catch(() => undefined);
+            return abortable(result, options.signal);
+        },
+
+        assembled(id) {
+            return lookup(id)?.assembled === true;
+        },
+
+        watchSupplied(listener) {
+            supplyWatchers.add(listener);
+            return () => {
+                supplyWatchers.delete(listener);
+            };
         },
 
         files(id) {

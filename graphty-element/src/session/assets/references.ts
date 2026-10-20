@@ -32,6 +32,8 @@ export class Refusal extends Error {
     readonly fact: CodedFact;
     /** Every fact: several when a model is missing several parts. */
     readonly facts: readonly CodedFact[];
+    /** The files fetched so far, for a model fetched by URL that is missing parts: the session holds them (design 12.4). */
+    held?: { readonly given: Map<string, Uint8Array>; readonly main?: string };
 
     /**
      * A refusal carrying one coded fact, and any more found with it.
@@ -207,6 +209,20 @@ function decodeDataUrl(ref: string): Uint8Array | undefined {
 
 /** What a part is for a model: `geometry` (a glTF buffer), `materials` (an `.mtl`) or `texture`. */
 export type PartRole = "geometry" | "materials" | "texture";
+
+/**
+ * What a part is to its model, by its name: an `.mtl` is `materials`, a picture `texture`, and
+ * anything else `geometry`, which a model cannot be drawn without.
+ * @param name - The part's name.
+ * @returns Its role.
+ */
+export function roleOfName(name: string): PartRole {
+    if (/\.mtl$/i.test(name)) {
+        return "materials";
+    }
+
+    return /\.(?:png|jpe?g|webp|gif|bmp|tga|tiff?|ktx2?|dds|basis)$/i.test(name) ? "texture" : "geometry";
+}
 
 /** Where a reference sends a problem it does not throw: what tolerant matching substituted, and what is missing. */
 export interface Findings {

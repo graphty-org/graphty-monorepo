@@ -188,6 +188,7 @@ export type {
     ModelLimits,
     ModelSummary,
     NamedBlob,
+    PartAnswer,
 } from "./src/session";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
 

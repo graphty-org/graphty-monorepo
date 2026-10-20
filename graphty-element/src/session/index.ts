@@ -22,6 +22,7 @@ export type {
     ModelLimits,
     ModelSummary,
     NamedBlob,
+    PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";

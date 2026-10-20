@@ -13,7 +13,18 @@
 
 import type { CodedFact } from "../shared";
 import type { ModelLimits, ModelSummary } from "./AssetsApi";
-import { cut, type Findings, findReference, refuse, resolveReference, textureBytesOf } from "./references";
+import {
+    baseName,
+    cut,
+    dirOf,
+    type Findings,
+    findReference,
+    normalizePath,
+    refuse,
+    resolveReference,
+    roleOfName,
+    textureBytesOf,
+} from "./references";
 
 /** What a scan returns. */
 export interface Scanned {
@@ -449,4 +460,63 @@ export function scanPly(bytes: Uint8Array, limits: ModelLimits): Scanned {
         }),
         warnings: [{ code: "W_MODEL_UP_GUESSED", params: { format: "ply", up: "y" } }],
     };
+}
+
+/** A 1 x 1 white PNG: what a skipped picture is drawn as, so a material's own color still applies. */
+export const WHITE_PNG = Uint8Array.from(
+    atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg=="),
+    (c) => c.charCodeAt(0),
+);
+
+/**
+ * A file set with its skipped parts filled in (design 12.4): a skipped picture is a 1 x 1 white
+ * PNG, a skipped `.mtl` an empty one (the OBJ draws with the default material), and for drawing an
+ * OBJ (`dropMaps`) every MTL line naming a skipped picture is removed. A skipped name the set
+ * holds is left as it is.
+ * @param files - The set as given.
+ * @param skipped - The parts drawn without.
+ * @param dropMaps - Also remove the MTL lines naming a skipped picture.
+ * @returns The set to check or draw.
+ */
+export function withSkips(
+    files: ReadonlyMap<string, Uint8Array>,
+    skipped: readonly string[],
+    dropMaps = false,
+): ReadonlyMap<string, Uint8Array> {
+    if (skipped.length === 0) {
+        return files;
+    }
+
+    const out = new Map(files);
+    for (const name of skipped) {
+        if (!out.has(name)) {
+            out.set(name, roleOfName(name) === "materials" ? new Uint8Array(0) : WHITE_PNG);
+        }
+    }
+
+    if (dropMaps) {
+        const gone = new Set(skipped.map((name) => name.toLowerCase()));
+        for (const [path, bytes] of out) {
+            if (!/\.mtl$/i.test(path) || bytes.length === 0) {
+                continue;
+            }
+
+            const kept = new TextDecoder()
+                .decode(bytes)
+                .split("\n")
+                .filter((raw) => {
+                    const tokens = raw.trim().split(/\s+/);
+                    if (!MAP_STATEMENT.test(tokens[0] ?? "")) {
+                        return true;
+                    }
+
+                    const name = mapFileName(tokens.slice(1)).replaceAll("\\", "/");
+                    const resolved = (normalizePath(dirOf(path) + name) ?? name).toLowerCase();
+                    return !gone.has(resolved) && !gone.has(baseName(name).toLowerCase());
+                });
+            out.set(path, new TextEncoder().encode(kept.join("\n")));
+        }
+    }
+
+    return out;
 }

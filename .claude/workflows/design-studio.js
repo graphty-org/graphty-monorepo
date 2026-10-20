@@ -57,6 +57,7 @@ const DECIDED = `${T}/decided.md`;
 // Everything below the session-ready bar waits here (friction, wording, cosmetic, keyboard and
 // screen-reader only), fixed between rounds by the decide-and-fix loop, never inside the dry run.
 const BACKLOG = `${T}/backlog.md`;
+const a11yBacklogNote = ` Also walk every accessibility item in ${BACKLOG} that is not marked fixed: confirm, re-rate or close each, as findings.`;
 // Fix groups the targeted re-walk rejected (reverted), for the next triage.
 const REJECTED = `${T}/rejected-fixes.md`;
 
@@ -765,7 +766,7 @@ for (let r = START_ROUND; r <= SAFETY_ROUNDS; r++) {
                         () =>
                             slot(() =>
                                 agent(
-                                    `${RULES}\n${asRole(role)}\nRound ${r}: do ${what}, on the frozen build (REAL_DIST from the first line of ${T}/criteria.md), driving it with real.mjs (sessions under ${RD}/expert/${role}/; always --end), looking at every screenshot. Report each finding with severity 0-4, the screen, the evidence (screenshot path) and the package that owns it. ${role === "a11y" ? ` Also walk every accessibility item in ${BACKLOG} that is not marked fixed: confirm, re-rate or close each, as findings.` : ""} Write ${RD}/expert/${role}.md and return the findings as markdown.`,
+                                    `${RULES}\n${asRole(role)}\nRound ${r}: do ${what}, on the frozen build (REAL_DIST from the first line of ${T}/criteria.md), driving it with real.mjs (sessions under ${RD}/expert/${role}/; always --end), looking at every screenshot. Report each finding with severity 0-4, the screen, the evidence (screenshot path) and the package that owns it. ${role === "a11y" ? a11yBacklogNote : ""} Write ${RD}/expert/${role}.md and return the findings as markdown.`,
                                     { label: `${P}: expert ${TEAM[role]}`, phase: "Round" },
                                 ),
                             ),

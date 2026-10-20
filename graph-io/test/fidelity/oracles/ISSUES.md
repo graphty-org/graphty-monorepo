@@ -1416,6 +1416,24 @@ node-sizes-opacity 3 -> 2. Still open, and why:
 - Unchanged from round 1: `database` (no stroke on the oracle, sized from its label's width), `border-radius-12`
   (shape class), `coordinate-origin-circular` and `image-background` (images-charts), `self-reference-front`.
 
+Checked again on a clean copy of the commits (2026-10-20), every vis-network sheet run against the committed floors
+and known failures:
+
+- The rows still open above are not in `oracle-known-failures.json`, so these sheets fail the oracle report as
+  committed: `labels` (`label.offset` on `font-multi-html`, `font-multi-markdown`, and `font-background`, which the
+  `labelLineHeight` 1 of the background box moved 6.7 px toward its node while the box kept its size), `labels-p3`
+  (`label.offset` on `font-mono-shorthand`, judged now that its runs are one text), `json-vis-synth` (the `curve`,
+  `inv_curve` and `image` arrows, now that graphty's own curve cap is read) and `node-sizes-opacity`
+  (`size-30-database` `label.anchor`, failing before this round too). The recording that went with this round dropped
+  them from the list without their passing on the committed code.
+- `json-vis-world` (`node.width`), `json-vis-lesmiserables` (`edge.present`, `label.size`), `json-vis-nodelegend`
+  (`label.rotation`) and `images-charts` (`node.position`) fail their floors on a clean copy from before this round
+  as well: not this round's, and graph-io resolves those three documents' styles the same before and after it.
+- `inv_curve` on the arrows sheet (`edge.route` 0.109 against 0.05) failed after the Cytoscape `OPEN_HALF_CIRCLE`
+  change ended graphty's line at the back of every open half circle: vis-network's lies against its node and graphty
+  runs the line on under it. The comparator now ends the line at the arc's back only for a cap standing off its node
+  (`ArrowStyle.gap`, which Cytoscape's half circles set).
+
 ## Specimen sheets: Pajek
 
 The Pajek specimen sheets (`graph-io/test/fidelity/specimens/pajek/`, written by `generators/specimens/pajek.py`

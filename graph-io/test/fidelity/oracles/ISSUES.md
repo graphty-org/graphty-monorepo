@@ -2752,7 +2752,8 @@ Still open, and why:
   `-s` node and the edges in the same order). Nothing in the file decides the side, so no import rule can match both;
   walking the fan back from the newest (straight) edge fixed `edges-lines` and broke the other six sheets, and was
   not kept. Left to the comparator (accept either side for a lone fanned edge whose side the file cannot decide) or
-  to a regenerated oracle.
+  to a regenerated oracle. Resolved in CX fix round 3 (below): the side is decided by the ids, through the hash order
+  Cytoscape's CX reader creates the elements in.
 - `OPEN_HALF_CIRCLE` route (`arrows`, `mappings-bypass-p11`): graphty's scene line ends at the arc's open side (124.4)
   while both drawings stop the line at the arc's back (118.6); being fixed in `drawn-primitives.ts` by the sibling
   comparator round.
@@ -3360,3 +3361,56 @@ Still open, and why:
   on these sheets are not file annotations but bar-chart pieces, which graphty's drawn scene records as
   `annotation-shape` strays (p5 and p18: one green bar 24.5 px tall where Cytoscape's is 51.8; p14: three bars whose
   base sits below the oracle's). That is chart geometry (`node-custom-graphics`), not scoring.
+
+## Specimen sheets: CX settings graph-io now reads, and the CX rows still open (fix round 3, 2026-10-20)
+
+Measured with the oracle report on every `cx-` sample after rebuilding graph-io. Against round 3's scoring
+(`tmp/style-specimens/gaps-round-3.md`): 1,684 failing elements on the 51 samples are 1,261 now, and 27 samples
+pass (was 27; `edges-lines` and `ddram` now pass, while the sibling rounds' uncommitted chart and association work
+moved others both ways).
+
+Fixed:
+
+- `parallel-2` on `edges-lines` (graph-io; `parallel-edge-spread`). Cytoscape desktop fans the edges between two nodes
+  from the node whose view it made first (`DEdgeDetails.getAnchors`, ding 3.10.5, read decompiled: the pair's lower
+  view SUID is the fan's source) and makes views newest node first (`SimpleNetwork.getNodeList`). Its CX reader
+  (cx-support 2.8.4, `NiceCyRootNetwork.handleNodes` and `addElements`) creates a file's nodes and edges as
+  `HashMap`s of their ids iterate, not in file order: `cx-specimen-edges-lines` and `-mappings-bypass-p10` hold the
+  same order, but their ids hash in opposite orders, which is why they bowed to opposite sides (round 2's "nothing
+  in the file decides the side"). The CX reader now works out that order (`Long.hashCode` spread by `HashMap.hash`,
+  the table grown from 16) and gives each fanned edge its place in desktop's fan as a bend, the control point of a
+  quadratic curve whose middle lies the fan spacing off the line on desktop's side. Replayed against both oracles,
+  the rule gives every fanned edge's side on both sheets. A collection (`cySubNetworks`), whose elements desktop
+  creates in list order, keeps the old fan; a file graphty wrote reads its fan back as written. `edges-lines` and
+  `mappings-bypass-p10` pass; `cx-lianhe-affiliation` 19 -> 14 failing, `cx-nci-pid-rhoa` 22 -> 10. Test:
+  `graph-io/test/formats/cx/fix-round-3.test.ts`.
+- `cx-ddram` sub-pixel label lines (comparator; `comparator-text-metrics`): Cytoscape draws the further lines of
+  wrapped labels at 0.15 px (node 6907); the association dropped the first line with its node as illegible but kept
+  the others as free text no drawing could match. A free oracle text under one render pixel is no longer judged,
+  by the rule labels already follow. 51 -> 0 failing; the sample passes. Test:
+  `graphty-element/test/fidelity/oracle/compare-oracle-legible-texts.test.ts`.
+
+Still open, and why:
+
+- Label wrap width (`cx-ndex-90f78bcd` node 304542, `cx-lianhe-affiliation` node 240; `label-wrap-width`):
+  "Various neuronal effects induced by elavl3, sox10, and mbp" at 25 px in a width of 200: Cytoscape breaks after
+  "effects", graphty after "effects induced". "effects induced " is 199.95 px in the browser (kerned) and over 200
+  in Java, which lays labels out with hinted whole-pixel advances and no kerning. The CX2 round 3 section above
+  replayed both samples' labels in Java: graphty-element's wrap rule gives Cytoscape's breaks once widths are Java's
+  hinted advances, which a canvas cannot measure; graphty-element would need the face's hinted advance table per
+  pixel size. graphty-element-render; not changed.
+- `cx-lianhe-affiliation` edge.route (13): the fan's side and depth now match Cytoscape's (311->264: 19.8 px on both
+  sides), but graphty ends a curve on a diamond node's bounding box, not its outline (`Edge.reachOf` /
+  `surfaceReach` know boxes and ellipses only): the route of 311->264 starts 12 px off Cytoscape's, on the diamond.
+  graphty-element-render.
+- Chart labels (`chart-labels`; `images-charts-p5`, `-p7`, `mappings-bypass-p18`), CROSS_DELTA and CROSS_OPEN_DELTA
+  (`comparator-arrow-class`; `arrows`, `mappings-bypass-p11`, 4 each), the size 24 arrowhead on a short edge
+  (`arrows-p2`, `mappings-bypass-p12`: the edge now pairs, its cap path is still a stray) and the patterned corpus
+  edges (`comparator-edge-association`; `cx-syn-mappings`, `cx-syn-bypass`, `cx-polygenic-sle`, `cx-nci-pid-rhoa`):
+  shared with XGMML, CX2 and sessions, whose rounds own the changes (`styles/cytoscape/charts.ts`,
+  `oracle/primitives.ts`, `oracle/associate.ts`, uncommitted while this ran). Not changed here, to keep one owner
+  per shared file; the CX reader goes through the same chart reader, so CX takes the fix with it.
+- Annotations (`annotation-scoring`; `images-charts-p5`, `-p7`, `mappings-bypass-p14`, `-p18`): as on CX2 and
+  sessions, the graphty extras on these sheets are bar-chart pieces graphty's scene records as `annotation-shape`
+  strays (`node-custom-graphics`), not file annotations; scoring an annotation's shape, fill, text and rotation is
+  still not built.

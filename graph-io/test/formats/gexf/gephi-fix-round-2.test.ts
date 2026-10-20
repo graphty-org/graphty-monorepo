@@ -74,3 +74,39 @@ describe("a GEXF graphty wrote", () => {
         expect(drawnLabels(["line one\nline two"], new GephiPreview(), "node", true)).toEqual(["line one\nline two"]);
     });
 });
+
+describe("curved edges Gephi's nodes swallow", () => {
+    // size-4 nodes (radius 4): an arc of radius d / 1.2 cut back by a chord of 4 at each end draws nothing once
+    // d <= 7.588 (gexf-cns-wos: 7.585 not drawn, 7.745 drawn)
+    const doc = (
+        type: string,
+        d: number,
+    ) => `<gexf version="1.3" xmlns:viz="http://gexf.net/1.3/viz"><graph defaultedgetype="${type}"><nodes>
+        <node id="a"><viz:size value="4"/><viz:position x="0" y="0"/></node>
+        <node id="b"><viz:size value="4"/><viz:position x="${String(d)}" y="0"/></node>
+        <node id="c"><viz:size value="4"/><viz:position x="0" y="40"/></node></nodes><edges>
+        <edge source="a" target="b"/><edge source="a" target="c"/></edges></graph></gexf>`;
+    const read = async (text: string, gephiPreview: Record<string, string> = {}) => {
+        const { snapshot, styles } = await registry.importGraph(text, { format: "gexf", styles: true, gephiPreview });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        return (property: string) => resolveStyles(styles, "edge", property as never, snapshot);
+    };
+
+    it("leaves out an undirected edge between overlapping nodes, and keeps one just far enough apart", async () => {
+        expect((await read(doc("undirected", 7.585)))("visible")).toEqual([false, null]);
+        expect((await read(doc("undirected", 7.745)))("visible")).toEqual([null, null]);
+    });
+
+    it("keeps a directed edge's arrowhead and draws no line", async () => {
+        const get = await read(doc("directed", 7.585));
+        expect(get("visible")).toEqual([null, null]);
+        expect(get("opacity")[0]).toBe(0);
+        expect(get("opacity")[1]).toBeNull();
+    });
+
+    it("draws every straight edge", async () => {
+        expect((await read(doc("undirected", 7.585), { "edge.curved": "false" }))("visible")).toEqual([null, null]);
+    });
+});

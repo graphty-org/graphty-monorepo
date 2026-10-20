@@ -616,7 +616,7 @@ export function gephiRules(
         nodeChannels(nodes.fill?.[i], nodes.fillOpacity?.[i]),
     );
     const labelSizes = nodeRules(node, snapshot, channels, nodes, preview);
-    edgeRules(edge, snapshot, channels, edges, gexf, preview);
+    edgeRules(edge, snapshot, channels, nodes, edges, gexf, preview);
     nodeLabelRules(node, channels, labelSizes, preview);
     labelBox(node, channels, nodes, preview);
     return { node, edge };
@@ -853,6 +853,68 @@ function labelOutline(
     });
 }
 
+/** Gephi's `edge.arc-curveness`: a curved edge is an arc of radius its nodes' distance over it (code only, 1.2). */
+const GEPHI_ARC_CURVENESS = 1.2;
+
+/**
+ * Each node's stored center, its viz:position; null without one (graphty-element lays such a node out, where Gephi
+ * would put it at (0, 0)).
+ * @param snapshot - the graph
+ * @returns x and y by node
+ */
+function gephiCenters(snapshot: GraphSnapshot): ([number, number] | null)[] {
+    const position = snapshot.nodes.byRole("position");
+    return Array.from({ length: snapshot.nodeCount }, (_, i) => {
+        const v = position?.isSet(i) === true ? (position.value(i) as ArrayLike<number>) : null;
+        return v === null ? null : [Number(v[0]) || 0, Number(v[1]) || 0];
+    });
+}
+
+/**
+ * The curved edges Gephi draws no line for: its arc (radius distance / 1.2) is cut back at each end by a chord as long
+ * as that end's node radius (its size), plus `edge.radius`, plus at the target of a directed edge its arrowhead
+ * (`arrow.size` x its thickness); where the two cuts meet or pass each other, or a cut is longer than the arc, the
+ * nodes swallow the edge and no line is drawn (Gephi 0.11 EdgeRenderer.CurvedEdgeRenderer.Helper,
+ * computeTruncateAngle; gexf-cns-wos: 24 edges between overlapping nodes). Its arrowhead is still drawn, unless its
+ * nodes are at one place (ArrowRenderer).
+ * @param snapshot - the graph
+ * @param nodes - the node values (their widths)
+ * @param directed - whether each edge is drawn directed
+ * @param thickness - each edge's drawn thickness
+ * @param preview - the settings
+ * @returns for each edge, "line" when only its line is swallowed, "all" when its nodes are at one place, else null
+ */
+function swallowedEdges(
+    snapshot: GraphSnapshot,
+    nodes: GephiNodeValues,
+    directed: readonly boolean[],
+    thickness: readonly number[],
+    preview: GephiPreview,
+): ("line" | "all" | null)[] {
+    const centers = gephiCenters(snapshot);
+    const edgeRadius = preview.num("edge.radius");
+    const arrowSize = preview.num("arrow.size");
+    const arc = 2 * Math.asin(Math.min(1, GEPHI_ARC_CURVENESS / 2));
+    return Array.from({ length: snapshot.edgeCount }, (_, e) => {
+        const [a, b] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+        const [pa, pb] = [centers[a], centers[b]];
+        if (a === b || pa === null || pb === null) {
+            return null;
+        }
+        const d = Math.hypot(pb[0] - pa[0], pb[1] - pa[1]);
+        if (d === 0) {
+            return "all";
+        }
+        const r = d / GEPHI_ARC_CURVENESS;
+        // the angle a cut of chord length c takes off the arc; past the arc's length, more than the whole arc
+        const cut = (c: number): number =>
+            c >= r * arc ? Infinity : 2 * Math.atan2(c / 2, Math.sqrt(r * r - (c / 2) * (c / 2)));
+        const source = edgeRadius + nodeWidth(nodes, a) / 2;
+        const target = edgeRadius + nodeWidth(nodes, b) / 2 + (directed[e] ? arrowSize * thickness[e] : 0);
+        return cut(source) + cut(target) >= arc ? "line" : null;
+    });
+}
+
 /** How many points a Gephi self-loop's circle is drawn through. */
 const SELF_LOOP_STEPS = 96;
 
@@ -908,6 +970,7 @@ function edgeRules(
     edge: GephiTargetRules,
     snapshot: GraphSnapshot,
     channels: readonly number[][],
+    nodes: GephiNodeValues,
     edges: GephiEdgeValues,
     gexf: GephiDrawing | undefined,
     preview: GephiPreview,
@@ -947,7 +1010,16 @@ function edgeRules(
         "EDGE_WEIGHT",
     );
     perElementDefault(edge, "edge", ["bends", "self-loop"], selfLoopBends(snapshot, thickness, hidden), "NODE_SIZE");
-    // the edges Gephi does not draw: one of another direction than the graph's, or one merged into a parallel edge
+    // a curved edge its nodes (and its arrowhead) swallow draws no line; its arrowhead is still drawn
+    const swallowed = preview.on("edge.curved")
+        ? swallowedEdges(snapshot, nodes, drawn.directed, thickness, preview)
+        : hidden.map(() => null);
+    // the edges Gephi does not draw: one of another direction than the graph's, one merged into a parallel edge, or a
+    // swallowed one with no arrowhead to keep
+    hidden.forEach((h, e) => {
+        const arrow = drawn.directed[e] && arrowSize > 0 && swallowed[e] === "line";
+        hidden[e] = h || (swallowed[e] !== null && !arrow);
+    });
     if (hidden.some(Boolean)) {
         edge.columns.set(
             HIDDEN_KEY,
@@ -974,7 +1046,9 @@ function edgeRules(
         edge,
         "edge",
         ["opacity", "end-opacity"],
-        withoutOwn(edges.color, snapshot.edgeCount, (e) => colors[e][3] / 255).map((v) => (v === 1 ? null : v)),
+        withoutOwn(edges.color, snapshot.edgeCount, (e) => colors[e][3] / 255).map((v, e) =>
+            swallowed[e] !== null && !hidden[e] ? 0 : v === 1 ? null : v,
+        ),
         "END_NODE_COLORS",
     );
     everyElement(edge, "edge", "preview-curve", preview.on("edge.curved") ? {} : { curved: false });

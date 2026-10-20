@@ -90,6 +90,8 @@
             "borderStyle": "solid",
             "opacity": 1,
             "labelColor": "#000000",
+            "labelOutlineColor": "#000000",
+            "labelOutlineWidth": 0,
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal",
@@ -107,6 +109,8 @@
             "arrowSize": 1,
             "curved": false,
             "labelColor": "#000000",
+            "labelOutlineColor": "#000000",
+            "labelOutlineWidth": 0,
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
             "labelWeight": "normal"

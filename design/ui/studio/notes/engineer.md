@@ -16,7 +16,26 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, Escape in the inspector; graphty `keys/useCommandKeys.ts` `inspectorEscape`,
+0. (2026-10-19, RE-WALK of five fixes, no changes: node named by its label, Style nodes reason,
+   table Show in table and sort, inspector heading focus ring, layer list into view) Holds: node
+   inspector, neighborhood, edge Summary ends, made-layer name, notice and Undo words, member rows
+   all say the label (GeorgiaTech, Maryland -- GeorgiaTech, Navy); Style nodes box dimmed with its
+   reason on hover; Show in table marks, scrolls to and focuses the column, a header sort starts at
+   the top, hints say "Sort by label, A to Z"; the heading draws its ring after a keyboard open and
+   after a find pick; a run from the Data place and a Memberships group show the layer list, Undo,
+   Redo and the Data rail do not move it. REGRESSION (from the sort hint tooltip): Escape on a
+   focused sortable table header with a selection CLEARS the selection and leaves focus on the
+   header; the frozen build moved focus to the toolbar's Table button and kept the selection
+   (decided.md "Escape in the table grid moves focus to the toolbar's Table button"). Mechanism:
+   the header now opens a Mantine Tooltip on focus; floating-ui's dismiss handler stops Escape in
+   React, so TableDock's `leaveGrid` (a React onKeyDown on the dock) never sees it, and the
+   tooltip-Escape re-read in `useCommandKeys` then runs Clear selection. A second Escape (tooltip
+   gone) does leave the grid. Fix idea: `leaveGrid` in the capture phase (`onKeyDownCapture`), or
+   make the tooltip re-read skip a target inside `[role="grid"]`. Screens:
+   `design/ui/studio/tmp/r1-dry1-recheck-node-label-everywhere/new-esc/07.png`, `08.png` (new),
+   `frozen-esc/05.png` (frozen). Also seen, not from these diffs: a layer made from a `=degree > 11`
+   find is named "Rule: graphty.degree > 11" (an internal rule path in a reader's name).
+1. (2026-10-19, Escape in the inspector; graphty `keys/useCommandKeys.ts` `inspectorEscape`,
    `inspector/Inspector.tsx`, `inspector/LayerValues.tsx` `MemberRows`, `inspector/reads.ts`
    `openMember`/`memberReturn`/`takeMemberFocus`) Mechanism of "Escape on Degree 17 clears
    nothing": the theme opens a Tooltip on focus, and Mantine's Tooltip closes on Escape through
@@ -37,7 +56,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    "card's remove button" (same 6 on the old code). nx refuses to run while an untracked
    `compact-mantine-headproof/` copy duplicates the project name; build with `npm run build` in
    `graphty/`. This file is past 25 KB; not summarized here because other agents had it open.
-1. (2026-10-19, style fields: Tab, remove, Escape; graphty `style/PropertyRow.tsx`,
+2. (2026-10-19, style fields: Tab, remove, Escape; graphty `style/PropertyRow.tsx`,
    `style/useFocusLine.ts`; compact-mantine `inputs/useNumberField.ts`, `inputs/DiscardNote.tsx`)
    Mechanism of the Tab bug: the box writes in its blur handler; React renders that write in the
    microtask between focusout and focusin, so the control Tab was going to (the bind button) is
@@ -57,53 +76,53 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    Walk: `design/ui/studio/tmp/r1-dry1-style-field-focus/again/` 03-06, 10-11. Polish left: the
    number box's note wraps in the 110 px field and pushes the line (and Label settings' Size
    row) down; a full-width note under the line would read better.
-2. Earlier 2026-10-19 entries (why-this-look lands, layer list into view, a grid is one Tab
+3. Earlier 2026-10-19 entries (why-this-look lands, layer list into view, a grid is one Tab
    stop, re-walk of three fixes, find box words and keys, inspector heading focus ring, Analyze
    filter Tab, selection announcements by name) in full in
    `git show e0482cf5e:design/ui/studio/notes/engineer.md`, Top of mind 0 to 7.
-3. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
+4. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
    table Show in table and sorting, F6 regions) in full in
    `git show 1c6a68ee4:design/ui/studio/notes/engineer.md`, Top of mind 5 and 6.
-4. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
+5. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
-5. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+6. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-6. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+7. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
    summaries and the Data place, focus after a style line, shape list typing and the color picker,
    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
    of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
-7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -241,6 +260,11 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-19) Worked: judging a key regression by running the SAME steps on the frozen build
+  (`REAL_DIST=<frozen dir>`) beside the new one; my first walk had a different inspector open and
+  could not tell. Did not work: trusting `graphty/dist` for a whole walk -- another agent rebuilt it
+  mid-walk (stamp b426f1d05 at start, e0482cf5e twenty minutes later); `session.json`'s
+  `buildStamp` per session says which build each screenshot shows.
 - (2026-10-19) Escape swallowed by a focus tooltip: a document-level bubbling listener did NOT
   work (floating-ui stops the key in React's handler, before the document); handling it in the
   capture phase directly would pre-empt inner controls (the neighbor list's Escape). Worked: capture

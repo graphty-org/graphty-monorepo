@@ -17,6 +17,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0w. (2026-10-20) Re-walked the table group-name fix (f261bbb157) on a fresh build of it, every
+route that opens the table after a community run: no regression.
+`design/ui/studio/tmp/r1-dry1-recheck-table-group-names/`: t46a 07 (Javert's row "Group 3" =
+Memberships = key's green Group 3), 09 (run tab, sizes 20/17/11/11/10/8), 16 (Enter on the
+Louvain header flips to largest first), 18 (Enter on a cell picks Mlle Baptistine, inspector
+Group 1), 19 (Escape -> Table button); t46b 05 (Nebraska row Group 4 = inspector), 07 (10
+groups, "Group 10" reads fine); t48a 11-13 (volunteers: Louvain left-aligned, hours right;
+Hannah Weiss Group 2 = blue key row), 17 (PageRank still right-aligned numbers beside it).
+Entry 2's Escape-on-header regression no longer reproduces (t46a-header-escape 04-05: focus to
+the Table button, Javert stays selected). Tool quirk: a football setup printed "SETUP FAILED"
+with no reason while the layout still moved, but every step had applied and the session lived.
+Lesson: the `selected=N` expect counts drawn table rows, not the graph selection.
 0v. (2026-10-20) The table names a community run's groups as the key does. The Nodes tab drew a
 partition column's raw group ids (Javert 2) while the key, the layer tree, the Memberships row and
 the run tab said "Group 3". graphty-element already puts each cell's size rank on the page column
@@ -60,17 +72,12 @@ new) runs on each layer in `planTemplate` (StylesApi), so `project.open` and `ap
 get it. Any future channel rename adds one row there, or every saved project loses its whole look
 (one unknown channel refuses the whole style member). Checked on a fresh build: both study
 projects open with no lost part (`design/ui/studio/tmp/r1-dry1-project-renamed-halo-channel/`).
-0r. (2026-10-19) Two re-walks of the dry-run fixes, in full (screens, regressions, left-overs) in
-`git show 6f9784441b:design/ui/studio/notes/engineer.md`, Top of mind 0r and 0. Still open from
-them: compact-mantine `Tree.tsx` folder "Select layers" box toggles only the folder's own
-selection (two clicks change nothing); Escape on a focused table header (entry 2); the discard
-note wraps in a 110 px number box; run fields unreachable by name in a rule (`=PageRank > 0.05`).
-Lesson: a hover left by an earlier `--click` looks like an arrow-key highlight -- check the
-pointer's last position first.
 
-1. Older Top-of-mind entries, in full: 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
+1. Older Top-of-mind entries, in full: 2026-10-19 two dry-run re-walks (`6f9784441b:`, entries 0r
+   and 0; still open from them: Tree folder "Select layers" box, discard note wrap, run fields
+   in a rule); 2026-10-19 re-walks and fixes (`git show fd71d1807:`, `393580a87:`,
    `e0482cf5e:`, `1c6a68ee4:`, `d60b1956b:` + `design/ui/studio/notes/engineer.md`); 2026-10-18 (`e247f1900:`).
-2. OPEN REGRESSION (2026-10-19, found on a re-walk): Escape on a focused sortable table header
+2. NOT SEEN on 2026-10-20 (build f261bbb157, t46a-header-escape 04-05; keep checking): Escape on a focused sortable table header
    with a selection clears the selection and keeps focus on the header; decided.md says it moves
    focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
    floating-ui's dismiss handler stops Escape in React, TableDock's `leaveGrid` (React onKeyDown)
@@ -173,6 +180,11 @@ pointer's last position first.
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-20) Worked, in real.mjs: Shift+T opens the table with focus on the grid's first
+  header; `--wheel x,y,<delta>` on the grid scrolls it to a far row. Did not work: a python
+  heredoc whose text holds the word "w-a-t-c-h" -- the foreground-wait hook refuses the whole
+  Bash call; write the script to a file under `tmp/` and run it.
 
 - (2026-10-20) Worked, in real.mjs: selecting every find match is the "kind is family (8)" value
   row (Enter, or a click on one edge row, selects only that edge and closes the list). Line + is

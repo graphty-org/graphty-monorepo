@@ -352,6 +352,40 @@ const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
+ * A text split at its runs of whitespace that are not inside parentheses: `rgb(0, 0, 0) red` is two words. A run is
+ * inside when the next parenthesis after it closes one (as `/\s+(?![^(]*\))/` splits, in one pass).
+ * @param text - the text
+ * @returns the words
+ */
+function wordsOutsideParens(text: string): string[] {
+    // whether the next parenthesis at or after each offset is a `)`
+    const closes = new Array<boolean>(text.length + 1).fill(false);
+    for (let i = text.length - 1; i >= 0; i--) {
+        closes[i] = text[i] === ")" || (text[i] !== "(" && closes[i + 1]);
+    }
+    const words: string[] = [];
+    let start = 0;
+    let i = 0;
+    while (i < text.length) {
+        if (!/\s/.test(text[i])) {
+            i++;
+            continue;
+        }
+        let end = i + 1;
+        while (end < text.length && /\s/.test(text[end])) {
+            end++;
+        }
+        if (!closes[end]) {
+            words.push(text.slice(start, i));
+            start = end;
+        }
+        i = end;
+    }
+    words.push(text.slice(start));
+    return words;
+}
+
+/**
  * Cytoscape.js's `line-gradient-stop-colors` (colors separated by spaces) as `#rrggbb` colors separated by spaces.
  * @param text - the value
  * @param site - where it was read
@@ -359,7 +393,7 @@ const GRADIENT_KINDS: ReadonlyMap<string, string> = new Map([
  */
 function gradientColors(text: string, site: CanonSite): string | undefined {
     const hexes: string[] = [];
-    for (const token of text.trim().split(/\s+(?![^(]*\))/)) {
+    for (const token of wordsOutsideParens(text.trim())) {
         const c = token === "" ? null : canonColor(token, "css", site);
         if (c === null) {
             return undefined;
@@ -1166,6 +1200,23 @@ export function applyCyjsMapper(
 }
 
 /**
+ * A flat color as `#rrggbb`; a channel outside 0..255 is noted and undefined is returned.
+ * @param v - the color
+ * @param site - where it was read
+ * @returns the color, or undefined
+ */
+function colorNeutral(v: Extract<CyjsFlat, { kind: "color" }>, site: CanonSite): StyleValue | undefined {
+    if (v.rgb.some((c) => !Number.isFinite(c) || c < 0 || c > 255)) {
+        site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
+            sample: v.str,
+            element: site.element,
+        });
+        return undefined;
+    }
+    return `#${v.rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/**
  * The neutral value a flat value is drawn as, for one property. A value Cytoscape.js draws from the page (an `em`
  * size, a node sized to its label) cannot be evaluated: it is noted and undefined is returned.
  * @param spec - the property
@@ -1175,16 +1226,8 @@ export function applyCyjsMapper(
  */
 export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite): StyleValue | undefined {
     switch (v.kind) {
-        case "color": {
-            if (v.rgb.some((c) => !Number.isFinite(c) || c < 0 || c > 255)) {
-                site.notes.add(STYLE_ISSUE.BAD_VALUE, site.target, site.property, {
-                    sample: v.str,
-                    element: site.element,
-                });
-                return undefined;
-            }
-            return `#${v.rgb.map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
-        }
+        case "color":
+            return colorNeutral(v, site);
         case "number":
             // Cytoscape.js steps a bundle's control points; a quadratic's middle is half as far out. It grows the
             // outline's path by its offset across, so the outline starts half the offset out (drawOutline).

@@ -84,10 +84,18 @@ function outlinePoint(node: CyjsRouteNode, toward: BendPoint): BendPoint {
         return node.center;
     }
     // ponytail: every shape but the ellipse is measured as its box; the polygons' own outlines if a route needs them
-    const t = node.ellipse
-        ? 1 / Math.sqrt((dx / hw) ** 2 + (dy / hh) ** 2)
-        : Math.min(dx === 0 ? Infinity : hw / Math.abs(dx), dy === 0 ? Infinity : hh / Math.abs(dy));
+    const t = node.ellipse ? 1 / Math.hypot(dx / hw, dy / hh) : Math.min(axisReach(dx, hw), axisReach(dy, hh));
     return [cx + dx * t, cy + dy * t];
+}
+
+/**
+ * How many steps of a direction reach a box's side along one axis.
+ * @param d - the step along the axis
+ * @param half - the box's half size along it
+ * @returns the steps, Infinity for a step of 0
+ */
+function axisReach(d: number, half: number): number {
+    return d === 0 ? Infinity : half / Math.abs(d);
 }
 
 /**
@@ -153,50 +161,86 @@ function taxiPoints(edge: CyjsRouteEdge, src: CyjsRouteNode, tgt: CyjsRouteNode)
     const [tgtW, tgtH] = tgt.size;
     const pdx = x2 - x1;
     const pdy = y2 - y1;
-    const sub = (v: number, wh: number): number => (v > 0 ? Math.max(v - wh, 0) : Math.min(v + wh, 0));
-    const dx = sub(pdx, body ? (srcW + tgtW) / 2 : 0);
-    const dy = sub(pdy, body ? (srcH + tgtH) / 2 : 0);
+    const dx = towardZero(pdx, body ? (srcW + tgtW) / 2 : 0);
+    const dy = towardZero(pdy, body ? (srcH + tgtH) / 2 : 0);
     const raw = edge.taxiDirection ?? "auto";
-    const explicit = raw !== "auto" && raw !== "vertical" && raw !== "horizontal";
-    let vertical = raw === "vertical" || raw === "upward" || raw === "downward";
-    if (raw === "auto") {
-        vertical = Math.abs(dx) <= Math.abs(dy);
-    }
-    let l = vertical ? dy : dx;
-    const pl = vertical ? pdy : pdx;
-    let sgn = Math.sign(pl);
-    const turnText = (edge.taxiTurn ?? "50%").trim();
-    const percent = turnText.endsWith("%");
-    const turn = percent ? Number.parseFloat(turnText) / 100 : Number.parseFloat(turnText);
-    let forced = false;
-    const against =
-        (raw === "downward" && pl < 0) ||
-        (raw === "upward" && pl > 0) ||
-        (raw === "leftward" && pl > 0) ||
-        (raw === "rightward" && pl < 0);
-    if (!(explicit && (percent || turn < 0)) && against) {
-        sgn *= -1;
-        l = sgn * Math.abs(l);
-        forced = true;
-    }
-    const d = percent ? (turn < 0 ? 1 + turn : turn) * l : (turn < 0 ? l : 0) + turn * sgn;
+    const vertical =
+        raw === "auto" ? Math.abs(dx) <= Math.abs(dy) : raw === "vertical" || raw === "upward" || raw === "downward";
+    const [along, pl] = vertical ? [dy, pdy] : [dx, pdx];
+    const { d, l, sgn, forced } = taxiTurn(edge, raw, along, pl);
     const minD = edge.taxiTurnMinDistance ?? 10;
     const tooClose = (v: number): boolean => Math.abs(v) < minD || Math.abs(v) >= Math.abs(l);
     if ((tooClose(d) || tooClose(Math.abs(l) - Math.abs(d))) && !forced) {
         return taxiFallback(vertical, { x1, y1, x2, y2, pl, pdx, pdy }, src.size, tgt.size);
     }
+    const srcAlong = vertical ? srcH : srcW;
+    const out = body ? (srcAlong / 2) * sgn : 0;
     if (vertical) {
-        const y = y1 + d + (body ? (srcH / 2) * sgn : 0);
+        const y = y1 + d + out;
         return [
             [x1, y],
             [x2, y],
         ];
     }
-    const x = x1 + d + (body ? (srcW / 2) * sgn : 0);
+    const x = x1 + d + out;
     return [
         [x, y1],
         [x, y2],
     ];
+}
+
+/**
+ * A difference less a gap, toward 0 and no further.
+ * @param v - the difference
+ * @param gap - the gap
+ * @returns what is left
+ */
+function towardZero(v: number, gap: number): number {
+    return v > 0 ? Math.max(v - gap, 0) : Math.min(v + gap, 0);
+}
+
+/**
+ * Where a taxi edge turns (`findTaxiPoints`): `taxi-turn` along its direction, a percentage of the gap between the
+ * nodes or a distance from the source, a negative one from the target. A direction the nodes run against turns it
+ * round (forced) unless an explicit direction is given with a percentage or a negative turn.
+ * @param edge - the edge's settings
+ * @param raw - its `taxi-direction`
+ * @param along - the gap between the nodes along its direction
+ * @param pl - the difference between the centers along its direction
+ * @returns the turn's distance from the source, the gap and its sign as turned, and whether it was turned round
+ */
+function taxiTurn(
+    edge: CyjsRouteEdge,
+    raw: string,
+    along: number,
+    pl: number,
+): { d: number; l: number; sgn: number; forced: boolean } {
+    const explicit = raw !== "auto" && raw !== "vertical" && raw !== "horizontal";
+    const turnText = (edge.taxiTurn ?? "50%").trim();
+    const percent = turnText.endsWith("%");
+    const turn = percent ? Number.parseFloat(turnText) / 100 : Number.parseFloat(turnText);
+    const forced = !(explicit && (percent || turn < 0)) && runsAgainst(raw, pl);
+    const sgn = forced ? -Math.sign(pl) : Math.sign(pl);
+    const l = forced ? sgn * Math.abs(along) : along;
+    if (percent) {
+        return { d: (turn < 0 ? 1 + turn : turn) * l, l, sgn, forced };
+    }
+    return { d: (turn < 0 ? l : 0) + turn * sgn, l, sgn, forced };
+}
+
+/**
+ * Whether the nodes run against a taxi edge's explicit direction.
+ * @param raw - its `taxi-direction`
+ * @param pl - the difference between the centers along it
+ * @returns whether they do
+ */
+function runsAgainst(raw: string, pl: number): boolean {
+    return (
+        (raw === "downward" && pl < 0) ||
+        (raw === "upward" && pl > 0) ||
+        (raw === "leftward" && pl > 0) ||
+        (raw === "rightward" && pl < 0)
+    );
 }
 
 /**
@@ -333,7 +377,9 @@ function roundedCorners(line: readonly BendPoint[], radii: readonly number[], ty
         // the angle between the two sides at the corner
         const angle = Math.acos(Math.max(-1, Math.min(1, u1[0] * u2[0] + u1[1] * u2[1])));
         const half = angle / 2;
-        if (!(r > 0) || !(l1 > 0 && l2 > 0) || Math.abs(Math.PI - angle) < 1e-6) {
+        // a radius that is not a number, like one of 0, rounds nothing
+        const rounds = r > 0 && l1 > 0 && l2 > 0;
+        if (!rounds || Math.abs(Math.PI - angle) < 1e-6) {
             out.push(p);
             continue;
         }

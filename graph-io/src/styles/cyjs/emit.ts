@@ -179,11 +179,9 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             return labelPositionToCyjs(String(value));
         case "fanSpacing":
         case "labelWrapWidth":
-            return typeof value === "number" ? numberToCyjs(property, value) : null;
-        case "gradientKind": {
-            const fill = LINE_FILLS.get(String(value));
-            return fill === undefined ? null : exact({ "line-fill": fill });
-        }
+            return ifNumber(value, (v) => numberToCyjs(property, v));
+        case "gradientKind":
+            return gradientKindToCyjs(String(value));
         case "gradientStops":
             return exact({
                 "line-gradient-stop-positions": String(value)
@@ -194,11 +192,9 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
             });
         case "outerBorderOffset":
             // drawn half its value out (see the reader)
-            return typeof value === "number" ? exact({ "outline-offset": num6(value * 2) }) : null;
-        case "outerBorderStyle": {
-            const written = borderStyleToCyjs(String(value));
-            return written === null ? null : { ...written, props: { "outline-style": written.props["border-style"] } };
-        }
+            return ifNumber(value, (v) => exact({ "outline-offset": num6(v * 2) }));
+        case "outerBorderStyle":
+            return outerBorderStyleToCyjs(String(value));
         case "shape":
             return enumToCyjs("shape", String(value), SHAPES_TO_CYJS, specs);
         case "borderStyle":
@@ -219,17 +215,47 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelOutlineColor":
             return exact({ "text-outline-color": String(value) });
         case "labelOutlineWidth":
-            return typeof value === "number" ? exact({ "text-outline-width": num6(value / 2) }) : null;
+            return ifNumber(value, (v) => exact({ "text-outline-width": num6(v / 2) }));
         case "labelPadding":
-            return typeof value === "number" ? exact({ "text-background-padding": value }) : null;
+            return ifNumber(value, (v) => exact({ "text-background-padding": v }));
         // the line round a label's box draws only at an opacity above 0, which is 0 unset
         case "labelBorderColor":
             return exact({ "text-border-color": String(value), "text-border-opacity": 1 });
         case "labelBorderWidth":
-            return typeof value === "number" ? exact({ "text-border-width": value, "text-border-opacity": 1 }) : null;
+            return ifNumber(value, (v) => exact({ "text-border-width": v, "text-border-opacity": 1 }));
         default:
             return propertyToCyjs(property, value, specs);
     }
+}
+
+/**
+ * A value written only when it is a number.
+ * @param value - the value
+ * @param write - writes the number
+ * @returns the written value, or null when it is not a number
+ */
+function ifNumber(value: StyleValue, write: (v: number) => Written | null): Written | null {
+    return typeof value === "number" ? write(value) : null;
+}
+
+/**
+ * A gradient kind as Cytoscape.js's `line-fill`.
+ * @param kind - the neutral kind
+ * @returns the written value, or null when Cytoscape.js has no such fill
+ */
+function gradientKindToCyjs(kind: string): Written | null {
+    const fill = LINE_FILLS.get(kind);
+    return fill === undefined ? null : exact({ "line-fill": fill });
+}
+
+/**
+ * An outline's style as Cytoscape.js's `outline-style`, read as a border style is.
+ * @param style - the neutral style
+ * @returns the written value, or null
+ */
+function outerBorderStyleToCyjs(style: string): Written | null {
+    const written = borderStyleToCyjs(style);
+    return written === null ? null : { ...written, props: { "outline-style": written.props["border-style"] } };
 }
 
 /**
@@ -999,8 +1025,10 @@ function exactness(e: Emit, rules: readonly StyleRule[]): CytoscapePerElement<st
             ["labelOutlineOpacity", "text-outline-opacity", "labelOpacity", "labelOutlineWidth"],
         ];
         if (target === "node") {
-            parts.push(["borderOpacity", "border-opacity", "opacity", null]);
-            parts.push(["outerBorderOpacity", "outline-opacity", "opacity", null]);
+            parts.push(
+                ["borderOpacity", "border-opacity", "opacity", null],
+                ["outerBorderOpacity", "outline-opacity", "opacity", null],
+            );
         }
         for (const part of parts) {
             partOpacityBypasses(rows, want, drawn[target].values, part);
@@ -1030,7 +1058,7 @@ function labelOpacityBypasses(
         const [l, o] = [at(label[i]), at(whole[i])];
         // a bypass of the opacity written above changes the label's too
         const rewritten = rows[i]?.opacity !== undefined;
-        if ((l === at(got.labelOpacity?.[i]) && !rewritten) || !(o > 0)) {
+        if ((l === at(got.labelOpacity?.[i]) && !rewritten) || Number.isNaN(o) || o <= 0) {
             continue;
         }
         if (l === o && rewritten) {
@@ -1072,7 +1100,7 @@ function partOpacityBypasses(
         }
         const [r, o] = [at(own[i]), at(whole[i])];
         const rewritten = rows[i]?.opacity !== undefined || rows[i]?.["text-opacity"] !== undefined;
-        if ((r === at(got[property]?.[i]) && !rewritten) || !(o > 0) || r > o) {
+        if ((r === at(got[property]?.[i]) && !rewritten) || Number.isNaN(o) || o <= 0 || r > o) {
             continue;
         }
         rows[i] = { ...rows[i], [name]: num6(r / o) };

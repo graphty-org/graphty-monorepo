@@ -108,7 +108,7 @@ export {
 
 // ============================================================ network sources (experimental)
 // The contract, the load functions and credentials; each built-in source's code is its own subpath
-// (@graphty/graph-io/sources/ndex, /cypher, /rest), loaded on first use.
+// (@graphty/graph-io/sources/ndex, /cypher, /rest, /sparql), loaded on first use.
 export {
     SOURCE_ISSUE,
     type SourceBlockedCause,
@@ -136,6 +136,7 @@ export {
     SOURCE_ENTITY_ATTR,
     SOURCE_FORMAT_PREFIX,
     SOURCE_STUB_ATTR,
+    SPARQL_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
 export {

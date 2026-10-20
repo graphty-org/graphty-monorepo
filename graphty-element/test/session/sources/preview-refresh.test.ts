@@ -191,6 +191,7 @@ describe("sourceDescriptors() features", () => {
         const byId = new Map(sourceDescriptors().map((entry) => [entry.id, entry.features]));
         assert.deepEqual(byId.get("neo4j"), { expand: true, more: true, refresh: true });
         assert.deepEqual(byId.get("ndex"), { expand: true, more: false, refresh: true });
+        assert.deepEqual(byId.get("sparql"), { expand: true, more: true, refresh: true });
         assert.deepEqual(byId.get("people-pages"), { expand: false, more: true, refresh: true });
     });
 

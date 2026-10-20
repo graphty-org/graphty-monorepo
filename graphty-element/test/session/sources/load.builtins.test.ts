@@ -8,6 +8,9 @@
 
 import { assert, describe, it, type TestContext } from "vitest";
 
+// What query.wikidata.org answered on 2026-10-20 (graph-io's scripts/record-sparql.ts)
+import wikidataRecordings from "../../../../graph-io/test/sources/sparql/recordings/wikidata-advisors.json";
+import { sourceDescriptors } from "../../../catalog";
 import { createGraphSession, credentials, type GraphtyError, replayFetch } from "../../../session";
 import ndexRecordings from "../../../stories/fixtures/sources/ndex-wp5483.json";
 import neo4jRecordings from "../../../stories/fixtures/sources/neo4j-movies.json";
@@ -80,5 +83,33 @@ describe("built-in sources from recorded responses", () => {
         );
         assert.isAbove(nodes, 1);
         assert.strictEqual(edges, nodes - 1, "one ACTED_IN edge per film");
+    });
+
+    it("loads a Wikidata CONSTRUCT through sparql: Load more adds a page, expanding a node adds its triples", async () => {
+        const sample = sourceDescriptors().find((info) => info.id === "sparql")?.descriptor.samples?.[0];
+        assert.isDefined(sample);
+        const session = createGraphSession();
+        try {
+            const fetch = replayFetch(wikidataRecordings);
+            await session.data.import(
+                { source: "sparql", config: sample.params },
+                { endpoint: sample.endpoint, fetch, limits: { maxNodes: 150 } },
+            );
+            const first = session.data.nodes().length;
+            assert.strictEqual(first, 281);
+            assert.isNotNull(session.data.loads()[0].next);
+
+            await session.data.more({ fetch });
+            assert.isAbove(session.data.nodes().length, first);
+            assert.isNull(session.data.loads()[0].next);
+
+            const seed = "http://www.wikidata.org/entity/Q127944";
+            const edges = session.data.edges().length;
+            await session.data.expand([seed], { limit: 40, fetch });
+            assert.isAbove(session.data.edges().length, edges);
+            assert.strictEqual(fetch.calls.length, 5);
+        } finally {
+            session.dispose();
+        }
     });
 });

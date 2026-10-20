@@ -195,6 +195,9 @@ export function isStandIn(meta: Record<string, unknown>): boolean {
     return meta.standIn === true || meta.svgKind === "raster";
 }
 
+/** The oracle programs that draw no group box, whatever the file says. */
+const NO_GROUP_PROGRAMS: ReadonlySet<string> = new Set(["Gephi Toolkit", "Pajek"]);
+
 /** One comparison of a mounted element's drawing with the program's own. */
 export interface OracleComparison {
     report: OracleReport;
@@ -229,9 +232,12 @@ export async function compareWithOracle(
     const drawn = readDrawn(element.graph);
     const scene = extractScene(element, drawn, { version: "source", command, sourceSha256: sha256 });
     // A raster oracle names every node its program drew (sigma.js draws no groups): graphty's nodes are compared as
-    // nodes there, a big one drawn over smaller ones included, never as group boxes.
+    // nodes there, a big one drawn over smaller ones included, never as group boxes. So are they where the program
+    // draws no group box at all: Gephi draws a GEXF hierarchy as plain nodes, Pajek has no groups (a plain node drawn
+    // round a smaller one, Gephi's `label-overlap`, was read as a group and its oracle node as missing).
     const raster = meta.svgKind === "raster" && meta.drawn !== undefined;
-    const unmutated = drawnPrimitives(scene, drawn, { groups: !raster });
+    const groupless = raster || NO_GROUP_PROGRAMS.has(String(meta.program));
+    const unmutated = drawnPrimitives(scene, drawn, { groups: !groupless });
     // A specimen sheet whose format ids its nodes otherwise (Cytoscape desktop by SUID, GML by number) keeps `cap-*`
     // and `anchor-*` in an attribute (`name`, GML's `comment` or `template`): its captions and corner anchors are
     // named by that on both sides, so the comparison leaves the captions out and fixes the frame on the anchors

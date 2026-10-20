@@ -468,9 +468,10 @@ const CAP_AXIS_AGREE = (5 * Math.PI) / 180;
  * The direction a cap points in. A cap drawn on from where its line stops (its back on the line's end) points along
  * its own axis, which on a curved line need not be the line's end direction: Gephi ends an arc short of its node and
  * aims the arrowhead from there at the node's center, about 14 degrees off the arc's end on `gexf-specimen-arrows-p4`.
- * The axis is from the line's end through the cap's tip (its point furthest along the line) when its middle (the mean
- * of its points) lies on that same axis -- a cap symmetric about it -- and it turns less than CAP_AXIS_TURN from the
- * line; otherwise, and for a cap the line runs into, the line's end direction.
+ * The axis is from the line's end through the cap's tip (its point furthest along the line) when the cap is pointed
+ * (every point away from the tip lies well behind it), its middle (the mean of its points) lies on that same axis -- a
+ * cap symmetric about it -- and it turns less than CAP_AXIS_TURN from the line; otherwise, and for a cap the line runs
+ * into, the line's end direction.
  * @param outline - the cap's drawn points
  * @param end - where the line ends
  * @param dir - the line's unit end direction
@@ -484,7 +485,15 @@ function capAxis(outline: readonly Pt[], end: Pt, dir: Pt): Pt {
     if (!(length > 1e-9) || Math.min(...along) < -0.3 * length) {
         return dir;
     }
-    const tip = outline[along.indexOf(Math.max(...along))];
+    const front = Math.max(...along);
+    const tip = outline[along.indexOf(front)];
+    // a pointed cap: every point away from its tip lies well behind it (a box's or a tee's two front corners do not)
+    const pointed = outline.every(
+        (p, i) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) <= 0.25 * length || along[i] <= front - 0.25 * length,
+    );
+    if (!pointed) {
+        return dir;
+    }
     const mid: Pt = [
         outline.reduce((sum, p) => sum + p[0], 0) / outline.length,
         outline.reduce((sum, p) => sum + p[1], 0) / outline.length,

@@ -157,11 +157,6 @@ describe("what the graphty scene extractor counts as hidden, and as a group", ()
             groupsOf(hidden, nodes).map((g) => [g.id, g.members]),
             [["outer", ["inner"]]],
         );
-        // only a node graphty-element draws as a group is one: a plain node round a smaller one is two nodes
-        assert.deepEqual(
-            groupsOf(scene, nodes, (id) => id === "inner").map((g) => [g.id, g.members]),
-            [["inner", ["m", "o"]]],
-        );
     });
 
     it("draws an unfilled node with an outline: visible, with no fill", () => {

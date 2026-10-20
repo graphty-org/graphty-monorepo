@@ -586,6 +586,7 @@ function channelPlans(
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
             ["shapeParts", [id("node.shapeParts")]],
             ["shapeLines", [id("node.shapeLines")]],
+            ["shapeTexts", [id("node.shapeTexts")]],
             ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
@@ -786,6 +787,7 @@ function channelPlans(
         ["bendCurve", [table("edge.bendCurve", BEND_CURVES)]],
         // a multiple of the distance between the nodes: no unit to convert
         ["arcRadius", [id("edge.arcRadius")]],
+        ["nodeGap", [length("edge.nodeGap", factors.node * SCENE_PER_UNIT.node)]],
         ["sourcePort", [id("edge.sourcePort")]],
         ["targetPort", [id("edge.targetPort")]],
         ["label", [id("edge.label")]],

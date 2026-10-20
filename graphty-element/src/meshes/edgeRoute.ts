@@ -292,15 +292,22 @@ export function bezierThroughControls(flat: readonly number[]): number[] {
 
 /**
  * How far from a node's center a segment leaving it in a direction crosses its surface: its
- * radius when it is round, else where the ray leaves its box.
+ * radius when it is round, where the ray leaves the ellipse filling its box across the view when
+ * it is a flat ellipse, else where the ray leaves its box.
  * @param dir - The unit direction.
  * @param half - The node's half extents.
  * @param radius - The node's radius when it is round, else null.
+ * @param elliptic - Whether the node is drawn as a flat ellipse (`ellipse`), whose box corners are empty.
  * @returns The distance.
  */
-export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null): number {
+export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null, elliptic = false): number {
     if (radius !== null) {
         return radius;
+    }
+
+    if (elliptic && half.x > 0 && half.y > 0 && (dir.x !== 0 || dir.y !== 0)) {
+        // ponytail: across the view only; a flat ellipse has no depth for a segment to leave through
+        return 1 / Math.hypot(dir.x / half.x, dir.y / half.y);
     }
 
     const reach = Math.min(
@@ -530,6 +537,55 @@ export function routeOutside(
     }
 
     return last >= first ? { first, last } : null;
+}
+
+/**
+ * Where a route's segment crosses a node's outline: the point between `inside` and `outside` where the outline test
+ * turns, found by halving the segment. A route drawn as short straight pieces (an arc) leaves its node there, on the
+ * curve, where a line from the node's center toward the first point outside would cut the curve's corner.
+ * @param inside - The segment's end inside the node.
+ * @param outside - Its end outside it.
+ * @param isOutside - Whether a point is outside the node.
+ * @returns The crossing, within a millionth of the segment's length.
+ */
+export function crossingOf(inside: Xyz, outside: Xyz, isOutside: (x: number, y: number, z: number) => boolean): Xyz {
+    let lo = 0;
+    let hi = 1;
+    const at = (t: number): Xyz => ({
+        x: inside.x + (outside.x - inside.x) * t,
+        y: inside.y + (outside.y - inside.y) * t,
+        z: inside.z + (outside.z - inside.z) * t,
+    });
+    for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        const p = at(mid);
+        if (isOutside(p.x, p.y, p.z)) {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    return at(hi);
+}
+
+/**
+ * Where a path is cut so an end cap of a given length fits before its end: the last point along it that far, in a
+ * straight line, from the end, as a program cuts a curved edge back for its arrowhead and draws the head along that
+ * chord (Gephi, Cytoscape.js).
+ * @param path - The path, start to end.
+ * @param length - How far from the end the cut is.
+ * @returns The cut point and the index of the last path point kept before it, or null when the whole path lies
+ *     nearer the end than that.
+ */
+export function cutFromEnd(path: readonly Xyz[], length: number): { at: Xyz; keep: number } | null {
+    const end = path[path.length - 1];
+    const far = (x: number, y: number, z: number): boolean => Math.hypot(x - end.x, y - end.y, z - end.z) >= length;
+    for (let i = path.length - 2; i >= 0; i--) {
+        if (far(path[i].x, path[i].y, path[i].z)) {
+            return { at: crossingOf(path[i + 1], path[i], far), keep: i };
+        }
+    }
+    return null;
 }
 
 /**

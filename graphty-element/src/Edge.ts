@@ -17,7 +17,9 @@ import { EdgeMesh } from "./meshes/EdgeMesh";
 import {
     bezierThroughControls,
     centerArc,
+    crossingOf,
     curveThroughMidpoints,
+    cutFromEnd,
     fanArc,
     fanOffset,
     fanSlot,
@@ -353,6 +355,9 @@ export class Edge {
 
     /** The `line.arcRadius` the edge's curve was last placed with. See {@link syncContent}. */
     private drawnArcRadius?: number;
+
+    /** The `line.nodeGap` the edge's ends were last placed with. See {@link syncContent}. */
+    private drawnNodeGap?: number;
 
     /**
      * The source mesh this edge is currently drawn from.
@@ -1249,6 +1254,11 @@ export class Edge {
             rebuilt = true;
         }
 
+        if (style.line?.nodeGap !== this.drawnNodeGap) {
+            this.drawnNodeGap = style.line?.nodeGap;
+            rebuilt = true;
+        }
+
         if (rebuilt) {
             this.invalidatePositionCache();
         }
@@ -1678,7 +1688,9 @@ export class Edge {
      * @returns The distance.
      */
     private static reachOf(node: Node, dir: Xyz): number {
-        return surfaceReach(dir, node.drawnHalfExtents, node.roundRadius) + node.borderReach;
+        return (
+            surfaceReach(dir, node.drawnHalfExtents, node.roundRadius, node.shapeType === "ellipse") + node.borderReach
+        );
     }
 
     /**
@@ -1696,15 +1708,25 @@ export class Edge {
      * A test of whether a point lies outside a node's drawn shape.
      * @param node - The node.
      * @param centre - The node's center.
+     * @param gap - How far past the outline a point must be to count as outside (`line.nodeGap`).
      * @returns True for a point farther from the center than the node's outline in its direction.
      */
-    private static outside(node: Node, centre: Vector3): (x: number, y: number, z: number) => boolean {
+    private static outside(node: Node, centre: Vector3, gap = 0): (x: number, y: number, z: number) => boolean {
         return (x, y, z) => {
             const d = Math.hypot(x - centre.x, y - centre.y, z - centre.z);
             return (
-                d > 0 && d > Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
+                d > 0 &&
+                d > gap + Edge.reachOf(node, { x: (x - centre.x) / d, y: (y - centre.y) / d, z: (z - centre.z) / d })
             );
         };
+    }
+
+    /**
+     * How far from its nodes' outlines this edge's line stops (`line.nodeGap`); none for a self-loop.
+     * @returns The gap, in scene units.
+     */
+    private get nodeGap(): number {
+        return this.srcNode === this.dstNode ? 0 : (this.drawnStyle?.line?.nodeGap ?? 0);
     }
 
     /**
@@ -1717,36 +1739,68 @@ export class Edge {
      * @returns False, drawing nothing, when no part of the route is outside both nodes.
      */
     private placeRoute(batch: EdgeLineBatch, src: Vector3, dst: Vector3, route: readonly number[]): boolean {
-        const span = routeOutside(route, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
+        const gap = this.nodeGap;
+        const outSrc = Edge.outside(this.srcNode, src, gap);
+        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const span = routeOutside(route, outSrc, outDst);
         if (span === null) {
             return false;
         }
 
         const first = Vector3.FromArray(route, 3 * span.first);
         const last = Vector3.FromArray(route, 3 * span.last);
-        const start = this.leaveNode(this.srcNode, src, first);
-        const end = this.leaveNode(this.dstNode, dst, last);
+        // where the route itself crosses each outline, on the curve; a line from the center toward the first point
+        // outside would cut the curve's corner and bow the rest deeper (Gephi's arcs between large nodes)
+        const cross = (i: number, to: Vector3, out: typeof outSrc): Vector3 => {
+            const c = crossingOf(Vector3.FromArray(route, 3 * i), to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        const start =
+            span.first > 0 ? cross(span.first - 1, first, outSrc) : this.leaveNode(this.srcNode, src, first, gap);
+        const end =
+            span.last < route.length / 3 - 1
+                ? cross(span.last + 1, last, outDst)
+                : this.leaveNode(this.dstNode, dst, last, gap);
 
         const path = [start, ...points(route.slice(3 * span.first, 3 * span.last + 3)), end];
         const { arrowCap } = this;
+        // the route is cut back along itself for the head, which spans the chord from the cut to the outline, as
+        // Gephi and Cytoscape.js draw an arrowhead on a curve; a head longer than the route keeps the last segment
+        const stop = arrowCap ? this.headStop() : 0;
+        const cut = stop > 0 ? cutFromEnd(path, stop) : null;
+        const cutAt = cut === null ? null : new Vector3(cut.at.x, cut.at.y, cut.at.z);
         if (arrowCap) {
-            this.placeArrowHead(arrowCap, end, end.subtract(last).normalize(), [...path].reverse());
+            this.placeArrowHead(arrowCap, end, end.subtract(cutAt ?? last).normalize(), [...path].reverse());
         }
 
         this.placeMidCaps(path);
 
         const lineStart = this.placeArrowTail(start, first, first.subtract(start).normalize(), path);
-        const lineEnd = this.lineEndBefore(last, end);
-        this.placeRun(batch, [
-            lineStart.x,
-            lineStart.y,
-            lineStart.z,
-            ...route.slice(3 * span.first, 3 * span.last + 3),
-            lineEnd.x,
-            lineEnd.y,
-            lineEnd.z,
-        ]);
+        const body =
+            cut === null || cutAt === null
+                ? [...route.slice(3 * span.first, 3 * span.last + 3), ...this.lineEndBefore(last, end).asArray()]
+                : [...path.slice(1, cut.keep + 1).flatMap((p) => p.asArray()), ...cutAt.asArray()];
+        this.placeRun(batch, [lineStart.x, lineStart.y, lineStart.z, ...body]);
         return true;
+    }
+
+    /**
+     * How far back from where it meets its target the line stops for its arrow head: the head's gap off the node
+     * plus the length of line the head covers. Zero without a head, or with one drawn part-way along.
+     * @returns The distance, in scene units.
+     */
+    private headStop(): number {
+        const head = this.currentStyle.arrowHead;
+        if (!head?.type || head.type === "none" || (head.position ?? 0) > 0) {
+            return 0;
+        }
+
+        const geometry = EdgeMesh.getArrowGeometry(head.type);
+        // a 2D cap is drawn at full size (see placeArrowHead)
+        const scale = this.arrowCap?.is2D === true ? 1 : (geometry.scaleFactor ?? 1);
+        return (
+            Edge.capGap(head) + EdgeMesh.calculateArrowLength() * (head.size ?? 1) * scale * (geometry.lineStop ?? 1)
+        );
     }
 
     /**
@@ -1797,15 +1851,25 @@ export class Edge {
         }
         const route = bezier ? bezierThroughControls(through) : through;
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
-        const span = routeEnds(route, ports, Edge.outside(this.srcNode, src), Edge.outside(this.dstNode, dst));
+        const gap = this.nodeGap;
+        const outSrc = Edge.outside(this.srcNode, src, gap);
+        const outDst = Edge.outside(this.dstNode, dst, gap);
+        const span = routeEnds(route, ports, outSrc, outDst);
         if (span === null) {
             return false;
         }
 
         const a = Vector3.FromArray(route, 3 * span.first);
         const b = Vector3.FromArray(route, 3 * span.last);
-        const start = ports.src ? a : this.leaveNode(this.srcNode, src, a);
-        const end = ports.dst ? b : this.leaveNode(this.dstNode, dst, b);
+        // where the route crosses each outline, on the route (a sampled Bezier curve too), as in placeRoute
+        const cross = (i: number, to: Vector3, out: typeof outSrc): Vector3 => {
+            const c = crossingOf(Vector3.FromArray(route, 3 * i), to, out);
+            return new Vector3(c.x, c.y, c.z);
+        };
+        const leave = (node: Node, centre: Vector3, i: number, to: Vector3, out: typeof outSrc): Vector3 =>
+            i >= 0 && i < route.length / 3 ? cross(i, to, out) : this.leaveNode(node, centre, to, gap);
+        const start = ports.src ? a : leave(this.srcNode, src, span.first - 1, a, outSrc);
+        const end = ports.dst ? b : leave(this.dstNode, dst, span.last + 1, b, outDst);
         const mid = route.slice(3 * (span.first + (ports.src ? 1 : 0)), 3 * (span.last + (ports.dst ? 0 : 1)));
         const afterStart = mid.length > 0 ? Vector3.FromArray(mid, 0) : end;
         const beforeEnd = mid.length > 0 ? Vector3.FromArray(mid, mid.length - 3) : start;
@@ -1879,9 +1943,10 @@ export class Edge {
      * @param node - The node.
      * @param centre - Its center.
      * @param toward - The point the segment runs to.
+     * @param gap - How far past the outline the line stops (`line.nodeGap`).
      * @returns The crossing, or the center when the point is the center.
      */
-    private leaveNode(node: Node, centre: Vector3, toward: Vector3): Vector3 {
+    private leaveNode(node: Node, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
         const dir = toward.subtract(centre);
         const span = dir.length();
         if (span === 0) {
@@ -1889,7 +1954,7 @@ export class Edge {
         }
 
         dir.scaleInPlace(1 / span);
-        const reach = surfaceReach(dir, node.drawnHalfExtents, node.roundRadius) + node.borderReach;
+        const reach = Edge.reachOf(node, dir) + gap;
 
         return centre.add(dir.scale(Math.min(reach, span)));
     }
@@ -2525,8 +2590,8 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const srcReach = this.srcNode.borderReach;
-        const dstReach = this.dstNode.borderReach;
+        const srcReach = this.srcNode.borderReach + this.nodeGap;
+        const dstReach = this.dstNode.borderReach + this.nodeGap;
 
         if (srcReach === 0 && dstReach === 0) {
             return;

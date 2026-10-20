@@ -9,7 +9,9 @@ import {
     bendPoints,
     bezierThroughControls,
     centerArc,
+    crossingOf,
     curveThroughMidpoints,
+    cutFromEnd,
     fanArc,
     fanArcPieces,
     fanOffset,
@@ -265,5 +267,44 @@ describe("an arrow cap part-way along a line", () => {
         assert.approximately(half.tip.y, 4, 1e-9);
         assert.deepEqual(half.toward, at(1, 0));
         assert.isNull(pointFromEnd([at(1, 1), at(1, 1)], 0.5));
+    });
+
+    it("reaches a flat ellipse's outline, not its box's corner", () => {
+        const diagonal = at(Math.SQRT1_2, Math.SQRT1_2);
+        // a circle of radius 2 drawn as a flat ellipse: 2 every way, where its box reaches 2 sqrt 2 on the diagonal
+        assert.closeTo(surfaceReach(diagonal, at(2, 2, 0.01), null, true), 2, 1e-12);
+        assert.closeTo(surfaceReach(diagonal, at(2, 2, 0.01), null), 2 * Math.SQRT2, 1e-12);
+        // an ellipse 4 by 2: its sides along the axes
+        assert.closeTo(surfaceReach(at(1, 0), at(2, 1, 0), null, true), 2, 1e-12);
+        assert.closeTo(surfaceReach(at(0, -1), at(2, 1, 0), null, true), 1, 1e-12);
+    });
+
+    it("leaves a node where an arc crosses its outline, on the curve", () => {
+        // a quarter circle of radius 10 around (0, -10) from (0, 0): its pieces cross a node of radius 3 at (0, 0)
+        const outside = (x: number, y: number): boolean => Math.hypot(x, y) > 3;
+        const inside = at(10 * Math.sin(0.1), 10 * Math.cos(0.1) - 10);
+        const out = at(10 * Math.sin(0.5), 10 * Math.cos(0.5) - 10);
+        const c = crossingOf(inside, out, outside);
+        assert.closeTo(Math.hypot(c.x, c.y), 3, 1e-5);
+        // on the segment between the two points, where a line from the center toward the outer one would not be
+        const t = (c.x - inside.x) / (out.x - inside.x);
+        assert.closeTo(c.y, inside.y + (out.y - inside.y) * t, 1e-9);
+        assert.isAbove(Math.abs(c.y / c.x - out.y / out.x), 0.01);
+    });
+
+    it("cuts a path back for an end cap along a chord of its own length", () => {
+        // a path round three sides of a 10 square, ending at (10, 0): a cap of 4 is cut on its last side
+        const path = [at(0, 0), at(0, 10), at(10, 10), at(10, 0)];
+        const cut = cutFromEnd(path, 4);
+        assert.isNotNull(cut);
+        assert.strictEqual(cut?.keep, 2);
+        assert.closeTo(cut?.at.x ?? 0, 10, 1e-9);
+        assert.closeTo(cut?.at.y ?? 0, 4, 1e-5);
+        // a cap longer than the last side reaches back into the one before, still a chord of its length
+        const long = cutFromEnd(path, 12);
+        assert.strictEqual(long?.keep, 1);
+        assert.closeTo(Math.hypot((long?.at.x ?? 0) - 10, long?.at.y ?? 0), 12, 1e-5);
+        // a path wholly nearer its end than the cap
+        assert.isNull(cutFromEnd([at(0, 0), at(1, 0)], 4));
     });
 });

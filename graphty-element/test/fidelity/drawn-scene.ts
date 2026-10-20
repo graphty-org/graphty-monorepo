@@ -598,6 +598,8 @@ export interface DrawnNode {
     /** What the node draws over its face: its pie slices, stripes and image, each piece's screen box. */
     pieces: { kind: "shape" | "image"; box: ScreenBox }[];
     label: DrawnLabel | null;
+    /** The further texts it draws over its face (`shape.texts`). */
+    texts?: DrawnLabel[];
     /**
      * A node with no body (shape "none") that asks for no image: it draws only its label and its glyph, as a program
      * draws a text-only or an icon-only node (vis-network's `text` and `icon` shapes).
@@ -872,6 +874,10 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         innerBorder: outer === null ? null : own,
         outer,
         label: readLabel(node.label, p),
+        texts: node.shapeTextLabels.flatMap((l) => {
+            const read = readLabel(l, p);
+            return read === null ? [] : [read];
+        }),
         // the image of a node with no body is the node itself
         pieces: pieces.filter(
             (piece): piece is { kind: "shape" | "image"; box: ScreenBox } => piece !== picture && piece.kind !== "body",

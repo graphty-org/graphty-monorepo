@@ -155,6 +155,8 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "node.shapeStretchPoints": "mesh",
     "node.shapeParts": "mesh",
     "node.shapeLines": "mesh",
+    // words, like a label: per node, drawn by `Node.syncLabel`
+    "node.shapeTexts": "content",
     "node.shapeLineWidth": "mesh",
     // How a node grows to hold its label: the fitted extents are baked into the source mesh, and
     // Node keys the mesh by them as well, since nodes of one style differ by their label's box.
@@ -342,6 +344,7 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     "edge.fanned": "content",
     "edge.bendCurve": "content",
     "edge.arcRadius": "content",
+    "edge.nodeGap": "content",
     "edge.sourcePort": "content",
     "edge.targetPort": "content",
 

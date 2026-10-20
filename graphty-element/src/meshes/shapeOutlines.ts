@@ -341,6 +341,35 @@ const ROUNDED: Readonly<Record<string, string>> = {
 };
 
 /**
+ * A node's further texts (`shape.texts`): a JSON list of `[x, y, text]`, each point relative to the node's center as
+ * fractions of its half width and half height, y up. An entry of any other shape is passed over.
+ * @param text - the list, or undefined
+ * @returns the texts, none when unset or not a list
+ */
+export function shapeTexts(text: string | undefined): [number, number, string][] {
+    if (text === undefined || text.trim() === "") {
+        return [];
+    }
+    let list: unknown;
+    try {
+        list = JSON.parse(text);
+    } catch {
+        return [];
+    }
+    if (!Array.isArray(list)) {
+        return [];
+    }
+    return list.filter(
+        (e): e is [number, number, string] =>
+            Array.isArray(e) &&
+            Number.isFinite(e[0]) &&
+            Number.isFinite(e[1]) &&
+            typeof e[2] === "string" &&
+            e[2] !== "",
+    );
+}
+
+/**
  * Whether a shape name is one of the flat outlines this module draws.
  * @param shape - A node shape name.
  * @returns True for the flat shapes.

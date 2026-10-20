@@ -253,6 +253,11 @@ export const NodeStyle = z.strictObject({
             // wide (unset, the border's width): a Graphviz `promoter`'s baseline, a `box3d`'s edges.
             lines: z.string().optional(),
             lineWidth: z.number().nonnegative().optional(),
+            // Further texts drawn over a flat node in its label's font, size and color, each one line centered on its
+            // point: a JSON list of `[x, y, text]`, the point relative to the node's center as fractions of its half
+            // width and half height, y up, as `parts` places its corners (Graphviz's record fields:
+            // `[[-0.66, 0, "a"], [0, 0, "b"], [0.66, 0, "c"]]`). Drawn whatever the label says, beside it.
+            texts: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and

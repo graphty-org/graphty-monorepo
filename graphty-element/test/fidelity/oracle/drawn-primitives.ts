@@ -336,7 +336,14 @@ export function drawnPrimitives(
         }
         const d = drawn.nodes.get(n.id);
         const inset = d === undefined ? 0 : 2 * borderInset(d);
-        const label = n.label?.visible === true && d?.label ? textOf(d.label) : null;
+        const ownLabel = n.label?.visible === true && d?.label ? textOf(d.label) : null;
+        // its further texts (a record's fields) are its label too, as the oracle reads every text in the node's box
+        // each drawn on its own line at its own place, so their alignment is read off their boxes, as the oracle's is
+        const parts = (d?.texts ?? []).map((t) => ({ ...textOf(t), align: undefined }));
+        const label =
+            parts.length === 0
+                ? ownLabel
+                : mergeTexts([...(ownLabel === null || ownLabel.content === "" ? [] : [ownLabel]), ...parts]);
         // a node that draws no body (shape "none", no picture in its place) is its label and its glyph alone, as a
         // program draws a text-only or an icon-only node (vis-network's text and icon shapes): the comparison reads
         // those as free texts, never as a node shape (withoutCaptions)

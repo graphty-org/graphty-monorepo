@@ -383,6 +383,7 @@ export interface ChannelValues {
     "node.shapeStretchPoints": boolean;
     "node.shapeParts": string;
     "node.shapeLines": string;
+    "node.shapeTexts": string;
     "node.shapeLineWidth": number;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
@@ -453,6 +454,7 @@ export interface ChannelValues {
     "edge.fanned": boolean;
     "edge.bendCurve": EdgeBendCurveValue;
     "edge.arcRadius": number;
+    "edge.nodeGap": number;
     "edge.sourcePort": string;
     "edge.targetPort": string;
     "edge.arrowHead": ArrowValue;
@@ -2613,6 +2615,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "`-1,0 1,0` is a line across the node's middle, as Graphviz draws a promoter's baseline. Solid " +
             "shapes ignore it.",
     },
+    "node.shapeTexts": {
+        channel: "node.shapeTexts",
+        target: "node",
+        plainName: "Node Shape Texts",
+        shortName: "Shape texts",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.texts",
+        renderable: true,
+        caveat:
+            "Further texts drawn over a node in its label's font, size and color, each one line centered on its " +
+            "point: a JSON list of `[x, y, text]`, the point in the frame `node.shapeParts` uses " +
+            '(`[[-0.5, 0, "a"], [0.5, 0, "b"]]` is two words side by side, as Graphviz draws a record\'s ' +
+            "fields). Drawn beside the node's label, whatever it says.",
+    },
     "node.shapeLineWidth": {
         channel: "node.shapeLineWidth",
         target: "node",
@@ -3001,6 +3018,22 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "node centers, with this many times the distance between them as its radius (0.5 is a half " +
             "circle; larger is flatter). Left unset, the edge keeps the element's own bow. A straight " +
             "edge ignores it.",
+    },
+    "edge.nodeGap": {
+        channel: "edge.nodeGap",
+        target: "edge",
+        plainName: "Edge Node Gap",
+        shortName: "Node gap",
+        group: "line",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "line.nodeGap",
+        renderable: true,
+        caveat:
+            "How far from each of its nodes' outlines the line stops, in the scene's units, leaving that " +
+            "much empty between the node and the line's end; an arrow cap there moves out with it. A " +
+            "self-loop ignores it.",
     },
     "edge.sourcePort": {
         channel: "edge.sourcePort",

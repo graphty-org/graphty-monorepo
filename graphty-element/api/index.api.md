@@ -1485,6 +1485,7 @@ export const EdgeStyle: z.ZodObject<{
             midpoints: "midpoints";
         }>>;
         arcRadius: z.ZodOptional<z.ZodNumber>;
+        nodeGap: z.ZodOptional<z.ZodNumber>;
         sourcePort: z.ZodOptional<z.ZodString>;
         targetPort: z.ZodOptional<z.ZodString>;
     }, z.core.$strict>>;
@@ -3543,6 +3544,7 @@ class Node_2 {
     setMeshPosition(x: number, y: number, z: number): void;
     setRenderState(state: NodeRenderState): boolean;
     setSelected(selected: boolean): boolean;
+    shapeTextLabels: RichTextLabel[];
     shapeType?: NonNullable<NodeStyleConfig["shape"]>["type"];
     showTooltip(): void;
     // (undocumented)
@@ -3812,6 +3814,7 @@ export const NodeStyle: z.ZodObject<{
         parts: z.ZodOptional<z.ZodString>;
         lines: z.ZodOptional<z.ZodString>;
         lineWidth: z.ZodOptional<z.ZodNumber>;
+        texts: z.ZodOptional<z.ZodString>;
         labelFit: z.ZodOptional<z.ZodEnum<{
             inside: "inside";
             bounds: "bounds";

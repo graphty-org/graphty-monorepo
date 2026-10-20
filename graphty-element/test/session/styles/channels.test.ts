@@ -144,6 +144,7 @@ const DECLARED = [
     "node.shapeStretchPoints",
     "node.shapeParts",
     "node.shapeLines",
+    "node.shapeTexts",
     "node.shapeLineWidth",
     "node.labelFit",
     "node.labelPaddingX",
@@ -180,6 +181,7 @@ const DECLARED = [
     "edge.fanned",
     "edge.bendCurve",
     "edge.arcRadius",
+    "edge.nodeGap",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
@@ -304,9 +306,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and twenty-nine node channels and one hundred and twenty-four edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 129);
-        assert.strictEqual(channelsFor("edge").length, 124);
+    it("splits into one hundred and thirty node channels and one hundred and twenty-five edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 130);
+        assert.strictEqual(channelsFor("edge").length, 125);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -519,6 +521,7 @@ describe("what a style editor needs to draw a row", () => {
     const NO_DEFAULT = new Set([
         "node.shapeParts",
         "node.shapeLines",
+        "node.shapeTexts",
         "node.shapeLineWidth",
         "node.gradientColors",
         "node.gradientStops",

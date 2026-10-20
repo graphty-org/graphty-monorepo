@@ -170,6 +170,10 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             if (descriptor.channel === "node.shapeLines") {
                 return "-1,-1 1,1; -1,1 1,-1";
             }
+            // and its further texts a JSON list of points and words
+            if (descriptor.channel === "node.shapeTexts") {
+                return '[[0, 0, "CHANNEL PROBE WORDS"]]';
+            }
             return "CHANNEL PROBE WORDS";
         case "boolean":
             // A bundle fans unless told not to: the probe is the switch turned off.

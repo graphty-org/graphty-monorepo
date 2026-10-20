@@ -37,7 +37,7 @@ import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { isFlatShape } from "./meshes/shapeOutlines";
+import { isFlatShape, shapeTexts } from "./meshes/shapeOutlines";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
@@ -266,6 +266,12 @@ export class Node {
     #record: AdHocData<string | number>;
     mesh: AbstractMesh;
     label?: RichTextLabel;
+
+    /** The further texts on screen (`shape.texts`), one label each. */
+    shapeTextLabels: RichTextLabel[] = [];
+
+    /** What the further texts on screen were drawn from, or undefined for none. See {@link syncShapeTexts}. */
+    private drawnShapeTexts?: string;
 
     /**
      * The tooltip on screen, and undefined whenever the pointer is not over this node.
@@ -1408,6 +1414,12 @@ export class Node {
             this.label = undefined;
         }
 
+        for (const label of this.shapeTextLabels) {
+            label.dispose();
+        }
+        this.shapeTextLabels = [];
+        this.drawnShapeTexts = undefined;
+
         // A tooltip outlives no node: its plane is not parented to the node's mesh, so nothing
         // else would take it down and a hovered node that is then removed would leave its words
         // floating over the graph.
@@ -1931,6 +1943,8 @@ export class Node {
      *     label asking for exactly what was drawn a moment ago must still be built again.
      */
     private syncLabel(o: NodeStyleConfig, rebuild: boolean): void {
+        // the further texts first: the label's own early return must not skip them
+        this.syncShapeTexts(o, rebuild);
         const wanted = o.label?.enabled === true ? o.label : undefined;
         const text = wanted === undefined ? undefined : this.extractLabelText(wanted);
 
@@ -1947,6 +1961,43 @@ export class Node {
         // reference somebody else can still write to is a comparison that silently starts
         // passing. Paid only when the label actually changes.
         this.drawnLabelStyle = wanted === undefined ? undefined : cloneDeep(wanted);
+    }
+
+    /**
+     * Bring the further texts (`shape.texts`) on screen into line with one resolved style: each one line in the
+     * label's font, size and color, centered on its point over the node, as Graphviz draws a record's fields. Rebuilt
+     * only when the texts, the label's typography or the node's size change, or the mesh they hang from was replaced.
+     * @param o - The resolved style.
+     * @param rebuild - True when the node's mesh has just been replaced.
+     */
+    private syncShapeTexts(o: NodeStyleConfig, rebuild: boolean): void {
+        const texts = shapeTexts(o.shape?.texts);
+        const half = this.drawnHalfExtents;
+        const key = texts.length === 0 ? undefined : JSON.stringify([o.shape?.texts, o.label, half.x, half.y]);
+        if (!rebuild && key === this.drawnShapeTexts) {
+            return;
+        }
+
+        for (const label of this.shapeTextLabels) {
+            label.dispose();
+        }
+        this.shapeTextLabels = [];
+        this.drawnShapeTexts = key;
+        if (key === undefined) {
+            return;
+        }
+
+        const scene = this.mesh.getScene();
+        const style = { ...o.label, location: "center" as const, attachOffset: 0, offsetX: 0, offsetY: 0 };
+        this.shapeTextLabels = texts.map(
+            ([x, y, text]) =>
+                new RichTextLabel(scene, {
+                    ...this.createLabelOptions(text, style),
+                    // right and down on screen
+                    offsetX: x * half.x,
+                    offsetY: -y * half.y,
+                }),
+        );
     }
 
     /**

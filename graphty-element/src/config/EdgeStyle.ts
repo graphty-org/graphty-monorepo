@@ -273,6 +273,12 @@ const LineStyle = z.strictObject({
      */
     arcRadius: z.number().min(0.5).optional(),
     /**
+     * How far from each of its nodes' outlines the line stops, in the scene's units, leaving that much empty between
+     * the node and the line's end (and the arrow cap there, which moves out with it). Unset or 0, the line meets the
+     * outline. A self-loop ignores it. A file's setting (Gephi's `edge.radius`) arrives here through its style layer.
+     */
+    nodeGap: z.number().nonnegative().optional(),
+    /**
      * Where the line leaves its source node, when not where the line from the node's center crosses
      * its outline: `x,y` from the node's center as fractions of its half width and half height, y up
      * (`"1,0"` is the middle of its right side, `"0,1"` the middle of its top). Relative to the node's

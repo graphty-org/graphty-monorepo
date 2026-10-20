@@ -576,6 +576,21 @@ function ratioMiss(ratio: number, [lo, hi]: readonly [number, number] | readonly
     return Math.abs(Math.log(ratio / (ratio < lo ? lo : hi)));
 }
 
+/** A size under this many pixels covers no pixel's center: nothing is drawn. */
+const UNDRAWN_SIZE = 0.25;
+
+/**
+ * How far one drawn size is from another, by their ratio; two sizes too small to draw anything (a size-0 node one
+ * program skips and the other draws a hundredth of a pixel across) are alike, since neither shows.
+ * @param o - the oracle's size, in oracle pixels
+ * @param g - graphty's, in oracle pixels
+ * @param range - the ratio allowed
+ * @returns the miss, 0 when alike
+ */
+function sizeMiss(o: number, g: number, range: readonly number[]): number {
+    return o < UNDRAWN_SIZE && g < UNDRAWN_SIZE ? 0 : ratioMiss(g / Math.max(o, 1e-9), range);
+}
+
 /**
  * How far one opacity is from another: past the opacity tolerance apart, or past its ratio where both show.
  * @param o - the oracle's
@@ -1274,8 +1289,8 @@ export function compareOracle(
         j.add("node.position", "node", id, Math.max(0, off / near - 1), [o.cx, o.cy], c);
         const [gw0, gh0] = outerOf(g, "graphty");
         const [gw, gh] = [gw0 * lengthScale, gh0 * lengthScale];
-        j.add("node.width", "node", id, ratioMiss(gw / Math.max(ow, 1e-9), T.sizeRatio), ow, gw);
-        j.add("node.height", "node", id, ratioMiss(gh / Math.max(oh, 1e-9), T.sizeRatio), oh, gh);
+        j.add("node.width", "node", id, sizeMiss(ow, gw, T.sizeRatio), ow, gw);
+        j.add("node.height", "node", id, sizeMiss(oh, gh, T.sizeRatio), oh, gh);
         const oSize = Math.max(ow, oh);
         if (oSize > 0) {
             for (const [p, scale] of [

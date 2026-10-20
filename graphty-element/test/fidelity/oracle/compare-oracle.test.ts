@@ -1445,6 +1445,20 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         label: null,
     });
 
+    it("judges two nodes too small to draw anything alike, and a drawn node against an undrawn one apart", () => {
+        // sigma draws nothing for a node of size 0 (radius 0); graphty draws it 0.014 px across
+        const with0 = (w: number): PNode[] => [...grid(), node("zero", 300, 200, w)];
+        const undrawn = compareOracle(
+            "t",
+            sceneOf("oracle", 600, 400, with0(0)),
+            sceneOf("graphty", 600, 400, with0(0.014)),
+        );
+        assert.strictEqual(undrawn.properties["node.width"].passRate, 1);
+        assert.strictEqual(undrawn.properties["node.height"].passRate, 1);
+        const drawn = compareOracle("t", sceneOf("oracle", 600, 400, with0(0)), sceneOf("graphty", 600, 400, with0(3)));
+        assert.isBelow(drawn.properties["node.width"].passRate ?? 1, 1);
+    });
+
     it("passes a drawing judged against itself, with a passing verdict and no failures", () => {
         const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, grid()));
         assert.deepEqual(failing(r), []);

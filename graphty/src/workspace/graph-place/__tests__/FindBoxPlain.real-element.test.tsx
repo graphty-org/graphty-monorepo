@@ -106,13 +106,19 @@ describe("the find box in plain words", () => {
         assert.notMatch(lineUnderBox(), /(^|\s)=/, "no rule starts with =");
     });
 
-    it("reads a typed rule with bare numbers and a column in another letter case, with no suggestion", async () => {
+    it("reads a typed rule with bare numbers, and offers degree with no backticks", async () => {
         const session = await openWithGraph();
         await focusFind();
         await userEvent.keyboard("=degree > 2");
 
-        await screen.findByText("Rule: press Enter to select matches", {}, { timeout: TIMEOUT_MS });
-        assert.isNull(screen.queryByText(/Did you mean/));
+        await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("listbox", { name: "Find results" });
+        const offer = within(list).getByRole("group", { name: "Rule" });
+        await waitFor(() => {
+            assert.include(offer.textContent, "Degree > 2");
+            assert.include(offer.textContent, "Select the 1 node");
+        });
+        assert.notInclude(offer.textContent, "`");
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);
@@ -287,9 +293,9 @@ describe("the find box in plain words", () => {
     it("draws a correction as a suggestion, not as an error", async () => {
         await openWithGraph();
         await focusFind();
-        await userEvent.keyboard("=indegree > 0");
+        await userEvent.keyboard("=degree > 2");
 
-        const line = await screen.findByText("Did you mean In-degree?", {}, { timeout: TIMEOUT_MS });
+        const line = await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
         assert.isTrue(line.classList.contains("ws-find-empty"), line.className);
         assert.isNull(document.querySelector(".ws-find-refusal"));
         const find = screen.getByRole("combobox", { name: "Find" });

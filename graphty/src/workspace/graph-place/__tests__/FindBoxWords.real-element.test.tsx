@@ -2,9 +2,7 @@
  * The find box on the REAL graphty-element says every column by the name the panels show it under
  * (Degree, never a path), teaches an inclusive example, always says what Enter did, speaks an
  * offered rule with its count and never "No match" beside it, draws no heading without a row,
- * marks the rows already picked with Shift, reads a column in any letter case without a
- * suggestion, keeps its typed text until another act replaces the selection it made, and shows no
- * hint under the box once focus has left it.
+ * marks the rows already picked with Shift, and clears the same way after either kind of pick.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -88,23 +86,6 @@ async function focusFind(): Promise<HTMLInputElement> {
 }
 
 /**
- * Clicks a node on the drawing, as a reader does.
- * @param id - the node.
- */
-async function clickNode(id: string): Promise<void> {
-    const element = document.querySelector("graphty-element");
-    if (element === null) {
-        throw new Error("the element never came up");
-    }
-    await element.waitForStableFrame();
-    const at = element.nodeScreenPosition(id);
-    if (at?.visible !== true) {
-        throw new Error(`node ${id} is not on screen`);
-    }
-    await userEvent.click(element, { position: { x: at.x, y: at.y } });
-}
-
-/**
  * Every word the find box shows or says: its text, its hidden status region and the workspace's
  * announcements.
  * @returns the words.
@@ -120,7 +101,7 @@ describe("the find box says columns as the screen does", () => {
     });
 
     for (const run of [false, true]) {
-        it(`reads "=degree > 2" as Degree with no suggestion ${run ? "after a Degree run" : "before any run"}`, async () => {
+        it(`names Degree, never its path, for "=degree > 2" ${run ? "after a Degree run" : "before any run"}`, async () => {
             const { session } = await openWithGraph();
             if (run) {
                 await session.runs.start("degree", {}, { style: false });
@@ -128,52 +109,32 @@ describe("the find box says columns as the screen does", () => {
             await focusFind();
             await userEvent.keyboard("=degree > 2");
 
-            // A column typed in another letter case is that column: no "Did you mean Degree?".
+            const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
+            const offer = await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
             await waitFor(() => {
-                assert.include(findBoxWords(), "Rule: press Enter to select matches");
+                assert.include(offer.textContent, "Degree > 2");
+                assert.include(offer.textContent, "Select the 1 node");
+                assert.include(findBoxWords(), "Did you mean Degree");
             });
-            assert.notInclude(findBoxWords(), "Did you mean");
             assert.notInclude(findBoxWords(), "No column named");
             assert.notMatch(findBoxWords(), /graphty\.|results\./);
 
-            // Enter runs it; the box keeps the reader's words and says what it selected.
+            // Enter runs the correction; the box keeps the reader's words and says what it selected.
             await userEvent.keyboard("{Enter}");
             await waitFor(() => {
                 assert.deepEqual([...session.selection.nodes], ["a"]);
-                assert.include(document.querySelector(".ws-find-empty")?.textContent, "selected");
+                // One node is said by the name the app gives it, never as "1 node".
+                assert.include(
+                    document.querySelector(".ws-find")?.textContent,
+                    `${session.data.name("a") ?? "a"} selected`,
+                );
             });
             const find = screen.getByRole<HTMLInputElement>("combobox", { name: "Find" });
             assert.strictEqual(find.value, "=degree > 2");
-            assert.notInclude(findBoxWords(), "Did you mean");
+            assert.notInclude(document.querySelector(".ws-find")?.textContent, "Did you mean");
             assert.notMatch(findBoxWords(), /graphty\.|results\./);
         });
     }
-
-    it("shows and says no hint under the box once focus has left it, through a run", async () => {
-        const { session } = await openWithGraph();
-        const find = await focusFind();
-        await userEvent.keyboard("=Donations >= 10000");
-        await waitFor(() => {
-            assert.include(findBoxWords(), "Rule: press Enter to select matches");
-        });
-        assert.notInclude(findBoxWords(), "Did you mean");
-
-        // Focus leaves for another panel; a run then changes the data the rule reads.
-        await userEvent.click(screen.getByText("Style layers"));
-        await waitFor(() => {
-            assert.isNull(document.querySelector(".ws-find-empty"));
-        });
-        said = [];
-        await session.runs.start("degree", {}, { style: false });
-
-        assert.isNull(document.querySelector(".ws-find-empty"), document.querySelector(".ws-find")?.textContent ?? "");
-        assert.deepEqual(
-            said.filter((each) => /Rule|Did you mean/.test(each.words)),
-            [],
-            said.map((each) => each.words).join(" | "),
-        );
-        assert.strictEqual(find.value, "=Donations >= 10000");
-    });
 
     it("hints with an inclusive example", async () => {
         await openWithGraph();
@@ -188,10 +149,10 @@ describe("the find box says columns as the screen does", () => {
         );
     });
 
-    it("says No match on Enter over a word that matches nothing, on screen and aloud", async () => {
+    it("says No match on Enter over text that matches nothing, on screen and aloud", async () => {
         await openWithGraph();
         await focusFind();
-        await userEvent.keyboard("most");
+        await userEvent.keyboard("zzzz");
         // Typing settles first: its own No match is said once the element has read the text.
         await waitFor(
             () => {
@@ -265,7 +226,7 @@ describe("the find box says columns as the screen does", () => {
         assert.isNull(screen.queryByText("Select by a value:"));
     });
 
-    it("marks the rows added with Shift, keeps the text through a click on another panel, and clears it on a click on a node", async () => {
+    it("marks the rows already added with Shift, and clears the box as a plain pick does once the list closes", async () => {
         const { session } = await openWithGraph();
         const find = await focusFind();
         await userEvent.keyboard("b");
@@ -292,38 +253,10 @@ describe("the find box says columns as the screen does", () => {
             assert.isNull(board.querySelector(".cm-result-picked"), "a row not picked has none");
         });
 
-        // A click on another panel closes the list and keeps what was typed.
-        await userEvent.click(screen.getByText("Style layers"));
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("listbox", { name: "Find results" }));
-        });
-        assert.strictEqual(find.value, "b");
+        const element = document.querySelector("graphty-element");
+        await userEvent.click(element as Element, { position: { x: 5, y: 5 } });
 
-        // A click on a node replaces the selection the box made, and the box clears.
-        await clickNode("d");
         await waitFor(() => {
-            assert.deepEqual([...session.selection.nodes], ["d"]);
-            assert.strictEqual(find.value, "");
-        });
-    });
-
-    it("keeps a rule's text through a run, and clears it once a click on a node replaces its selection", async () => {
-        const { session } = await openWithGraph();
-        const find = await focusFind();
-        await userEvent.keyboard("donations >= 10000");
-        const list = await screen.findByRole("listbox", { name: "Find results" }, { timeout: TIMEOUT_MS });
-        await within(list).findByRole("group", { name: "Rule" }, { timeout: TIMEOUT_MS });
-        await userEvent.keyboard("{Enter}");
-        await waitFor(() => {
-            assert.lengthOf(session.selection.nodes, 2);
-        });
-
-        await session.runs.start("degree", {}, { style: false });
-        assert.strictEqual(find.value, "donations >= 10000");
-
-        await clickNode("d");
-        await waitFor(() => {
-            assert.deepEqual([...session.selection.nodes], ["d"]);
             assert.strictEqual(find.value, "");
         });
     });

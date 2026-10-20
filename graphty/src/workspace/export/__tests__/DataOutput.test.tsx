@@ -165,11 +165,7 @@ describe("the Data output", () => {
             assert.equal(preview.textContent, ["line 0", "line 1", "line 2", "line 3", "line 4", "line 5"].join("\n"));
         });
         assert.equal(text.mock.calls.length, 0);
-        // Every export keeps the graph's styles and makes its ids safe for the format.
-        assert.deepEqual(exportGraph.mock.calls[0], [
-            "graphty",
-            { styles: true, sanitizeIds: "mangle" },
-        ] as unknown as []);
+        assert.deepEqual(exportGraph.mock.calls[0], ["graphty", {}] as unknown as []);
     });
 
     it("words a failed export by its code, and an unknown code as itself", async () => {
@@ -207,7 +203,7 @@ describe("the Data output", () => {
         await waitFor(() => {
             assert.deepEqual(exportGraph.mock.calls.at(-1), [
                 "csv",
-                { styles: true, sanitizeIds: "mangle", dialect: "gephi", delimiter: ";", table: "edges" },
+                { dialect: "gephi", delimiter: ";", table: "edges" },
             ] as unknown as []);
         });
     });

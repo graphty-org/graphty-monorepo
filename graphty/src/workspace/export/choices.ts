@@ -122,9 +122,15 @@ export function writerOptions(row: FormatRow, values: DataChoices["values"]): Re
             values[option.name] ?? option.default ?? option.values?.[0]?.value,
         ]),
     );
-    const ranks = row.options.some((option) => option.name === "groupRanks") ? { groupRanks: true } : {};
-    return { styles: true, sanitizeIds: "mangle", ...ranks, ...row.preset, ...set, ...chosen };
+    // Only where the row declares them: the project file (Graphty JSON) takes no options at all.
+    const own = Object.fromEntries(
+        Object.entries(APP_DEFAULTS).filter(([name]) => row.options.some((option) => option.name === name)),
+    );
+    return { ...own, ...row.preset, ...set, ...chosen };
 }
+
+/** The app's own writer defaults, each sent only to a row that declares it (see writerOptions). */
+const APP_DEFAULTS: Readonly<Record<string, unknown>> = { styles: true, sanitizeIds: "mangle", groupRanks: true };
 
 /** The preview stops at this many lines or this many characters, whichever comes first. */
 const PREVIEW_LINES = 6;

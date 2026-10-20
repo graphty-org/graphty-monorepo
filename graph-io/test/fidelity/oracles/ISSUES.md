@@ -3430,3 +3430,45 @@ Still open, and why:
   sessions, the graphty extras on these sheets are bar-chart pieces graphty's scene records as `annotation-shape`
   strays (`node-custom-graphics`), not file annotations; scoring an annotation's shape, fill, text and rotation is
   still not built.
+
+## Specimen sheets: XGMML settings graph-io now reads, and the XGMML rows still open (fix round 3, 2026-10-20)
+
+Measured with the oracle report on every `xgmml-` sample: 36 of 52 samples have no failing element, and the failing
+elements of the 52 fell to 649 (about 640 after round 2). The changes hold for CX, CX2 and sessions too, since the
+four formats share the Cytoscape desktop reader.
+
+Fixed:
+
+- Pie and ring item labels (`images-charts-p5` `pie-item-labels`, `pie-item-label-font-size-20`, `-p7`
+  `pie-item-labels-column`, `mappings-bypass-p18`): graph-io reads `cy_showItemLabels`, `cy_itemLabels`,
+  `cy_itemLabelsColumn` and `cy_itemLabelFontSize` (1 px by default) into the node's further texts, each centered on
+  its slice's middle, 0.62 of the disc's radius out, in #404040, as measured on Cytoscape's SVG. graphty-element's
+  `node.shapeTexts` entries take a fourth item for their own size, color, font and turn. Two graphty-element defects
+  hid them: the 2D camera stood only 10 units behind the nodes, so a text centered over a node more than about 14
+  units across fell inside the near plane (fixed in `TwoDCameraController.zoomToBoundingBox`), and the comparator
+  counted graphty's 0.9 px default-size labels as shown while it counted the oracle's 1 px ones as unreadable (fixed).
+  `label.present` passes on all three sheets; their label properties need floors recorded.
+- `CROSS_DELTA` and `CROSS_OPEN_DELTA` (`arrows`, `mappings-bypass-p11`): the comparator read the oracle's crossed
+  delta as no class and graphty's as `other`; both read `cross-delta` now, and the sheets pass.
+- Arrow size 24 on a short edge (`arrows-p2`, `mappings-bypass-p12` edge 8, `dream4-signaling`'s 8 short edges,
+  `pathguide-allpathwaysdb` -27->-22): the comparator now ends the short line under a long head at the node the head
+  reaches. A line-wide dot at the start of a 6 px line over an 11 px node (`arrow-on-wide-edge`, arrow shape NONE) is
+  the line's own end, no longer a stray. All four samples pass.
+- Patterned band edges (`syn-mappings`): every cap at a band line's end was dropped as a line cap (the band's width
+  read as NaN); at a crowded node the cap goes to the line that stops at its base. `syn-mappings` `edge.arrow`
+  failures fell from 144 to 42; more caps are now paired, so the shape, color and size rows judge more of them.
+
+Tests: `graph-io/test/styles/cytoscape-charts.test.ts`, `graphty-element/test/browser/node-shape-texts.test.ts`,
+`graphty-element/test/cameras/TwoDCameraController.test.ts`, and the comparator's
+`compare-oracle-lines.test.ts`, `compare-oracle.test.ts` and `drawn-primitives.test.ts`.
+
+Still open, and why:
+
+- Bar, line, box and heat map chart labels (`images-charts-p7` 10 `label.present`, the chart strays of `-p5`, `-p6`,
+  `-p7`, `mappings-bypass-p14`, `-p18`): Cytoscape draws them through JFreeChart, which shrinks the plot to make room
+  for its axes; the tick units, label widths and 45 or 90 degree turns must be emulated in graph-io before the bars and
+  labels land where Cytoscape puts them. The further texts' size, color and turn are the drawing hook.
+- Crowded band ends in `syn-mappings`: at node 1269791 the caps of 1269795 and 1269797 are still read swapped
+  (triangle and diamond), and 1269791->1269779's half arrow is read as graphty's crossed delta. Comparator.
+- `syn-bypass` (26 failing), `aracne-mycccnd1` (26 edge rows), `wp4271-cy3-export` (22) were not investigated in this
+  round. `pathguide-allpathwaysdb` -19->-23's box before its diamond is still unexplained.

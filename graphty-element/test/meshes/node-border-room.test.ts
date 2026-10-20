@@ -32,3 +32,23 @@ for (const [position, fillWidth] of [
         assert.isNull(NodeMesh.createBorder(cache, options, { shape, border }, fill, scene));
     });
 }
+
+for (const [size, outer] of [
+    [0, 1],
+    [0.5, 1.5],
+    [36, 37],
+] as const) {
+    test(`a border 1 wide centered on a ${String(size)}-wide node reaches ${String(outer)} across, as a stroke does`, () => {
+        // Pajek's x_fact 0 vertex is an ellipse of radius 0 stroked 1 wide: a dot 1 across, not 2
+        const options = { styleId: `centered-${String(size)}`, is2D: true, size };
+        const shape = { type: "ellipse" as const, size, sizeMode: "diameter" as const };
+        const border = { width: 1, position: "center" as const };
+        const fill = NodeMesh.create(cache, options, { shape, border }, scene);
+        const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
+
+        assert.isNotNull(ring);
+        ring.computeWorldMatrix(true);
+        const box = ring.getBoundingInfo().boundingBox;
+        assert.approximately(box.maximumWorld.x - box.minimumWorld.x, outer, 0.02);
+    });
+}

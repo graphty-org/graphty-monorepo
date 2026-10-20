@@ -411,7 +411,9 @@ export class NodeMesh {
      * How a border's position fits it to the node's size: how far the fill is drawn in from the
      * size on every side, and how wide the ring outside the fill is, both in world units. Outside
      * (the default), the fill is the size and the ring is the border's width. Centered, the fill
-     * comes in by half the width. Inside, by the whole width, so the ring's outer edge is the size;
+     * comes in by half the width, and the ring reaches half the width past the size (on a node narrower than the
+     * width, the fill is a point and the ring is narrower than the width). Inside, by the whole width, so the ring's
+     * outer edge is the size;
      * a node no larger than twice its border is all ring, drawn half as wide as the node. A border
      * of opacity 0 is not drawn; the fill reaches the middle of the ring it would be.
      * @param shape - The node's shape block.
@@ -440,7 +442,11 @@ export class NodeMesh {
             return { inset: position === "inside" ? ring / 2 : 0, ring };
         }
 
-        return { inset: Math.min(position === "inside" ? ring : width / 2, half), ring };
+        const inset = Math.min(position === "inside" ? ring : width / 2, half);
+        // A centered stroke reaches half its width past the size, however small the node: on a node narrower than
+        // the stroke the fill shrinks to a point and the ring is what is left out to that edge (Pajek's x_fact 0
+        // vertex, a zero-size ellipse stroked 1 wide, is a dot 1 across)
+        return { inset, ring: position === "center" ? width / 2 + inset : ring };
     }
 
     /**

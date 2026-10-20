@@ -3287,8 +3287,10 @@ Fixed:
   measured with the space after it, a line ending when the next word reaches the width. Cytoscape.js does the same
   per line (`labels.mjs`: a line no wider than `text-max-width` is kept). graphty-element counted the last word's
   space even for a line that fits, so "Decanoic Acid" (98.95 wide in DejaVu Sans at a width of 100), "Butenoic Acid"
-  and "Etacrynic acid" broke onto two lines. `cys-import-and-save` label.lines 297/300 -> 300/300; `cys-syn-bypass`
-  label.offset and label.anchor 57/58 -> 58/58. Test: `graphty-element/test/browser/label-wrap-width.test.ts`.
+  and "Etacrynic acid" broke onto two lines. `cys-import-and-save` label.lines 297/300 -> 300/300. The `cys-syn-bypass` label.offset and label.anchor
+  change measured in the same runs (57/58 -> 58/58, node 2172 "B27") is not this fix: a one-word label wraps the
+  same either way, so it came from other uncommitted edits in the working tree. Test:
+  `graphty-element/test/browser/label-wrap-width.test.ts`.
   Known difference: ding keeps only a one-line label whole (a label with newlines is always broken by its words);
   graphty-element keeps any line that fits, as Cytoscape.js does. ding also caches a label's lines by text, font and
   width but not by the font render context it measured with, so the first measurement wins: why two loads of this

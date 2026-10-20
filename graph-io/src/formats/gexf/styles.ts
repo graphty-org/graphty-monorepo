@@ -727,8 +727,7 @@ function nodeLabelRules(
     labelOutline(node, "node", channels, sizes, preview);
     const font = preview.font("node");
     everyElement(node, "node", "preview-label", fontValues(font, preview.on("node.label.customFont")));
-    // ponytail: Gephi hides a label that would cover a cell of a 10-unit grid an earlier one took, the larger font
-    // first (DefaultPreset node.label.avoidOverlap true, overlapGridSize 10; NodeLabelRenderer.preProcess); avoiding
+    // ponytail: where a node has no stored position Gephi's own grid (gephiOverlapHidden()) cannot be run; avoiding
     // overlap, larger first, is that test without the grid's rounding. A rule only while it is on: graphty-element
     // has no value that turns a lower rule's overlap avoidance off again.
     if (preview.on("node.label.avoidOverlap") && !settled) {
@@ -917,17 +916,12 @@ function gephiOverlapHidden(
             continue;
         }
         const size = cached.get(Math.round(sizes[i])) ?? sizes[i];
-        const [w, h] = [dialogWidth(label) * size, DIALOG_LINE_HEIGHT * size];
-        const cell = (v: number, min: number, n: number): number =>
-            Math.min(n - 1, Math.max(0, Math.trunc((v - min) / grid)));
-        const [c0, c1] = [cell(at[i][0] - w / 2, minX, cols), cell(at[i][0] + w / 2, minX, cols)];
-        const [r0, r1] = [cell(at[i][1] - h / 2, minY, rows), cell(at[i][1] + h / 2, minY, rows)];
-        const cells: number[] = [];
-        for (let r = r0; r <= r1; r++) {
-            for (let c = c0; c <= c1; c++) {
-                cells.push(r * cols + c);
-            }
-        }
+        const half = [(dialogWidth(label) * size) / 2, (DIALOG_LINE_HEIGHT * size) / 2] as const;
+        const cells = gridCells(
+            { min: [minX, minY], size: grid, cols, rows },
+            [at[i][0] - half[0], at[i][1] - half[1]],
+            [at[i][0] + half[0], at[i][1] + half[1]],
+        );
         if (cells.some((k) => taken.has(k))) {
             hidden[i] = true;
         } else {
@@ -935,6 +929,38 @@ function gephiOverlapHidden(
         }
     }
     return hidden;
+}
+
+/**
+ * The cells of a grid a box covers, as Gephi's label grid counts them (each corner's cell truncated, kept on the grid).
+ * @param grid - the grid: its lowest corner, cell size and cell counts
+ * @param grid.min - its lowest x and y
+ * @param grid.size - its cell size
+ * @param grid.cols - its columns
+ * @param grid.rows - its rows
+ * @param lo - the box's lowest x and y
+ * @param hi - the box's highest x and y
+ * @returns the cell indices, row by row
+ */
+function gridCells(
+    grid: {
+        readonly min: readonly [number, number];
+        readonly size: number;
+        readonly cols: number;
+        readonly rows: number;
+    },
+    lo: readonly [number, number],
+    hi: readonly [number, number],
+): number[] {
+    const cell = (v: number, axis: 0 | 1): number =>
+        Math.min((axis === 0 ? grid.cols : grid.rows) - 1, Math.max(0, Math.trunc((v - grid.min[axis]) / grid.size)));
+    const cells: number[] = [];
+    for (let r = cell(lo[1], 1); r <= cell(hi[1], 1); r++) {
+        for (let c = cell(lo[0], 0); c <= cell(hi[0], 0); c++) {
+            cells.push(r * grid.cols + c);
+        }
+    }
+    return cells;
 }
 
 /** Gephi's `edge.arc-curveness`: a curved edge is an arc of radius its nodes' distance over it (code only, 1.2). */

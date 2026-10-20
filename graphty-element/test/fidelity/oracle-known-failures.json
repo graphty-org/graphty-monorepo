@@ -28267,7 +28267,7 @@
             "edge.arrowShape": ["arrow-circle-triangle-s->arrow-circle-triangle-t#g0@source", "arrow-circle-triangle-s->arrow-circle-triangle-t#g0@target"],
             "edge.extra": ["graphty:57", "graphty:7"],
             "group.box": ["box-1", "box-10", "box-4", "box-7"],
-            "label.offset": ["group:box-1", "group:box-10"],
+            "label.offset": ["group:box-4", "group:box-7"],
             "stray.present": ["path#0", "path#1"],
             "node.present": [],
             "node.extra": [],

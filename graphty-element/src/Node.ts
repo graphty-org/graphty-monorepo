@@ -1,5 +1,6 @@
 import {
     AbstractMesh,
+    Camera,
     Color3,
     Color4,
     InstancedMesh,
@@ -880,8 +881,11 @@ export class Node {
         const thin = GROUP_DEPTH_RATIO * Math.min(half.x, half.y);
         const back = center.z + half.z + thin;
         // Seen in perspective from in front, a face set back looks smaller: grown by the ratio of
-        // the two distances, it covers the box its members make on screen.
-        const eye = this.mesh.getScene().activeCamera?.position.z;
+        // the two distances, it covers the box its members make on screen. An orthographic view
+        // (2D) has no perspective, so nothing is grown there: growing it by where that camera sits
+        // drew the group larger before the view was framed than after (issue #3107).
+        const camera = this.mesh.getScene().activeCamera;
+        const eye = camera?.mode === Camera.ORTHOGRAPHIC_CAMERA ? undefined : camera?.position.z;
         const far = eye !== undefined && eye < center.z ? (back - eye) / (center.z - eye) : 1;
         // A round shape is grown to the ellipse through the box's corners, so a member in a
         // corner is still inside it.

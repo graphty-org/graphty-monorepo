@@ -25126,8 +25126,8 @@
             "background": 1,
             "raster.arrowhead": 0.96,
             "raster.canvas": 0.99,
-            "raster.edge": 0.9,
-            "raster.label": 0.9,
+            "raster.edge": 0.89,
+            "raster.label": 0.89,
             "raster.nodeBody": 0.99,
             "raster.nodeOutline": 0.96,
             "label.backgroundBox": 1
@@ -48468,11 +48468,17 @@
             "reason": "edge and group labels are now judged as node labels are (ids edge:<id>, group:<id>)",
             "date": "2026-10-18"
         },
+        "json-cyjs-synth-edges/raster.edge": {
+            "from": 0.9,
+            "to": 0.89,
+            "reason": "graphty-element no longer grows a group that follows its members for perspective in a 2D (orthographic) view (issue #3107). It used to grow it by the ratio of the camera's distances, read from wherever the orthographic camera sat when the group was last drawn: 1.16 before the view was framed and 1.02 after, so the group boxes, and with them the frame fit and the label.offset of the group labels, changed from load to load. The floors were recorded on a load that drew them 1.16 too large; drawn at their box, the edge and label regions score 0.8949 and 0.8942 (from 0.9032 and 0.9000)",
+            "date": "2026-10-20"
+        },
         "json-cyjs-synth-edges/raster.label": {
             "from": 0.9,
             "to": 0.89,
-            "reason": "graphty's label region is now its words' own box, not the label plane with its margins, so it holds more ink",
-            "date": "2026-10-18"
+            "reason": "graphty-element no longer grows a group that follows its members for perspective in a 2D (orthographic) view (issue #3107). It used to grow it by the ratio of the camera's distances, read from wherever the orthographic camera sat when the group was last drawn: 1.16 before the view was framed and 1.02 after, so the group boxes, and with them the frame fit and the label.offset of the group labels, changed from load to load. The floors were recorded on a load that drew them 1.16 too large; drawn at their box, the edge and label regions score 0.8949 and 0.8942 (from 0.9032 and 0.9000)",
+            "date": "2026-10-20"
         },
         "json-cyjs-synth-edges@matched/edge.curve": {
             "from": 0.926,

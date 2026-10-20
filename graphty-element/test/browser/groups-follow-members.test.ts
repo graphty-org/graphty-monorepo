@@ -223,6 +223,27 @@ describe("a group with no stored position follows its members", () => {
         assert.strictEqual(hidden, 0, "the ray to every member's centre meets the member before its group");
     });
 
+    it("draws a group the same size in 2D wherever the orthographic camera sits along the view axis", async () => {
+        // An orthographic view has no perspective: a group grown for the camera's distance was drawn larger while the
+        // camera was near (before the view was framed) than after, so its size depended on which frame drew it last
+        // (issue #3107)
+        await graph.setViewMode("2d");
+        await follows("dot", DOT, { clusterC: ["m1", "m2"] });
+        const group = graph.getDataManager().nodes.get("clusterC");
+        assert.isDefined(group);
+        const camera = graph.getScene().activeCamera;
+        assert.isNotNull(camera);
+        const width = (z: number): number => {
+            camera.position.z = z;
+            group.update();
+            return group.drawnHalfExtents.x;
+        };
+        const near = width(-10);
+        const far = width(-1000);
+        assert.isAbove(near, 0);
+        assert.closeTo(near, far, 1e-9, "the drawn width does not follow the camera's distance");
+    });
+
     it("ends an uncapped edge to a group at the group's outline, not under it at its middle", async () => {
         // Cytoscape.js ends an edge to a compound node on the compound's box; the region is drawn behind the
         // edge, so a line from its middle would show across it

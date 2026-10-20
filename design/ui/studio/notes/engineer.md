@@ -17,7 +17,19 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, dimmed Undo and Redo are Tab stops; graphty `frame/Header.tsx`,
+0. (2026-10-19, re-walk, no changes) The key and layer rows, New layer from selection,
+   selection words, Color by kind keys and Why this look all hold their acceptance on a clean
+   build of e0482cf5e; nothing they touch got worse. Screens:
+   `design/ui/studio/tmp/r1-dry1-recheck-key-and-rows-say-what-is-drawn/` (`legend/` 03-09,
+   `width/` 20-51 Tab and Escape walk, 67-68 family row and width key gone, 79-82 "Node and edge
+   layer", `newlayer/` 04-09, `sel/` (screen reader) "Napoleon selected", "Framed Napoleon",
+   "MmeMagloire selected", `why/` 03 Color line, 08 Glow line). Seen, NOT from these commits:
+   (a) Escape on any layer's inspector (Style tab focused) clears the selection, against
+   decided.md "on a layer's inspector it leaves the selection alone"; same on the frozen build
+   (`frozen-escape/04.png`). New layer from selection now lands there, so a reader who presses
+   Escape after it loses the selection. (b) A by-kind opacity left at 100% for every group still
+   draws an "Edge opacity: kind" block (`width/60.png`); the one-value rule covers width only.
+1. (2026-10-19, dimmed Undo and Redo are Tab stops; graphty `frame/Header.tsx`,
    `frame/CommandButton.tsx`) The header passed `skipWhileDisabled` to Undo and Redo, which set
    `tabIndex=-1` while their command could not run, so right after a graph opened Tab went Main
    menu > Project > Local only and the "Nothing to undo" reason was never reachable by keyboard
@@ -31,7 +43,7 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `shift-tab-strip.png` (Shift+Tab back over Redo and Undo). Lesson: a setup start
    (`setup:<file>`) leaves nothing focused, so the first Tab is Main menu; an `empty` start then
    a sample click leaves focus in the inspector instead.
-1. OPEN REGRESSION (2026-10-19, found on a re-walk): Escape on a focused sortable table header
+2. OPEN REGRESSION (2026-10-19, found on a re-walk): Escape on a focused sortable table header
    with a selection clears the selection and keeps focus on the header; decided.md says it moves
    focus to the toolbar's Table button. Mechanism: the header's sort-hint Tooltip opens on focus,
    floating-ui's dismiss handler stops Escape in React, TableDock's `leaveGrid` (React onKeyDown)
@@ -39,57 +51,53 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    `onKeyDownCapture` for `leaveGrid`, or skip the re-read for a target inside `[role="grid"]`.
    Also seen: a layer made from a `=degree > 11` find is named "Rule: graphty.degree > 11".
    Full entry and screens: `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 0.
-2. Earlier 2026-10-19 entries (Escape in the inspector and the window capture re-read of a
+3. Earlier 2026-10-19 entries (Escape in the inspector and the window capture re-read of a
    tooltip-swallowed Escape; style fields' Tab, remove and Escape with the shared `DiscardNote`)
    in full in `git show 393580a87:design/ui/studio/notes/engineer.md`, Top of mind 1 and 2.
    Pre-existing red there, still red: FocusAndTabOrder "Why this look" and "Vary by" Tab.
-3. Earlier 2026-10-19 entries (why-this-look lands, layer list into view, a grid is one Tab
+4. Earlier 2026-10-19 entries (why-this-look lands, layer list into view, a grid is one Tab
    stop, re-walk of three fixes, find box words and keys, inspector heading focus ring, Analyze
    filter Tab, selection announcements by name) in full in
-   `git show e0482cf5e:design/ui/studio/notes/engineer.md`, Top of mind 0 to 7.
-4. Earlier 2026-10-19 entries (inspector after Undo and `useChosen`, Select all with Mod+A,
-   table Show in table and sorting, F6 regions) in full in
-   `git show 1c6a68ee4:design/ui/studio/notes/engineer.md`, Top of mind 5 and 6.
-5. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
-   control, Style nodes reason, label count and selection ring) in full in
-   `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
-6. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+   `git show e0482cf5e:design/ui/studio/notes/engineer.md`, Top of mind 0 to 7; inspector after
+   Undo, Select all, table sorting, F6 regions: `git show 1c6a68ee4:...`, Top of mind 5 and 6;
+   label line, condition card keys, one name per control: `git show d60b1956b:...`, 0 to 1b.
+5. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-7. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+6. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
    summaries and the Data place, focus after a style line, shape list typing and the color picker,
    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
    of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
-8. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+7. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-9. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+8. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-10. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
-    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-11. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+9. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+   it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
+10. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
     graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
     unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
     refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
     is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-12. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+11. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
     name and shape; a changed default or a renamed or removed member goes "for the owner". A new
     Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
     `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-13. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+12. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
     `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
     round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
     built: number card histogram for a run field, "lowest N", dashed chips at rest. One
     BoundValue for one layer and for several (owner 2026-10-16).
-14. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+13. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-15. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+14. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -226,6 +234,12 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-19) Worked: a clean build of HEAD for a walk while the worktree holds other agents'
+  uncommitted edits: `git archive HEAD graphty compact-mantine | tar -x` into `tmp/<task>/clean`,
+  symlink every other top-level entry to the worktree, `cp -a` the two packages' `node_modules`
+  (relative pnpm links then resolve inside the copy), `vite build` compact-mantine then graphty
+  there, `REAL_DIST` the copy's dist. Stamp reads HEAD. About a minute.
 
 - (2026-10-19) Worked: judging a key regression by running the SAME steps on the frozen build
   (`REAL_DIST=<frozen dir>`) beside the new one; my first walk had a different inspector open and

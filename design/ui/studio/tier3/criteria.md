@@ -1,4 +1,4 @@
-The study runs on build 7d87760756 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-7d87760756
+The study runs on build 6de5f95d12 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12
 
 Frozen on 2026-10-20 for the tier 3 rounds.
 
@@ -373,6 +373,10 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-20 (round 1 build refrozen): the study build is 6de5f95d12, served from
+  `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-6de5f95d12`. It replaces
+  7d87760756, served from `/home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-7d87760756`.
 
 - 2026-10-20 (round 1 pilots on 7d87760756; no session has run): `answers.md` and `tasks.md`'s
   facilitator detours now match the frozen build as the pilots in `rounds/r1/pilot/` saw it, every

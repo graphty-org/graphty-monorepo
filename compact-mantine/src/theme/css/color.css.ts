@@ -10,6 +10,7 @@
  * JavaScript that no class can outrank: the overlays' inset box-shadow and the alpha overlay's
  * checkerboard. (The thumb's inline `top: 1px` is corrected with a margin instead.)
  */
+import { PANEL_GRID } from "../../constants/panel";
 import { cmFont } from "../tokens";
 
 /** Figma's checkerboard: 3px cells, #e1e1e1 top-left and bottom-right, white between. */
@@ -255,7 +256,12 @@ const css = `
 /* A field too narrow for the hex and the opacity box together keeps the hex: the opacity box goes,
    and the opacity stays editable in the picker. 120 is the chit, the hex's six digits and the
    54px opacity box. */
-.cm-paint-field { container-type: inline-size; }
+.cm-paint-field {
+    container-type: inline-size;
+    /* A size container's own content gives it no width, and the field's column is sized to its
+       content: without this a field given a share of its row ("100%") collapses to its border. */
+    contain-intrinsic-inline-size: ${String(PANEL_GRID.BODY)}px;
+}
 @container (max-width: 119px) {
     .cm-paint-opacity { display: none; }
 }

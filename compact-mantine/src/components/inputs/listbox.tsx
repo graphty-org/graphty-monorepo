@@ -351,6 +351,20 @@ function speak(list: HTMLElement, words: string): void {
 }
 
 /**
+ * The open list of any list field (a select or a field the reader types in, such as an
+ * Autocomplete), or null.
+ * @param input - the event target
+ * @returns the list element
+ */
+function openList(input: EventTarget | null): HTMLElement | null {
+    if (!(input instanceof HTMLInputElement) || !input.hasAttribute("data-expanded")) {
+        return null;
+    }
+    const listId = input.getAttribute("aria-controls");
+    return listId ? input.ownerDocument.getElementById(listId) : null;
+}
+
+/**
  * The open list of a select-only trigger (a read-only `cm-input-wrapper` input), or null.
  * @param input - the event target
  * @returns the list element
@@ -509,19 +523,20 @@ export function ensureListboxKeyboard(): void {
     // leaves, so a screen reader hears "selected" on whatever the arrows pass over, even while the
     // field holds no value. Once Mantine has moved the highlight (its handlers run first), put
     // aria-selected back on the checked option only. The highlight stays data-combobox-selected
-    // and aria-activedescendant, which is how it is announced.
+    // and aria-activedescendant, which is how it is announced. The same in a field the reader
+    // types in (an Autocomplete's suggestions): an option is "selected" only once Enter takes it.
     const syncSelected = (list: HTMLElement | null): void => {
         for (const option of list?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []) {
             option.setAttribute("aria-selected", option.hasAttribute("data-checked") ? "true" : "false");
         }
     };
     document.addEventListener("keydown", (event) => {
-        syncSelected(openSelectList(event.target));
+        syncSelected(openList(event.target));
     });
     document.addEventListener("mouseover", (event) => {
         const list = event.target instanceof Element ? event.target.closest<HTMLElement>("[role=listbox]") : null;
         const trigger = list?.id ? document.querySelector(`[aria-controls="${list.id}"]`) : null;
-        syncSelected(openSelectList(trigger));
+        syncSelected(openList(trigger));
     });
     // Focus that leaves an open list's trigger for another control (Tab, Shift+Tab, a script)
     // closes the list. Mantine's Select closes on blur only when searchable, so a select-only

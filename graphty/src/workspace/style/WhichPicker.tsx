@@ -16,6 +16,7 @@ import {
     UnstyledButton,
     useCombobox,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
@@ -303,6 +304,12 @@ function useHead(session: GraphSession, rows: readonly PickRow[], side: Side): s
     return matched === undefined ? of : `${String(matched)} ${of}`;
 }
 
+/** How long typing pauses before the count it changed is spoken. */
+const SPEAK_AFTER_MS = 500;
+
+/** A card's value box: the first text or number box its body draws (not its match menu). */
+const VALUE_BOX = "input:not([type=hidden]):not([type=checkbox]):not([readonly])";
+
 /** Props of a picker. */
 interface WhichPickerProps {
     readonly session: GraphSession;
@@ -363,9 +370,11 @@ export function WhichPicker({
     const regionId = useId();
     // A card that changes the count says so -- also when the key that changed it (Enter in a
     // number box) closed the cards. The count the picker opens with is not news, nor is a count
-    // still being worked out ("of 24 nodes", "").
+    // still being worked out ("of 24 nodes", ""). The screen follows each keystroke; the count is
+    // spoken once, when typing pauses.
     const head = useHead(session, rows, side);
-    useAnnounceChange(/\d of \d/.test(head) ? head : null);
+    const [settled] = useDebouncedValue(head, SPEAK_AFTER_MS);
+    useAnnounceChange(/\d of \d/.test(settled) ? settled : null);
     if (rows.length === 0) {
         return null;
     }
@@ -1569,8 +1578,19 @@ function MatchSelect({
     data: readonly { value: string; label: string }[];
     onChange: (value: string) => void;
 }>): React.JSX.Element {
+    // A match picked hands focus to the card's value box, where the next keystroke belongs, once
+    // the card draws it with that match; a match with no box (Has a value, Yes) keeps focus here.
+    const input = useRef<HTMLInputElement>(null);
+    const [picked, setPicked] = useState<string | null>(null);
+    useEffect(() => {
+        if (picked !== null && picked === value) {
+            setPicked(null);
+            input.current?.closest("[data-card-body]")?.querySelector<HTMLElement>(VALUE_BOX)?.focus();
+        }
+    }, [picked, value]);
     return (
         <Select
+            ref={input}
             size="xs"
             // Named for what it chooses beside the card's column; the select says its own value.
             aria-label={`${name}: how to match`}
@@ -1579,6 +1599,7 @@ function MatchSelect({
             value={value}
             onChange={(next) => {
                 if (next !== null) {
+                    setPicked(next);
                     onChange(next);
                 }
             }}
@@ -1616,38 +1637,32 @@ const dropLeadingZeros = (text: string): string => text.replace(/^(-?)0+(?=\p{Nd
 /**
  * A number card's box: holds what the reader types until a commit (Enter, leaving the box), so a
  * keystroke is never lost or turned into another number, and selects its value whenever focus
- * comes in (a click, a Tab, focus put there after a choice), so typing replaces it. Escape takes
- * back what was typed and keeps focus, as the color box does; with nothing typed it goes on to the
- * card.
+ * comes in (a click, a Tab, focus put there after a choice), so typing replaces it. Escape in a
+ * box that holds text keeps it (commits it) and keeps the picker open; an empty box's Escape goes
+ * on to the card.
  * @param props - Component props
  * @param props.label - the box's accessible name
  * @param props.text - what the box shows
- * @param props.typed - whether the box holds typing not yet committed
  * @param props.invalid - whether the last commit refused what it holds
  * @param props.describedBy - the id of the message that says why
  * @param props.onText - takes the text as typed
  * @param props.onCommit - called on Enter, and with true when focus leaves
- * @param props.onRevert - called on Escape while the box holds typing
  * @returns The box
  */
 function NumberBox({
     label,
     text,
-    typed,
     invalid,
     describedBy,
     onText,
     onCommit,
-    onRevert,
 }: Readonly<{
     label: string;
     text: string;
-    typed: boolean;
     invalid: boolean;
     describedBy: string | undefined;
     onText: (text: string) => void;
     onCommit: (leaving?: boolean) => void;
-    onRevert: () => void;
 }>): React.JSX.Element {
     const justFocused = useRef(false);
     return (
@@ -1681,11 +1696,10 @@ function NumberBox({
                     flushSync(() => {
                         onCommit();
                     });
-                } else if (event.key === "Escape" && typed) {
+                } else if (event.key === "Escape" && event.currentTarget.value !== "") {
                     event.preventDefault();
                     event.stopPropagation();
-                    flushSync(onRevert);
-                    event.currentTarget.select();
+                    onCommit();
                 }
             }}
             onBlur={() => {
@@ -1898,31 +1912,15 @@ function NumberCard({
             onChange(edited);
         }
     };
-    const revert = (key: keyof Drafts): void => {
-        setDrafts(({ [key]: _gone, ...rest }) => rest);
-        const bad = (refused?.bad ?? []).filter((each) => each !== key);
-        setRefused(bad.length === 0 || refused === null ? null : { ...refused, bad });
-    };
     const clear = (): void => {
         setDrafts({});
         setRefused(null);
     };
-    // A match picked that takes a number (Highest, Between) hands focus to its first box, where
-    // the next keystroke belongs, once the card draws it.
-    const body = useRef<HTMLDivElement>(null);
-    const [toBox, setToBox] = useState(false);
-    useEffect(() => {
-        if (toBox) {
-            setToBox(false);
-            body.current?.querySelector<HTMLElement>("input[inputmode=decimal]")?.focus();
-        }
-    }, [toBox, card.match]);
     const shown = (key: keyof Drafts): string => drafts[key] ?? (card[key] === undefined ? "" : String(card[key]));
     const box = (key: keyof Drafts, label: string): React.JSX.Element => (
         <NumberBox
             label={label}
             text={shown(key)}
-            typed={drafts[key] !== undefined}
             invalid={refused?.bad.includes(key) ?? false}
             describedBy={messageId}
             onText={(text) => {
@@ -1937,20 +1935,16 @@ function NumberCard({
                 }
             }}
             onCommit={commit}
-            onRevert={() => {
-                revert(key);
-            }}
         />
     );
     return (
-        <Stack gap={4} ref={body}>
+        <Stack gap={4} data-card-body>
             <MatchSelect
                 name={name}
                 value={card.match}
                 data={[{ value: "range", label: "Between" }, { value: "top", label: "Highest" }, ...PRESENCE]}
                 onChange={(match) => {
                     clear();
-                    setToBox(match === "top" || match === "range");
                     onChange({
                         ...card,
                         match: match as typeof card.match,
@@ -2171,7 +2165,7 @@ function TextCard({
         typed,
     );
     return (
-        <Stack gap={4}>
+        <Stack gap={4} data-card-body>
             <MatchSelect
                 name={name}
                 value={card.match}
@@ -2203,11 +2197,19 @@ function TextCard({
                             openOnFocus={false}
                             // ArrowDown on a closed list only opens it, with nothing highlighted, so
                             // the Enter after it is Done, not a suggestion; the next ArrowDown walks.
+                            // Escape with the list shut keeps the text and the picker open; an
+                            // open list's Escape closes the list only, and an empty box's goes on.
                             onKeyDownCapture={(event) => {
-                                if (event.key === "ArrowDown" && !opened) {
+                                const shut = !("expanded" in event.currentTarget.dataset);
+                                if (
+                                    (event.key === "ArrowDown" && !opened) ||
+                                    (event.key === "Escape" && shut && card.text !== "")
+                                ) {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    setOpened(true);
+                                    if (event.key === "ArrowDown") {
+                                        setOpened(true);
+                                    }
                                 }
                             }}
                             // Listed once something is typed: an empty box opens on nothing.

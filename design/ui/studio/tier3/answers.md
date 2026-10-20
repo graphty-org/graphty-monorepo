@@ -202,26 +202,26 @@ path meets on this build:
 - **Picking a column for a condition** ("Find an attribute": the file's columns under Data, then
   "Node id" under Structure; nothing is highlighted when the list opens, so the first ArrowDown
   highlights the first row) puts focus in the card's text box (text column; named "name: text to
-  match") or its from box (number column; "hours from, number") with the value selected, so
-  typing replaces it. Tab in the list closes it and picks nothing; only Enter or a click picks.
-  The match menu is named "<column>: how to match" ("phone: how to match", value "Contains"; on a
-  yes/no card the same name is on the value select, Yes / No / Has a value / Has no value). A
-  category card lists "volunteer, 16 nodes" and so on; its "Remove role" button comes before the
-  values in Tab order, as drawn at the card's top, and Tab from the last value goes to "Add a
-  condition". By keyboard, Enter on a ticked value closes the card as Done does. A text card's
-  count follows typing (by keyboard each letter's count is announced: "30 of 331 nodes", "9 of
-  331 nodes", "8 of 331 nodes"), and typing opens a list of the matching names under the box, over
-  Match case and Done; ArrowDown on a name is announced "GAL1 selected", yet Enter keeps the typed
-  text, Tab closes the list and goes to Match case. In a text card one Escape closes the whole
-  picker and keeps the text (a rule matching no one stays: "phone contains missing, 0 nodes"); in
-  a number card the first Escape puts back the last good value and leaves the picker open. A
+  match") or its from box (number column; "hours from, number") with the value selected, so typing
+  replaces it. Tab in the list closes it and picks nothing; only Enter or a click picks. The match
+  menu is named "<column>: how to match" ("phone: how to match", value "Contains"; on a yes/no card
+  the same name is on the value select, Yes / No / Has a value / Has no value). A category card
+  lists "volunteer, 16 nodes" and so on; its "Remove role" button comes before the values in Tab
+  order, as drawn at the card's top, and Tab from the last value goes to "Add a condition". By
+  keyboard, Enter on a ticked value closes the card as Done does. A text card's count follows each
+  keystroke on screen and is announced once, when typing pauses ("8 of 331 nodes"), and typing opens
+  a list of the matching names under the box, over Match case and Done; ArrowDown on a name
+  announces "GAL1", not as selected; Enter keeps the typed text, Tab closes the list and goes to
+  Match case. Escape in a card's text or number box keeps what was typed and leaves the picker open
+  (with the list of names open, the first Escape closes only the list); a number the card cannot
+  take stays, with its reason. Done, a click on the canvas or focus leaving closes the picker. A
   number card's count and the drawing change only on Enter or Tab; by keyboard Tab out of the from
   box announces the count ("11 of 24 nodes"). Enter in the text box or the from box closes the
-  picker as Done does. After a text card's match kind is picked ("Starts with"), focus stays on
-  the match menu: typing reopens the menu and the letters are lost, so the text box needs a click
-  first. A card left with no value is dropped with a notice ("Dropped the name condition: it was
-  not finished", no Undo) after Enter, Escape in its empty box, or a click on the drawing, which
-  also deselects the layer; a click in either side panel leaves the picker open and drops nothing.
+  picker as Done does. Picking a match ("Starts with", "Between", "Highest") puts focus in the
+  card's value box, so typing goes there. A card left with no value is dropped with a notice
+  ("Dropped the name condition: it was not finished", no Undo) after Enter, Escape in its empty box,
+  or a click on the drawing, which also deselects the layer; a click in either side panel leaves the
+  picker open and drops nothing.
 - **Chips** carry the word: "role: board, staff, 8 nodes", "name contains Mme, 6 nodes", "hours 20
   to 52, 11 nodes". Each chip counts its own card over the whole file.
 - **The find box:** a word with no match gives 'No match for "most". To select by a value, type
@@ -696,15 +696,16 @@ path meets on this build:
   ticked value closes the card as Done does; Escape in the just-added Width box after typing
   removes the line ("Edge width not added"); Escape in a committed width box restores the value
   with nothing spoken, while the color box says "Edit discarded; this stays FF0000.".
-- **B (16 steps):** 1. "No thanks". 2. Les Miserables. 3. "+". 4. Layer. 5. Edge tab. 6. Which
-  edges (only expands; on the B keyboard walk one Enter on Which edges opened the list). 7. "Add a condition". 8.
-  `shared_chapters` (Between 1 to 31, focus in the from box with `1` selected). 9. Type `5`, Tab
-  ("51 of 254"). 10. Done ("shared_chapters 5 to 31, 51 edges"). 11. Line "+". 12. Width. 13. Type
-  `24`, Enter. 14. Line "+". 15. Color. 16. Type `blue`, Enter (the key "Edge color: Layer 1, 51
-  of 254 edges"; focus stays in the box, `0000FF` selected, the Color row below Width). Escape in
-  the width box restores 24 and keeps focus; Tab goes to "Edge width by attribute"; Escape in the
-  color box after typing gives "Edit discarded; this stays 0000FF." (spoken only); "Pick edge
-  color" ignores Escape. By keyboard, Escape in the from box with `5` typed puts back `1`.
+- **B (16 steps):** 1. "No thanks". 2. Les Miserables. 3. "+". 4. Layer. 5. Edge tab. 6. Which edges
+  (only expands; on the B keyboard walk one Enter on Which edges opened the list). 7. "Add a
+  condition". 8. `shared_chapters` (Between 1 to 31, focus in the from box with `1` selected). 9.
+  Type `5`, Tab ("51 of 254"). 10. Done ("shared_chapters 5 to 31, 51 edges"). 11. Line "+". 12.
+  Width. 13. Type `24`, Enter. 14. Line "+". 15. Color. 16. Type `blue`, Enter (the key "Edge color:
+  Layer 1, 51 of 254 edges"; focus stays in the box, `0000FF` selected, the Color row below Width).
+  Escape in the width box restores 24 and keeps focus; Tab goes to "Edge width by attribute"; Escape
+  in the color box after typing gives "Edit discarded; this stays 0000FF." (spoken only); "Pick edge
+  color" ignores Escape. By keyboard, Escape in the from box with `5` typed keeps `5` and the picker
+  open.
 - **Detour to watch:** conditions added on the Node tab do not pick the layer's ties; an edge
   column typed in the Node tab's list offers the action "Add kind on the Edge tab" ("Add
   shared_chapters on the Edge tab", in full), and Enter takes it: the Edge tab opens with the card

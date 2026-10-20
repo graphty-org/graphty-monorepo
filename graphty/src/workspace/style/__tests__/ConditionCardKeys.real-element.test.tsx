@@ -4,8 +4,9 @@
  * leaves its suggestion list closed, so ArrowDown and Enter cannot rewrite its rule; Undo shows the
  * undone value in the open card; letters typed and Tab take the attribute they highlight; Enter on
  * a ticked value presses Done; a chip opens its card with focus drawn on its first field; Highest
- * hands focus to its number box; a single layer's count names its noun, and a number committed with
- * Enter says the new count.
+ * hands focus to its number box, as Starts with does to its text box; a single layer's count names
+ * its noun, a number committed with Enter says the new count, and typing says the count once, when
+ * it pauses; Escape in a text card's box keeps the text and the picker open.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -77,14 +78,19 @@ async function whichRow(): Promise<HTMLElement> {
 }
 
 /**
- * Opens the cards from the Which row and waits for focus to land in them.
+ * Opens the cards from the Which row and waits for focus to land in them, or in the attribute
+ * search a row with no card opens on.
  * @returns The open cards.
  */
 async function openCards(): Promise<HTMLElement> {
     await userEvent.click(await whichRow());
     const region = await screen.findByRole("group", { name: "Which nodes" });
     await waitFor(() => {
-        assert.isTrue(region.contains(document.activeElement), "focus is in the cards");
+        const search = screen.queryByRole("combobox", { name: "Find an attribute" });
+        assert.isTrue(
+            region.contains(document.activeElement) || (search !== null && document.activeElement === search),
+            "focus is in the cards",
+        );
     });
     return region;
 }
@@ -172,11 +178,8 @@ describe("keys in the condition cards, on the real element", () => {
 
     it("letters typed and Tab take the attribute they highlight", async () => {
         await openLayer("Plain", { match: "everything" });
+        // A layer with no card opens on Add a condition's list, its search focused.
         const region = await openCards();
-        const add = within(region).getByRole("button", { name: "Add a condition" });
-        assert.strictEqual(document.activeElement, add, "a layer with no card opens on Add a condition");
-        assert.isNull(screen.queryByRole("listbox"), "its list waits for a press");
-        await userEvent.keyboard("{Enter}");
         await screen.findByRole("listbox");
         await userEvent.keyboard("nam{Tab}");
         const card = await waitFor(() => within(region).getByRole("group", { name: /^name(,|$)/ }));
@@ -237,6 +240,49 @@ describe("keys in the condition cards, on the real element", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("group", { name: "Which nodes" }), "Enter closed the cards");
             assert.match(store.get().announcement ?? "", /^\d+ of 77 nodes$/);
+        });
+    });
+
+    it("Starts with hands focus to the text box: the letters land there, and the count is spoken once", async () => {
+        const { session, store, id } = await openLayer("Names", { match: "everything" });
+        const region = await openCards();
+        const card = await addCard(region, "name");
+        await userEvent.click(within(card).getByRole("combobox", { name: "name: how to match" }));
+        await userEvent.click(await screen.findByRole("option", { name: "Starts with" }));
+        const box = within(card).getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, box, "focus is in the text box");
+        });
+        const spoken: string[] = [];
+        const stop = store.subscribe(() => {
+            const words = store.get().announcement ?? "";
+            if (/ of 77 nodes$/.test(words) && spoken.at(-1) !== words) {
+                spoken.push(words);
+            }
+        });
+        await userEvent.keyboard("Mlle");
+        assert.strictEqual(box.value, "Mlle", "the letters are in the box");
+        await waitFor(() => {
+            assert.strictEqual(textOf(session, id), "Mlle");
+            assert.deepEqual(spoken, ["3 of 77 nodes"], "one count, once typing paused");
+        });
+        stop();
+    });
+
+    it("Escape in a text card's box keeps the text and the picker open", async () => {
+        const { session, id } = await openLayer("Names", { match: "everything" });
+        const region = await openCards();
+        const card = await addCard(region, "name");
+        const box = within(card).getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
+        await userEvent.click(box);
+        await userEvent.keyboard("Mlle");
+        // The first Escape closes the list of names holding the text; the next keeps the picker.
+        await userEvent.keyboard("{Escape}{Escape}");
+        assert.strictEqual(box.value, "Mlle");
+        assert.isTrue(region.isConnected, "the picker stays open");
+        assert.strictEqual(document.activeElement, box, "focus stays in the box");
+        await waitFor(() => {
+            assert.strictEqual(textOf(session, id), "Mlle");
         });
     });
 });

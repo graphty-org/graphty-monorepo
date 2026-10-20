@@ -3,7 +3,7 @@
  * committed on Enter or on leaving it, never per keystroke: a from above its to is held in the card
  * with a message only once committed and never reaches the element (which refuses it); focus put
  * into a box, by a click or by choosing an attribute with Enter, selects its value so typing
- * replaces it; Escape takes back what was typed; a digit after a starting 0 replaces the 0;
+ * replaces it; Escape keeps what was typed and the picker open; a digit after a starting 0 replaces the 0;
  * grouping separators are read and any other text is refused with the text kept and an example
  * from the column's own range; leaving the card with refused text says the bound went back; a
  * rule the layer takes clears the notice a refused one left; Highest above the node count is
@@ -228,26 +228,29 @@ describe("number card", () => {
         });
     });
 
-    it("Escape takes back what was typed, keeps focus and the card, and the old bound and count", async () => {
+    it("Escape keeps what was typed, focus and the picker open, and takes the bound", async () => {
         const { session, id, card, name } = await openCard();
         const from = within(card).getByRole("textbox", { name: `${name} from, number` });
-        const old = (from as HTMLInputElement).value;
-        const before = rangeOf(session, id);
-        const { matched } = session.styles.counts(id);
         await userEvent.dblClick(from);
         await userEvent.keyboard("5");
-        assert.strictEqual((from as HTMLInputElement).value, "5");
         await userEvent.keyboard("{Escape}");
-        assert.strictEqual((from as HTMLInputElement).value, old, "the old bound is back");
+        assert.strictEqual((from as HTMLInputElement).value, "5", "the typed bound stays");
         assert.strictEqual(document.activeElement, from, "focus stays in the box");
-        assert.isTrue(card.isConnected, "the card stays open");
-        assert.deepEqual(rangeOf(session, id), before);
-        assert.strictEqual(session.styles.counts(id).matched, matched);
-        // With nothing typed, Escape goes on and closes the cards.
-        await userEvent.keyboard("{Escape}");
+        assert.isTrue(card.isConnected, "the picker stays open");
         await waitFor(() => {
-            assert.isFalse(card.isConnected);
+            assert.strictEqual(rangeOf(session, id)?.min, 5);
         });
+        // A count it cannot take stays as typed too, with its reason, and the picker stays open.
+        await userEvent.click(within(card).getByRole("combobox", { name: new RegExp(`^${name}(: how to match)?$`) }));
+        await userEvent.click(await screen.findByRole("option", { name: "Highest" }));
+        const top = await within(card).findByRole("textbox", { name: `${name}: how many` });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, top);
+        });
+        await userEvent.keyboard("10000{Escape}");
+        assert.strictEqual((top as HTMLInputElement).value, "10000");
+        assert.isTrue(card.isConnected, "the picker stays open");
+        await within(card).findByRole("alert");
     });
 
     it("says the bound went back when the card closes on text it could not take", async () => {
@@ -345,9 +348,7 @@ describe("number card", () => {
         await userEvent.keyboard("30");
         await userEvent.keyboard("{Enter}");
         await within(card).findByRole("alert");
-        // Escape on the to box, which holds nothing typed, goes on and closes the cards.
-        await userEvent.click(to);
-        await userEvent.keyboard("{Escape}");
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
         await waitFor(() => {
             assert.match(
                 store.get().notice?.message ?? "",

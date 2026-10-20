@@ -283,7 +283,10 @@ export const inputComponentExtensions = {
 
     Autocomplete: Autocomplete.extend({
         defaultProps: { size: "sm", variant: "filled", role: "combobox", ...BELOW_LIST_DEFAULTS },
-        vars: (_theme, props) => listVars(compactInputScale, props?.size),
+        vars: (_theme, props) => {
+            ensureListboxKeyboard();
+            return listVars(compactInputScale, props?.size);
+        },
         classNames: listFieldClassNames("filled"),
     }),
 

@@ -1,7 +1,8 @@
 /**
  * A filter step on the REAL graphty-element is a condition card: a step applies only once it is
  * added (leaving drops it and says so), a category step holds several values, a text step offers
- * contains, and a text box lists the column's values in the order a reader counts them.
+ * contains, a text box lists the column's values in the order a reader counts them, and a match
+ * picked hands focus to the value, where Escape keeps what was typed.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -194,5 +195,25 @@ describe("A filter step is a condition card", () => {
         // The next keys are the value, not more search text in the attribute box.
         await realKeys.keyboard("Mme");
         await screen.findByText("24 to 6 nodes");
+    });
+
+    it("picking a match hands focus to the value; Escape there keeps the text and the editor open", async () => {
+        await openPeople();
+        await realKeys.click(await screen.findByRole("button", { name: "Add filter step" }));
+        await realKeys.click(await screen.findByRole("combobox", { name: "Attribute" }));
+        await realKeys.click(await screen.findByRole("option", { name: "name" }));
+        await realKeys.click(await screen.findByRole("combobox", { name: "name: how to match" }));
+        await realKeys.click(await screen.findByRole("option", { name: "Starts with" }));
+        const text = screen.getByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, text, "focus is in the text box");
+        });
+        await realKeys.keyboard("GAL");
+        await screen.findByText("24 to 8 nodes");
+        // The first Escape closes the list of names; the next keeps the text and the editor.
+        await realKeys.keyboard("{Escape}{Escape}");
+        assert.strictEqual(text.value, "GAL");
+        assert.strictEqual(document.activeElement, text, "focus stays in the box");
+        screen.getByRole("button", { name: "Add step" });
     });
 });

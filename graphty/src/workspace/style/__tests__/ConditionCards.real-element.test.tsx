@@ -323,11 +323,13 @@ describe("the combined Style panel", () => {
                 text: "Mme",
             });
         });
-        // The first Escape closes the list of names that hold the text, the second the picker.
+        // The first Escape closes the list of names that hold the text; the second keeps the
+        // picker open, and Done closes it.
         await userEvent.keyboard("{Escape}{Escape}");
+        await userEvent.click(screen.getByRole("button", { name: "Done" }));
         const row = await whichRow();
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, row, "Escape closes the picker onto its row");
+            assert.strictEqual(document.activeElement, row, "Done closes the picker onto its row");
         });
         const leaf = leafOfLayer(session, layer.id) as RuleTree;
         assert.isDefined(leaf, "Escape keeps the edit");
@@ -530,15 +532,14 @@ describe("the combined Style panel", () => {
         const session = await openSample();
         await layerOf(session, "Menu");
         await clickRow("Menu");
-        // A row with no card opens on Add a condition; Enter there opens its list.
+        // A click on a row with no card opens Add a condition's list, its search focused.
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const add = within(region).getByRole("button", { name: "Add a condition" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, add);
-        });
-        await userEvent.keyboard("{Enter}");
         await screen.findByRole("listbox");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, screen.getByRole("combobox", { name: "Find an attribute" }));
+        });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("listbox"), "the menu closed");

@@ -16,6 +16,24 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0b. (2026-10-19, condition card keys; graphty `WhichPicker.tsx`, compact-mantine `listbox.tsx`)
+   (a) Every match pick focuses the card's value box: `MatchSelect` remembers the pick and, once
+   the card draws that match, focuses the first `VALUE_BOX` in its `[data-card-body]` (NumberCard
+   and TextCard bodies), so layer cards and filter steps (`CardBody`) both get it. (b) Escape in a
+   number box holding text commits it and stops (picker open; a refused number keeps its reason);
+   in a text box with its list shut and text in it, Escape stops too (`onKeyDownCapture`, so the
+   theme's `consumeListEscape` default stays). An empty box's Escape still closes the picker, which
+   drops the unfinished card with its notice. (c) The count is spoken once typing pauses
+   (`useDebouncedValue(head, 500)` before `useAnnounceChange`); the screen follows each key.
+   (d) compact-mantine `syncSelected` runs on every open list field (`openList`, editable too) and
+   the Autocomplete theme installs `ensureListboxKeyboard`: an ArrowDown highlight is no longer
+   "selected". Still says "selected": Add a condition's search row (its store re-highlights after
+   typing). Tests: `SuggestionSelected.browser.test.tsx` (red before), ConditionCardKeys,
+   NumberCard, FilterStepCard; stale tests from the one-click change fixed. Walks (fresh dist by
+   `npm run build` in graphty; nx refused) in `design/ui/studio/tmp/r1-dry1-condition-card-keys/`:
+   `pointer/11-12, 15, 19`; `keys/` (sr: one "8 of 331 nodes", "GAL1" not selected, from `1`
+   Escape kept). Pre-existing: compact-mantine "a disabled trigger keeps its border" fails.
+
 0. (2026-10-19, "Style nodes" says why it is dimmed: NO CODE CHANGE NEEDED) The dimmed box on a
    layer made from a find selection already carries its reason: `KindSwitch` (`StylePanel.tsx`,
    not `ValuePicker.tsx`) gives a disabled box `aria-description` "Stays on: style edges first to

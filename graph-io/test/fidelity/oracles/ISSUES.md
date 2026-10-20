@@ -436,9 +436,13 @@ Still open, each judged against Pajek's drawing:
   (synth-vertices label size 66/71 -> 68/71, color 65/71 -> 69/71; lin-rel4 v226 to v233 225/234 -> 234/234).
 - LightOrange: Pajek's SVG export draws it #ffd9bc (its default vertex fill), not its EPS dictionary's #ffccb3;
   FIXED (2026-10-19) in graph-io's Pajek color table (graphstream-b node fill 93/111 -> 111/111).
-- Pajek quirks graph-io does not copy: `cross` is drawn as an ellipse in the
-  SVG export; a vertex line's first parameter is read as a shape by its first letter when the line
-  names no shape (`bw 2` draws a box), `Triangle` (capital T) is not a shape, and a line that starts its parameters with `s_size` without a shape has them all ignored; an `empty` vertex draws no body, which graphty still sizes (synth-vertices width 48/80).
+- Pajek quirks graph-io does not copy: `cross` is drawn as an ellipse in the SVG export (graph-io still draws a
+  cross; `edges-lines-p2` `h-cross-1-3` node.shape fails), `Triangle` (capital T) is not a shape, and an `empty`
+  vertex draws no body, which graphty still sizes (synth-vertices width 48/80). A placed line that names no shape and
+  starts its parameters with `bc`, `bw`, `s_size`, `phi`, `r`, `q`, `lc`, `la`, `lr`, `lphi`, `fos` or `font` is drawn
+  with none of them; graph-io copies this since the third fix round (2026-10-20). The earlier reading that such a
+  line's first parameter names a shape by its first letter (`bw 2` a box) does not hold: the probe `r3-lead` drew
+  `bw 3 ic Red` after a box as a default ellipse.
 
 ## Specimen sheets: GEXF
 

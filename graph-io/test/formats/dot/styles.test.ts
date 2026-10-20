@@ -612,7 +612,10 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
         expect(points.get("h")).toBe(polygonPoints.get("h"));
         expect(points.get("e")).toBe(polygonPoints.get("e"));
         // box3d as dot -Tjson draws it at 0.75 by 0.5 inch: a box with its back edge 4 points up and right
-        expect(points.get("b")).toBe("1,1 -0.8519,1 -1,0.7778 -1,-1 0.8519,-1 1,-0.7778");
+        expect(points.get("b")).toBe("1,1 -0.851852,1 -1,0.777778 -1,-1 0.851852,-1 1,-0.777778");
+        expect(byId(styles, snapshot, "shapeLines").get("b")).toBe(
+            "0.851852,0.777778 -1,0.777778; 0.851852,0.777778 0.851852,-1; 0.851852,0.777778 1,1",
+        );
         // a decorated box holds its label exactly, as a box does; a polygon holds it inside its ellipse
         const fit = byId(styles, snapshot, "labelFit");
         expect(["h", "b", "c"].map((id) => fit.get(id))).toEqual(["inside", "bounds", "bounds"]);
@@ -622,6 +625,35 @@ describe("DOT styles: what Graphviz draws beyond the attributes", () => {
             ["e", "egg"],
             ["b", "box3d"],
             ["c", "cds"],
+        ]) {
+            expect(text).toMatch(new RegExp(`\\b${id}\\s*\\[[^\\]]*shape=${name}\\b`));
+        }
+    });
+
+    it("draws the synthetic-biology glyphs at their own size on a baseline, in pieces and lines, and writes them back", async () => {
+        // neato -n2 -Tsvg at 0.5 by 0.5 inch: a promoter's bent arrow above a baseline across the node, an assembly's two
+        // bars, an underline's box filled with no line round it and its bottom line drawn
+        const { snapshot, styles } = await load(`digraph {
+            node [fixedsize=true, width=0.5, height=0.5, penwidth=2];
+            p [shape=promoter]; a [shape=assembly]; u [shape=underline];
+        }`);
+        const get = (property: string, id: string): unknown => byId(styles, snapshot, property).get(id);
+        expect(get("shapePoints", "p")).toBe(
+            "0.25,1 -0.5,1 -0.5,0 -0.166667,0 -0.166667,0.666667 0.25,0.666667 0.25,0.5 0.916667,0.833333 0.25,1.16667",
+        );
+        expect(get("shapePointsStretch", "p")).toBe(false);
+        expect(get("shapeLines", "p")).toBe("-1,0 1,0");
+        expect(get("shapeParts", "a")).toBe(
+            "-0.666667,-0.416667 0.666667,-0.416667 0.666667,-0.0833333 -0.666667,-0.0833333",
+        );
+        expect(get("borderWidth", "u")).toBe(0);
+        expect(get("shapeLineWidth", "u")).toBe(2);
+        expect(get("shapeLines", "u")).toBe("-1,-1 1,-1");
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+        for (const [id, name] of [
+            ["p", "promoter"],
+            ["a", "assembly"],
+            ["u", "underline"],
         ]) {
             expect(text).toMatch(new RegExp(`\\b${id}\\s*\\[[^\\]]*shape=${name}\\b`));
         }

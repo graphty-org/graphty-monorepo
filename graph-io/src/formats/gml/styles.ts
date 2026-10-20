@@ -54,12 +54,14 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { GRAPHVIZ_GLYPH_SHAPES } from "../dot/drawing.js";
 import {
     graphvizArrowValue,
     graphvizHasNoOutline,
     graphvizOutline,
     graphvizRouteBends,
     PERIPHERY_GAP,
+    putGlyph,
     SHAPE_PERIPHERIES,
 } from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
@@ -580,6 +582,24 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     } else if (outline !== undefined) {
         put("shape", "polygon");
         put("shapePoints", outline);
+        // a Graphviz polygon's corners are where Graphviz draws them, as the DOT reader reads them
+        put("shapePointsStretch", false);
+    } else if (GRAPHVIZ_GLYPH_SHAPES.has(shape)) {
+        const size = (raw: unknown, property: string): number | null =>
+            raw === undefined ? null : canonNumber(raw, at(property));
+        putGlyph(
+            shape,
+            size(g.w, "width"),
+            size(first(g, "H", "h"), "height"),
+            put,
+            () => {
+                const pen = g.width === undefined ? 1 : Number(g.width);
+                return Number.isFinite(pen) ? Math.max(0, pen) : 1;
+            },
+            () =>
+                canonColor(g.outline ?? "black", writer.spelling, at("outerBorderColor"), { use: "line" })?.color ??
+                null,
+        );
     } else if (g.type !== undefined) {
         put("shape", canonEnum("shape", g.type, "graphviz", at("shape")));
     }

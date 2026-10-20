@@ -237,6 +237,19 @@ export interface NodeStyleValues {
      * inside the ellipse of the node's box).
      */
     readonly shapePointsStretch: boolean;
+    /**
+     * Further closed pieces of the node's body beside its outline: polygons written as `shapePoints` is, separated by
+     * ";", drawn where they say (never stretched), each filled as the node is and outlined in its border's color and
+     * width: Graphviz's `assembly` is two bars, its `noverhang` four.
+     */
+    readonly shapeParts: string;
+    /**
+     * Lines drawn over the node in its border's color, as `shapeParts` writes polygons: open polylines (one that ends
+     * where it starts is closed), `shapeLineWidth` wide: Graphviz's `promoter` baseline, a `box3d`'s edges.
+     */
+    readonly shapeLines: string;
+    /** How wide `shapeLines` are drawn; unset, the border's width. */
+    readonly shapeLineWidth: number;
     /** The border's line style. */
     readonly borderStyle: StyleBorderStyle;
     /** Where the border sits against the node's width and height. */

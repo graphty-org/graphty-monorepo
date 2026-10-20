@@ -64,9 +64,11 @@ import type { LossNote } from "../../types.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
 import {
     GRAPHVIZ_DECORATED_BOXES,
+    GRAPHVIZ_GLYPH_SHAPES,
     GRAPHVIZ_POLYGON_SHAPES,
     graphvizFont,
     graphvizFontName,
+    graphvizGlyph,
     graphvizPolygonCorners,
     isGraphvizBox,
 } from "./drawing.js";
@@ -102,6 +104,9 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelPosition",
         "shapePoints",
         "shapePointsStretch",
+        "shapeParts",
+        "shapeLines",
+        "shapeLineWidth",
         "tooltip",
         "visible",
     ] as const),
@@ -912,9 +917,31 @@ function readNodeShape(n: NodeRead): void {
         n.put("shape", "polygon");
         n.put("shapePoints", NAMED_OUTLINES.get(n.shape) ?? null);
         // a polygon shape's corners are where Graphviz draws them, one reaching past its box too
-        if (GRAPHVIZ_POLYGON_SHAPES.has(n.shape)) {
-            n.put("shapePointsStretch", false);
-        }
+        n.put("shapePointsStretch", false);
+    } else if (GRAPHVIZ_GLYPH_SHAPES.has(n.shape)) {
+        const size = (name: string): number | null => {
+            const v = inches(n.get(name), n.at(name));
+            return v === null ? null : v * DOT_POINTS_PER_INCH;
+        };
+        putGlyph(
+            n.shape,
+            size("width"),
+            size("height"),
+            n.put,
+            () => {
+                const raw = nonEmpty(n.get("penwidth")) ?? setLineWidth(n.tokens);
+                const pen = raw === null ? Number.NaN : Number(raw);
+                if (Number.isFinite(pen)) {
+                    return Math.max(0, pen);
+                }
+                return n.tokens.includes("bold") ? 2 : 1;
+            },
+            () =>
+                n.color === null
+                    ? null
+                    : (canonColor(n.color, "graphviz", n.at("outerBorderColor"), { scheme: n.scheme, use: "line" })
+                          ?.color ?? null),
+        );
     } else if (n.shapeRaw !== null) {
         const shape =
             rounded && BOX_LIKE.has(n.shape)
@@ -1007,13 +1034,84 @@ function cornersText(corners: readonly (readonly [number, number])[]): string {
     return corners.map(([x, y]) => `${num6(x)},${num6(y)}`).join(" ");
 }
 
-/** The outline of each Graphviz shape graphty draws as a polygon of its corners, by shape name. */
-const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map([
-    ...[...GRAPHVIZ_POLYGON_SHAPES].map(
-        ([name, polygon]) => [name, cornersText(graphvizDrawnCorners(polygon))] as const,
-    ),
-    ...[...GRAPHVIZ_DECORATED_BOXES].map(([name, corners]) => [name, cornersText(corners)] as const),
-]);
+/** The outline of each Graphviz polygon shape graphty draws as a polygon of its corners, by shape name. */
+const NAMED_OUTLINES: ReadonlyMap<string, string> = new Map(
+    [...GRAPHVIZ_POLYGON_SHAPES].map(([name, polygon]) => [name, cornersText(graphvizDrawnCorners(polygon))] as const),
+);
+
+/**
+ * A Graphviz shape drawn as pieces of its own (`graphvizGlyph`) at a node's size, as the neutral values that draw it:
+ * a polygon of its outline drawn where it says, its further pieces (`shapeParts`) and lines (`shapeLines`), each as
+ * fractions of the node's half width and half height. An `underline` is filled with no line round it, its line alone
+ * drawn in the pen's width.
+ * @param shape - the shape name, lowercase
+ * @param width - the node's width in points, or null for Graphviz's default
+ * @param height - its height, or null
+ * @param put - receives the values
+ * @param pen - the node's pen width, for an outline drawn as a line alone and a ring
+ * @param color - the node's pen color, for a ring
+ */
+export function putGlyph(
+    shape: string,
+    width: number | null,
+    height: number | null,
+    put: (property: string, value: StyleValue | null) => void,
+    pen: () => number,
+    color: () => string | null,
+): void {
+    const text = glyphTexts(shape, width, height);
+    if (text === null) {
+        return;
+    }
+    put("shape", "polygon");
+    put("shapePoints", text.outline);
+    put("shapePointsStretch", false);
+    put("shapeParts", text.parts);
+    put("shapeLines", text.lines);
+    if (text.unstroked) {
+        put("shapeLineWidth", pen());
+        put("borderWidth", 0);
+    }
+    if (text.ring !== null) {
+        // drawn in the pen, its gap the distance less a pen's width (the outline's half and its own)
+        put("outerBorderColor", color() ?? "#000000");
+        put("outerBorderWidth", num6(pen()));
+        put("outerBorderOffset", num6(Math.max(0, text.ring - pen())));
+    }
+}
+
+/**
+ * A Graphviz glyph's pieces as `shapePoints`, `shapeParts` and `shapeLines` text at a node's size, or null for a shape
+ * that is not one.
+ * @param shape - the shape name, lowercase
+ * @param width - the node's width in points, or null for Graphviz's default
+ * @param height - its height, or null
+ * @returns the texts (parts and lines null when there are none)
+ */
+function glyphTexts(
+    shape: string,
+    width: number | null,
+    height: number | null,
+): { outline: string; parts: string | null; lines: string | null; unstroked: boolean; ring: number | null } | null {
+    const glyph = graphvizGlyph(shape, width, height);
+    if (glyph === null) {
+        return null;
+    }
+    // fractions of the half width and half height the glyph was laid out at
+    const half = (v: number | null, fallback: number): number => (v !== null && v > 0 ? v : fallback) / 2;
+    const [W, H] = [half(width, 54), half(height, 36)];
+    const list = (points: readonly (readonly [number, number])[]): string =>
+        cornersText(points.map(([x, y]) => [x / W, y / H] as const));
+    const lists = (all: readonly (readonly (readonly [number, number])[])[]): string | null =>
+        all.length === 0 ? null : all.map(list).join("; ");
+    return {
+        outline: list(glyph.outline),
+        parts: lists(glyph.parts),
+        lines: lists(glyph.lines),
+        unstroked: glyph.unstroked === true,
+        ring: glyph.ring ?? null,
+    };
+}
 
 /**
  * The corners of a Graphviz shape graphty draws as a polygon (`house`, `cylinder`, `note` ...), as a `shapePoints`
@@ -1036,6 +1134,37 @@ export function graphvizHasNoOutline(shape: string): boolean {
 
 /** The shape name of each outline in `NAMED_OUTLINES`, so a written node keeps its Graphviz shape. */
 const OUTLINE_NAMES: ReadonlyMap<string, string> = new Map([...NAMED_OUTLINES].map(([name, text]) => [text, name]));
+
+/**
+ * The Graphviz glyph shape a polygon is at a node's size, its outline, parts and lines alike, so a written node keeps
+ * its shape (a ribosome site and a protease site share their outline and differ in their stem).
+ * @param get - the node's values
+ * @param width - the node's width in points, or null
+ * @param height - its height, or null
+ * @returns the shape name and whether it is filled with no line round it, or undefined
+ */
+function glyphOf(
+    get: Get,
+    width: number | null,
+    height: number | null,
+): { name: string; unstroked: boolean } | undefined {
+    const text = (property: string): string | null => {
+        const v = get(property);
+        return typeof v === "string" ? v.trim() : null;
+    };
+    for (const name of GRAPHVIZ_GLYPH_SHAPES) {
+        const g = glyphTexts(name, width, height);
+        if (
+            g !== null &&
+            g.outline === text("shapePoints") &&
+            g.parts === text("shapeParts") &&
+            g.lines === text("shapeLines")
+        ) {
+            return { name, unstroked: g.unstroked };
+        }
+    }
+    return undefined;
+}
 
 /**
  * A pen width as Graphviz draws it: a negative `penwidth` is raised to 0, its minimum, and noted.
@@ -2048,6 +2177,27 @@ function writeNodeShape(
             approximate("shape", shape);
         }
         return "";
+    }
+    const size = (name: string): number | null => {
+        const v = get(name);
+        return typeof v === "number" ? v : null;
+    };
+    const glyph = shape === "polygon" ? glyphOf(get, size("width"), size("height")) : undefined;
+    if (glyph !== undefined) {
+        out.set("shape", glyph.name);
+        // an underline's line is drawn in its pen, which draws no outline round it
+        const line = get("shapeLineWidth");
+        if (glyph.unstroked && typeof line === "number") {
+            out.set("penwidth", line);
+        }
+        return glyph.name;
+    }
+    // pieces and lines of no Graphviz shape: Graphviz has no attribute for them
+    for (const property of ["shapeParts", "shapeLines", "shapeLineWidth"]) {
+        const v = get(property);
+        if (v !== null && v !== undefined) {
+            approximate(property, v);
+        }
     }
     const polygon = shape === "polygon" ? writePolygon(get("shapePoints"), approximate, out) : null;
     if (polygon !== null) {

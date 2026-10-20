@@ -210,135 +210,590 @@ export const GRAPHVIZ_POLYGON_SHAPES: ReadonlyMap<string, GraphvizPolygon> = new
     ).map(([name, sides, distortion, skew, orientation]) => [name, { sides, distortion, skew, orientation }]),
 );
 
+/** A point in points, relative to a node's center, y up. */
+type GlyphPoint = readonly [number, number];
+
 /**
- * The outlines of Graphviz's boxes with a decoration of their own (`round_corners`, `shapes.c`): their corners as
- * fractions of the half width and half height (y up), as `dot -Tjson` draws them at the default 0.75 by 0.5 inch.
- * Graphviz fits the label inside them exactly, as inside a box.
+ * A Graphviz shape drawn as pieces of its own (`round_corners`, lib/common/shapes.c): its outline, further closed
+ * pieces beside it, and open lines, every point in points relative to the node's center, y up.
  */
-// ponytail: corners taken at the default size, so the decoration grows with the node; Graphviz keeps it a fixed
-// number of points (port round_corners to have it exact at every size)
-export const GRAPHVIZ_DECORATED_BOXES: ReadonlyMap<string, readonly (readonly [number, number])[]> = new Map([
+export interface GraphvizGlyph {
+    /** The outline the node's fill and border follow. */
+    readonly outline: readonly GlyphPoint[];
+    /** Further closed pieces, filled and outlined as the outline is (an `assembly`'s second bar). */
+    readonly parts: readonly (readonly GlyphPoint[])[];
+    /** Open lines in the pen's color (a `promoter`'s baseline, a `box3d`'s edges); one ending where it starts is closed. */
+    readonly lines: readonly (readonly GlyphPoint[])[];
+    /** Whether the outline is filled with no line round it (an `underline`, whose line is its lines alone). */
+    readonly unstroked?: boolean;
+    /** How far out from the outline a ring round it is drawn, line to line (an `insulator`'s open square). */
+    readonly ring?: number;
+}
+
+/**
+ * A synthetic-biology shape's baseline across the node's middle.
+ * @param W - half the node's width
+ * @returns the line
+ */
+const baseline = (W: number): GlyphPoint[] => [
+    [-W, 0],
+    [W, 0],
+];
+
+/** The bow tie of a ribosome or protease site (shapes.c's `RIBOSITE`, `PROTEASESITE`), 6 by 6 points. */
+const BOW_TIE: readonly GlyphPoint[] = [
+    [3, 6],
+    [3, 7.5],
+    [1.5, 9],
+    [3, 10.5],
+    [3, 12],
+    [1.5, 12],
+    [0, 10.5],
+    [-1.5, 12],
+    [-3, 12],
+    [-3, 10.5],
+    [-1.5, 9],
+    [-3, 7.5],
+    [-3, 6],
+    [-1.5, 6],
+    [0, 7.5],
+    [1.5, 6],
+];
+
+/** The octagon of an RNA or protein stability element (shapes.c's `RNASTAB`, `PROTEINSTAB`), 6 by 6 points. */
+const OCTAGON: readonly GlyphPoint[] = [
+    [1.5, 6],
+    [3, 7.5],
+    [3, 10.5],
+    [1.5, 12],
+    [-1.5, 12],
+    [-3, 10.5],
+    [-3, 7.5],
+    [-1.5, 6],
+];
+
+/** A stem drawn as two short dashes from the baseline up to a glyph 6 points above it. */
+const DASHED_STEM: readonly GlyphPoint[][] = [
+    [
+        [0, 0],
+        [0, 1.5],
+    ],
+    [
+        [0, 3],
+        [0, 4.5],
+    ],
+];
+
+/**
+ * A bar 6 points tall.
+ * @param x0 - its left
+ * @param x1 - its right
+ * @param y - its bottom
+ * @returns its corners
+ */
+const bar = (x0: number, x1: number, y: number): GlyphPoint[] => [
+    [x0, y],
+    [x1, y],
+    [x1, y + 6],
+    [x0, y + 6],
+];
+
+// Each shape's pieces at a node W by H points from its center (half its width and height). Graphviz draws the
+// decorations a fixed number of points across whatever the node's size, and the synthetic-biology glyphs on a
+// baseline through the node's middle, most of them a fixed size (measured with Graphviz 14.1.2's `neato -n2 -Tsvg`
+// at 36 x 36, 72 x 36, 36 x 72 and 108 x 54 points).
+const GLYPHS: ReadonlyMap<string, (W: number, H: number) => GraphvizGlyph> = new Map<
+    string,
+    (W: number, H: number) => GraphvizGlyph
+>([
     [
         "box3d",
-        [
-            [1, 1],
-            [-0.8519, 1],
-            [-1, 0.7778],
-            [-1, -1],
-            [0.8519, -1],
-            [1, -0.7778],
-        ],
+        (W, H) => ({
+            outline: [
+                [W, H],
+                [-W + 4, H],
+                [-W, H - 4],
+                [-W, -H],
+                [W - 4, -H],
+                [W, -H + 4],
+            ],
+            parts: [],
+            lines: [
+                [
+                    [W - 4, H - 4],
+                    [-W, H - 4],
+                ],
+                [
+                    [W - 4, H - 4],
+                    [W - 4, -H],
+                ],
+                [
+                    [W - 4, H - 4],
+                    [W, H],
+                ],
+            ],
+        }),
     ],
     [
         "tab",
-        [
-            [1, 1],
-            [-0.5556, 1],
-            [-0.5556, 1.2222],
-            [-1, 1.2222],
-            [-1, -1],
-            [1, -1],
-        ],
+        (W, H) => ({
+            outline: [
+                [W, H],
+                [-W + 12, H],
+                [-W + 12, H + 4],
+                [-W, H + 4],
+                [-W, -H],
+                [W, -H],
+            ],
+            parts: [],
+            lines: [
+                [
+                    [-W, H],
+                    [-W + 12, H],
+                ],
+            ],
+        }),
     ],
     [
         "folder",
-        [
-            [1, 1],
-            [0.8889, 1.2222],
-            [0.1111, 1.2222],
-            [0, 1],
-            [-1, 1],
-            [-1, -1],
-            [1, -1],
-        ],
+        (W, H) => ({
+            outline: [
+                [W, H],
+                [W - 3, H + 4],
+                [W - 24, H + 4],
+                [W - 27, H],
+                [-W, H],
+                [-W, -H],
+                [W, -H],
+            ],
+            parts: [],
+            lines: [],
+        }),
     ],
     [
         "component",
-        [
-            [1, 1],
-            [-1, 1],
-            [-1, 0.7778],
-            [-1.1481, 0.7778],
-            [-1.1481, 0.5556],
-            [-1, 0.5556],
-            [-1, -0.5556],
-            [-1.1481, -0.5556],
-            [-1.1481, -0.7778],
-            [-1, -0.7778],
-            [-1, -1],
-            [1, -1],
-        ],
+        (W, H) => ({
+            outline: [
+                [W, H],
+                [-W, H],
+                [-W, H - 4],
+                [-W - 4, H - 4],
+                [-W - 4, H - 8],
+                [-W, H - 8],
+                [-W, -H + 8],
+                [-W - 4, -H + 8],
+                [-W - 4, -H + 4],
+                [-W, -H + 4],
+                [-W, -H],
+                [W, -H],
+            ],
+            parts: [],
+            lines: [
+                [
+                    [-W, H - 4],
+                    [-W + 4, H - 4],
+                    [-W + 4, H - 8],
+                    [-W, H - 8],
+                ],
+                [
+                    [-W, -H + 8],
+                    [-W + 4, -H + 8],
+                    [-W + 4, -H + 4],
+                    [-W, -H + 4],
+                ],
+            ],
+        }),
     ],
     [
         "note",
-        [
-            [0.7778, 1],
-            [-1, 1],
-            [-1, -1],
-            [1, -1],
-            [1, 0.6667],
-        ],
+        (W, H) => ({
+            outline: [
+                [W - 6, H],
+                [-W, H],
+                [-W, -H],
+                [W, -H],
+                [W, H - 6],
+            ],
+            parts: [],
+            lines: [
+                [
+                    [W - 6, H],
+                    [W - 6, H - 6],
+                ],
+                [
+                    [W, H - 6],
+                    [W - 6, H - 6],
+                ],
+            ],
+        }),
+    ],
+    [
+        "underline",
+        (W, H) => ({
+            outline: [
+                [W, H],
+                [-W, H],
+                [-W, -H],
+                [W, -H],
+            ],
+            parts: [],
+            lines: [
+                [
+                    [-W, -H],
+                    [W, -H],
+                ],
+            ],
+            unstroked: true,
+        }),
     ],
     [
         "cds",
-        [
-            [0.5556, 0.6667],
-            [-1, 0.6667],
-            [-1, -0.6667],
-            [0.5556, -0.6667],
-            [1, 0],
-        ],
+        (W, H) => ({
+            outline: [
+                [W - 12, H - 6],
+                [-W, H - 6],
+                [-W, -H + 6],
+                [W - 12, -H + 6],
+                [W, 0],
+            ],
+            parts: [],
+            lines: [],
+        }),
     ],
     [
         "larrow",
-        [
-            [1, 0.6667],
-            [-0.3333, 0.6667],
-            [-0.3333, 1],
-            [-1, 0],
-            [-0.3333, -1],
-            [-0.3333, -0.6667],
-            [1, -0.6667],
-        ],
+        (W, H) => ({
+            outline: [
+                [W, H - 6],
+                [-W + 18, H - 6],
+                [-W + 18, H],
+                [-W, 0],
+                [-W + 18, -H],
+                [-W + 18, -H + 6],
+                [W, -H + 6],
+            ],
+            parts: [],
+            lines: [],
+        }),
     ],
     [
         "rarrow",
-        [
-            [0.3333, 0.6667],
-            [-1, 0.6667],
-            [-1, -0.6667],
-            [0.3333, -0.6667],
-            [0.3333, -1],
-            [1, 0],
-            [0.3333, 1],
-        ],
+        (W, H) => ({
+            outline: [
+                [W - 18, H - 6],
+                [-W, H - 6],
+                [-W, -H + 6],
+                [W - 18, -H + 6],
+                [W - 18, -H],
+                [W, 0],
+                [W - 18, H],
+            ],
+            parts: [],
+            lines: [],
+        }),
     ],
     [
         "lpromoter",
-        [
-            [1, 0.6667],
-            [-0.3333, 0.6667],
-            [-0.3333, 1],
-            [-1, 0],
-            [-0.3333, -1],
-            [-0.3333, -0.6667],
-            [0.3333, -0.6667],
-            [0.3333, -1],
-            [1, -1],
-        ],
+        (W, H) => ({
+            outline: [
+                [W, H - 6],
+                [-W + 18, H - 6],
+                [-W + 18, H],
+                [-W, 0],
+                [-W + 18, -H],
+                [-W + 18, -H + 6],
+                [W - 18, -H + 6],
+                [W - 18, -H],
+                [W, -H],
+            ],
+            parts: [],
+            lines: [],
+        }),
     ],
     [
         "rpromoter",
-        [
-            [0.3333, 0.6667],
-            [-1, 0.6667],
-            [-1, -1],
-            [-0.3333, -1],
-            [-0.3333, -0.6667],
-            [0.3333, -0.6667],
-            [0.3333, -1],
-            [1, 0],
-            [0.3333, 1],
-        ],
+        (W, H) => ({
+            outline: [
+                [W - 18, H - 6],
+                [-W, H - 6],
+                [-W, -H],
+                [-W + 18, -H],
+                [-W + 18, -H + 6],
+                [W - 18, -H + 6],
+                [W - 18, -H],
+                [W, 0],
+                [W - 18, H],
+            ],
+            parts: [],
+            lines: [],
+        }),
+    ],
+    [
+        "promoter",
+        (W) => ({
+            outline: [
+                [W / 4, 18],
+                [-W / 2, 18],
+                [-W / 2, 0],
+                [-W / 2 + 6, 0],
+                [-W / 2 + 6, 12],
+                [W / 4, 12],
+                [W / 4, 9],
+                [W / 4 + 12, 15],
+                [W / 4, 21],
+            ],
+            parts: [],
+            lines: [baseline(W)],
+        }),
+    ],
+    [
+        "terminator",
+        (W) => ({
+            outline: [
+                [3, 0],
+                [3, 6],
+                [9, 6],
+                [9, 12],
+                [-9, 12],
+                [-9, 6],
+                [-3, 6],
+                [-3, 0],
+            ],
+            parts: [],
+            lines: [baseline(W)],
+        }),
+    ],
+    [
+        "utr",
+        (W) => ({
+            outline: [
+                [9, 0],
+                [9, 3],
+                [3, 9],
+                [-3, 9],
+                [-9, 3],
+                [-9, 0],
+            ],
+            parts: [],
+            lines: [baseline(W)],
+        }),
+    ],
+    [
+        "primersite",
+        (W) => ({
+            outline: [
+                [12, 3],
+                [0, 15],
+                [0, 9],
+                [-W / 2, 9],
+                [-W / 2, 3],
+            ],
+            parts: [],
+            lines: [baseline(W)],
+        }),
+    ],
+    [
+        "restrictionsite",
+        (W) => {
+            const [a, b] = [W / 4, W / 4 + 6];
+            return {
+                outline: [
+                    [b, 3],
+                    [-a, 3],
+                    [-a, 9],
+                    [-b, 9],
+                    [-b, -3],
+                    [a, -3],
+                    [a, -9],
+                    [b, -9],
+                ],
+                parts: [],
+                lines: [
+                    [
+                        [-W, 0],
+                        [-b, 0],
+                    ],
+                    [
+                        [b, 0],
+                        [W, 0],
+                    ],
+                ],
+            };
+        },
+    ],
+    [
+        "fivepoverhang",
+        (W) => ({
+            outline: bar(-W, -W + 24, 1.5),
+            parts: [bar(-W + 12, -W + 24, -7.5)],
+            lines: [
+                [
+                    [-W + 24, 0],
+                    [W, 0],
+                ],
+            ],
+        }),
+    ],
+    [
+        "threepoverhang",
+        (W) => ({
+            outline: bar(W - 24, W, 1.5),
+            parts: [bar(W - 24, W - 12, -7.5)],
+            lines: [
+                [
+                    [-W, 0],
+                    [W - 24, 0],
+                ],
+            ],
+        }),
+    ],
+    [
+        "noverhang",
+        (W) => ({
+            outline: bar(-13.5, -1.5, 1.5),
+            parts: [bar(-13.5, -1.5, -7.5), bar(1.5, 13.5, -7.5), bar(1.5, 13.5, 1.5)],
+            lines: [
+                [
+                    [13.5, 0],
+                    [W, 0],
+                ],
+                [
+                    [-13.5, 0],
+                    [-W, 0],
+                ],
+            ],
+        }),
+    ],
+    [
+        "assembly",
+        (W) => ({
+            outline: bar(-12, 12, 1.5),
+            parts: [bar(-12, 12, -7.5)],
+            lines: [
+                [
+                    [12, 0],
+                    [W, 0],
+                ],
+                [
+                    [-W, 0],
+                    [-12, 0],
+                ],
+            ],
+        }),
+    ],
+    [
+        "signature",
+        (W, H) => ({
+            outline: [
+                [W, H - 6],
+                [-W, H - 6],
+                [-W, -H + 6],
+                [W, -H + 6],
+            ],
+            parts: [],
+            lines: [
+                [
+                    [-W + 3, 1.5],
+                    [-W + 6, -1.5],
+                ],
+                [
+                    [-W + 3, -1.5],
+                    [-W + 6, 1.5],
+                ],
+                [
+                    [-W + 3, -H + 9],
+                    [W - 3, -H + 9],
+                ],
+            ],
+        }),
+    ],
+    [
+        "insulator",
+        (W) => ({
+            outline: [
+                [6, 6],
+                [6, -6],
+                [-6, -6],
+                [-6, 6],
+            ],
+            parts: [],
+            // the square 3 points round it is a ring
+            ring: 3,
+            lines: [
+                [
+                    [9, 0],
+                    [W, 0],
+                ],
+                [
+                    [-W, 0],
+                    [-9, 0],
+                ],
+            ],
+        }),
+    ],
+    ["ribosite", (W) => ({ outline: BOW_TIE, parts: [], lines: [...DASHED_STEM, baseline(W)] })],
+    ["rnastab", (W) => ({ outline: OCTAGON, parts: [], lines: [...DASHED_STEM, baseline(W)] })],
+    [
+        "proteasesite",
+        (W) => ({
+            outline: BOW_TIE,
+            parts: [],
+            lines: [
+                [
+                    [0, 7.5],
+                    [0, 0],
+                ],
+                baseline(W),
+            ],
+        }),
+    ],
+    [
+        "proteinstab",
+        (W) => ({
+            outline: OCTAGON,
+            parts: [],
+            lines: [
+                [
+                    [0, 6],
+                    [0, 0],
+                ],
+                baseline(W),
+            ],
+        }),
     ],
 ]);
+
+/** The shapes Graphviz draws as pieces of their own (`GLYPHS`). */
+export const GRAPHVIZ_GLYPH_SHAPES: ReadonlySet<string> = new Set(GLYPHS.keys());
+
+/** The shapes among them that are boxes with a decoration, which Graphviz fits the label inside exactly, as a box. */
+export const GRAPHVIZ_DECORATED_BOXES: ReadonlySet<string> = new Set([
+    "box3d",
+    "tab",
+    "folder",
+    "component",
+    "note",
+    "underline",
+    "cds",
+    "larrow",
+    "rarrow",
+    "lpromoter",
+    "rpromoter",
+]);
+
+/** Graphviz's default node size in points, 0.75 by 0.5 inch, for a node that states none. */
+const DEFAULT_SIZE = [54, 36] as const;
+
+/**
+ * The pieces Graphviz draws a shape as at a size, or null for a shape it draws otherwise.
+ * @param shape - the shape name, lowercase
+ * @param width - the node's width in points, or null for Graphviz's default
+ * @param height - its height in points, or null for the default
+ * @returns the pieces
+ */
+export function graphvizGlyph(shape: string, width: number | null, height: number | null): GraphvizGlyph | null {
+    const glyph = GLYPHS.get(shape);
+    const w = width !== null && width > 0 ? width : DEFAULT_SIZE[0];
+    const h = height !== null && height > 0 ? height : DEFAULT_SIZE[1];
+    return glyph === undefined ? null : glyph(w / 2, h / 2);
+}

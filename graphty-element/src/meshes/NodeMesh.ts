@@ -826,7 +826,7 @@ export class NodeMesh {
     private static flatOutline(shape: NonNullable<NodeStyleConfig["shape"]>, extents: NodeExtents): Point2[] {
         const corner = shape.cornerRadius === undefined ? undefined : shape.cornerRadius * this.extentPerSize(shape);
 
-        return flatShapeOutline(
+        const outline = flatShapeOutline(
             shape.type ?? "",
             extents.x ?? extents.across,
             extents.y ?? extents.across,
@@ -835,6 +835,19 @@ export class NodeMesh {
             shape.stretchPoints !== false,
             shape.exactCornerRadius === true,
         );
+        if (shape.sizeMode !== "diameter" || this.hasExplicitExtent(shape) || outline.length === 0) {
+            return outline;
+        }
+
+        // "diameter" promises the drawn shape is `size` at its widest, the same for every shape. A
+        // rounded polygon is drawn inside its sharp twin's box, as Cytoscape.js draws it, so it is
+        // grown back out to the extent here, the one place its fill and its border both read.
+        const xs = outline.map(([x]) => x);
+        const ys = outline.map(([, y]) => y);
+        const drawn = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+        const grow = drawn > 0 ? extents.across / drawn : 1;
+
+        return grow === 1 ? outline : outline.map(([x, y]): Point2 => [x * grow, y * grow]);
     }
 
     private static solidOutline(fill: AbstractMesh): Point2[] {

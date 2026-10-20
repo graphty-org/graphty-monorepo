@@ -17,6 +17,17 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0u. (2026-10-20) Re-walked the renamed-halo and replace-keeps-picked-ties fixes on a fresh build
+(65f41f6b15), `design/ui/studio/tmp/r1-dry1-recheck-project-renamed-halo-channel/`: no regression.
+Both study projects open with their look by every route (Open a file, main menu, Control+O over an
+open project, drop, keyboard-only); the Selected layer reads Halo size 1.45. Hand-picked layers
+survive Control+O > Replace: CSV ties by ordinal (`t45a-replace/` 19, Undo 20 and Redo 22 keep 8),
+GraphML edges by file id and nodes (`t38-replace/` 14, 22). Two OLD defects seen on the way, the
+same on the frozen build 7d87760756 (`t45a-frozen-compare/` 16, 17), not from these diffs: (a)
+after Replace with a rule edge layer (kind is family) the key card closes and its toolbar button
+goes off, while an ids layer's key stays; (b) Undo of that Replace leaves the rule layer's count at
+0 while the 8 ties stay red (`t45a-success/` 23, 24). Lesson: compare a surprise against the frozen
+build on the same route before calling it a regression.
 0t. (2026-10-20) A replacing load keeps a hand-picked edge layer on the same edges. A session edge
 id is a counter that never rewinds, so Replace with the same CSV (no file edge ids) left an `ids`
 layer naming dead ids (matched 0). Fix in `data.import`'s execute (`session/commands/data.ts`):

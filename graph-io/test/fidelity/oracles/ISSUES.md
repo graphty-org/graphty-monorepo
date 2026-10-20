@@ -1031,10 +1031,17 @@ Fix round 3 (2026-10-20), what graph-io now reads and the comparator now sees (u
 - The label's box (`text-background-*`, `text-border-*`): one font size tall a line (`labelLineHeight: 1`, as
   `calculateLabelDimensions` measures it), and `text-background-shape: round-rectangle` (and `roundrectangle`) rounds
   its corners 2 px (`drawText`'s `roundRadius`). `label.backgroundBox` passes for every box without a border on
-  `-labels-p2` and `-edge-labels` (it drew 26.1 x 13.5 for 26.1 x 9.7). Still open: `circle` (a disc as tall as the
-  box, centered on it; no neutral box has that shape, noted), and a box with a border: Cytoscape.js strokes the
-  border centered on the box's edge, graphty-element draws it wholly outside the box and about 1.4 px taller
-  (29.9 x 15.1 for 26.1 x 9.7 at a 2 px border), which needs a label border position in graphty-element.
+  `-labels-p2` and `-edge-labels` (it drew 26.1 x 13.5 for 26.1 x 9.7), but only inside the comparator's size ratio:
+  graphty still draws it 26.1 x 11.2, 1.16 times too tall. The neutral `labelLineHeight` is a multiple of the
+  font's ascent plus descent (1.164 font sizes for the DejaVu Sans graphty draws these labels in), and Cytoscape.js's
+  box is exactly one font size a line (`calculateLabelDimensions`, `h = size`), as is its line step (`line-height`
+  times the font size, which graph-io does not read at all). No neutral value says "one font size" for every font,
+  so this needs a line height in font sizes in the vocabulary and in graphty-element. Also still open:
+  `text-metrics: glyph` (unread; the box is the glyphs' own ascent plus descent, 26.1 x 7.7 against graphty's
+  26.1 x 11.2, failing `label.backgroundBox` on `-labels-p2`), `circle` (a disc as tall as the box, centered on
+  it; no neutral box has that shape, noted), and a box with a border: Cytoscape.js strokes the border centered on
+  the box's edge, graphty-element draws it wholly outside the box, on top of the 1.16 times too tall box (29.9 x
+  15.1 for 26.1 x 9.7 at a 2 px border, 5.4 px taller), which needs a label border position in graphty-element.
 - `border-position: inside` / `outside`: the comparator now reads only the half of the doubled stroke the clip keeps
   (the node's outline, or a box minus the outline by the evenodd rule), and the web oracle now records the evenodd
   rule and the `Path2D.addPath` that builds the outside clip (the SVG had the bare box, so the stroke was drawn whole).

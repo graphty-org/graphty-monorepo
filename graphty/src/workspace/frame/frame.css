@@ -114,6 +114,10 @@
 
 .ws-toolbar-dock {
     position: absolute;
+    /* The timeline follows the toolbar in DOM order (Tab moves from the clock to Play) but sits above it. */
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
     bottom: 12px;
     left: 50%;
     transform: translateX(-50%);

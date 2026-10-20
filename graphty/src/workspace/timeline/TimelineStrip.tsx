@@ -8,7 +8,7 @@ import {
     type TimeStep,
     type TimeWindow,
 } from "@graphty/graphty-element/session";
-import { ActionIcon, Popover, Select, Stack, Switch } from "@mantine/core";
+import { ActionIcon, Popover, Select, Stack, Switch, VisuallyHidden } from "@mantine/core";
 import { Pause, Play, Settings, SkipBack, SkipForward } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
@@ -165,6 +165,9 @@ function Strip({ session }: Readonly<{ session: GraphSession }>): React.JSX.Elem
     const shown = dragAt !== null && width !== undefined ? { from: dragAt, to: dragAt + width } : bounds;
     const sizeValue = widthUnit ?? (width === undefined ? null : String(width));
     const choices = sizeChoices(histogram);
+    const words = bounds === null ? "--" : readout(bounds.from, bounds.to, kind);
+    const count = (shownCount: number, total: number): string =>
+        `${shownCount.toLocaleString("en-US")} of ${total.toLocaleString("en-US")}`;
 
     return (
         <section className="ws-timeline" aria-label="Timeline">
@@ -245,9 +248,9 @@ function Strip({ session }: Readonly<{ session: GraphSession }>): React.JSX.Elem
                     />
                 )}
             </svg>
-            <span className="ws-timeline-readout" aria-label="Window" aria-live="polite">
-                {bounds === null ? "--" : readout(bounds.from, bounds.to, kind)}
-            </span>
+            <span className="ws-timeline-readout">{words}</span>
+            {/* Spoken on a step, a move or Pause; empty while playing, so play does not talk every tick. */}
+            <VisuallyHidden role="status">{playing ? "" : words}</VisuallyHidden>
             <Select
                 size="xs"
                 className="ws-timeline-size"
@@ -264,15 +267,16 @@ function Strip({ session }: Readonly<{ session: GraphSession }>): React.JSX.Elem
                         return;
                     }
                     const step = stepOf(picked);
-                    set({ ...window, step, to: addTimeStep(bounds.from, step, 1) });
+                    const sized = session.visibility.firstWindow(window.attribute, { step, at: bounds.from });
+                    set(sized === null ? null : { ...window, step, from: sized.from, to: sized.to });
                 }}
             />
-            <EntityChip kind="node">
-                {`${summary.visibleNodes.toLocaleString("en-US")} of ${summary.totalNodes.toLocaleString("en-US")}`}
-            </EntityChip>
-            <EntityChip kind="edge">
-                {`${summary.visibleEdges.toLocaleString("en-US")} of ${summary.totalEdges.toLocaleString("en-US")}`}
-            </EntityChip>
+            {summary.totalNodes === 0 ? null : (
+                <EntityChip kind="node">{count(summary.visibleNodes, summary.totalNodes)}</EntityChip>
+            )}
+            {summary.totalEdges === 0 ? null : (
+                <EntityChip kind="edge">{count(summary.visibleEdges, summary.totalEdges)}</EntityChip>
+            )}
             <Gear session={session} window={window} choices={choices} onChange={set} />
         </section>
     );

@@ -1,4 +1,4 @@
-/* The timeline strip: one row above the bottom toolbar, on the toolbar's surface. */
+/* The timeline strip: one row above the bottom toolbar (after it in DOM order, so Tab reaches Play), on the toolbar's surface. */
 .ws-timeline {
     box-sizing: border-box;
     display: flex;
@@ -42,9 +42,10 @@
 
 .ws-timeline-band {
     fill: var(--cm-bg-selected);
-    fill-opacity: 0.25;
-    stroke: var(--cm-bg-selected);
-    stroke-width: 1.5;
+    fill-opacity: 0.4;
+    /* The brand text color: at least 3:1 against the strip, where the selection tint was 1.1:1. */
+    stroke: var(--cm-text-brand);
+    stroke-width: 2;
     vector-effect: non-scaling-stroke;
 }
 

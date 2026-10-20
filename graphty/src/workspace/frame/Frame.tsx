@@ -84,8 +84,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                         <div className="ws-canvas-overlays">
                             <CanvasOverlays />
                             <div className="ws-toolbar-dock">
-                                <TimelineStrip />
                                 <WorkspaceToolbar />
+                                <TimelineStrip />
                             </div>
                             <NoticeSlot />
                         </div>

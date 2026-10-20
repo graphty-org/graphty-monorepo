@@ -107,6 +107,30 @@ const shownEdges = (session: GraphSession): number => session.visibility.summary
  */
 const windowStart = (session: GraphSession): number => boundsOf(session.visibility.window)?.from ?? Number.NaN;
 
+/**
+ * The relative luminance of a CSS rgb() or rgba() color (WCAG 2), alpha ignored.
+ * @param css - the computed color.
+ * @returns the luminance, 0 to 1.
+ */
+function luminance(css: string): number {
+    const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map((part) => {
+        const c = Number(part) / 255;
+        return c <= 0.040_45 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * The WCAG contrast ratio of two CSS colors.
+ * @param a - one color.
+ * @param b - the other.
+ * @returns the ratio, 1 to 21.
+ */
+function contrast(a: string, b: string): number {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+}
+
 describe("the timeline's steps and words", () => {
     it("offers window sizes of about 1/50 to 1/5 of a number range", () => {
         assert.deepEqual(numberSizes(0, 100), [2, 5, 10, 20]);
@@ -152,6 +176,12 @@ describe("the timeline strip on the real element", () => {
 
         await userEvent.click(clock);
         const strip = await screen.findByRole("region", { name: "Timeline" });
+        // The strip follows the toolbar in DOM order, so Tab from the clock reaches Play.
+        assert.isTrue(Boolean(toolbar.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING));
+        // The window band's outline stands out from the strip at 3:1 or more.
+        const band = await within(strip).findByTestId("timeline-band");
+        assert.isAtLeast(contrast(getComputedStyle(band).stroke, getComputedStyle(strip).backgroundColor), 3);
+        const status = within(strip).getByRole("status");
         const first = Math.floor(Math.min(...rows.map((r) => r.at)) / 86_400_000) * 86_400_000;
         const inDay = (from: number, keep: (row: Row) => boolean = () => true): number =>
             rows.filter((r) => r.at >= from && r.at < addStep(from, "day", 1) && keep(r)).length;
@@ -160,10 +190,7 @@ describe("the timeline strip on the real element", () => {
             assert.strictEqual(session.visibility.window?.nodes, "follow-edges");
             assert.strictEqual(shownEdges(session), inDay(first));
         });
-        assert.strictEqual(
-            within(strip).getByLabelText("Window").textContent,
-            readout(first, addStep(first, "day", 1), "date"),
-        );
+        assert.strictEqual(status.textContent, readout(first, addStep(first, "day", 1), "date"));
         const edgeChip = (): string => strip.querySelector('[data-kind="edge"]')?.textContent ?? "";
         await waitFor(() => {
             assert.include(edgeChip(), `${String(inDay(first))} of ${String(rows.length)}`);
@@ -198,7 +225,12 @@ describe("the timeline strip on the real element", () => {
             },
             { timeout: TIMEOUT_MS },
         );
+        // Playing, the status stays quiet rather than announcing every tick; Pause speaks the window.
+        assert.strictEqual(status.textContent, "");
         await userEvent.click(within(strip).getByRole("button", { name: "Pause" }));
+        await waitFor(() => {
+            assert.strictEqual(status.textContent, strip.querySelector(".ws-timeline-readout")?.textContent);
+        });
         await userEvent.keyboard(",");
 
         // A filter on failed logins still applies inside the window: one mask.

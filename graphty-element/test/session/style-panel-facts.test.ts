@@ -6,7 +6,6 @@
  * hold no code.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { LAYOUT_CATALOG } from "../../src/catalog/layouts";
@@ -17,6 +16,10 @@ import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { CHANNEL_DESCRIPTORS, toColorValue } from "../../src/session/styles/channels";
 import { luminance } from "../../src/session/styles/legend";
 import { STARTING_SELECTED_LOOK } from "../../src/session/styles/rows";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /** The element's default background, `whitesmoke`. */
 const DEFAULT_BACKGROUND = "#F5F5F5";
@@ -47,7 +50,7 @@ function contrast(a: string, b: string): number {
  */
 async function degree(context: RunExecutionContext): Promise<RunOutcome> {
     await Promise.resolve();
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const counts = ids.map(() => 0);
     sample.src.forEach((src, e) => {
@@ -83,7 +86,7 @@ async function degree(context: RunExecutionContext): Promise<RunOutcome> {
  * @returns The session.
  */
 async function lesMis(): Promise<GraphSession> {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const session = createGraphSession({ runs: { execute: degree } });
     await session.data.addNodes(ids.map((id) => ({ id })));

@@ -12,7 +12,8 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { click, nextFrame, rightClick } from "../helpers/real-input";
+import { drawnFrames } from "../helpers/drawn-frames";
+import { click, rightClick } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -65,39 +66,40 @@ function at(element: Graphty, id: string): { x: number; y: number } {
     return { x: point.x, y: point.y };
 }
 
-/** Let a few frames draw. */
-async function frames(): Promise<void> {
-    for (let i = 0; i < 3; i++) {
-        await nextFrame();
-    }
+/**
+ * Let a few frames draw.
+ * @param element - The element.
+ */
+async function frames(element: Graphty): Promise<void> {
+    await drawnFrames(element.graph.getScene(), 3);
 }
 
 describe("a right-click", () => {
     it("on a node in the selection keeps the whole selection", async () => {
         const element = await mounted();
         await rightClick(element, at(element, "b"));
-        await frames();
+        await frames(element);
         assert.sameMembers([...element.session.selection.nodes], ["a", "b"]);
     });
 
     it("on empty canvas keeps the selection", async () => {
         const element = await mounted();
         await rightClick(element, { x: WIDTH / 2, y: HEIGHT - 10 });
-        await frames();
+        await frames(element);
         assert.sameMembers([...element.session.selection.nodes], ["a", "b"]);
     });
 
     it("on a node outside the selection selects that node", async () => {
         const element = await mounted();
         await rightClick(element, at(element, "c"));
-        await frames();
+        await frames(element);
         assert.sameMembers([...element.session.selection.nodes], ["c"]);
     });
 
     it("leaves a left click as it was: a click on a selected node selects only it", async () => {
         const element = await mounted();
         await click(element, at(element, "b"));
-        await frames();
+        await frames(element);
         assert.sameMembers([...element.session.selection.nodes], ["b"]);
     });
 });

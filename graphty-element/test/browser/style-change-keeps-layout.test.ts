@@ -8,6 +8,7 @@ import "../../src/graphty-element";
 import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { drawnFrames } from "../helpers/drawn-frames";
 
 /** Three cliques of four joined in a ring, every other node flagged. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, flagged: i % 2 === 0 }));
@@ -53,13 +54,12 @@ function positions(element: Graphty): Record<string, number[]> {
 }
 
 /**
- * Let frames run.
+ * Let frames draw.
+ * @param element - The element.
  * @param count - How many.
  */
-async function frames(count: number): Promise<void> {
-    for (let i = 0; i < count; i++) {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+async function frames(element: Graphty, count: number): Promise<void> {
+    await drawnFrames(element.graph.getScene(), count);
 }
 
 /**
@@ -71,7 +71,7 @@ async function rest(element: Graphty): Promise<Record<string, number[]>> {
     await element.graph.waitForSettled();
     let before = positions(element);
     for (let tries = 0; tries < 300; tries++) {
-        await frames(10);
+        await frames(element, 10);
         const now = positions(element);
         if (JSON.stringify(now) === JSON.stringify(before)) {
             return now;
@@ -88,7 +88,7 @@ async function rest(element: Graphty): Promise<Record<string, number[]>> {
  */
 async function after(element: Graphty): Promise<Record<string, number[]>> {
     await element.graph.getSession().styles.settled();
-    await frames(30);
+    await frames(element, 30);
     return positions(element);
 }
 

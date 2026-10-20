@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { degrees, louvain } from "@graphty/algorithms";
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { algorithmByKey } from "../../src/catalog/algorithms";
@@ -14,6 +13,10 @@ import type { ReadableValue, RuleTree } from "../../src/catalog/types";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /**
  * Runs Degree and Louvain with the algorithms package over the session's graph, publishing the
@@ -78,7 +81,7 @@ function sessionWithRuns(): GraphSession {
  * @returns The session.
  */
 async function lesMisAfterRuns(): Promise<GraphSession> {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const session = sessionWithRuns();
     await session.config.set({ data: { directed: false } });

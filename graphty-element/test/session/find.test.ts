@@ -2,10 +2,13 @@
  * @file `session.find`: what a find box lists as the reader types, without selecting anything.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type FindHit, type GraphSession, isGraphtyError } from "../../session";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /**
  * A small cast: nodes carry a name and a group, edges a kind and, like the nodes, a group.
@@ -162,7 +165,7 @@ describe("finding without selecting", () => {
     it("offers a number's row an 'or more' rule whose count is what the rule selects; text has none", async () => {
         // The column the app's Les Miserables sample writes its edge weights under.
         const WEIGHT = "shared_chapters";
-        const sample = lesMiserables();
+        const sample = LES_MISERABLES;
         const ids = sample.ids ?? [];
         const session = createGraphSession();
         await session.data.addNodes(ids.map((id) => ({ id })));

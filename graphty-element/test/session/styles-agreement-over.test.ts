@@ -4,13 +4,16 @@
  * that match every element.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { StyleRow } from "../../src/session/styles/tree";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /**
  * A community run over Les Miserables: four groups, by node order.
@@ -19,7 +22,7 @@ import type { StyleRow } from "../../src/session/styles/tree";
  */
 async function communities(context: RunExecutionContext): Promise<RunOutcome> {
     await Promise.resolve();
-    const ids = lesMiserables().ids ?? [];
+    const ids = LES_MISERABLES.ids ?? [];
 
     return {
         result: createRunResult({
@@ -48,7 +51,7 @@ async function communities(context: RunExecutionContext): Promise<RunOutcome> {
  * @returns The session.
  */
 async function lesMis(): Promise<GraphSession> {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const session = createGraphSession({ runs: { execute: communities } });
     await session.data.addNodes(ids.map((id) => ({ id })));

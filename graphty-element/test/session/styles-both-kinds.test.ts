@@ -5,7 +5,6 @@
  * kind changes keeping its id, name and place, its rule carried to the new kind.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import type { Selector } from "../../src/catalog/types";
@@ -13,6 +12,10 @@ import { isGraphtyError } from "../../src/errors";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /**
  * A shortest path in Les Miserables, four hops: Napoleon and Tholomyes are four apart, and the
@@ -29,7 +32,7 @@ const ON_ROUTE: Selector = { match: "member", of: { define: { kind: "path", node
  * @returns The session.
  */
 async function lesMis(): Promise<GraphSession> {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const session = createGraphSession();
     await session.data.addNodes(ids.map((id) => ({ id })));
@@ -53,7 +56,7 @@ function own(styles: GraphSession["styles"]): ReturnType<GraphSession["styles"][
  * @returns Its degree.
  */
 function degreeOf(id: string): number {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const index = (sample.ids ?? []).indexOf(id);
 
     return [...sample.src].filter((src, e) => src === index || sample.dst[e] === index).length;
@@ -316,7 +319,7 @@ describe("a row whose kind changes", () => {
             };
         };
         const session = createGraphSession({ runs: { execute } });
-        const sample = lesMiserables();
+        const sample = LES_MISERABLES;
         const ids = sample.ids ?? [];
         await session.data.addNodes(ids.map((id) => ({ id, name: id })));
         await session.data.addEdges(
@@ -450,7 +453,7 @@ describe("a row whose kind changes", () => {
 
         await session.styles.writeRow(row.id, { target: "edge" });
         assert.deepStrictEqual(session.styles.get(row.id)?.selector, { match: "everything" });
-        assert.strictEqual(session.styles.counts(row.id).matched, lesMiserables().src.length);
+        assert.strictEqual(session.styles.counts(row.id).matched, LES_MISERABLES.src.length);
         session.dispose();
     });
 });

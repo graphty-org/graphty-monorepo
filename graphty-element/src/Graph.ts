@@ -3951,7 +3951,7 @@ export class Graph implements GraphContext {
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (duration < CLICK_MAX_DURATION_MS && distance < CLICK_MAX_MOVEMENT_PX) {
-                    this.handleBackgroundClick(pointerInfo.event as { button?: number; shiftKey?: boolean });
+                    this.handleBackgroundClick(pointerInfo.event);
                 }
             }
         });

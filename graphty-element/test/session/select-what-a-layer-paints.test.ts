@@ -3,12 +3,15 @@
  * style layer's rule matches, and `styles.counts(id).paintedBy` names the layers painting over it.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import type { Selector } from "../../src/catalog/types";
 import { isGraphtyError } from "../../src/errors";
 import { createGraphSession, type GraphSession } from "../../src/session";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 const ROUTE = ["Napoleon", "Myriel", "Valjean", "Fantine", "Tholomyes"];
 const ON_ROUTE: Selector = { match: "member", of: { define: { kind: "path", nodes: ROUTE } } };
@@ -18,7 +21,7 @@ const ON_ROUTE: Selector = { match: "member", of: { define: { kind: "path", node
  * @returns The session.
  */
 async function lesMis(): Promise<GraphSession> {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const session = createGraphSession();
     await session.data.addNodes(ids.map((id) => ({ id })));

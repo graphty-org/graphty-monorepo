@@ -7,6 +7,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import type { Binding } from "../../../src/catalog/types";
 import { createGraphSession } from "../../../src/session";
 
 /** Eight departments, two nodes each. */
@@ -90,7 +91,7 @@ describe("copies of one binding in the legend", () => {
             { id: "s02", donations: 250000 },
             { id: "s03", donations: 5000 },
         ]);
-        const size = { by: "data.donations", scale: "linear", range: [1, 3] } as const;
+        const size: Binding = { by: "data.donations", scale: "linear", range: [1, 3] };
         const one = await s.styles.add({
             name: "s01",
             target: "node",

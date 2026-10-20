@@ -11,12 +11,15 @@
 import "../../src/graphty-element";
 
 import { Matrix, Vector3 } from "@babylonjs/core";
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { LabelStyle } from "../../src/catalog/types";
 import { Graph, operationQueueOf } from "../../src/Graph";
+import { lesMiserables } from "../helpers/les-miserables";
 import { nextFrame } from "../helpers/real-input";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 const SIZE = 14;
 const WORDS = "Valjean";
@@ -60,7 +63,7 @@ async function framed(style: LabelStyle, viewMode: "2d" | "3d"): Promise<Graph> 
         container.remove();
     });
     await graph.init();
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     await graph.addNodes(ids.map((id) => ({ id })));
     await graph.addEdges([...sample.src].map((src, e) => ({ src: ids[src], dst: ids[sample.dst[e]] })));

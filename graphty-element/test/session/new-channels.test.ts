@@ -4,7 +4,6 @@
  */
 
 import { edgeBetweennessCentrality } from "@graphty/algorithms";
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import type { Channel, LayerSpec } from "../../src/catalog/types";
@@ -12,6 +11,10 @@ import { isGraphtyError } from "../../src/errors";
 import { createGraphSession, type GraphSession } from "../../src/session";
 import { CHANNEL_DESCRIPTORS } from "../../src/session/styles/channels";
 import type { ElementSession } from "../../src/session/types";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /**
  * A session holding Les Miserables, each node carrying its degree and each edge its edge
@@ -19,7 +22,7 @@ import type { ElementSession } from "../../src/session/types";
  * @returns The session.
  */
 async function lesMis(): Promise<GraphSession> {
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     const src = [...sample.src];
     const dst = [...sample.dst];

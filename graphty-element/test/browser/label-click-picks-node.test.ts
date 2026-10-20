@@ -10,7 +10,8 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { click, nextFrame, type Point } from "../helpers/real-input";
+import { drawnFrames } from "../helpers/drawn-frames";
+import { click, type Point } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -74,12 +75,11 @@ function labelCenter(element: Graphty, id: string): Point {
 
 /**
  * Let a few frames draw.
+ * @param element - The element.
  * @param count - How many.
  */
-async function frames(count = 3): Promise<void> {
-    for (let i = 0; i < count; i++) {
-        await nextFrame();
-    }
+async function frames(element: Graphty, count = 3): Promise<void> {
+    await drawnFrames(element.graph.getScene(), count);
 }
 
 describe("a click on a node's label", () => {
@@ -93,7 +93,7 @@ describe("a click on a node's label", () => {
         assert.isNull(element.elementAt(point), "elementAt on the label answers nothing");
 
         await click(element, point);
-        await frames();
+        await frames(element);
         assert.isNull(element.getSelectedNode(), "the click on the label selected nothing");
     });
 
@@ -104,14 +104,14 @@ describe("a click on a node's label", () => {
         assert.deepEqual(element.elementAt(point), { kind: "node", id: "b" }, "elementAt answers the labeled node");
 
         await click(element, point);
-        await frames();
+        await frames(element);
         assert.strictEqual(element.getSelectedNode()?.id, "b", "the click on the label selected its node");
 
         // The sphere itself still picks its node.
         const sphere = element.nodeScreenPosition("a");
         assert.isDefined(sphere);
         await click(element, { x: sphere.x, y: sphere.y });
-        await frames();
+        await frames(element);
         assert.strictEqual(element.getSelectedNode()?.id, "a", "a click on the sphere still selects its node");
     });
 
@@ -120,7 +120,7 @@ describe("a click on a node's label", () => {
         const point = labelCenter(element, "b");
         assert.isNull(element.elementAt(point));
         await click(element, point);
-        await frames();
+        await frames(element);
         assert.isNull(element.getSelectedNode());
     });
 });

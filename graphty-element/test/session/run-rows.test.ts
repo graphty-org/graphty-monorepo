@@ -4,7 +4,6 @@
  * a row's kind changes in place, and with `runPlacement: "top"` a later run sits above an earlier.
  */
 
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { assert, describe, it } from "vitest";
 
 import type { FieldDescriptor, RuleTree } from "../../src/catalog/types";
@@ -12,6 +11,10 @@ import { createGraphSession, type GraphSession } from "../../src/session";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { selectorRule } from "../../src/session/styles";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 /** A shortest route in Les Miserables, four hops. */
 const ROUTE = ["Napoleon", "Myriel", "Valjean", "Fantine", "Tholomyes"];
@@ -104,7 +107,7 @@ async function lesMis(): Promise<GraphSession> {
         }
     };
     const session = createGraphSession({ runs: { execute } });
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     await session.data.addNodes(ids.map((id) => ({ id })));
     await session.data.addEdges([...sample.src].map((src, e) => ({ source: ids[src], target: ids[sample.dst[e]] })));
@@ -233,7 +236,7 @@ describe("a run's style layers", () => {
 
         const read = selectorRule(session.styles.get(layer.id)?.selector ?? { match: "everything" });
         assert.deepStrictEqual(read, { match: "rule", where });
-        const groupThree = (lesMiserables().ids ?? []).filter((_, at) => at % 4 === 3).length;
+        const groupThree = (LES_MISERABLES.ids ?? []).filter((_, at) => at % 4 === 3).length;
         assert.strictEqual(session.styles.counts(layer.id).matched, groupThree);
         session.dispose();
     });
@@ -265,7 +268,7 @@ describe("a row's kind", () => {
 
         // Its first write reaches the new part.
         await styles.writeRow(row.id, { set: { "edge.width": 3 } });
-        assert.strictEqual(styles.counts(both.edge ?? "").painted["edge.width"], lesMiserables().src.length);
+        assert.strictEqual(styles.counts(both.edge ?? "").painted["edge.width"], LES_MISERABLES.src.length);
 
         await session.undo();
         await session.undo();

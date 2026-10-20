@@ -12,7 +12,8 @@ import { afterEach, assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
-import { click, hover, nextFrame, type Point, wheel } from "../helpers/real-input";
+import { drawnFrames } from "../helpers/drawn-frames";
+import { click, hover, type Point, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -74,12 +75,11 @@ function at(element: Graphty, id: string): Point {
 
 /**
  * Let a few frames run.
+ * @param element - The element.
  * @param count - How many.
  */
-async function frames(count = 3): Promise<void> {
-    for (let i = 0; i < count; i++) {
-        await nextFrame();
-    }
+async function frames(element: Graphty, count = 3): Promise<void> {
+    await drawnFrames(element.graph.getScene(), count);
 }
 
 /**
@@ -105,7 +105,7 @@ async function restyleHalo(element: Graphty, color: string): Promise<void> {
     await element.session.styles.settled();
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
-    await frames();
+    await frames(element);
 }
 
 describe("a restyle", () => {
@@ -114,12 +114,12 @@ describe("a restyle", () => {
         async (layout) => {
             const element = await mounted(layout);
             await click(element, at(element, "a"));
-            await frames();
+            await frames(element);
             assert.strictEqual(element.getSelectedNode()?.id, "a");
 
             assert.isFalse(element.cameraPlaced, "the element framed the graph itself");
             await wheel(element, { x: WIDTH / 2, y: HEIGHT / 2 }, -400);
-            await frames();
+            await frames(element);
             await element.waitForStableFrame();
             assert.isTrue(element.cameraPlaced, "the reader's wheel placed the camera");
             const zoomed = JSON.stringify(element.getCameraState());
@@ -146,10 +146,10 @@ describe("a restyle", () => {
         const ids = Array.from({ length: 40 }, (_, i) => `n${String(i)}`);
         await element.session.data.addNodes(ids.map((id) => ({ id })));
         await element.session.data.addEdges(ids.slice(1).map((id, i) => ({ src: ids[i], dst: id })));
-        await frames();
+        await frames(element);
 
         await wheel(element, { x: WIDTH / 2, y: HEIGHT / 2 }, -400);
-        await frames();
+        await frames(element);
         const zoomed = JSON.stringify(element.getCameraState());
         await element.waitForSettled();
         await element.waitForStableFrame();
@@ -164,19 +164,19 @@ describe("a restyle", () => {
     it("of a hovered node ends the hover when the pointer leaves", async () => {
         const element = await mounted();
         await hover(element, EMPTY);
-        await frames(1);
+        await frames(element, 1);
         await hover(element, at(element, "a"));
-        await frames();
+        await frames(element);
         assert.strictEqual(element.session.selection.hovered, "a", "pointing at a hovers it");
 
         // A click selects the hovered node, which restyles it; so does a halo change.
         await click(element, at(element, "a"));
-        await frames();
+        await frames(element);
         await restyleHalo(element, "#ff00ff");
         assert.strictEqual(element.session.selection.hovered, "a", "still under the pointer");
 
         await hover(element, EMPTY);
-        await frames();
+        await frames(element);
         assert.isNull(element.session.selection.hovered, "the pointer left, so nothing is hovered");
     });
 });

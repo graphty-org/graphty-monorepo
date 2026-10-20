@@ -6,11 +6,14 @@
  */
 
 import { Matrix, Vector3 } from "@babylonjs/core";
-import { lesMiserables } from "@graphty/graph-samples/datasets/les-miserables";
 import { afterAll, assert, beforeAll, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { CHANNEL_DESCRIPTORS } from "../../src/session/styles/channels";
+import { lesMiserables } from "../helpers/les-miserables";
+
+/** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
+const LES_MISERABLES = await lesMiserables();
 
 let graph: Graph;
 let container: HTMLElement;
@@ -23,7 +26,7 @@ beforeAll(async () => {
     graph = new Graph(container);
     await graph.init();
     await graph.setLayout("force", { seed: 1 });
-    const sample = lesMiserables();
+    const sample = LES_MISERABLES;
     const ids = sample.ids ?? [];
     await graph.addNodes(ids.map((id) => ({ id })));
     await graph.addEdges([...sample.src].map((src, e) => ({ src: ids[src], dst: ids[sample.dst[e]] })));

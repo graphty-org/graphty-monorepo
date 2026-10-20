@@ -12,12 +12,13 @@
 
 import type { ScreenshotLegendSection } from "@graphty/graphty-element";
 import type { Channel } from "@graphty/graphty-element/catalog";
-import type {
-    GraphSession,
-    LegendBlock,
-    LegendFact,
-    LegendFactCode,
-    LegendSwatch,
+import {
+    type GraphSession,
+    type LegendBlock,
+    type LegendFact,
+    type LegendFactCode,
+    type LegendSwatch,
+    RESULT_SHAPE_CONTRACTS,
 } from "@graphty/graphty-element/session";
 
 import { highlightEntry } from "../analyze/words";
@@ -448,15 +449,16 @@ interface KeySection {
 }
 
 /**
- * The color of a one-swatch color highlight, the only kind two blocks of one run merge by.
+ * The color of a one-swatch color highlight, the only kind two blocks of one run merge by: a
+ * highlight, or a run's fixed value (the element paints a route or a chosen set as a mark, an
+ * ordinary layer of the run's own, which the legend reads as a literal).
  * @param block - the block.
  * @returns its color, or undefined for any other block.
  */
 function highlightColor(block: LegendBlock): string | undefined {
     const colorChannel = block.channel === "node.color" || block.channel === "edge.color";
-    return block.kind === "highlight" && colorChannel && block.swatches.length === 1
-        ? block.swatches[0].color
-        : undefined;
+    const marks = block.kind === "highlight" || (block.kind === "literal" && block.runId !== undefined);
+    return marks && colorChannel && block.swatches.length === 1 ? block.swatches[0].color : undefined;
 }
 
 /**
@@ -672,7 +674,13 @@ export function keyNames(session: GraphSession): KeyNames {
         row: (block) => rowName(session, block),
         entry: (block) => {
             const run = block.runId === undefined ? undefined : session.runs.get(block.runId);
-            if (block.kind === "highlight" && run !== undefined) {
+            // A route or a chosen set: a highlight, or the mark the element paints it with.
+            const marked =
+                block.kind === "highlight" ||
+                (block.kind === "literal" &&
+                    run !== undefined &&
+                    RESULT_SHAPE_CONTRACTS[run.shape].layer === "highlight");
+            if (marked && run !== undefined) {
                 return highlightEntry(run.shape);
             }
             return session.styles.get(block.layerId)?.name ?? rowName(session, block);

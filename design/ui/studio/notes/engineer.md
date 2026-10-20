@@ -16,18 +16,32 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, crimson re-walk: REGRESSION) Moving the red band's start to 340 in compact-mantine
-   `colorWord` (50ecd91e4) made Kelly's purplish pink E68FAC -- hue exactly 340.0 -- read "red":
-   the band test is `hue * 60 < end`, so 340 falls out of pink into red. College football,
-   Louvain, Group 8 is now "red" in the Color from each layer rows, its swatch button and its
-   picker ("red E68FAC") -- a plainly pink swatch spoken red
-   (`design/ui/studio/tmp/r1-dry1-recheck-color-word-crimson/walk/11.png`, `14.png`). BE0032
-   (Group 5) reads red as intended (`18.png`); Enter, Escape, Tab, Shift+Tab on the swatches and
-   picker unchanged. Fix idea, not done: put the boundary between 340 and 344 (e.g. 342), or
-   decide by lightness too (a light 340 is pink, a deep one red), and add E68FAC to the test.
-   Lesson: a hue boundary moved onto a round number lands exactly on palette colors; test every
-   palette color near a moved boundary, not only the one that exposed it.
-   Earlier: the fix and its first walk are in `git show a1d58467a:design/ui/studio/notes/engineer.md`, Top of mind 0.
+0. (2026-10-19, tooltips only for the control the reader is on, compact-mantine 423fb38cc)
+   Two causes, both in `overlayBehavior.ts`. (a) Its rules found a tooltip's trigger only by
+   `aria-describedby`, and a Mantine text input writes its own over it (`Input.mjs` spreads
+   `ariaAttributes` after `rest`), as does a child passing its own (InfoCircle's ActionIcon;
+   floating-ui merges user props last). Such tooltips skipped every rule: the label line's markup
+   tooltip opened unasked when Ctrl+Z brought the text field back under the pointer resting on
+   "Show all labels". Fix: `tooltipFlip` records floating -> reference in a WeakMap
+   (`tooltipTrigger`, not exported from the package), `triggerOf` reads it first. (b) A tooltip
+   now mounts dismissed while its trigger's own pop-up is open
+   (`[aria-expanded="true"][aria-haspopup]`): About Degree's explanation opens on hover, its
+   name tooltip a second later over it. Tests (red before): "a text field that comes under a
+   resting pointer shows no tooltip until the pointer moves", "a tooltip stays shut while its
+   trigger's own pop-up is open" in `tests/figma/overlays.browser.test.tsx`. Walk on a fresh
+   build (`design/ui/studio/tmp/r1-dry1-tooltips-own-control/b`): Undo opens no tooltip (11),
+   a real hover still does (12); About Degree hover, click, leave and hover again: one popup
+   (17-19). NOT changed, on purpose: the "Shape box" tooltip after Tab (T47A) is the BIND
+   button's own keyboard-focus tooltip ("Node shape by attribute", 28), shown after 1 s as
+   decided; the reader is on that button. What is wrong there is placement (it covers the Shape
+   box, or in the pilot the "Shape: 6 changed / Undo" line), the backlog's placement item. The
+   frozen build reproduced all three first (`.../a`, 11 and 14). 12 compact-mantine failures
+   (axe FieldChooser, CompactColorInput swatches, Tree toggles, select AA) are the same on HEAD.
+
+0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
+starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary
+between 340 and 344, or lightness too, with E68FAC in the test. Lesson: test every palette
+color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
 
 1. (2026-10-19, label count and the selection ring) graphty-element `LabelDeclutter` keeps a
    fixed 3 px `LABEL_CLEARANCE` between kept words and other nodes' circles, and sizes a node by
@@ -229,6 +243,11 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
   is fixed in the prompt.
 
 ## Tried: worked / did not work
+
+- (2026-10-19) Reproducing a pilot screenshot on the frozen build BEFORE fixing showed that one of
+  three tooltip findings was misread (the Tab-out "Shape box" tooltip belonged to the next
+  button). WORKED. A rule keyed on an ARIA link silently skips every control that overwrites
+  the link; floating-ui's middleware state (`state.elements`) is the dependable pairing.
 
 - (2026-10-19) An in-page probe that measures label WORDS on screen and compares them with the
   declutter's own rectangles (they matched to the pixel) settled "is the count lying?" in one run:

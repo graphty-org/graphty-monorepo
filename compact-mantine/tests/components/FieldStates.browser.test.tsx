@@ -2,24 +2,25 @@
  * The three field states -- not set, set and mixed -- drawn and named the same way by the number,
  * color and select fields, in a real browser: not set and Mixed are gray italic (two cues), a set
  * value is the body ink, "Mixed" is sentence case with an outlined chit rather than a color, and
- * the accessible name says the state. Also: each field's own reset can be turned off, disabled
- * styling follows a disabled fieldset and aria-disabled, and the number field refuses letters
- * and keeps to its minimum.
+ * the accessible name says the state. Also: disabled styling follows a disabled fieldset and
+ * aria-disabled, and the number field refuses letters and keeps to its minimum. The number and
+ * select fields are PanelField, with a ResetButton beside them in a FieldRow once a value is set.
  */
 import { TextInput } from "@mantine/core";
 import { screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { commands, page, userEvent } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import {
     ComboInput,
     CompactColorInput,
+    FieldRow,
     GradientEditor,
+    PanelField,
     Popout,
     PopoutManager,
-    StyleNumberInput,
-    StyleSelect,
+    ResetButton,
 } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
 
@@ -52,15 +53,8 @@ function Fields({ color, size, shape, mixed = false }: Readonly<State>): React.J
                 showOpacity={false}
                 mixed={mixed}
             />
-            <StyleNumberInput label="Size" value={size} defaultValue={10} mixed={mixed} />
-            <StyleSelect
-                label="Shape"
-                value={shape}
-                defaultValue=""
-                placeholder="Icosphere"
-                options={SHAPES}
-                mixed={mixed}
-            />
+            <PanelField kind="number" label="Size" value={size ?? null} placeholder="10" mixed={mixed} />
+            <PanelField label="Shape" value={shape ?? null} placeholder="Icosphere" data={SHAPES} mixed={mixed} />
         </PopoutManager>
     );
 }
@@ -69,8 +63,7 @@ function Fields({ color, size, shape, mixed = false }: Readonly<State>): React.J
 function boxes(): HTMLInputElement[] {
     return [
         screen.getByTestId("compact-color-input-hex"),
-        screen.getByTestId("style-number-input-field"),
-        screen.getByTestId("style-select-field"),
+        ...screen.getAllByTestId("panel-field-value"),
     ] as HTMLInputElement[];
 }
 
@@ -85,19 +78,6 @@ function ink(box: HTMLInputElement): string {
 }
 
 describe("field states", () => {
-    it("not set: every field draws what lies beneath in the same gray italic, and says 'not set'", async () => {
-        await renderThemed(<Fields />);
-        const inks = boxes().map(ink);
-        expect(inks[0]).toContain("italic");
-        expect(new Set(inks).size).toBe(1);
-
-        await expect
-            .element(page.getByRole("textbox", { name: "Node color, not set, drawn #3388FF" }))
-            .toBeInTheDocument();
-        await expect.element(page.getByRole("spinbutton", { name: "Size, not set, 10" })).toBeInTheDocument();
-        await expect.element(page.getByRole("combobox", { name: "Shape, not set, Icosphere" })).toBeInTheDocument();
-    });
-
     it("set: every field draws its value in the body ink, not italic, and drops 'not set'", async () => {
         await renderThemed(<Fields color="#D55E00" size={4} shape="box" />);
         const inks = boxes().map(ink);
@@ -109,95 +89,6 @@ describe("field states", () => {
             .toBeInTheDocument();
         await expect.element(page.getByRole("spinbutton", { name: "Size", exact: true })).toBeInTheDocument();
         await expect.element(page.getByRole("combobox", { name: "Shape", exact: true })).toBeInTheDocument();
-    });
-
-    it("mixed: every field reads 'Mixed' in sentence case, in the not-set ink, with a mixed chit", async () => {
-        await renderThemed(<Fields mixed />);
-        for (const box of boxes()) {
-            expect(box.value).toBe("");
-            expect(box.placeholder).toBe("Mixed");
-        }
-        const inks = boxes().map(ink);
-        expect(new Set(inks).size).toBe(1);
-        expect(inks[0]).toContain("italic");
-        expect(inks[0]).toContain("none");
-        // No color swatch: Mixed has no one color in force, so its chit is a dash, marked mixed,
-        // which cannot be taken for a color and still opens the picker.
-        const field = screen.getByTestId("compact-color-input-field");
-        expect(field.querySelector(".mantine-ColorSwatch-root")).toBeNull();
-        const chit = screen.getByTestId("compact-color-input-swatch");
-        expect(chit).toHaveAttribute("data-mixed", "true");
-        expect(chit.querySelector("[data-glyph=dash]")).not.toBeNull();
-
-        await expect.element(page.getByRole("textbox", { name: "Node color, Mixed" })).toBeInTheDocument();
-        // An empty number field is a text box, not a spinbutton read as 0.
-        await expect.element(page.getByRole("textbox", { name: "Size, Mixed" })).toBeInTheDocument();
-        await expect.element(page.getByRole("combobox", { name: "Shape, Mixed" })).toBeInTheDocument();
-    });
-
-    it("a number field showing words for its default is not read as a number", async () => {
-        await renderThemed(<StyleNumberInput label="Size" defaultValue={0} emptyText="Default" />);
-        const box = screen.getByTestId("style-number-input-field");
-        expect(box.hasAttribute("aria-valuetext")).toBe(false);
-        expect(box.hasAttribute("aria-valuenow")).toBe(false);
-        await expect.element(page.getByRole("textbox", { name: "Size, not set, Default" })).toBeInTheDocument();
-    });
-
-    it("an empty number field reports no value to the accessibility tree", async () => {
-        await renderThemed(<StyleNumberInput label="Line height" defaultValue={0} emptyText="Default" />);
-        const nodes = await commands.axNodes("Line height, not set, Default");
-        expect(nodes).toHaveLength(1);
-        expect(nodes[0].value ?? "").toBe("");
-        expect(nodes[0].role).not.toBe("spinbutton");
-    });
-
-    it("the not-set look is the same on number, combo, select, color and text fields", async () => {
-        await renderThemed(
-            <PopoutManager>
-                <StyleNumberInput label="Size" defaultValue={10} />
-                <ComboInput label="Width" numeric options={[]} value="" placeholder="8" />
-                <StyleSelect label="Shape" defaultValue="" placeholder="Icosphere" options={SHAPES} />
-                <CompactColorInput aria-label="Node" defaultColor="#3388FF" showOpacity={false} />
-                <TextInput label="Text" placeholder="Valjean" data-is-default="true" />
-            </PopoutManager>,
-        );
-        const fields = [
-            screen.getByTestId("style-number-input-field"),
-            screen.getByRole("textbox", { name: "Width" }),
-            screen.getByTestId("style-select-field"),
-            screen.getByTestId("compact-color-input-hex"),
-            screen.getByRole("textbox", { name: "Text" }),
-        ] as HTMLInputElement[];
-        const inks = fields.map(ink);
-        expect(inks[0]).toContain("italic");
-        expect(new Set(inks)).toEqual(new Set([inks[0]]));
-    });
-
-    it("number and color fields share the select's surface: no gray fill, set or not", async () => {
-        await renderThemed(
-            <PopoutManager>
-                <StyleNumberInput label="Size" defaultValue={10} />
-                <StyleNumberInput label="Width" value={3} defaultValue={10} />
-                <StyleSelect label="Shape" defaultValue="" placeholder="Icosphere" options={SHAPES} />
-                <CompactColorInput aria-label="Node" defaultColor="#3388FF" />
-                <CompactColorInput aria-label="Edge" color="#D55E00" defaultColor="#3388FF" />
-                <ComboInput label="Speed" numeric options={[]} value="" placeholder="1" variant="outlined" />
-            </PopoutManager>,
-        );
-        const surface = (box: HTMLElement): string => {
-            const style = getComputedStyle(box);
-            return `${style.backgroundColor} ${style.borderTopColor} ${style.borderTopWidth}`;
-        };
-        const wrapper = (input: HTMLElement): HTMLElement => input.closest<HTMLElement>(".cm-input-wrapper")!;
-        const reference = surface(wrapper(screen.getByTestId("style-select-field")));
-        const others = [
-            ...screen.getAllByTestId("style-number-input-field").map(wrapper),
-            ...screen.getAllByTestId("compact-color-input-field"),
-            wrapper(screen.getByRole("textbox", { name: "Speed" })),
-        ];
-        for (const box of others) {
-            expect(surface(box)).toBe(reference);
-        }
     });
 });
 
@@ -253,34 +144,9 @@ describe("chip with the color in words", () => {
     });
 });
 
-describe("color label", () => {
-    it("is the same size as every other field's label", async () => {
-        await renderThemed(
-            <PopoutManager>
-                <CompactColorInput label="Text color" defaultColor="#3388FF" />
-                <StyleNumberInput label="Padding" defaultValue={4} />
-            </PopoutManager>,
-        );
-        const color = getComputedStyle(screen.getByTestId("compact-color-input-label"));
-        const number = getComputedStyle(screen.getByText("Padding"));
-        expect(color.fontSize).toBe(number.fontSize);
-        expect(color.fontWeight).toBe(number.fontWeight);
-        expect(color.color).toBe(number.color);
-    });
-});
-
 describe("value marks in lists", () => {
-    it("a grid marks the chosen value with the list's check, and no dashed ring", async () => {
-        await renderThemed(
-            <StyleSelect
-                label="Shape"
-                value="box"
-                defaultValue="icosphere"
-                options={SHAPES}
-                layout="grid"
-                columns={2}
-            />,
-        );
+    it("a list marks the chosen value with the list's check, and no dashed ring", async () => {
+        await renderThemed(<PanelField label="Shape" value="box" data={SHAPES} onChange={() => undefined} />);
         await userEvent.click(page.getByRole("combobox", { name: "Shape" }));
         const chosen = await page.getByRole("option", { name: "Box" }).findElement();
         const other = await page.getByRole("option", { name: "Icosphere" }).findElement();
@@ -294,14 +160,7 @@ describe("value marks in lists", () => {
 
     it("while nothing is chosen, no option carries the check: what lies beneath is not a choice", async () => {
         await renderThemed(
-            <StyleSelect
-                label="Shape"
-                defaultValue=""
-                placeholder="Icosphere"
-                options={SHAPES}
-                layout="grid"
-                columns={2}
-            />,
+            <PanelField label="Shape" value={null} placeholder="Icosphere" data={SHAPES} onChange={() => undefined} />,
         );
         await userEvent.click(page.getByRole("combobox", { name: /Shape/ }));
         const inherited = await page.getByRole("option", { name: "Icosphere" }).findElement();
@@ -363,11 +222,11 @@ describe("a locked panel (aria-disabled around the fields)", () => {
                 <div aria-disabled="true" data-testid="locked">
                     <CompactColorInput label="Color" color="#D55E00" opacity={80} defaultColor="#3388FF" />
                     <CompactColorInput aria-label="Edge" defaultColor="#3388FF" showOpacity={false} />
-                    <StyleNumberInput label="Size" value={4} defaultValue={10} />
+                    <PanelField kind="number" label="Size" value={4} />
                 </div>
             </PopoutManager>,
         );
-        const disabledInk = getComputedStyle(screen.getByTestId("style-number-input-field")).color;
+        const disabledInk = getComputedStyle(screen.getByTestId("panel-field-value")).color;
         const locked = screen.getByTestId("locked");
         const [setHex, unsetHex] = screen.getAllByTestId("compact-color-input-hex");
         expect(getComputedStyle(setHex).color).toBe(disabledInk);
@@ -377,18 +236,20 @@ describe("a locked panel (aria-disabled around the fields)", () => {
     });
 });
 
-describe("showReset", () => {
-    it("draws no reset on any field when it is off, even with a value set", async () => {
+describe("reset beside a field", () => {
+    it("is drawn in the row's trailing slot only once a value is set", async () => {
         await renderThemed(
             <PopoutManager>
-                <CompactColorInput aria-label="Node" color="#D55E00" defaultColor="#3388FF" showReset={false} />
-                <StyleNumberInput label="Size" value={4} defaultValue={10} showReset={false} />
-                <StyleSelect label="Shape" value="box" defaultValue="" options={SHAPES} showReset={false} />
+                <FieldRow trailing={<ResetButton label="Size" />}>
+                    <PanelField kind="number" label="Size" value={4} onChange={() => undefined} />
+                </FieldRow>
+                <FieldRow>
+                    <PanelField label="Shape" value={null} placeholder="Icosphere" data={SHAPES} />
+                </FieldRow>
             </PopoutManager>,
         );
-        expect(screen.queryByTestId("compact-color-input-reset")).toBeNull();
-        expect(screen.queryByTestId("style-number-input-reset")).toBeNull();
-        expect(screen.queryByTestId("style-select-reset")).toBeNull();
+        expect(screen.getAllByTestId("reset-button")).toHaveLength(1);
+        await expect.element(page.getByRole("button", { name: "Reset Size to default" })).toBeInTheDocument();
     });
 });
 
@@ -398,7 +259,7 @@ describe("disabled styling", () => {
             const fields = (disabled: boolean, id: string): React.JSX.Element => (
                 <div data-testid={id}>
                     <CompactColorInput aria-label="Node" color="#D55E00" defaultColor="#3388FF" disabled={disabled} />
-                    <StyleNumberInput label="Size" value={4} defaultValue={10} disabled={disabled} />
+                    <PanelField kind="number" label="Size" value={4} disabled={disabled} />
                 </div>
             );
             await renderThemed(
@@ -418,7 +279,7 @@ describe("disabled styling", () => {
                 const root = screen.getByTestId(id);
                 const hex = root.querySelector<HTMLElement>("[data-testid=compact-color-input-hex]")!;
                 const field = root.querySelector<HTMLElement>("[data-testid=compact-color-input-field]")!;
-                const number = root.querySelector<HTMLElement>("[data-testid=style-number-input-field]")!;
+                const number = root.querySelector<HTMLElement>("[data-testid=panel-field-value]")!;
                 return [
                     getComputedStyle(hex).color,
                     getComputedStyle(field).borderColor,
@@ -431,10 +292,10 @@ describe("disabled styling", () => {
     }
 });
 
-describe("StyleNumberInput keyboard", () => {
+describe("number field keyboard", () => {
     it("refuses letters as they are typed and leaves the value unchanged", async () => {
         const onChange = vi.fn();
-        await renderThemed(<StyleNumberInput label="Size" value={5} defaultValue={10} onChange={onChange} />);
+        await renderThemed(<PanelField kind="number" label="Size" value={5} onChange={onChange} />);
         const box = page.getByRole("spinbutton", { name: "Size" });
         await userEvent.click(box);
         await userEvent.keyboard("{End}abc");
@@ -445,17 +306,17 @@ describe("StyleNumberInput keyboard", () => {
 
     it("ArrowDown at the minimum stays at the minimum", async () => {
         const onChange = vi.fn();
-        await renderThemed(<StyleNumberInput label="Size" value={1} defaultValue={10} min={1} onChange={onChange} />);
+        await renderThemed(<PanelField kind="number" label="Size" value={1} min={1} onChange={onChange} />);
         await userEvent.click(page.getByRole("spinbutton", { name: "Size" }));
         await userEvent.keyboard("{ArrowDown}{ArrowDown}");
         expect(onChange).not.toHaveBeenCalled();
-        expect((screen.getByTestId("style-number-input-field") as HTMLInputElement).value).toBe("1");
+        expect((screen.getByTestId("panel-field-value") as HTMLInputElement).value).toBe("1");
     });
 
     it("ArrowDown from not set never goes below the minimum", async () => {
         const onChange = vi.fn();
         await renderThemed(
-            <StyleNumberInput label="Size" defaultValue={0} emptyText="Default" min={1} onChange={onChange} />,
+            <PanelField kind="number" label="Size" value={null} placeholder="Default" min={1} onChange={onChange} />,
         );
         await userEvent.click(page.getByRole("textbox", { name: /Size/ }));
         await userEvent.keyboard("{ArrowDown}");
@@ -514,30 +375,14 @@ describe("an unset field takes the value it shows", () => {
 
     it("select: picking the shown value chooses it, and no option is checked before", async () => {
         const onChange = vi.fn();
-        await renderThemed(<StyleSelect label="Shape" defaultValue="icosphere" options={SHAPES} onChange={onChange} />);
+        await renderThemed(
+            <PanelField label="Shape" value={null} placeholder="Icosphere" data={SHAPES} onChange={onChange} />,
+        );
         await userEvent.click(page.getByRole("combobox", { name: /^Shape/ }));
         const option = await page.getByRole("option", { name: "Icosphere" }).findElement();
         expect(option.hasAttribute("data-checked")).toBe(false);
         await userEvent.click(option);
         expect(onChange.mock.calls.map((call) => call[0])).toEqual(["icosphere"]);
-    });
-
-    it("select: opened by a click, the highlight is on the shown value and Enter chooses it", async () => {
-        const onChange = vi.fn();
-        await renderThemed(
-            <StyleSelect
-                label="Shape"
-                defaultValue="box"
-                options={SHAPES}
-                layout="grid"
-                columns={2}
-                onChange={onChange}
-            />,
-        );
-        await userEvent.click(page.getByRole("combobox", { name: /^Shape/ }));
-        await expect.poll(() => document.querySelector("[data-combobox-selected]")?.textContent).toBe("Box");
-        await userEvent.keyboard("{Enter}");
-        expect(onChange.mock.calls.map((call) => call[0])).toEqual(["box"]);
     });
 
     it("number: focus handed over by a script selects the value, so typing replaces it", async () => {

@@ -10,18 +10,25 @@ import { screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { DataTable, StyleSelect, Tree, VariablePill } from "../../src";
+import { DataTable, PanelField, Tree, VariablePill } from "../../src";
 import { renderThemed, resetHarness } from "../harness/measure";
 
 const SHAPES = ["Box", "Sphere", "Cylinder", "Cone", "Capsule", "Torus", "Knot", "Tetrahedron"].map((name, i) => ({
     value: `shape-${String(i)}`,
     label: name,
-    glyph: (
-        <svg viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="8" fill="currentColor" />
-        </svg>
-    ),
 }));
+
+const GLYPHS = Object.fromEntries(
+    SHAPES.map(({ value }) => [
+        value,
+        <svg key={value} viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="8" fill="currentColor" />
+        </svg>,
+    ]),
+);
+
+/** The shape drop-down, as a panel draws it. */
+const shapeField = <PanelField label="Shape" defaultValue="shape-0" data={SHAPES} optionGlyphs={GLYPHS} />;
 
 /**
  * The options drawn with a fill.
@@ -95,10 +102,10 @@ function groundOf(element: Element): string {
 afterEach(resetHarness);
 
 describe("a list closes when focus leaves it", () => {
-    it("Tab from an open grid closes it, and focus is on the next control", async () => {
+    it("Tab from an open list closes it, and focus is on the next control", async () => {
         await renderThemed(
             <div>
-                <StyleSelect label="Shape" defaultValue="shape-0" options={SHAPES} layout="grid" columns={4} />
+                {shapeField}
                 <Button>Next</Button>
             </div>,
         );
@@ -115,7 +122,7 @@ describe("a list closes when focus leaves it", () => {
         await renderThemed(
             <div>
                 <Button>Before</Button>
-                <StyleSelect label="Shape" defaultValue="shape-0" options={SHAPES} />
+                {shapeField}
             </div>,
         );
         await userEvent.click(screen.getByRole("combobox", { name: /^Shape/ }));
@@ -131,14 +138,14 @@ describe("one active option", () => {
     it("draws the option it tells a screen reader is highlighted, after leaving and coming back", async () => {
         await renderThemed(
             <div>
-                <StyleSelect label="Shape" defaultValue="shape-0" options={SHAPES} layout="grid" columns={4} />
+                {shapeField}
                 <Button>Next</Button>
             </div>,
         );
         await userEvent.tab();
         await userEvent.keyboard("{ArrowDown}");
         await screen.findByRole("listbox");
-        await userEvent.keyboard("{ArrowRight}");
+        await userEvent.keyboard("{ArrowDown}");
         await waitFor(() => {
             expect(announced()).toBe("Sphere");
         });

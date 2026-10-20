@@ -5,13 +5,14 @@ import type React from "react";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
-import { ComboInput, CompactColorInput, PopoutManager, StyleNumberInput, StyleSelect } from "../../../src";
+import { ComboInput, CompactColorInput, PanelField, PopoutManager } from "../../../src";
 import { StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
 
 /**
  * The three states every style field is in, drawn the same way by each kind of field: a number
- * (`StyleNumberInput`, and `ComboInput` with a placeholder), a select (`StyleSelect`), a color
+ * (`PanelField` of kind number, and `ComboInput` with a placeholder), a select (`PanelField` with
+ * choices), a color
  * (`CompactColorInput`, as a field and as a chip) and a text box.
  *
  * | State   | Drawn                                                              | Read out                       |
@@ -73,16 +74,23 @@ function Row({ state }: Readonly<{ state: FieldState }>): React.JSX.Element {
         <Stack gap={8}>
             <Group gap={8} wrap="nowrap" align="flex-end">
                 <Box w={96}>
-                    <StyleNumberInput label="Size" value={set ? 4 : undefined} defaultValue={10} mixed={mixed} />
+                    <PanelField
+                        kind="number"
+                        label="Size"
+                        value={set ? 4 : null}
+                        placeholder="10"
+                        mixed={mixed}
+                        width="fill"
+                    />
                 </Box>
                 <Box w={120}>
-                    <StyleSelect
+                    <PanelField
                         label="Shape"
-                        value={set ? "box" : undefined}
-                        defaultValue=""
+                        value={set ? "box" : null}
                         placeholder="Icosphere"
-                        options={SHAPES}
+                        data={SHAPES}
                         mixed={mixed}
+                        width="fill"
                     />
                 </Box>
                 <CompactColorInput
@@ -169,8 +177,8 @@ export const Locked: Story = {
         <div aria-disabled="true">
             <Stack gap={8}>
                 <CompactColorInput label="Color" color="#D55E00" opacity={80} defaultColor="#3388FF" width={156} />
-                <StyleNumberInput label="Size" value={4} defaultValue={10} />
-                <StyleSelect label="Shape" value="box" defaultValue="icosphere" options={SHAPES} />
+                <PanelField kind="number" label="Size" value={4} />
+                <PanelField label="Shape" value="box" data={SHAPES} />
             </Stack>
         </div>
     ),

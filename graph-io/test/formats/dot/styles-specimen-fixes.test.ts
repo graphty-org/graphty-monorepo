@@ -81,6 +81,11 @@ describe("DOT styles: what Graphviz draws nothing of", () => {
         expect(visible.b ?? true).toBe(true);
     });
 
+    it("keeps a plain node whose HTML label has no words, as Graphviz draws its cells and images", async () => {
+        const doc = `digraph { a [shape=plain, label=<<TABLE><TR><TD><IMG SRC="x.png"/></TD></TR></TABLE>>] }`;
+        expect((await nodes(doc, "visible")).a ?? true).toBe(true);
+    });
+
     it('draws no edge under splines=none or splines=""', async () => {
         expect(await edges(`digraph { splines=none; a -> b; b -> c }`, "visible")).toEqual([false, false]);
         expect(await edges(`digraph { splines=""; a -> b }`, "visible")).toEqual([false]);

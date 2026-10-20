@@ -538,8 +538,10 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
         const position = nodeLabelPosition(get);
         put("labelPosition", position === "center" ? null : position);
     }
-    // plain is its label alone at size 0: with an empty label Graphviz draws nothing, filled or not
-    if (shape === "plain" && shown === "") {
+    // plain is its label alone at size 0: with an empty label Graphviz draws nothing, filled or not; an HTML label
+    // with no words (a table holding an IMG) still draws its cells
+    const htmlLabel = label !== null && (isHtmlString(label) || cx.html.has(`<${label}>`));
+    if (shape === "plain" && shown === "" && !htmlLabel) {
         put("visible", false);
     }
     if (cx.cluster) {

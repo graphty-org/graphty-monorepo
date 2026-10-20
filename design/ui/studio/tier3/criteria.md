@@ -1,4 +1,4 @@
-The study runs on build e3c5bca8e6 served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1-e3c5bca8e6
+The study runs on build 3ef9e6c1ec served from /home/apowers/Projects/graphty-monorepo/.study-builds/tier3-r1d1-3ef9e6c1ec
 
 Frozen on 2026-10-19 for the tier 3 rounds.
 
@@ -320,6 +320,9 @@ is re-piloted on the new frozen build. Remove before adding; words at rest never
 - **The safety cap:** 6 rounds.
 
 ## Change log
+
+- 2026-10-19: round 1 dry run 1 frozen on 3ef9e6c1ec (`.study-builds/tier3-r1d1-3ef9e6c1ec`),
+  replacing e3c5bca8e6 (`.study-builds/tier3-r1-e3c5bca8e6`). No bar changed.
 
 - 2026-10-19 (round 1 pilots on e3c5bca8e6): `answers.md` and the T41/T48 detour line of
   `tasks.md` now match the frozen build as the pilots in `rounds/r1/pilot/` saw it (the

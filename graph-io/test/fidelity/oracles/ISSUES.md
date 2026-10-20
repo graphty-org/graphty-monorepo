@@ -728,6 +728,11 @@ alpha and hollow arrows"):
 - An `Arrow` whose `fill` is `{x:Null}` is the open outline of its type (`triangle-open`, `diamond-open`,
   `circle-open`) in its `stroke`'s color (`arrow-fill-null`).
 
+Measured against draw.io's drawings (stand-ins): edge curve edges-lines 0.667 -> 1, -p2 0.9 -> 1, -p3 0.929 -> 1,
+edge-labels 0.927 -> 1; edge route edges-lines 0.593 -> 0.697, -p3 0.786 -> 0.857, edge-labels 0.927 -> 1;
+node-sizes-opacity node stroke 0.905 -> 1. `arrow-fill-null` fails against the stand-in, which fills it (allowed
+drop in `oracle-floors.json`, expiring 2026-12-31).
+
 Not import defects, judged against the stand-in (wait for the owner's yEd Live export):
 
 - Arrow colors on `color-*`, `v2-stroke-color-ff0000` and `mappings-bypass`: each file gives its arrows their own

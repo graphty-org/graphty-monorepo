@@ -23,7 +23,7 @@ const TIMEOUT_MS = 60_000;
  * @param label - the select's label.
  * @param option - the choice's name.
  */
-async function pick(dialog: HTMLElement, label: string, option: string): Promise<void> {
+async function pick(dialog: HTMLElement, label: string, option: string | RegExp): Promise<void> {
     await userEvent.click(within(dialog).getByLabelText(label, { selector: "input" }));
     await userEvent.click(await screen.findByRole("option", { name: option }));
 }
@@ -88,10 +88,8 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
 
             await pick(dialog, "Format", "CSV");
             const edges = await warningsFor(dialog, element, "csv", { table: "edges" });
-            assert.include(
-                edges,
-                "The drawing's colors, sizes and shapes will not come back when this file is opened again.",
-            );
+            // Include Styles is on: the styles go along as each element's values, and say so.
+            assert.include(edges, "1 style rule is written as each element's values, not as rules.");
             assert.isTrue(
                 edges.some((line) => line.startsWith("This table has no room for values about nodes:")),
                 `the edge table names what is in the Nodes table: ${edges.join(" | ")}`,
@@ -111,7 +109,7 @@ describe("Export > Data: what a format cannot hold, in the app's words", () => {
             );
             await warningsFor(dialog, element, "csv", { table: "adjacency" });
 
-            await pick(dialog, "Format", "GraphML");
+            await pick(dialog, "Format", /^GraphML/);
             await warningsFor(dialog, element, "graphml", {});
 
             await pick(dialog, "Format", "Graphty JSON");

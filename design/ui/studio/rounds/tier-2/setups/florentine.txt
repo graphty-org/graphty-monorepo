@@ -1,2 +1,2 @@
---click No thanks
---click Open the Florentine families sample
+--click role=button:Samples
+--click How the Medici brokered power

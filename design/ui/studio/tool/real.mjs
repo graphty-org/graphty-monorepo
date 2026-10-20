@@ -1254,7 +1254,10 @@ async function opening(s, out) {
         .catch(() => out.push("the app did not finish loading in 60 s"));
     await s.page
         .waitForFunction(
-            () => document.querySelector("#root")?.children.length > 0 && document.querySelector("main, [role=main]"),
+            // the workspace, or the start page a first visit with no project open lands on
+            () =>
+                document.querySelector("#root")?.children.length > 0 &&
+                document.querySelector("main, [role=main], [data-start-door]"),
             null,
             { timeout: 30000 },
         )
@@ -1292,7 +1295,8 @@ async function opStart(s, setup) {
         // run before 01.png and never shown to the participant: its lines go to setup.log only,
         // and anything that does not work fails the start loudly
         const said = [];
-        const r = await run(s, setup, said, SETUP_CLICK_MS);
+        // a failed request (the start page's remote pictures) is logged, but only a step that does not work fails it
+        const r = await run(s, setup, said, SETUP_CLICK_MS, false);
         // a reopened project has nothing focused: the last setup step's control must not wear a focus ring,
         // and Tab starts at the top of the page. A blur alone keeps Chromium's starting point for Tab
         // on the last control the setup clicked (round 2's keyboard sessions began in the inspector),
@@ -1940,7 +1944,7 @@ async function tooltip(page) {
 }
 
 // Runs the steps; pushes what a participant would notice onto out; returns { code, missed }
-async function run(s, steps, out, clickMs = CLICK_MS) {
+async function run(s, steps, out, clickMs = CLICK_MS, requestsFail = true) {
     let { page } = s;
     let code = 0,
         missed = 0;
@@ -2179,7 +2183,7 @@ async function run(s, steps, out, clickMs = CLICK_MS) {
     }
     for (const e of s.errors.splice(0)) {
         out.push(e);
-        code = 1;
+        if (requestsFail || !e.startsWith("failed request: ")) code = 1;
     }
     return { code, missed };
 }
@@ -2357,7 +2361,7 @@ async function prove() {
             );
         await mkdir(join(C, "projects/p"), { recursive: true });
         const you = `YOU ARE A STUDY PARTICIPANT. Read only ${own}/briefing.md.`;
-        const click = ["Bash", { command: `node ${join(here, "real.mjs")} --step ${own} --click "No thanks"` }];
+        const click = ["Bash", { command: `node ${join(here, "real.mjs")} --step ${own} --click "Open a file"` }];
         await plantLog("leak.jsonl", you, [click, ["Bash", { command: `sed -n 1,40p ${join(tier2, "tasks.md")}` }]]);
         await plantLog("clean.jsonl", you, [click, ["Read", { file_path: join(own, "01.png") }]]);
         await plantLog("grader.jsonl", `Grade session ${own}`, [["Read", { file_path: join(tier2, "answers.md") }]]);
@@ -2543,21 +2547,20 @@ async function prove() {
         );
     }
     try {
-        let x = step(A, "--click", "No thanks", "--expect", "Samples");
-        check("a click by a control's name", x.code === 0 && pngs(A).length === 2, x.out);
-        check("a session without --sr prints no screen-reader lines", !/^(focus|live): /m.test(x.out), x.out);
-        x = step(
+        // the start page's own way in: a click by name, then the file chooser it opens
+        let x = step(
             A,
             "--click",
-            "Open project or file",
+            "Open a file",
             "--upload",
             "florentine.gml",
-            // a data file opened from the start screen goes to the Data page first
             "--click",
             "Load",
             "--expect",
             "role=button:Project: florentine",
         );
+        check("a click by a control's name", x.code === 0 && pngs(A).length === 2, x.out);
+        check("a session without --sr prints no screen-reader lines", !/^(focus|live): /m.test(x.out), x.out);
         check(
             "an upload answers the file chooser and the file opens",
             x.code === 0 && /chose the file florentine\.gml/.test(x.out),
@@ -2734,7 +2737,7 @@ async function prove() {
     const setup = join(base, "setup.txt");
     await writeFile(
         setup,
-        "# open a sample before the participant arrives\n--click No thanks\n--click Open the Zachary's karate club sample\n",
+        "# open a sample before the participant arrives\n--click role=button:Samples\n--click A club that split in two\n",
     );
     r = node(["--start", B, `setup:${setup}`]);
     check(
@@ -2772,7 +2775,7 @@ async function prove() {
     node(["--end", C]);
     // a setup click on a control that never becomes clickable (Redo, with nothing to redo) fails the start
     const C2 = join(base, "session-c2");
-    await writeFile(setup, "--click No thanks\n--click Open the Zachary's karate club sample\n--click Redo\n");
+    await writeFile(setup, "--click role=button:Samples\n--click A club that split in two\n--click Redo\n");
     r = node(["--start", C2, `setup:${setup}`]);
     node(["--end", C2]);
     check(
@@ -2810,7 +2813,7 @@ async function prove() {
     await writeFile(
         srSetup,
         // the last click is on a control that stays, so Tab would start after it if the setup left it there
-        "--click No thanks\n--click Open project or file\n--upload florentine.gml\n--click Load\n--click role=button:Graph\n",
+        "--click Open a file\n--upload florentine.gml\n--click Load\n--click role=button:Graph\n",
     );
     r = node(["--start", D, `setup:${srSetup}`, "--sr"]);
     check(
@@ -2942,7 +2945,7 @@ async function prove() {
     r = node(["--start", I, "empty", "--task", "T17A"]);
     if (check("a start with a task", r.status === 0, `exit ${r.status} ${r.stdout}${r.stderr}`)) {
         // a data file dropped on the start screen opens the Data page as a new graph, not a project
-        const x = step(I, "--click", "No thanks", "--drop", "friends.csv", "--expect", "Open as a new graph");
+        const x = step(I, "--drop", "friends.csv", "--expect", "Open as a new graph");
         check(
             "a file dropped on the start screen opens it on the Data page",
             x.code === 0 && /dropped the file friends\.csv .*; the page took it/.test(x.out),

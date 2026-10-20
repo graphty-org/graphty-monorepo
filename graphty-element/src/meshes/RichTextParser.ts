@@ -62,40 +62,7 @@ export class RichTextParser {
                 }
             } else {
                 const newStyle = top();
-
-                switch (tagName) {
-                    case "bold":
-                        newStyle.weight = "bold";
-                        break;
-                    case "italic":
-                        newStyle.style = "italic";
-                        break;
-                    case "color":
-                        newStyle.color = tagValue || this.defaultStyle.color;
-                        break;
-                    case "size":
-                        // a size in percent is of the size it is opened in (a run of a label drawn larger than the rest)
-                        newStyle.size = tagValue?.endsWith("%")
-                            ? (newStyle.size * Number.parseFloat(tagValue)) / 100 || this.defaultStyle.size
-                            : Number.parseInt(tagValue || "0") || this.defaultStyle.size;
-                        break;
-                    case "font":
-                        newStyle.font = tagValue || this.defaultStyle.font;
-                        break;
-                    case "bg":
-                        newStyle.background = tagValue || null;
-                        break;
-                    case "shift": {
-                        // how far down the run is drawn: in percent of the label's own size, or in its units
-                        const v = Number.parseFloat(tagValue ?? "");
-                        const by = tagValue?.endsWith("%") ? (this.defaultStyle.size * v) / 100 : v;
-                        newStyle.shift = (newStyle.shift ?? 0) + (Number.isFinite(by) ? by : 0);
-                        break;
-                    }
-                    default:
-                        break;
-                }
-
+                this.applyTag(newStyle, tagName, tagValue);
                 styleStack.push(newStyle);
             }
 
@@ -110,6 +77,58 @@ export class RichTextParser {
         }
 
         return segments;
+    }
+
+    /**
+     * Apply one opening tag to the style it opens in.
+     * @param style - A copy of the style in force, changed in place.
+     * @param tagName - The tag.
+     * @param tagValue - Its value, when it has one.
+     */
+    private applyTag(style: RichTextStyle, tagName: string, tagValue: string | undefined): void {
+        switch (tagName) {
+            case "bold":
+                style.weight = "bold";
+                break;
+            case "italic":
+                style.style = "italic";
+                break;
+            case "color":
+                style.color = tagValue || this.defaultStyle.color;
+                break;
+            case "size":
+                style.size = this.sizeOf(style.size, tagValue);
+                break;
+            case "font":
+                style.font = tagValue || this.defaultStyle.font;
+                break;
+            case "bg":
+                style.background = tagValue || null;
+                break;
+            case "shift": {
+                // how far down the run is drawn: in percent of the label's own size, or in its units
+                const v = Number.parseFloat(tagValue ?? "");
+                const by = tagValue?.endsWith("%") ? (this.defaultStyle.size * v) / 100 : v;
+                style.shift = (style.shift ?? 0) + (Number.isFinite(by) ? by : 0);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    /**
+     * A size tag's size: in percent of the size it is opened in (a run of a label drawn larger than the rest), or
+     * in points; the default size when it reads as none.
+     * @param openedIn - The size in force where the tag opens.
+     * @param tagValue - The tag's value.
+     * @returns The size.
+     */
+    private sizeOf(openedIn: number, tagValue: string | undefined): number {
+        if (tagValue?.endsWith("%")) {
+            return (openedIn * Number.parseFloat(tagValue)) / 100 || this.defaultStyle.size;
+        }
+        return Number.parseInt(tagValue || "0") || this.defaultStyle.size;
     }
 
     /**
@@ -338,6 +357,34 @@ function spaceAfter(pieces: readonly TextSegment[], i: number, measure: Measure,
 }
 
 /**
+ * A line's words and the runs of spaces between them, each in its segment's style.
+ * @param line - The line's styled segments.
+ * @param anywhere - Whether the line breaks between any two letters: every letter is then a word of its own.
+ * @returns The pieces, in order.
+ */
+function wordsAndSpaces(line: readonly TextSegment[], anywhere: boolean): TextSegment[] {
+    return line.flatMap(({ text, style }) =>
+        text
+            .split(/(\s+)/)
+            .filter((piece) => piece !== "")
+            .flatMap((piece) => (anywhere && !SPACES.test(piece) ? Array.from(piece) : [piece]))
+            .map((piece) => ({ text: piece, style })),
+    );
+}
+
+/**
+ * A broken line without the spaces left at its end, which are dropped.
+ * @param pieces - The line's pieces, changed in place.
+ * @returns The same line.
+ */
+function withoutTrailingSpaces(pieces: TextSegment[]): TextSegment[] {
+    while (pieces.length > 0 && SPACES.test(pieces.at(-1)?.text ?? "")) {
+        pieces.pop();
+    }
+    return pieces;
+}
+
+/**
  * Break one line at the spaces between its words.
  * @param line - The line's styled segments.
  * @param width - The widest a line may be, in the canvas's pixels.
@@ -358,25 +405,13 @@ function wrapLine(line: TextSegment[], width: number, measure: Measure, options:
     const out: TextSegment[][] = [];
     let current: TextSegment[] = [];
     let used = 0;
-    const pieces = line.flatMap(({ text, style }) =>
-        text
-            .split(/(\s+)/)
-            .filter((piece) => piece !== "")
-            // broken anywhere, every letter is a word of its own
-            .flatMap((piece) => (anywhere && !SPACES.test(piece) ? Array.from(piece) : [piece]))
-            .map((piece) => ({ text: piece, style })),
-    );
+    const pieces = wordsAndSpaces(line, anywhere);
     for (const [i, piece] of pieces.entries()) {
         const space = SPACES.test(piece.text);
         const span = measure(piece.text, piece.style) * (space ? blanks : 1);
         const after = options.trailingSpace === true && !space ? spaceAfter(pieces, i, measure, anywhere) : 0;
         if (!space && used > 0 && used + span + after > width) {
-            // Spaces left at the end of a broken line are dropped.
-            while (current.length > 0 && SPACES.test(current.at(-1)?.text ?? "")) {
-                current.pop();
-            }
-
-            out.push(current);
+            out.push(withoutTrailingSpaces(current));
             current = [];
             used = 0;
         }

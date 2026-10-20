@@ -5,7 +5,7 @@
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
-import { type Point2, strokeLine } from "./shapeOutlines";
+import { isPositive, type Point2, strokeLine } from "./shapeOutlines";
 
 /** One colored piece over a node's face. */
 export interface ColorPiece {
@@ -28,15 +28,33 @@ export interface PieceBox {
 const TURN_STEPS = 96;
 
 /**
- * Words separated by spaces, a space inside parentheses kept: "rgb(1, 2, 3) red" is two.
+ * Words separated by spaces, a space inside parentheses kept: "rgb(1, 2, 3) red" is two. A space is inside
+ * parentheses when the next parenthesis after it closes one. One pass each way, so no text takes longer than its
+ * length.
  * @param text - The list.
  * @returns The words.
  */
-function words(text: string | undefined): string[] {
-    return (text ?? "")
-        .trim()
-        .split(/\s+(?![^(]*\))/)
-        .filter((w) => w !== "");
+export function cssWords(text: string | undefined): string[] {
+    const s = (text ?? "").trim();
+    // inside[i]: the first parenthesis at or after i closes one
+    const inside = new Array<boolean>(s.length + 1).fill(false);
+    for (let i = s.length - 1; i >= 0; i--) {
+        inside[i] = s[i] === ")" || (s[i] !== "(" && inside[i + 1]);
+    }
+    const out: string[] = [];
+    let word = "";
+    for (let i = 0; i < s.length; i++) {
+        if (inside[i] || !/\s/.test(s[i])) {
+            word += s[i];
+        } else if (word !== "") {
+            out.push(word);
+            word = "";
+        }
+    }
+    if (word !== "") {
+        out.push(word);
+    }
+    return out;
 }
 
 /** One slice or band: its color, its share and its opacity. */
@@ -56,9 +74,9 @@ interface Share {
  * @returns The shares, in order.
  */
 function sharesOf(colors?: string, sizes?: string, opacities?: string): Share[] {
-    const parsed = words(colors).map((c) => toColorValue(c));
-    const given = words(sizes).map(Number);
-    const alphas = words(opacities).map(Number);
+    const parsed = cssWords(colors).map((c) => toColorValue(c));
+    const given = cssWords(sizes).map(Number);
+    const alphas = cssWords(opacities).map(Number);
     const known = given.slice(0, parsed.length).filter((s) => Number.isFinite(s) && s >= 0);
     const unsized = parsed.length - known.length;
     const rest = unsized > 0 ? Math.max(0, 1 - known.reduce((a, b) => a + b, 0)) / unsized : 0;
@@ -67,7 +85,7 @@ function sharesOf(colors?: string, sizes?: string, opacities?: string): Share[] 
     parsed.forEach((c, i) => {
         const s = Number.isFinite(given[i]) && given[i] >= 0 ? given[i] : rest;
         const size = Math.min(s, 1 - used);
-        if (c === null || !(size > 0)) {
+        if (c === null || !isPositive(size)) {
             return;
         }
         used += size;
@@ -185,30 +203,48 @@ export function imageBox(
             [w, h] = [nw * f, nh * f];
             break;
         }
-        case "none": {
-            const px = (image.pixelSize ?? 0) * scale;
-            const ownW = image.width === undefined ? undefined : image.width * scale;
-            const ownH = image.height === undefined ? undefined : image.height * scale;
-            // its own pixels at the pixel size, or contained in the node when it has none
-            const each = px > 0 ? px : Math.min(width / nw, height / nh);
-            // a side left unset keeps the image's proportions to the one given, or with autoSize "natural" is its
-            // own pixels; with neither side given, it is its pixels
-            const natural = image.autoSize === "natural";
-            if (ownW !== undefined) {
-                [w, h] = [ownW, ownH ?? (natural ? nh * each : (ownW * nh) / nw)];
-            } else if (ownH === undefined) {
-                [w, h] = [nw * each, nh * each];
-            } else {
-                [w, h] = [natural ? nw * each : (ownH * nw) / nh, ownH];
-            }
+        case "none":
+            [w, h] = unfittedImageSize(image, { width, height }, [nw, nh], scale);
             break;
-        }
         default:
             break;
     }
     const x0 = -width / 2 + (image.positionX ?? 0.5) * (width - w) + (image.offsetX ?? 0) * scale;
     const y1 = height / 2 - (image.positionY ?? 0.5) * (height - h) - (image.offsetY ?? 0) * scale;
     return { x0, y0: y1 - h, x1: x0 + w, y1 };
+}
+
+/**
+ * The size of an image a node does not fit it to (`fit: "none"`): its own pixels at the pixel size, or contained in
+ * the node when it has none. A side left unset keeps the image's proportions to the one given, or with autoSize
+ * "natural" is its own pixels; with neither side given, it is its pixels.
+ * @param image - The node style's image block.
+ * @param node - The node's width and height.
+ * @param node.width - Its width.
+ * @param node.height - Its height.
+ * @param pixels - The image's own width and height, in pixels, above zero.
+ * @param scale - The node's lengths per unit of the style's.
+ * @returns The image's width and height.
+ */
+function unfittedImageSize(
+    image: NonNullable<NodeStyleConfig["image"]>,
+    node: { width: number; height: number },
+    pixels: readonly [number, number],
+    scale: number,
+): [number, number] {
+    const [nw, nh] = pixels;
+    const px = (image.pixelSize ?? 0) * scale;
+    const ownW = image.width === undefined ? undefined : image.width * scale;
+    const ownH = image.height === undefined ? undefined : image.height * scale;
+    const each = px > 0 ? px : Math.min(node.width / nw, node.height / nh);
+    const natural = image.autoSize === "natural";
+    if (ownW !== undefined) {
+        return [ownW, ownH ?? (natural ? nh * each : (ownW * nh) / nw)];
+    }
+    if (ownH === undefined) {
+        return [nw * each, nh * each];
+    }
+    return [natural ? nw * each : (ownH * nw) / nh, ownH];
 }
 
 /**
@@ -264,14 +300,16 @@ function withoutStraightCorners(outline: readonly Point2[]): Point2[] {
     const out = [...outline];
     for (let changed = true; changed && out.length >= 3;) {
         changed = false;
-        for (let i = 0; i < out.length && out.length >= 3; i++) {
+        let i = 0;
+        while (i < out.length && out.length >= 3) {
             const [a, p, b] = [out[(i + out.length - 1) % out.length], out[i], out[(i + 1) % out.length]];
             const cross = (p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0]);
             const span = Math.hypot(b[0] - a[0], b[1] - a[1]);
             if (Math.abs(cross) <= 1e-9 * Math.max(span * span, 1e-12)) {
                 out.splice(i, 1);
                 changed = true;
-                i--;
+            } else {
+                i++;
             }
         }
     }
@@ -308,7 +346,7 @@ export function databaseRim(
     const line = (border?.width ?? 0) * scale;
     const color = border?.color === undefined ? null : toColorValue(border.color);
     const opacity = (border?.opacity ?? 1) * (color?.a ?? 1);
-    if (!(line > 0) || color === null || !(opacity > 0)) {
+    if (!isPositive(line) || color === null || !isPositive(opacity)) {
         return null;
     }
     const [rx, ry] = [width / 2, height / 6];
@@ -360,7 +398,7 @@ export function pointLists(text: string | undefined): Point2[][] {
 function paint(color: string | undefined, opacity = 1): Pick<ColorPiece, "rgb" | "opacity"> | null {
     const c = color === undefined ? null : toColorValue(color);
     const alpha = (c?.a ?? 1) * opacity;
-    return c === null || !(alpha > 0) ? null : { rgb: [c.r / 255, c.g / 255, c.b / 255], opacity: alpha };
+    return c === null || !isPositive(alpha) ? null : { rgb: [c.r / 255, c.g / 255, c.b / 255], opacity: alpha };
 }
 
 /**
@@ -379,7 +417,7 @@ function linePieces(
     const [first, last] = [points[0], points.at(-1)];
     const closed = points.length > 2 && first[0] === last?.[0] && first[1] === last[1];
     const line = closed ? points.slice(0, -1) : points;
-    if (line.length < 2 || !(width > 0)) {
+    if (line.length < 2 || !isPositive(width)) {
         return [];
     }
     const { inner, outer } = strokeLine(line, width, closed);
@@ -410,7 +448,7 @@ export function shapeLinePieces(
 ): ColorPiece[] {
     const color = paint(border?.color, border?.opacity);
     const line = (shape?.lineWidth ?? border?.width ?? 0) * scale;
-    if (color === null || !(line > 0)) {
+    if (color === null || !isPositive(line)) {
         return [];
     }
     return pointLists(shape?.lines).flatMap((list) =>
@@ -474,7 +512,7 @@ const CHART_LINE_SHARE = 0.02;
  * @returns The numbers, NaN for a word that is not one.
  */
 function numbers(text: string | undefined): number[] {
-    return words(text).map(Number);
+    return cssWords(text).map(Number);
 }
 
 /**
@@ -494,7 +532,7 @@ function numbers(text: string | undefined): number[] {
  */
 export function chartPieces(chart: NodeStyleConfig["chart"], width: number, height: number, scale = 1): ChartPiece[] {
     const values = numbers(chart?.values).filter((v) => Number.isFinite(v));
-    const colors = words(chart?.colors);
+    const colors = cssWords(chart?.colors);
     if (chart === undefined || values.length === 0 || colors.length === 0) {
         return [];
     }
@@ -535,7 +573,7 @@ export function chartPieces(chart: NodeStyleConfig["chart"], width: number, heig
             ? []
             : [{ outline, ...c }]),
         // its outline is the bar's own, which a reader counts with the bar
-        ...(border === null || !(borderWidth > 0)
+        ...(border === null || !isPositive(borderWidth)
             ? []
             : linePieces([...outline, outline[0]], borderWidth, border).map((p) => ({ ...p, line: true }))),
     ];

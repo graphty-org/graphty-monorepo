@@ -1533,6 +1533,58 @@ export class RichTextLabel {
         }
     }
 
+    /**
+     * How far a label's offset and shift move it, right and down on screen: y is up in every frame here. The shift is
+     * along the label's own turned axes, so a turned label turns about the point of its box the shift pins, as
+     * Cytoscape desktop, Cytoscape.js and Pajek turn a label about its anchor (cx2-syn-mappings: a label pinned by its
+     * left middle and turned 33.5 degrees hangs 7 px below its node's middle).
+     * @param labelWidth - The label's width, in world units.
+     * @param labelHeight - The label's height, in world units.
+     * @returns The move, right and down.
+     */
+    private offsetAndShift(labelWidth: number, labelHeight: number): { x: number; y: number } {
+        const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
+        const turn = ((this.options.rotation ?? 0) * Math.PI) / 180;
+        const [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
+        return {
+            x: offsetX + sx0 * Math.cos(turn) - sy0 * Math.sin(turn),
+            y: offsetY + sx0 * Math.sin(turn) + sy0 * Math.cos(turn),
+        };
+    }
+
+    /**
+     * Where a label beside its target goes when its offset moves it over the target (vis-network's font.vadjust, a
+     * Cytoscape.js text margin into the node): in front of it, hung from the pivot a center label hangs from, since
+     * beside, in the target's own frame, the target's mesh hides it.
+     * @param target - The mesh the label is attached to.
+     * @param newPos - Where the label is, beside the target.
+     * @param bounds - The target's bounds.
+     * @param bounds.min - Their lowest corner.
+     * @param bounds.max - Their highest corner.
+     * @param size - The label's size, in world units.
+     * @param size.width - Its width.
+     * @param size.height - Its height.
+     * @returns Where the label goes: in front of the target when it is over it, else where it is.
+     */
+    private hungOverTarget(
+        target: AbstractMesh,
+        newPos: Vector3,
+        bounds: { min: Vector3; max: Vector3 },
+        size: { width: number; height: number },
+    ): Vector3 {
+        const mid = bounds.min.add(bounds.max).scaleInPlace(0.5);
+        const overX = Math.abs(newPos.x - mid.x) < (size.width + bounds.max.x - bounds.min.x) / 2;
+        const overY = Math.abs(newPos.y - mid.y) < (size.height + bounds.max.y - bounds.min.y) / 2;
+        if (!overX || !overY) {
+            return newPos;
+        }
+
+        this.parentTo(target, bounds);
+        const hung = newPos.subtract(this.centerPivot?.position ?? mid);
+        hung.z = -Vector3.Distance(bounds.min, bounds.max) / 2;
+        return hung;
+    }
+
     private _attachToTarget(): void {
         const target = this.options.attachTo;
         const position = this.options.attachPosition;
@@ -1599,36 +1651,17 @@ export class RichTextLabel {
             this.placementBounds = { min: bounds.min, max: bounds.max, z: newPos.z };
         }
 
-        // Moved by its offset and its shift, right and down on screen: y is up in every frame here. The shift is along
-        // the label's own turned axes, so a turned label turns about the point of its box the shift pins, as
-        // Cytoscape desktop, Cytoscape.js and Pajek turn a label about its anchor (cx2-syn-mappings: a label pinned
-        // by its left middle and turned 33.5 degrees hangs 7 px below its node's middle).
-        const { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 } = this.options;
-        const turn = ((this.options.rotation ?? 0) * Math.PI) / 180;
-        const [sx0, sy0] = [shiftX * labelWidth, shiftY * labelHeight];
-        const moveX = offsetX + sx0 * Math.cos(turn) - sy0 * Math.sin(turn);
-        const moveY = offsetY + sx0 * Math.sin(turn) + sy0 * Math.cos(turn);
-        if (moveX !== 0 || moveY !== 0) {
+        const move = this.offsetAndShift(labelWidth, labelHeight);
+        const moved = move.x !== 0 || move.y !== 0;
+        if (moved) {
             // beside its target the label is in the target's own frame, whose stretch its gaps undo
-            const sx = inFront ? 1 : (stretch?.x ?? 1) || 1;
-            const sy = inFront ? 1 : (stretch?.y ?? 1) || 1;
-            newPos.x += moveX / sx;
-            newPos.y -= moveY / sy;
+            const undo = inFront ? null : stretch;
+            newPos.x += move.x / ((undo?.x ?? 1) || 1);
+            newPos.y -= move.y / ((undo?.y ?? 1) || 1);
         }
 
-        // A label its offset moves over its own target (vis-network's font.vadjust, a Cytoscape.js text margin into
-        // the node) is drawn in front of it, hung from the pivot a center label hangs from: beside, in the target's
-        // own frame, the target's mesh hides it.
-        if (!inFront && target instanceof AbstractMesh && stretch === null && (moveX !== 0 || moveY !== 0)) {
-            const mid = bounds.min.add(bounds.max).scaleInPlace(0.5);
-            const overX = Math.abs(newPos.x - mid.x) < (labelWidth + bounds.max.x - bounds.min.x) / 2;
-            const overY = Math.abs(newPos.y - mid.y) < (labelHeight + bounds.max.y - bounds.min.y) / 2;
-            if (overX && overY) {
-                const besideAt = newPos;
-                this.parentTo(target, bounds);
-                newPos = besideAt.subtract(this.centerPivot?.position ?? mid);
-                newPos.z = -Vector3.Distance(bounds.min, bounds.max) / 2;
-            }
+        if (moved && !inFront && target instanceof AbstractMesh && stretch === null) {
+            newPos = this.hungOverTarget(target, newPos, bounds, { width: labelWidth, height: labelHeight });
         }
 
         this.mesh.position = newPos;

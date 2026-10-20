@@ -717,15 +717,18 @@ export class NodeMesh {
         const instance = cache.get(`node-${kind}-${options.styleId}-${options.is2D ? "2d" : "3d"}`, () => {
             const own = halo?.shape;
             const corner = halo?.cornerRadius === undefined ? undefined : halo.cornerRadius * perSize;
-            const outline =
-                own !== undefined && isFlatShape(own)
-                    ? flatShapeOutline(
-                          own,
-                          (sized.x ?? sized.across) + 2 * pad,
-                          (sized.y ?? sized.across) + 2 * pad,
-                          corner,
-                      )
-                    : offsetOutline(flat ? this.flatOutline(shape, sized) : this.solidOutline(fill), pad);
+            let outline: Point2[];
+            if (own !== undefined && isFlatShape(own)) {
+                outline = flatShapeOutline(
+                    own,
+                    (sized.x ?? sized.across) + 2 * pad,
+                    (sized.y ?? sized.across) + 2 * pad,
+                    corner,
+                );
+            } else {
+                const nodeOutline = flat ? this.flatOutline(shape, sized) : this.solidOutline(fill);
+                outline = offsetOutline(nodeOutline, pad);
+            }
             fill.computeWorldMatrix(true);
             const box = fill.getBoundingInfo().boundingBox;
             const depth = THIN_DEPTH_RATIO * Math.max(sized.across, MIN_NODE_SIZE);

@@ -1708,8 +1708,8 @@ function haloChannels(target: "node" | "edge", kind: HaloKind): ChannelDescripto
         ({
             channel: `${target}.${kind}${suffix}` as Channel,
             target,
-            plainName: `${target === "node" ? "Node" : "Edge"} ${Kind} ${suffix.replace(/([a-z])([A-Z])/g, "$1 $2")}`,
-            shortName: `${Kind} ${suffix.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}`,
+            plainName: `${target === "node" ? "Node" : "Edge"} ${Kind} ${suffix.replaceAll(/([a-z])([A-Z])/g, "$1 $2")}`,
+            shortName: `${Kind} ${suffix.replaceAll(/([a-z])([A-Z])/g, "$1 $2").toLowerCase()}`,
             group: target === "node" ? "shape" : "line",
             stylePath: `${at}.${suffix.charAt(0).toLowerCase()}${suffix.slice(1)}`,
             renderable: true,

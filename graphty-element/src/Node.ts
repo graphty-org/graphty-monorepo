@@ -223,6 +223,46 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
+type LabelStyle = NonNullable<NodeStyleConfig["label"]>;
+
+/**
+ * A label's background color as the one string the label renderer takes: an advanced color style's solid value,
+ * or a gradient's first color as a fallback.
+ * @param color - The style's background color.
+ * @returns The color, or undefined for none.
+ */
+function labelBackgroundColor(color: LabelStyle["backgroundColor"]): string | undefined {
+    if (!color) {
+        return undefined;
+    }
+    if (typeof color === "string") {
+        return color;
+    }
+    if (color.colorType === "solid") {
+        return color.value;
+    }
+    if (color.colorType === "gradient") {
+        return color.colors[0];
+    }
+    return undefined;
+}
+
+/**
+ * A label's borders with a color each, the only ones the label renderer can draw.
+ * @param borders - The style's borders.
+ * @returns The borders, or undefined when none has a color, so the renderer's default empty list is used.
+ */
+function labelBorders(borders: LabelStyle["borders"]): { width: number; color: string; spacing: number }[] | undefined {
+    const valid = (borders ?? [])
+        .filter((border): border is typeof border & { color: string } => border.color !== undefined)
+        .map((border) => ({
+            width: border.width,
+            color: border.color,
+            spacing: border.spacing,
+        }));
+    return valid.length > 0 ? valid : undefined;
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
@@ -2272,18 +2312,7 @@ export class Node {
         }
         const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
 
-        // Transform backgroundColor to string if it's an advanced color style
-        let backgroundColor: string | undefined = undefined;
-        if (labelStyle.backgroundColor) {
-            if (typeof labelStyle.backgroundColor === "string") {
-                ({ backgroundColor } = labelStyle);
-            } else if (labelStyle.backgroundColor.colorType === "solid") {
-                ({ value: backgroundColor } = labelStyle.backgroundColor);
-            } else if (labelStyle.backgroundColor.colorType === "gradient") {
-                // For gradients, use the first color as a fallback
-                [backgroundColor] = labelStyle.backgroundColor.colors;
-            }
-        }
+        const backgroundColor = labelBackgroundColor(labelStyle.backgroundColor);
 
         // Filter out undefined values from backgroundGradientColors
         let backgroundGradientColors: string[] | undefined = undefined;
@@ -2296,22 +2325,7 @@ export class Node {
             }
         }
 
-        // Transform borders to ensure colors are strings
-        let borders: { width: number; color: string; spacing: number }[] | undefined = undefined;
-        if (labelStyle.borders && labelStyle.borders.length > 0) {
-            const validBorders = labelStyle.borders
-                .filter((border): border is typeof border & { color: string } => border.color !== undefined)
-                .map((border) => ({
-                    width: border.width,
-                    color: border.color,
-                    spacing: border.spacing,
-                }));
-            // Only set borders if we have valid borders, otherwise leave it undefined
-            // so the default empty array is used
-            if (validBorders.length > 0) {
-                borders = validBorders;
-            }
-        }
+        const borders = labelBorders(labelStyle.borders);
 
         // Create label options by spreading the entire labelStyle object
         const labelOptions: RichTextLabelOptions = {

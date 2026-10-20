@@ -38,6 +38,7 @@ import {
 import { TEE_DEPTH } from "./meshes/FilledArrowRenderer";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
+import { isPositive } from "./meshes/shapeOutlines";
 import { Node, NodeIdType } from "./Node";
 import { frozenRecord } from "./session/project/draft";
 
@@ -119,7 +120,9 @@ function captionWanted(block: RichTextStyleType | undefined): RichTextStyleType 
  * @returns True when the line is never placed.
  */
 function drawsNoLine(style: EdgeStyleConfig | null | undefined): boolean {
-    return (style?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === 0 && !((style?.line?.minScreenWidth ?? 0) > 0);
+    return (
+        (style?.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) === 0 && !isPositive(style?.line?.minScreenWidth ?? 0)
+    );
 }
 
 /**
@@ -1549,33 +1552,8 @@ export class Edge {
 
         const drawn = this.renderVisible;
 
-        if (this.outlineBatch) {
-            for (const slot of this.outlineSlots) {
-                this.outlineBatch.setDrawn(slot, drawn);
-            }
-        }
-
-        for (const { batch, slots } of this.haloBands) {
-            for (const slot of slots) {
-                batch.setDrawn(slot, drawn);
-            }
-        }
-
-        for (const { batch, slot } of this.gradientPieces) {
-            batch.setDrawn(slot, drawn);
-        }
-
-        if (this.lineBatch) {
-            for (const slot of this.lineSlots) {
-                this.lineBatch.setDrawn(slot, drawn);
-            }
-        } else if (this.mesh instanceof PatternedLineMesh) {
-            this.mesh.setDrawn(drawn);
-        } else if (!this.mesh.isDisposed()) {
-            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
-            // isPickable here would lose whatever the edge style asked for on the way back.
-            this.mesh.setEnabled(drawn);
-        }
+        this.setBatchedPiecesDrawn(drawn);
+        this.setLineDrawn(drawn);
 
         if (!drawn) {
             this.arrowCap?.setDrawn(false);
@@ -1594,6 +1572,46 @@ export class Edge {
 
         if (drawn) {
             this.invalidatePositionCache();
+        }
+    }
+
+    /**
+     * Show or hide the outline, halo and gradient pieces this edge holds in shared batches.
+     * @param drawn - Whether they are drawn.
+     */
+    private setBatchedPiecesDrawn(drawn: boolean): void {
+        if (this.outlineBatch) {
+            for (const slot of this.outlineSlots) {
+                this.outlineBatch.setDrawn(slot, drawn);
+            }
+        }
+
+        for (const { batch, slots } of this.haloBands) {
+            for (const slot of slots) {
+                batch.setDrawn(slot, drawn);
+            }
+        }
+
+        for (const { batch, slot } of this.gradientPieces) {
+            batch.setDrawn(slot, drawn);
+        }
+    }
+
+    /**
+     * Show or hide the line itself, however it is drawn: batched slots, a patterned line or a mesh.
+     * @param drawn - Whether it is drawn.
+     */
+    private setLineDrawn(drawn: boolean): void {
+        if (this.lineBatch) {
+            for (const slot of this.lineSlots) {
+                this.lineBatch.setDrawn(slot, drawn);
+            }
+        } else if (this.mesh instanceof PatternedLineMesh) {
+            this.mesh.setDrawn(drawn);
+        } else if (!this.mesh.isDisposed()) {
+            // setEnabled alone: a disabled mesh is not a pick candidate either, and writing
+            // isPickable here would lose whatever the edge style asked for on the way back.
+            this.mesh.setEnabled(drawn);
         }
     }
 
@@ -1862,11 +1880,6 @@ export class Edge {
         }
 
         const line = this.drawnStyle?.line;
-        // A Bezier curve runs from node center to node center through its bends as control points, and is cut where
-        // it leaves each node, as a program that draws its curves under its nodes shows it.
-        const bezier = line?.bezier === true && line.bendCurve === "bezier";
-        // An arc runs from node center to node center through its one bend on a circle, cut where it leaves each node.
-        const arc = line?.bezier === true && line.bendCurve === "arc";
         const through = fileRoute(src, dst, stored, this.srcNode.drawnHalfExtents, this.dstNode.drawnHalfExtents);
         const ring = stored.loop ? Edge.detachedRing(through, Edge.outside(this.srcNode, src)) : null;
         if (ring !== null) {
@@ -1874,9 +1887,7 @@ export class Edge {
             this.placeRun(batch, Edge.curveThroughBends(line, ring));
             return true;
         }
-        // an arc with other than one bend, or with its bend on the line between its ends, is drawn as "corners"
-        const arced = arc ? arcThroughBend(through) : null;
-        const route = bezier ? bezierThroughControls(through) : (arced ?? through);
+        const { route, sampled } = Edge.shapeBentRoute(line, through);
         const ports = { src: stored.srcPort !== null, dst: stored.dstPort !== null };
         const gap = this.nodeGap;
         const outSrc = Edge.outside(this.srcNode, src, gap);
@@ -1912,8 +1923,33 @@ export class Edge {
         const lineStart = this.placeArrowTail(start, afterStart, afterStart.subtract(start).normalize(), path);
         const lineEnd = this.lineEndBefore(beforeEnd, end);
         const flat = [lineStart.x, lineStart.y, lineStart.z, ...mid, lineEnd.x, lineEnd.y, lineEnd.z];
-        this.placeRun(batch, bezier || arced !== null ? flat : Edge.curveThroughBends(line, flat));
+        this.placeRun(batch, sampled ? flat : Edge.curveThroughBends(line, flat));
         return true;
+    }
+
+    /**
+     * The route a bent line runs along before it is cut at its nodes. A Bezier curve runs from node center to node
+     * center through its bends as control points, as a program that draws its curves under its nodes shows it; an
+     * arc runs through its one bend on a circle. An arc with other than one bend, or with its bend on the line
+     * between its ends, is drawn as "corners", like any other line.
+     * @param line - The line's style.
+     * @param through - The route, flat x, y, z: the source center, the bends, the target center.
+     * @returns The route, and whether it is already a sampled curve (so its corners are not rounded again).
+     */
+    private static shapeBentRoute(
+        line: EdgeStyleConfig["line"],
+        through: number[],
+    ): { route: number[]; sampled: boolean } {
+        if (line?.bezier !== true) {
+            return { route: through, sampled: false };
+        }
+
+        if (line.bendCurve === "bezier") {
+            return { route: bezierThroughControls(through), sampled: true };
+        }
+
+        const arced = line.bendCurve === "arc" ? arcThroughBend(through) : null;
+        return arced === null ? { route: through, sampled: false } : { route: arced, sampled: true };
     }
 
     /**

@@ -1,7 +1,7 @@
 import { ControlSection, DataRow, DataRowHeader, HistogramRow } from "@graphty/compact-mantine";
 import type { Channel, GraphSession, Layer, NodeId, Path, Run, ScopeInput } from "@graphty/graphty-element/session";
 import { Button, ColorSwatch, Text } from "@mantine/core";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -11,7 +11,7 @@ import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
 import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
-import { focusValuesNext, selectNode } from "./reads";
+import { focusValuesNext, openMember, selectNode, takeMemberFocus } from "./reads";
 import { PathValues } from "./RunValues";
 import { count, formatNumber, nodeName } from "./words";
 
@@ -316,18 +316,18 @@ function TopValues({ session, layer }: Readonly<{ session: GraphSession; layer: 
     }
     return (
         <ControlSection label={`Top ${String(selector.n)} by ${read.name}`} collapsible={false} headingLevel={3}>
-            {top.entries.map((entry) => (
-                <DataRow
-                    key={nodeKey(entry.id)}
-                    name={String(entry.id)}
-                    value={formatNumber(entry.value)}
-                    onClick={() => {
-                        // The row goes with the view it sat in; focus goes to the node's view.
-                        focusValuesNext();
-                        selectNode(session, entry.id);
-                    }}
-                />
-            ))}
+            <MemberRows
+                session={session}
+                ids={top.entries.map((entry) => entry.id)}
+                row={(id, onClick, at) => (
+                    <DataRow
+                        key={nodeKey(id)}
+                        name={String(id)}
+                        value={formatNumber(top.entries[at].value)}
+                        onClick={onClick}
+                    />
+                )}
+            />
         </ControlSection>
     );
 }
@@ -347,6 +347,52 @@ function setScope(layer: Layer): ScopeInput | null {
         default:
             return null;
     }
+}
+
+/**
+ * A layer's members as rows: each opens its node, and clearing that node comes back here with
+ * focus on its row (decided.md, "Escape in the inspector").
+ * @param props - Component props
+ * @param props.session - the session
+ * @param props.ids - the members, in row order
+ * @param props.first - shows the first rows, then the rest on request
+ * @param props.row - draws one member's row with the click that opens it and its place in `ids`
+ * @returns the rows
+ */
+function MemberRows({
+    session,
+    ids,
+    first = false,
+    row,
+}: Readonly<{
+    session: GraphSession;
+    ids: readonly NodeId[];
+    first?: boolean;
+    row: (id: NodeId, onClick: () => void, at: number) => React.JSX.Element;
+}>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const list = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const id = takeMemberFocus(ids);
+        if (id !== null) {
+            list.current?.querySelectorAll<HTMLElement>('[data-testid="data-row-button"]')[ids.indexOf(id)]?.focus();
+        }
+    });
+    // The row goes with the view it sat in; focus goes to the node's view.
+    const rows = ids.map((id, at) =>
+        row(
+            id,
+            () => {
+                openMember(session, store.get().inspected, id);
+            },
+            at,
+        ),
+    );
+    return (
+        <div ref={list} style={{ display: "contents" }}>
+            {first ? <FirstRows rows={rows} /> : rows}
+        </div>
+    );
 }
 
 /**
@@ -377,18 +423,11 @@ function MemberValues({
     }
     return (
         <ControlSection label="Members" collapsible={false} headingLevel={3}>
-            <FirstRows
-                rows={nodes.map((id) => (
-                    <DataRow
-                        key={nodeKey(id)}
-                        name={nodeName(session, id)}
-                        onClick={() => {
-                            // The row goes with the view it sat in; focus goes to the node's view.
-                            focusValuesNext();
-                            selectNode(session, id);
-                        }}
-                    />
-                ))}
+            <MemberRows
+                session={session}
+                ids={nodes}
+                first
+                row={(id, onClick) => <DataRow key={nodeKey(id)} name={nodeName(session, id)} onClick={onClick} />}
             />
         </ControlSection>
     );

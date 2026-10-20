@@ -696,6 +696,45 @@ describe("arrowheads", () => {
             ),
             "vee",
         );
+        // draw.io's classic (mxMarker): its back pressed in a quarter of its length, which reads exactly 0.75 covered
+        // a fifth of the way from its back -- a vee, not a triangle
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [0, -4],
+                    [12, 0],
+                    [0, 4],
+                    [3, 0],
+                ]),
+                right,
+            ),
+            "vee",
+        );
+        // Pajek's arrow, its back pressed in a sixth of its length, and vis-network's, a tenth: triangles
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [-1, -2.5],
+                    [5, 0],
+                    [-1, 2.5],
+                    [0, 0],
+                ]),
+                right,
+            ),
+            "triangle",
+        );
+        assert.strictEqual(
+            arrowShapeOf(
+                poly([
+                    [-10, -3],
+                    [0, 0],
+                    [-10, 3],
+                    [-9, 0],
+                ]),
+                right,
+            ),
+            "triangle",
+        );
         // Cytoscape.js's chevron: two thick arms, a notch half its length deep
         assert.strictEqual(
             arrowShapeOf(

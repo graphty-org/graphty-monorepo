@@ -3641,3 +3641,66 @@ Still open, and why:
   (triangle and diamond), and 1269791->1269779's half arrow is read as graphty's crossed delta. Comparator.
 - `syn-bypass` (26 failing), `aracne-mycccnd1` (26 edge rows), `wp4271-cy3-export` (22) were not investigated in this
   round. `pathguide-allpathwaysdb` -19->-23's box before its diamond is still unexplained.
+
+## yEd's notched arrows, and the comparator's notch line (round 4, 2026-10-20)
+
+The yEd GraphML and yEd Live GraphML samples are judged against draw.io's drawings standing in for yEd (see "yEd
+sheets to export by hand"). Their three most failed properties were arrow shape (734 elements), node shape (478) and
+label anchor (450). Most of the arrow shape failures were graph-io's, not draw.io's:
+
+- Fixed in graph-io: yEd's `standard` arrow, the one yEd draws by default, is "a triangle with impressed bottom side"
+  (https://docs.yworks.com/yfiles/doc/api/y/view/Arrow.html); `delta` is the plain triangle. yFiles for HTML's
+  `STEALTH` (2.6's `DEFAULT`) is "an arrow that is notched on the side opposite its tip"
+  (https://docs.yworks.com/yfiles-html/api/ArrowType/). graph-io read all three as the plain triangle; they are now
+  `vee` (the yEd dialect, so yEd-written GML too, and the yFiles 3 reader). A stealth with a `{x:Null}` fill is the
+  open triangle, the nearest outline graphty-element draws. The yEd writers write a triangle as `delta` and a vee as
+  `standard`. draw.io agrees: its `mxGraphMlArrowsMap` maps `standard` and `DEFAULT` to its notched `classic`.
+- Fixed in the comparator: an arrowhead was read as notched when its outline covered under 0.75 of its span a fifth
+  of the way from its back. draw.io's `classic` is pressed in a quarter of its length, which covers exactly 0.75
+  there, so the same arrow read `vee` on one edge and `triangle` on the next (`graphml-yfiles-html-stag-flowchart`
+  judged 20 of 37 alike). The line is now drawn at 0.15, which puts the boundary at a notch about 0.19 of the length
+  deep: draw.io's classic (0.25) is a vee, Pajek's arrow (a sixth) and vis-network's `arrow` (a tenth) stay
+  triangles. A vertex lying exactly on a sampling line was also crossed twice (once by each side meeting there),
+  which read a sampled vee as a triangle; the crossings are half open now. Planted defect "arrowhead notch filled in
+  (vee<->triangle)" (`graphty-element/test/fidelity/mutations.ts`) keeps both caught.
+
+Arrow shape after both (pass rate, before -> after; the same with nodes at draw.io's positions):
+`graphml-cla-checker-graph` 0.004 -> 0.945, `graphml-yfiles-html-ss13-tree` 0.254 -> 1, `graphml-stm32-func`
+0.289 -> 0.856, `graphml-scala-collection-mutable` 0.19 -> 0.976, `graphml-magiclantern-architecture` 0.321 -> 0.964,
+`graphml-yed-voctomix` 0.34 -> 0.98, `graphml-synthetic-edges` 0.31 -> 0.87, `graphml-synthetic-nodes` 0.333 -> 1,
+`graphml-yfiles-html-stag-flowchart` 0.541 -> 1.
+
+What the arrow fix moved the other way, each a lowered floor in `oracle-floors.json` with this reason:
+
+- yEd-written GML (`gml-yed-pmodel`, `gml-visualgraph-tree30`, `gml-dunnart-planar-orthogonal`, `gml-specimen-arrows-p2`
+  and `-p3`): their stand-in is Cytoscape desktop, which draws GML's `standard` as a plain delta. yEd draws it
+  notched, so these now fail arrow shape against the stand-in (pmodel 0.982 -> 0, tree30 and dunnart 1 -> 0) until
+  yEd's own drawings replace them.
+- Raster arrowhead and edge regions of the yEd and yEd Live samples drawn with standard or DEFAULT arrows, 0.01 to
+  0.07 (`yed-live-graphml-specimen-edge-labels-p2` raster.edge 0.89 -> 0.85, `gml-visualgraph-tree30` 0.81 -> 0.74):
+  graphty-element's vee is pressed in 0.6 of its length, yEd's standard about a quarter, so fewer pixels overlap than
+  graphty's plain triangle did. graphty-element has one notch depth; a shallow vee (or a notch-depth setting) would
+  draw yEd's standard, draw.io's classic and Pajek's arrow closer. Open.
+- `yed-live-graphml-specimen-mappings-bypass` `edge-key-default` (arrow shape 1 -> 0.8): its key's `<default>` style
+  ends in a TRIANGLE, which graphty draws; draw.io ignores a key's `<default>` and draws its own classic, which the
+  comparator used to read as a triangle by chance.
+
+Still failing arrow shape, and why (all in `oracle-known-failures.json`):
+
+- yEd `circle` (`graphml-stm32-func` 10 source ends, `yed-graphml-specimen-arrows` `*-circle`): draw.io's arrow table
+  has `CIRCLE`, `white_circle` and `transparent_circle` but no lowercase `circle`, so it draws its default classic.
+  graph-io reads the circle yEd draws. Stand-in error.
+- yEd `short` and `convex` (`yed-graphml-specimen-arrows`, `yed-live-graphml-specimen-arrows-p2` `v2-*-short`): yFiles
+  says only "short and broad" and "two curves forming a convex shape"; graph-io reads both as the triangle, draw.io
+  draws `short` as its notched classicThin and `convex` as its default. Whether yEd's short arrow is notched is
+  for the owner's yEd export to settle.
+- yFiles 3 `OPEN` ("shaped like an angle bracket", `yed-live-graphml-specimen-arrows` `target-open`): graph-io reads it
+  as the vee, the nearest cap graphty-element draws (it has no open chevron); draw.io draws its default arrow.
+- `graphml-synthetic-edges` `n32->n2`: two parallel edges, one ending in `standard`, one in `delta`; the comparator
+  pairs their arrowheads crosswise (each oracle cap with the other edge), so both fail. Comparator, open.
+
+Node shape and label anchor, the other two most failed properties, are draw.io's: `graphml-yfiles-html-ss13-tree`'s
+169 `node.shape` failures are a yFiles demo `GraphvizNodeStyle shape="ellipse"`, which graph-io reads as the ellipse
+and draw.io, not knowing the style, draws as a rectangle; `graphml-cla-checker-graph`'s 84 `label.anchor` failures are
+SmartNodeLabelModel labels centered in their nodes (ratios 0, box centered), which draw.io places about 5 px left of
+the middle (its own label spacing). Both wait for the owner's yEd exports.

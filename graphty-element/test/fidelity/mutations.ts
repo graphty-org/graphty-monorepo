@@ -282,6 +282,14 @@ const DEFECTS = {
             a.shape = a.shape === "circle" ? "triangle" : "circle";
         });
     }),
+    // a notched arrow drawn as the plain triangle and back (yEd's standard, a vee, against its delta)
+    "arrowhead notch filled in (vee<->triangle)": eachEdge((e) => {
+        e.arrows.forEach((a) => {
+            if (a.shape === "vee" || a.shape === "triangle") {
+                a.shape = a.shape === "vee" ? "triangle" : "vee";
+            }
+        });
+    }),
     "labels x1.5": (s) => {
         allTexts(s).forEach((t) => {
             t.sizePx *= 1.5;
@@ -747,6 +755,7 @@ const TARGETS: Record<keyof typeof DEFECTS, readonly OracleProperty[]> = {
     "arrowhead removed at target end": ["edge.arrow"],
     "arrowhead shape changed (same extent, filled flipped)": ["edge.arrow", "edge.arrowFill", "edge.arrowShape"],
     "arrowhead shape changed (triangle<->circle: length=width)": ["edge.arrow", "edge.arrowShape", "edge.arrowLength"],
+    "arrowhead notch filled in (vee<->triangle)": ["edge.arrowShape"],
     "labels x1.5": ["label.size", "label.present", "edge.label", "group.label"],
     "labels bold (or bold->normal)": ["label.weight", "label.present", "edge.label", "group.label"],
     "label color changed": ["label.color", "label.present", "edge.label", "group.label"],

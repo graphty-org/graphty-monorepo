@@ -857,7 +857,8 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         const xs: number[] = [];
         for (let i = 0; i < outline.length; i++) {
             const j = (i + 1) % outline.length;
-            if ((a[i] - at) * (a[j] - at) <= 0 && a[i] !== a[j]) {
+            // half open, so a vertex on the line is crossed once, not once by each side meeting there
+            if (a[i] <= at !== a[j] <= at) {
                 xs.push(c[i] + ((at - a[i]) / (a[j] - a[i])) * (c[j] - c[i]));
             }
         }
@@ -896,7 +897,10 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
         return "circle";
     }
     if (back > tip + 0.3) {
-        return cover(0.2) < 0.75 ? "vee" : "triangle";
+        // notched when the back is pressed in more than about a fifth of the length (0.19): draw.io's classic, a
+        // quarter deep, is a vee; Pajek's arrow (a sixth) and vis-network's (a tenth) are triangles. At 0.2 a quarter
+        // notch covers exactly 0.75, so the line is drawn at 0.15.
+        return cover(0.15) < 0.75 ? "vee" : "triangle";
     }
     // a triangle pointing back widens evenly towards the tip; a half circle is most of its width by its middle
     if (tip > back + 0.3 && middle < 0.75) {

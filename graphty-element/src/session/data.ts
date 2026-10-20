@@ -52,6 +52,7 @@ import {
     type DataService,
     declarationKey,
     describeSource,
+    type HeldRows,
     type ImportSource,
     SOURCE_VALUE,
     SOURCES_VALUE,
@@ -75,6 +76,7 @@ import { frozenRecord } from "./project/draft";
 import { failedEnd, Ingest, progressSource } from "./project/ingest";
 import type { GraphSlice, RunEntry } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
+import { pairKey, planReplace } from "./replace";
 import {
     primaryResultColumn,
     type ResolvedResult,
@@ -90,7 +92,7 @@ import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
-import type { ColumnRef, ProgressChange } from "./shared";
+import type { CodedFact, ColumnRef, ProgressChange } from "./shared";
 import * as sourceExpand from "./sources/expand";
 import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
@@ -136,6 +138,8 @@ import type {
     RecordPageOptions,
     RecordSort,
     RemoveSourceResult,
+    ReplaceReport,
+    ReplaceUnboundCode,
     ResultColumn,
     ResultColumnDescriptor,
     RowUpdate,
@@ -1958,6 +1962,246 @@ export class SessionData implements SessionDataApi {
                 edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
             }),
         });
+    }
+
+    /**
+     * Replace one load with a newer copy of it, as one undoable step, keeping styles, runs,
+     * filters, joins and the mapping.
+     * @param key - the load's key
+     * @param source - the newer copy
+     * @param choices - how to read it; `mode` is ignored
+     * @returns what was added, removed and changed, and what no longer matches anything
+     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     */
+    async replaceSource(key: SourceKey, source: DataSourceInput, choices: LoadChoices = {}): Promise<ReplaceReport> {
+        this.requireLive("replaceSource");
+        const send = this.sender("replace a load");
+        const stored = this.storedSources();
+        const at = this.sources().findIndex((each) => each.key === key);
+        const entry = stored[at] as LoadedSource | undefined;
+        if (entry === undefined) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+                source: "data",
+                details: { key, known: this.sources().map((each) => each.key) },
+            });
+        }
+
+        // The command a draft of the copy would load, held back here: its rows are the copy's rows.
+        let captured: DataImportCommand | undefined;
+        let config: SessionCommand | undefined;
+        const draft = await this.prepare(source);
+        await draft.loadVia((command) => {
+            const steps = command.op === "batch" ? command.steps : [command];
+            config = steps.find((step) => step.op === "config.set");
+            captured = steps.find((step): step is DataImportCommand => step.op === "data.import");
+            return Promise.resolve();
+        }, choices);
+        if (captured?.held === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "The newer copy holds no rows to replace the load with.",
+                source: "data",
+                details: { reason: "no-rows", key },
+            });
+        }
+
+        const { held } = captured;
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const provenance = this.provenance();
+        const index = provenanceIndex(provenance);
+        const supplied = provenance?.[key] ?? { nodes: [], edges: [] };
+        const others = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
+        const nodes = supplied.nodes
+            .filter((id) => snapshot.ids.has(id))
+            .map((id) => ({ id, data: this.records?.nodeAttributes(snapshot.ids.indexOf(id), id) ?? {} }));
+        const edges = supplied.edges.flatMap((id) => {
+            const record = this.edge(id);
+            const row = space.indexOf(id);
+            return record === undefined
+                ? []
+                : [{ id, source: record.source, target: record.target, data: this.records?.edgeAttributes(row) ?? {} }];
+        });
+        const known = this.readConfig().knownFields;
+        const plan = planReplace({
+            nodes,
+            edges,
+            shared: {
+                nodes: new Set(nodes.filter((each) => others(index.nodes.get(each.id))).map((each) => each.id)),
+                edges: new Set(edges.filter((each) => others(index.edges.get(each.id))).map((each) => each.id)),
+            },
+            graphPairs: new Set(this.edges().map((each) => pairKey(each.source, each.target, snapshot.directed))),
+            hasNode: (id) => rowOfEitherSpelling(snapshot.ids, id) !== INVALID_INDEX,
+            directed: snapshot.directed,
+            held,
+            paths: {
+                nodeId: known.nodeIdPath ?? "id",
+                source: known.edgeSrcIdPath ?? "source",
+                target: known.edgeDstIdPath ?? "target",
+            },
+        });
+        const unbound = this.unboundBy(key, nodes, edges, held);
+        const update = <Id extends NodeId | EdgeId>(
+            target: "node" | "edge",
+            rows: readonly RowUpdate<Id>[],
+        ): SessionCommand[] =>
+            rows.length === 0 ? [] : [{ op: "data.apply", mutation: { kind: "update-rows", target, rows: [...rows] } }];
+        await send({
+            op: "batch",
+            label: `Replaced ${entry.name ?? key}`,
+            fact: {
+                code: "data.replace-source",
+                params: {
+                    key,
+                    name: describeSource(captured.source).name ?? null,
+                    added: plan.nodes.added + plan.edges.added,
+                    removed: plan.nodes.removed + plan.edges.removed,
+                    changed: plan.nodes.changed + plan.edges.changed,
+                },
+            },
+            steps: [
+                { op: "data.apply", mutation: { kind: "remove-edges", ids: [...plan.removeEdges] } },
+                { op: "data.apply", mutation: { kind: "remove-nodes", ids: [...plan.removeNodes] } },
+                ...update("edge", plan.edgeRows),
+                ...update("node", plan.nodeRows),
+                // The load leaves the list, so the merge below lists it again, last, under the same key
+                // with what the copy supplied. ponytail: the merge runs after every other step of
+                // the batch, so the load cannot be put back in its old place in the list.
+                {
+                    op: "data.setSource",
+                    source: this.source() ?? describeLoaded(entry),
+                    sources: stored.filter((each) => each.key !== key),
+                    provenance: withoutSource(provenance, key),
+                },
+                ...(config === undefined ? [] : [config]),
+                {
+                    ...captured,
+                    mode: "merge",
+                    // A pair the graph holds is that edge again: the merge keeps it and notes it supplied.
+                    held: { ...held, repeated: "first" },
+                    key,
+                    origin: entry.kind,
+                    ...(entry.joinedOnto === undefined ? {} : { joinedOnto: entry.joinedOnto }),
+                    ...(entry.join === undefined ? {} : { join: entry.join }),
+                },
+            ],
+        });
+        return frozen({ nodes: plan.nodes, edges: plan.edges, unbound });
+    }
+
+    /**
+     * What a replacement leaves matching nothing: style layers, the filter and joins that read a
+     * column the load's rows carried and the copy's rows do not, and no other load's rows carry.
+     * @param key - the load
+     * @param nodes - the load's nodes now
+     * @param edges - the load's edges now
+     * @param held - the copy's rows
+     * @returns the facts
+     */
+    private unboundBy(
+        key: SourceKey,
+        nodes: readonly { readonly data: Readonly<Record<string, unknown>> }[],
+        edges: readonly { readonly data: Readonly<Record<string, unknown>> }[],
+        held: HeldRows,
+    ): readonly CodedFact<ReplaceUnboundCode>[] {
+        const keysOf = (rows: readonly Readonly<Record<string, unknown>>[]): Set<string> =>
+            new Set(rows.flatMap((row) => Object.keys(row)));
+        const elsewhere = this.columnSources(this.attributes());
+        const gone: { kind: "node" | "edge"; name: string }[] = [];
+        for (const [kind, before, after] of [
+            ["node", keysOf(nodes.map((each) => each.data)), keysOf(held.nodes)],
+            ["edge", keysOf(edges.map((each) => each.data)), keysOf(held.edges)],
+        ] as const) {
+            for (const name of before) {
+                const carriers = elsewhere.get(declarationKey({ kind, name })) ?? [];
+                if (!after.has(name) && carriers.every((each) => each === key)) {
+                    gone.push({ kind, name });
+                }
+            }
+        }
+
+        const facts: CodedFact<ReplaceUnboundCode>[] = [];
+        // ponytail: a text search for the column's path; it can name a column of the other kind too.
+        const reads = (value: unknown, name: string): boolean =>
+            value !== undefined && value !== null && JSON.stringify(value).includes(`data.${name}`);
+        const { styles, visibility } = this.writes.readers();
+        for (const { kind, name } of gone) {
+            for (const { layer } of styles) {
+                if (layer.target === kind && [layer.selector, layer.set, layer.encode].some((part) => reads(part, name))) {
+                    facts.push({ code: "style-layer", params: { layer: layer.id, kind, column: name } });
+                }
+            }
+
+            if (
+                reads(visibility.filter, name) ||
+                reads(visibility.steps, name) ||
+                reads(visibility.window, name)
+            ) {
+                facts.push({ code: "filter", params: { kind, column: name } });
+            }
+
+            for (const join of this.joins()) {
+                if (join.choices.keys.some((each) => each.graph === `data.${name}`)) {
+                    facts.push({ code: "join", params: { join: join.source, kind, column: name } });
+                }
+            }
+        }
+
+        return Object.freeze(facts);
+    }
+
+    /**
+     * The loaded source whose rows have the same columns as a file's header, newest first.
+     * @param source - the file
+     * @returns the load's key, or null when none matches or the file is a graph file
+     */
+    async matchesSource(source: DataSourceInput): Promise<SourceKey | null> {
+        this.requireLive("matchesSource");
+        const read = await readWithProgress(source, undefined, () => undefined);
+        if (read.tables.every((held) => held.table.fixed)) {
+            return null;
+        }
+
+        const header = new Set(read.tables.flatMap((held) => held.order));
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const provenance = this.provenance();
+        for (const entry of [...this.storedSources()].reverse()) {
+            const supplied = provenance?.[entry.key];
+            if (supplied === undefined || entry.kind === "join") {
+                continue;
+            }
+
+            // ponytail: reads every row the load supplied; sample when loads get large.
+            const columns = new Set<string>();
+            for (const id of supplied.nodes) {
+                const row = snapshot.ids.indexOf(id);
+                if (row !== INVALID_INDEX && (entry.tableRows ?? []).includes("nodes")) {
+                    Object.keys(this.records?.nodeAttributes(row, id) ?? {}).forEach((name) => columns.add(name));
+                }
+            }
+
+            for (const id of supplied.edges) {
+                const row = space.indexOf(id);
+                if (row !== INVALID_INDEX) {
+                    Object.keys(this.records?.edgeAttributes(row) ?? {}).forEach((name) => columns.add(name));
+                }
+            }
+
+            // ponytail: the graph keeps the last load's edge ends apart from the records, so the
+            // header may name up to two columns more; read the draft's ends if that misleads.
+            if (
+                columns.size > 0 &&
+                header.size - columns.size <= 2 &&
+                [...columns].every((name) => header.has(name))
+            ) {
+                return entry.key;
+            }
+        }
+
+        return null;
     }
 
     /**

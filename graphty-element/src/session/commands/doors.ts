@@ -385,6 +385,61 @@ const REMOVE_SOURCE_STEPS: readonly SessionCommand[] = [
     { op: "data.setSource", source: { type: "json", config: {} }, sources: [], provenance: {} },
 ];
 
+/** The load the `replaceSource` door replaces. */
+const DOOR_SHIPS_CSV = "source,target\nr1,r2\nr2,r3\n";
+/** The newer copy the `replaceSource` door replaces it with: r2-r3 gone, r1-r4 new. */
+const DOOR_REPLACE_CSV = "source,target\nr1,r2\nr1,r4\n";
+/** The `replaceSource` door's copy, as the step that merges it names it. */
+const DOOR_REPLACE_SOURCE = { type: "csv", config: { data: DOOR_REPLACE_CSV }, name: "door-ships-2.csv" };
+/** What `data.replaceSource("s1", ...)` dispatches inside its batch. */
+const REPLACE_SOURCE_STEPS: readonly SessionCommand[] = [
+    { op: "data.apply", mutation: { kind: "remove-edges", ids: ["1"] } },
+    { op: "data.apply", mutation: { kind: "remove-nodes", ids: ["r3"] } },
+    {
+        op: "data.setSource",
+        source: { type: "csv", name: "door-ships.csv", config: {} },
+        sources: [],
+        provenance: {},
+    },
+    {
+        op: "data.import",
+        source: DOOR_REPLACE_SOURCE,
+        tables: ["door-ships-2.csv"],
+        tableRows: ["edges"],
+        mode: "merge",
+        held: {
+            nodes: [],
+            edges: [
+                { source: "r1", target: "r2" },
+                { source: "r1", target: "r4" },
+            ],
+            declaredDirection: null,
+            errors: [],
+            errorLimit: 100,
+            idPath: "id",
+            source: "source",
+            target: "target",
+            weight: null,
+            repeated: "first",
+        },
+        key: "s1",
+        origin: "file",
+    },
+];
+/** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
+const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
+    {
+        op: "batch",
+        label: "Replaced door-ships.csv",
+        fact: {
+            code: "data.replace-source",
+            params: { key: "s1", name: "door-ships-2.csv", added: 2, removed: 2, changed: 0 },
+        },
+        steps: REPLACE_SOURCE_STEPS,
+    },
+    ...REPLACE_SOURCE_STEPS,
+];
+
 /** The table the `editJoin` door joins onto one node. */
 const DOOR_JOIN_CSV = "name,score\ndoor-j1,5\n";
 
@@ -1867,6 +1922,23 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
             joins: READ,
+            matchesSource: READ,
+            // The copy's rows replace the load's as one batch: the gone edge, the load out of the
+            // list, the merge of the copy under the same key, and the load back in its place.
+            replaceSource: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: ["s1", DOOR_REPLACE_SOURCE],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import({ type: "csv", config: { data: DOOR_SHIPS_CSV }, name: "door-ships.csv" });
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: REPLACE_SOURCE_EXPECT,
+            },
             // The values the join wrote go back, and the table joins anew, as one batch.
             editJoin: {
                 kind: "dispatches",

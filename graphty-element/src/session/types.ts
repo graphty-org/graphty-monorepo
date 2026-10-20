@@ -990,6 +990,36 @@ export interface SessionDataApi {
      */
     removeSource(key: SourceKey): Promise<RemoveSourceResult>;
     /**
+     * Replace one load with a newer copy of it, as one undoable step. Nodes match by id and edges
+     * by their two ends; what the copy no longer has goes (unless another load also supplied it),
+     * what it changed takes the new values, and what it adds arrives. Style layers, runs, filters,
+     * joins, the column settings and the load's key all stay; the load moves to the end of
+     * `sources()`, as the newest. One undo brings the earlier data back.
+     *
+     * ```ts
+     * const key = await session.data.matchesSource({ config: { file } });
+     * if (key !== null) {
+     *     const report = await session.data.replaceSource(key, { config: { file } });
+     *     report.edges; // { added: 12, removed: 3, changed: 40 }
+     * }
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @param source - The newer copy, as `import` takes it.
+     * @param choices - How to read it, as `draft.load` takes them; `mode` is ignored.
+     * @returns What was added, removed and changed, and what no longer matches anything.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @since 3.30.0
+     */
+    replaceSource(key: SourceKey, source: DataSourceInput, choices?: LoadChoices): Promise<ReplaceReport>;
+    /**
+     * The load whose rows carry the same columns as a file's header (in any order), newest
+     * first: the load a dropped file is most likely a newer copy of. Reads the file; loads nothing.
+     * @param source - The file, as `import` takes it.
+     * @returns The load's key, or null when none matches or the file is a graph file with no header.
+     * @since 3.30.0
+     */
+    matchesSource(source: DataSourceInput): Promise<SourceKey | null>;
+    /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -1779,6 +1809,44 @@ export interface RemoveSourceResult {
     readonly kept: { readonly nodes: number; readonly edges: number };
 }
 
+/**
+ * What a replacement left matching nothing, as a {@link ReplaceReport.unbound} code:
+ *
+ * - `"style-layer"`: a style layer reads a column the copy dropped (`layer`, `kind`, `column`).
+ * - `"filter"`: the filter, a filter step or the time window reads one (`kind`, `column`).
+ * - `"join"`: a join matches on one (`join`: the joined table's load, `kind`, `column`).
+ *
+ * OPEN UNION: codes may be added in a minor release.
+ * @since 3.30.0
+ */
+export type ReplaceUnboundCode = "style-layer" | "filter" | "join";
+
+/**
+ * Added, removed and changed, for one kind of element.
+ * @since 3.30.0
+ */
+export interface ReplaceCounts {
+    /** How many the copy added. */
+    readonly added: number;
+    /** How many went: the load supplied them, the copy does not have them, and no other load supplied them. */
+    readonly removed: number;
+    /** How many stayed with at least one new value. */
+    readonly changed: number;
+}
+
+/**
+ * What `session.data.replaceSource(key, source)` did.
+ * @since 3.30.0
+ */
+export interface ReplaceReport {
+    /** Nodes the copy added, the ones that went, and the ones whose values changed. */
+    readonly nodes: ReplaceCounts;
+    /** Edges the copy added, the ones that went, and the ones whose values changed. */
+    readonly edges: ReplaceCounts;
+    /** Styles, filters and joins that read a column the copy no longer has. */
+    readonly unbound: readonly CodedFact<ReplaceUnboundCode>[];
+}
+
 /** How an import treats the graph already there. */
 export interface ImportOptions {
     /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
@@ -2062,6 +2130,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
  * | `data.remove-source` | `key`: the load's key; `name`: its name, or null |
+ * | `data.replace-source` | `key`; `name`: the copy's name, or null; `added`, `removed`, `changed`: nodes and edges together |
  * | `data.join` | `key`: the joined table's load; `name`: its name, or null; `shape`; `matched` |
  * | `data.edit-join` | `key`; `name`; `shape`; `matched` |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
@@ -2125,6 +2194,7 @@ export type HistoryCode =
     | "data.declare"
     | "data.set-source"
     | "data.remove-source"
+    | "data.replace-source"
     | "data.join"
     | "data.edit-join"
     | "data.label"

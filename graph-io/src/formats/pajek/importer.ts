@@ -96,6 +96,7 @@ import {
     VALUE_COLUMN,
     VALUE_FIELD,
     VECTOR_COLUMN,
+    VOIDING_KEYS,
 } from "./syntax.js";
 
 /**
@@ -431,6 +432,11 @@ class PajekParser {
 
     /** The `% graphty.styles` block kept for the styles, or null. */
     keptBlock: string | null = null;
+
+    /**
+     * The vertices whose line Pajek 6.02 draws with none of its parameters (`VOIDING_KEYS`), by index, for the styles.
+     */
+    readonly voided: number[] = [];
 
     private section: Section = "none";
 
@@ -1165,6 +1171,9 @@ class PajekParser {
             }
         }
         const { sink } = this;
+        if (shape === null && dims > 0 && extras.keys.length > 0 && VOIDING_KEYS.has(extras.keys[0])) {
+            this.voided.push(index);
+        }
         if (label !== null) {
             if (this.labelHandle === INVALID_INDEX) {
                 this.labelHandle = declareResolved(sink, "node", LABEL_DECL, this.report, { line }).handle;
@@ -1988,8 +1997,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
             }
         }
         parser.finish();
-        if (draw !== null) {
-            report.keepForStyles({ block: parser.keptBlock, pajekDraw: draw });
+        if (draw !== null || parser.voided.length > 0) {
+            report.keepForStyles({ block: parser.keptBlock, pajekDraw: draw ?? undefined, voided: parser.voided });
         }
         if (rest !== null) {
             const objects =
@@ -2032,8 +2041,12 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
         };
         const close = (p: PajekParser): void => {
             p.finish();
-            if (draw !== null) {
-                reports[reports.length - 1].keepForStyles({ block: p.keptBlock, pajekDraw: draw });
+            if (draw !== null || p.voided.length > 0) {
+                reports[reports.length - 1].keepForStyles({
+                    block: p.keptBlock,
+                    pajekDraw: draw ?? undefined,
+                    voided: p.voided,
+                });
             }
         };
         let parser = open();

@@ -114,11 +114,13 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "shape")).toEqual([
             "ellipse",
             "rectangle",
-            "diamond",
+            "polygon",
             "triangle",
             "other:cross",
             "none",
         ]);
+        // Pajek's diamond has its top and bottom cut q wide (q 0.001 by default): six corners
+        expect(drawn(styles, snapshot, "node", "shapePoints")[2]).toBe("-1,0 -0.001,1 0.001,1 1,0 0.001,-1 -0.001,-1");
         expect(drawn(styles, snapshot, "node", "fill").slice(0, 4)).toEqual([
             "#ff804d",
             "#61ffe0",
@@ -151,8 +153,10 @@ describe("Pajek styles: Pajek's rules", () => {
         // as Pajek 6.02 draws the file: arc 3-5 sets no color and is drawn in arc 4-2's red; an edge is drawn twice its w
         expect(byEdge("color")).toMatchObject({ "1-1": "#0000ff", "4-2": "#ff0000", "3-5": "#ff0000" });
         expect(byEdge("width")).toMatchObject({ "1-1": 3, "4-2": 3, "3-5": 1.5, "1-2": 4, "5-6": 4 });
+        // Pajek's SVG export draws Dots and a negative value in 5 px dashes and gaps: dashes on the arc 3 wide, dots on
+        // the edge 4 wide
         expect(byEdge("lineStyle")).toMatchObject({
-            "4-2": "dotted",
+            "4-2": "dashed",
             "3-5": "solid",
             "1-2": "dotted",
             // Pajek knows Solid and Dots only: `p Dashed` draws a solid line
@@ -170,9 +174,9 @@ describe("Pajek styles: Pajek's rules", () => {
             "*Vertices 4\n1 a\n2 b\n3 c\n4 d\n*Arcs\n1 2 0\n2 3 1 p dots\n3 4 1 p Dots\n",
         );
         expect(drawn(styles, snapshot, "edge", "visible")).toEqual([false, null, null]);
-        expect(drawn(styles, snapshot, "edge", "lineStyle")).toEqual(["solid", "solid", "dotted"]);
+        expect(drawn(styles, snapshot, "edge", "lineStyle")).toEqual(["solid", "solid", "dashed"]);
         // the same when the import keeps the line value as an attribute (weightFrom null), as graphty-element reads it;
-        // a negative value is dotted while the line carries no pattern
+        // a negative value is dashed while the line carries no pattern
         const kept = await registry.importGraph("*Vertices 3\n1 a\n2 b\n3 c\n*Arcs\n1 2 0\n2 3 -1\n3 1 -1 p Solid\n", {
             format: "pajek",
             styles: { toolDefaults: true },
@@ -182,7 +186,7 @@ describe("Pajek styles: Pajek's rules", () => {
             throw new Error("no styles");
         }
         expect(drawn(kept.styles, kept.snapshot, "edge", "visible")).toEqual([false, null, null]);
-        expect(drawn(kept.styles, kept.snapshot, "edge", "lineStyle")).toEqual(["solid", "dotted", "solid"]);
+        expect(drawn(kept.styles, kept.snapshot, "edge", "lineStyle")).toEqual(["solid", "dashed", "solid"]);
     });
 
     it("reads every color form Pajek documents: names, GrayNN, RGB and CMYK in hex and decimals", async () => {
@@ -277,10 +281,10 @@ describe("Pajek styles: Pajek's rules", () => {
 describe("Pajek styles: sizes, label placement and line labels", () => {
     const doc = [
         "*Vertices 4",
-        '1 "a" 0.1 0.1 0.5 s_size 2 x_fact 3 fos 8 font Courier lr 0',
-        '2 "b" 0.9 0.1 0.5 s_size 2 lphi 90',
+        '1 "a" 0.1 0.1 0.5 ellipse s_size 2 x_fact 3 fos 8 font Courier lr 0',
+        '2 "b" 0.9 0.1 0.5 ellipse s_size 2 lphi 90',
         '3 "c" 0.1 0.9 0.5 y_fact 0.4 lr 12 lphi 300',
-        '4 "d" 0.9 0.9 0.5 bw 0.5',
+        '4 "d" 0.9 0.9 0.5 ellipse bw 0.5',
         "*Arcs",
         '1 2 1 w 0.6 l "a to b" lc Red fos 14 font Times',
         "3 4 1",

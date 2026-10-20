@@ -81,7 +81,7 @@ describe("Pajek's arrow size s and label angle la", () => {
         // pajek-specimen-labels: `la 30` is drawn rotate(-30); `la 400` at (0.3, 0.3) points away from (0.5, 0.5),
         // 135 degrees counterclockwise, and 40 more: 175, a clockwise 185
         const { get } = await load(
-            "*Vertices 3\n1 a 0.1 0.1 0.5 la 30\n2 b 0.2 0.2 0.5 la 90\n3 c 0.3 0.3 0.5 la 400\n",
+            "*Vertices 3\n1 a 0.1 0.1 0.5 ellipse la 30\n2 b 0.2 0.2 0.5 ellipse la 90\n3 c 0.3 0.3 0.5 ellipse la 400\n",
         );
         expect(get("node", "labelRotation")).toEqual([330, 270, 185]);
     });
@@ -122,7 +122,8 @@ describe("Pajek's Draw window options (pajekDraw ini)", () => {
         ]);
         const none = await load(doc, { ini: { "Form8.MarkVerticesUsing": 4 } });
         expect(none.get("node", "label")).toEqual(["", "", ""]);
-        expect(none.get("edge", "targetArrow")).toEqual(["none"]);
+        // No Labels no Arrows hides the arrows in the Draw window only: the SVG export draws them (`specimen-arrows-p2`)
+        expect(none.get("edge", "targetArrow")).toEqual(["triangle"]);
         expect((await load(doc)).get("edge", "targetArrow")).toEqual(["triangle"]);
     });
 

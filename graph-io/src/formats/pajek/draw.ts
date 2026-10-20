@@ -382,10 +382,8 @@ function sizeByVectors(
  */
 export function drawLines(draw: PajekDraw, snapshot: GraphSnapshot, node: Values, edge: Values): void {
     const m = snapshot.edgeCount;
-    if (iniNumber(draw, "Form8.MarkVerticesUsing") === 4) {
-        column(edge, "targetArrow", m).fill("none");
-        column(edge, "sourceArrow", m).fill("none");
-    }
+    // Mark Vertices Using / No Labels no Arrows hides the arrowheads in the Draw window only: the SVG export still
+    // draws every one (`pajek-specimen-arrows-p2`), so the arrows are left as the file sets them
     const opacity = iniNumber(draw, "TransparencyofLines");
     if (opacity !== null && opacity < 1) {
         const o = column(edge, "opacity", m);
@@ -394,10 +392,15 @@ export function drawLines(draw: PajekDraw, snapshot: GraphSnapshot, node: Values
         });
     }
     if (flag(draw, "Form10.StraightLinesOnly1")) {
-        column(edge, "curved", m).fill(false);
-        // a Bezier route drawn straight: no control points
-        if (edge.bends !== undefined) {
-            edge.bends.fill(null);
+        // Straight Lines draws the two curves of a mutual pair or of parallel lines straight, while a line's own
+        // Bezier route (`a1 k1 a2 k2`, which set its bends) stays curved in the SVG export
+        // (`pajek-specimen-edges-lines-p4` against `-p2`: only `bidirected` and `parallel-edges` change)
+        const curved = column(edge, "curved", m);
+        for (let e = 0; e < m; e++) {
+            const bends = edge.bends?.[e];
+            if (bends === null || bends === undefined) {
+                curved[e] = false;
+            }
         }
     }
     if (flag(draw, "Form10.ColorGradientLines")) {

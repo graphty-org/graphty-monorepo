@@ -37,6 +37,7 @@ import {
     RELATION_COLUMN,
     SHAPE_COLUMN,
     SHAPES,
+    VOIDING_KEYS,
 } from "./syntax.js";
 
 /** What the writer takes: the format's options, the common ones and the styles. */
@@ -872,6 +873,7 @@ function* writeVertices(
                 parts.push(coordinates);
             }
         }
+        const placed = parts.length > 0;
         if (shape?.isSet(i)) {
             const keyword = cellText(shape, i);
             if (SHAPES.has(keyword)) {
@@ -880,8 +882,14 @@ function* writeVertices(
                 parts.push(`${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
             }
         }
+        const named = parts.length;
         for (const column of nodeParams) {
             if (column.isSet(i)) {
+                // a placed line that names no shape and starts with such a key is drawn by Pajek with none of its
+                // parameters (`VOIDING_KEYS`): the default shape is named first, so it is drawn as written
+                if (placed && !shape?.isSet(i) && parts.length === named && VOIDING_KEYS.has(column.meta.name)) {
+                    parts.push("ellipse");
+                }
                 parts.push(`${column.meta.name} ${quotePajekLabel(cellText(column, i))}`);
             }
         }

@@ -1557,10 +1557,13 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
       written changes what an import returns, a breaking change left for the owner.
     - `man` and `woman` are about 2.5 x 6.5 times the size of the other shapes at the same `x_fact` / `y_fact` (50 x
       130 px at 1, against 20 for an ellipse); the sheets draw them at 0.5.
-    - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie.
+    - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie. FIXED
+      (2026-10-20): graph-io reads every diamond as Pajek's six-cornered polygon, `q` (0.001 by default) wide at its
+      top and bottom (`shapePoints`, unstretched), and writes it back as `diamond q`; node.shape on `node-shapes` and
+      `-p2` 24/38 -> 35/38, graphstream-b 88/111 -> 111/111, lin-rel4 179/225 -> 225/225.
 - Sizes: `s_size` is ignored (`specimen-node-sizes-opacity` `s-size-*`); `x_fact 0 y_fact 0` draws nothing; a vertex
   line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`) is drawn as a default box, its
-  color ignored. SVG Opacity of Vertices 0.5 sets the fill and stroke opacity (`-p3`). Options / Size / of Vertices s (default 8) scales
+  color ignored (FIXED 2026-10-20, below). SVG Opacity of Vertices 0.5 sets the fill and stroke opacity (`-p3`). Options / Size / of Vertices s (default 8) scales
   each axis by f = s / 8 when the file sizes that axis (`x_fact`, `y_fact`) and by f squared when it does not, each
   axis on its own (`specimen-node-sizes-opacity-p2` at 16; a probe at 4, 16 and 24: `x_fact 2` alone is drawn 20 x 5,
   80 x 80 and 120 x 180). FIXED (2026-10-19) per axis; the fix round had scaled a half-sized vertex's unsized axis by
@@ -1578,13 +1581,27 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   hides it), nor does `w 0`; a pattern other than `Solid` or `Dots`, or either in another case (`p Dashed`,
   `p dots`), draws a solid line, as graph-io now reads it (`specimen-edges-lines` `p-dashed`, `p-dots-lowercase`);
   a `*Matrix` section's lines are arcs, and a value in both cells a curved pair (`matrix`, `matrix-pair`); a negative
-  value is dotted only when no `p` is set on the line or carried from the line before; the oval (`k1 -1`), circular
+  value is drawn as `Dots` when the line sets no `p` (`p` is not carried from the line before: `pajek-synth-lines`
+  edge `3 10` after `1 8 ... p Dots`, arc `5 6 -1` after `p Solid`); the oval (`k1 -1`), circular
   arc (`k1 -2`, `k1 -3`) and double (`k1 -4`) routes are drawn straight; a loop is a Bezier loop and a bidirected
-  pair two curves. Straight Lines (`specimen-edges-lines-p4`) draws the Bezier routes straight; Lines Color as
-  Gradient of EndVertices (`-p5`) paints each line with a gradient of its end vertices' colors.
-- Arrows: `a B` draws the same arrow as `a A`; an arrow is 6 x `s` long (tip to its back corners) and 5 x `s` wide, its back notched by 1 x `s`; `ap 1` puts the arrow at
-  the source end; `*Edges` lines draw no arrow whatever `a` and `s` say. No Labels no Arrows draws neither
-  (`specimen-arrows-p2`); Lines finished at Vertex Border stops each line at its vertex's border (`-p3`).
+  pair two curves. Straight Lines (`specimen-edges-lines-p4`) draws the curves of a bidirected pair and of parallel
+  lines straight and leaves a line's own Bezier route (`a1 k1 a2 k2`) curved; Lines Color as Gradient of EndVertices
+  (`-p5`) paints each line with a gradient of its end vertices' colors. FIXED (2026-10-20): `Dots` is
+  `stroke-dasharray:5`, dashes and gaps 5 px long whatever the width, so graph-io reads it as dots on a line 10/3 px
+  wide or wider and as dashes on a thinner one (it read every one as dotted, and carried `p`; `edges-lines` edge.dash
+  31/33 -> 33/33, synth-lines 65/88 -> 85/88); Straight Lines no longer straightens a Bezier route (`edges-lines-p4`
+  edge.curve 31/36 -> 35/36, edge.route 29/36 -> 34/36).
+- Arrows: `a B` draws the same arrow as `a A`; an arrow is 6 x `s` long (tip to its back corners) and 5 x `s` wide, its back notched by 1 x `s`; `ap` is measured from the
+  target along the line between the centers, the arrowhead's back at that point (`ap 1` at the source's center,
+  pointing on); `*Edges` lines draw no arrow whatever `a` and `s` say. No Labels no Arrows hides the labels, but the
+  SVG export still draws every arrowhead (`specimen-arrows-p2`; FIXED 2026-10-20, graph-io had removed them: edge.arrow
+  45/66 -> 66/66); Lines finished at Vertex Border stops each line at its vertex's border (`-p3`). FIXED (2026-10-20)
+  in the comparator's reading of graphty's drawing (`graphty-element/test/fidelity/drawn-scene.ts`): an arrowhead
+  graphty draws part-way along its line (`arrowPosition`) no longer cuts the line there (`ap-0-25`, `ap-0-5`, `ap-1`
+  edge.route 18/22 -> 21/22 on `arrows`), and one past the middle is read at the end it sits at, pointing back
+  (`ap-1`: edge.arrow 64/66 -> 66/66, arrowShape 21/21). Left: graphty puts the arrowhead's tip at `ap` of the line
+  between the outlines where Pajek puts its back at `ap` of the line between the centers (`ap-0-25` a few px apart;
+  not judged).
 - Line labels: drawn only under Mark Lines / with Labels (`specimen-edge-labels` against `-p2`, which draws none);
   `lp` is measured from the terminal vertex. Pajek's SVG export writes each line's label BEFORE its line's comment,
   after the line before it, so the comparison read every label as the line before's (`Edge: 1 2`, which has no
@@ -1601,9 +1618,19 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
 - Hooks: Pajek's shipped SHAPES.CFG defines hooks for every shape but `empty` (box CART, 400 points round its
   border; ellipse CIRC `10 1`, hook k at k degrees; diamond and cross POLAR), and a line's `h1` / `h2` 1, 2, ... use
   them: `h1 90 h2 270` between two ellipses runs from the top of the source to the bottom of the target, `h1 1 h2 1`
-  ends on the far side of the target (`specimen-edges-lines-p2` `h-*`).
+  ends on the far side of the target (`specimen-edges-lines-p2` `h-*`); a cross, drawn as an ellipse, takes an
+  ellipse's hooks (`h-cross-1-3`: hook 3 at 3 degrees), 0 is the center and -1 the nearest hook. FIXED (2026-10-20):
+  graph-io reads the ellipse's, the box's and the cross's hooks as `sourcePort` / `targetPort` (`h-ellipse-90-270`,
+  `h-box-1-100` edge.route pass). Left: the hooks of a diamond (360 polar radii), a triangle, a house and the figures
+  are not read (no specimen or sample uses them), and Pajek draws the box's hook 100 0.22 of the half width left of
+  where its SHAPES.CFG puts it (`h-box-1-100`, 1.3 px).
 - Rotation and the third coordinate: `phi` rotates a wide ellipse and a diamond too (`specimen-node-shapes`
   `phi-30-*`); the `z` coordinate, or none, leaves the drawing unchanged (`specimen-node-sizes-opacity` `z-*`).
+  FIXED (2026-10-20) for the box, triangle, house and diamond: graph-io writes the turned corners as `shapePoints`
+  (`phi-30-box` node.shape, width and height, `phi-30-triangle` position). Open: a turned ellipse (`phi-30-ellipse-wide`,
+  height 25 against 37.5) and a turned man or woman (`phi-30-man`, `phi-90-man`: width and height swapped). The
+  neutral vocabulary and graphty-element have no node rotation, and an outline of corners would draw an ellipse as a
+  polygon: the fix is a node rotation in graphty-element and the vocabulary, not yet built.
 - A project file's partition and vector (`specimen-mappings-bypass`): Draw > Network + First Partition colors each
   vertex by its cluster with Figure 20's 40 partition colors (cluster 0 Cyan, 1 Yellow, 2 LimeGreen, 3 Red, ...),
   over the vertex's own `ic` (`part-3-over-ic`, as section 5.2 says); a cluster past 39 wraps (40 Cyan, 45 Pink,
@@ -1641,7 +1668,7 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
       Straight Lines draws every one straight (`edges-lines-p2` and `-p5` curve 28/36 -> 32/36, route 26/36 ->
       29/36; `edge-labels`, `-p2` 28/30 -> 29/30; `arrows-p3` curve 21/22 -> 22/22; c 122/125 -> 125/125). Left: an
       arc's curve, which Pajek fits to the arrowhead's back rather than the target's center (`arrow-bezier`, curve
-      0.13 against 0.19 on `arrows`, `-p2`), and loops: Pajek's Bezier loop has its control points k x 250 out at
+      0.13 against 0.19 on `arrows`, `-p2`; FIXED 2026-10-20 below), and loops: Pajek's Bezier loop has its control points k x 250 out at
       a1 and 180 - a2 degrees on screen (k 0.3 at -70 by default), which graphty's own loop does not draw (curve
       2.4 against 11.1). Mutual pairs pass.
     - FIXED (2026-10-19) SVG Vertices 3D Effect (`Form10.effect3d`): each vertex is a linear gradient from its fill
@@ -1651,9 +1678,20 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
     - A vertex line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`, `s-size-no-shape`) is
       drawn by Pajek with every parameter on the line ignored: default size and fill, and the shape carried from the
       line before (a box on the `node-sizes-opacity` pages, 20 x 20 at the default size, 80 x 80 at Size of Vertices
-      16); graph-io reads it as a red ellipse. A Pajek 6.02 probe (2026-10-19) shows the same for a line starting
-      `bw 3 ic Blue`, while lines starting `ic Red x_fact 2` (drawn red, 40 x 20) or `x_fact` (`pajek-1crn`) are read
-      normally. Not read yet: which leading keys void the line needs a probe of every vertex key first.
+      16). FIXED (2026-10-20): a Pajek 6.02 probe of every vertex key first on a placed line voids the line for `bc`,
+      `bw`, `s_size`, `phi`, `r`, `q`, `lc`, `la`, `lr`, `lphi`, `fos` and `font`, and reads it whole for `ic`,
+      `x_fact` and `y_fact`; graph-io now draws such a line at Pajek's defaults in the shape of the vertex line before,
+      and its writer names `ellipse` before such a key (`node-sizes-opacity`, `-p2`, `-p3` node.shape and node.fill
+      26/27 -> 27/27). Left: the shape is not always the line before's (in the probes, after `box ic Green` a voided
+      line drew an ellipse in one file and the triangle of two lines before in another); Pajek's rule was not found.
+    - FIXED (2026-10-20) A Bezier arc's end: Pajek places the arrowhead as on a straight arc, its tip 1.5 short of where
+      the straight line meets the target's outline, turns it `-a2` degrees about that point, and runs the curve from
+      the source's center to the arrowhead's back, its control points measured on that shorter line
+      (`route-bezier-opposite-arc`: back at (347.02, 124.32), 6.5 from the outline point (352, 128.5), turned 40
+      degrees); graph-io now writes those control points in the frame of the line between the centers
+      (`arrow-bezier`, `route-bezier-*-arc` curve 0.129 -> 0.135 against 0.189). Left: graphty still runs the curve on
+      to the outline and puts the arrowhead there, so `route-bezier-opposite-arc` and `arrow-bezier` miss by 0.007 of
+      their length (edge.route 0.057 against 0.05).
     - Comparator: a vertex much larger than its neighbors (`vec-9` 120 px, `vec2-3`, `vec-2-vec2-3`, and on
       `node-sizes-opacity-p2` the 80 px vertices at Size of Vertices 16) is reported `node.present` missing with a
       graphty `group.extra`, although both drawings show it the same size in the same place (overlay of

@@ -38,7 +38,7 @@ describe("Pajek label places (lr, lphi)", () => {
         // pajek-specimen-labels: `default` (no lr, lphi) starts at (+5.18, +19.32) from the center at size 15;
         // `lphi-135` (lr 20, fos 10) at (-14.14, -14.14), the label's middle 3.5 above that
         const { get } = await load(
-            "*Vertices 3\n1 a 0.1 0.1 0.5\n2 b 0.2 0.2 0.5 lr 20 lphi 135 fos 10\n3 c 0.3 0.3 0.5 lr 0\n",
+            "*Vertices 3\n1 a 0.1 0.1 0.5\n2 b 0.2 0.2 0.5 ellipse lr 20 lphi 135 fos 10\n3 c 0.3 0.3 0.5 ellipse lr 0\n",
         );
         expect(get("node", "labelPosition")).toEqual(["center", "center", "center"]);
         expect(get("node", "labelShiftX")).toEqual([0.5, 0.5, 0]);
@@ -52,7 +52,8 @@ describe("Pajek label places (lr, lphi)", () => {
     });
 
     it("writes the place back as lr and lphi, leaving out Pajek's default", async () => {
-        const doc = "*Vertices 3\n1 a 0.1 0.1 0.5\n2 b 0.2 0.2 0.5 lr 12 lphi 135 fos 10\n3 c 0.3 0.3 0.5 lr 0\n";
+        const doc =
+            "*Vertices 3\n1 a 0.1 0.1 0.5\n2 b 0.2 0.2 0.5 ellipse lr 12 lphi 135 fos 10\n3 c 0.3 0.3 0.5 ellipse lr 0\n";
         const { result } = await load(doc);
         const out = await registry.exportGraphToString(result.snapshot, "pajek", {
             styles: result.styles ?? undefined,
@@ -188,10 +189,11 @@ describe("Pajek Bezier lines (a1, k1, a2, k2)", () => {
         expect(get("edge", "curved")).toEqual([true, null, true]);
         // its label is turned along the curve at its middle (`pajek-specimen-edge-labels` `on-bezier`: rotate(-48.57))
         expect(get("edge", "labelRotation")[0]).toBeCloseTo(360 - 48.57, 1);
-        // Straight Lines draws the curve straight, and a loop still round (`pajek-specimen-edges-lines-p4`)
-        const straight = await load(doc, { ini: { "Form10.StraightLinesOnly1": "" } });
-        expect(straight.get("edge", "bends")).toEqual([null, null, loop]);
-        expect(straight.get("edge", "curved")).toEqual([false, false, true]);
+        // Straight Lines leaves a line's own Bezier route and a loop curved, as the SVG export draws them, and only the
+        // other lines straight (`pajek-specimen-edges-lines-p4`: route-bezier-* drawn as on -p2)
+        const straight = await load(doc, { width: 1200, height: 900, ini: { "Form10.StraightLinesOnly1": "" } });
+        expect(straight.get("edge", "bends")).toEqual(["0.5745,-0.4821 0.4255,0.4821", null, loop]);
+        expect(straight.get("edge", "curved")).toEqual([true, false, true]);
     });
 
     it("draws a loop with no route parameters up from its node, as Pajek's SVG export does", async () => {

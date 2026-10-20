@@ -13,8 +13,9 @@
     pointer-events: none;
 }
 
+/* The width is the Popover's width prop; the content wraps inside it, never widens it. */
 .sv-pop {
-    width: 320px;
+    max-width: calc(100vw - 16px);
     padding: 8px;
 }
 
@@ -96,6 +97,9 @@
     font-size: 11px;
     line-height: 18px;
     white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .sv-code[data-error] {
@@ -104,6 +108,9 @@
 }
 
 .sv-preview {
+    min-width: 0;
+    max-height: 280px;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 6px;

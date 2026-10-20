@@ -86,6 +86,34 @@ registerSource(
     }),
 );
 
+/** A server that answers only once the test releases it, so a test can look at a busy form. */
+const SLOW = "test-slow-server";
+let release: () => void = () => undefined;
+const released = new Promise<void>((resolve) => {
+    release = resolve;
+});
+
+registerSource(
+    defineSource({
+        id: SLOW,
+        descriptor: { plainName: "Slow server", defaultEndpoint: "https://slow.example", params: [] },
+        records: async () => {
+            await released;
+            return { nodes: [{ id: "s0" }], edges: [] };
+        },
+    }),
+);
+
+/**
+ * Opens the server form from the Sources "+".
+ * @returns the form.
+ */
+async function openForm(): Promise<HTMLElement> {
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: "Server..." }));
+    return screen.findByRole("form", { name: "Server" });
+}
+
 /**
  * Renders the workspace on the Data place with a project open and waits for the element.
  * @returns the element and its session.
@@ -159,6 +187,11 @@ describe("server sources on the real element", () => {
         assert.include(preview.textContent, "Person 0");
         assert.isNotNull(within(preview).getByRole("list", { name: "Columns" }));
         assert.lengthOf(session.data.sources(), 0, "Test loads nothing");
+        // The preview wraps inside the pop-over; it never widens it past Load.
+        const dialog = screen.getByRole("dialog", { name: "Server" });
+        assert.isAtMost(dialog.getBoundingClientRect().width, 360);
+        const loadButton = within(form).getByRole("button", { name: "Load" });
+        assert.isAtMost(loadButton.getBoundingClientRect().right, window.innerWidth);
 
         await userEvent.click(within(form).getByRole("button", { name: "Load" }));
         await waitFor(() => {
@@ -236,6 +269,49 @@ describe("server sources on the real element", () => {
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("form", { name: "Server" }));
+        });
+    });
+
+    it("enables Test and Load only once the endpoint is filled, and keeps the Start an example does not own", async () => {
+        await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Neo4j");
+        const testButton = within(form).getByRole<HTMLButtonElement>("button", { name: "Test" });
+        const loadButton = within(form).getByRole<HTMLButtonElement>("button", { name: "Load" });
+        assert.isTrue(testButton.disabled, "no endpoint, no Test");
+        assert.isTrue(loadButton.disabled, "no endpoint, no Load");
+        await userEvent.type(within(form).getByRole("textbox", { name: "Endpoint" }), "https://neo4j.example");
+        assert.isFalse(testButton.disabled);
+        assert.isFalse(loadButton.disabled);
+
+        // Rarely used rows wait in Advanced.
+        assert.isNull(within(form).queryByRole("textbox", { name: "Database" }));
+        await pick(form, "Example", "Hetionet");
+        await pick(form, "Example", "Neo4j demo: movies");
+        assert.isTrue(within(form).getByRole<HTMLInputElement>("radio", { name: "Query" }).checked);
+        await userEvent.click(within(form).getByRole("button", { name: /Advanced/ }));
+        assert.equal(within(form).getByRole<HTMLInputElement>("textbox", { name: "Database" }).value, "movies");
+        assert.equal(
+            within(form).getByRole<HTMLInputElement>("combobox", { name: "Transport" }).value,
+            "",
+            "Hetionet's Bolt does not carry over",
+        );
+    });
+
+    it("keeps focus on Test while it reads", async () => {
+        await openDataPlace();
+        const form = await openForm();
+        await pick(form, "Kind", "Slow server");
+        const testButton = within(form).getByRole("button", { name: "Test" });
+        await userEvent.click(testButton);
+        await waitFor(() => {
+            assert.equal(testButton.getAttribute("aria-disabled"), "true");
+        });
+        assert.equal(document.activeElement, testButton);
+        release();
+        await within(form).findByRole("group", { name: "Preview" });
+        await waitFor(() => {
+            assert.equal(testButton.getAttribute("aria-disabled"), "false");
         });
     });
 });

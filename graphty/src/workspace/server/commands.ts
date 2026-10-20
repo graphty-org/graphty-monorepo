@@ -106,6 +106,81 @@ export function freshForm(entry: SourceCatalogEntry): ServerFormState {
 }
 
 /**
+ * Whether a typed value is blank: nothing, empty text or an empty list.
+ * @param value - the value.
+ * @returns true when blank.
+ */
+function isBlank(value: unknown): boolean {
+    return (
+        value === undefined ||
+        value === null ||
+        (typeof value === "string" && value.trim() === "") ||
+        (Array.isArray(value) && value.length === 0)
+    );
+}
+
+/**
+ * Whether the form holds what Test and Load need: an endpoint when the source has no default,
+ * every required param, the query for a Query start and the seeds for a Seed nodes start.
+ * @param entry - the source.
+ * @param form - the form.
+ * @returns true when ready.
+ */
+export function formReady(entry: SourceCatalogEntry, form: ServerFormState): boolean {
+    const { descriptor } = entry;
+    if (form.endpoint.trim() === "" && isBlank(descriptor.defaultEndpoint)) {
+        return false;
+    }
+    const hasMode = descriptor.params.some((p) => p.name === "mode");
+    const { mode } = form.params;
+    return descriptor.params.every((param) => {
+        const needed =
+            param.required === true ||
+            (hasMode && param.type === "query" && mode === "query") ||
+            (hasMode && param.type === "node-id" && mode === "neighborhood");
+        return !needed || !isBlank(form.params[param.name]);
+    });
+}
+
+/**
+ * The form filled from one of the source's examples: its endpoint, sign-in and params, with the
+ * params the previous example set cleared first and the transport always the example's (a source
+ * picks it from the endpoint when the example names none). The reader's Start is kept.
+ * @param entry - the source.
+ * @param form - the form now.
+ * @param id - the example's id.
+ * @returns the filled form, or the form unchanged for an unknown id.
+ */
+export function withExample(entry: SourceCatalogEntry, form: ServerFormState, id: string | null): ServerFormState {
+    const samples = entry.descriptor.samples ?? [];
+    const sample = samples.find((each) => each.id === id);
+    if (sample === undefined) {
+        return form;
+    }
+    const prior = samples.find((each) => each.plainName === form.example);
+    const owned = new Set([...Object.keys(prior?.params ?? {}), "transport"]);
+    const params: Record<string, unknown> = Object.fromEntries(
+        Object.entries(form.params).filter(([name]) => !owned.has(name)),
+    );
+    for (const [name, value] of Object.entries(sample.params)) {
+        if (name !== "mode") {
+            params[name] = value;
+        }
+    }
+    if (form.params.mode !== undefined) {
+        params.mode = form.params.mode;
+    }
+    return {
+        ...form,
+        example: sample.plainName,
+        endpoint: sample.endpoint ?? "",
+        params,
+        user: sample.publicLogin?.username ?? "",
+        secret: sample.publicLogin?.password ?? "",
+    };
+}
+
+/**
  * Splits a comma list into its trimmed, non-empty items.
  * @param text - the list.
  * @returns the items.

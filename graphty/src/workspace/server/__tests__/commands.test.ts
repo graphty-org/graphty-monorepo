@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { freshForm, serverKinds, serverRequest } from "../commands";
+import { formReady, freshForm, serverKinds, serverRequest, withExample } from "../commands";
 
 /**
  * A source of the catalog, by id.
@@ -67,5 +67,33 @@ describe("the server form's request", () => {
         const rest = kind("rest");
         const form = { ...freshForm(rest), params: { mapping: '{ "endpoint": "https://x.example" }' } };
         assert.deepEqual(serverRequest(rest, form).input.config.mapping, { endpoint: "https://x.example" });
+    });
+
+    it("is not ready without an endpoint the source has no default for, or the Start's query or seeds", () => {
+        const neo4j = kind("neo4j");
+        const fresh = freshForm(neo4j);
+        assert.isFalse(formReady(neo4j, fresh), "Neo4j has no default endpoint");
+        const filled = { ...fresh, endpoint: "https://demo.neo4jlabs.com:7473" };
+        assert.isTrue(formReady(neo4j, filled));
+        assert.isFalse(formReady(neo4j, { ...filled, params: { mode: "query", query: " " } }));
+        assert.isFalse(formReady(neo4j, { ...filled, params: { mode: "neighborhood", ids: "" } }));
+        assert.isTrue(formReady(neo4j, { ...filled, params: { mode: "neighborhood", ids: "a" } }));
+        const ndex = kind("ndex");
+        assert.isFalse(formReady(ndex, freshForm(ndex)), "NDEx needs its network UUID");
+        assert.isTrue(formReady(ndex, { ...freshForm(ndex), params: { uuid: "x" } }));
+    });
+
+    it("fills from an example but keeps the reader's Start and takes the example's transport", () => {
+        const neo4j = kind("neo4j");
+        const hetionet = withExample(neo4j, freshForm(neo4j), "hetionet");
+        assert.equal(hetionet.params.mode, "query", "the reader's Start stays");
+        assert.equal(hetionet.params.transport, "bolt");
+        const movies = withExample(neo4j, hetionet, "neo4j-movies");
+        assert.equal(movies.params.mode, "query", "Everything is not forced");
+        assert.notProperty(movies.params, "transport", "Bolt does not carry over");
+        assert.notProperty(movies.params, "idProperty");
+        assert.equal(movies.params.database, "movies");
+        assert.equal(movies.endpoint, "https://demo.neo4jlabs.com:7473");
+        assert.equal(movies.user, "movies");
     });
 });

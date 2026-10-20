@@ -1,12 +1,13 @@
 import "./server.css";
 
-import { SegmentedControl } from "@graphty/compact-mantine";
+import { ControlSection, SegmentedControl } from "@graphty/compact-mantine";
 import type { SourceCatalogEntry } from "@graphty/graphty-element/catalog";
 import { type CodedFact, type SourceParamDescriptor, type SourcePreview } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Button,
     Checkbox,
+    Loader,
     NumberInput,
     PasswordInput,
     Popover,
@@ -17,13 +18,14 @@ import {
     Tooltip,
 } from "@mantine/core";
 import { Server, Settings2, X } from "lucide-react";
-import React, { useState } from "react";
+import React, { useId, useState } from "react";
 
 import { useSessionVersion } from "../inspector/hooks";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import {
     EXPAND_DEFAULTS,
     formCredential,
+    formReady,
     freshForm,
     SERVER_DIALOG,
     type ServerFormState,
@@ -31,6 +33,7 @@ import {
     serverRequest,
     START_WORDS,
     STARTER_QUERY,
+    withExample,
 } from "./commands";
 import { CodeChip, PreviewRows } from "./PreviewRows";
 import { failureOf } from "./words";
@@ -40,6 +43,9 @@ const IN_PLACE = { withinPortal: false } as const;
 
 /** The params the form draws as its own rows, not as the source's generic rows. */
 const OWN_ROWS = new Set(["mode"]);
+
+/** Params few readers change, drawn in the Advanced section with the source's own advanced ones. */
+const RARE_PARAMS = new Set(["transport", "database"]);
 
 /**
  * One property row: a label and its control.
@@ -224,16 +230,28 @@ function ParamRow({
 }
 
 /**
- * Which of a source's params the form draws now: every one a form need not hide, but the query
- * only for a Query start and the seeds and depth only for a Seed nodes start.
+ * Whether a param belongs in the Advanced section: the source marks it advanced, or few readers
+ * change it.
+ * @param param - the param.
+ * @returns true for an Advanced row.
+ */
+function isRare(param: SourceParamDescriptor): boolean {
+    return param.advanced === true || (RARE_PARAMS.has(param.name) && param.required !== true);
+}
+
+/**
+ * Which of a source's params the form draws now, in the main rows or in Advanced: every one a
+ * form need not hide, but the query only for a Query start and the seeds and depth only for a
+ * Seed nodes start.
  * @param entry - the source.
  * @param mode - the Start picked, if the source has one.
+ * @param rare - true for the Advanced rows, false for the main ones.
  * @returns the params.
  */
-function shownParams(entry: SourceCatalogEntry, mode: unknown): readonly SourceParamDescriptor[] {
+function shownParams(entry: SourceCatalogEntry, mode: unknown, rare: boolean): readonly SourceParamDescriptor[] {
     const hasMode = entry.descriptor.params.some((p) => p.name === "mode");
     return entry.descriptor.params.filter((param) => {
-        if (param.advanced === true || OWN_ROWS.has(param.name)) {
+        if (OWN_ROWS.has(param.name) || isRare(param) !== rare) {
             return false;
         }
         if (hasMode && param.type === "query") {
@@ -251,10 +269,11 @@ function shownParams(entry: SourceCatalogEntry, mode: unknown): readonly SourceP
  * source's own params, Limit and Expand on double-click; Test reads a preview, Load loads. Rows a
  * source cannot use are absent.
  * @param props - Component props
+ * @param props.titleId - the id of the form's title, which names the pop-over.
  * @param props.onClose - closes the pop-over.
  * @returns the form.
  */
-function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.Element {
+function ServerForm({ titleId, onClose }: Readonly<{ titleId: string; onClose: () => void }>): React.JSX.Element {
     const { session, element } = useWorkspace();
     const kinds = serverKinds();
     const [form, setForm] = useState<ServerFormState>(() => {
@@ -282,8 +301,10 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         change({ params: { ...form.params, [name]: value } });
     };
 
+    const ready = formReady(entry, form);
+    const advanced = shownParams(entry, form.params.mode, true);
     const test = (): void => {
-        if (session === null) {
+        if (session === null || busy !== null || !ready) {
             return;
         }
         const { input, options } = serverRequest(entry, form);
@@ -306,7 +327,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
     };
 
     const load = async (): Promise<void> => {
-        if (session === null) {
+        if (session === null || busy !== null || !ready) {
             return;
         }
         const { input, options } = serverRequest(entry, form);
@@ -343,7 +364,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
         >
             <header className="sv-head">
                 <Server size={14} aria-hidden />
-                <Text size="xs" fw={600}>
+                <Text size="xs" fw={600} id={titleId}>
                     Server
                 </Text>
                 <ActionIcon variant="subtle" size="sm" aria-label="Close" onClick={onClose}>
@@ -378,16 +399,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                         data={samples.map((each) => ({ value: each.id, label: each.plainName }))}
                         value={samples.find((each) => each.plainName === form.example)?.id ?? null}
                         onChange={(id) => {
-                            const sample = samples.find((each) => each.id === id);
-                            if (sample !== undefined) {
-                                change({
-                                    example: sample.plainName,
-                                    endpoint: sample.endpoint ?? "",
-                                    params: { ...form.params, ...sample.params },
-                                    user: sample.publicLogin?.username ?? "",
-                                    secret: sample.publicLogin?.password ?? "",
-                                });
-                            }
+                            change(withExample(entry, form, id));
                         }}
                     />
                 </Row>
@@ -457,7 +469,7 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     />
                 </Row>
             )}
-            {shownParams(entry, form.params.mode).map((param) => (
+            {shownParams(entry, form.params.mode, false).map((param) => (
                 <ParamRow
                     key={param.name}
                     param={param}
@@ -510,12 +522,40 @@ function ServerForm({ onClose }: Readonly<{ onClose: () => void }>): React.JSX.E
                     </div>
                 </Row>
             ) : null}
+            {advanced.length === 0 ? null : (
+                <ControlSection label="Advanced" defaultOpened={false}>
+                    {advanced.map((param) => (
+                        <ParamRow
+                            key={param.name}
+                            param={param}
+                            value={form.params[param.name]}
+                            onChange={(value) => {
+                                setParam(param.name, value);
+                            }}
+                        />
+                    ))}
+                </ControlSection>
+            )}
             <div className="sv-actions">
                 {failure === null ? null : <CodeChip fact={failure} />}
-                <Button size="xs" variant="default" loading={busy === "test"} disabled={busy !== null} onClick={test}>
+                {/* aria-disabled while busy, not disabled, so the pressed button keeps focus. */}
+                <Button
+                    size="xs"
+                    variant="default"
+                    disabled={!ready}
+                    aria-disabled={busy !== null}
+                    leftSection={busy === "test" ? <Loader size={10} /> : null}
+                    onClick={test}
+                >
                     Test
                 </Button>
-                <Button size="xs" type="submit" loading={busy === "load"} disabled={busy !== null}>
+                <Button
+                    size="xs"
+                    type="submit"
+                    disabled={!ready}
+                    aria-disabled={busy !== null}
+                    leftSection={busy === "load" ? <Loader size={10} color="white" /> : null}
+                >
                     Load
                 </Button>
             </div>
@@ -576,6 +616,7 @@ function WaitingLoads(): React.JSX.Element | null {
  */
 export function ServerPlace(): React.JSX.Element {
     const { store } = useWorkspace();
+    const titleId = useId();
     const opened = useWorkspaceState((state) => state.dialog === SERVER_DIALOG);
     const close = (): void => {
         store.set((state) => (state.dialog === SERVER_DIALOG ? { dialog: null } : {}));
@@ -587,6 +628,7 @@ export function ServerPlace(): React.JSX.Element {
                 opened={opened}
                 onClose={close}
                 position="right-start"
+                width={320}
                 shadow="md"
                 trapFocus
                 returnFocus
@@ -597,6 +639,8 @@ export function ServerPlace(): React.JSX.Element {
                 </Popover.Target>
                 <Popover.Dropdown
                     className="sv-pop"
+                    // Mantine names the dialog by its target, an empty anchor; the form's title names it instead.
+                    aria-labelledby={titleId}
                     onKeyDown={(event) => {
                         // Escape closes from anywhere in the pop-over; a row's open dropdown takes it first.
                         if (event.key === "Escape" && !event.defaultPrevented) {
@@ -604,7 +648,7 @@ export function ServerPlace(): React.JSX.Element {
                         }
                     }}
                 >
-                    {opened ? <ServerForm onClose={close} /> : null}
+                    {opened ? <ServerForm titleId={titleId} onClose={close} /> : null}
                 </Popover.Dropdown>
             </Popover>
         </>

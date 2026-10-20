@@ -231,6 +231,8 @@ export type ArrowShape =
     | "half-circle"
     // a picture drawn as the arrowhead (vis-network's image arrows)
     | "image"
+    // a delta with a bar across the line behind it (Cytoscape's CROSS_DELTA, CROSS_OPEN_DELTA)
+    | "cross-delta"
     | "other";
 
 /** Where along its edge an arrowhead sits: at one end, or part-way along the line ("middle"). */
@@ -906,5 +908,37 @@ export function arrowShapeOf(outline: readonly Pt[], dir: Pt): ArrowShape {
     if (widening && tip >= 0.9 && middle >= 0.75 && middle < 0.95 && back <= 0.6 && w[2] >= 0.6 && w[2] <= 0.85) {
         return "half-circle";
     }
-    return "other";
+    return crossedDelta(outline, a, c, dir) ? "cross-delta" : "other";
+}
+
+/**
+ * Whether an arrowhead is a delta with a bar across the line behind it, a gap between them (Cytoscape's CROSS_DELTA
+ * and CROSS_OPEN_DELTA): no point of the outline in a gap across the axis, a thin bar behind it at least as wide as
+ * what is in front, and a delta in front, solid or outlined.
+ * @param outline - the outline
+ * @param a - each point's place along the axis
+ * @param c - each point's place across it
+ * @param dir - the axis
+ * @returns true for a crossed delta
+ */
+function crossedDelta(outline: readonly Pt[], a: readonly number[], c: readonly number[], dir: Pt): boolean {
+    const sorted = [...a].sort((x, y) => x - y);
+    const L = (sorted.at(-1) ?? 0) - sorted[0];
+    // the first gap from the back (a delta drawn by its corners alone has another between its back and its tip)
+    const at = sorted.findIndex((x, i) => i > 0 && x - sorted[i - 1] > 0.1 * L);
+    if (at < 0 || sorted[at - 1] - sorted[0] > 0.2 * L) {
+        return false;
+    }
+    const cut = sorted[at - 1];
+    const span = (keep: (i: number) => boolean): number => {
+        const cs = c.filter((_, i) => keep(i));
+        return cs.length === 0 ? 0 : Math.max(...cs) - Math.min(...cs);
+    };
+    const front = outline.filter((_, i) => a[i] > cut);
+    return (
+        front.length >= 3 &&
+        span((i) => a[i] <= cut) >= 0.95 * span((i) => a[i] > cut) &&
+        // an outlined delta drawn as a frame (an inner delta inside the outer one) reads as a notched one
+        ["triangle", "vee"].includes(arrowShapeOf(front, dir))
+    );
 }

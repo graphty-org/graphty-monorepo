@@ -201,6 +201,9 @@ describe("graphty's drawing in the oracle comparison's model", () => {
         assert.deepEqual(one("arrow-2d-open-half-circle"), ["half-circle", false]);
         assert.deepEqual(one("arrow-2d-triangle-tee"), ["triangle", true]);
         assert.deepEqual(one("arrow-2d-triangle-cross"), ["triangle", true]);
+        // Cytoscape's CROSS_DELTA and CROSS_OPEN_DELTA, the class the oracle reads them in
+        assert.deepEqual(one("arrow-2d-cross-delta"), ["cross-delta", true]);
+        assert.deepEqual(one("arrow-2d-open-cross-delta"), ["cross-delta", false]);
     });
 
     it("reads a cap drawn part-way along the line as the line's middle one, a middle tail pointing back", () => {

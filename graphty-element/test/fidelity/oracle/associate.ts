@@ -746,12 +746,15 @@ const boxOfNode = (n: PNode): PBox => ({
 });
 
 /**
- * The largest end cap that draws nothing beyond its line: a dot or square as wide as the line.
+ * The largest end cap that draws nothing beyond its line: a dot or square as wide as the line. A line of no one
+ * width (a pattern Cytoscape desktop paints as a filled band: slashes, arrows, a double line) has no such cap: every
+ * cap at its end is an arrowhead.
  * @param e - the edge
  * @returns the size in the side's pixels
  */
 export function lineCapSize(e: PEdge): number {
-    return 1.1 * (e.stroke?.width ?? 0) + 0.25;
+    const width = e.stroke?.width ?? 0;
+    return 1.1 * (Number.isFinite(width) ? width : 0) + 0.25;
 }
 
 /**
@@ -1010,7 +1013,14 @@ export function arrowheadEdge(
 ): { e: PEdge; end: ArrowEnd } | null {
     const size = Math.max(bw(p.box), bh(p.box));
     const c: Pt = [cx(p.box), cy(p.box)];
+    // a dot no wider than a line it touches the end of is that line's own end (Cytoscape desktop's arrow shape NONE on
+    // a wide line), even over a node smaller than twice its size (xgmml-specimen-arrows-p2 arrow-on-wide-edge)
+    const lineEnd = edges.some(
+        (e) =>
+            size <= lineCapSize(e) && (toBox(endOf(e, "source"), p.box) <= 1 || toBox(endOf(e, "target"), p.box) <= 1),
+    );
     if (
+        !lineEnd &&
         nodes.some((n) => inside([n.cx, n.cy], p.box) || (inside(c, boxOfNode(n)) && size >= 0.5 * Math.min(n.w, n.h)))
     ) {
         return null;
@@ -1023,7 +1033,34 @@ export function arrowheadEdge(
     // across a long line's middle, and is that other edge's.
     const reach = size * 1.5 + 3;
     const from = (q: Pt): number => Math.hypot(c[0] - q[0], c[1] - q[1]);
-    const ends = nearestEnd(edges, (e, end) => from(endOf(e, end)), reach, ["source", "target"]);
+    const near = nearestEnd(edges, (e, end) => from(endOf(e, end)), reach, ["source", "target"]);
+    // How far a shape reaches back along a line from its end, inward: about 0 for a cap whose base the line stops at
+    // (Cytoscape desktop stops every line at its arrowhead's base), its length for one the line runs on under.
+    const behind = (e: PEdge, end: "source" | "target"): number => {
+        const q = endOf(e, end);
+        const r = end === "source" ? (e.points[1] ?? q) : (e.points.at(-2) ?? q);
+        const len = Math.hypot(r[0] - q[0], r[1] - q[1]);
+        return len < 1e-9
+            ? Number.POSITIVE_INFINITY
+            : Math.max(...p.points.map((v) => ((v[0] - q[0]) * (r[0] - q[0]) + (v[1] - q[1]) * (r[1] - q[1])) / len));
+    };
+    // Where several lines end at one node, the nearest end may lie under the middle of another line's cap (a crowded
+    // Cytoscape desktop node, xgmml-syn-mappings 1269791): the line that stops at the cap's base is the cap's.
+    const based =
+        near !== null && toBox(endOf(near.e, near.end), p.box) <= 2 && behind(near.e, near.end) > 1.5
+            ? nearestEnd(
+                  edges,
+                  (e, end) => {
+                      const b = behind(e, end);
+                      return toBox(endOf(e, end), p.box) <= 2 && b <= 1 && b >= -2
+                          ? from(endOf(e, end))
+                          : Number.POSITIVE_INFINITY;
+                  },
+                  reach,
+                  ["source", "target"],
+              )
+            : null;
+    const ends = based ?? near;
     const middleGap = (e: PEdge): number => {
         const [a, b] = middleRun(e.points);
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -1365,7 +1402,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
         Math.hypot(Math.max(b.x0 - a.x1, 0, a.x0 - b.x1), Math.max(b.y0 - a.y1, 0, a.y0 - b.y1));
     // every node a path's end lands on, nearest first; through a shape it touches only where it lands on none itself
     // (an end at a crowded node also touches the arrowheads of the edges beside it)
-    const nodesAt = (p: Pt): { n: PNode; d: number }[] => {
+    const nodesAt = (p: Pt, throughHeads = false): { n: PNode; d: number }[] => {
         const at = (d: (n: PNode) => number): { n: PNode; d: number }[] =>
             nodeList
                 .map((n) => ({ n, d: d(n) }))
@@ -1386,7 +1423,7 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             }
             return inside(p, b) ? Math.min(center, p[0] - b.x0, b.x1 - p[0], p[1] - b.y0, b.y1 - p[1]) : toBox(p, b);
         });
-        if (direct.length > 0) {
+        if (direct.length > 0 && !throughHeads) {
             return direct;
         }
         const touched = heads.filter((h) => toBox(p, h.box) <= 2).map((h) => h.box);
@@ -1424,13 +1461,28 @@ export function associate(prims: readonly Prim[], width: number, height: number,
             return Number.isFinite(d) ? [{ n: g.node, d }] : [];
         }),
     ];
+    const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
     const endsOf = (path: readonly Pt[], color: string): [PNode, PNode] | null => {
         const from = withGroups(nodesAt(path[0]));
         const to = withGroups(nodesAt(path.at(-1) ?? path[0]));
         if (from.length === 0 || to.length === 0) {
             return null;
         }
-        const nearest: [PNode, PNode] = [from[0].n, to[0].n];
+        let nearest: [PNode, PNode] = [from[0].n, to[0].n];
+        // A short line under a long arrowhead (Cytoscape desktop's arrow size 24 on an edge between small nodes: a
+        // 13 px stub and a 51 px head; or between big ones, xgmml-pathguide-allpathwaysdb -27->-22) ends within a
+        // node's reach of the node it starts from: where the file has no loop there, its end farther from that node,
+        // the one under the head, lands on the node the head reaches instead.
+        if (nearest[0] === nearest[1] && !guideLoops.has(nearest[0].id)) {
+            const off = (q: Pt): number => Math.hypot(q[0] - nearest[0].cx, q[1] - nearest[0].cy);
+            const far = off(path[0]) > off(path.at(-1) ?? path[0]) ? 0 : 1;
+            const other = withGroups(nodesAt(far === 0 ? path[0] : (path.at(-1) ?? path[0]), true)).find(
+                (x) => x.n !== nearest[0] && (guidePairs.get(pairOf(x.n.id, nearest[0].id)) ?? 0) > 0,
+            )?.n;
+            if (other !== undefined) {
+                nearest = far === 0 ? [other, nearest[1]] : [nearest[0], other];
+            }
+        }
         // a path whose nearest ends are one node is a piece of that node's drawing, or a loop: never re-read
         if (nearest[0] === nearest[1] || (guidePairs.get(pairOf(nearest[0].id, nearest[1].id)) ?? 0) > 0) {
             return nearest;
@@ -1447,7 +1499,6 @@ export function associate(prims: readonly Prim[], width: number, height: number,
     };
     // every edge found by geometry, the pieces that are no edge of the file among them, in the order found
     const withPieces: PEdge[] = [];
-    const guideLoops = new Set(guide.edges.filter((e) => e.source === e.target).map((e) => e.source));
     const geoEdges = new Map<string, number>();
     /** Where in the drawing each edge found by geometry was drawn: what is drawn first lies under what comes after. */
     const drawnAt = new Map<PEdge, number>();

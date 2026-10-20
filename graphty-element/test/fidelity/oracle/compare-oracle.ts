@@ -2331,7 +2331,7 @@ function judgeLabel(
     kind: string,
     id: string,
     oracle: PText | null,
-    g: PText | null,
+    graphty: PText | null,
     scale: number,
     angleToOracle: (deg: number) => number,
     place: LabelPlace | null,
@@ -2343,6 +2343,9 @@ function judgeLabel(
     // A raster oracle (sigma) names the labels it drew but not their size (sizePx 0): those are shown.
     const legible = oracle !== null && (oracle.sizePx === 0 || oracle.sizePx / scale >= T.legibleFontPx);
     const o = legible ? oracle : null;
+    // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
+    // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
+    const g = graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) ? graphty : null;
     if (words) {
         j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
     }

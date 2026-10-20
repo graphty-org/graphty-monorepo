@@ -164,9 +164,9 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     "triangle-cross": "triangle",
     // a picture standing on the line
     image: "image",
-    // a delta with a bar behind it, which the oracle reads as no one class
-    "cross-delta": "other",
-    "open-cross-delta": "other",
+    // a delta with a bar across the line behind it, a gap between them; a hollow one's is its filled twin's
+    "cross-delta": "cross-delta",
+    "open-cross-delta": "cross-delta",
 };
 
 /** Where along its edge each of graphty's caps sits. */

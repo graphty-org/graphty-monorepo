@@ -346,6 +346,20 @@ describe("oracle comparison", () => {
         assert.strictEqual(r.properties["label.present"].n, 3);
     });
 
+    it("counts a graphty label under one pixel as no label too, as a node's further texts can be", () => {
+        // Cytoscape's chart item labels at their default 1 px (xgmml-specimen-images-charts-p5 pie-item-labels): under
+        // a pixel on both sides once scaled, so drawn on neither as far as a reader can tell
+        const prims = oraclePrims({ named: true }).map((p) =>
+            p.text?.content === "A" ? { ...p, text: { ...p.text, sizePx: 0.4 } } : p,
+        );
+        const g = graphtyScene();
+        const { label } = g.nodes[0];
+        assert(label !== null, "the node has a label");
+        g.nodes[0] = { ...g.nodes[0], label: { ...label, sizePx: 0.4 } };
+        const r = run(prims, g);
+        assert.strictEqual(r.properties["label.present"].passRate, 1);
+    });
+
     it("sizes a node to its outline's outer edge: an SVG stroke half outside, graphty's ring wholly outside", () => {
         const node = (w: number, width: number | null): PScene["nodes"][number] => ({
             id: "n",

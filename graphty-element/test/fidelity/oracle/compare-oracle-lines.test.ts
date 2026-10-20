@@ -6,7 +6,7 @@
  */
 import { assert, describe, it } from "vitest";
 
-import { associate } from "./associate";
+import { associate, lineCapSize } from "./associate";
 import { compareOracle, rampColor, routeShape } from "./compare-oracle";
 import {
     arrowShapeOf,
@@ -817,6 +817,66 @@ describe("arrowheads", () => {
             ),
             "half-circle",
         );
+        // Cytoscape's CROSS_DELTA (FilledArrowRenderer's CROSS_DELTA, 3 long): a delta 2 long and 1 wide, and a bar
+        // 0.25 deep and 1.5 wide at the back, a gap between them; one path of two subpaths, no point in the gap
+        const scaled = (pts: Pt[]): Pt[] => pts.map(([x, y]): Pt => [10 * x, 10 * y]);
+        const bar = poly(
+            scaled([
+                [-3, -0.75],
+                [-2.75, -0.75],
+                [-2.75, 0.75],
+                [-3, 0.75],
+            ]),
+        );
+        const delta = scaled([
+            [-2, -0.5],
+            [0, 0],
+            [-2, 0.5],
+        ]);
+        assert.strictEqual(arrowShapeOf([...poly(delta), ...bar], right), "cross-delta");
+        // as the SVG reader gives a straight path's outline: its corners alone, each subpath's start repeated
+        assert.strictEqual(
+            arrowShapeOf(
+                [
+                    ...delta,
+                    delta[0],
+                    ...scaled([
+                        [-3, -0.75],
+                        [-2.75, -0.75],
+                        [-2.75, 0.75],
+                        [-3, 0.75],
+                        [-3, -0.75],
+                    ]),
+                ],
+                right,
+            ),
+            "cross-delta",
+        );
+        // CROSS_OPEN_DELTA: the delta outlined, an inner delta inside the outer one
+        const inner = scaled([
+            [-1.85, -0.38],
+            [-0.3, 0],
+            [-1.85, 0.38],
+        ]);
+        assert.strictEqual(arrowShapeOf([...poly(delta), ...poly(inner), ...bar], right), "cross-delta");
+        // a bar narrower than the delta in front is no crossed delta
+        assert.notStrictEqual(
+            arrowShapeOf(
+                [
+                    ...poly(delta),
+                    ...poly(
+                        scaled([
+                            [-3, -0.2],
+                            [-2.75, -0.2],
+                            [-2.75, 0.2],
+                            [-3, 0.2],
+                        ]),
+                    ),
+                ],
+                right,
+            ),
+            "cross-delta",
+        );
         // read against the line's direction, whichever way it runs on screen
         assert.strictEqual(
             arrowShapeOf(
@@ -1021,6 +1081,221 @@ describe("a line a program stops at its arrowhead's base", () => {
         );
         assert.deepEqual(o.strays, []);
         assert.deepEqual(o.edges[0].points.at(-1), [280, 100]);
+    });
+
+    it("takes a stub under a long head between small nodes as the edge to the node the head reaches", () => {
+        // Cytoscape desktop's arrow size 24 between nodes 11 px across (xgmml-specimen-arrows-p2 edge 8): a 13 px
+        // stub from a's outline, a 51 px head on to b's; the stub's far end is within a small node's reach of a
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const small: [string, number, number][] = [
+            ["a", 91, 100],
+            ["b", 167.7, 100],
+            ["c", 500, 100],
+            ["d", 91, 300],
+        ];
+        const prims = [
+            ...small.map(([, x, y]) => prim({ tag: "ellipse", points: disc(x, y, 5.5), fill: fill("#cccccc") })),
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [97, 100],
+                    [110.2, 100],
+                ],
+                stroke: stroke("#0000ff", 1.5),
+            }),
+            prim({
+                tag: "polygon",
+                points: [
+                    [110.2, 87.1],
+                    [161.6, 100],
+                    [110.2, 112.9],
+                    [110.2, 87.1],
+                ],
+                fill: fill("#0000ff"),
+            }),
+        ];
+        const guide = scene(
+            "graphty",
+            [
+                edge({
+                    points: [
+                        [97, 100],
+                        [162, 100],
+                    ],
+                    arrows: [arrow({ length: 48, width: 24 })],
+                }),
+            ],
+            small.map(([id, x, y]) => node(id, x, y, { w: 11, h: 11 })),
+        );
+        const o = associate(prims, 600, 400, guide).scene;
+        assert.deepEqual(
+            o.edges.map((e) => [e.source, e.target, e.arrows.map((a) => a.end)]),
+            [["a", "b", ["target"]]],
+        );
+        assert.deepEqual(o.strays, []);
+        // the same stub drawn from its far end: that end, now its first, is the one re-read
+        const back = prims.map((q) => (q.kind === "path" ? { ...q, points: [...q.points].reverse() } : q));
+        const r = associate(back, 600, 400, guide).scene;
+        assert.deepEqual(
+            r.edges.map((e) => [e.source, e.target, e.arrows.map((a) => a.end)]),
+            [["b", "a", ["source"]]],
+        );
+    });
+
+    it("takes a line-wide dot at a wide line's end over a small node as the line's own end", () => {
+        // Cytoscape desktop's arrow shape NONE on a line 6 px wide from a node 11 px across (xgmml-specimen-arrows-p2
+        // arrow-on-wide-edge): a half dot 3 px deep at the line's start, over the node's box
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const half = Array.from({ length: 13 }, (_, k): Pt => {
+            const t = Math.PI / 2 + (k * Math.PI) / 12;
+            return [97 + 3 * Math.cos(t), 100 - 3 * Math.sin(t)];
+        });
+        const prims = [
+            prim({ tag: "ellipse", points: disc(91, 100, 5.5), fill: fill("#cccccc") }),
+            prim({ tag: "ellipse", points: disc(300, 100, 5.5), fill: fill("#cccccc") }),
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [97, 100],
+                    [262, 100],
+                ],
+                stroke: stroke("#505050", 6),
+            }),
+            prim({ points: [...half, half[0]], fill: fill("#505050") }),
+            prim({
+                tag: "polygon",
+                points: [
+                    [262, 92],
+                    [294, 100],
+                    [262, 108],
+                    [262, 92],
+                ],
+                fill: fill("#505050"),
+            }),
+        ];
+        const guide = scene(
+            "graphty",
+            [
+                edge({
+                    points: [
+                        [97, 100],
+                        [294, 100],
+                    ],
+                    arrows: [arrow({ length: 32, width: 16 })],
+                }),
+            ],
+            [node("a", 91, 100, { w: 11, h: 11 }), node("b", 300, 100, { w: 11, h: 11 })],
+        );
+        const o = associate(prims, 600, 400, guide).scene;
+        assert.deepEqual(
+            o.edges.map((e) => [e.source, e.target, e.arrows.map((a) => a.end)]),
+            [["a", "b", ["target"]]],
+        );
+        assert.deepEqual(o.strays, []);
+    });
+
+    it("gives a cap at a crowded node to the line that stops at its base, not the end nearest its middle", () => {
+        // Cytoscape desktop stops a line at its arrowhead's base; another line ending at the same node may end under
+        // the middle of that cap, nearer its center (xgmml-syn-mappings 1269791)
+        let index = 0;
+        const prim = (over: Partial<Prim> & { points: Pt[] }): Prim => ({
+            index: index++,
+            tag: "path",
+            kind: "shape",
+            box: boxOfPoints(over.points),
+            closed: true,
+            corners: 0,
+            fill: null,
+            stroke: null,
+            text: null,
+            markers: { start: false, end: false },
+            hint: null,
+            ...over,
+        });
+        const prims = [
+            ...NODES.map(([, x, y]) => prim({ tag: "ellipse", points: disc(x, y, 20), fill: fill("#cccccc") })),
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [120, 100],
+                    [255, 100],
+                ],
+                stroke: stroke("#0000ff"),
+            }),
+            prim({
+                kind: "path",
+                closed: false,
+                points: [
+                    [115, 285],
+                    [264, 101],
+                ],
+                stroke: stroke("#ff0000"),
+            }),
+            prim({
+                tag: "polygon",
+                points: [
+                    [255, 92],
+                    [280, 100],
+                    [255, 108],
+                    [255, 92],
+                ],
+                fill: fill("#0000ff"),
+            }),
+        ];
+        const guide = scene("graphty", [
+            edge({ arrows: [arrow({ length: 25, width: 16 })] }),
+            edge({
+                id: "e2",
+                source: "d",
+                points: [
+                    [115, 285],
+                    [285, 112],
+                ],
+                stroke: stroke("#ff0000"),
+            }),
+        ]);
+        const o = associate(prims, 600, 400, guide).scene;
+        assert.deepEqual(o.edges.map((e) => [e.source, e.target, e.arrows.map((a) => a.end)]).sort(), [
+            ["a", "b", ["target"]],
+            ["d", "b", []],
+        ]);
+    });
+
+    it("takes every cap at the end of a patterned band of no one width as an arrowhead", () => {
+        // Cytoscape desktop paints slashes, arrows and double lines as filled bands, read with no one line width
+        assert.strictEqual(lineCapSize(edge({ stroke: stroke("#0000ff", Number.NaN) })), 0.25);
+        assert.strictEqual(lineCapSize(edge({ stroke: stroke("#0000ff", 2) })), 2.45);
     });
 
     it("runs a line on to its flat head's reach along the line, not to one of the head's corners", () => {

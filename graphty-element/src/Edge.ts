@@ -2099,7 +2099,7 @@ export class Edge {
                 width: (style.line?.width ?? EDGE_CONSTANTS.DEFAULT_LINE_WIDTH) + extra,
                 color: outline?.color ?? "#000000",
             },
-            { ...style, line: { ...style.line, type: "solid", opacity, animationSpeed: 0 } },
+            { ...style, line: { ...style.line, type: outline?.type ?? "solid", opacity, animationSpeed: 0 } },
             scene,
             this.srcNode === this.dstNode,
         );

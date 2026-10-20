@@ -79,6 +79,14 @@ export const LINE_STYLES: ReadonlyMap<string, string> = new Map([
     ["other:contiguous-arrow", "contiguous-arrow"],
 ]);
 
+/** The element's outline band pattern for each line style of a file an edge's outline can be drawn in. */
+export const OUTLINE_STYLES: ReadonlyMap<string, string> = new Map([
+    ["solid", "solid"],
+    ["dashed", "dash"],
+    ["dotted", "dot"],
+    ["long-dash", "dash"],
+]);
+
 /** The line styles drawn as the nearest pattern rather than exactly. */
 export const LINE_STYLES_NEAREST: ReadonlySet<string> = new Set(["long-dash"]);
 

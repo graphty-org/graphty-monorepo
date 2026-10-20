@@ -132,6 +132,9 @@ export const EdgeLineTypes = z.enum([
     "contiguous-arrow", // A line with chevrons along it, pointing to the target (Cytoscape CONTIGUOUS_ARROW)
 ]);
 
+/** The patterns an edge's outline band (`line.outline.type`) can be drawn in. */
+export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot"]);
+
 const LineStyle = z.strictObject({
     type: EdgeLineTypes.optional(),
     animationSpeed: z.number().min(0).optional(),
@@ -182,14 +185,16 @@ const LineStyle = z.strictObject({
     /**
      * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
      * vis-network `edges.background`): `width` is how much wider than the line it is, in the
-     * line's own width units (half of it each side), `color` and `opacity` its paint. No width
-     * draws none. Drawn under solid lines; a dotted or dashed line drawn as separate pieces has none.
+     * line's own width units (half of it each side), `color` and `opacity` its paint, `type` its
+     * own pattern: "solid" (the default), "dash" or "dot" (vis-network's `background.dashes`). No
+     * width draws none. Drawn under solid lines; a dotted or dashed line drawn as separate pieces has none.
      */
     outline: z
         .strictObject({
             color: ColorStyle.optional(),
             width: z.number().nonnegative().optional(),
             opacity: z.number().min(0).max(1).optional(),
+            type: EdgeOutlineTypes.optional(),
         })
         .optional(),
     /**

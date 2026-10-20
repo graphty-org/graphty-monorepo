@@ -59,7 +59,13 @@
 import type { LabelDeclutterOrder, LabelLocation, LabelTextAlign } from "../../catalog/label-style";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
-import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
+import {
+    defaultEdgeStyle,
+    EdgeArrowTypes,
+    EdgeLineTypes,
+    EdgeOutlineTypes,
+    type EdgeStyleConfig,
+} from "../../config/EdgeStyle";
 import {
     defaultNodeStyle,
     NodeBorderPositions,
@@ -232,6 +238,9 @@ export type NodeShapeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["
  */
 export type EdgeLineValue = EdgeLinePattern;
 
+/** A pattern an edge's outline band can be drawn in (`line.outline.type`). */
+export type EdgeOutlineValue = NonNullable<NonNullable<NonNullable<EdgeStyleConfig["line"]>["outline"]>["type"]>;
+
 /** An arrow the edge renderer can draw at either end. */
 export type ArrowValue = NonNullable<NonNullable<EdgeStyleConfig["arrowHead"]>["type"]>;
 
@@ -281,6 +290,7 @@ const NODE_SHAPE_VALUES: readonly NodeShapeValue[] = NodeShapes.options;
 
 /** Every line pattern, in schema order. */
 const EDGE_LINE_VALUES: readonly EdgeLineValue[] = EdgeLineTypes.options;
+const EDGE_OUTLINE_VALUES: readonly EdgeOutlineValue[] = EdgeOutlineTypes.options;
 
 /** Every arrow, in schema order. */
 const ARROW_VALUES: readonly ArrowValue[] = EdgeArrowTypes.options;
@@ -449,6 +459,7 @@ export interface ChannelValues {
     "edge.outlineColor": ColorValue;
     "edge.outlineWidth": number;
     "edge.outlineOpacity": number;
+    "edge.outlineStyle": EdgeOutlineValue;
     "edge.underlayColor": ColorValue;
     "edge.underlayOpacity": number;
     "edge.underlayPadding": number;
@@ -748,7 +759,8 @@ const EDGE_BEND_CURVE_VALUES: readonly EdgeBendCurveValue[] = ["corners", "midpo
 const EDGE_OUTLINE_CAVEAT =
     "A band drawn under the edge's line along its whole length, `edge.outlineWidth` wider than the " +
     "line (half of it each side, in the line's width units), as Cytoscape.js draws a line outline and " +
-    "vis-network an edge background. Drawn only with a width above 0, and under solid lines: a dotted " +
+    "vis-network an edge background, in `edge.outlineStyle`'s pattern (solid, dash or dot). Drawn only " +
+    "with a width above 0, and under solid lines: a dotted " +
     "or dashed line drawn as separate pieces has none.";
 
 const NODE_IMAGE_CAVEAT =
@@ -3004,6 +3016,19 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         min: 0,
         max: 1,
         stylePath: "line.outline.opacity",
+        renderable: true,
+        caveat: EDGE_OUTLINE_CAVEAT,
+    },
+    "edge.outlineStyle": {
+        channel: "edge.outlineStyle",
+        target: "edge",
+        plainName: "Edge Outline Pattern",
+        shortName: "Outline pattern",
+        group: "line",
+        default: "solid",
+        accepts: "enum",
+        values: EDGE_OUTLINE_VALUES,
+        stylePath: "line.outline.type",
         renderable: true,
         caveat: EDGE_OUTLINE_CAVEAT,
     },

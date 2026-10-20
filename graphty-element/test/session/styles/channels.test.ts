@@ -174,6 +174,7 @@ const DECLARED = [
     "edge.outlineColor",
     "edge.outlineWidth",
     "edge.outlineOpacity",
+    "edge.outlineStyle",
     "edge.underlayColor",
     "edge.underlayOpacity",
     "edge.underlayPadding",
@@ -318,9 +319,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and forty-two node channels and one hundred and twenty-five edge channels", () => {
+    it("splits into one hundred and forty-two node channels and one hundred and twenty-six edge channels", () => {
         assert.strictEqual(channelsFor("node").length, 142);
-        assert.strictEqual(channelsFor("edge").length, 125);
+        assert.strictEqual(channelsFor("edge").length, 126);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),

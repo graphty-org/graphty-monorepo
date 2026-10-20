@@ -57,6 +57,7 @@ import {
     type FileStyleShapeTable,
     LINE_STYLES,
     LINE_STYLES_NEAREST,
+    OUTLINE_STYLES,
 } from "./shapes";
 import type { FileStyleScalar } from "./store";
 
@@ -737,6 +738,7 @@ function channelPlans(
         ["outlineWidth", [length("edge.outlineWidth")]],
         ["outlineColor", [id("edge.outlineColor")]],
         ["outlineOpacity", [id("edge.outlineOpacity")]],
+        ["outlineStyle", [table("edge.outlineStyle", OUTLINE_STYLES, LINE_STYLES_NEAREST)]],
         ["underlayColor", [id("edge.underlayColor")]],
         ["underlayOpacity", [id("edge.underlayOpacity")]],
         // in the line's own width units, as its width is

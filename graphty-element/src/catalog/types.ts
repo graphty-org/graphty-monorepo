@@ -651,6 +651,7 @@ export type Channel =
     | "edge.outlineColor"
     | "edge.outlineWidth"
     | "edge.outlineOpacity"
+    | "edge.outlineStyle"
     | "edge.underlayColor"
     | "edge.underlayOpacity"
     | "edge.underlayPadding"

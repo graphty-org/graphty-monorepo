@@ -1,12 +1,13 @@
 /**
  * yFiles 3 styles (yFiles for HTML, yEd Live): the per-element style objects of the `NodeStyle`, `EdgeStyle`,
- * `NodeLabels`, `EdgeLabels` and `NodeGeometry` keys, inline or by reference to the graph's `SharedData`, read into
+ * `NodeLabels`, `EdgeLabels`, `NodeGeometry` and `EdgeGeometry` keys, inline or by reference to the graph's `SharedData`, read into
  * the neutral style vocabulary. References are resolved by value with a depth limit; a reference that is circular
  * or deeper than the limit is one `W_STYLE_REFERENCE_CYCLE` note, never a hang.
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { type BendPoint, canonBends, canonNodeOffsets } from "../../styles/canon/bends.js";
 import { canonColor, colorOpacity } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber } from "../../styles/canon/number.js";
@@ -56,8 +57,15 @@ const REFERENCE = /^\{\s*[\w.-]*:?GraphMLReference\s+([^\s}]+)\s*\}$/;
 const NULL_MARKUP = /^\{\s*[\w.-]*:?Null\s*\}$/;
 
 /** The yFiles key types the reader reads, by the last segment of their `attr.uri`. */
-type KeyKind = "NodeStyle" | "EdgeStyle" | "NodeLabels" | "EdgeLabels" | "NodeGeometry" | "SharedData";
-const KINDS: ReadonlySet<string> = new Set(["NodeStyle", "EdgeStyle", "NodeLabels", "EdgeLabels", "NodeGeometry"]);
+type KeyKind = "NodeStyle" | "EdgeStyle" | "NodeLabels" | "EdgeLabels" | "NodeGeometry" | "EdgeGeometry" | "SharedData";
+const KINDS: ReadonlySet<string> = new Set([
+    "NodeStyle",
+    "EdgeStyle",
+    "NodeLabels",
+    "EdgeLabels",
+    "NodeGeometry",
+    "EdgeGeometry",
+]);
 
 /**
  * The kind of a yFiles 3 column, from the `attr.uri` the importer keeps as its origin type.
@@ -476,7 +484,7 @@ function putStroke(stroke: Stroke | typeof NULL | null, put: PutValue, at: SiteO
     if (stroke === NULL) {
         put("borderWidth", 0);
     } else if (stroke !== null) {
-        putPaint(stroke.color, "borderColor", null, put, at);
+        putPaint(stroke.color, "borderColor", "borderOpacity", put, at);
         put("borderWidth", canonNumber(stroke.width, at("borderWidth")));
         put("borderStyle", canonEnum("borderStyle", stroke.line, "yfiles3", at("borderStyle")));
     }
@@ -605,15 +613,60 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         const a = refs.deref(prop(st, `${end}Arrow`));
         const property = `${end}Arrow`;
         let type: string | null = null;
+        let hollow = false;
         if (a !== null && a !== NULL && typeof a === "object") {
             type = treeAttr(a.e, "type") ?? "DEFAULT";
-            putPaint(paintOf(refs, prop(a, "fill"), null), `${end}ArrowColor`, null, put, at);
+            const fill = paintOf(refs, prop(a, "fill"), null);
+            // a `{x:Null}` fill draws the arrow's outline alone, in its stroke's color
+            const open = fill === NULL ? strokeOf(refs, prop(a, "stroke")) : null;
+            hollow = open !== null && open !== NULL;
+            putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
         } else if (typeof a === "string") {
             type = a;
         }
         if (type !== null) {
-            put(property, canonEnum("arrow", /^default$/i.test(type) ? "triangle" : type, "yfiles3", at(property)));
+            const arrow = canonEnum("arrow", /^default$/i.test(type) ? "triangle" : type, "yfiles3", at(property));
+            put(property, hollow ? (HOLLOW_ARROWS.get(arrow ?? "") ?? arrow) : arrow);
         }
+    }
+}
+
+/** The filled arrows whose `{x:Null}` fill draws them as their open outline. */
+const HOLLOW_ARROWS: ReadonlyMap<string, string> = new Map([
+    ["triangle", "triangle-open"],
+    ["diamond", "diamond-open"],
+    ["circle", "circle-open"],
+]);
+
+/**
+ * Reads an edge's route from its EdgeGeometry: the `y:Bend` locations, relative to its two nodes' centers (a
+ * self-loop's to its node's size), and, for a PolylineEdgeStyle with a `smoothingLength` above 0, its rounded bends.
+ * @param refs - the references
+ * @param geometry - the `<data>` content of the EdgeGeometry key
+ * @param style - the `<data>` content of the EdgeStyle key
+ * @param ends - the source and target nodes' boxes (center x, y, width, height)
+ * @param put - receives the values
+ */
+function readEdgeGeometry(
+    refs: References,
+    geometry: unknown,
+    style: unknown,
+    ends: readonly [Float64Array, Float64Array, boolean],
+    put: PutValue,
+): void {
+    const points = treeChildren(treeChild(geometry, "List"), "Bend").map((b): BendPoint => {
+        const [x, y] = (treeAttr(b, "Location") ?? "").split(",").map(Number);
+        return [x, y];
+    });
+    const [s, t, loop] = ends;
+    const bends = loop
+        ? canonNodeOffsets([s[0], s[1]], [s[2], s[3]], points, true)
+        : canonBends([s[0], s[1]], [t[0], t[1]], points, true);
+    put("bends", bends);
+    const st = refs.first(style);
+    const smoothing = st === null ? undefined : treeAttr(st.e, "smoothingLength");
+    if (bends !== null && st?.tag === "PolylineEdgeStyle" && Number(smoothing) > 0) {
+        put("curved", true);
     }
 }
 
@@ -815,13 +868,15 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
     const graphKinds = columnsByKind(snapshot.graph);
     const sharedName = graphKinds.get("SharedData");
     const refs = new References(sharedName === undefined ? null : plainCell(snapshot.graph.value(sharedName, 0)));
+    // each node's center x and y, width and height from its NodeGeometry, for its edges' bends; NaN without one
+    const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
     const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
         const style = kinds.get(target === "node" ? "NodeStyle" : "EdgeStyle");
         const labels = kinds.get(target === "node" ? "NodeLabels" : "EdgeLabels");
-        const geometry = target === "node" ? kinds.get("NodeGeometry") : undefined;
+        const geometry = kinds.get(target === "node" ? "NodeGeometry" : "EdgeGeometry");
         const cell = (name: string | undefined, i: number): unknown =>
             name === undefined ? undefined : plainCell(table.value(name, i));
         for (let i = 0; i < n; i++) {
@@ -831,13 +886,21 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
                 out.put(i, property, value);
             };
             let size: Size | null = null;
-            if (geometry !== undefined) {
+            if (geometry !== undefined && target === "edge") {
+                const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
+                const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
+                readEdgeGeometry(refs, cell(geometry, i), cell(style, i), [box(s), box(t), s === t], put);
+            } else if (geometry !== undefined) {
                 const rect = treeChild(cell(geometry, i), "RectD");
                 const width = canonNumber(treeAttr(rect, "Width"), at("width"));
                 const height = canonNumber(treeAttr(rect, "Height"), at("height"));
                 put("width", width);
                 put("height", height);
                 size = width === null || height === null ? null : { width, height };
+                if (size !== null) {
+                    const [x, y] = [Number(treeAttr(rect, "X")), Number(treeAttr(rect, "Y"))];
+                    boxes.set([x + size.width / 2, y + size.height / 2, size.width, size.height], 4 * i);
+                }
             }
             if (style !== undefined) {
                 if (target === "node") {

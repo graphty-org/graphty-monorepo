@@ -34,7 +34,9 @@ async function sheet(sheet: string) {
     const node = (property: StyleProperty, id: string): unknown =>
         resolveStyles(styles, "node", property, snapshot)[snapshot.ids.requireIndex(id)];
     const edges = (property: StyleProperty): readonly unknown[] => resolveStyles(styles, "edge", property, snapshot);
-    return { node, edges };
+    const edgeIds = Array.from({ length: snapshot.edgeCount }, (_, e) => snapshot.edges.byRole("id")?.value(e));
+    const edge = (property: StyleProperty, id: string): unknown => edges(property)[edgeIds.indexOf(id)];
+    return { node, edges, edge };
 }
 
 describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
@@ -138,5 +140,30 @@ describe("yEd Live GraphML: a FlowchartNodeStyle gradient", () => {
         );
         const { styles } = result;
         expect(styles?.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+    });
+});
+
+describe("yEd Live GraphML: edge geometry, stroke alpha and hollow arrows", () => {
+    it("routes an edge through its EdgeGeometry bends, rounded where a PolylineEdgeStyle smooths them", async () => {
+        const { edge } = await sheet("specimen-edges-lines.graphml");
+        expect(typeof edge("bends", "bends-one")).toBe("string");
+        expect(String(edge("bends", "bends-two")).split(" ")).toHaveLength(2);
+        expect(edge("curved", "bends-one")).not.toBe(true);
+        expect(edge("curved", "smoothing-length-5")).toBe(true);
+        expect(edge("bends", "color-ff0000")).toBeNull();
+    });
+
+    it("carries a stroke's #AARRGGBB alpha into the border opacity", async () => {
+        const { node } = await sheet("specimen-node-sizes-opacity.graphml");
+        expect(node("borderColor", "stroke-alpha-40")).toBe("#000000");
+        expect(node("borderOpacity", "stroke-alpha-40")).toBeCloseTo(0x40 / 255, 3);
+    });
+
+    it("draws an arrow with a {x:Null} fill as its open outline in the stroke's color", async () => {
+        const { edge } = await sheet("specimen-arrows.graphml");
+        expect(edge("targetArrow", "arrow-fill-null")).toBe("triangle-open");
+        expect(edge("targetArrowColor", "arrow-fill-null")).toBe("#505050");
+        expect(edge("targetArrow", "arrow-fill-ff0000")).toBe("triangle");
+        expect(edge("targetArrowColor", "arrow-fill-ff0000")).toBe("#ff0000");
     });
 });

@@ -263,13 +263,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await waitFor(() => {
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         });
-        // A heading with the theme's 1px focus ring (WCAG 2.4.7) and no underline, which would
-        // read as a link. Named by its label, as the find list names it.
+        // A heading with no focus mark: a box reads as an editable name, an underline as a link.
+        // Named by its label, as the find list names it.
         const title = inspector().getByRole("heading", { level: 2, name: "Node 0" });
         assert.equal(title, document.activeElement);
         assert.equal(getComputedStyle(title).textDecorationLine, "none");
-        assert.equal(getComputedStyle(title).outlineStyle, "solid");
-        assert.equal(getComputedStyle(title).outlineWidth, "1px");
+        assert.equal(getComputedStyle(title).outlineStyle, "none");
         await userEvent.keyboard("{Enter}");
         assert.isNull(inspector().queryByRole("group", { name: "Node 0 and 3 connections" }));
     });

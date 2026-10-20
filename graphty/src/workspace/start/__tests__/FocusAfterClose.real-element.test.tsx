@@ -70,8 +70,8 @@ function assertFocusOnDrawing(host: HTMLElement): void {
 }
 
 /**
- * Asserts that keyboard focus is on the graph's heading in the inspector, that it draws its focus
- * ring, and that its spoken name says the graph's size; and that a Tab into the style tree would land on Everything.
+ * Asserts that keyboard focus is on the graph's heading in the inspector, and that its spoken
+ * name says the graph's size; and that a Tab into the style tree would land on Everything.
  * @param nodes - the node count it says.
  * @param edges - the edge count it says.
  */
@@ -81,10 +81,6 @@ function assertFocusOnGraphHeading(nodes: number, edges: number): void {
     const spoken = active?.getAttribute("aria-label") ?? "";
     assert.include(spoken, `${String(nodes)} nodes`);
     assert.include(spoken, `${String(edges)} edges`);
-    // The heading draws the theme's 1px focus ring, so a keyboard reader sees where focus is.
-    const outline = getComputedStyle(active as Element);
-    assert.notEqual(outline.outlineStyle, "none", "the focused heading draws no ring");
-    assert.equal(outline.outlineWidth, "1px");
     const tree = screen.getByRole("tree", { name: "Style layers" });
     const stop = tree.querySelector('[role="treeitem"][tabindex="0"]');
     assert.match(stop?.getAttribute("aria-label") ?? stop?.textContent ?? "", /^Everything/);

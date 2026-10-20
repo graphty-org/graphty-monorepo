@@ -1,5 +1,3 @@
-import { focusWithRing } from "@graphty/compact-mantine";
-
 /**
  * Whether keyboard focus has fallen to the page itself, as it does when the control holding it
  * is removed (WCAG 2.4.3): the caller then hands it on to a stated target.
@@ -66,7 +64,7 @@ export function focusOpenedGraph(): void {
     if (title === null) {
         focusCurrentPlace();
     } else {
-        focusWithRing(title);
+        title.focus();
     }
 }
 
@@ -76,10 +74,7 @@ export function focusOpenedGraph(): void {
  * Enter opens nothing. Single-key shortcuts (n for a note) still work from there.
  */
 export function focusInspectorTitle(): void {
-    const title = document.getElementById(INSPECTOR_TITLE_ID);
-    if (title !== null) {
-        focusWithRing(title);
-    }
+    document.getElementById(INSPECTOR_TITLE_ID)?.focus();
 }
 
 /** Everything that can take focus, before the checks `canFocus` makes. */

@@ -487,21 +487,47 @@ export function mountLab(options: LabOptions): HTMLElement {
         stopView();
         // a fresh canvas: a context lost on dispose cannot be created again on the same one
         canvas = document.createElement("canvas");
-        canvas.style.cssText = "width:100%;height:100%;display:block;outline:none;touch-action:none";
+        // iOS Safari: no text selection or callout on a long press, which cancels the touch's pointer
+        // stream; and no page scroll or zoom from a touch on the canvas
+        canvas.style.cssText =
+            "width:100%;height:100%;display:block;outline:none;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none";
+        const noGesture = (ev: TouchEvent): void => {
+            ev.preventDefault();
+        };
+        canvas.addEventListener("touchstart", noGesture, { passive: false });
+        canvas.addEventListener("touchmove", noGesture, { passive: false });
         root.insertBefore(canvas, overlay);
         view = build(options, graph, uniforms, canvas, overlay, status, quality, onSlow);
     };
+    // A rebuild replaces the canvas, so one during a drag or a pinch would end the gesture under the
+    // finger: wait until every pointer is up.
+    let pointersDown = 0;
+    let rebuildOnRelease = false;
+    const rebuild = (): void => {
+        if (pointersDown > 0) {
+            rebuildOnRelease = true;
+        } else if (view) {
+            startView();
+        }
+    };
+    const onRelease = (): void => {
+        pointersDown = Math.max(0, pointersDown - 1);
+        if (pointersDown === 0 && rebuildOnRelease) {
+            rebuildOnRelease = false;
+            // after the camera has seen the pointer go up
+            setTimeout(rebuild, 0);
+        }
+    };
+    root.addEventListener("pointerdown", () => pointersDown++, true);
+    root.addEventListener("pointerup", onRelease, true);
+    root.addEventListener("pointercancel", onRelease, true);
     // The frame-time guard: a level down while frames are slow, a pause when even low stalls.
     function onSlow(meanMs: number, worstMs: number): void {
         if (quality !== "low") {
             const from = quality;
             quality = worstMs > 1000 ? "low" : QUALITIES[QUALITIES.indexOf(quality) - 1];
             notice.textContent = `quality ${from} -> ${quality}: frames took ${meanMs.toFixed(0)} ms`;
-            setTimeout(() => {
-                if (view) {
-                    startView();
-                }
-            }, 0);
+            setTimeout(rebuild, 0);
             return;
         }
         if (meanMs > STALL_FRAME_MS) {
@@ -620,8 +646,6 @@ function build(
     if (flat) {
         camera.lowerAlphaLimit = camera.upperAlphaLimit = -Math.PI / 2;
         camera.lowerBetaLimit = camera.upperBetaLimit = Math.PI / 2;
-        // left drag pans in 2D
-        camera._panningMouseButton = 0;
     }
     const camKey = `${graph.kind}/${graph.n}/${graph.dim}`;
     const saved = savedCameras.get(camKey);
@@ -631,7 +655,11 @@ function build(
         camera.radius = saved.radius;
         camera.target = saved.target.clone();
     }
-    camera.attachControl(canvas, true);
+    // In 2D a left drag or one finger pans (attachControl sets the panning button, so it goes here:
+    // set on the camera before, it was reset to the right button and one finger did nothing)
+    camera.attachControl(true, true, flat ? 0 : 2);
+    // for the touch regression check (tmp/shader-lab/touch/): read the camera from the canvas
+    (canvas as HTMLCanvasElement & { labCamera?: ArcRotateCamera }).labCamera = camera;
     if (options.autoRotate) {
         camera.useAutoRotationBehavior = true;
         if (camera.autoRotationBehavior) {

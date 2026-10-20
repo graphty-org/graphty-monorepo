@@ -13,6 +13,7 @@ import React, { type RefObject, useCallback, useEffect, useId, useRef, useState 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
 import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
 import { RecoveredWork } from "../autosave/RecoveredWork";
+import { holdsModel, readDrop } from "../canvas/models";
 import { CommandButton } from "../frame/CommandButton";
 import { focusIsLost } from "../frame/focus";
 import { MainMenu } from "../frame/menus";
@@ -33,7 +34,7 @@ import { Groups } from "./icons";
 import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
 import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openGenerated, openModel, openSample, openUrl, pictureOf } from "./open";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -743,10 +744,18 @@ export function StartScreen({
         const drop = (event: DragEvent): void => {
             event.preventDefault();
             setDragging(false);
-            const file = event.dataTransfer?.files.item(0) ?? null;
-            if (file !== null) {
-                void openProjectFile(workspace, file);
+            if (event.dataTransfer === null) {
+                return;
             }
+            // graphty-element says whether it is a model before it is read as graph data.
+            void readDrop(event.dataTransfer).then(async (dropped) => {
+                const [file] = dropped.files;
+                if (await holdsModel(dropped.files)) {
+                    openModel(workspace.store, file?.name ?? "Model", dropped.source);
+                } else if (file !== undefined) {
+                    await openProjectFile(workspace, file);
+                }
+            });
         };
         globalThis.addEventListener("dragover", over);
         globalThis.addEventListener("dragleave", leave);

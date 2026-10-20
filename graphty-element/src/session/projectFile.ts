@@ -5,7 +5,8 @@
  * the data (`graphty-data`), the settings, layout, filter, sets and views (`graphty-session`),
  * where each node stands (`graphty-arrangement`), every finished run with its result as columns
  * (`graphty-results`), the style layers (`graphty-style`), the notes (`graphty-notes`) and the
- * selection (`graphty-view-state`, never required to open the file). A saved run is not computed
+ * selection (`graphty-view-state`, never required to open the file), and the model files a layer
+ * names (`graphty-assets`, required when present). A saved run is not computed
  * again on open: its result is handed to the run in place of the work.
  *
  * Nothing here writes words for a reader. Every problem is a code and its values.
@@ -24,6 +25,7 @@ import {
 } from "../catalog/types";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { ASSETS_MEMBER, assetsMember, restoreAssets } from "./assets/projectMember";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { createRunResult, type ResultElementValues } from "./results/RunResult";
@@ -72,6 +74,7 @@ const MEMBER_KINDS = [
     "graphty-style",
     "graphty-notes",
     "graphty-view-state",
+    "graphty-assets",
     // Experimental: the loads from network sources (design/graph-io/network-sources-design.md 16.1).
     "graphty-sources",
 ] as const;
@@ -81,6 +84,16 @@ type MemberKind = (typeof MEMBER_KINDS)[number];
 
 /** The members a reader cannot open the file correctly without. */
 const REQUIRED: readonly MemberKind[] = ["graphty-data", "graphty-session", "graphty-results"];
+
+/**
+ * The `requires` of a document holding these members: the assets member joins the members every
+ * project requires when there is one, because its layers would draw without their models.
+ * @param members - The members.
+ * @returns The kinds.
+ */
+export function requiresOf(members: readonly Record<string, unknown>[]): readonly string[] {
+    return members.some((member) => member.kind === ASSETS_MEMBER) ? [...REQUIRED, ASSETS_MEMBER] : REQUIRED;
+}
 
 /** A member kind's form: `graphty-` and a name, or a reverse-domain name. */
 const MEMBER_KIND_FORM = /^(graphty-[a-z][a-z0-9-]*|[a-z0-9-]+(\.[a-z0-9-]+)+)$/i;
@@ -114,6 +127,14 @@ export interface ProjectSaveOptions {
      * project dirty, and so does any change made while the write was under way. Default `true`.
      */
     readonly markSaved?: boolean;
+    /**
+     * How to keep each model or picture a layer names by URL, by that URL: `"embed"` writes its
+     * files into the project (the default), so it opens offline; `"url"` writes only the URL and
+     * the file's digest, so the file is fetched again when the project opens (after the reader
+     * allows it) and reported with `W_MODEL_CHANGED` when it is no longer the same file.
+     * `session.assets.list()` gives each asset's `url`.
+     */
+    readonly assets?: Readonly<Record<string, "embed" | "url">>;
 }
 
 /** What the session lends the project file for the loads from network sources. */
@@ -586,6 +607,8 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
         ...(fileStyles.length === 0 ? {} : { fileStyles }),
+        // A reader chose not to be asked before this project's fetches (session.network).
+        ...(session.network.projectPolicy === "allow" ? { network: { policy: "allow" } } : {}),
     };
 }
 
@@ -736,7 +759,7 @@ export function documentAround(
         version: VERSION,
         ...(name === null ? {} : { name }),
         generator: { name: "graphty-element", version: ENGINE_VERSIONS.element },
-        requires: REQUIRED,
+        requires: requiresOf(members),
         members,
         ...(Object.keys(extensions).length === 0 ? {} : { extensions }),
     };
@@ -773,15 +796,23 @@ function write(
         notesMember(session),
         viewStateMember(session, ids),
     ].filter((member) => !leaveOut.has(member.kind as string));
+    const assets = assetsMember(session, options.assets);
+    if (assets.member !== null) {
+        members.push(assets.member);
+    }
+
     const sourceMember = networkSources?.member() as Record<string, unknown> | null | undefined;
     if (sourceMember !== null && sourceMember !== undefined) {
         members.push({ kind: SOURCE_RECORD_MEMBER, ...sourceMember });
     }
 
-    const leftOut: ProjectProblem[] = session.runs
-        .list()
-        .filter((run) => !dispatcher.state.runs.has(run.id))
-        .map((run) => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } }));
+    const leftOut: ProjectProblem[] = [
+        ...session.runs
+            .list()
+            .filter((run) => !dispatcher.state.runs.has(run.id))
+            .map((run): ProjectProblem => ({ code: "W_RUN_PENDING", params: { slice: "runs", id: run.id } })),
+        ...assets.leftOut,
+    ];
     return { document: documentAround(session, members, extensions), leftOut };
 }
 
@@ -1077,6 +1108,20 @@ function nodeLinkOf(member: Record<string, unknown>): NodeLink {
     }
 
     return graph as NodeLink;
+}
+
+/**
+ * Put a document's embedded models into the session, before anything names them (the assets
+ * member applies first, wherever it sits in `members`).
+ * @param session - The session.
+ * @param doc - The document.
+ * @param problems - Collects each model that did not come back.
+ */
+async function restoreAssetsOf(session: GraphSession, doc: ReadDocument, problems: ProjectProblem[]): Promise<void> {
+    const member = doc.members.get(ASSETS_MEMBER)?.[0];
+    if (member !== undefined) {
+        problems.push(...(await restoreAssets(session, member)));
+    }
 }
 
 /** The transaction opening a document that is not a project into the session. */
@@ -1803,6 +1848,7 @@ export function projectOf(
         }
 
         const graph = nodeLinkOf(data);
+        await restoreAssetsOf(session, doc, problems);
         const name = doc.name ?? nameOfFile(typeof fileName === "string" ? fileName : undefined);
         const opening: TransactionOptions = { fact: { code: "project.open", params: { name: name ?? null } } };
         projectBoundary(session, "open");
@@ -1811,6 +1857,9 @@ export function projectOf(
             (tx) => readProject({ tx, problems, restored }, doc, graph, name, canned),
             opening,
         );
+        // Whether this project asks before its fetches: what the file says, else ask.
+        const network = doc.members.get("graphty-session")?.[0]?.network;
+        session.network.setProjectPolicy(isObject(network) && network.policy === "allow" ? "allow" : "ask");
         // The loads from network sources wait, fetching nothing, until the application runs them.
         try {
             networkSources?.restore(doc.members.get(SOURCE_RECORD_MEMBER)?.[0]);
@@ -1840,6 +1889,7 @@ export function projectOf(
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
         const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        await restoreAssetsOf(session, doc, problems);
         fresh = false;
         await session.transaction(
             "Open document",

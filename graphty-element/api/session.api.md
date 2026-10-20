@@ -109,6 +109,15 @@ export interface AcceleratorDeviceInfo {
 }
 
 // @public
+export interface AddAssetOptions {
+    readonly format?: ModelFormat;
+    readonly main?: string;
+    readonly name?: AssetId;
+    // (undocumented)
+    readonly signal?: AbortSignal;
+}
+
+// @public
 export interface AgreementOptions {
     readonly below?: StyleRowId;
     readonly over?: StyleRowId;
@@ -127,6 +136,60 @@ export interface AlgorithmRunCommand {
     readonly scope?: Scope;
     readonly seed?: number;
 }
+
+// @public
+export type AssetId = `asset:${string}`;
+
+// @public
+export interface AssetRecord {
+    readonly byteLength: number;
+    readonly digest: string;
+    readonly format: ModelFormat;
+    readonly id: AssetId;
+    readonly kind: "model" | "image";
+    readonly path?: string;
+    readonly problems: readonly CodedFact[];
+    readonly state: AssetState;
+    readonly url?: string;
+}
+
+// @public
+export interface AssetsApi {
+    add(source: AssetSource, options?: AddAssetOptions): Promise<AssetRecord>;
+    allowHosts(hosts: readonly string[]): void;
+    files(id: AssetId): ReadonlyMap<string, Uint8Array>;
+    get(id: AssetId): AssetRecord | undefined;
+    inspect(id: AssetId): ModelSummary;
+    list(): readonly AssetRecord[];
+    ready(ref: string, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<AssetRecord>;
+    remove(id: AssetId): void;
+    setLimits(limits: Partial<ModelLimits>): void;
+    states(): readonly ModelChange[];
+}
+
+// @public
+export type AssetSource =
+/** A URL, fetched with no credentials. */
+string
+/** A File. */
+| NamedBlob
+/** Several files: an array of Files, or a FileList (structurally). */
+| Iterable<NamedBlob> | ArrayLike<NamedBlob>
+/** The bytes of one file. */
+| ArrayBuffer | Uint8Array
+/** Files by path, and optionally which one is the model. */
+| {
+    readonly files: ReadonlyMap<string, NamedBlob | {
+        readonly size: number;
+        arrayBuffer(): Promise<ArrayBuffer>;
+    } | Uint8Array>;
+    readonly main?: string;
+};
+
+// @public
+export type AssetState = "pending" | "accepted" | "rejected";
 
 // @public
 export interface AttributeDescriptor {
@@ -298,8 +361,12 @@ export const browserProjects: BrowserProjects;
 
 // @public
 export interface BrowserProjectSaveOptions {
+    readonly assets?: ProjectSaveOptions["assets"];
     readonly id?: string;
 }
+
+// @public
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
 
 // @public
 export interface Capabilities {
@@ -349,7 +416,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "node.texture" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
 
 // @public
 export type ChannelAgreement = {
@@ -421,6 +488,7 @@ export interface ColorWrite {
 // @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
+    readonly values?: Readonly<Record<string, string | number>>;
 }
 
 // @public
@@ -606,6 +674,9 @@ export const DEFAULT_EXACT_COMPUTATION_CAP_SECONDS = 30;
 
 // @public
 export const DEFAULT_LIMITS: Readonly<DefaultableLimits>;
+
+// @public
+export const DEFAULT_MODEL_LIMITS: ModelLimits;
 
 // @public
 export const DEFAULT_SCOPE_SAMPLE = 10000;
@@ -1206,6 +1277,7 @@ export interface GraphAccelerator {
 // @public
 export interface GraphSession {
     acceleration: AccelerationPolicy;
+    readonly assets: AssetsApi;
     readonly canRedo: boolean;
     readonly canUndo: boolean;
     readonly capabilities: Pick<Capabilities, "acceleration" | "xr">;
@@ -1220,6 +1292,7 @@ export interface GraphSession {
     readonly history: SessionHistory;
     readonly journal: JournalApi;
     readonly layout: SessionLayout;
+    readonly network: NetworkApi;
     readonly notes: NotesApi;
     on<K extends keyof SessionEventMap>(event: K, handler: (detail: SessionEventMap[K]) => void): () => void;
     plan(command: SessionCommand): Promise<Plan>;
@@ -1816,7 +1889,88 @@ export type GraphtyErrorCode =
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
 */
-| "E_INTERNAL";
+/**
+* A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+*/
+| "E_MODEL_FETCH"
+/**
+* A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`.
+*/
+| "E_MODEL_URL_BLOCKED"
+/**
+* A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+*/
+| "E_MODEL_TOO_LARGE"
+/**
+* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+*/
+| "E_MODEL_STRUCTURE"
+/**
+* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNSUPPORTED"
+/**
+* No model format matches the bytes or the name. `params.fileName`.
+*/
+| "E_MODEL_FORMAT_UNKNOWN"
+/**
+* Two different main files in one set, or two paths that differ only in case. `params.candidates`
+* (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+* `add`'s `main` option.
+*/
+| "E_MODEL_AMBIGUOUS"
+/**
+* A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+* part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+* `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+* part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+* `params.tried` (the addresses tried, without queries, at most 4).
+*/
+| "E_MODEL_MISSING_FILE"
+/**
+* A reference matched more than one file of the set by case or base name, so none was used.
+* `params.name`, `params.referencedBy`, `params.candidates`.
+*/
+| "E_MODEL_PART_AMBIGUOUS"
+/**
+* An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+* `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+* address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+*/
+| "E_MODEL_WEB_PAGE"
+/**
+* A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+*/
+| "E_MODEL_PART_REQUIRED"
+/**
+* A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+*/
+| "E_MODEL_EXTERNAL_URL"
+/**
+* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+*/
+| "E_MODEL_DECODER_UNAVAILABLE"
+/**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
+* A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+*/
+| "E_MODEL_ZIP"
+/**
+* An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+*/
+| "E_MODEL_NAME_TAKEN"
+/**
+* An asset id the session holds no accepted model for. `details.id`.
+*/
+| "E_MODEL_UNKNOWN_ASSET"
+/**
+* A model a project file embeds does not match the digest the file records for it (or its id,
+* for an unnamed asset), so it was not added. `params.id`.
+*/
+| "E_MODEL_DIGEST_MISMATCH" | "E_INTERNAL";
 
 // @public
 export interface GraphtyErrorInit {
@@ -1915,7 +2069,59 @@ export type GraphtyWarningCode =
 * event. `params.requested` holds the options as given and `params.used` the values used, by
 * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
 */
-| "W_DIMENSION_OVERRIDDEN";
+| "W_DIMENSION_OVERRIDDEN"
+/**
+* A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+* `node.modelSourceUp` turns it.
+*/
+| "W_MODEL_UP_GUESSED"
+/** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+| "W_MODEL_HAS_ANIMATIONS"
+/**
+* A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+* `params.layerIds` names the layers that write `node.color`.
+*/
+| "W_MODEL_COLOR_IGNORED"
+/** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+| "W_MODEL_HEAVY"
+/** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+| "W_MODEL_BUDGET"
+/** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+| "W_MODEL_TRANSPARENT"
+/** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+| "W_MODEL_TEXTURES_REDUCED"
+/**
+* A project was saved with a layer naming a model the session does not hold (a URL that never
+* loaded, or an asset id it has no accepted model for), so the file does not carry it.
+* `params.ref` is what the layers named and `params.layerIds` the layers.
+*/
+| "W_MODEL_NOT_EMBEDDED"
+/**
+* A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+* from a project or style file, an AI command or the data, or a reopened project's source load.
+* `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+* `params.layerIds`.
+*/
+| "W_URL_NEEDS_APPROVAL"
+/**
+* A model or picture a project keeps by URL loaded from that URL, and is not the file the
+* project was saved with: the file at the URL changed. It is drawn. `params.url`,
+* `params.expected` and `params.found` (SHA-256 digests).
+*/
+| "W_MODEL_CHANGED"
+/**
+* A model reference was resolved by case or by base name to the one file of the set that
+* matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+*/
+| "W_MODEL_PART_SUBSTITUTED"
+/**
+* A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+*/
+| "W_MODEL_PART_SKIPPED"
+/**
+* A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+*/
+| "W_MODEL_PART_UNUSED";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;
@@ -2044,6 +2250,9 @@ export function isAccelerationPolicy(value: unknown): value is AccelerationPolic
 
 // @public
 export function isAlgorithmRunCommand(value: unknown): value is AlgorithmRunCommand;
+
+// @public
+export function isAssetId(value: unknown): value is AssetId;
 
 // @public
 export function isGraphtyError(value: unknown): value is GraphtyError;
@@ -2497,6 +2706,76 @@ export interface Memberships {
 }
 
 // @public
+export interface ModelChange {
+    readonly id?: AssetId;
+    readonly layerIds: readonly LayerId[];
+    readonly problems: readonly CodedFact[];
+    readonly ref: string;
+    readonly state: ModelState;
+}
+
+// @public
+export type ModelFormat = string;
+
+// @public
+export interface ModelLimits {
+    readonly fetchTimeoutMs: number;
+    readonly maxBytes: number;
+    readonly maxDecodedBytes: number;
+    readonly maxTextBytes: number;
+    readonly maxTextureBytes: number;
+    readonly maxTextureSize: number;
+    readonly maxTriangles: number;
+    readonly sceneTextureBytes: number;
+    readonly sceneTriangleBudget: number;
+    readonly sessionBytes: number;
+}
+
+// @public
+export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
+
+// @public
+export interface ModelSummary {
+    // (undocumented)
+    readonly animations: readonly {
+        readonly name: string;
+        readonly seconds: number;
+    }[];
+    readonly bounds?: {
+        readonly min: readonly [number, number, number];
+        readonly max: readonly [number, number, number];
+    };
+    readonly extensionsRequired: readonly string[];
+    // (undocumented)
+    readonly format: ModelFormat;
+    readonly materials: readonly string[];
+    // (undocumented)
+    readonly meshes: number;
+    // (undocumented)
+    readonly morphTargets: number;
+    // (undocumented)
+    readonly skinned: boolean;
+    readonly textureBytes: number;
+    // (undocumented)
+    readonly textures: number;
+    // (undocumented)
+    readonly transparent: boolean;
+    readonly triangles: number;
+    readonly upAxis: "y" | "z" | "unknown";
+}
+
+// @public
+export interface NamedBlob {
+    // (undocumented)
+    arrayBuffer(): Promise<ArrayBuffer>;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly size: number;
+    readonly webkitRelativePath?: string;
+}
+
+// @public
 export interface Neighbor {
     readonly edgeCount: number;
     readonly excludedBy?: {
@@ -2528,6 +2807,43 @@ export interface NeighborSort {
     readonly by: "weight" | "name" | "degree";
     readonly descending?: boolean;
 }
+
+// @public
+export interface NetworkApi {
+    allow(id: string, options?: {
+        readonly remember?: "project";
+    }): Promise<void>;
+    deny(id: string): void;
+    pending(): readonly NetworkRequest[];
+    readonly policy: NetworkPolicy;
+    readonly projectPolicy: NetworkPolicy;
+    setPolicy(policy: NetworkPolicy): void;
+    setProjectPolicy(policy: NetworkPolicy): void;
+}
+
+// @public
+export type NetworkPolicy = "ask" | "allow";
+
+// @public
+export interface NetworkRequest {
+    // (undocumented)
+    readonly code: Extract<GraphtyWarningCode, "W_URL_NEEDS_APPROVAL">;
+    // (undocumented)
+    readonly params: {
+        readonly id: string;
+        readonly url: string;
+        readonly host: string;
+        readonly kind: NetworkRequestKind;
+        readonly by: NetworkRequestAsker;
+        readonly layerIds: readonly LayerId[];
+    };
+}
+
+// @public
+export type NetworkRequestAsker = "file" | "ai" | "data" | "source";
+
+// @public
+export type NetworkRequestKind = "model" | "texture" | "source";
 
 // @public
 export type NodeId = string | number;
@@ -2978,6 +3294,7 @@ export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
 
 // @public
 export interface ProjectSaveOptions {
+    readonly assets?: Readonly<Record<string, "embed" | "url">>;
     readonly extensions?: Readonly<Record<string, unknown>>;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
@@ -4219,6 +4536,8 @@ export interface SessionEventMap {
     "journal:appended": {
         readonly entry: JournalEntry;
     };
+    "model:changed": ModelChange;
+    "network:pending": NetworkRequest;
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
     "project:changed": {
@@ -4324,6 +4643,7 @@ export interface SessionStatus {
 // @public
 export interface SessionStylesApi extends StylesApi {
     compiled(): readonly CompiledLayer[];
+    modelUrlFromCode(url: string): boolean;
 }
 
 // @public

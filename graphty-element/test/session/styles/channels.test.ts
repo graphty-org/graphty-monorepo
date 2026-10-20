@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { EdgeLinePattern } from "../../../src/catalog/types";
+import type { Binding, EdgeLinePattern } from "../../../src/catalog/types";
 import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
@@ -20,6 +20,7 @@ import {
     DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
+    modelBindingProblem,
     type NodeShapeValue,
     type PaintedValue,
     toColorValue,
@@ -62,6 +63,13 @@ const DECLARED = [
     "node.borderWidth",
     "node.borderStyle",
     "node.cornerRadius",
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.texture",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -131,8 +139,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into forty node channels and thirty-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 40);
+    it("splits into forty-seven node channels and thirty-eight edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 47);
         assert.strictEqual(channelsFor("edge").length, 38);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -341,6 +349,10 @@ describe("what a style editor needs to draw a row", () => {
         "node.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
+        // Unset, a node draws its shape and no model.
+        "node.model",
+        // Unset, a node draws its own color and no picture.
+        "node.texture",
         "edge.patternCount",
         // Unset, an edge runs straight from node to node.
         "edge.bends",
@@ -647,5 +659,37 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+    });
+});
+
+describe("modelBindingProblem", () => {
+    const at = "encode.node.model";
+
+    it("accepts a value map of asset ids that skips unlisted categories", () => {
+        assert.isNull(modelBindingProblem({ by: "data.kind", map: { a: "asset:a" }, unmapped: "skip" }, at));
+        assert.isNull(modelBindingProblem({ value: "https://example.com/x.glb" }, at), "a literal is judged by origin");
+    });
+
+    it("accepts http(s) URLs among the listed values, and a value read from the data", () => {
+        const url = "https://example.com/x.glb";
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: url }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", missing: { value: url } },
+            { by: "data.url", scale: "passthrough" },
+            { template: ["{data.url}"] },
+        ];
+        for (const binding of bindings) {
+            assert.isNull(modelBindingProblem(binding, at));
+        }
+    });
+
+    it("refuses a listed value that is neither an asset id nor an http(s) URL", () => {
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: "rack.glb" }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: "file:///etc/x.glb" } },
+        ];
+        for (const binding of bindings) {
+            assert.equal(modelBindingProblem(binding, at)?.code, "E_MODEL_URL_BLOCKED");
+        }
     });
 });

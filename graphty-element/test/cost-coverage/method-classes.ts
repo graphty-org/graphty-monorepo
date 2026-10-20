@@ -297,6 +297,26 @@ export const MUTATING: readonly string[] = [
 ];
 
 export const READ_ONLY: readonly string[] = [
+    // The model file library: it changes no node, edge, style or saved state, and its cost grows
+    // with the files added, not with the graph. Reclassify add and remove when layers draw assets.
+    "AssetsApi.add",
+    "AssetsApi.allowHosts",
+    "AssetsApi.files",
+    "AssetsApi.get",
+    "AssetsApi.inspect",
+    "AssetsApi.list",
+    "AssetsApi.ready",
+    "AssetsApi.remove",
+    "AssetsApi.setLimits",
+    "AssetsApi.states",
+    "NamedBlob.arrayBuffer",
+    // The fetch gate: its cost grows with the fetches waiting, not with the graph; allowing a
+    // source load runs it, which a source load's own tests count.
+    "NetworkApi.allow",
+    "NetworkApi.deny",
+    "NetworkApi.pending",
+    "NetworkApi.setPolicy",
+    "NetworkApi.setProjectPolicy",
     "AcceleratorRegistry.clear",
     "AcceleratorRegistry.has",
     "AcceleratorRegistry.list",
@@ -409,6 +429,7 @@ export const READ_ONLY: readonly string[] = [
     "CatalogApi.layouts",
     "CatalogApi.logSinks",
     "CatalogApi.metrics",
+    "CatalogApi.models",
     "CatalogApi.optionsFor",
     "CatalogApi.palettes",
     "CatalogApi.scales",
@@ -944,6 +965,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionGraphStore.undirected",
     "SessionHistory.cancel",
     "SessionStylesApi.compiled",
+    "SessionStylesApi.modelUrlFromCode",
     "SetsApi.containing",
     "SetsApi.get",
     "SetsApi.list",

@@ -26,10 +26,10 @@ interface GraphtyDocument {
     extensions?: Record<string, unknown>; // reverse-domain keys; see "Extensions"
 }
 
-type Member = StyleMember | RecipeMember | DataMember | NotesMember | { kind: string; version: number };
+type Member = StyleMember | RecipeMember | DataMember | NotesMember | AssetsMember | { kind: string; version: number };
 ```
 
-Every member has a `kind` and an integer `version`. Version 1 defines four kinds:
+Every member has a `kind` and an integer `version`. Version 1 defines five kinds:
 
 <!-- prettier-ignore -->
 | `kind` | Page | Holds |
@@ -38,6 +38,7 @@ Every member has a `kind` and an integer `version`. Version 1 defines four kinds
 | `graphty-recipe` | [recipe.md](recipe.md) | a journal of analysis commands |
 | `graphty-data` | this page | a graph embedded in a graph-io JSON dialect |
 | `graphty-notes` | [notes.md](notes.md) | people's notes about the graph, its elements, sets and results |
+| `graphty-assets` | [assets.md](assets.md) | the 3D model files the style layers name, embedded as given; listed in `requires` whenever it is written |
 
 Member kinds starting `graphty-` are reserved for graphty-element. Any other kind MUST be a
 reverse-domain name (`org.example.bookmarks`), so a third party's kind never collides with one a later
@@ -108,11 +109,12 @@ catalogue). The closed objects are the exceptions:
 | a recipe command and its `scope` | skips the command, `E_UNKNOWN_OPTION`, and every later one (recipe.md, "Replaying" rule 3) |
 | a recipe's `table` | refuses an import through the recipe, `E_UNKNOWN_OPTION` at the member's pointer; the commands are unaffected (recipe.md, "Table data" rule 5) |
 | a data member | skips it, `E_BAD_DOCUMENT` ("The data member" rule 2) |
+| an assets member, and each of its entries and files | the member: refuses it, and so the file (it is required), `E_BAD_DOCUMENT`; an entry or a file: skips that entry, `E_BAD_DOCUMENT` (assets.md, "Reading" rules 1 and 3) |
 | a style's selectors, bindings and carried palettes | reports `W_UNKNOWN_MEMBER`, applies the layer, writes the member back; the schema refuses it, so a validator catches the misspelling |
 | the keys of a layer's `set` and `encode` | channel names: style.md, "Reading and applying" rule 2 |
 | the parts of a run's `style` | drops the part, `W_UNKNOWN_MEMBER`; the run runs (recipe.md, "Replaying" rule 3) |
 
-The first three change a result when a member is ignored, so they stop; the others do not. A
+The first four change a result when a member is ignored, so they stop; the others do not. A
 recipe's top level and the document's are open, with one guard: an unknown member within an edit
 distance of 2 of `table`, `directed` or `parallelEdges` skips that recipe with `E_UNKNOWN_OPTION`,
 and one within 2 of `requires` refuses the file with `E_BAD_DOCUMENT`, each suggesting the name. A

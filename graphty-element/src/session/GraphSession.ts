@@ -53,6 +53,7 @@ import type { ElementPositions } from "../data/positions";
 import type { LoadReport } from "../data/report";
 import { GraphtyError, isGraphtyError } from "../errors";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
@@ -64,6 +65,7 @@ import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, recommendLayout } from "./layout";
+import { createNetworkApi, type NetworkApiInternal } from "./network";
 import { createNoteFacts } from "./notes/countIndex";
 import { createNotesApi } from "./notes/NotesApi";
 import { isNotePath, noteFieldOf } from "./notes/paths";
@@ -177,6 +179,7 @@ import type {
     GraphSession,
     GraphSettingKey,
     HistoryOutcome,
+    ModelChange,
     PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
@@ -466,6 +469,8 @@ class Session implements ElementSession {
     readonly scope: ScopeApi;
     readonly sets: SetsApi;
     readonly notes: NotesApi;
+    readonly assets: AssetsApiInternal;
+    readonly network: NetworkApiInternal;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -474,6 +479,15 @@ class Session implements ElementSession {
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
+
+    /**
+     * Publish what happened to a model a layer names, as `model:changed`.
+     * @param change - The change.
+     */
+    publishModelChange(change: ModelChange): void {
+        this.assets.noteState(change);
+        publish(this.watchers, "model:changed", change);
+    }
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
@@ -524,6 +538,19 @@ class Session implements ElementSession {
         this.scope = parts.scope;
         this.sets = parts.sets;
         this.notes = parts.notes;
+        // Model files live beside the project, not in it: no command, no step, no recipe.
+        // One gate for every fetch the page's code did not ask for, the source loads of a reopened
+        // project among them.
+        this.network = createNetworkApi(
+            (request) => {
+                publish(this.watchers, "network:pending", request);
+            },
+            {
+                pendingSourceLoads: () => this.data.pendingSourceLoads(),
+                runPendingSourceLoad: (id) => this.data.runPendingSourceLoad(id),
+            },
+        );
+        this.assets = createAssetsApi(this.network);
         this.journal = parts.journal;
         this.selection = parts.selection;
         this.visibility = parts.visibility;

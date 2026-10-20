@@ -40,6 +40,17 @@ export const IMPORT_FILE_STYLES = {
     fallback: "on",
 } as const;
 
+/**
+ * Opening web addresses a project names (the "Don't ask again" of the question before a project
+ * opens one): "ask" asks each time, "allow" opens them without asking. Written on the element as
+ * `session.network.setPolicy`, which never remembers it, so the app keeps the reader's word.
+ */
+export const OPEN_PROJECT_URLS = {
+    key: "graphty.openProjectUrls.v1",
+    values: ["ask", "allow"],
+    fallback: "ask",
+} as const;
+
 /** One preference: where it is kept, what it may hold, and its default. */
 interface Preference<T extends string> {
     readonly key: string;

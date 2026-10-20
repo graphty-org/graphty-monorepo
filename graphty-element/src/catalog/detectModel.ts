@@ -1,0 +1,250 @@
+/**
+ * @file Deciding whether a file is a 3D model, and which kind, from its name and first bytes.
+ *
+ * Published from `./catalog` beside `detectFormat`, so a drop target asks the element "is this a
+ * model or graph data" instead of sniffing bytes itself. Bytes decide; the extension only breaks
+ * ties and names formats whose bytes say nothing (design/rendering/node-models.md section 5).
+ *
+ * Babylon-free and DOM-free: it reads a `Uint8Array`.
+ */
+
+/** A loader id. The element's own are {@link BuiltInModelFormat}; extensions may add more. */
+export type ModelFormat = string;
+
+/** The model formats graphty-element reads itself. */
+export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply";
+
+/** The built-in formats, best first: the order a main file is chosen in. */
+export const BUILT_IN_MODEL_FORMATS: readonly BuiltInModelFormat[] = Object.freeze([
+    "glb",
+    "gltf",
+    "obj",
+    "stl",
+    "ply",
+]);
+
+/** What {@link detectModelFormat} is given: a file name, its first bytes, or both. */
+export interface ModelDetectionInput {
+    /** The file name, with its extension. */
+    readonly filename?: string;
+    /** The first bytes of the file; 1 KB is plenty. The whole file makes binary STL exact. */
+    readonly head?: Uint8Array;
+}
+
+/** The answer of {@link detectModelFormat}. */
+export interface ModelDetection {
+    /**
+     * The format: a {@link BuiltInModelFormat}, `"zip"` for an archive that may hold a model, or a
+     * recognized format graphty-element cannot load (`"fbx"`, `"usdz"`, `"usd"`, `"dae"`, `"3mf"`,
+     * `"blend"`, `"babylon"`, `"splat"`).
+     */
+    readonly format: ModelFormat;
+    /** Whether graphty-element can load it. */
+    readonly supported: boolean;
+}
+
+/** Recognized formats graphty-element does not load, by extension. */
+const UNSUPPORTED_EXTENSIONS: Readonly<Record<string, string>> = {
+    fbx: "fbx",
+    usdz: "usdz",
+    usd: "usd",
+    usda: "usd",
+    usdc: "usd",
+    dae: "dae",
+    "3mf": "3mf",
+    blend: "blend",
+    babylon: "babylon",
+    splat: "splat",
+    spz: "splat",
+    sog: "splat",
+};
+
+const BUILT_IN_EXTENSIONS: Readonly<Record<string, BuiltInModelFormat>> = {
+    glb: "glb",
+    gltf: "gltf",
+    obj: "obj",
+    stl: "stl",
+    ply: "ply",
+};
+
+/**
+ * The lower-cased extension of a file name, without the dot.
+ * @param filename - The name.
+ * @returns The extension, or "" when there is none.
+ */
+export function extensionOf(filename: string | undefined): string {
+    if (filename === undefined) {
+        return "";
+    }
+
+    const base = filename.slice(filename.lastIndexOf("/") + 1);
+    const dot = base.lastIndexOf(".");
+    return dot <= 0 ? "" : base.slice(dot + 1).toLowerCase();
+}
+
+/**
+ * Whether the bytes start with the given ASCII text.
+ * @param bytes - The bytes.
+ * @param text - ASCII text.
+ * @param offset - Where to look.
+ * @returns True on a match.
+ */
+export function startsWithAscii(bytes: Uint8Array, text: string, offset = 0): boolean {
+    if (bytes.length < offset + text.length) {
+        return false;
+    }
+
+    for (let i = 0; i < text.length; i++) {
+        if (bytes[offset + i] !== text.charCodeAt(i)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Whether the bytes are a zip archive (a local file header first).
+ * @param bytes - The bytes.
+ * @returns True for `PK\x03\x04`.
+ */
+export function isZip(bytes: Uint8Array): boolean {
+    return bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+}
+
+/**
+ * Up to the first 4 KB as Latin-1 text, which keeps every byte one character.
+ * @param bytes - The bytes.
+ * @returns The text.
+ */
+function headText(bytes: Uint8Array): string {
+    const end = Math.min(bytes.length, 4096);
+    let text = "";
+    for (let i = 0; i < end; i++) {
+        text += String.fromCharCode(bytes[i]);
+    }
+
+    return text;
+}
+
+/**
+ * The format the bytes alone say, or undefined.
+ * @param head - The first bytes (or the whole file).
+ * @param ext - The lower-cased extension, which allows the binary STL length rule.
+ * @returns The format, or undefined when the bytes say nothing.
+ */
+function formatFromBytes(head: Uint8Array, ext: string): ModelDetection | undefined {
+    if (startsWithAscii(head, "glTF")) {
+        const version = head.length >= 8 ? new DataView(head.buffer, head.byteOffset, 8).getUint32(4, true) : 2;
+        return { format: "glb", supported: version === 2 };
+    }
+
+    if (startsWithAscii(head, "Kaydara FBX Binary")) {
+        return { format: "fbx", supported: false };
+    }
+
+    if (startsWithAscii(head, "BLENDER")) {
+        return { format: "blend", supported: false };
+    }
+
+    if (startsWithAscii(head, "PXR-USDC")) {
+        return { format: "usd", supported: false };
+    }
+
+    if (isZip(head)) {
+        if (ext === "usdz" || ext === "3mf") {
+            return { format: ext, supported: false };
+        }
+
+        // A zip with another extension (a Cytoscape session, an office file) is not a model kit.
+        return ext === "" || ext === "zip" ? { format: "zip", supported: true } : undefined;
+    }
+
+    if (startsWithAscii(head, "ply\n") || startsWithAscii(head, "ply\r\n")) {
+        return { format: "ply", supported: true };
+    }
+
+    // The binary STL length rule: 80 header bytes, a triangle count, 50 bytes per triangle. Only
+    // for a file that could be STL, since a glTF .bin can have that length by chance.
+    if ((ext === "" || ext === "stl") && head.length >= 84) {
+        const count = new DataView(head.buffer, head.byteOffset, 84).getUint32(80, true);
+        if (head.length === 84 + 50 * count) {
+            return { format: "stl", supported: true };
+        }
+    }
+
+    const text = headText(head);
+    const trimmed = text.replace(/^\uFEFF?\s*/, "");
+    if (/^solid\b/.test(trimmed) && /\bfacet\b/.test(text)) {
+        return { format: "stl", supported: true };
+    }
+
+    if (trimmed.startsWith("{")) {
+        if (/"asset"\s*:/.test(text)) {
+            return { format: "gltf", supported: true };
+        }
+
+        return /"producer"\s*:|"meshes"\s*:/.test(text) && ext === "babylon"
+            ? { format: "babylon", supported: false }
+            : undefined;
+    }
+
+    if (/^(?:<\?xml[^>]*>\s*)?<COLLADA\b/.test(trimmed)) {
+        return { format: "dae", supported: false };
+    }
+
+    if (trimmed.startsWith("; FBX")) {
+        return { format: "fbx", supported: false };
+    }
+
+    if (trimmed.startsWith("#usda")) {
+        return { format: "usd", supported: false };
+    }
+
+    if (/^v\s/m.test(text) && (/^f\s/m.test(text) || ext === "obj")) {
+        return { format: "obj", supported: true };
+    }
+
+    return undefined;
+}
+
+/**
+ * Whether a file is a 3D model, and which kind.
+ *
+ * Every drop target calls this before treating a file as graph data. Bytes come first: a GLB
+ * starts `glTF`, a glTF is JSON with an `asset`, a binary STL is exactly 84 + 50 bytes per
+ * triangle long, an ASCII STL starts `solid` and holds a `facet`, a PLY starts `ply`, an OBJ has
+ * `v` and `f` lines, a zip starts `PK`. With nothing in the bytes, the extension decides.
+ * @param input - The file name, the first bytes, or both.
+ * @returns The format and whether it loads, or undefined when it is not a model file.
+ * @example
+ * ```ts
+ * const head = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
+ * const model = detectModelFormat({ filename: file.name, head });
+ * if (model?.supported) await graph.session.assets.add(file);
+ * ```
+ */
+export function detectModelFormat(input: ModelDetectionInput): ModelDetection | undefined {
+    const ext = extensionOf(input.filename);
+    if (input.head !== undefined && input.head.length > 0) {
+        const found = formatFromBytes(input.head, ext);
+        if (found !== undefined) {
+            return found;
+        }
+    }
+
+    // Formats whose bytes are not distinctive (splats, .babylon) or a head too short to tell.
+    if (ext in BUILT_IN_EXTENSIONS) {
+        return { format: BUILT_IN_EXTENSIONS[ext], supported: true };
+    }
+
+    if (ext in UNSUPPORTED_EXTENSIONS) {
+        return { format: UNSUPPORTED_EXTENSIONS[ext], supported: false };
+    }
+
+    if (ext === "zip" && input.head === undefined) {
+        return { format: "zip", supported: true };
+    }
+
+    return undefined;
+}

@@ -1024,6 +1024,11 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             return read;
         }
         case "enum":
+            // A boolean is read by its name (`node.modelTint` takes true, false or "replace").
+            if (typeof value === "boolean" && (values ?? []).includes(String(value))) {
+                return value;
+            }
+
             if (typeof value !== "string" || !(values ?? []).includes(value)) {
                 throw outOfRange(descriptor, value, what);
             }

@@ -8,7 +8,7 @@
 
 import { PROJECT_FILE } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
-import { projectFileName } from "./projectFile";
+import { projectFileName, type ProjectSaveOptions } from "./projectFile";
 import type { GraphSession } from "./types";
 
 /** The IndexedDB database the projects are kept in. */
@@ -35,6 +35,8 @@ export interface StoredProject {
 export interface BrowserProjectSaveOptions {
     /** The id of a stored project to replace. Default: a new id, so a new entry. */
     readonly id?: string;
+    /** How to keep each model or picture a layer names by URL, as `project.save`'s `assets` takes it. */
+    readonly assets?: ProjectSaveOptions["assets"];
 }
 
 /** The record IndexedDB holds: the facts plus the project file. */
@@ -226,7 +228,10 @@ export const browserProjects: BrowserProjects = Object.freeze({
         (await openDatabase()).close();
         askToPersist();
         const { nodes, edges } = session.status.counts;
-        const saved = await session.project.save({ markSaved: false });
+        const saved = await session.project.save({
+            markSaved: false,
+            ...(options.assets === undefined ? {} : { assets: options.assets }),
+        });
         const record: ProjectRecord = {
             id: options.id ?? crypto.randomUUID(),
             name: session.project.name,

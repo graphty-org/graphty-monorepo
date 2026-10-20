@@ -91,6 +91,7 @@ export default defineConfig({
                         { text: "What Is Under a Point", link: "/guide/element-at" },
                         { text: "Labels", link: "/guide/labels" },
                         { text: "Label Size & Number Format", link: "/guide/label-size-and-numbers" },
+                        { text: "Drawing Nodes as Models", link: "/guide/node-models" },
                         { text: "Data Sources", link: "/guide/data-sources" },
                         { text: "Network Sources", link: "/guide/network-sources" },
                         { text: "Click to Expand", link: "/guide/click-to-expand" },

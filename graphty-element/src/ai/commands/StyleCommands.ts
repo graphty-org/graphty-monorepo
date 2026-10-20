@@ -68,6 +68,20 @@ const NodeStyleParamsSchema = z
                     "so asking for this is answered with the reason rather than applied",
             ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
+        model: z
+            .string()
+            .optional()
+            .describe(
+                "Draw the nodes as a 3D model: a model id ('asset:...', such as 'asset:sample/server') or the URL " +
+                    "of a .glb, .gltf or .obj file. A URL is fetched only after the reader allows its site",
+            ),
+        texture: z
+            .string()
+            .optional()
+            .describe(
+                "A picture drawn on the nodes (a PNG, JPEG or WebP): a picture id ('asset:...') or a URL. " +
+                    "A URL is fetched only after the reader allows its site",
+            ),
     })
     .describe("Style properties for nodes");
 
@@ -132,6 +146,16 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
 
     if (params.outlineColor !== undefined) {
         set["node.outline"] = params.outlineColor;
+    }
+
+    // A URL here is not fetched by the element on the model's say-so: the layer is the AI's, so
+    // the fetch waits in `session.network` for the reader unless the page allowed the host.
+    if (params.model !== undefined) {
+        set["node.model"] = params.model;
+    }
+
+    if (params.texture !== undefined) {
+        set["node.texture"] = params.texture;
     }
 
     // "Not visible" is said as fully transparent, because hiding an element is the visibility
@@ -303,7 +327,7 @@ async function addLayer(
 export const findAndStyleNodes: GraphCommand = {
     name: "findAndStyleNodes",
     description:
-        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color and outline color.",
+        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color, outline color, a 3D model and a picture (texture), each an id or a URL.",
     parameters: z.object({
         selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
         connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
@@ -339,6 +363,14 @@ export const findAndStyleNodes: GraphCommand = {
         {
             input: "Change nodes to boxes",
             params: { selector: "", style: { shape: "box" }, layerName: "box-shapes" },
+        },
+        {
+            input: "Draw the servers as https://example.com/models/rack.glb",
+            params: {
+                selector: "data.type == 'server'",
+                style: { model: "https://example.com/models/rack.glb" },
+                layerName: "server-models",
+            },
         },
     ],
 

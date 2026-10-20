@@ -25,6 +25,7 @@ import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
+import type { ModelDescriptor } from "./models";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -577,6 +578,13 @@ export type Channel =
     | "node.borderWidth"
     | "node.borderStyle"
     | "node.cornerRadius"
+    | "node.model"
+    | "node.modelSourceUp"
+    | "node.modelTurn"
+    | "node.modelTint"
+    | "node.modelFit"
+    | "node.modelCenter"
+    | "node.texture"
     | "edge.color"
     | "edge.width"
     | "edge.opacity"
@@ -1919,6 +1927,11 @@ export interface CatalogApi {
      * and license. Supplied by @graphty/graph-samples.
      */
     datasets(): readonly DatasetMeta[];
+    /**
+     * Every sample 3D model graphty-element ships, which a style layer names in `node.model`
+     * (`"asset:sample/server"`) without adding a file, with a plain name and a thumbnail picture.
+     */
+    models(): readonly ModelDescriptor[];
     /**
      * @deprecated Not implemented. Removed at the next major release unless it is implemented
      * first (issue #331).

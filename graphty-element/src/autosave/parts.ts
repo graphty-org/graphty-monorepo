@@ -8,12 +8,14 @@
  * | `data` | the `graphty-data` member |
  * | `arrangement` | the `graphty-arrangement` member |
  * | `run:<id>` | one run of the `graphty-results` member (their order is the meta's `runs`) |
- * | `rest` | the document's head, the session, style, notes and view-state members, the results' head |
+ * | `rest` | the document's head, the session, style, notes and view-state members, the results' head, the assets member without its files |
+ * | `asset:<sha256>` | the files of one embedded model, written once per digest |
  * | `stash` | the consumer's stash |
  * @module autosave
  */
 
 import type { RunId } from "../catalog/types";
+import { assetsMember } from "../session/assets/projectMember";
 import { dispatcherOf, sessionRunsOf } from "../session/GraphSession";
 import {
     arrangementMember,
@@ -23,6 +25,7 @@ import {
     graphIdsOf,
     notesMember,
     type ProjectSources,
+    requiresOf,
     resultsMember,
     runEntry,
     sessionMember,
@@ -49,6 +52,8 @@ interface RestPart {
     readonly style: Record<string, unknown>;
     readonly notes: Record<string, unknown>;
     readonly viewState: Record<string, unknown>;
+    /** The assets member, each entry's files in its own `asset:<sha256>` part. */
+    readonly assets?: Record<string, unknown>;
 }
 
 /** A part could not be built: its text is over the engine's string length limit. */
@@ -74,6 +79,8 @@ export interface BuiltParts {
     readonly runs: ReadonlyMap<RunId, unknown>;
     /** The finished runs, in the results member's order. */
     readonly order: readonly RunId[];
+    /** The digests whose `asset:` parts the store holds after this build; undefined when `rest` was not built. */
+    readonly assets?: ReadonlySet<string>;
 }
 
 /**
@@ -107,6 +114,7 @@ function attempt(part: string, build: () => string): string {
  * @param tags - What is unwritten.
  * @param written - The run entries already in the store, by id.
  * @param stash - The consumer's stash.
+ * @param writtenAssets - The digests whose `asset:` parts are already in the store.
  * @returns The parts, and the run entries they hold.
  * @throws {PartTooLarge} when a part cannot be built.
  */
@@ -115,6 +123,7 @@ export function buildParts(
     tags: ReadonlySet<PartTag>,
     written: ReadonlyMap<RunId, unknown>,
     stash: ReadonlyMap<string, unknown>,
+    writtenAssets: ReadonlySet<string> = new Set(),
 ): BuiltParts {
     const sources = sourcesOf(session);
     const finished = sources.dispatcher.state.runs;
@@ -129,8 +138,24 @@ export function buildParts(
         parts.arrangement = attempt("arrangement", () => JSON.stringify(arrangementMember(session, idsNow())));
     }
 
+    let assets: Set<string> | undefined;
     if (tags.has("rest")) {
+        assets = new Set();
+        const held = assets;
         parts.rest = attempt("rest", () => {
+            // Each model's files once, in a part of their own: a style change rewrites none of them.
+            const { member } = assetsMember(session);
+            const entries = ((member?.assets ?? []) as Record<string, unknown>[]).map(({ files, ...entry }) => {
+                const digest = entry.sha256 as string;
+                if (files !== undefined) {
+                    held.add(digest);
+                    if (!writtenAssets.has(digest)) {
+                        parts[`asset:${digest}`] = attempt(`asset:${digest}`, () => JSON.stringify(files));
+                    }
+                }
+
+                return entry;
+            });
             const rest: RestPart = {
                 head: documentAround(session, [], {}),
                 session: sessionMember(sources, idsNow),
@@ -138,9 +163,15 @@ export function buildParts(
                 style: styleMember(session),
                 notes: notesMember(session),
                 viewState: viewStateMember(session, idsNow),
+                ...(member === null ? {} : { assets: { ...member, assets: entries } }),
             };
             return JSON.stringify(rest);
         });
+        for (const digest of writtenAssets) {
+            if (!assets.has(digest)) {
+                parts[`asset:${digest}`] = null;
+            }
+        }
     }
 
     if (tags.has("runs") || tags.has("allRuns")) {
@@ -163,7 +194,7 @@ export function buildParts(
         parts.stash = attempt("stash", () => JSON.stringify(Object.fromEntries(stash)));
     }
 
-    return { parts, runs, order: [...finished.keys()] };
+    return { parts, runs, order: [...finished.keys()], ...(assets === undefined ? {} : { assets }) };
 }
 
 /**
@@ -194,18 +225,36 @@ export function reassemble(meta: AutosaveEntryMeta, parts: AutosaveParts): Recor
     const rest = JSON.parse(textOf(parts, "rest")) as RestPart;
     const order = Array.isArray(meta.runs) ? (meta.runs as string[]) : [];
     const runs = order.map((id) => JSON.parse(textOf(parts, `run:${id}`)) as unknown);
-    return {
-        ...rest.head,
-        members: [
-            JSON.parse(textOf(parts, "data")) as unknown,
-            rest.session,
-            JSON.parse(textOf(parts, "arrangement")) as unknown,
-            { ...rest.results, runs },
-            rest.style,
-            rest.notes,
-            rest.viewState,
-        ],
-    };
+    // The first entry of each digest carries its files, as `project.save()` writes them.
+    const seen = new Set<string>();
+    const assets =
+        rest.assets === undefined
+            ? []
+            : [
+                  {
+                      ...rest.assets,
+                      assets: (rest.assets.assets as Record<string, unknown>[]).map((entry) => {
+                          const digest = entry.sha256 as string;
+                          if (seen.has(digest)) {
+                              return entry;
+                          }
+
+                          seen.add(digest);
+                          return { ...entry, files: JSON.parse(textOf(parts, `asset:${digest}`)) as unknown };
+                      }),
+                  },
+              ];
+    const members = [
+        JSON.parse(textOf(parts, "data")) as Record<string, unknown>,
+        rest.session,
+        JSON.parse(textOf(parts, "arrangement")) as Record<string, unknown>,
+        { ...rest.results, runs },
+        rest.style,
+        rest.notes,
+        rest.viewState,
+        ...assets,
+    ];
+    return { ...rest.head, requires: requiresOf(members), members };
 }
 
 /**

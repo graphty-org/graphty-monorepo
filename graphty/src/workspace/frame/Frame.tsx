@@ -7,6 +7,7 @@ import React, { useEffect, useRef } from "react";
 
 import { CanvasMenu } from "../canvas/CanvasMenu";
 import { CanvasOverlays } from "../canvas/CanvasOverlays";
+import { useCanvasDrop } from "../canvas/useCanvasDrop";
 import { TOOLBAR_SIDES, toolbarInsets, useOverlayInset } from "../canvas/viewInsets";
 import { DataPage } from "../data-page/DataPage";
 import { DataPlace } from "../data-place/DataPlace";
@@ -48,6 +49,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
     // The toolbar covers the canvas's bottom edge: no fit puts a node under it.
     const dock = useRef<HTMLDivElement>(null);
     useOverlayInset(dock, TOOLBAR_SIDES, toolbarInsets);
+    const canvasDrop = useCanvasDrop();
     const projectId = useWorkspaceState((state) => state.project?.id ?? 0);
     const page = useWorkspaceState((state) => state.page);
     const place = useWorkspaceState((state) => state.place);
@@ -122,7 +124,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 <main className="ws-main" hidden={!panels}>
                     {/* A region named for the drawing, holding it and its key, so a screen reader can
                         land on it and read it as one place. */}
-                    <section className="ws-canvas" aria-label="Graph drawing">
+                    <section className="ws-canvas" aria-label="Graph drawing" data-testid="canvas" {...canvasDrop}>
                         <CanvasMenu>
                             <ElementHost key={projectId} onReady={onElementReady} autosave={autosave} />
                         </CanvasMenu>

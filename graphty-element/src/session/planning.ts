@@ -16,8 +16,17 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { AlgorithmDescriptor, AlgorithmKey, FieldDescriptor, RunId, Scope, SetId } from "../catalog/types";
+import type {
+    AlgorithmDescriptor,
+    AlgorithmKey,
+    FieldDescriptor,
+    FilterStep,
+    RunId,
+    Scope,
+    SetId,
+} from "../catalog/types";
 import type { GraphtyErrorCode } from "../errors";
+import { GraphtyError } from "../errors/GraphtyError";
 import type { AlgoLegacyCommand, AlgoRemoveCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
@@ -43,6 +52,7 @@ import {
 import type { Caveats, ResolvedScope } from "./runs";
 import { noted } from "./runs/caveatFacts";
 import type { GraphStatistics } from "./types";
+import type { StepCounts } from "./visibility/VisibilityApi";
 
 // ---------------------------------------------------------------------------------------------
 // The command
@@ -182,6 +192,18 @@ export type PlanEffect =
           readonly bytes: number;
       }
     | {
+          /**
+           * What a filter-steps change would leave visible: `start` before the first step (the
+           * filter and the time window alone), then one entry per step that is on, in order, with
+           * the nodes and edges left after it.
+           */
+          readonly kind: "steps";
+          /** What is left before any step. */
+          readonly start: { readonly nodes: number; readonly edges: number };
+          /** What is left after each step that is on. */
+          readonly steps: readonly { readonly id: string; readonly nodes: number; readonly edges: number }[];
+      }
+    | {
           /** Nothing to preview. */
           readonly kind: "none";
       };
@@ -251,6 +273,8 @@ export interface PlanningContext {
      * @returns Each set's id and name.
      */
     readonly keptSets?: () => readonly { readonly id: SetId; readonly name: string }[];
+    /** What a filter-steps list would leave visible, step by step. */
+    readonly previewSteps?: (steps: readonly FilterStep[]) => StepCounts;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -442,6 +466,31 @@ export function estimateCommand(context: PlanningContext, command: SessionComman
  * @returns The plan.
  */
 export function planCommand(context: PlanningContext, command: SessionCommand): Plan {
+    if (command.op === "visibility.steps" && context.previewSteps !== undefined) {
+        const cost = unavailableEstimate(undefined, notEstimated(command));
+        try {
+            const counts = context.previewSteps(command.steps);
+            return Object.freeze({
+                ok: true,
+                cost,
+                effect: Object.freeze({ kind: "steps" as const, start: counts.start, steps: counts.steps }),
+                caveats: context.defaultCaveats,
+            });
+        } catch (error) {
+            if (!(error instanceof GraphtyError)) {
+                throw error;
+            }
+
+            return Object.freeze({
+                ok: false,
+                blocked: Object.freeze({ code: error.code, reason: error.message }),
+                cost,
+                effect: Object.freeze({ kind: "none" as const }),
+                caveats: context.defaultCaveats,
+            });
+        }
+    }
+
     if (command.op !== "algo.run") {
         return Object.freeze({
             ok: true,

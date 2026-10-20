@@ -98,6 +98,7 @@ export type {
     ImportOptions,
     LoadChoices,
     LoadDraft,
+    LoadedSource,
     LoadMapping,
     LoadMappingRead,
     Neighbor,
@@ -139,6 +140,7 @@ export type {
     TableMappingRead,
     TransactionOptions,
     TransactionScope,
+    ValueCounts,
 } from "./src/session";
 export { createGraphSession } from "./src/session";
 
@@ -399,7 +401,9 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 
 export type {
     FilterResult,
+    FilterStep,
     RuleTree,
+    StepCounts,
     TimeStep,
     TimeWindow,
     VisibilityApi,

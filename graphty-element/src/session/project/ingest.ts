@@ -43,10 +43,12 @@ import {
     FILE_GRAPH_VALUE,
     type HeldRows,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "../commands/data";
 import { DEFAULT_LIMITS } from "../limits";
 import type { ProgressChange } from "../shared";
 import { HELD_READERS, type ImportOutcome } from "../styles/fileStyles/apply";
+import type { LoadedSource } from "../types";
 import { frozenRecord } from "./draft";
 import type { DirectionOutcome, GraphWriter } from "./graphOps";
 
@@ -469,14 +471,21 @@ export class Ingest<K extends KnownEdge> {
     ): Promise<ImportOutcome | null> {
         const { type, config } = command.source;
         const loads = type !== undefined && config !== undefined;
+        const earlier =
+            command.mode === "merge"
+                ? ((writer.graphValue(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [])
+                : [];
         if (loads && command.mode !== "merge") {
             this.apply({ kind: "clear" }, writer);
         }
 
-        writer.setGraphValues({ [SOURCE_VALUE]: describeSource(command.source) });
+        const described = describeSource(command.source);
+        writer.setGraphValues({ [SOURCE_VALUE]: described });
         if (!loads) {
             return null;
         }
+
+        const before = this.heldCounts();
 
         this.leaveOutUnmatched = command.unmatched === "leave-out";
         this.duplicateIds = command.duplicateIds ?? "first";
@@ -487,7 +496,7 @@ export class Ingest<K extends KnownEdge> {
         this.measure = command.measure === undefined || command.mode === "merge" ? (command.measure ?? null) : EMPTY;
         this.loadBeganWithNodes = command.mode === "merge" && this.heldCounts().nodes > 0;
         try {
-            return await this.addDataFromSource(
+            const outcome = await this.addDataFromSource(
                 type,
                 // The reader leaves style values out of its records when the load draws the file's styles.
                 command.styles === undefined ? config : { ...config, styles: command.styles },
@@ -497,6 +506,15 @@ export class Ingest<K extends KnownEdge> {
                 command.held,
                 command.source.name,
             );
+            const after = this.heldCounts();
+            const loaded: LoadedSource = Object.freeze({
+                ...described,
+                tables: Object.freeze([...(command.tables ?? [])]),
+                ...(command.tableRows === undefined ? {} : { tableRows: Object.freeze([...command.tableRows]) }),
+                added: Object.freeze({ nodes: after.nodes - before.nodes, edges: after.edges - before.edges }),
+            });
+            writer.setGraphValues({ [SOURCES_VALUE]: Object.freeze([...earlier, loaded]) });
+            return outcome;
         } finally {
             this.leaveOutUnmatched = false;
             this.duplicateIds = "first";

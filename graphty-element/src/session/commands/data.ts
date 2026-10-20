@@ -29,7 +29,7 @@
 import type { DuplicatePolicy } from "@graphty/graph-format";
 import jmespath from "jmespath";
 
-import type { EdgeId, MeasurementDeclaration, NodeId } from "../../catalog/types";
+import type { EdgeId, MeasurementDeclaration, NodeId, Path } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
@@ -42,7 +42,8 @@ import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply"
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
-import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
+import type { HistoryCode, LoadedSource, NodeRecordInput, RowUpdate } from "../types";
+import { valueLabelKey } from "../valueLabels";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
 
@@ -161,6 +162,10 @@ export interface DataImportCommand {
     readonly styles?: "file" | "none";
     /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
     readonly styleOptions?: FileStyleOptions;
+    /** The names of the tables a draft read, kept with the load in `data.sources()`. */
+    readonly tables?: readonly string[];
+    /** What each of `tables` held, in the same order, kept with the load in `data.sources()`. */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
 }
 
 /** What `LoadDraft` holds and hands the ingest: the rows, and how to read them. */
@@ -234,6 +239,23 @@ interface DataDeclareCommand {
 interface DataSetSourceCommand {
     readonly op: "data.setSource";
     readonly source: ImportSource;
+    /** Every load still in the graph, as `data.sources()` reports them; left as they are when absent. */
+    readonly sources?: readonly LoadedSource[];
+}
+
+/**
+ * `data.label`: the name one value of a path is shown by (a community's "Group 3" called
+ * "Students"), or `null` to take the name away. A name is not a data edit: rules, bindings and
+ * exports still read the value itself.
+ */
+interface DataLabelCommand {
+    readonly op: "data.label";
+    /** The value path: `data.<column>` or `results.<run>.<field>`. */
+    readonly path: Path;
+    /** The value, compared as text, so `3` and `"3"` are one value. */
+    readonly value: string | number | boolean;
+    /** The name, or null to remove it. */
+    readonly label: string | null;
 }
 
 /**
@@ -253,7 +275,8 @@ export type DataCommand =
     | DataExpandCommand
     | DataDeclareCommand
     | DataSetSourceCommand
-    | DataSetFileStylesCommand;
+    | DataSetFileStylesCommand
+    | DataLabelCommand;
 
 /** The measurements every declaration may name. */
 const DECLARABLE: ReadonlySet<string> = new Set(["categorical", "ordinal", "quantitative", "time"]);
@@ -304,6 +327,9 @@ export interface DataService {
 
 /** The graph value naming where the graph was last loaded from. */
 export const SOURCE_VALUE = "source";
+
+/** The graph value listing every load still in the graph, oldest first. */
+export const SOURCES_VALUE = "sources";
 
 /**
  * The graph value holding what the last loaded file said about the whole graph: its format and
@@ -784,7 +810,7 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
         fact: (command) => ({ code: "data.set-source", params: { name: command.source.name ?? null } }),
     },
     moves: false,
-    keys: () => [`graph/v:${SOURCE_VALUE}`],
+    keys: () => [`graph/v:${SOURCE_VALUE}`, `graph/v:${SOURCES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
         const { source } = command;
@@ -806,7 +832,13 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
             });
         }
 
-        service.values({ [SOURCE_VALUE]: describeSource(source) }, ctx.draft);
+        service.values(
+            {
+                [SOURCE_VALUE]: describeSource(source),
+                ...(command.sources === undefined ? {} : { [SOURCES_VALUE]: Object.freeze([...command.sources]) }),
+            },
+            ctx.draft,
+        );
     },
 };
 
@@ -839,6 +871,50 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     },
 };
 
+const dataLabel: UndoableDefinition<DataLabelCommand> = {
+    op: "data.label",
+    undo: {
+        kind: "undoable",
+        label: (command) =>
+            command.label === null
+                ? `Remove the name of ${String(command.value)}`
+                : `Name ${String(command.value)} ${command.label}`,
+        fact: (command) => ({
+            code: "data.label",
+            params: { path: command.path, value: command.value, label: command.label },
+        }),
+    },
+    // A name repaints nothing: what an element is drawn as reads the value, never its name.
+    moves: false,
+    keys: (command) => [`valueLabels/${valueLabelKey(command.path, command.value)}`],
+    lane: { kind: "immediate" },
+    execute: (command, ctx) => {
+        const { path, value, label } = command;
+        const valid =
+            typeof path === "string" &&
+            (path.startsWith("data.") || path.startsWith("results.")) &&
+            ["string", "number", "boolean"].includes(typeof value) &&
+            (label === null || typeof label === "string");
+        if (!valid) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message:
+                    'A value is named on a path ("data.<column>" or "results.<run>.<field>"), with text or null to remove the name.',
+                source: "data",
+                details: { path, value, label },
+            });
+        }
+
+        const key = valueLabelKey(path, value);
+        const name = label?.trim() ?? "";
+        if (name === "") {
+            ctx.draft.valueLabels.delete(key);
+        } else {
+            ctx.draft.valueLabels.set(key, name);
+        }
+    },
+};
+
 /** The data ops' definitions. */
 export const DATA_DEFINITIONS = [
     dataApply,
@@ -847,4 +923,5 @@ export const DATA_DEFINITIONS = [
     dataDeclare,
     dataSetSource,
     dataSetFileStyles,
+    dataLabel,
 ] as const;

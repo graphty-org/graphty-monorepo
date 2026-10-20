@@ -116,6 +116,10 @@ const SLICES: Record<ProjectSlice, SliceCase> = {
                 .filter((column) => column.measurementSource === "declared")
                 .map((column) => [column.kind, column.name, column.measurement]),
     },
+    valueLabels: {
+        change: (session) => session.data.setValueLabel("data.dept", 9, "Ninth"),
+        read: (session) => [...session.data.valueLabels("data.dept")],
+    },
 };
 
 /**

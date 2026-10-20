@@ -646,6 +646,11 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
         [{ op: "visibility.window", window: { attribute: "data.t", from: 0, to: 1 } }],
     ),
     showContext: assigns(true, [{ op: "visibility.context", show: true }]),
+    steps: READ,
+    setSteps: calls(
+        [[{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }]],
+        [{ op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] }],
+    ),
 };
 
 /** A layer the style doors add. */
@@ -1672,6 +1677,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             neighbors: READ,
             lastImport: READ,
             source: READ,
+            sources: READ,
             renameSource: {
                 kind: "dispatches",
                 op: "data.setSource",
@@ -1685,7 +1691,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                         return () => Promise.resolve();
                     },
                 },
-                expect: [{ op: "data.setSource", source: { type: "json", name: "Door source", config: {} } }],
+                expect: [
+                    {
+                        op: "data.setSource",
+                        source: { type: "json", name: "Door source", config: {} },
+                        sources: [
+                            {
+                                type: "json",
+                                config: {},
+                                tables: [],
+                                added: { nodes: 2, edges: 1 },
+                                name: "Door source",
+                            },
+                        ],
+                    },
+                ],
             },
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
@@ -1779,6 +1799,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             },
             attributes: READ,
             histogram: READ,
+            valueCounts: READ,
+            setValueLabel: calls(
+                ["data.group", 1, "First"],
+                [{ op: "data.label", path: "data.group", value: 1, label: "First" }],
+            ),
+            valueLabels: READ,
             declare: {
                 kind: "dispatches",
                 op: "data.declare",
@@ -1872,6 +1898,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                     {
                         op: "data.import",
                         source: { type: "json", config: { data: TINY_JSON } },
+                        tables: ["json"],
                         mode: "replace",
                         held: {
                             nodes: [{ id: "j1" }, { id: "j2" }],
@@ -2273,6 +2300,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...VISIBILITY_API,
             masks: READ,
+            rule: READ,
+            previewSteps: READ,
         },
     },
     {

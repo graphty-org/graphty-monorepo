@@ -2,6 +2,7 @@
  * The Data output over a stand-in element: the Format list, the preview read from the first
  * chunks only, and failures worded by code.
  */
+import { PopoutManager } from "@graphty/compact-mantine";
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { FormatDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
@@ -134,10 +135,13 @@ function renderData(element: Partial<GraphtyElement>, first: DataChoices = DEFAU
         session,
         element as unknown as GraphtyElement,
     );
+    // Inside the page's floating layer, which the Advanced button's pop-out needs.
     render(
-        <WorkspaceContext.Provider value={value}>
-            <Stateful first={first} />
-        </WorkspaceContext.Provider>,
+        <PopoutManager>
+            <WorkspaceContext.Provider value={value}>
+                <Stateful first={first} />
+            </WorkspaceContext.Provider>
+        </PopoutManager>,
     );
 }
 
@@ -161,7 +165,11 @@ describe("the Data output", () => {
             assert.equal(preview.textContent, ["line 0", "line 1", "line 2", "line 3", "line 4", "line 5"].join("\n"));
         });
         assert.equal(text.mock.calls.length, 0);
-        assert.deepEqual(exportGraph.mock.calls[0], ["graphty", {}] as unknown as []);
+        // Every export keeps the graph's styles and makes its ids safe for the format.
+        assert.deepEqual(exportGraph.mock.calls[0], [
+            "graphty",
+            { styles: true, sanitizeIds: "mangle" },
+        ] as unknown as []);
     });
 
     it("words a failed export by its code, and an unknown code as itself", async () => {
@@ -199,7 +207,7 @@ describe("the Data output", () => {
         await waitFor(() => {
             assert.deepEqual(exportGraph.mock.calls.at(-1), [
                 "csv",
-                { dialect: "gephi", delimiter: ";", table: "edges" },
+                { styles: true, sanitizeIds: "mangle", dialect: "gephi", delimiter: ";", table: "edges" },
             ] as unknown as []);
         });
     });

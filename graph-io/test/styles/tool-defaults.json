@@ -18,6 +18,8 @@
             "labelWrapWidth": 200,
             "labelWrapTrailingSpace": true,
             "labelPosition": "center",
+            "labelPadding": 0,
+            "labelLineHeight": 1,
             "borderPosition": "inside",
             "borderWaveAmplitude": 10,
             "borderWavePeriod": 20
@@ -38,6 +40,8 @@
             "labelWeight": "normal",
             "labelItalic": false,
             "labelSize": 10,
+            "labelPadding": 0,
+            "labelLineHeight": 1,
             "curved": false,
             "bendCurve": "midpoints"
         },
@@ -69,6 +73,8 @@
             "labelWrapWidth": 200,
             "labelWrapTrailingSpace": true,
             "labelPosition": "center",
+            "labelPadding": 0,
+            "labelLineHeight": 1,
             "borderPosition": "inside",
             "borderWaveAmplitude": 10,
             "borderWavePeriod": 20
@@ -86,6 +92,8 @@
             "labelWeight": "normal",
             "labelItalic": false,
             "labelSize": 10,
+            "labelPadding": 0,
+            "labelLineHeight": 1,
             "bendCurve": "midpoints"
         },
         "graph": {

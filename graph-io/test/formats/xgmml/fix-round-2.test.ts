@@ -78,3 +78,26 @@ describe("XGMML parallel edges", () => {
         expect([typeof spacing[0], typeof spacing[1]]).toEqual(["number", "number"]);
     });
 });
+
+describe("XGMML label background boxes", () => {
+    it("rounds a ROUND_RECTANGLE label box's corners an eighth of its one-line height, square a RECTANGLE's", async () => {
+        const box = (shape: string, size: string): string =>
+            att("NODE_LABEL_BACKGROUND_SHAPE", shape) + att("NODE_LABEL_FONT_SIZE", size);
+        const { snapshot, styles } = await load(
+            doc(`<node id="r" label="r"><graphics x="0" y="0">${box("ROUND_RECTANGLE", "10")}</graphics></node>
+            <node id="s" label="s"><graphics x="50" y="0">${box("RECTANGLE", "10")}</graphics></node>`),
+        );
+        expect(resolveStyles(styles, "node", "labelCornerRadius", snapshot)).toEqual([1.455, null]);
+        expect(resolveStyles(styles, "node", "labelBackground", snapshot)).toEqual(["#b6b6b6", "#b6b6b6"]);
+    });
+
+    it("draws a label's box round its words: no padding and lines one font tall", async () => {
+        const { snapshot, styles } = await load(
+            doc(
+                `<node id="a" label="a"><graphics x="0" y="0">${att("NODE_LABEL_BACKGROUND_SHAPE", "RECTANGLE")}</graphics></node>`,
+            ),
+        );
+        expect(resolveStyles(styles, "node", "labelPadding", snapshot)).toEqual([0]);
+        expect(resolveStyles(styles, "node", "labelLineHeight", snapshot)).toEqual([1]);
+    });
+});

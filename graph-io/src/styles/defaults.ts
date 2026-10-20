@@ -200,6 +200,14 @@ const CYTOSCAPE_BEND_CURVE = v(
     "cytoscape-impl ding-presentation-impl GraphGraphics.java computeCubicPolyEdgePath (cubic pieces between the handles' midpoints, controls pulled toward each handle by CURVE_ELLIPTICAL)",
 );
 
+/**
+ * Cytoscape desktop draws a label's background box round its words alone: as wide as the text and one line tall,
+ * the font's ascent plus descent (1.164 of a DejaVu Sans font's size), which is also the step between its lines.
+ */
+const CYTOSCAPE_LABEL_BOX = `${MEASURED}xgmml-specimen-labels: label-background-* boxes and the captions' two lines), Cytoscape 3.10.5`;
+const CYTOSCAPE_LABEL_PADDING = v(0, CYTOSCAPE_LABEL_BOX);
+const CYTOSCAPE_LABEL_LINE_HEIGHT = v(1, CYTOSCAPE_LABEL_BOX);
+
 const CYTOSCAPE_BORDER_INSIDE = v<"inside">(
     "inside",
     `${MEASURED}cx2-repro-shared-interaction, cys-luad-vest-v2, cx2-synthetic-lethal), Cytoscape 3.10.5`,
@@ -263,6 +271,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
                     ),
                     labelPosition: v("center", `${CY} 380`),
+                    labelPadding: CYTOSCAPE_LABEL_PADDING,
+                    labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                 },
                 edge: {
                     color: v("#848484", `${CY} 431`),
@@ -280,6 +290,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CY} 439`),
                     labelItalic: v(false, `${CY} 439`),
                     labelSize: v(10, `${CY} 439`),
+                    labelPadding: CYTOSCAPE_LABEL_PADDING,
+                    labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                     // EDGE_CURVED is true there, but it only rounds an edge's bends: an edge without bends is straight
                     curved: v(false, `${CY} 422`),
                     bendCurve: CYTOSCAPE_BEND_CURVE,
@@ -315,6 +327,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         `${MEASURED}cx-ndex-90f78bcd: each word is measured with the space after it), Cytoscape 3.10.5`,
                     ),
                     labelPosition: v("center", `${CYL} 205`),
+                    labelPadding: CYTOSCAPE_LABEL_PADDING,
+                    labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                 },
                 edge: {
                     color: v("#404040", `${CYL} 469`),
@@ -329,6 +343,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelWeight: v("normal", `${CYL} 408`),
                     labelItalic: v(false, `${CYL} 408`),
                     labelSize: v(10, `${CYL} 416`),
+                    labelPadding: CYTOSCAPE_LABEL_PADDING,
+                    labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                     bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CYL} 667`) },

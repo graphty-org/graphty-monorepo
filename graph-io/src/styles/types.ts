@@ -340,6 +340,8 @@ export interface NodeStyleValues {
      * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
      */
     readonly labelPadding: number;
+    /** How far the corners of the box behind the label's words are rounded, in the units of `labelSize`. Unset, square. */
+    readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
     /** The URI of an image drawn on the node. */
@@ -658,6 +660,8 @@ export interface EdgeStyleValues {
      * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
      */
     readonly labelPadding: number;
+    /** How far the corners of the box behind the label's words are rounded, in the units of `labelSize`. Unset, square. */
+    readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
     /** The label text at the source end. */

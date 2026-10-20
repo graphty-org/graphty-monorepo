@@ -133,7 +133,15 @@ describe("one NDEx network read from CX and from CX2", () => {
     it.each([
         [
             "ndex-821a7310-beb6-11ed-a79c-005056ae23aa",
-            ["height", "labelBackground", "labelBackgroundOpacity", "labelOffsetX", "labelOffsetY", "width"],
+            [
+                "height",
+                "labelBackground",
+                "labelBackgroundOpacity",
+                "labelCornerRadius",
+                "labelOffsetX",
+                "labelOffsetY",
+                "width",
+            ],
         ],
         ["ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa", []],
         ["ndex-da86cc1f-9544-11e5-b435-06603eb7f303", []],

@@ -630,7 +630,9 @@ function labelDress(
 
 /**
  * The box Cytoscape draws behind one label, when its shape is not NONE: its color (`#B6B6B6` unset, the lexicon's
- * default) and its opacity.
+ * default), its opacity, and for ROUND_RECTANGLE its corners, rounded an eighth of the box's height: 1.455 on the
+ * 11.64-tall box of a 10 px label (xgmml-specimen-labels.svg, label-background-shape-round-rectangle), so 0.1455 of the
+ * label's size. ponytail: one line's height; a box of several lines is rounded as one line's.
  * @param vp - names a label visual property of the target
  * @param one - reads one visual property of one element
  * @param i - the element
@@ -651,7 +653,16 @@ function labelBox(
     const opacity =
         one(t, opacityParser(t), "labelBackgroundOpacity", i) ?? one(o, opacityParser(o), "labelBackgroundOpacity", i);
     put("labelBackgroundOpacity", i, opacity ?? 1);
+    if (shape.trim().toUpperCase() === "ROUND_RECTANGLE") {
+        const size = one(vp("FONT_SIZE"), sizeParser, "labelSize", i);
+        // desktop's default label sizes: 12 on a node, 10 on an edge
+        const defaultSize = vp("FONT_SIZE").startsWith("EDGE") ? 10 : 12;
+        put("labelCornerRadius", i, num6(LABEL_CORNER_PER_SIZE * (typeof size === "number" ? size : defaultSize)));
+    }
 }
+
+/** How far Cytoscape rounds a ROUND_RECTANGLE label box's corners, as a fraction of the label's font size. */
+const LABEL_CORNER_PER_SIZE = 0.1455;
 
 /**
  * Where one label is placed, from its Cytoscape label position: its neutral `labelPosition`, offsets, shifts and

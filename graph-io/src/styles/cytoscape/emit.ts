@@ -134,19 +134,24 @@ function enumOut(
 const BORDER_POSITION = "borderPosition";
 
 /**
- * What Cytoscape always draws and no file can change, per target: where a border sits, and how far its zigzag and
- * sine-wave strokes swing and how often they repeat (`ding-presentation-impl` `ZigzagStroke`, `SineWaveStroke`).
- * Nothing is written for them, and any other value is drawn as Cytoscape's.
+ * What Cytoscape always draws and no file can change, per target: where a border sits, how far its zigzag and
+ * sine-wave strokes swing and how often they repeat (`ding-presentation-impl` `ZigzagStroke`, `SineWaveStroke`), and
+ * a label's box round its words alone, its lines one font tall. Nothing is written for them, and any other value is
+ * drawn as Cytoscape's.
  */
 const FIXED: Readonly<Record<"node" | "edge", ReadonlyMap<string, string | number>>> = {
     node: new Map<string, string | number>([
         [BORDER_POSITION, "inside"],
         ["borderWaveAmplitude", 10],
         ["borderWavePeriod", 20],
+        ["labelPadding", 0],
+        ["labelLineHeight", 1],
     ]),
     edge: new Map<string, string | number>([
         ["waveAmplitude", 10],
         ["wavePeriod", 20],
+        ["labelPadding", 0],
+        ["labelLineHeight", 1],
     ]),
 };
 

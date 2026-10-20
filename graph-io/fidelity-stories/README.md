@@ -22,9 +22,13 @@ CI subset `test/browser/oracle-scorecard.test.ts`) run the same comparison and a
 Start it through servherd, which sets `PORT`:
 
 ```jsonc
-servherd_start({ name: "graph-io-fidelity-storybook", cwd: "<repo>/graph-io/fidelity-stories",
-  command: "npm run storybook", env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
+servherd_start({ name: "graph-io-fidelity-storybook", cwd: "<repo>/graph-io/fidelity-stories", protocol: "https",
+  command: "env HTTPS_CERT_PATH={{httpsCert}} HTTPS_KEY_PATH={{httpsKey}} npm run storybook",
+  env: { PORT: "{{port}}", HOST: "0.0.0.0" } })
 ```
+
+It draws graphty-element from its source and graph-io from its build, so build graph-io (`pnpm exec nx run
+graph-io:build`) after changing an importer, then reload the story.
 
 The oracle PNGs are Git LFS objects; `npm run build-storybook` pulls them first.
 
@@ -48,3 +52,16 @@ folder holds:
 
 To add a sample, add its oracle to `graph-io/test/fidelity/oracles/` (`graph-io/test/fidelity/TOOLS.md` says how
 each program is run) and the story to its format's `Samples.stories.ts`.
+
+## Adding a format
+
+A new format gets its own folder, even when it shares a file extension with another:
+
+1. Add its specimen sheets under `graph-io/test/fidelity/specimens/<format>/` with a `registry.ts` that puts each of
+   the ten categories in `sheets`, `absent` or `pending`, and list the registry in `specimens/index.ts`
+   (`graph-io/test/fidelity/specimens/README.md` has the rules every sheet follows). Write the sheets with a seeded
+   generator in `graph-io/test/fidelity/generators/specimens/`.
+2. Make each sheet's oracle with the program that writes the format (`graph-io/test/fidelity/TOOLS.md`), and
+   record its floors with the oracle report in graphty-element.
+3. Copy another format's `stories/<format>/` folder, change its title to `Style Fidelity/<Format>`, and point its
+   `Specimens.stories.ts` at the new registry.

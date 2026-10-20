@@ -9,6 +9,10 @@ holds each route's deficiency ledger (what it cannot carry, and why). Beyond the
 style fidelity corpus, scored in bulk against per-property floors: each file's source and license is in the SOURCES.md
 of its directory under `corpus/styles/`, and the seeded scripts that wrote its generated files are in `generators/`.
 
+Beside these real files, every format has specimen sheets: small synthetic files that set one style setting per
+element, drawn by the format's own program, so each setting is judged on its own (`specimens/README.md`). Their
+oracles sit in `oracles/` with the samples' and are judged by the same oracle report.
+
 Where a route matches elements by something other than the file's own id, the comparer maps it:
 
 - `cytoscape-desktop`, `cytoscape-gml`, `cyjs-hop`: the node `name` column. For XGMML and CX that is

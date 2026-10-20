@@ -35,3 +35,16 @@ anchors, the grid, caption offsets and the neutral baseline), read by `sheet_lay
 | `specimens/gml.py`                 | `../specimens/gml/*.gml`, their images and `../specimens/gml/oracle-routes.json` (which program draws each sheet: Cytoscape's GML reader, gml2gv, or OGDF itself); fails when a vocabulary value is on no sheet and not listed as not swept. The OGDF sheets are then read and written again by OGDF (`../oracles/tools/ogdf.mjs`), so run that after this script, and needs Graphviz for the gv2gml sheets (`specimens/gml_graphviz.py`)                                                                                                                                                                                                                     |
 | `specimens/gml_graphviz.py`        | run by `gml.py`: the GML sheets Graphviz writes, `../specimens/gml/graphviz/*.gv` converted by Graphviz 14.1.2 (`neato -n2 -Tdot`, then `gv2gml`) into `../specimens/gml/*.gml`; fails when a key or value gv2gml writes is on no sheet. Needs `GRAPHVIZ_BIN` (default the main checkout's `tmp/style-fidelity/tools/conda-graphviz/bin`)                                                                                                                                                                                                                                                                                                                     |
 | `specimens/pajek.py`               | `../specimens/pajek/*.net` and `../specimens/pajek/pages.json` (each sheet file under Pajek's defaults and under one Draw window or export option per further page, and each vertex number's setting id), from `specimens/pajek-vocabulary.json`, the vocabulary read from Pajek 6.02's manual and the ini option names; fails when a vocabulary value is on no sheet and not listed as not swept                                                                                                                                                                                                                                                             |
+
+## Regenerating a format's sheets
+
+Run the format's specimen generator from the repository root, for example `python3
+graph-io/test/fidelity/generators/specimens/pajek.py` or `node graph-io/test/fidelity/generators/specimens/vis-network.mjs`.
+It writes every sheet of the format, fails when the format's vocabulary has a value on no sheet, and writes the same
+bytes again when nothing changed. A sheet whose bytes changed needs its oracle drawn again (`../TOOLS.md`, "The
+oracles"), because each oracle records the hash of the file it was drawn from and the oracle report fails on a
+mismatch.
+
+To add a format, write its vocabulary file first (the program's own list of shapes, arrows, properties and values,
+with where it was read), then its generator, placing every specimen with `sheet-layout.json` so the corner anchors,
+the grid and the captions are where the comparator expects them.

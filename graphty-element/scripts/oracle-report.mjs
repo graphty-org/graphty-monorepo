@@ -143,12 +143,10 @@ for (const r of reports) {
     const references = (r.references ?? [])
         .map((ref) => {
             const who = ref.reference === "oracle" ? `the sheet's oracle, ${ref.meta?.program ?? "?"}` : ref.reference;
-            const kind =
-                ref.reference === "specification"
-                    ? "the format's specification, not a program: each expectation cites its section in judges.json"
-                    : ref.meta?.standIn
-                      ? "a stand-in program, scored apart"
-                      : "the file's own reading program";
+            let kind = ref.meta?.standIn ? "a stand-in program, scored apart" : "the file's own reading program";
+            if (ref.reference === "specification") {
+                kind = "the format's specification, not a program: each expectation cites its section in judges.json";
+            }
             const judged = Object.fromEntries(Object.entries(ref.report.properties).filter(([, v]) => v.n > 0));
             const failing = Object.entries(ref.report.failures ?? {})
                 .map(([p, ids]) => `${esc(p)}: ${esc(ids.join(", "))}`)

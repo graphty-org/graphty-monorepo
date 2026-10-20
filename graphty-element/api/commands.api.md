@@ -60,6 +60,9 @@ export const COMMANDS: Readonly<{
     readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
+    readonly "data.label": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };
@@ -76,6 +79,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "visibility.context": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.steps": {
         readonly undo: "undoable";
     };
     readonly "set.create": {

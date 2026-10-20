@@ -29,6 +29,7 @@ import type {
     AttributeUse,
     EdgeId,
     MeasurementDeclaration,
+    Path,
     RunId,
     ScopeInput,
 } from "../catalog/types";
@@ -51,6 +52,7 @@ import {
     declarationKey,
     type ImportSource,
     SOURCE_VALUE,
+    SOURCES_VALUE,
 } from "./commands/data";
 import { Draft, draftStyles, readSource } from "./draft";
 import type { SessionCommand } from "./planning";
@@ -104,6 +106,7 @@ import type {
     GraphStatistics,
     ImportOptions,
     LoadChoices,
+    LoadedSource,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -122,7 +125,9 @@ import type {
     SessionEventMap,
     SessionGraphStore,
     SessionRecordSource,
+    ValueCounts,
 } from "./types";
+import { valueLabelsAt } from "./valueLabels";
 
 /** What the data surface writes through, and where it reads what the graph holds beside rows. */
 interface DataWrites {
@@ -140,7 +145,11 @@ interface DataWrites {
     /** Dispatch `data.declare`. */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<unknown>;
     /** Dispatch `data.setSource`. */
-    setSource(source: DataSourceDescriptor): Promise<unknown>;
+    setSource(source: DataSourceDescriptor, sources?: readonly LoadedSource[]): Promise<unknown>;
+    /** Dispatch `data.label`. */
+    label(path: Path, value: string | number | boolean, label: string | null): Promise<unknown>;
+    /** The `valueLabels` slice now: the names given to values, by `valueLabelKey`. */
+    valueLabels(): ReadonlyMap<string, string>;
     /** The `attributes` slice now: what each column was declared to measure, by `<kind>:<name>`. */
     declarations(): ReadonlyMap<string, MeasurementDeclaration>;
     /** Publish a progress change as the session's `progress:changed`. */
@@ -1603,7 +1612,115 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        await this.writes.setSource({ ...current, name });
+        // The last load is the one `source()` describes, so it takes the new name too.
+        const sources = this.sources();
+        await this.writes.setSource(
+            { ...current, name },
+            sources.length === 0
+                ? undefined
+                : [...sources.slice(0, -1), ...sources.slice(-1).map((last) => ({ ...last, name }))],
+        );
+    }
+
+    /**
+     * Every load still in the graph, oldest first, as the `graph` slice keeps them.
+     * @returns the loads, or an empty list when no import loaded the graph
+     * @throws A `GraphtyError` with `E_DISPOSED` when the session has been disposed.
+     */
+    sources(): readonly LoadedSource[] {
+        this.requireLive("sources");
+        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+    }
+
+    /**
+     * Name one value of a path, or take its name away. One undoable step.
+     * @param path - The value path.
+     * @param value - The value.
+     * @param label - The name, or null.
+     * @returns Settles once the name is recorded.
+     */
+    async setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void> {
+        this.requireLive("setValueLabel");
+        await this.writes.label(path, value, label);
+    }
+
+    /**
+     * The names given to a path's values.
+     * @param path - The value path.
+     * @returns The names, by the value as text.
+     */
+    valueLabels(path: Path): ReadonlyMap<string, string> {
+        return valueLabelsAt(this.writes.valueLabels(), path);
+    }
+
+    /**
+     * How many elements carry each value of a value path.
+     * @param path - the value path, or `"id"`
+     * @param options - which kind to count
+     * @param options.kind - nodes or edges; by default edges for a data path only edges carry
+     * @returns the counts, most elements first
+     */
+    valueCounts(path: Path, options: { readonly kind?: "node" | "edge" } = {}): ValueCounts {
+        const snapshot = this.current();
+        const kinds = path.startsWith("data.")
+            ? new Set(
+                  this.attributes()
+                      .filter((each) => each.path === path)
+                      .map((each) => each.kind),
+              )
+            : undefined;
+        const kind = options.kind ?? (kinds?.has("edge") === true && !kinds.has("node") ? "edge" : "node");
+        const total = kind === "node" ? snapshot.nodeCount : snapshot.edgeCount;
+        const read = this.valueReader(snapshot, kind, path);
+        // Map keeps first-seen order, and the sort below is stable, so a tie keeps it too.
+        const counts = new Map<string | number | boolean, number>();
+        let missing = 0;
+        for (let index = 0; index < total; index++) {
+            const value = read(index);
+            if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                counts.set(value, (counts.get(value) ?? 0) + 1);
+            } else {
+                missing++;
+            }
+        }
+
+        const values = [...counts].sort((a, b) => b[1] - a[1]).map(([value, count]) => Object.freeze({ value, count }));
+        return Object.freeze({ values: Object.freeze(values), missing, total });
+    }
+
+    /**
+     * Reads one value path per element index: the node id, a data column or a run's field.
+     * @param snapshot - the snapshot the indices address
+     * @param kind - nodes or edges
+     * @param path - the value path
+     * @returns the reader; it returns undefined for an element carrying nothing
+     */
+    private valueReader(snapshot: GraphSnapshot, kind: "node" | "edge", path: Path): (index: number) => unknown {
+        if (path === "id" && kind === "node") {
+            return (index) => snapshot.ids.idOf(index);
+        }
+
+        if (path.startsWith("results.")) {
+            const rest = path.slice("results.".length);
+            const dot = rest.indexOf(".");
+            const result = dot < 0 ? undefined : this.pages.run(rest.slice(0, dot))?.result;
+            const field = rest.slice(dot + 1);
+            if (result === undefined || result === null) {
+                return () => undefined;
+            }
+
+            return kind === "node"
+                ? (index) => result.node(snapshot.ids.idOf(index))?.[field]
+                : (index) => {
+                      const counter = snapshot.edges.value(EDGE_ID_COLUMN, index);
+                      return typeof counter === "number" ? result.edge(edgeIdOf(counter))?.[field] : undefined;
+                  };
+        }
+
+        const key = path.startsWith("data.") ? path.slice("data.".length) : path;
+        return kind === "node"
+            ? (index) => this.records?.nodeAttributes(index, snapshot.ids.idOf(index))?.[key]
+            : (index) => this.records?.edgeAttributes(index)?.[key];
     }
 
     /**

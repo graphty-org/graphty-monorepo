@@ -13,6 +13,7 @@
  * Nothing in this module's import graph reaches Babylon.js, Lit or the DOM.
  */
 
+export type { FilterStep } from "../../catalog/types";
 export {
     assertVisibility,
     type CompiledVisibility,
@@ -31,6 +32,7 @@ export {
     createVisibilityApi,
     type FilterResult,
     type SessionVisibilityApi,
+    type StepCounts,
     type VisibilityApi,
     type VisibilityChange,
     type VisibilitySources,

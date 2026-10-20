@@ -2044,8 +2044,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             },
             declare: (column, declaration) => dispatcher.dispatch({ op: "data.declare", column, declaration }),
-            setSource: (source) => dispatcher.dispatch({ op: "data.setSource", source }),
+            setSource: (source, sources) =>
+                dispatcher.dispatch({ op: "data.setSource", source, ...(sources === undefined ? {} : { sources }) }),
             declarations: () => dispatcher.state.attributes,
+            label: (path, value, label) => dispatcher.dispatch({ op: "data.label", path, value, label }),
+            valueLabels: () => dispatcher.state.valueLabels,
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
             },
@@ -2844,6 +2847,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         defaultScope,
         acceleration.controller,
         () => keptSets.list(),
+        (steps) => visibility.previewSteps(steps),
     );
 
     const session = new Session({
@@ -3214,6 +3218,7 @@ function runEntry(runs: RunsApi, id: string): ResultsRunEntry | undefined {
  * @param defaultScope - What a command that names no scope gets.
  * @param acceleration - The controller whose capabilities decide whether an accelerator is here.
  * @param keptSets - The kept sets, for the scopes a refused run is pointed at.
+ * @param previewSteps - What a filter-steps list would leave visible, step by step.
  * @returns The context.
  */
 function planningContext(
@@ -3223,6 +3228,7 @@ function planningContext(
     defaultScope: Scope,
     acceleration: AccelerationControllerLike,
     keptSets: NonNullable<PlanningContext["keptSets"]>,
+    previewSteps: NonNullable<PlanningContext["previewSteps"]>,
 ): PlanningContext {
     const defaultCaveats: Caveats =
         runsOptions.defaultCaveats === undefined ? PLANNED_CAVEATS : { facts: [], ...runsOptions.defaultCaveats };
@@ -3238,6 +3244,7 @@ function planningContext(
         // threshold at which the element bothers to use it, so an algorithm that needs one can run.
         acceleratorAvailable: () => ACCELERATOR_ATTACHED.has(acceleration.capabilities.acceleration.state),
         keptSets,
+        previewSteps,
         ...(runsOptions.calibration === undefined ? {} : { calibration: runsOptions.calibration }),
         ...(runsOptions.measurements === undefined ? {} : { measurements: runsOptions.measurements }),
     };

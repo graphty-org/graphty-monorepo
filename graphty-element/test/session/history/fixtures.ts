@@ -423,6 +423,35 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "visibility.set", filter: null },
     },
     {
+        name: "visibility.steps: add a step",
+        tags: BOTH,
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: switch a step off",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: false, rule: { kind: "degree", min: 2 } }] },
+    },
+    {
+        name: "visibility.steps: edit a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [{ id: "s1", on: true, rule: { kind: "degree", min: 1 } }] },
+    },
+    {
+        name: "visibility.steps: remove a step",
+        tags: BOTH,
+        before: async (session) => {
+            await session.visibility.setSteps([{ id: "s1", on: true, rule: { kind: "degree", min: 2 } }]);
+        },
+        command: { op: "visibility.steps", steps: [] },
+    },
+    {
         name: "visibility.window",
         tags: BOTH,
         command: { op: "visibility.window", window: { attribute: "data.t", from: 0, to: 10 } },
@@ -590,6 +619,11 @@ export const FIXTURES: readonly RoundTripFixture[] = [
             await session.data.import({ type: "json", config: { data: IMPORTED }, name: "first.json" });
         },
         command: { op: "data.setSource", source: { type: "json", name: "Renamed" } },
+    },
+    {
+        name: "data.label",
+        tags: BOTH,
+        command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
     },
     {
         name: "data.setFileStyles",

@@ -371,6 +371,7 @@ export interface CommandOutcomeMap {
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
     "data.import-source": Promise<void>;
+    "data.label": Promise<void>;
     "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
     "data.source-expand": Promise<void>;
@@ -399,6 +400,7 @@ export interface CommandOutcomeMap {
     "view.save": Promise<void>;
     "visibility.context": Promise<void>;
     "visibility.set": Promise<void>;
+    "visibility.steps": Promise<void>;
     "visibility.window": Promise<void>;
     batch: Promise<void>;
 }
@@ -961,6 +963,13 @@ export interface FilterResult {
         readonly nodes: number;
         readonly edges: number;
     };
+}
+
+// @public
+export interface FilterStep {
+    readonly id: string;
+    readonly on: boolean;
+    readonly rule: RuleTree;
 }
 
 // @public
@@ -1781,7 +1790,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -2127,6 +2136,16 @@ export interface LoadDraft {
     } | null;
     readonly tables: readonly DraftTable[];
     readonly type: string;
+}
+
+// @public
+export interface LoadedSource extends DataSourceDescriptor {
+    readonly added: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly tableRows?: readonly ("nodes" | "edges")[];
+    readonly tables: readonly string[];
 }
 
 // @public
@@ -2534,6 +2553,17 @@ export type PlanEffect = {
     readonly legendChannels: number;
     readonly bytes: number;
 } | {
+    readonly kind: "steps";
+    readonly start: {
+        readonly nodes: number;
+        readonly edges: number;
+    };
+    readonly steps: readonly {
+        readonly id: string;
+        readonly nodes: number;
+        readonly edges: number;
+    }[];
+} | {
     readonly kind: "none";
 };
 
@@ -2682,7 +2712,7 @@ export interface ProjectSaveReport {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes";
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -3688,14 +3718,20 @@ export interface SessionDataApi {
     renameSource(name: string): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
     runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
+    setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
+    sources(): readonly LoadedSource[];
     statistics(): GraphStatistics;
     readonly store: SessionGraphStore;
     testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
+    valueCounts(path: Path, options?: {
+        readonly kind?: "node" | "edge";
+    }): ValueCounts;
+    valueLabels(path: Path): ReadonlyMap<string, string>;
 }
 
 // @public
@@ -4187,6 +4223,16 @@ export interface StartOptions extends RunOptions {
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
 
 // @public
+export interface StepCounts {
+    // (undocumented)
+    readonly start: Counts;
+    // (undocumented)
+    readonly steps: readonly (Counts & {
+        readonly id: string;
+    })[];
+}
+
+// @public
 export type StyleAdjustmentCode = "style.out-of-range" | "style.alpha-not-drawn";
 
 // @public
@@ -4421,6 +4467,16 @@ export interface ValidationResult {
 }
 
 // @public
+export interface ValueCounts {
+    readonly missing: number;
+    readonly total: number;
+    readonly values: readonly {
+        readonly value: string | number | boolean;
+        readonly count: number;
+    }[];
+}
+
+// @public
 export interface VisibilityApi {
     edgeMask(): Uint8Array;
     readonly edges: ReadonlySet<EdgeId>;
@@ -4429,8 +4485,10 @@ export interface VisibilityApi {
     nodeMask(): Uint8Array;
     readonly nodes: ReadonlySet<NodeId>;
     set(filter: RuleTree | null, options?: RunOptions): Run<FilterResult>;
+    setSteps(steps: readonly FilterStep[], options?: RunOptions): Run<FilterResult>;
     setWindow(window: TimeWindow | null, options?: RunOptions): Run<FilterResult>;
     showContext: boolean;
+    readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
     readonly window: TimeWindow | null;
 }

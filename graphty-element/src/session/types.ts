@@ -590,6 +590,21 @@ export interface GraphStatistics {
 }
 
 /**
+ * How many elements carry each value of one value path: what `session.data.valueCounts(path)`
+ * returns. Unlike {@link ColumnHistogram} it reads any value path -- a data column, a run's field
+ * -- and it never bins or truncates.
+ * @since 3.30.0
+ */
+export interface ValueCounts {
+    /** Every value carried, most elements first; a tie keeps the order the values were first seen in. */
+    readonly values: readonly { readonly value: string | number | boolean; readonly count: number }[];
+    /** How many elements of the kind carry no value for the path. */
+    readonly missing: number;
+    /** How many elements of the kind there are: the values' counts plus `missing`. */
+    readonly total: number;
+}
+
+/**
  * How one data column's values are distributed: what `session.data.histogram(column)` returns.
  *
  * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
@@ -862,6 +877,20 @@ export interface SessionDataApi {
      */
     source(): DataSourceDescriptor | null;
     /**
+     * Every load still in the graph, oldest first: a replacing load starts the list again with
+     * itself, a merging load adds itself to the end. Saved with the project and moved by undo
+     * like the graph. The last entry is what {@link source} describes.
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: friends }, name: "friends.csv" });
+     * await session.data.import({ type: "csv", config: { data: messages }, name: "messages.csv" }, { mode: "merge" });
+     * session.data.sources().map((each) => [each.name, each.added.edges]); // [["friends.csv", 41], ["messages.csv", 23]]
+     * ```
+     * @returns the loads, or an empty list when no import loaded the graph
+     * @since 3.30.0
+     */
+    sources(): readonly LoadedSource[];
+    /**
      * Give the source the graph was loaded from a new name, as one undoable step: what
      * {@link source} reports as `name` from then on. The name is saved with the project, and undo
      * restores the old one.
@@ -902,6 +931,48 @@ export interface SessionDataApi {
      *     no record carries, and `E_BAD_COMMAND` for a declaration that is not one.
      */
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    /**
+     * Name one value of a path -- a community the run calls group 3, "Students" -- or take its
+     * name away with `null`. One undoable step, saved with the project. A name is not a data edit:
+     * rules, bindings and exports still read the value.
+     *
+     * ```ts
+     * await session.data.setValueLabel("results.louvain.group", 3, "Students");
+     * session.data.valueLabels("results.louvain.group").get("3"); // "Students"
+     * ```
+     * @param path - The value path: `data.<column>` or `results.<run>.<field>`.
+     * @param value - The value, compared as text, so `3` and `"3"` are one value.
+     * @param label - The name, or null (or empty text) to remove it.
+     * @returns Settles once the name is recorded.
+     * @throws A `GraphtyError` (as a rejection) with `E_BAD_COMMAND` for a path that is not a value
+     *     path, or a value or name of the wrong kind.
+     * @since 3.30.0
+     */
+    setValueLabel(path: Path, value: string | number | boolean, label: string | null): Promise<void>;
+    /**
+     * The names given to a path's values with {@link SessionDataApi.setValueLabel}.
+     * @param path - The value path.
+     * @returns The names, keyed by the value as text. Empty when none is named.
+     * @since 3.30.0
+     */
+    valueLabels(path: Path): ReadonlyMap<string, string>;
+    /**
+     * How many elements carry each value of a value path: a data column (`data.<column>`), a run's
+     * field (`results.<run>.<field>`) or `"id"` for the node id. Walks the elements on every call.
+     *
+     * ```ts
+     * const groups = session.data.valueCounts("results.louvain.group");
+     * groups.values[0]; // { value: 3, count: 14 }, the largest group
+     * groups.missing; // nodes with no group
+     * ```
+     * @param path - The value path, or `"id"` for the node id.
+     * @param options - What to count.
+     * @param options.kind - Nodes or edges; by default edges for a `data.` path only edges carry,
+     *     nodes otherwise.
+     * @returns The counts, most elements first.
+     * @since 3.30.0
+     */
+    valueCounts(path: Path, options?: { readonly kind?: "node" | "edge" }): ValueCounts;
     /**
      * How a data column's values are distributed, for a chart of one attribute. A quantitative
      * column comes back binned (`kind: "numeric"`, the {@link Histogram} shape a run's field has),
@@ -1384,6 +1455,24 @@ export interface DataSourceDescriptor {
     readonly config?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * One load still in the graph: where it came from, and what it added. What
+ * `session.data.sources()` lists.
+ * @since 3.30.0
+ */
+export interface LoadedSource extends DataSourceDescriptor {
+    /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
+    readonly tables: readonly string[];
+    /**
+     * What each of `tables` held, in the same order: rows of nodes or rows of edges, as the load
+     * read them. Absent when the load read a graph file (its one entry holds both) or no table by
+     * name.
+     */
+    readonly tableRows?: readonly ("nodes" | "edges")[];
+    /** How many nodes and edges the load added to the graph. */
+    readonly added: { readonly nodes: number; readonly edges: number };
+}
+
 /** How an import treats the graph already there. */
 export interface ImportOptions {
     /** `"replace"` (the default) empties the graph first, in the same step; `"merge"` adds to it. */
@@ -1630,7 +1719,8 @@ export type ProjectSlice =
     | "sets"
     | "views"
     | "notes"
-    | "attributes";
+    | "attributes"
+    | "valueLabels";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -1662,6 +1752,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.remove-layers` | `count` |
@@ -1673,6 +1764,8 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `visibility.filter` | `kind`: the filter's kind |
  * | `visibility.clear-filter`, `visibility.window`, `visibility.clear-window` | none |
  * | `visibility.show-context`, `visibility.hide-context` | none |
+ * | `visibility.step-add`, `visibility.step-edit`, `visibility.step-on`, `visibility.step-off`, `visibility.step-remove` | `id`: the filter step's id |
+ * | `visibility.steps` | none: several steps changed at once, or a reorder |
  * | `set.create` | `name`: the set's name, or null |
  * | `set.rename` | `set`: its name before, or its id; `name`: the new name |
  * | `set.redefine`, `set.members`, `set.remove`, `set.restore` | `set`: its name, or its id |
@@ -1716,6 +1809,7 @@ export type HistoryCode =
     | "data.collapse"
     | "data.declare"
     | "data.set-source"
+    | "data.label"
     | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
@@ -1733,6 +1827,12 @@ export type HistoryCode =
     | "visibility.clear-window"
     | "visibility.show-context"
     | "visibility.hide-context"
+    | "visibility.step-add"
+    | "visibility.step-edit"
+    | "visibility.step-on"
+    | "visibility.step-off"
+    | "visibility.step-remove"
+    | "visibility.steps"
     | "set.create"
     | "set.rename"
     | "set.redefine"
@@ -1911,6 +2011,8 @@ export interface CommandOutcomeMap {
     "data.declare": Promise<void>;
     /** Settles once the source is recorded. */
     "data.setSource": Promise<void>;
+    /** Settles once the name is recorded. */
+    "data.label": Promise<void>;
     /** Settles once the style values are recorded. */
     "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -1925,6 +2027,8 @@ export interface CommandOutcomeMap {
     "visibility.window": Promise<void>;
     /** Settles once the flag is recorded and the pass that follows it has run. */
     "visibility.context": Promise<void>;
+    /** Settles once the steps are recorded and the pass that evaluates the masks has run. */
+    "visibility.steps": Promise<void>;
     /** The new set's id, once it is recorded. */
     "set.create": Promise<SetId>;
     /** Settles once the rename is recorded. */

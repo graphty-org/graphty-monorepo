@@ -1766,19 +1766,23 @@ Open:
   `rnastab`, `ribosite`, `proteasesite`, `proteinstab`: graph-io reads them as `other:<name>` and graphty-element
   draws a 37 px ellipse or box where Graphviz draws a 7 to 19 px glyph; graphty-element's shape vocabulary, the
   DOT sheets' `node-shape-vocabulary` gap), and the `curve` / `icurve` arrows (`gml-specimen-arrows-p7` / `-p8`
-  `target-arrow-curve`, `-lcurve`, `-rcurve`, `-icurve`, `-licurve`, `-ricurve`: edge.arrow and edge.route 0.149 to
-  0.197). The arrow rows are the comparator's (the shared `comparator-arrow-line-reach` gap): Graphviz draws a curve
-  cap as an open arc the comparator does not read as an arrowhead, and stops the line where the arc starts, so the
-  line reads short; graph-io reads the cap (`curve`), so nothing in the importer is left to fix there. A curved
+  `target-arrow-curve`, `-lcurve`, `-rcurve`, `-icurve`, `-licurve`, `-ricurve`). FIXED (fix round 3, 2026-10-20):
+  graph-io read `icurve` as `other:icurve`, which graphty-element draws nothing for, and both at a normal arrow's size;
+  it now reads `curve` and `icurve` in Graphviz's dialect as `other:curve` / `other:inv-curve` with the arc's own
+  size (arrows.c arrow_type_curve: radius half the arrow's length, `{ length: 0.5, aspect: 2 }` in the Graphviz tool
+  defaults). The comparator read neither Graphviz's stroked stem nor its stroked arc in the edge's group: it now
+  carries the line to the stem's tip and takes the arc as a hollow half circle (half an arrow for an `l` / `r` arc,
+  as graphty's cap cut to one side). arrows-p7 and arrows-p8 edge.route 42/48 -> 48/48, edge.arrow and
+  edge.arrowShape all pass (9 failing elements -> 0 on each). A curved
   route's `lp` is not read yet: graphty-element hangs a curved edge's label where it samples its curve, which
   graph-io cannot know; every gv2gml sheet's edges are straight. A node's `pencolor`, which gv2gml also writes as
   `outline`, is a cluster's alone and Graphviz ignores it on a node; the sheets set a node's outline by its `color`,
   which is what Graphviz draws.
-- `gml-specimen-edges-lines-p4` (`loop`): OGDF draws a self-loop as a stroked polyline from its node's center through
-  its bends and back (`M848.889,651 L828.889,616 ... L848.889,651`); graphty draws the same bends (its points match the
-  oracle's within 0.1 px once the frame is fitted), but the comparator reads a stroke-only path whose ends meet as a
-  closed shape and never as an edge, so the loop is judged missing (stray.present) and graphty's an extra edge. A
-  comparator gap: a stroke-only open `path` (no `Z`) whose ends land on one node graphty loops on is that loop.
+- FIXED (fix round 3, 2026-10-20, comparator): `gml-specimen-edges-lines-p4` (`loop`): OGDF draws a self-loop as a
+  stroked polyline from its node's center through its bends and back (`M848.889,651 L828.889,616 ... L848.889,651`);
+  the comparator read it as a closed triangle and took a ring with corners as no loop, so the loop was a stray and
+  graphty's edge 15 an extra. A ring with corners drawn through a looped node's middle is now that node's loop:
+  edge.extra and stray.present 1 -> 0, the sheet passes.
 - GML corpus `gml-need4stacks261`, `gml-dunnart-autobahn`, `gml-jgrapht-grid-territorio` (edge.arrow): each file says
   `directed 1` and names no `arrow`; the stand-in (gml2gv | neato) draws Graphviz's default digraph arrowhead on every
   edge (need4stacks 776), graphty none. Neither the programs that wrote them (JGraphT has no drawing; Dunnart and

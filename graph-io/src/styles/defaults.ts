@@ -454,8 +454,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         "circle-open": { length: 0.8, aspect: 1 },
                         crow: { length: 1, aspect: 0.9 },
                         vee: { length: 1, aspect: 0.9 },
+                        // the arc of curve and icurve, a half circle of radius half the arrow's length across its
+                        // stem (the stem is the line, carried on to the tip)
+                        "other:curve": { length: 0.5, aspect: 2 },
+                        "other:inv-curve": { length: 0.5, aspect: 2 },
                     },
-                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot)",
+                    source: "graphviz lib/common/arrows.c (ARROW_LENGTH 10, Arrowtypes lenfact, arrow_type_normal 0.35, arrow_type_crow 0.45, arrow_type_tee, arrow_type_box 0.4, arrow_type_diamond 1/3, arrow_type_dot, arrow_type_curve)",
                 },
                 node: {
                     fillOpacity: v(0, `${GV}/style/ (default "", not filled)`),

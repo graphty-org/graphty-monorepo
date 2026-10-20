@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRegistry } from "../../../src/registry.js";
+import { toolDefaults } from "../../../src/styles/defaults.js";
 import { resolveStyles } from "../../../src/styles/internal.js";
 
 const registry = createRegistry();
@@ -57,6 +58,28 @@ describe("GML styles: gv2gml's arrows and outlines as Graphviz draws them", () =
             "triangle-open",
         ]);
         expect(edge$("targetArrowSide")[1]).toBe("left");
+    });
+
+    it("reads curve and icurve as an arc bulging toward the tip and away from it, half an arrow deep", async () => {
+        const edge = (id: number, arrow: string): string =>
+            `edge [ id ${String(id)} source 0 target 1 graphics [ targetArrow "${arrow}" arrow "first" ] ]`;
+        const { edge: edge$ } = await load(
+            [
+                "graph [ version 2 directed 1",
+                gvNode(0, 10, 10),
+                gvNode(1, 90, 10),
+                edge(1, "curve"),
+                edge(2, "icurve"),
+                edge(3, "licurve"),
+                "]",
+            ].join("\n"),
+        );
+        expect(edge$("targetArrow")).toEqual(["other:curve", "other:inv-curve", "other:inv-curve"]);
+        expect(edge$("targetArrowSide")[2]).toBe("left");
+        // arrows.c arrow_type_curve: an arc of radius half the arrow's 10 points across a stem 10 points long
+        const shapes = toolDefaults("graphviz")?.arrowhead?.shapes;
+        expect(shapes?.["other:curve"]).toEqual({ length: 0.5, aspect: 2 });
+        expect(shapes?.["other:inv-curve"]).toEqual({ length: 0.5, aspect: 2 });
     });
 
     it("draws the second outline of a doublecircle and a doubleoctagon, 4 points outside the first", async () => {

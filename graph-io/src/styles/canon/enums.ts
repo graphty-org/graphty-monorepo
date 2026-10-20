@@ -223,9 +223,18 @@ const CYJS: Partial<Record<StyleEnumKind, Aliases>> = {
     },
 };
 
+/**
+ * Graphviz's curve and icurve (lib/common/arrows.c arrow_type_curve): a stem to the tip with an arc across it, bulging
+ * toward the tip and, inverted, away from it -- vis-network's curve and inv_curve.
+ */
+const GRAPHVIZ: Partial<Record<StyleEnumKind, Aliases>> = {
+    arrow: { "other:curve": ["curve"], "other:inv-curve": ["icurve"] },
+};
+
 /** Per-dialect overrides; a dialect not listed reads the common table alone. */
 const OVERRIDES: ReadonlyMap<string, Partial<Record<StyleEnumKind, Aliases>>> = new Map([
     ["vis", VIS],
+    ["graphviz", GRAPHVIZ],
     ["cytoscape-js", CYJS],
 ]);
 

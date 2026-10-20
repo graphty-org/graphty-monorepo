@@ -71,6 +71,26 @@ describe("Graphviz's stroked curve arrows", () => {
     });
 });
 
+describe("Graphviz's rounded orthogonal routes", () => {
+    it("takes no arrowhead from a rounded corner joining the line, nor a stem from the route's next run", () => {
+        // dot-specimen-edges-lines-p5 `radius`: three polylines, the corner arc joining the two straight runs
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+            <g class="node"><title>a</title><ellipse fill="#c8c8c8" stroke="#505050" cx="113" cy="163.67" rx="6" ry="6"/></g>
+            <g class="node"><title>b</title><ellipse fill="#c8c8c8" stroke="#505050" cx="213" cy="213.67" rx="6" ry="6"/></g>
+            <g class="edge"><title>a&#45;&gt;b</title>
+                <polyline fill="none" stroke="#505050" stroke-width="1.5" points="115.5,169.44 115.5,182.66 115.5,206"/>
+                <polyline fill="none" stroke="#505050" stroke-width="1.5" points="123.5,214 206.6,214"/>
+                <polyline fill="none" stroke="#505050" stroke-width="1.5" points="123.5,214 121.42,213.74 119.49,212.94 117.84,211.66 116.56,210.01 115.76,208.07 115.5,206"/>
+            </g>
+        </svg>`;
+        const { scene } = associate(readSvgPrimitives(svg).prims, 400, 300, emptyGuide());
+        assert.deepEqual(
+            scene.edges.map((e) => e.arrows.length),
+            [0],
+        );
+    });
+});
+
 describe("OGDF's loop with bends", () => {
     it("reads a polyline from a node's center through its bends back to it as that node's loop", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200">

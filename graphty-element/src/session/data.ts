@@ -3799,7 +3799,13 @@ function overChoices(earlier: LoadChoices, later: LoadChoices): LoadChoices {
     }
 
     let mapping: LoadMapping;
-    if ("tables" in a || "tables" in b) {
+    const lone = "tables" in a && !("tables" in b) ? Object.keys(a.tables) : [];
+    if (lone.length === 1) {
+        // A bare mapping names a load of one table, so it is laid over that table's roles.
+        const [id] = lone;
+        const roles = (a as { tables: Record<string, TableMapping> }).tables[id];
+        mapping = { tables: { [id]: movesRows(roles, b as TableMapping) ? b : { ...roles, ...b } } } as LoadMapping;
+    } else if ("tables" in a || "tables" in b) {
         // A bare mapping cannot be placed among named tables, so the later one wins whole.
         const tables: Record<string, TableMapping> = "tables" in a && "tables" in b ? { ...a.tables } : {};
         for (const [id, roles] of Object.entries("tables" in b ? b.tables : {})) {

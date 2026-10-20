@@ -89,6 +89,20 @@ describe("data.reloadSource", () => {
         assert.isUndefined(session.data.sources()[0].choices?.kindIds);
     });
 
+    it("lays a bare mapping over the one table a load names by id", async () => {
+        const session = createGraphSession();
+        await session.data.import(
+            { config: { file: new File([AUTH_LOG], "auth-log.csv") } },
+            { mapping: { tables: { rows: { rowsAre: "edges", source: "user", target: "host" } } } },
+        );
+        const [{ key }] = session.data.sources();
+        await session.data.reloadSource(key, { mapping: { sourceKind: "user" } });
+        assert.include(ids(session), "alice");
+        assert.deepEqual(session.data.sources()[0].choices?.mapping, {
+            tables: { rows: { rowsAre: "edges", source: "user", target: "host", sourceKind: "user" } },
+        });
+    });
+
     it("moves the source role to another column", async () => {
         const session = await loaded();
         const [{ key }] = session.data.sources();

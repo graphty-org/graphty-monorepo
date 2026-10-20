@@ -4,6 +4,7 @@ import type {
     GraphSession,
     NodeId,
     NodeRecord,
+    PageColumn,
     RecordPage,
     ScopeInput,
 } from "@graphty/graphty-element/session";
@@ -11,7 +12,7 @@ import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
 import { formatNumber } from "../inspector/words";
-import { elementSort, type RecordKind, type TableColumnChoice } from "./columns";
+import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
 
 /** How many records past the drawn rows a window reads, above and below. */
 const WINDOW_PAD = 50;
@@ -50,6 +51,20 @@ function tableValue(value: unknown): DataTableValue {
         return value;
     }
     return typeof value === "bigint" ? value.toString() : JSON.stringify(value);
+}
+
+/**
+ * A result cell as the table draws it: a partition's group by the name the key and the layer tree
+ * give it ("Group 3", from the rank graphty-element puts on each cell), any other cell as it is.
+ * The element still sorts the column by the run's own values.
+ * @param column - the page's result column.
+ * @param index - the row's position in the page.
+ * @returns the table's value.
+ */
+function resultValue(column: PageColumn | undefined, index: number): DataTableValue {
+    const value = column?.values[index];
+    const rank = column?.ranks?.[index];
+    return rank === undefined || value === undefined ? value : groupName({ group: String(value), size: 0, rank });
 }
 
 /**
@@ -102,7 +117,8 @@ export function RecordTable({
         return {
             id: column.id,
             header: column.header,
-            align: column.numeric ? "end" : "start",
+            // A group's name is a word ("Group 3"), so it reads from the left like other words.
+            align: column.numeric && column.grouping !== true ? "end" : "start",
             // The key names its row, so every other cell reads with it.
             rowHeader: column.group === "key",
             menu:
@@ -128,7 +144,7 @@ export function RecordTable({
                 ),
             value:
                 at >= 0
-                    ? (row) => page.columns?.[at]?.values[row.index]
+                    ? (row) => resultValue(page.columns?.[at], row.index)
                     : (row) => tableValue(row.record[column.attribute ?? column.id]),
         };
     });

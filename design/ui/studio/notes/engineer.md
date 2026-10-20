@@ -17,6 +17,18 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+0v. (2026-10-20) The table names a community run's groups as the key does. The Nodes tab drew a
+partition column's raw group ids (Javert 2) while the key, the layer tree, the Memberships row and
+the run tab said "Group 3". graphty-element already puts each cell's size rank on the page column
+(`PageColumn.ranks`), so `RecordTable.tsx` `resultValue` words a ranked cell with `groupName`
+(columns.ts) and draws any other cell as is; a grouping column is left-aligned like other words.
+The element still sorts by the run's values, so the sort and its caption are unchanged. No element
+change, no API change. Test: `TableDock.real-element.test.tsx` asserts the top row's Louvain cell
+reads its summary group's rank name (fails without: "1" for "Group 2"). Walk on a fresh build,
+`design/ui/studio/tmp/r1-dry1-table-group-names/walk2/`: 05 (Javert's Memberships: Group 3, green
+swatch = key's Group 3), 08 (Javert's row: Group 3; Napoleon Group 6 in row and inspector), 09
+(sorted by Louvain, smallest group first, groups contiguous). Lesson: before adding app code that
+words an element value, look for a neutral fact the element already returns beside it.
 0u. (2026-10-20) Re-walked the renamed-halo and replace-keeps-picked-ties fixes on a fresh build
 (65f41f6b15), `design/ui/studio/tmp/r1-dry1-recheck-project-renamed-halo-channel/`: no regression.
 Both study projects open with their look by every route (Open a file, main menu, Control+O over an

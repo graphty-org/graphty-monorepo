@@ -95,7 +95,8 @@ describe("the table dock", () => {
         // A run's result is a column, headed by the run's name; the element sorts it.
         const pagerank = live.runs.start("pagerank");
         await pagerank;
-        await live.runs.start("louvain");
+        const louvainRun = live.runs.start("louvain");
+        await louvainRun;
         const header = await within(dock).findByRole("button", { name: /^PageRank/ });
         await userEvent.click(header);
         await within(dock).findByText("Sorted by PageRank, highest first");
@@ -112,6 +113,17 @@ describe("the table dock", () => {
             limit: 1,
         });
         assert.include(drawnRows("Nodes")[0], new Intl.NumberFormat("en-US").format(Number(top.columns[0].values[0])));
+        // A partition's cell names the group as the key does ("Group 3", by size), not by its raw id.
+        const louvain = live.runs.list().find((run) => run.id === louvainRun.id);
+        assert.isDefined(louvain);
+        const topId = String(top.records[0]?.id);
+        const value = live.data.nodePage({ columns: [louvain?.id ?? ""], limit: 100 });
+        const at = value.records.findIndex((record) => String(record.id) === topId);
+        const rank = louvain?.result
+            ?.summary()
+            .groups?.find((group) => String(group.group) === String(value.columns[0].values[at]))?.rank;
+        assert.isDefined(rank);
+        assert.include(drawnRows("Nodes")[0], `Group ${String(rank)}`);
 
         // The Columns chooser lists each attribute and each run; unchecking one hides it.
         const columns = within(dock).getByRole("button", { name: /^Columns:/ });

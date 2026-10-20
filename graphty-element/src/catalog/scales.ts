@@ -134,6 +134,13 @@ export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[] = [
         domainKind: "categorical",
         options: [],
     },
+    {
+        // @since 3.36.0
+        name: "index",
+        plainName: "Number Each Value",
+        domainKind: "categorical",
+        options: [],
+    },
 ];
 
 /**

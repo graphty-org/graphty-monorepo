@@ -47,6 +47,14 @@
 
 import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
+import { shaderDescriptor, shaderIdsOf } from "../../catalog/shaderRegistry";
+import {
+    isShaderId,
+    isShaderParamName,
+    type LayerBoundary,
+    type ShaderDescriptor,
+    type ShaderKind,
+} from "../../catalog/shaders";
 import type {
     Binding,
     BindingOverflow,
@@ -71,7 +79,15 @@ import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
 import type { CodedFact } from "../shared";
-import { type ChannelDescriptor, channelDescriptor, channelsFor, labelFieldOf, toColorValue } from "./channels";
+import {
+    type ChannelDescriptor,
+    channelDescriptor,
+    channelsFor,
+    labelFieldOf,
+    parseShaderParamAddress,
+    SHADER_NONE,
+    toColorValue,
+} from "./channels";
 import { type RuleBinding, stopsProblem } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
@@ -158,6 +174,11 @@ export interface Layer {
      * bag is never shared with them. Never used to paint.
      */
     readonly fileStyle?: FileStyleOrigin;
+    /**
+     * The boundary the layer draws around its nodes, when it draws one.
+     * @since 3.36.0
+     */
+    readonly boundary?: LayerBoundary;
 }
 
 /**
@@ -296,6 +317,12 @@ export interface LayerCheckOptions {
      * nothing does.
      */
     readonly mayBeEmpty?: boolean;
+    /**
+     * What a shader id the catalog does not list (or of the wrong kind) is: `"refuse"`, the
+     * default, refuses the layer, as `styles.add` does; `"report"` accepts it, as a loaded style
+     * document is, and `styles.counts` reports it as drawing nothing.
+     */
+    readonly shaders?: "refuse" | "report";
 }
 
 /**
@@ -1161,6 +1188,11 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
         return spec.target;
     }
 
+    // A boundary is drawn around nodes, so a layer that only draws one paints nodes.
+    if (spec.target === undefined && channels.length === 0 && spec.boundary !== undefined) {
+        return "node";
+    }
+
     if (spec.target !== undefined) {
         report(log, {
             code: "E_BAD_LAYER",
@@ -1218,7 +1250,7 @@ function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLo
     // A starting row (Everything, Hovered) is there to be written into, so it may start empty, and
     // so may a part of a row, which a row write adds empty when it changes what the row paints.
     const starting = spec.source?.by === "template" && spec.source.templateId.startsWith("graphty:starting-");
-    if (channels.length === 0 && !starting && spec.row === undefined && !mayBeEmpty) {
+    if (channels.length === 0 && !starting && spec.row === undefined && !mayBeEmpty && spec.boundary === undefined) {
         report(log, {
             code: "E_BAD_LAYER",
             message: "A layer with neither a set nor an encode writes no channel and would paint nothing.",
@@ -1308,11 +1340,14 @@ function checkChannels(
     options: LayerCheckOptions,
     log: ProblemLog,
 ): void {
+    const catalog = options.shaders !== "report";
     for (const [channel, value] of Object.entries(spec.set ?? {})) {
         const path = `set.${channel}`;
         const descriptor = checkChannel(channel, target, path, log);
 
-        if (descriptor !== null && value !== undefined) {
+        if (descriptor?.shaderKinds !== undefined && value !== undefined) {
+            checkShaderValue(descriptor, value, path, catalog, log);
+        } else if (descriptor !== null && value !== undefined) {
             const problem = checkStaticValue(descriptor, value, path);
 
             if (problem !== null) {
@@ -1323,10 +1358,344 @@ function checkChannels(
 
     for (const [channel, binding] of Object.entries(spec.encode ?? {})) {
         const path = `encode.${channel}`;
+        const address = parseShaderParamAddress(channel);
+        if (address !== null && binding !== undefined) {
+            checkParamBinding(channel, binding, target, path, catalog, log);
+            continue;
+        }
+
         const descriptor = checkChannel(channel, target, path, log);
 
         if (descriptor !== null && binding !== undefined) {
             checkBinding(descriptor, binding, path, options, universal, log);
+        }
+    }
+
+    checkBoundary(spec, target, catalog, log);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shaders: ids from the catalog, maps keyed by id, parameters each shader declares
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Whether a value is a map a layer may write: a plain object, or one with no prototype.
+ * @param value - Anything.
+ * @returns True for a plain map.
+ */
+function isPlainMap(value: unknown): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+
+    const prototype = Object.getPrototypeOf(value) as unknown;
+
+    return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Check one shader id against the catalog: it must be listed, and of a kind the place takes.
+ * @param id - The id.
+ * @param kinds - The kinds the place takes.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ * @returns The shader, or null when it was refused.
+ */
+function checkShaderRef(
+    id: string,
+    kinds: readonly ShaderKind[],
+    path: string,
+    log: ProblemLog,
+): ShaderDescriptor | null {
+    const descriptor = shaderDescriptor(id);
+    if (descriptor === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER",
+            message: `There is no shader called "${id}".`,
+            path,
+            candidates: shaderIdsOf(kinds),
+        });
+
+        return null;
+    }
+
+    if (!kinds.includes(descriptor.kind)) {
+        report(log, {
+            code: "E_SHADER_KIND",
+            message: `"${id}" is a ${descriptor.kind} shader, and this takes ${kinds.join(" or ")}.`,
+            path,
+            candidates: shaderIdsOf(kinds),
+        });
+
+        return null;
+    }
+
+    return descriptor;
+}
+
+/**
+ * Check one parameter value against what its shader declares.
+ * @param shader - The shader, or null when the catalog was not consulted.
+ * @param name - The parameter's id.
+ * @param value - Its value.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkParamValue(
+    shader: ShaderDescriptor | null,
+    name: string,
+    value: unknown,
+    path: string,
+    log: ProblemLog,
+): void {
+    if (!isShaderParamName(name) || !["number", "string", "boolean"].includes(typeof value)) {
+        report(log, { code: "E_BAD_LAYER", message: `"${name}" is not a parameter a shader can take.`, path });
+
+        return;
+    }
+
+    if (shader === null) {
+        return;
+    }
+
+    const param = shader.params.find((entry) => entry.name === name);
+    if (param === undefined) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${name}".`,
+            path,
+            candidates: shader.params.map((entry) => entry.name),
+        });
+
+        return;
+    }
+
+    if (!paramValueFits(param, value)) {
+        report(log, {
+            code: "E_OPTION_RANGE",
+            message: `${String(value)} is not a value "${name}" of "${shader.id}" takes.`,
+            path,
+            ...(param.values === undefined ? {} : { candidates: param.values.map((choice) => choice.value) }),
+        });
+    }
+}
+
+/**
+ * Whether a value is one a parameter takes.
+ * @param param - The parameter.
+ * @param value - The value.
+ * @returns True when it fits its type and range.
+ */
+function paramValueFits(param: ShaderDescriptor["params"][number], value: unknown): boolean {
+    switch (param.type) {
+        case "number":
+        case "integer": {
+            const { min, max } = param;
+            return (
+                typeof value === "number" &&
+                Number.isFinite(value) &&
+                (param.type === "number" || Number.isInteger(value)) &&
+                (typeof min !== "number" || value >= min) &&
+                (typeof max !== "number" || value <= max)
+            );
+        }
+        case "boolean":
+            return typeof value === "boolean";
+        case "color":
+            return typeof value === "string" && toColorValue(value) !== null;
+        default:
+            return typeof value === "string" && (param.values ?? []).some((choice) => choice.value === value);
+    }
+}
+
+/**
+ * Check one parameter set: a map of parameter values.
+ * @param shader - The shader it belongs to, or null when the catalog was not consulted.
+ * @param params - The set.
+ * @param path - Where it sits in the specification.
+ * @param log - Where problems are collected.
+ * @param visible - Whether the reserved key `visible` (an effect's eye) may appear.
+ */
+function checkParamSet(
+    shader: ShaderDescriptor | null,
+    params: unknown,
+    path: string,
+    log: ProblemLog,
+    visible: boolean,
+): void {
+    if (!isPlainMap(params)) {
+        report(log, { code: "E_BAD_LAYER", message: "A shader's parameters are a map, such as { speed: 2 }.", path });
+
+        return;
+    }
+
+    for (const [name, value] of Object.entries(params)) {
+        if (visible && name === "visible") {
+            if (typeof value !== "boolean") {
+                report(log, { code: "E_BAD_LAYER", message: "visible is on or off.", path: `${path}.visible` });
+            }
+
+            continue;
+        }
+
+        checkParamValue(shader, name, value, `${path}.${name}`, log);
+    }
+}
+
+/**
+ * Check one entry of a map keyed by shader id: the id's spelling, and against the catalog.
+ * @param id - The key.
+ * @param kinds - The kinds the place takes.
+ * @param path - Where the entry sits.
+ * @param catalog - Whether to consult the catalog.
+ * @param log - Where problems are collected.
+ * @returns The shader, null when the catalog was not consulted or refused it, or undefined when
+ *   the key is not a shader id at all.
+ */
+function checkMapKey(
+    id: string,
+    kinds: readonly ShaderKind[],
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): ShaderDescriptor | null | undefined {
+    if (!isShaderId(id)) {
+        report(log, { code: "E_BAD_LAYER", message: `"${String(id)}" is not a shader id.`, path });
+
+        return undefined;
+    }
+
+    return catalog ? checkShaderRef(id, kinds, path, log) : null;
+}
+
+/**
+ * Check a value written to a shader channel: an id, a parameter map or an effects map.
+ * @param descriptor - The channel.
+ * @param value - The value.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog, which a loaded document does not.
+ * @param log - Where problems are collected.
+ */
+function checkShaderValue(
+    descriptor: ChannelDescriptor,
+    value: unknown,
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const kinds = descriptor.shaderKinds ?? [];
+    if (descriptor.accepts === "shader") {
+        if (typeof value !== "string" || (value !== SHADER_NONE && !isShaderId(value))) {
+            report(log, {
+                code: "E_BAD_LAYER",
+                message: `${descriptor.plainName} takes a shader id, or "none".`,
+                path,
+            });
+        } else if (value !== SHADER_NONE && catalog) {
+            checkShaderRef(value, kinds, path, log);
+        }
+
+        return;
+    }
+
+    if (!isPlainMap(value)) {
+        report(log, { code: "E_BAD_LAYER", message: `${descriptor.plainName} takes a map keyed by shader id.`, path });
+
+        return;
+    }
+
+    const effects = descriptor.accepts === "shaderEffects";
+    for (const [id, entry] of Object.entries(value)) {
+        const shader = checkMapKey(id, kinds, `${path}.${id}`, catalog, log);
+        if (shader === undefined || (effects && typeof entry === "boolean")) {
+            continue;
+        }
+
+        checkParamSet(shader, entry, `${path}.${id}`, log, effects);
+    }
+}
+
+/**
+ * Check an `encode` key that binds one shader parameter per element.
+ * @param name - The key: `<channel>.<shader>.<parameter>`.
+ * @param binding - Its binding.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param path - Where it sits in the specification.
+ * @param catalog - Whether to consult the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkParamBinding(
+    name: string,
+    binding: Binding,
+    target: SelectorTarget | null,
+    path: string,
+    catalog: boolean,
+    log: ProblemLog,
+): void {
+    const address = parseShaderParamAddress(name);
+    const descriptor = address === null ? null : checkChannel(address.channel, target, path, log);
+    if (address === null || descriptor === null) {
+        return;
+    }
+
+    if ("by" in binding && typeof binding.by === "string") {
+        readsPath(log, binding.by);
+    }
+
+    const kinds = descriptor.shaderKinds ?? [];
+    const shader = checkMapKey(address.shader, kinds, path, catalog, log);
+    if (shader === null || shader === undefined) {
+        return;
+    }
+
+    const param = shader.params.find((entry) => entry.name === address.param);
+    if (param?.varies !== true) {
+        report(log, {
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            path,
+            candidates: shader.params.filter((entry) => entry.varies === true).map((entry) => entry.name),
+        });
+    }
+}
+
+/**
+ * Check a layer's boundary: node layers only, a boundary shader, parameters it declares.
+ * @param spec - The specification.
+ * @param target - The layer's target, or null when it could not be settled.
+ * @param catalog - Whether to consult the catalog.
+ * @param log - Where problems and paths are collected.
+ */
+function checkBoundary(spec: LayerSpec, target: SelectorTarget | null, catalog: boolean, log: ProblemLog): void {
+    const { boundary } = spec;
+    if (boundary === undefined) {
+        return;
+    }
+
+    if (!isPlainMap(boundary) || typeof boundary.shader !== "string" || target === "edge") {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: 'A boundary is drawn around a node layer\'s nodes: { shader: "<id>", groupBy?: "<path>" }.',
+            path: "boundary",
+        });
+
+        return;
+    }
+
+    const shader = checkMapKey(boundary.shader, ["boundary"], "boundary.shader", catalog, log);
+    if (boundary.params !== undefined && shader !== undefined) {
+        checkParamSet(shader, boundary.params, "boundary.params", log, false);
+    }
+
+    if (boundary.groupBy !== undefined) {
+        if (typeof boundary.groupBy === "string" && boundary.groupBy.trim() !== "") {
+            readsPath(log, boundary.groupBy);
+        } else {
+            report(log, {
+                code: "E_BAD_LAYER",
+                message: 'groupBy is a path, such as "data.community".',
+                path: "boundary.groupBy",
+            });
         }
     }
 }
@@ -1438,6 +1807,7 @@ function buildLayer(
         ...(spec.userData === undefined ? {} : { userData: spec.userData }),
         ...(spec.row === undefined ? {} : { row: spec.row }),
         ...(spec.fileStyle === undefined ? {} : { fileStyle: frozen(spec.fileStyle) }),
+        ...(spec.boundary === undefined ? {} : { boundary: frozen(spec.boundary) }),
     });
 
     return Object.freeze({ layer, selector, reads: Object.freeze([...reads]) });
@@ -1462,5 +1832,6 @@ export function specOf(layer: Layer): LayerSpec {
         ...(layer.userData === undefined ? {} : { userData: layer.userData }),
         ...(layer.row === undefined ? {} : { row: layer.row }),
         ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),
+        ...(layer.boundary === undefined ? {} : { boundary: layer.boundary }),
     };
 }

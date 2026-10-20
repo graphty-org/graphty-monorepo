@@ -12,6 +12,7 @@
  * Types only: nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { ShaderKind, ShaderMotionInput } from "../catalog/shaders";
 import type { OptionDescriptor, OptionType, PaletteDescriptor, SuggestedName } from "../catalog/types";
 
 // =============================================================================================
@@ -436,4 +437,56 @@ export interface LogDestinationDefinition {
     readonly write: (record: PlainLogRecord) => void | Promise<unknown>;
     /** Attach now (the default) or only register, for a configuration to turn on by id. */
     readonly attach?: boolean;
+}
+
+// =============================================================================================
+// Shader
+// =============================================================================================
+
+/**
+ * One shader parameter in short form: a bare number or boolean is a parameter of that type with
+ * that default, a bare `#rrggbb` string a color; an object is an option in short form plus the
+ * two shader facts.
+ * @since 3.36.0
+ */
+export type ShaderParamShorthand =
+    | number
+    | boolean
+    | string
+    | (Exclude<OptionShorthand, number | string | boolean> & {
+          /** Can be bound per element with `encode` (at most 4 per shader). */
+          readonly varies?: boolean;
+          /** The parameter that most changes the look. */
+          readonly primary?: boolean;
+      });
+
+/**
+ * What defineShader takes.
+ * @since 3.36.0
+ */
+export interface ShaderDefinition {
+    /** `"<namespace>/<name>"`: lowercase letters, digits and hyphens, one slash. Saved in documents. */
+    readonly id: string;
+    /** What it draws on. */
+    readonly kind: ShaderKind;
+    /**
+     * The body: `vec4 shade(NodeInput n)` (or the entry of its kind) and its helpers. Each
+     * parameter is a global of its GLSL type: a number a `float`, an integer an `int`, a color a
+     * `vec3`.
+     */
+    readonly glsl: string;
+    /** What pickers show. Default: the name part of the id in sentence case. */
+    readonly name?: string;
+    /** Its parameters, keyed by name, in the order a form shows them. */
+    readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
+    /** How it moves. Default `"still"`. */
+    readonly motion?: ShaderMotionInput;
+    /** Effects: the drawn square is `reach` times the radius, 1 to 6. */
+    readonly reach?: number;
+    /** Effects and boundaries: how the result combines. Default `"over"`. */
+    readonly blend?: "over" | "add";
+    /** Whether it contributes to the shared bloom pass. */
+    readonly bloom?: boolean;
+    /** Boundaries: a splatted field or one sphere per group. Default `"field"`. */
+    readonly form?: "field" | "sphere";
 }

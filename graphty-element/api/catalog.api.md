@@ -318,6 +318,7 @@ export interface CatalogApi {
     palettes(): readonly PaletteDescriptor[];
     // (undocumented)
     scales(): readonly ScaleDescriptor[];
+    shaders(): readonly ShaderDescriptor[];
     // @deprecated (undocumented)
     themes(): readonly ThemeDescriptor[];
     // @deprecated (undocumented)
@@ -329,7 +330,7 @@ export interface CatalogApi {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground" | "node.shader" | "node.shaderParams" | "node.effects" | "edge.shader" | "edge.shaderParams" | "edge.effects";
 
 // @public
 export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>>;
@@ -354,6 +355,7 @@ export interface ChannelDescriptor {
     readonly perWorldUnit?: number;
     readonly plainName: string;
     readonly renderable: boolean;
+    readonly shaderKinds?: readonly ShaderKind[];
     readonly shortName: string;
     readonly step?: number;
     readonly stylePath: string;
@@ -375,10 +377,16 @@ export const CHANNELS: readonly Channel[];
 export function channelsFor(target: "node" | "edge"): readonly ChannelDescriptor[];
 
 // @public
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | ShaderParamSets | ShaderEffects;
 
 // @public
-export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing";
+export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing"
+/** A shader id from the catalog, of the kinds `shaderKinds` lists, or `"none"`. @since 3.36.0 */
+| "shader"
+/** Parameter values per shader id, merged by id then by parameter. @since 3.36.0 */
+| "shaderParams"
+/** Effects by id, merged by id then by parameter. @since 3.36.0 */
+| "shaderEffects";
 
 // @public
 export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck;
@@ -476,7 +484,9 @@ export type EdgeReading = "induced" | "listed" | "clipped" | "incident";
 export type EdgeRef = EdgeId | EdgeMember;
 
 // @public
-export type Encoding = Partial<Record<Channel, Binding>>;
+export type Encoding = Partial<Record<Channel, Binding>> & {
+    [address: ShaderParamAddress]: Binding;
+};
 
 // @public
 export interface FieldBand {
@@ -572,6 +582,9 @@ export type FormatId = (typeof KNOWN_FORMAT_IDS)[number] | (string & {});
 
 // @public
 export function formatsForExtension(extension: string): readonly FormatDescriptor[];
+
+// @public
+export function formatShaderText(registration: ShaderRegistration): ShaderText;
 
 // @public
 export interface FormatStyles {
@@ -710,6 +723,24 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list (`node.shader`, an effect, a parameter
+* set, a boundary). `details.candidates` lists the ids of the kinds that channel takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader of the wrong kind for where it is written: an effect id in
+* `node.shader`, a node shader on an edge. `details.expected` lists the kinds that fit.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -1302,6 +1333,13 @@ export interface LabelStyle {
 export type LabelTextAlign = "left" | "center" | "right";
 
 // @public
+export interface LayerBoundary {
+    readonly groupBy?: string;
+    readonly params?: ShaderParams;
+    readonly shader: string;
+}
+
+// @public
 export type LayerId = string;
 
 // @public
@@ -1328,6 +1366,7 @@ export type LayerSource = {
 
 // @public
 export interface LayerSpec {
+    boundary?: LayerBoundary;
     // (undocumented)
     enabled?: boolean;
     // (undocumented)
@@ -1529,7 +1568,7 @@ export type NodeShape = NonNullable<NonNullable<NodeStyleConfig["shape"]>["type"
 export const OPTION_BOUND_SOURCES: readonly ["graph.nodeCount", "graph.edgeCount", "graph.maxDegree", "graph.maxCore", "graph.componentCount"];
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -1628,6 +1667,11 @@ export function parseScope(value: unknown): Scope;
 
 // @public
 export function parseSetDefinition(value: unknown): SetDefinition;
+
+// @public
+export function parseShaderText(text: ShaderText, options?: {
+    readonly kind?: ShaderKind;
+}): ShaderTextResult;
 
 // @public
 export type Path = string;
@@ -1913,13 +1957,13 @@ export type Selector = {
 }
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-* each change with no step.
+* edges), under the pointer (`"hovered"`, one node at most), or pinned in place (`"pinned"`,
+* nodes only; since 3.36.0). View state: the layer follows each change with no step.
 * @since 3.26.0
 */
 | {
     match: "state";
-    state: "selected" | "hovered";
+    state: "selected" | "hovered" | "pinned";
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
@@ -2010,6 +2054,117 @@ export type SetOperand = Scope | {
 };
 
 // @public
+export const SHADER_KIND_COVERS: Readonly<Record<ShaderKind, readonly Channel[]>>;
+
+// @public
+export const SHADER_KINDS: readonly ShaderKind[];
+
+// @public
+export type ShaderCost = "light" | "medium" | "heavy";
+
+// @public
+export function shaderCovers(descriptor: Pick<ShaderDescriptor, "kind" | "reads">): readonly Channel[];
+
+// @public
+export interface ShaderDescriptor {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly cost: ShaderCost;
+    readonly form?: "field" | "sphere";
+    readonly hash?: string;
+    readonly id: string;
+    readonly kind: ShaderKind;
+    readonly motion: ShaderMotion;
+    readonly origin: ShaderOrigin;
+    readonly params: readonly ShaderParamDescriptor[];
+    readonly plainName: string;
+    readonly reach?: number;
+    readonly reads: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly thumbnail?: string;
+    readonly webgpu: ShaderWebGpu;
+}
+
+// @public
+export type ShaderEffects = Readonly<Record<string, ShaderParams | boolean>>;
+
+// @public
+export type ShaderInput = "color" | "opacity" | "size" | "shape" | "width" | "selected" | "hovered" | "pinned" | "times" | "members";
+
+// @public
+export type ShaderKind = "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
+
+// @public
+export interface ShaderMotion {
+    readonly change?: number;
+    readonly enter?: number;
+    readonly exit?: number;
+    readonly loop?: {
+        readonly speedParam?: string;
+    };
+}
+
+// @public
+export type ShaderMotionInput = ShaderMotion | "still" | "loop";
+
+// @public
+export type ShaderOrigin = "element" | "registered" | "pasted";
+
+// @public
+export type ShaderParamAddress = `${"node" | "edge"}.${"shaderParams" | "effects"}.${string}.${string}`;
+
+// @public
+export type ShaderParamDescriptor = OptionDescriptor & {
+    readonly varies?: boolean;
+    readonly primary?: boolean;
+};
+
+// @public
+export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
+
+// @public
+export type ShaderParamSets = Readonly<Record<string, ShaderParams>>;
+
+// @public
+export interface ShaderProblem {
+    readonly code: ShaderProblemCode;
+    readonly params: Readonly<Record<string, string | number>>;
+}
+
+// @public
+export type ShaderProblemCode = "shader.header-missing" | "shader.header-json" | "shader.header-key" | "shader.kind-unknown" | "shader.id-invalid" | "shader.id-taken" | "shader.param-invalid" | "shader.too-many-params" | "shader.too-large" | "shader.too-many" | "shader.not-ascii" | "shader.preprocessor" | "shader.reserved" | "shader.loop-unbounded" | "shader.loop-too-long" | "shader.too-costly" | "shader.too-deep" | "shader.texture-unsupported" | "shader.entry-missing" | "shader.entry-signature" | "shader.compile" | "shader.over-budget" | "shader.webgpu-unsupported" | "shader.unknown" | "shader.kind-mismatch" | "shader.held" | "shader.quarantined" | "shader.flashing" | "shader.guard-off" | "shader.still" | "shader.program-cap" | "shader.param-unused" | "shader.effect-cap" | "shader.boundary-cap";
+
+// @public
+export interface ShaderRegistration {
+    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash"> & {
+        readonly cost?: ShaderCost;
+        readonly reads?: readonly ShaderInput[];
+        readonly webgpu?: ShaderWebGpu;
+        readonly motion?: ShaderMotionInput;
+    };
+    readonly glsl: string;
+    readonly wgsl?: string;
+}
+
+// @public
+export type ShaderRequirement = "webgl2";
+
+// @public
+export type ShaderText = string;
+
+// @public
+export type ShaderTextResult = {
+    readonly ok: true;
+    readonly registration: ShaderRegistration;
+} | {
+    readonly ok: false;
+    readonly problems: readonly ShaderProblem[];
+};
+
+// @public
+export type ShaderWebGpu = "translate" | "native" | "none";
+
+// @public
 export function sourceDescriptors(): readonly SourceInfo[];
 
 export { SourceInfo }
@@ -2030,6 +2185,10 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    shaders?: readonly {
+        readonly id: string;
+        readonly text: ShaderText;
+    }[];
     tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;

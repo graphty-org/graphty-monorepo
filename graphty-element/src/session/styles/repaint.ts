@@ -68,7 +68,8 @@ import {
     type LabelFieldName,
     labelFieldOf,
     labelPatchOf,
-    mergeLabelStyle,
+    mergeChannelValue,
+    parseShaderParamAddress,
 } from "./channels";
 import { overflowHalf, prepareBinding, type PreparedBinding } from "./encoding";
 import { createStyleInterner, meshChannelsFor, type StyleInterner } from "./intern";
@@ -490,7 +491,7 @@ function kindFor(channel: Channel): ChannelColumn["kind"] {
         return "number";
     }
 
-    if (accepts === "labelStyle") {
+    if (accepts === "labelStyle" || accepts === "shaderParams" || accepts === "shaderEffects") {
         return "merge";
     }
 
@@ -663,14 +664,19 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
     }
 
     // A label style is a bag of fields, and each field takes the value of the highest layer that
-    // wrote it; `mergeLabelStyle` is the one rule, shared with `explain()`. A label field channel
+    // wrote it; a shader parameter map and an effects map merge by id and then by field the same
+    // way. `mergeChannelValue` is the one rule, shared with `explain()`. A label field channel
     // (`node.labelSize`) arrives here as a one-field label style in this same column. A named look
     // is painted as if the layer wrote its fields, beneath the layer's own.
-    const painted =
-        column.kind === "merge" && typeof value === "object" && value !== null ? withLabelLook(value) : value;
-
     if (column.kind === "merge") {
-        column.values[index] = mergeLabelStyle(column.values[index], painted as object);
+        if (typeof value !== "object" || value === null) {
+            column.values[index] = value;
+
+            return;
+        }
+
+        const over = column.channel.endsWith("Style") ? withLabelLook(value) : value;
+        column.values[index] = mergeChannelValue(column.channel, column.values[index], over);
 
         return;
     }
@@ -679,7 +685,7 @@ function writeColumn(column: ChannelColumn, index: number, value: unknown, plain
         column.plainText[index] = plainText ? 1 : 0;
     }
 
-    column.values[index] = painted;
+    column.values[index] = value;
 }
 
 /**
@@ -1222,6 +1228,19 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
      * @param path - The column path.
      * @returns The values and how many elements in the store carry none.
      */
+    // What each layer's "index" bindings have numbered so far, kept for the life of the layer.
+    const indexOrders = new Map<string, Map<string, number>>();
+    const indexOrder = (layerId: LayerId, name: string): Map<string, number> => {
+        const key = `${layerId}\u0000${name}`;
+        let order = indexOrders.get(key);
+        if (order === undefined) {
+            order = new Map();
+            indexOrders.set(key, order);
+        }
+
+        return order;
+    };
+
     const readWholeColumn = (store: TargetStore, path: Path): { values: unknown[]; unmeasured: number } => {
         const measured = sources.measured?.(path, store.target);
 
@@ -1273,7 +1292,8 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
          * @param binding - The binding to prepare.
          */
         const add = (name: string, path: Path | null, binding: Binding): void => {
-            const descriptor = channelDescriptor(name);
+            // A shader parameter's address paints into its shader map.
+            const descriptor = channelDescriptor(parseShaderParamAddress(name)?.channel ?? name);
 
             // A channel of the wrong target, a channel the element cannot draw and a name that is
             // not a channel are all refused by the layer check before a layer is accepted. Here
@@ -1296,9 +1316,10 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 combine: combineOf(descriptor, binding),
                 template: "template" in binding,
                 binding: prepareBinding({
-                    channel,
+                    channel: name as Channel,
                     binding,
                     scales,
+                    order: indexOrder(layer.id, name),
                     columnOf: (read) => readWholeColumn(store, read).values,
                     ...(column === undefined ? {} : { column: column.values, unmeasured: column.unmeasured }),
                 }),
@@ -1602,7 +1623,12 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 if (combine !== null && column.kind === "number" && typeof painted === "number") {
                     column.values[index] = combined(combine, column.values[index], painted);
                 } else {
-                    writeColumn(column, index, channel.toColumn === null ? painted : channel.toColumn(painted), channel.plainText);
+                    writeColumn(
+                        column,
+                        index,
+                        channel.toColumn === null ? painted : channel.toColumn(painted),
+                        channel.plainText,
+                    );
                 }
             }
         };

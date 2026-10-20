@@ -86,8 +86,13 @@ const SUBJECT_TREE = "Styles/";
  * means the typeface; in a story name -- `FontSize`, `FontWeight` -- it is the prefix of any
  * typography at all, so it picks out no one subject. Those stories are still checked under
  * "size" and "weight".
+ *
+ * "effect" joined it with the shader channels. In `node.effects` it means the shader effects a
+ * layer adds; in a story name -- `WireframeEffectLayers` -- it is the name of the style editor's
+ * Effects group, which holds the outline, the glow, the halo and the wireframe too, so it picks
+ * out no one subject. Those stories are still checked under "wireframe", "glow" and the rest.
  */
-const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font"]);
+const NOT_A_SUBJECT = new Set(["node", "edge", "style", "text", "font", "effect"]);
 
 /** One story that names a subject and does not show it. */
 export interface SubjectFinding {

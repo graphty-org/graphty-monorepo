@@ -76,6 +76,7 @@
  */
 
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
+import { isShaderId } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -1761,6 +1762,55 @@ function documentRowKeys(specs: readonly LayerSpec[], ids: readonly LayerId[]): 
     return keys;
 }
 
+/** The most pasted shaders one style document carries. */
+const DOCUMENT_SHADER_LIMIT = 64;
+
+/** The most shader text one style document carries, in characters. */
+const DOCUMENT_SHADER_TEXT_LIMIT = 262_144;
+
+/**
+ * Check a document's shader list: at most 64 entries, each a namespaced id and its text, at most
+ * 256 KB of text in all. The text itself is checked when the shader is added to the project.
+ * @param shaders - The list, as the document carries it.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, whose `details.code` is `shader.too-many`,
+ *   `shader.too-large` or `shader.id-invalid`.
+ */
+function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
+    if (shaders === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(shaders) || shaders.length > DOCUMENT_SHADER_LIMIT) {
+        const count = Array.isArray(shaders) ? shaders.length : 0;
+        throw badCommand(`A style document carries at most ${String(DOCUMENT_SHADER_LIMIT)} shaders.`, {
+            code: "shader.too-many",
+            count,
+            limit: DOCUMENT_SHADER_LIMIT,
+        });
+    }
+
+    let bytes = 0;
+    for (const entry of shaders as readonly unknown[]) {
+        const { id, text } = (entry ?? {}) as { id?: unknown; text?: unknown };
+        if (!isShaderId(id, true) || typeof text !== "string") {
+            throw badCommand("Each shader in a style document is { id, text }, its id namespaced.", {
+                code: "shader.id-invalid",
+                id: String(id),
+            });
+        }
+
+        bytes += text.length;
+    }
+
+    if (bytes > DOCUMENT_SHADER_TEXT_LIMIT) {
+        throw badCommand("A style document carries at most 256 KB of shader text.", {
+            code: "shader.too-large",
+            bytes,
+            limit: DOCUMENT_SHADER_TEXT_LIMIT,
+        });
+    }
+}
+
 /**
  * Check a style document is one this element can read at all.
  *
@@ -1785,6 +1835,8 @@ function checkDocument(document: StyleDocument): void {
             { version },
         );
     }
+
+    checkDocumentShaders(document.shaders);
 
     const missing = (document.palettes ?? [])
         .filter((palette) => paletteDescriptor(palette.id) === undefined)
@@ -2573,6 +2625,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // A document's layer may name a set of the session it was saved in: kept, and reported
             // detached, rather than refused.
             ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
+            // A document's layer may name a shader this page has not registered: kept, and
+            // reported as drawing nothing (`styles.counts`), rather than refused.
+            ...(admit ? {} : { shaders: "report" as const }),
         };
 
         return checkLayerSpec(withDefaultPalettes(given, id), options);

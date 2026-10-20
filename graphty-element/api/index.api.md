@@ -912,6 +912,9 @@ export function defineLogDestination(definition: LogDestinationDefinition, optio
 // @public
 export function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
 
+// @public
+export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
+
 export { defineSource }
 
 // @public
@@ -2751,6 +2754,24 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list (`node.shader`, an effect, a parameter
+* set, a boundary). `details.candidates` lists the ids of the kinds that channel takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader of the wrong kind for where it is written: an effect id in
+* `node.shader`, a node shader on an edge. `details.expected` lists the kinds that fit.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.

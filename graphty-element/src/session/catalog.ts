@@ -47,6 +47,7 @@ import { registeredPaletteDescriptors } from "../catalog/paletteRegistry";
 import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
+import { shaderDescriptors } from "../catalog/shaderRegistry";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { describeMetrics, type MetricsSource } from "./metrics";
@@ -134,6 +135,11 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the scale descriptors
      */
     scales: () => SCALE_DESCRIPTORS,
+    /**
+     * Every shader a layer can name: the element's presets, then the registered ones.
+     * @returns the shader descriptors, the element's own first
+     */
+    shaders: () => shaderDescriptors(),
     /**
      * Every graph generator `data.generate` runs: graph-samples' catalogue. Static.
      * @returns the generator descriptors

@@ -34,6 +34,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { shaderCovers, type ShaderEffects, type ShaderParamSets } from "../../catalog/shaders";
 import type {
     Channel,
     ChannelValue,
@@ -54,10 +56,16 @@ import {
     CHANNEL_DESCRIPTORS,
     CHANNELS,
     type ChannelValues,
+    drawnEffects,
+    EFFECT_CAP,
     isChannel,
+    isShaderMapChannel,
     labelFieldOf,
     labelPatchOf,
+    mergeChannelValue,
     mergeLabelStyle,
+    parseShaderParamAddress,
+    SHADER_NONE,
 } from "./channels";
 import { type PreparedBinding, requireChannel, type StyleAdjustmentCode } from "./encoding";
 import type { CompiledLayer, Layer, PathDirectory } from "./Layer";
@@ -106,6 +114,13 @@ export interface ChannelExplanation {
      * @since 3.17.0
      */
     readonly fact?: CodedFact<ChannelRefusalCode>;
+    /**
+     * The layer whose shader is drawn instead of this channel on this element: a sprite draws in
+     * place of the shape, a surface in place of the material (see `SHADER_KIND_COVERS`). Absent
+     * when the channel is drawn.
+     * @since 3.36.0
+     */
+    readonly coveredBy?: LayerId;
 }
 
 /**
@@ -174,6 +189,11 @@ export type ChannelAgreement =
           readonly layerId: LayerId;
           /** How many elements of this channel's kind nothing painted on it. */
           readonly unpainted: number;
+          /**
+           * How many of the painted elements draw a shader instead of this channel (a sprite in
+           * place of the shape). Absent when none do. @since 3.36.0
+           */
+          readonly covered?: number;
       }
     | {
           /** The channel. */
@@ -184,6 +204,11 @@ export type ChannelAgreement =
           readonly breakdown: readonly ChannelShare[];
           /** How many elements of this channel's kind nothing painted on it. */
           readonly unpainted: number;
+          /**
+           * How many of the painted elements draw a shader instead of this channel (a sprite in
+           * place of the shape). Absent when none do. @since 3.36.0
+           */
+          readonly covered?: number;
       };
 
 /** How several elements look, channel by channel. */
@@ -313,11 +338,16 @@ export interface ChannelCovers {
  * | Code | Params |
  * | --- | --- |
  * | `caption.noArrow` | `channel`: the caption channel; `arrow`: the arrow channel at that end (`edge.arrowHead`, `edge.arrowTail`), which is `"none"` on those edges -- an undirected graph draws no head until a layer sets one; `count`: how many edges |
+ * | `shader.unknown` | `channel` (or `"boundary"`); `shader`: an id the catalog does not list, so what lies beneath is drawn; `count` |
+ * | `shader.kind-mismatch` | `channel`; `shader`; `kind`: its kind, which that channel does not take; `count` |
+ * | `shader.param-unused` | `shader`, `param`: a parameter set for a shader not drawn on those elements; `count` |
+ * | `shader.effect-cap` | `left`: the most effects left out on one element; `limit`: how many draw; `count`: how many elements lost one the layer adds |
  *
  * New codes may be added in a minor release: word an unknown one generically.
  * @since 3.26.0
  */
-export type UndrawnCode = "caption.noArrow";
+export type UndrawnCode =
+    "caption.noArrow" | "shader.unknown" | "shader.kind-mismatch" | "shader.param-unused" | "shader.effect-cap";
 
 /**
  * Why a "top N" took fewer than N, as the `code` of a {@link StyleCounts.leftOut} fact. The
@@ -698,8 +728,8 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         const labelField = labelFieldOf(channel);
         if (labelField !== undefined) {
             merged[labelField.into] = mergeLabelStyle(merged[labelField.into], labelPatchOf(labelField.field, result));
-        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle") {
-            merged[channel] = mergeLabelStyle(merged[channel], result as object);
+        } else if (CHANNEL_DESCRIPTORS[channel].accepts === "labelStyle" || isShaderMapChannel(channel)) {
+            merged[channel] = mergeChannelValue(channel, merged[channel], result as object);
         } else {
             merged[channel] = result;
         }
@@ -730,6 +760,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
         values: Object.freeze({ ...painting.values }),
     }));
 
+    const covering = coveringShader(at.target, merged, (channel) => winners.get(channel)?.layer.id);
     const channels: ChannelExplanation[] = [];
     for (const channel of CHANNELS) {
         const winner = winners.get(channel);
@@ -745,6 +776,7 @@ export function explainStyle(target: ExplainTarget, sources: ExplainSources): St
             mode: winner.mode,
             editable: refused === undefined,
             ...refused,
+            ...(covering?.covers.includes(channel) === true ? { coveredBy: covering.layerId } : {}),
         });
     }
 
@@ -761,6 +793,8 @@ interface Tally {
     readonly shares: Map<string, { value: unknown; layerId: LayerId; count: number }>;
     /** How many elements something painted on this channel. */
     painted: number;
+    /** How many of those draw a shader instead of the channel. */
+    covered: number;
 }
 
 /**
@@ -800,20 +834,32 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
         for (const index of indices) {
             totals[target]++;
             winners.clear();
+            const shader = { value: undefined as unknown, layerId: undefined as LayerId | undefined };
             paintOne(stack, { target, index }, columns, (layer, prepared, result) => {
+                if (prepared.channel === `${target}.shader`) {
+                    shader.value = result;
+                    shader.layerId = layer.id;
+                }
+
                 if (only === undefined || prepared.channel === only) {
-                    winners.set(prepared.channel, { layerId: layer.id, value: result });
+                    const held = winners.get(prepared.channel)?.value;
+                    const value = isShaderMapChannel(prepared.channel)
+                        ? mergeChannelValue(prepared.channel, held, result as object)
+                        : result;
+                    winners.set(prepared.channel, { layerId: layer.id, value });
                 }
             });
+            const covering = coveringShader(target, { [`${target}.shader`]: shader.value }, () => shader.layerId);
 
             for (const [channel, { layerId, value }] of winners) {
                 let tally = tallies.get(channel);
                 if (tally === undefined) {
-                    tally = { shares: new Map(), painted: 0 };
+                    tally = { shares: new Map(), painted: 0, covered: 0 };
                     tallies.set(channel, tally);
                 }
 
                 tally.painted++;
+                tally.covered += covering?.covers.includes(channel) === true ? 1 : 0;
                 const key = shareKey(layerId, value);
                 const share = tally.shares.get(key);
                 if (share === undefined) {
@@ -839,16 +885,24 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
         const unpainted = totals[channel.startsWith("node.") ? "node" : "edge"] - tally.painted;
         const shares = [...tally.shares.values()];
         const [first] = shares;
+        const covered = tally.covered > 0 ? { covered: tally.covered } : {};
 
         if (shares.length === 1 && first !== undefined) {
-            channels.push({ channel, state: "agree", value: first.value, layerId: first.layerId, unpainted });
+            channels.push({
+                channel,
+                state: "agree",
+                value: first.value,
+                layerId: first.layerId,
+                unpainted,
+                ...covered,
+            });
             continue;
         }
 
         // A stable sort: equal counts keep the order they were first met in.
         shares.sort((a, b) => b.count - a.count);
         const breakdown = shares.map((share): ChannelShare => Object.freeze({ ...share }));
-        channels.push({ channel, state: "mixed", breakdown: Object.freeze(breakdown), unpainted });
+        channels.push({ channel, state: "mixed", breakdown: Object.freeze(breakdown), unpainted, ...covered });
     }
 
     return { channels: Object.freeze(channels) };
@@ -861,7 +915,9 @@ export function styleAgreement(elements: AgreementElements, sources: ExplainSour
  */
 function zeroPerChannel(layer: Layer): Partial<Record<Channel, number>> {
     const painted: Partial<Record<Channel, number>> = {};
-    for (const channel of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
+    for (const name of [...Object.keys(layer.set ?? {}), ...Object.keys(layer.encode ?? {})]) {
+        // A shader parameter's address paints its shader map.
+        const channel = parseShaderParamAddress(name)?.channel ?? name;
         if (isChannel(channel)) {
             painted[channel] = 0;
         }
@@ -930,43 +986,212 @@ function countAdjustments(
 }
 
 /**
+ * The shader drawn on an element, when it covers channels: the layer that won `<target>.shader`
+ * and the channels its shader is drawn in place of.
+ * @param target - Nodes or edges.
+ * @param values - What the element is painted, read for `<target>.shader`.
+ * @param winnerOf - The layer that won a channel.
+ * @returns The covering layer and its channels, or null when no shader that covers anything is
+ *   drawn (none, "none", an id the catalog does not list, or one of the wrong kind).
+ */
+function coveringShader(
+    target: SelectorTarget,
+    values: Readonly<Record<string, unknown>>,
+    winnerOf: (channel: Channel) => LayerId | undefined,
+): { readonly layerId: LayerId; readonly covers: readonly Channel[] } | null {
+    const channel: Channel = `${target}.shader`;
+    const id = values[channel];
+    const layerId = winnerOf(channel);
+    const descriptor = typeof id === "string" && id !== SHADER_NONE ? shaderDescriptor(id) : undefined;
+    if (descriptor === undefined || layerId === undefined) {
+        return null;
+    }
+
+    const kinds = CHANNEL_DESCRIPTORS[channel].shaderKinds ?? [];
+
+    return kinds.includes(descriptor.kind) ? { layerId, covers: shaderCovers(descriptor) } : null;
+}
+
+/** What one walk over one element found, for {@link countWins}. */
+interface ElementWins {
+    /** The winning layer per channel; a map channel's winner is its topmost writer. */
+    readonly winners: Map<Channel, LayerId>;
+    /** What the element is painted, map channels merged. */
+    readonly values: Partial<Record<Channel, unknown>>;
+    /** What the counted layer itself painted. */
+    readonly own: Partial<Record<Channel, unknown>>;
+}
+
+/**
+ * Walk the stack over one element, keeping the winners, the merged values and one layer's own.
+ * @param stack - The stack with its bindings.
+ * @param at - Where the element sits.
+ * @param columns - What the session can read about elements of its kind.
+ * @param layerId - The layer whose own values are kept.
+ * @returns What the walk found.
+ */
+function walkWins(stack: readonly StackEntry[], at: Located, columns: ElementColumns, layerId: LayerId): ElementWins {
+    const winners = new Map<Channel, LayerId>();
+    const values: Partial<Record<Channel, unknown>> = {};
+    const own: Partial<Record<Channel, unknown>> = {};
+    paintOne(stack, at, columns, (winner, prepared, result) => {
+        const { channel } = prepared;
+        winners.set(channel, winner.id);
+        values[channel] = isShaderMapChannel(channel)
+            ? mergeChannelValue(channel, values[channel], result as object)
+            : result;
+        if (winner.id === layerId) {
+            own[channel] = isShaderMapChannel(channel)
+                ? mergeChannelValue(channel, own[channel], result as object)
+                : result;
+        }
+    });
+
+    return { winners, values, own };
+}
+
+/**
  * Count the channels one layer wins on one element, through the same walk `explain` takes.
+ *
+ * A map channel (`shaderParams`, `effects`) merges rather than replaces, so a layer counts as
+ * painting it wherever it writes it, and no layer above covers it. A channel a drawn shader covers
+ * (a sprite's shape rows) is covered by the shader's layer.
  * @param stack - The stack with its bindings.
  * @param at - Where the element sits.
  * @param columns - What the session can read about elements of its kind.
  * @param layerId - The layer.
- * @param painted - The tally to add to.
- * @param others - The tally of the other layers that won a channel it writes.
- * @param undrawn - Told each channel the layer wins, with everything painted on the element.
- * @param perChannel - The tally of the other layers that won each channel it writes, per channel.
+ * @param tallies - The counts to add to: what the layer paints, who covers it, per channel.
+ * @param tallies.painted - The tally to add to.
+ * @param tallies.others - The tally of the other layers that won a channel it writes.
+ * @param tallies.perChannel - The tally of the covering layers per channel.
+ * @param undrawn - Told each element's walk, to count what the layer wins that draws nothing.
  */
 function countWins(
     stack: readonly StackEntry[],
     at: Located,
     columns: ElementColumns,
     layerId: LayerId,
-    painted: Partial<Record<Channel, number>>,
-    others: Map<LayerId, number>,
-    undrawn?: (channel: Channel, values: Partial<Record<Channel, unknown>>) => void,
-    perChannel?: Map<Channel, Map<LayerId, number>>,
+    tallies: {
+        readonly painted: Partial<Record<Channel, number>>;
+        readonly others: Map<LayerId, number>;
+        readonly perChannel: Map<Channel, Map<LayerId, number>>;
+    },
+    undrawn: (found: ElementWins) => void,
 ): void {
-    const winners = new Map<Channel, LayerId>();
-    const values: Partial<Record<Channel, unknown>> = {};
-    paintOne(stack, at, columns, (winner, prepared, result) => {
-        winners.set(prepared.channel, winner.id);
-        values[prepared.channel] = result;
-    });
-    for (const [channel, winner] of winners) {
-        if (winner === layerId) {
+    const found = walkWins(stack, at, columns, layerId);
+    const { painted, others, perChannel } = tallies;
+    const covering = coveringShader(at.target, found.values, (channel) => found.winners.get(channel));
+    const cover = (channel: Channel, by: LayerId): void => {
+        if (by !== layerId) {
+            others.set(by, (others.get(by) ?? 0) + 1);
+        }
+
+        const covers = perChannel.get(channel) ?? new Map<LayerId, number>();
+        covers.set(by, (covers.get(by) ?? 0) + 1);
+        perChannel.set(channel, covers);
+    };
+
+    for (const [channel, winner] of found.winners) {
+        if (!(channel in painted)) {
+            continue;
+        }
+
+        if (covering?.covers.includes(channel) === true && (winner === layerId || channel in found.own)) {
+            cover(channel, covering.layerId);
+        } else if (winner === layerId || (isShaderMapChannel(channel) && channel in found.own)) {
             painted[channel] = (painted[channel] ?? 0) + 1;
-            undrawn?.(channel, values);
-        } else if (channel in painted) {
-            others.set(winner, (others.get(winner) ?? 0) + 1);
-            const covering = perChannel?.get(channel) ?? new Map<LayerId, number>();
-            covering.set(winner, (covering.get(winner) ?? 0) + 1);
-            perChannel?.set(channel, covering);
+        } else {
+            cover(channel, winner);
         }
     }
+
+    undrawn(found);
+}
+
+/** One shader fact being counted, by its key. */
+type ShaderFactTally = Map<string, { code: UndrawnCode; params: Record<string, string | number> }>;
+
+/**
+ * Count one fact.
+ * @param tally - The tally.
+ * @param code - The fact's code.
+ * @param params - Its values, without the count.
+ */
+function countFact(tally: ShaderFactTally, code: UndrawnCode, params: Record<string, string | number>): void {
+    const key = JSON.stringify([code, params]);
+    const entry = tally.get(key);
+    if (entry === undefined) {
+        tally.set(key, { code, params: { ...params, count: 1 } });
+    } else {
+        entry.params.count = Number(entry.params.count) + 1;
+    }
+}
+
+/**
+ * Check one shader id a layer wrote on one channel.
+ * @param tally - Where facts are counted.
+ * @param channel - The channel.
+ * @param id - The id.
+ */
+function checkShaderId(tally: ShaderFactTally, channel: Channel, id: string): void {
+    const descriptor = shaderDescriptor(id);
+    if (descriptor === undefined) {
+        countFact(tally, "shader.unknown", { channel, shader: id });
+    } else if (!(CHANNEL_DESCRIPTORS[channel].shaderKinds ?? []).includes(descriptor.kind)) {
+        countFact(tally, "shader.kind-mismatch", { channel, shader: id, kind: descriptor.kind });
+    }
+}
+
+/**
+ * A tally of what a layer's shader channels write that draws nothing: an id the catalog does not
+ * list or of the wrong kind, parameters for a shader not drawn, effects past the cap.
+ * @param target - Nodes or edges.
+ * @returns The tally, and a function to read it out as facts.
+ */
+function shaderTally(target: SelectorTarget): {
+    readonly add: (found: ElementWins) => void;
+    readonly facts: () => readonly CodedFact<UndrawnCode>[];
+} {
+    const tally: ShaderFactTally = new Map();
+    const shader: Channel = `${target}.shader`;
+    const params: Channel = `${target}.shaderParams`;
+    const effects: Channel = `${target}.effects`;
+    let capped = 0;
+    let left = 0;
+
+    return {
+        add({ own, values }): void {
+            const id = own[shader];
+            if (typeof id === "string" && id !== SHADER_NONE) {
+                checkShaderId(tally, shader, id);
+            }
+
+            for (const effect of Object.keys((own[effects] as ShaderEffects | undefined) ?? {})) {
+                checkShaderId(tally, effects, effect);
+            }
+
+            for (const [set, values_] of Object.entries((own[params] as ShaderParamSets | undefined) ?? {})) {
+                if (set !== values[shader]) {
+                    for (const param of Object.keys(values_)) {
+                        countFact(tally, "shader.param-unused", { shader: set, param });
+                    }
+                }
+            }
+
+            const lost = own[effects] === undefined ? 0 : drawnEffects(values[effects] as ShaderEffects).left;
+            if (lost > 0) {
+                capped++;
+                left = Math.max(left, lost);
+            }
+        },
+        facts: () =>
+            Object.freeze([
+                ...[...tally.values()].map((entry) => ({ code: entry.code, params: entry.params })),
+                ...(capped > 0
+                    ? [{ code: "shader.effect-cap" as const, params: { left, limit: EFFECT_CAP, count: capped } }]
+                    : []),
+            ]),
+    };
 }
 
 /** The arrow channel each end caption hangs from (`Edge.update` places a caption against its cap). */
@@ -1039,6 +1264,7 @@ export function styleCounts(
     let outsideScale = 0;
     const others = new Map<LayerId, number>();
     const captions = captionTally(sources.directed?.() ?? true);
+    const shaders = shaderTally(layer.target);
     const perChannel = new Map<Channel, Map<LayerId, number>>();
     // The elements once, as an array: the walk below and the tops' ranking both read them.
     const indices = [...(layer.target === "node" ? elements.nodes : elements.edges)];
@@ -1061,13 +1287,37 @@ export function styleCounts(
                 { target: layer.target, index },
                 columns,
                 layerId,
-                painted,
-                others,
-                captions.add,
-                perChannel,
+                { painted, others, perChannel },
+                (found) => {
+                    for (const [channel, winner] of found.winners) {
+                        if (winner === layerId) {
+                            captions.add(channel, found.values);
+                        }
+                    }
+
+                    shaders.add(found);
+                },
             );
         }
     }
+
+    const boundary = layer.boundary?.shader;
+    const boundaryFacts: CodedFact<UndrawnCode>[] =
+        boundary === undefined || matched === 0 || shaderDescriptor(boundary)?.kind === "boundary"
+            ? []
+            : [
+                  {
+                      code: shaderDescriptor(boundary) === undefined ? "shader.unknown" : "shader.kind-mismatch",
+                      params: {
+                          channel: "boundary",
+                          shader: boundary,
+                          ...(shaderDescriptor(boundary) === undefined
+                              ? {}
+                              : { kind: shaderDescriptor(boundary)?.kind }),
+                          count: matched,
+                      },
+                  },
+              ];
 
     const paintedBy = Object.freeze([...others].sort((a, b) => b[1] - a[1]).map(([id]) => id));
     const facts = [...adjusted.values()].map(({ code, channel, count }): CodedFact<StyleAdjustmentCode> => ({
@@ -1083,7 +1333,7 @@ export function styleCounts(
         reads,
         paintedBy,
         covers: coversOf(perChannel),
-        undrawn: captions.facts(),
+        undrawn: Object.freeze([...captions.facts(), ...shaders.facts(), ...boundaryFacts]),
         ...topFacts(layer.selector, columns, indices),
         adjusted: Object.freeze(facts),
         revision,

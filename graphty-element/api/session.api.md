@@ -349,7 +349,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.bandColor" | "edge.bandWidth" | "edge.bandOpacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic" | "node.visible" | "node.labelBackground" | "node.tooltipSize" | "node.tooltipColor" | "node.tooltipBackground" | "edge.visible" | "edge.labelBackground" | "edge.arrowHeadTextSize" | "edge.arrowHeadTextColor" | "edge.arrowHeadTextBackground" | "edge.arrowTailTextSize" | "edge.arrowTailTextColor" | "edge.arrowTailTextBackground" | "node.shader" | "node.shaderParams" | "node.effects" | "edge.shader" | "edge.shaderParams" | "edge.effects";
 
 // @public
 export type ChannelAgreement = {
@@ -358,11 +358,13 @@ export type ChannelAgreement = {
     readonly value: unknown;
     readonly layerId: LayerId;
     readonly unpainted: number;
+    readonly covered?: number;
 } | {
     readonly channel: Channel;
     readonly state: "mixed";
     readonly breakdown: readonly ChannelShare[];
     readonly unpainted: number;
+    readonly covered?: number;
 };
 
 // @public
@@ -377,6 +379,7 @@ export interface ChannelCovers {
 // @public
 export interface ChannelExplanation {
     readonly channel: Channel;
+    readonly coveredBy?: LayerId;
     readonly editable: boolean;
     readonly fact?: CodedFact<ChannelRefusalCode>;
     readonly layerId: LayerId;
@@ -714,7 +717,9 @@ export interface ElementSet {
 }
 
 // @public
-export type Encoding = Partial<Record<Channel, Binding>>;
+export type Encoding = Partial<Record<Channel, Binding>> & {
+    [address: ShaderParamAddress]: Binding;
+};
 
 // @public
 export type EncodingOptions = Omit<EncodingSpec, "run" | "field">;
@@ -1388,6 +1393,24 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list (`node.shader`, an effect, a parameter
+* set, a boundary). `details.candidates` lists the ids of the kinds that channel takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader of the wrong kind for where it is written: an effect id in
+* `node.shader`, a node shader on an edge. `details.expected` lists the kinds that fit.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -2095,6 +2118,7 @@ export type JournalId = string;
 
 // @public
 export interface Layer {
+    readonly boundary?: LayerBoundary;
     readonly enabled: boolean;
     readonly encode?: Encoding;
     readonly fileStyle?: FileStyleOrigin;
@@ -2110,6 +2134,13 @@ export interface Layer {
     readonly target: SelectorTarget;
     readonly unmatched?: readonly LayerUnmatchedGroup[];
     readonly userData?: Record<string, unknown>;
+}
+
+// @public
+export interface LayerBoundary {
+    readonly groupBy?: string;
+    readonly params?: ShaderParams;
+    readonly shader: string;
 }
 
 // @public
@@ -2179,6 +2210,7 @@ export type LayerSource = {
 
 // @public
 export interface LayerSpec {
+    boundary?: LayerBoundary;
     // (undocumented)
     enabled?: boolean;
     // (undocumented)
@@ -4073,13 +4105,13 @@ export type Selector = {
 }
 /**
 * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-* edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-* each change with no step.
+* edges), under the pointer (`"hovered"`, one node at most), or pinned in place (`"pinned"`,
+* nodes only; since 3.36.0). View state: the layer follows each change with no step.
 * @since 3.26.0
 */
 | {
     match: "state";
-    state: "selected" | "hovered";
+    state: "selected" | "hovered" | "pinned";
 }
 /**
 * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
@@ -4542,6 +4574,21 @@ export interface SetUser {
 }
 
 // @public
+export type ShaderEffects = Readonly<Record<string, ShaderParams | boolean>>;
+
+// @public
+export type ShaderParamAddress = `${"node" | "edge"}.${"shaderParams" | "effects"}.${string}.${string}`;
+
+// @public
+export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
+
+// @public
+export type ShaderParamSets = Readonly<Record<string, ShaderParams>>;
+
+// @public
+export type ShaderText = string;
+
+// @public
 export const SOURCE_ATTR: Readonly<{
     loads: "_source.loads";
     expansion: "_source.expansion";
@@ -4785,6 +4832,10 @@ export interface StyleDocument {
     layers: readonly LayerSpec[];
     // (undocumented)
     palettes?: readonly PaletteDescriptor[];
+    shaders?: readonly {
+        readonly id: string;
+        readonly text: ShaderText;
+    }[];
     tree?: readonly StyleDocumentRow[];
     // (undocumented)
     version: 1;
@@ -5069,7 +5120,7 @@ export interface UnboundLayer {
 export type UnboundLayerCode = "layer.detached" | "layer.unanswered";
 
 // @public
-export type UndrawnCode = "caption.noArrow";
+export type UndrawnCode = "caption.noArrow" | "shader.unknown" | "shader.kind-mismatch" | "shader.param-unused" | "shader.effect-cap";
 
 // @public
 export interface UnknownRulePath {

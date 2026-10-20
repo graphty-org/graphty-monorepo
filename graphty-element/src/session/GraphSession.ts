@@ -2993,6 +2993,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 }
             });
     };
+    // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
+    dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
+        const nodes = [...dirty].flatMap((key) => {
+            const at = key.startsWith("n:") ? nodeIndex(nodeOfKey(key)) : undefined;
+            return at === undefined ? [] : [at];
+        });
+        repaintStates({ node: nodes, edge: [] });
+    });
     // The selection as last repainted, so a change repaints what moved: one byte per element.
     let paintedSelection: { readonly node: Uint8Array; readonly edge: Uint8Array } | null = null;
     const changedBytes = (before: Uint8Array | undefined, after: Uint8Array): number[] => {
@@ -3067,6 +3075,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             edgeIndex,
             scope: (spec: Scope) => layerScopes.live(spec),
             inState: (state, target, index) => {
+                if (state === "pinned") {
+                    return target === "node" && dispatcher.state.pins.has(snapshot().ids.idOf(index));
+                }
+
                 const owner = requireSelection(selection);
                 if (state === "hovered") {
                     return (

@@ -508,7 +508,7 @@ describe("scale catalogue", () => {
     it("describes every scale a binding can name", () => {
         assert.deepEqual(
             SCALE_DESCRIPTORS.map((descriptor) => descriptor.name),
-            ["linear", "log", "neglog10", "sqrt", "pow", "bins", "quantile", "ordinal", "passthrough"],
+            ["linear", "log", "neglog10", "sqrt", "pow", "bins", "quantile", "ordinal", "passthrough", "index"],
         );
     });
 
@@ -522,7 +522,7 @@ describe("scale catalogue", () => {
     it("separates the scales that need numbers from the scales that do not", () => {
         assert.deepEqual(
             scalesForDomain("categorical").map((descriptor) => descriptor.name),
-            ["ordinal", "passthrough"],
+            ["ordinal", "passthrough", "index"],
         );
         assert.lengthOf(scalesForDomain("numeric"), 7);
         assert.deepEqual(scalesForDomain("boolean"), []);

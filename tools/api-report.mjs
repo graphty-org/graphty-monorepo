@@ -159,6 +159,9 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "origin",
     "loadedAt",
     "username",
+    // a shader's id and the data path a layer's boundary groups its nodes by
+    "shader",
+    "groupBy",
 ]);
 
 const DECLARATION =

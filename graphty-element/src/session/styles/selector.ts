@@ -103,7 +103,8 @@ export type Selector =
     /**
      * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
      * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
-     * ever hovered). View state, never data: the layer follows each change without a step.
+     * ever hovered), or pinned in place (`"pinned"`, nodes only). View state, never data: the layer
+     * follows each change without a step.
      * @since 3.26.0
      */
     | { readonly match: "state"; readonly state: ElementState }
@@ -122,10 +123,10 @@ export type Selector =
  * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
  * @since 3.26.0
  */
-export type ElementState = "selected" | "hovered";
+export type ElementState = "selected" | "hovered" | "pinned";
 
 /** Every element state, for a refusal that lists what was allowed. */
-const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered"];
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "pinned"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
@@ -458,11 +459,15 @@ function assertScopeSelector(selector: Extract<Selector, { match: "member" | "ru
  */
 function assertHoverSelector(selector: Extract<Selector, { match: "hover" }>): void {
     if (selector.reach !== undefined && selector.reach !== "node" && selector.reach !== "neighbors") {
-        throw badShape("hover-reach-unknown", 'A "hover" selector\'s reach is "node" or "neighbors".', { reach: selector.reach });
+        throw badShape("hover-reach-unknown", 'A "hover" selector\'s reach is "node" or "neighbors".', {
+            reach: selector.reach,
+        });
     }
 
     if (selector.invert !== undefined && typeof selector.invert !== "boolean") {
-        throw badShape("hover-invert-not-boolean", 'A "hover" selector\'s invert is true or false.', { invert: selector.invert });
+        throw badShape("hover-invert-not-boolean", 'A "hover" selector\'s invert is true or false.', {
+            invert: selector.invert,
+        });
     }
 
     if (selector.orSelected !== undefined && typeof selector.orSelected !== "boolean") {

@@ -117,6 +117,12 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
         }
         case "labelStyle":
             return LABEL_PROBE;
+        case "shader":
+            // The element ships no preset yet, so the one id every build takes is the plain shape.
+            return "none";
+        case "shaderParams":
+        case "shaderEffects":
+            return {};
         default:
             return undefined;
     }

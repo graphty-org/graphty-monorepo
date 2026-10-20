@@ -203,6 +203,18 @@ const CHANNEL_ROLES: Readonly<Record<Channel, StyleRole>> = Object.freeze({
     // different mesh (`Node.applyInstancePaint`, `Edge.paintMarked`).
     "node.visible": "instance",
     "edge.visible": "instance",
+
+    // Drawn beside the node's own mesh by the shader batches (design/rendering/shader-styles.md
+    // section 5), which read them on every paint, so none of them mints a source mesh: a shader
+    // written to a node already on screen rebuilds nothing, and binding a varying parameter on
+    // 10,000 nodes keeps one source mesh. A mesh-path surface that needs its own program is the
+    // drawing package's to key when it lands.
+    "node.shader": "content",
+    "node.shaderParams": "content",
+    "node.effects": "content",
+    "edge.shader": "content",
+    "edge.shaderParams": "content",
+    "edge.effects": "content",
 });
 
 /**

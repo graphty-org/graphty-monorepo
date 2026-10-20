@@ -88,6 +88,13 @@ export type { PaletteDescriptor, PaletteId, PaletteRegistration } from "./src/ca
 export { KNOWN_PALETTE_IDS } from "./src/catalog/types";
 
 // ---------------------------------------------------------------------------------------------
+// Shader: a descriptor and a GLSL body, checked as pasted shader text is
+// ---------------------------------------------------------------------------------------------
+
+export { clearRegisteredShadersForTesting, registerShader } from "./src/catalog/shaderRegistry";
+export type { ShaderDescriptor, ShaderKind, ShaderRegistration } from "./src/catalog/shaders";
+
+// ---------------------------------------------------------------------------------------------
 // File format: a reader class carrying its own description
 // ---------------------------------------------------------------------------------------------
 
@@ -390,6 +397,7 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 export type {
     AlgorithmContext,
     AlgorithmDefinition,
@@ -414,6 +422,8 @@ export type {
     PlainLogRecord,
     Point,
     Score,
+    ShaderDefinition,
+    ShaderParamShorthand,
     ShorthandValue,
     WholeGraphScoreDefinition,
 } from "./src/simple/types";

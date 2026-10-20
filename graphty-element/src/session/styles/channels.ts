@@ -56,6 +56,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import type { ShaderEffects, ShaderKind, ShaderParams, ShaderParamSets } from "../../catalog/shaders";
 import type { Channel, EdgeLinePattern, LabelStyle, Rgba } from "../../catalog/types";
 import { colorToHex } from "../../config/common";
 import { defaultEdgeStyle, EdgeArrowTypes, EdgeLineTypes, type EdgeStyleConfig } from "../../config/EdgeStyle";
@@ -344,6 +345,12 @@ export interface ChannelValues {
     "edge.labelFont": string;
     "edge.labelWeight": LabelWeightValue;
     "edge.labelItalic": boolean;
+    "node.shader": string;
+    "node.shaderParams": ShaderParamSets;
+    "node.effects": ShaderEffects;
+    "edge.shader": string;
+    "edge.shaderParams": ShaderParamSets;
+    "edge.effects": ShaderEffects;
 }
 
 /**
@@ -386,7 +393,20 @@ export type PaintedValue<C extends Channel> = ChannelValues[C];
 export type AuthoredValue<C extends Channel> = C extends ColorChannel ? string | Rgba : ChannelValues[C];
 
 /** The kind of value a channel accepts, which is what a control for it has to offer. */
-export type ChannelValueKind = "color" | "number" | "text" | "boolean" | "enum" | "labelStyle" | "nothing";
+export type ChannelValueKind =
+    | "color"
+    | "number"
+    | "text"
+    | "boolean"
+    | "enum"
+    | "labelStyle"
+    | "nothing"
+    /** A shader id from the catalog, of the kinds `shaderKinds` lists, or `"none"`. @since 3.36.0 */
+    | "shader"
+    /** Parameter values per shader id, merged by id then by parameter. @since 3.36.0 */
+    | "shaderParams"
+    /** Effects by id, merged by id then by parameter. @since 3.36.0 */
+    | "shaderEffects";
 
 /** One channel: what it paints, what it accepts, and what the renderer really does with it. */
 export interface ChannelDescriptor {
@@ -493,6 +513,12 @@ export interface ChannelDescriptor {
      * @since 3.26.0
      */
     readonly modifies?: Channel;
+    /**
+     * The kinds of shader the channel names, on a shader channel: what a picker offers for it.
+     * Absent on every other channel.
+     * @since 3.36.0
+     */
+    readonly shaderKinds?: readonly ShaderKind[];
 }
 
 /**
@@ -511,6 +537,9 @@ export type ChannelCaveatCode = "outline.sharedWidth";
  * and text; an edge's in line, arrows and text.
  */
 export type ChannelGroup = "shape" | "color" | "effects" | "text" | "line" | "arrows";
+
+/** What `node.shader` takes to draw no shader: the plain shape, covering a shader beneath. */
+export const SHADER_NONE = "none";
 
 /** What an effect colour channel takes to draw nothing: see {@link ChannelDescriptor.off}. */
 export const EFFECT_OFF = "none";
@@ -1022,6 +1051,57 @@ const LOOK_AND_VISIBILITY = {
         ARROW_CAPTION_CAVEAT,
     ),
 };
+
+/** What the shader channels draw, written once and read by all six. */
+const SHADER_CAVEAT =
+    "A shader decides the color of each pixel of what it is drawn on. `shader` names the surface " +
+    'or sprite drawn (the highest layer wins; "none" draws the plain shape), `shaderParams` the ' +
+    "parameters per shader id (only the drawn shader's set applies), and `effects` the effects by " +
+    "id, which stack instead of replacing each other, at most four per element.";
+
+/** Where each shader channel lands in a parsed style's `shader` block. */
+const SHADER_STYLE_FIELD = { shader: "id", shaderParams: "params", effects: "effects" } as const;
+
+/**
+ * The three shader channels of one target.
+ * @param target - Nodes or edges.
+ * @param drawn - The kinds `shader` and `shaderParams` name.
+ * @param effects - The kinds `effects` names.
+ * @returns The channels, keyed by name.
+ */
+function shaderChannels<T extends "node" | "edge">(
+    target: T,
+    drawn: readonly ShaderKind[],
+    effects: readonly ShaderKind[],
+): Record<`${T}.${"shader" | "shaderParams" | "effects"}`, ChannelDescriptor> {
+    const title = target === "node" ? "Node" : "Edge";
+    const row = (
+        name: "shader" | "shaderParams" | "effects",
+        accepts: ChannelValueKind,
+        plainName: string,
+        kinds: readonly ShaderKind[],
+    ): ChannelDescriptor => ({
+        channel: `${target}.${name}` as Channel,
+        target,
+        plainName: `${title} ${plainName}`,
+        shortName: plainName,
+        // An edge's look sits in its line group: the surface is the line's pattern, an effect
+        // runs along the line.
+        group: target === "node" ? "effects" : "line",
+        accepts,
+        stylePath: `shader.${SHADER_STYLE_FIELD[name]}`,
+        renderable: true,
+        caveat: SHADER_CAVEAT,
+        shaderKinds: kinds,
+        ...(name === "shader" ? { off: SHADER_NONE, default: SHADER_NONE } : {}),
+    });
+
+    return {
+        [`${target}.shader`]: row("shader", "shader", "Shader", drawn),
+        [`${target}.shaderParams`]: row("shaderParams", "shaderParams", "Shader parameters", drawn),
+        [`${target}.effects`]: row("effects", "shaderEffects", "Effects", effects),
+    } as Record<`${T}.${"shader" | "shaderParams" | "effects"}`, ChannelDescriptor>;
+}
 
 /**
  * Every channel as declared, before the defaults the element's default styles state are read in.
@@ -1561,6 +1641,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
     "node.labelColor": LOOK_AND_VISIBILITY["node.labelColor"],
     "edge.labelSize": LOOK_AND_VISIBILITY["edge.labelSize"],
     "edge.labelColor": LOOK_AND_VISIBILITY["edge.labelColor"],
+    ...shaderChannels("node", ["node-surface", "node-sprite"], ["node-effect"]),
+    ...shaderChannels("edge", ["edge-surface"], ["edge-effect"]),
 };
 
 /**
@@ -1749,4 +1831,212 @@ export function readRenamedChannels<T extends { readonly set?: object; readonly 
     return set === spec.set && encode === spec.encode
         ? spec
         : { ...spec, ...(set === undefined ? {} : { set }), ...(encode === undefined ? {} : { encode }) };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Shader maps: merged by id, then by parameter
+// ---------------------------------------------------------------------------------------------
+
+/** The most effects drawn on one element. */
+export const EFFECT_CAP = 4;
+
+/** Where each merged effects map keeps how high each of its effects was last written. */
+const EFFECT_HEIGHTS = Symbol("graphty.effectHeights");
+
+/** A merged effects map, carrying the heights of its entries out of sight of `Object.entries`. */
+type HeightedEffects = Record<string, ShaderParams | boolean> & { [EFFECT_HEIGHTS]?: Map<string, number> };
+
+/**
+ * Whether a channel's values are maps merged by id: `shaderParams` and `effects`.
+ * @param channel - The channel.
+ * @returns True for the four map channels.
+ */
+export function isShaderMapChannel(channel: string): boolean {
+    return /^(?:node|edge)\.(?:shaderParams|effects)$/.test(channel);
+}
+
+/**
+ * Stack one parameter set over another, the higher winning per parameter, into a fresh object
+ * with no prototype.
+ * @param held - The parameters beneath, or undefined.
+ * @param over - The parameters this layer writes.
+ * @returns The merged parameters.
+ */
+function mergeParams(held: unknown, over: object): Record<string, unknown> {
+    const merged = Object.create(null) as Record<string, unknown>;
+    if (typeof held === "object" && held !== null) {
+        Object.assign(merged, held);
+    }
+
+    for (const [name, value] of Object.entries(over)) {
+        if (value !== undefined) {
+            merged[name] = value;
+        }
+    }
+
+    return merged;
+}
+
+/**
+ * Stack one `shaderParams` map over another: by shader id, then by parameter.
+ * @param held - What the layers beneath painted, or undefined.
+ * @param over - What this layer paints.
+ * @returns The merged map, a fresh object with no prototype.
+ */
+export function mergeShaderParams(held: unknown, over: object): ShaderParamSets {
+    if (typeof held !== "object" || held === null) {
+        // Nothing beneath: the layer's own map, which preparation already made prototype-free.
+        return over as ShaderParamSets;
+    }
+
+    const merged = Object.create(null) as Record<string, ShaderParams>;
+    Object.assign(merged, held);
+
+    for (const [id, params] of Object.entries(over)) {
+        if (typeof params === "object" && params !== null) {
+            merged[id] = mergeParams(merged[id], params) as ShaderParams;
+        }
+    }
+
+    return merged;
+}
+
+/**
+ * The height each entry of an effects map was last written at.
+ * @param map - The map.
+ * @returns The heights; an entry never stacked over sits at 0.
+ */
+function heightsOf(map: unknown): Map<string, number> {
+    return (map as HeightedEffects | undefined)?.[EFFECT_HEIGHTS] ?? new Map<string, number>();
+}
+
+/**
+ * Stack one `effects` map over another: by effect id, then by parameter. `false` switches an
+ * effect off, `true` turns it on keeping the parameters beneath, an object turns it on and merges
+ * its parameters. Each entry keeps the place its id first appeared (bottom layer first) and
+ * records the height it was last turned on at, which decides which effects draw past the cap.
+ * @param held - What the layers beneath painted, or undefined.
+ * @param over - What this layer paints.
+ * @returns The merged map, a fresh object with no prototype.
+ */
+export function mergeEffects(held: unknown, over: object): ShaderEffects {
+    if (typeof held !== "object" || held === null) {
+        // Nothing beneath: the layer's own map, every entry at the first height.
+        return over as ShaderEffects;
+    }
+
+    const merged = Object.create(null) as HeightedEffects;
+    const before = heightsOf(held);
+    const heights = new Map(before);
+    const height = Math.max(0, ...before.values()) + 1;
+    Object.assign(merged, held);
+
+    for (const [id, value] of Object.entries(over)) {
+        const beneath = merged[id];
+        if (value === false) {
+            merged[id] = false;
+            continue;
+        }
+
+        if (value === true) {
+            merged[id] = typeof beneath === "object" ? beneath : true;
+        } else if (typeof value === "object" && value !== null) {
+            merged[id] = mergeParams(typeof beneath === "object" ? beneath : undefined, value) as ShaderParams;
+        }
+
+        heights.set(id, height);
+    }
+
+    Object.defineProperty(merged, EFFECT_HEIGHTS, { value: heights, enumerable: false });
+
+    return merged;
+}
+
+/**
+ * The effects an element draws from its merged map: every entry that is on and not hidden by
+ * `visible: false`, at most {@link EFFECT_CAP}, the highest-written kept, in the order their ids
+ * first appeared.
+ * @param effects - The merged map, or undefined.
+ * @returns The drawn effects with their parameters, and how many were left out by the cap.
+ */
+export function drawnEffects(effects: ShaderEffects | undefined): {
+    readonly drawn: readonly (readonly [string, ShaderParams])[];
+    readonly left: number;
+} {
+    if (effects === undefined) {
+        return { drawn: [], left: 0 };
+    }
+
+    const heights = heightsOf(effects);
+    const on = Object.entries(effects).filter(
+        ([, value]) => value !== false && !(typeof value === "object" && value.visible === false),
+    );
+    const kept = new Set(
+        [...on]
+            .map(([id], order) => ({ id, order, height: heights.get(id) ?? 0 }))
+            .sort((a, b) => b.height - a.height || b.order - a.order)
+            .slice(0, EFFECT_CAP)
+            .map((entry) => entry.id),
+    );
+    const drawn = on
+        .filter(([id]) => kept.has(id))
+        .map(([id, value]): readonly [string, ShaderParams] => [id, value === true ? {} : (value as ShaderParams)]);
+
+    return { drawn, left: on.length - drawn.length };
+}
+
+/**
+ * Stack a value over what lies beneath on a channel whose values merge field by field: a label
+ * style, a parameter map or an effects map.
+ * @param channel - The channel.
+ * @param held - What the layers beneath painted, or undefined.
+ * @param over - What this layer paints.
+ * @returns The merged value.
+ */
+export function mergeChannelValue(channel: string, held: unknown, over: object): object {
+    if (channel.endsWith(".shaderParams")) {
+        return mergeShaderParams(held, over);
+    }
+
+    return channel.endsWith(".effects") ? mergeEffects(held, over) : mergeLabelStyle(held, over);
+}
+
+/** Where a parameter address points: the map channel, the shader and the parameter. */
+export interface ShaderParamTarget {
+    /** The map channel the value lands in. */
+    readonly channel: Channel;
+    /** The shader or effect id. */
+    readonly shader: string;
+    /** The parameter id. */
+    readonly param: string;
+}
+
+/**
+ * Read an `encode` key that addresses one shader parameter:
+ * `"<target>.<shaderParams|effects>.<shader id>.<parameter id>"`.
+ * @param name - The key.
+ * @returns Where it points, or null when it is not a parameter address.
+ */
+export function parseShaderParamAddress(name: string): ShaderParamTarget | null {
+    const match = /^(node|edge)\.(shaderParams|effects)\.(.+)\.([^./]+)$/.exec(name);
+    if (match === null) {
+        return null;
+    }
+
+    return { channel: `${match[1]}.${match[2]}` as Channel, shader: match[3], param: match[4] };
+}
+
+/**
+ * A shader map as the repaint holds it: a deep copy with no prototype anywhere, so no key can
+ * reach `Object.prototype` however it is spelled.
+ * @param value - A map a layer wrote, already checked.
+ * @returns The copy.
+ */
+export function prototypeFreeMap(value: object): Record<string, unknown> {
+    const copy = Object.create(null) as Record<string, unknown>;
+    for (const [key, entry] of Object.entries(value)) {
+        copy[key] = typeof entry === "object" && entry !== null ? prototypeFreeMap(entry) : entry;
+    }
+
+    return copy;
 }

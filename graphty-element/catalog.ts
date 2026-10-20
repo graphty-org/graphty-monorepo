@@ -79,7 +79,34 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+// Shaders as catalog data: the kinds, the descriptor `session.catalog.shaders()` lists, the maps
+// a layer writes, the channels each kind covers, and the shader text format read and written with
+// no DOM.
+export type {
+    LayerBoundary,
+    ShaderCost,
+    ShaderDescriptor,
+    ShaderEffects,
+    ShaderInput,
+    ShaderKind,
+    ShaderMotion,
+    ShaderMotionInput,
+    ShaderOrigin,
+    ShaderParamDescriptor,
+    ShaderParams,
+    ShaderParamSets,
+    ShaderProblem,
+    ShaderProblemCode,
+    ShaderRegistration,
+    ShaderRequirement,
+    ShaderText,
+    ShaderTextResult,
+    ShaderWebGpu,
+} from "./src/catalog/shaders";
+export { SHADER_KIND_COVERS, SHADER_KINDS, shaderCovers } from "./src/catalog/shaders";
+export { formatShaderText, parseShaderText } from "./src/catalog/shaderText";
 export { sourceDescriptors } from "./src/catalog/sources";
+export type { ShaderParamAddress } from "./src/catalog/types";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
 export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";

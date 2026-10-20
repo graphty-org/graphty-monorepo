@@ -412,6 +412,7 @@ export const READ_ONLY: readonly string[] = [
     "CatalogApi.optionsFor",
     "CatalogApi.palettes",
     "CatalogApi.scales",
+    "CatalogApi.shaders",
     "CatalogApi.themes",
     "CatalogApi.timeAttributes",
     "CatalogApi.validate",

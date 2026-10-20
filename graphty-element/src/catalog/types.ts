@@ -25,6 +25,7 @@ import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { LabelStyle } from "./label-style";
+import type { LayerBoundary, ShaderDescriptor, ShaderEffects, ShaderParamSets, ShaderText } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -481,6 +482,8 @@ export const OPTION_TYPES = [
     "attribute",
     "partition",
     "ordering",
+    /** A color, `#rrggbb`: a shader parameter's type. @since 3.36.0 */
+    "color",
     "unknown",
 ] as const;
 
@@ -619,7 +622,13 @@ export type Channel =
     | "edge.arrowHeadTextBackground"
     | "edge.arrowTailTextSize"
     | "edge.arrowTailTextColor"
-    | "edge.arrowTailTextBackground";
+    | "edge.arrowTailTextBackground"
+    | "node.shader"
+    | "node.shaderParams"
+    | "node.effects"
+    | "edge.shader"
+    | "edge.shaderParams"
+    | "edge.effects";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -659,8 +668,19 @@ export interface Rgba {
  */
 export type { LabelStyle } from "./label-style";
 
-/** A literal value written to a channel. */
-export type ChannelValue = string | number | boolean | LabelStyle | Rgba;
+/**
+ * A literal value written to a channel. The shader channels take maps: `node.shaderParams` a
+ * {@link ShaderParamSets}, `node.effects` a {@link ShaderEffects}.
+ */
+export type ChannelValue = string | number | boolean | LabelStyle | Rgba | ShaderParamSets | ShaderEffects;
+
+/**
+ * An `encode` key that binds one shader parameter per element:
+ * `"<channel>.<shader id>.<parameter id>"`, such as `"node.shaderParams.acme/marble.spin"` or
+ * `"node.effects.uncertainty-aura.intensity"`. The parameter must be declared `varies`.
+ * @since 3.36.0
+ */
+export type ShaderParamAddress = `${"node" | "edge"}.${"shaderParams" | "effects"}.${string}.${string}`;
 
 /** Literal values, one per channel. */
 export type StaticStyle = Partial<Record<Channel, ChannelValue>>;
@@ -845,8 +865,11 @@ export type Binding =
           choices?: string[];
       };
 
-/** Declarative attribute-to-channel bindings. */
-export type Encoding = Partial<Record<Channel, Binding>>;
+/**
+ * Declarative attribute-to-channel bindings. A key is a channel, or a shader parameter's address
+ * (see {@link ShaderParamAddress}).
+ */
+export type Encoding = Partial<Record<Channel, Binding>> & { [address: ShaderParamAddress]: Binding };
 
 /**
  * What a "top N" does with the tie group its cut falls in. `"fewer"` (the default) leaves the
@@ -890,11 +913,11 @@ export type Selector =
     | { match: "rule"; where: RuleTree; edges?: EdgeReading }
     /**
      * The elements a reader is pointing at now: selected (`"selected"`, the selection's nodes and
-     * edges) or under the pointer (`"hovered"`, one node at most). View state: the layer follows
-     * each change with no step.
+     * edges), under the pointer (`"hovered"`, one node at most), or pinned in place (`"pinned"`,
+     * nodes only; since 3.36.0). View state: the layer follows each change with no step.
      * @since 3.26.0
      */
-    | { match: "state"; state: "selected" | "hovered" }
+    | { match: "state"; state: "selected" | "hovered" | "pinned" }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -952,6 +975,12 @@ export interface LayerSpec {
      * see {@link LayerUnmatchedGroup}. Written by the element; absent when everything matched.
      */
     unmatched?: readonly LayerUnmatchedGroup[];
+    /**
+     * Draw a boundary around this layer's nodes: one shape around all of them, or one per
+     * distinct value of `groupBy`. Node layers only.
+     * @since 3.36.0
+     */
+    boundary?: LayerBoundary;
 }
 
 /**
@@ -992,6 +1021,12 @@ export interface StyleDocument {
      * names its layer by its place in `layers`. Absent when the tree is one plain row per layer.
      */
     tree?: readonly StyleDocumentRow[];
+    /**
+     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
+     * document copied alone keeps its shaders. Absent when the layers name none.
+     * @since 3.36.0
+     */
+    shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */
@@ -1909,6 +1944,12 @@ export interface CatalogApi {
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
     scales(): readonly ScaleDescriptor[];
+    /**
+     * Every shader the element can draw: its presets first, then shaders registered through
+     * `registerShader` or `defineShader`.
+     * @since 3.36.0
+     */
+    shaders(): readonly ShaderDescriptor[];
     /**
      * Every graph generator `session.data.generate` runs, with a default name, one sentence and
      * its parameters with their defaults and ranges. Supplied by @graphty/graph-samples.

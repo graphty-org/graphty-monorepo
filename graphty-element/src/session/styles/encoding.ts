@@ -58,6 +58,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { shaderDescriptor } from "../../catalog/shaderRegistry";
 import type {
     Binding,
     BindingNumberFormat,
@@ -82,6 +83,9 @@ import {
     type EdgeLineValue,
     type NodeShapeValue,
     OFF_COLOR,
+    parseShaderParamAddress,
+    prototypeFreeMap,
+    type ShaderParamTarget,
     toColorValue,
 } from "./channels";
 import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
@@ -270,6 +274,12 @@ export interface PrepareBindingOptions {
      * `|rank`. Absent, those read an empty column.
      */
     readonly columnOf?: (path: Path) => Iterable<unknown>;
+    /**
+     * The order an `"index"` scale numbers values in, kept by the caller for the life of the layer
+     * so new data never renumbers a value already seen. Absent, the binding numbers its own column
+     * afresh.
+     */
+    readonly order?: Map<string, number>;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -895,6 +905,8 @@ function converterFor(descriptor: ChannelDescriptor, format?: BindingNumberForma
                 return writeNumber === null ? String(scaled) : writeNumber(scaled);
             };
         }
+        case "shader":
+            return (scaled): EncodedValue | undefined => (typeof scaled === "string" ? scaled : undefined);
         case "boolean":
             return (scaled): EncodedValue | undefined => {
                 if (scaled === "true" || scaled === 1) {
@@ -1035,6 +1047,19 @@ function authoredValue(descriptor: ChannelDescriptor, value: ChannelValue, what:
             }
 
             return value;
+        case "shader":
+            if (typeof value !== "string") {
+                throw wrongKind('a shader id, or "none"');
+            }
+
+            return value;
+        case "shaderParams":
+        case "shaderEffects":
+            if (typeof value !== "object" || value === null || Array.isArray(value) || isRgba(value)) {
+                throw wrongKind("a map keyed by shader id");
+            }
+
+            return prototypeFreeMap(value);
         default:
             throw unsupportedChannel(descriptor);
     }
@@ -1185,6 +1210,13 @@ function assertChannelTakesScale(descriptor: ChannelDescriptor, scale: string, n
     if (accepts === "labelStyle") {
         throw badBinding(
             `${channel} carries a whole label style, which no scale produces, so it is written as a value rather than bound to a path.`,
+            { channel },
+        );
+    }
+
+    if (accepts === "shaderParams" || accepts === "shaderEffects") {
+        throw badBinding(
+            `${channel} carries a map, which no scale produces; bind one parameter with "${channel}.<shader>.<parameter>".`,
             { channel },
         );
     }
@@ -1893,7 +1925,17 @@ function prepareRule(
 
     const facts = walkColumn(options.column, numeric);
     const categories = settleCategories(facts, binding.other, overflowKeep(descriptor, binding, numeric));
+    const order = scale === "index" ? (options.order ?? new Map<string, number>()) : undefined;
+    if (order !== undefined) {
+        // First seen in element order, before any element is painted, so which value gets which
+        // number does not depend on the order a pass happens to visit them in.
+        for (const value of options.column ?? []) {
+            map(value, { domain: [0, 1], order });
+        }
+    }
+
     const base: DomainlessContext = {
+        ...(order === undefined ? {} : { order }),
         reverse: binding.reverse,
         midpoint: binding.midpoint,
         bins: binding.bins,
@@ -2176,6 +2218,11 @@ function prepareStops(
  *   against the real group count and can never be the one that fails here.
  */
 export function prepareBinding(options: PrepareBindingOptions): PreparedBinding {
+    const address = parseShaderParamAddress(options.channel);
+    if (address !== null) {
+        return prepareParamBinding(address, options);
+    }
+
     const descriptor = requireChannel(options.channel);
     const { binding } = options;
 
@@ -2626,5 +2673,114 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
         values: paintAll(main),
         cue: half === null || cue === null ? null : { channel: half[0], values: paintAll(cue) },
         palette: binding.colors === undefined ? (main.palette?.id ?? null) : "custom",
+    };
+}
+
+// ---------------------------------------------------------------------------------------------
+// One shader parameter, bound per element
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The channel a bound shader parameter reads as: a number or a color between the parameter's
+ * declared ends, landing in its shader map.
+ * @param address - Where the binding points.
+ * @returns A descriptor the binding is prepared against.
+ * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
+ *   `E_UNKNOWN_SHADER_PARAM` when it declares no such parameter or does not let it vary.
+ */
+export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescriptor {
+    const shader = shaderDescriptor(address.shader);
+    if (shader === undefined) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_SHADER",
+            message: `There is no shader called "${address.shader}".`,
+            source: "style",
+            details: { shader: address.shader },
+        });
+    }
+
+    const param = shader.params.find((entry) => entry.name === address.param);
+    if (param?.varies !== true) {
+        throw new GraphtyError({
+            code: "E_UNKNOWN_SHADER_PARAM",
+            message: `The shader "${shader.id}" declares no parameter "${address.param}" that varies per element.`,
+            source: "style",
+            details: {
+                shader: shader.id,
+                param: address.param,
+                candidates: shader.params.filter((entry) => entry.varies === true).map((entry) => entry.name),
+            },
+        });
+    }
+
+    const map = channelDescriptor(address.channel) as ChannelDescriptor;
+
+    return {
+        ...map,
+        plainName: `${shader.plainName} ${param.plainName}`,
+        shortName: param.plainName,
+        accepts: param.type === "color" ? "color" : "number",
+        ...(typeof param.min === "number" ? { min: param.min } : {}),
+        ...(typeof param.max === "number" ? { max: param.max } : {}),
+    };
+}
+
+/**
+ * Prepare a binding of one shader parameter: prepared as a number or a color, each value then
+ * written into its shader map as `{ [shader]: { [parameter]: value } }`, one shared object per
+ * distinct value.
+ * @param address - Where the binding points.
+ * @param options - Everything preparing it was given.
+ * @returns The prepared binding, painting map patches on the map channel.
+ */
+function prepareParamBinding(address: ShaderParamTarget, options: PrepareBindingOptions): PreparedBinding {
+    const descriptor = shaderParamDescriptor(address);
+    const { binding } = options;
+    const integer =
+        shaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type === "integer";
+    const ranged =
+        "by" in binding &&
+        binding.range === undefined &&
+        binding.stops === undefined &&
+        binding.scale !== "index" &&
+        binding.scale !== "passthrough" &&
+        descriptor.min !== undefined &&
+        descriptor.max !== undefined
+            ? { ...binding, range: [descriptor.min, descriptor.max] as [number, number] }
+            : binding;
+    let prepared: PreparedBinding;
+    if ("template" in ranged) {
+        prepared = prepareTemplateBinding(descriptor, ranged.template, options);
+    } else if ("value" in ranged) {
+        prepared = prepareLiteral(descriptor, ranged);
+    } else {
+        prepared = prepareRule(descriptor, ranged, options);
+    }
+    const patches = new Map<unknown, EncodedValue>();
+    const patch = (value: EncodedValue | undefined): EncodedValue | undefined => {
+        if (value === undefined) {
+            return undefined;
+        }
+
+        const color = typeof value === "object" && value !== null && "hex" in value ? (value as ColorValue).hex : null;
+        const plain = color ?? (integer && typeof value === "number" ? Math.round(value) : value);
+        let made = patches.get(plain);
+        if (made === undefined) {
+            const params = Object.create(null) as Record<string, unknown>;
+            params[address.param] = plain;
+            const sets = Object.create(null) as Record<string, unknown>;
+            sets[address.shader] = params;
+            made = sets;
+            patches.set(plain, made);
+        }
+
+        return made;
+    };
+
+    return {
+        ...prepared,
+        channel: address.channel,
+        paint: (value) => patch(prepared.paint(value)),
+        paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
 }

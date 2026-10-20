@@ -568,7 +568,10 @@ export function LayerValues({
     const counted = layers.map((layer) => ({ layer, counts: session.styles.counts(layer.id) }));
     const paths = [...new Set(counted.flatMap(({ counts }) => counts.reads))];
     const reads = paths.map((path) => valueRead(session, path));
-    const states = layers.flatMap((layer) => (layer.selector.match === "state" ? [layer.selector.state] : []));
+    // The pinned state has no live values to list here yet; its layer still shows its own rows.
+    const states = layers.flatMap((layer) =>
+        layer.selector.match === "state" && layer.selector.state !== "pinned" ? [layer.selector.state] : [],
+    );
     const readers = (path: Path): Layer[] =>
         counted.filter(({ counts }) => counts.reads.includes(path)).map(({ layer }) => layer);
     const version = `${String(styleVersion)}:${String(sessionVersion)}`;

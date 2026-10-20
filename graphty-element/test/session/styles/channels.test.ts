@@ -105,6 +105,12 @@ const DECLARED = [
     "edge.labelFont",
     "edge.labelWeight",
     "edge.labelItalic",
+    "node.shader",
+    "node.shaderParams",
+    "node.effects",
+    "edge.shader",
+    "edge.shaderParams",
+    "edge.effects",
 ];
 
 describe("the channel set", () => {
@@ -131,9 +137,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into forty node channels and thirty-eight edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 40);
-        assert.strictEqual(channelsFor("edge").length, 38);
+    it("splits into forty-three node channels and forty-one edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 43);
+        assert.strictEqual(channelsFor("edge").length, 41);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -364,6 +370,11 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        // Unset, no shader parameter is set and no effect is drawn.
+        "node.shaderParams",
+        "node.effects",
+        "edge.shaderParams",
+        "edge.effects",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -372,6 +383,7 @@ describe("what a style editor needs to draw a row", () => {
         number: "number",
         boolean: "boolean",
         enum: "string",
+        shader: "string",
     };
 
     it("gives every channel a short name and a group of its own target", () => {

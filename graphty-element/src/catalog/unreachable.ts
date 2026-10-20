@@ -390,6 +390,26 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
                 "these channels write to be the ones drawn.",
         }),
     ),
+    ...(
+        [
+            "node.shader",
+            "node.shaderParams",
+            "node.effects",
+            "edge.shader",
+            "edge.shaderParams",
+            "edge.effects",
+        ] as const
+    ).map((channel): UnpaintedChannel => ({
+        channel,
+        ...unownedDefect(
+            "THE SHADER CHANNELS ARE ACCEPTED, MERGED AND EXPLAINED, AND NOTHING DRAWS THEM YET. " +
+                "A layer may name a shader, its parameters and its effects, the repaint stacks them " +
+                "and `styles.counts` reports what they cover, but the shader runtime and the node and " +
+                "edge drawing paths are later packages of design/rendering/shader-styles.md (section 8, " +
+                "E2, E3 and E5), and the element ships no preset yet. Until they land a layer writing " +
+                "one of these draws exactly what the layers beneath draw.",
+        ),
+    })),
 ];
 
 /**

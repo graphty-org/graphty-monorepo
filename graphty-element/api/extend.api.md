@@ -529,6 +529,9 @@ export function clearRegisteredLogSinksForTesting(): void;
 export function clearRegisteredPalettesForTesting(): void;
 
 // @public
+export function clearRegisteredShadersForTesting(): void;
+
+// @public
 export interface CollapseResult {
     readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
     readonly removedEdges: number;
@@ -696,6 +699,9 @@ export function defineOptionsSchema<S extends OptionsSchema>(schema: S): S;
 
 // @public
 export function definePalette(definition: PaletteDefinition, options?: RegisterOptions): void;
+
+// @public
+export function defineShader(definition: ShaderDefinition, options?: RegisterOptions): void;
 
 export { defineSource }
 
@@ -1126,6 +1132,24 @@ export type GraphtyErrorCode =
 * The caller picks a palette from the catalogue or registers its own first.
 */
 | "E_UNKNOWN_PALETTE"
+/**
+* A layer names a shader the catalog does not list (`node.shader`, an effect, a parameter
+* set, a boundary). `details.candidates` lists the ids of the kinds that channel takes.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER"
+/**
+* A layer names a shader of the wrong kind for where it is written: an effect id in
+* `node.shader`, a node shader on an edge. `details.expected` lists the kinds that fit.
+* @since 3.36.0
+*/
+| "E_SHADER_KIND"
+/**
+* A layer sets or binds a parameter the shader does not declare, or binds one per element
+* that it does not declare `varies`. `details.candidates` lists the declared parameters.
+* @since 3.36.0
+*/
+| "E_UNKNOWN_SHADER_PARAM"
 /**
 * A camera view name is not one the element knows. `details.available` lists the registered
 * view ids. The caller picks one of those or registers its own view first.
@@ -1947,7 +1971,7 @@ export interface NodeView {
 }
 
 // @public
-export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "unknown"];
+export const OPTION_TYPES: readonly ["number", "integer", "boolean", "string", "enum", "seed", "node-id", "node-set", "attribute", "partition", "ordering", "color", "unknown"];
 
 // @public
 export interface OptionBound {
@@ -2238,6 +2262,9 @@ export interface RegisterOptions {
 export function registerPalette(descriptor: PaletteRegistration, options?: RegisterOptions): void;
 
 // @public
+export function registerShader(registration: ShaderRegistration, options?: RegisterOptions): void;
+
+// @public
 export function registerSnapshotLayout(registration: SnapshotLayoutRegistration): void;
 
 export { registerSource }
@@ -2305,6 +2332,61 @@ export type Score = number | null | undefined;
 
 // @public
 export function setFieldSpecs(kind: "node" | "edge", headline: Omit<ResultFieldSpec, "kind">): readonly ResultFieldSpec[];
+
+// @public
+export interface ShaderDefinition {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly form?: "field" | "sphere";
+    readonly glsl: string;
+    readonly id: string;
+    readonly kind: ShaderKind;
+    readonly motion?: ShaderMotionInput;
+    readonly name?: string;
+    readonly params?: Readonly<Record<string, ShaderParamShorthand>>;
+    readonly reach?: number;
+}
+
+// @public
+export interface ShaderDescriptor {
+    readonly blend?: "over" | "add";
+    readonly bloom?: boolean;
+    readonly cost: ShaderCost;
+    readonly form?: "field" | "sphere";
+    readonly hash?: string;
+    readonly id: string;
+    readonly kind: ShaderKind;
+    readonly motion: ShaderMotion;
+    readonly origin: ShaderOrigin;
+    readonly params: readonly ShaderParamDescriptor[];
+    readonly plainName: string;
+    readonly reach?: number;
+    readonly reads: readonly ShaderInput[];
+    readonly requires?: readonly ShaderRequirement[];
+    readonly thumbnail?: string;
+    readonly webgpu: ShaderWebGpu;
+}
+
+// @public
+export type ShaderKind = "node-surface" | "node-sprite" | "node-effect" | "edge-surface" | "edge-effect" | "background" | "boundary";
+
+// @public
+export type ShaderParamShorthand = number | boolean | string | (Exclude<OptionShorthand, number | string | boolean> & {
+    readonly varies?: boolean;
+    readonly primary?: boolean;
+});
+
+// @public
+export interface ShaderRegistration {
+    readonly descriptor: Omit<ShaderDescriptor, "origin" | "cost" | "reads" | "webgpu" | "motion" | "hash"> & {
+        readonly cost?: ShaderCost;
+        readonly reads?: readonly ShaderInput[];
+        readonly webgpu?: ShaderWebGpu;
+        readonly motion?: ShaderMotionInput;
+    };
+    readonly glsl: string;
+    readonly wgsl?: string;
+}
 
 // @public
 export type ShorthandValue<S> = S extends number ? number : S extends boolean ? boolean : S extends string ? string : S extends {

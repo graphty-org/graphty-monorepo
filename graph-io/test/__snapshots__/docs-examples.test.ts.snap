@@ -265,6 +265,8 @@ exports[`documentation examples > sources/paging runs 1`] = `[]`;
 
 exports[`documentation examples > sources/rest-mapping runs 1`] = `[]`;
 
+exports[`documentation examples > sources/sparql-wikidata runs 1`] = `[]`;
+
 exports[`documentation examples > sources/testing runs 1`] = `[]`;
 
 exports[`documentation examples > sources/with-token runs 1`] = `[]`;

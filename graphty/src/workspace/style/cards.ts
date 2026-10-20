@@ -28,7 +28,7 @@ export type Selector = Layer["selector"];
 export interface CardField {
     readonly path: string;
     readonly on: Side;
-    readonly kind: "number" | "category" | "text" | "yes-no";
+    readonly kind: "number" | "category" | "text" | "yes-no" | "source";
     readonly name: string;
     readonly range?: { readonly min: number; readonly max: number };
 }
@@ -54,8 +54,13 @@ export type Card =
           readonly text: string;
       }
     | { readonly type: "yes-no"; readonly key: string; readonly field: CardField; readonly yes: boolean }
+    /** The loads an element came from (`data.sources()` keys), offered once two or more are loaded. */
+    | { readonly type: "source"; readonly key: string; readonly field: CardField; readonly sources: readonly string[] }
     /** A leaf no card edits (a rule made elsewhere): kept as it is, removable. */
     | { readonly type: "fixed"; readonly key: string; readonly leaf: RuleTree; readonly side: Side };
+
+/** The Data source field's path: not a column, the load an element came from (a `source` rule). */
+export const SOURCE_PATH = "@source";
 
 /** A text column with at most this many distinct values is a category card. */
 const MAX_CATEGORIES = 30;
@@ -89,6 +94,11 @@ function kindOf(attribute: AttributeDescriptor): CardField["kind"] {
  * @returns the fields, in the element's order.
  */
 export function cardFields(session: GraphSession, side: Side): CardField[] {
+    // With two or more loads, which one an element came from is a field too (spec section 3.4).
+    const source: CardField[] =
+        session.data.sources().length >= 2
+            ? [{ path: SOURCE_PATH, on: side, kind: "source", name: "Data source" }]
+            : [];
     return session.data
         .attributes()
         .filter((a) => a.kind === side && a.hidden !== true && a.path.startsWith("data."))
@@ -103,7 +113,8 @@ export function cardFields(session: GraphSession, side: Side): CardField[] {
                     ? { range: { min: a.min, max: a.max } }
                     : {}),
             };
-        });
+        })
+        .concat(source);
 }
 
 /**
@@ -128,6 +139,8 @@ export function newCard(field: CardField): Card {
             return { type: "category", key, field, values: [] };
         case "yes-no":
             return { type: "yes-no", key, field, yes: true };
+        case "source":
+            return { type: "source", key, field, sources: [] };
         default:
             return { type: "text", key, field, mode: "contains", text: "" };
     }
@@ -152,7 +165,7 @@ const json = (value: unknown): string => `\`${JSON.stringify(value).replaceAll("
  * @param card - a value card.
  * @returns the query, or null while the card is unfinished.
  */
-function queryOf(card: Exclude<Card, { type: "fixed" }>): string | null {
+function queryOf(card: Exclude<Card, { type: "fixed" | "source" }>): string | null {
     const q = quotePath(card.field.path);
     switch (card.type) {
         case "number": {
@@ -184,6 +197,9 @@ function queryOf(card: Exclude<Card, { type: "fixed" }>): string | null {
 export function leafOf(card: Card): RuleTree | null {
     if (card.type === "fixed") {
         return card.leaf;
+    }
+    if (card.type === "source") {
+        return card.sources.length === 0 ? null : { kind: "source", sources: card.sources };
     }
     const { path, on } = card.field;
     if (on === "node" && card.type === "number") {
@@ -300,6 +316,11 @@ export function cardOf(leaf: RuleTree, fields: readonly CardField[], at: number)
                 }
             }
             return fixed;
+        }
+        case "source": {
+            // A source rule speaks nodes and edges: its card is the node field's when there is one.
+            const f = on("node", SOURCE_PATH) ?? on("edge", SOURCE_PATH);
+            return f === undefined ? fixed : { type: "source", key: keyOf(f), field: f, sources: leaf.sources };
         }
         default:
             return fixed;

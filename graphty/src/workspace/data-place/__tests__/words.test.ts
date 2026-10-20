@@ -1,147 +1,105 @@
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { ImportReport } from "@graphty/graphty-element/session";
+import type { LoadedSource } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
-import { attributeRows, columnOf, count, fillOf, sourceRows } from "../words";
+import {
+    columnChoices,
+    FIELD_ROWS,
+    joinMatch,
+    kindChoices,
+    loadValue,
+    roleHolder,
+    serverCount,
+    tableRoles,
+} from "../words";
 
 /**
- * An import report with these counts; the rest of the report is not read.
- * @param counts - the counts.
- * @returns the report.
- */
-function report(counts: Partial<ImportReport["counts"]>): ImportReport {
-    return {
-        counts: { nodes: 0, edges: 0, nodeRecords: 0, edgeRecords: 0, rejected: 0, ...counts },
-    } as ImportReport;
-}
-
-/**
- * An attribute descriptor with what the Data place reads.
+ * A column as `data.attributes()` describes it, cut to what the words read.
  * @param kind - node or edge.
- * @param name - the column name.
- * @param measurement - what it measures.
- * @param completeness - the share of elements with a value.
+ * @param name - its name.
+ * @param extra - anything else.
  * @returns the descriptor.
  */
-function attribute(
-    kind: "node" | "edge",
-    name: string,
-    measurement: string | undefined,
-    completeness = 1,
-): AttributeDescriptor {
-    return { kind, name, measurement, completeness } as AttributeDescriptor;
-}
+const column = (kind: "node" | "edge", name: string, extra: Partial<AttributeDescriptor> = {}): AttributeDescriptor =>
+    ({ kind, name, path: `data.${name}`, ...extra }) as AttributeDescriptor;
+
+/** An auth log read as edges from user to host, with the kind of each end. */
+const LOG: LoadedSource = {
+    key: "s1",
+    kind: "file",
+    name: "auth-log.csv",
+    counts: { nodes: 5, edges: 4 },
+    added: { nodes: 5, edges: 4 },
+    tables: ["auth-log.csv"],
+    reloadable: true,
+    mapping: {
+        tables: {
+            rows: {
+                rowsAre: "edges",
+                source: { column: "user" },
+                target: { column: "host" },
+                sourceKind: "user",
+                targetKind: null,
+            },
+        },
+    },
+};
 
 describe("the Data place's words", () => {
-    it("counts with a singular for one", () => {
-        assert.equal(count(1, "node"), "1 node");
-        assert.equal(count(1234, "edge"), "1,234 edges");
+    it("counts a server load against what the source holds, when it says", () => {
+        assert.equal(serverCount(500, 40_000), "500 of 40,000");
+        assert.equal(serverCount(12, undefined), "12");
     });
 
-    it("lists nothing before an import", () => {
-        assert.deepEqual(sourceRows(null, null), []);
-        assert.deepEqual(sourceRows({ name: "a.gml" }, null), []);
+    it("words a joined table's match as matched of rows, and nothing for another load", () => {
+        const joined = { ...LOG, kind: "join", join: { matched: 52, rows: 70 } } as unknown as LoadedSource;
+        assert.equal(joinMatch(joined), "52/70");
+        assert.isNull(joinMatch(LOG));
     });
 
-    it("draws a graph file as one row that expands to its node table and edge table", () => {
-        const [file] = sourceRows(
-            { type: "gml", name: "karate.gml" },
-            report({ nodes: 34, edges: 78, nodeRecords: 34, edgeRecords: 78 }),
-        );
-        assert.equal(file.kind, "file");
-        assert.equal(file.name, "karate.gml");
-        assert.equal(file.quiet, "34 nodes, 78 edges");
+    it("lists the special fields in spec order, the node roles first", () => {
         assert.deepEqual(
-            file.children?.map((t) => [t.kind, t.name, t.quiet]),
+            FIELD_ROWS.map((row) => `${row.side}:${row.label}`),
             [
-                ["nodes", "Node table", "34 rows, 34 nodes"],
-                ["edges", "Edge table", "78 rows, 78 edges"],
+                "nodes:Id",
+                "nodes:Label",
+                "nodes:Kind",
+                "nodes:Time",
+                "edges:Source",
+                "edges:Target",
+                "edges:Weight",
+                "edges:Time",
+                "edges:Kind of source",
+                "edges:Kind of target",
             ],
         );
     });
 
-    it("draws an edge list as one edge table", () => {
-        const rows = sourceRows({ name: "edges.csv" }, report({ nodes: 30, edges: 254, edgeRecords: 254 }));
-        assert.deepEqual(
-            rows.map((r) => [r.kind, r.name, r.quiet, r.children]),
-            [["edges", "edges.csv", "254 rows, 254 edges", undefined]],
-        );
+    it("reads a load-time role from the table the load read", () => {
+        const roles = tableRoles(LOG, "edges");
+        assert.equal(loadValue(roles, "source"), "user");
+        assert.equal(loadValue(roles, "sourceKind"), "user");
+        assert.isNull(loadValue(roles, "targetKind"));
+        assert.isUndefined(tableRoles(LOG, "nodes"));
     });
 
-    it("draws a lone node table with its node count only", () => {
-        const rows = sourceRows({ name: "les miserables" }, report({ nodes: 77, nodeRecords: 77 }));
-        assert.deepEqual(
-            rows.map((r) => [r.kind, r.name, r.quiet]),
-            [["nodes", "les miserables", "77 nodes"]],
-        );
+    it("offers the endpoint columns' names as kinds", () => {
+        assert.deepEqual(kindChoices(tableRoles(LOG, "edges"), null), ["user", "host"]);
+        assert.deepEqual(kindChoices(tableRoles(LOG, "edges"), "account"), ["user", "host", "account"]);
     });
 
-    it("lists one kind's attributes by name, with the glyph for what each measures and a fill below 100%", () => {
+    it("names the column holding a role, and offers the load's columns, hidden ones left out", () => {
         const attributes = [
-            attribute("node", "zeta", "quantitative"),
-            attribute("edge", "weight", "quantitative"),
-            attribute("node", "group", "categorical", 0.2),
-            attribute("node", "born", "time"),
-            attribute("node", "rank", "ordinal"),
-            attribute("node", "empty", undefined, 0),
+            column("edge", "ip", { sources: ["s1"] }),
+            column("edge", "result", { sources: ["s1"], hidden: true }),
+            column("edge", "amount", { sources: ["s2"], roles: ["weight"] }),
+            column("node", "name"),
         ];
-        const rows = attributeRows(attributes, "node");
-        assert.deepEqual(
-            rows.map((r) => [r.name, r.glyph, r.fill]),
-            [
-                ["born", "time", null],
-                ["empty", "unknown", "0%"],
-                ["group", "category", "20%"],
-                ["rank", "ordinal", null],
-                ["zeta", "number", null],
-            ],
-        );
-        assert.deepEqual(rows[2].column, { kind: "node", name: "group" });
-        assert.equal(rows[2].label, "group, node attribute");
-        assert.equal(rows[2].description, "Category, 20% have a value");
-        assert.deepEqual(
-            attributeRows(attributes, "edge").map((r) => r.id),
-            ["edge:weight"],
-        );
-    });
-
-    it("lists the results of runs first, marked by their run, then the rest by name", () => {
-        const pagerank = { ...attribute("node", "pagerank", "quantitative"), origin: "result", runId: "r1" };
-        const rows = attributeRows(
-            [attribute("node", "age", "quantitative"), pagerank as AttributeDescriptor],
-            "node",
-            "",
-            (id) => (id === "r1" ? "PageRank" : undefined),
-        );
-        assert.deepEqual(
-            rows.map((r) => [r.name, r.glyph, r.typeWord]),
-            [
-                ["pagerank", "result", "Result of PageRank"],
-                ["age", "number", "Number"],
-            ],
-        );
-    });
-
-    it("never shows a few values as 0% or a missing value as 100%", () => {
-        assert.isNull(fillOf(1));
-        assert.equal(fillOf(0), "0%");
-        assert.equal(fillOf(0.004), "<1%");
-        assert.equal(fillOf(0.999), "99%");
-        assert.equal(fillOf(0.25), "25%");
-    });
-
-    it("filters by name, ignoring case", () => {
-        const attributes = [attribute("node", "Degree", "quantitative"), attribute("node", "group", "categorical")];
-        assert.deepEqual(
-            attributeRows(attributes, "node", " deg").map((r) => r.name),
-            ["Degree"],
-        );
-    });
-
-    it("reads a column back from an inspected id, even one with a colon in its name", () => {
-        assert.deepEqual(columnOf("node:a:b"), { kind: "node", name: "a:b" });
-        assert.deepEqual(columnOf("edge:shared chapters"), { kind: "edge", name: "shared chapters" });
-        assert.isNull(columnOf("nodes"));
-        assert.isNull(columnOf("source:nodes"));
+        assert.equal(roleHolder(attributes, "edges", "weight"), "amount");
+        assert.isNull(roleHolder(attributes, "nodes", "label"));
+        assert.deepEqual(columnChoices(attributes, LOG, "edges", null), ["ip"]);
+        // The column holding the row now is offered even when the load does not keep it.
+        assert.deepEqual(columnChoices(attributes, LOG, "edges", "user"), ["user", "ip"]);
+        assert.deepEqual(columnChoices(attributes, undefined, "edges", null), ["ip", "amount"]);
     });
 });

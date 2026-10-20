@@ -1,191 +1,161 @@
 /**
- * The Data place's words and arrangement (tier1-design.md section 2.6): what each Sources row and
- * each Attributes row says, in which order. Every fact comes from graphty-element
- * (`data.source()`, `data.lastImport()`, `data.attributes()`); this file only words and orders it.
+ * The Data place's words and arrangement (data prototype spec sections 3.2 and 3.3): what each
+ * Sources row and each Fields row says, in which order. Every fact comes from graphty-element
+ * (`data.sources()`, `data.loads()`, `data.attributes()`); this file only words and orders it.
  */
 
 import type { AttributeDescriptor } from "@graphty/graphty-element/catalog";
-import type { CodedFact, ColumnRef, DataSourceDescriptor, ImportReport } from "@graphty/graphty-element/session";
+import type { ColumnRole, Endpoint, LoadedSource, TableMappingRead } from "@graphty/graphty-element/session";
 
-/** What a Sources row's glyph shows: a graph file holding both tables, or one table. */
-export type SourceKind = "file" | "nodes" | "edges";
+import { formatNumber } from "../inspector/words";
 
-/** One Sources row. */
-export interface SourceRow {
-    readonly id: string;
-    readonly kind: SourceKind;
-    readonly name: string;
-    /** The quiet line: "34 nodes, 78 edges"; "254 rows, 254 edges"; "77 nodes". */
-    readonly quiet: string;
-    readonly children?: readonly SourceRow[];
+/**
+ * A server load's count beside its name: how many nodes it brought of how many the source holds.
+ * @param loaded - the nodes the load brought.
+ * @param total - the nodes the source holds, when it says.
+ * @returns such as "500 of 40,000", or "500" when the source does not say.
+ */
+export function serverCount(loaded: number, total: number | undefined): string {
+    return total === undefined ? formatNumber(loaded) : `${formatNumber(loaded)} of ${formatNumber(total)}`;
 }
 
-/** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
-export type TypeGlyph = "category" | "number" | "ordinal" | "time" | "unknown" | "result";
+/**
+ * A joined table's match: "52/70", matched rows of all its rows.
+ * @param source - the joined load.
+ * @returns the words, or null when the load is not a join.
+ */
+export function joinMatch(source: LoadedSource): string | null {
+    return source.join === undefined ? null : `${formatNumber(source.join.matched)}/${formatNumber(source.join.rows)}`;
+}
 
-/** One Attributes row. */
-export interface AttributeRow {
-    /** `node:<name>` or `edge:<name>`: the tree row's id (the inspected id is the path). */
-    readonly id: string;
-    readonly column: ColumnRef;
-    readonly name: string;
-    /** The accessible name: the name and its kind ("value, edge attribute"), unique across kinds. */
+/** Which table of a load a Fields row reads its column from. */
+export type FieldSide = "nodes" | "edges";
+
+/** What a Fields row sets. */
+export type FieldKey = "key" | "label" | "kind" | "time" | "source" | "target" | "weight" | "sourceKind" | "targetKind";
+
+/** One Fields row. */
+export interface FieldRow {
+    readonly key: FieldKey;
+    readonly side: FieldSide;
+    /** The row's label, such as "Kind of source". */
     readonly label: string;
-    readonly glyph: TypeGlyph;
-    /** The glyph's word ("Number", "Result of PageRank"), for the row's tooltip. */
-    readonly typeWord: string;
-    /** "20%" when not every element has a value; null when all do. */
-    readonly fill: string | null;
-    /** What a screen reader hears after the name: the type word, then the fill. */
-    readonly description: string;
+    /**
+     * Read when the rows load, so changing it reads the load again (`data.reloadSource`); the
+     * others are settings the element changes in place (`data.setRole`).
+     */
+    readonly atLoad: boolean;
 }
 
-/** Find appears past this many attributes (section 2.6). */
-export const FIND_PAST = 15;
+/** The Fields rows, in order (section 3.3): the node roles, then the edge roles. */
+export const FIELD_ROWS: readonly FieldRow[] = [
+    { key: "key", side: "nodes", label: "Id", atLoad: true },
+    { key: "label", side: "nodes", label: "Label", atLoad: false },
+    { key: "kind", side: "nodes", label: "Kind", atLoad: true },
+    { key: "time", side: "nodes", label: "Time", atLoad: false },
+    { key: "source", side: "edges", label: "Source", atLoad: true },
+    { key: "target", side: "edges", label: "Target", atLoad: true },
+    { key: "weight", side: "edges", label: "Weight", atLoad: false },
+    { key: "time", side: "edges", label: "Time", atLoad: false },
+    { key: "sourceKind", side: "edges", label: "Kind of source", atLoad: true },
+    { key: "targetKind", side: "edges", label: "Kind of target", atLoad: true },
+];
+
+/** What a weight means, as the element's `knownFields.edgeWeightMeaning` names it; "" is unknown. */
+export const WEIGHT_MEANINGS = [
+    { value: "", label: "unknown" },
+    { value: "distance", label: "distance" },
+    { value: "similarity", label: "similarity" },
+    { value: "capacity", label: "capacity" },
+] as const;
+
+/** The direction choices, as the element's `data.directed` takes them. */
+export const DIRECTIONS = [
+    { value: "true", label: "Directed" },
+    { value: "false", label: "Undirected" },
+    { value: "auto", label: "Auto" },
+] as const;
 
 /**
- * A count and its noun, singular for one.
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns such as "1 node" or "34 nodes".
+ * The table of one side a load read, with the roles it read it with.
+ * @param source - the load.
+ * @param side - nodes or edges.
+ * @returns the table's roles, or undefined when the load kept none or read no such table.
  */
-export function count(n: number, noun: string): string {
-    return `${n.toLocaleString("en-US")} ${noun}${n === 1 ? "" : "s"}`;
+export function tableRoles(source: LoadedSource | undefined, side: FieldSide): TableMappingRead | undefined {
+    return Object.values(source?.mapping?.tables ?? {}).find((table) => table.rowsAre === side);
 }
 
 /**
- * The Sources rows for what the element says was loaded. A graph file that brought both node and
- * edge records is one row that expands to its node table and edge table; a source that brought
- * one kind of record is that one table.
- * @param source - `data.source()`.
- * @param report - `data.lastImport()`.
- * @returns the rows, empty when nothing was imported.
+ * The column (or kind name) a load-time row holds, as the load read it.
+ * @param roles - the table's roles.
+ * @param key - the row.
+ * @returns the column or kind name, or null for none.
  */
-export function sourceRows(source: DataSourceDescriptor | null, report: ImportReport | null): SourceRow[] {
-    if (source === null || report === null) {
-        return [];
+export function loadValue(roles: TableMappingRead | undefined, key: FieldKey): string | null {
+    const value: unknown = roles?.[key as keyof TableMappingRead];
+    if (typeof value === "string") {
+        return value;
     }
-    const name = source.name ?? "Untitled data";
-    const { nodes, edges, nodeRecords, edgeRecords } = report.counts;
-    const nodeTable: SourceRow = {
-        id: "source:nodes",
-        kind: "nodes",
-        name: "Node table",
-        quiet: `${count(nodeRecords, "row")}, ${count(nodes, "node")}`,
-    };
-    const edgeTable: SourceRow = {
-        id: "source:edges",
-        kind: "edges",
-        name: "Edge table",
-        quiet: `${count(edgeRecords, "row")}, ${count(edges, "edge")}`,
-    };
-    if (nodeRecords > 0 && edgeRecords > 0) {
-        return [
-            {
-                id: "source",
-                kind: "file",
-                name,
-                quiet: `${count(nodes, "node")}, ${count(edges, "edge")}`,
-                children: [nodeTable, edgeTable],
-            },
-        ];
-    }
-    // A lone node table reads "77 nodes"; only an edge table counts its rows (section 2.6).
-    const only = edgeRecords > 0 ? edgeTable : { ...nodeTable, quiet: count(nodes, "node") };
-    return [{ ...only, id: "source", name }];
+    return typeof value === "object" && value !== null ? (value as Endpoint).column : null;
 }
 
-/**
- * The glyph and its word for what a column measures. An absent measurement is a column with no
- * values.
- * @param measurement - `AttributeDescriptor.measurement`.
- * @returns the glyph and its word.
- */
-function typeOf(measurement: string | undefined): { glyph: TypeGlyph; typeWord: string } {
-    switch (measurement) {
-        case "categorical":
-            return { glyph: "category", typeWord: "Category" };
-        case "quantitative":
-            return { glyph: "number", typeWord: "Number" };
-        case "ordinal":
-            return { glyph: "ordinal", typeWord: "Ordered category" };
-        case "time":
-            return { glyph: "time", typeWord: "Time" };
-        default:
-            return { glyph: "unknown", typeWord: "No values" };
-    }
-}
+/** The attribute kind of each side. */
+export const KIND_OF: Readonly<Record<FieldSide, "node" | "edge">> = { nodes: "node", edges: "edge" };
 
 /**
- * The share of elements with a value, as the row shows it. Rounded down, so a column missing one
- * value never reads 100%; a column with a few values reads "<1%", never the empty column's "0%".
- * @param completeness - from 0 to 1.
- * @returns such as "25%", or null when every element has a value.
- */
-export function fillOf(completeness: number): string | null {
-    if (completeness >= 1) {
-        return null;
-    }
-    return completeness > 0 && completeness < 0.01 ? "<1%" : `${String(Math.floor(completeness * 100))}%`;
-}
-
-/**
- * One kind's Attributes rows: the results of runs first, marked by their run's glyph, then the
- * rest; each group by name (section 2.6).
+ * The column holding a setting row's role now, as the element's attribute roles say.
  * @param attributes - `data.attributes()`.
- * @param kind - the subhead's kind.
- * @param filter - the Find box's text; empty lists every row.
- * @param runLabel - the label of the run a result came from (`runs.get(id)?.label`).
- * @returns the rows.
+ * @param side - nodes or edges.
+ * @param role - the role.
+ * @returns the column's name, or null for none.
  */
-export function attributeRows(
+export function roleHolder(
     attributes: readonly AttributeDescriptor[],
-    kind: "node" | "edge",
-    filter = "",
-    runLabel: (runId: string) => string | undefined = () => undefined,
-): AttributeRow[] {
-    const needle = filter.trim().toLocaleLowerCase();
-    const isResult = (a: AttributeDescriptor): boolean => a.origin === "result";
-    return attributes
-        .filter((a) => a.kind === kind && a.name.toLocaleLowerCase().includes(needle))
-        .sort((a, b) => Number(isResult(b)) - Number(isResult(a)) || a.name.localeCompare(b.name))
-        .map((a) => {
-            const run = isResult(a) && a.runId !== undefined ? runLabel(a.runId) : undefined;
-            const type = isResult(a)
-                ? { glyph: "result" as const, typeWord: run === undefined ? "Result of a run" : `Result of ${run}` }
-                : typeOf(a.measurement);
-            const fill = fillOf(a.completeness);
-            return {
-                id: `${a.kind}:${a.name}`,
-                column: { kind: a.kind, name: a.name },
-                name: a.name,
-                label: `${a.name}, ${a.kind} attribute`,
-                ...type,
-                fill,
-                description: fill === null ? type.typeWord : `${type.typeWord}, ${fill} have a value`,
-            };
-        });
+    side: FieldSide,
+    role: ColumnRole,
+): string | null {
+    return attributes.find((a) => a.kind === KIND_OF[side] && a.roles?.includes(role as never) === true)?.name ?? null;
 }
 
 /**
- * Why an attribute cannot be a label, in words, from the element's coded refusal
- * (`styles.proposeEncoding`).
- * @param refusal - the refusal.
- * @returns one short reason.
+ * The columns a Fields row offers for one load: the load's data columns of the side, hidden ones
+ * left out unless one holds the row now, with that one first when it is not a column (an endpoint
+ * the load does not keep as an attribute).
+ * @param attributes - `data.attributes()`.
+ * @param source - the load, or undefined for every load.
+ * @param side - nodes or edges.
+ * @param current - the column the row holds now, or null.
+ * @returns the column names.
  */
-export function labelRefusalWords(refusal: CodedFact): string {
-    return refusal.code === "E_UNSUPPORTED" && refusal.params.measurement === null
-        ? "Has no values"
-        : "Cannot be drawn as a label";
+export function columnChoices(
+    attributes: readonly AttributeDescriptor[],
+    source: LoadedSource | undefined,
+    side: FieldSide,
+    current: string | null,
+): string[] {
+    const names = attributes
+        .filter(
+            (a) =>
+                a.kind === KIND_OF[side] &&
+                a.path.startsWith("data.") &&
+                (a.hidden !== true || a.name === current) &&
+                (source === undefined || a.sources === undefined || a.sources.includes(source.key)),
+        )
+        .map((a) => a.name);
+    return current === null || names.includes(current) ? names : [current, ...names];
 }
 
 /**
- * The column an Attributes tree row id names.
- * @param id - `node:<name>` or `edge:<name>`.
- * @returns the column, or null for an id that is not an attribute's.
+ * The kind names an endpoint's kind row offers: the endpoint columns' own names (an auth log's
+ * `user` and `host`), which is what a reader calls the things in them, and the current kind.
+ * @param roles - the edge table's roles.
+ * @param current - the kind now, or null.
+ * @returns the names.
  */
-export function columnOf(id: string): ColumnRef | null {
-    const at = id.indexOf(":");
-    const kind = at < 0 ? "" : id.slice(0, at);
-    return kind === "node" || kind === "edge" ? { kind, name: id.slice(at + 1) } : null;
+export function kindChoices(roles: TableMappingRead | undefined, current: string | null): string[] {
+    const names = [loadValue(roles, "source"), loadValue(roles, "target"), current].filter(
+        (name): name is string => name !== null,
+    );
+    return [...new Set(names)];
 }

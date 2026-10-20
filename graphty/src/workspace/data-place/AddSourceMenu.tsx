@@ -1,0 +1,52 @@
+import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import { Plus } from "lucide-react";
+import React from "react";
+
+import { useCommand } from "../state/WorkspaceContext";
+
+/**
+ * The commands the Sources "+" offers, in menu order (spec section 3.2): File..., Samples...,
+ * Server..., Paste, registered by the loading and server packages, and the Data page's Add
+ * data.... Each is drawn only once its package registers it.
+ */
+export const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste", "data.add"] as const;
+
+/**
+ * The Sources "+": a menu of the ways to add a source.
+ * @returns the menu, or nothing until some way is registered
+ */
+export function AddSourceMenu(): React.JSX.Element | null {
+    const doors = [
+        useCommand(ADD_SOURCE[0]),
+        useCommand(ADD_SOURCE[1]),
+        useCommand(ADD_SOURCE[2]),
+        useCommand(ADD_SOURCE[3]),
+        useCommand(ADD_SOURCE[4]),
+    ].filter((door) => door !== null);
+    if (doors.length === 0) {
+        return null;
+    }
+    return (
+        <Menu position="bottom-end">
+            <Menu.Target>
+                <Tooltip label="Add source">
+                    <ActionIcon variant="subtle" size="sm" aria-label="Add source">
+                        <Plus size={14} aria-hidden />
+                    </ActionIcon>
+                </Tooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+                {doors.map((door) => (
+                    <Menu.Item key={door.command.id} disabled={door.disabledReason !== null} onClick={door.run}>
+                        {door.command.label}
+                        {door.disabledReason === null ? null : (
+                            <Text size="xs" c="dimmed">
+                                {door.disabledReason}
+                            </Text>
+                        )}
+                    </Menu.Item>
+                ))}
+            </Menu.Dropdown>
+        </Menu>
+    );
+}

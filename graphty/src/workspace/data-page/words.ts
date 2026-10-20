@@ -17,6 +17,7 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     weight: "Weight",
     time: "Time",
     edgeId: "Edge id",
+    kind: "Kind",
     attribute: "Attribute",
 };
 

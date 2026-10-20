@@ -12,7 +12,7 @@
  */
 
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
 import { assertAppKey } from "../keys/keys";
 import type { WorkspaceStore } from "../state/store";
@@ -66,6 +66,27 @@ export interface Command {
     readonly stub?: boolean;
 }
 
+/**
+ * A command on one Sources row (data prototype spec section 3.2): the row's menu lists every one
+ * registered whose `shown` holds for the row, so a package adds an item to the menu by registering
+ * one, not by editing the Data place. A command with `icon` is also drawn as a button on the row's
+ * hover (Load more, Refresh).
+ */
+export interface SourceRowCommand {
+    /** Stable id, `source.<verb>`. */
+    readonly id: string;
+    /** The menu item's label, such as `"Refresh"`. */
+    readonly label: string;
+    /** Where the menu lists it: lower first; absent lists it last, in registration order. */
+    readonly order?: number;
+    /** Also a hover button on the row, drawn with this icon. */
+    readonly icon?: "more" | "refresh";
+    /** Whether the row offers it: false leaves it out (an absent precondition is never grayed). */
+    readonly shown?: (ctx: CommandContext, source: LoadedSource) => boolean;
+    /** Does it to the row's load. */
+    readonly run: (ctx: CommandContext, source: LoadedSource) => void | Promise<void>;
+}
+
 /** An inspected kind (tier1-design.md section 2.7): its tabs and which tab it opens on. */
 export interface InspectedKind {
     /** The kind's id, such as `"node"`, `"measure-row"`, `"graph"`. */
@@ -86,6 +107,8 @@ export interface WorkspaceRegistration {
     readonly commands: readonly Command[];
     /** The inspected kinds it introduces. */
     readonly inspectedKinds?: readonly InspectedKind[];
+    /** Its commands on a Sources row. */
+    readonly sourceRow?: readonly SourceRowCommand[];
 }
 
 /**
@@ -158,6 +181,8 @@ export interface WorkspaceCommands {
     readonly live: readonly Command[];
     /** The inspected kinds, by id. */
     readonly kinds: ReadonlyMap<string, InspectedKind>;
+    /** Every Sources row command, in menu order. */
+    readonly sourceRow: readonly SourceRowCommand[];
     /**
      * A command by id.
      * @param id - the command id.
@@ -204,8 +229,15 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
     const byId = new Map<string, Command>();
     const byKey = new Map<string, string>();
     const kinds = new Map<string, InspectedKind>();
+    const sourceRow: SourceRowCommand[] = [];
 
-    for (const { owner, commands, inspectedKinds = [] } of registrations) {
+    for (const { owner, commands, inspectedKinds = [], sourceRow: rowCommands = [] } of registrations) {
+        for (const command of rowCommands) {
+            if (sourceRow.some((each) => each.id === command.id)) {
+                throw new Error(`Source row command "${command.id}" is registered twice (again by ${owner})`);
+            }
+            sourceRow.push(command);
+        }
         for (const command of commands) {
             addCommand(byId, byKey, command, owner);
         }
@@ -224,6 +256,10 @@ export function createRegistry(registrations: readonly WorkspaceRegistration[]):
         all,
         live,
         kinds,
+        // A stable sort keeps registration order among equals.
+        sourceRow: sourceRow.sort(
+            (a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER),
+        ),
         get: (id) => byId.get(id),
         built: (id) => {
             const command = byId.get(id);

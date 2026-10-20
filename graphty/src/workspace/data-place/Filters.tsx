@@ -44,7 +44,11 @@ export function FiltersSection(): React.JSX.Element | null {
 function Filters({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
     const { store } = useWorkspace();
     const [drafts, setDrafts] = useState<readonly Card[]>([]);
-    const fields: CardField[] = [...cardFields(session, "node"), ...cardFields(session, "edge")];
+    // A Data source condition holds nodes and edges alike, so it is offered once, among the nodes.
+    const fields: CardField[] = [
+        ...cardFields(session, "node"),
+        ...cardFields(session, "edge").filter((field) => field.kind !== "source"),
+    ];
     const { steps } = session.visibility;
     const rows: Row[] = [
         ...steps.map((step, at) => ({ step, card: { ...cardOf(step.rule, fields, at), key: step.id } })),

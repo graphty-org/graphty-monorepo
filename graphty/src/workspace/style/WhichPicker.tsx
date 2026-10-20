@@ -249,6 +249,25 @@ export function CardBody({
                     />
                 </Group>
             );
+        case "source": {
+            const side = card.field.on;
+            const data = session.data.sources().map((source) => ({
+                value: source.key,
+                label: `${source.name ?? source.key} (${formatNumber(side === "node" ? source.counts.nodes : source.counts.edges)})`,
+            }));
+            return (
+                <MultiSelect
+                    size="xs"
+                    aria-label="Sources"
+                    placeholder="Sources"
+                    data={data}
+                    value={[...card.sources]}
+                    onChange={(sources) => {
+                        onChange({ ...card, sources });
+                    }}
+                />
+            );
+        }
         case "yes-no":
             return (
                 <SegmentedControl

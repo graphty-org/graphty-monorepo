@@ -36293,6 +36293,18 @@
         }
     },
     "allowedDrops": {
+        "yed-live-graphml-specimen-arrows/edge.arrowFill": {
+            "reason": "graphty draws yFiles' Arrow with fill {x:Null} as its open outline (yFiles fills an arrow with its fill, none here); draw.io, standing in for yEd Live, fills it (arrow-fill-null)",
+            "issue": "ISSUES.md yEd Live settings graph-io now reads (fix round 2)",
+            "expires": "2026-12-31",
+            "atLeast": 0.93
+        },
+        "yed-live-graphml-specimen-arrows@matched/edge.arrowFill": {
+            "reason": "graphty draws yFiles' Arrow with fill {x:Null} as its open outline (yFiles fills an arrow with its fill, none here); draw.io, standing in for yEd Live, fills it (arrow-fill-null)",
+            "issue": "ISSUES.md yEd Live settings graph-io now reads (fix round 2)",
+            "expires": "2026-12-31",
+            "atLeast": 0.93
+        },
         "yed-graphml-specimen-labels-p2/raster.label": {
             "reason": "graphty now draws yEd's outside and free labels where their stored boxes put them, 4 from the node (label.offset 12/33 to 24/33); draw.io, standing in for yEd, puts them elsewhere (sides-w 4.6 lower, sides-e and corners further out), so the label pixels overlap less (0.862 to 0.847)",
             "issue": "ISSUES.md yEd GraphML settings graph-io now reads (fix round 2)",

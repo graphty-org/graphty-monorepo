@@ -114,6 +114,39 @@ describe("joining a table onto the graph", () => {
         session.dispose();
     });
 
+    it("names each row's match and the nodes left without a value", async () => {
+        const session = await proteins();
+        const draft = await expression(session);
+        const report = draft.joinReport({ keys: draft.suggestJoin().keys });
+        assert.strictEqual(report.rowMatches.length, 70);
+        assert.deepEqual(report.rowMatches[0], ["TP53"]);
+        assert.deepEqual(report.rowMatches[52], ["TP53"]);
+        assert.deepEqual(report.rowMatches[53], [], "a lower-case symbol matches nothing yet");
+        assert.strictEqual(report.rowMatches.filter((ids) => ids.length === 0).length, 17);
+        assert.strictEqual(report.withoutValueIds.length, report.withoutValue);
+        assert.include(report.withoutValueIds, "G60");
+        assert.notInclude(report.withoutValueIds, "TP53");
+        session.dispose();
+    });
+
+    it("counts an edit of a join against the graph with the join taken back", async () => {
+        const session = await proteins();
+        await session.data.updateNodes([{ id: "TP53", values: { tissue: "blood" } }]);
+        const draft = await expression(session);
+        const { keys } = draft.suggestJoin();
+        const before = draft.joinReport({ keys, columns: ["log2fc", "tissue"] });
+        await draft.load({ join: { keys, columns: ["log2fc", "tissue"] } });
+        const [join] = session.data.joins();
+
+        const edit = session.data.editJoinReport(join.source, { keys, columns: ["log2fc", "tissue"] });
+        assert.deepInclude(edit, { matched: 52, notInGraph: 10, withoutValue: 8, extraIgnoringCase: 6 });
+        assert.deepEqual(edit.clashes, before.clashes, "the join's own columns are not a clash");
+        assert.strictEqual(session.data.editJoinReport(join.source, { keys, ignoreCase: true }).matched, 58);
+        assert.strictEqual(session.data.node("TP53")?.log2fc, 0, "counting changes nothing");
+        assert.throws(() => session.data.editJoinReport("s9", { keys }), /No joined table/);
+        session.dispose();
+    });
+
     it("writes the values as one undo step, keeps the table as a source and lists the join", async () => {
         const session = await proteins();
         const draft = await expression(session);
@@ -248,6 +281,8 @@ describe("joining edges between the nodes a graph holds", () => {
             updatedNodes: 40,
             withoutValue: 0,
         });
+        const { rowMatches } = draft.joinReport({ keys: suggestion.keys });
+        assert.deepEqual(rowMatches[0], ["S0", "S1"], "an edge row names its two ends");
         session.dispose();
     });
 

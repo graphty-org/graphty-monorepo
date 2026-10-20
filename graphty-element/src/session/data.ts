@@ -69,7 +69,7 @@ import {
     type IssueState,
     NO_ISSUE_STATE,
 } from "./issues";
-import { frozen, type JoinGraph, type JoinPlan, planJoin } from "./join";
+import { frozen, type JoinGraph, type JoinPlan, joinReport, planJoin } from "./join";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
@@ -129,6 +129,7 @@ import type {
     ImportOptions,
     JoinChoices,
     JoinRecord,
+    JoinReport,
     JoinShape,
     LoadChoices,
     LoadedSource,
@@ -2377,6 +2378,37 @@ export class SessionData implements SessionDataApi {
     async editJoin(source: SourceKey, choices: JoinChoices): Promise<void> {
         this.requireLive("editJoin");
         const send = this.sender("edit a join");
+        const previous = this.joinedSource(source);
+        const { table, shape } = previous.join;
+        await this.applyJoin(
+            send,
+            { ...table, source: describeSource(previous) },
+            choices,
+            choices.shape ?? shape,
+            previous,
+        );
+    }
+
+    /**
+     * What editing a join would do, counted against the graph with the join taken back.
+     * @param source - the joined table's load
+     * @param choices - the join
+     * @returns the counts
+     */
+    editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport {
+        this.requireLive("editJoinReport");
+        const previous = this.joinedSource(source);
+        const { restored, gone } = this.unjoin(previous);
+        const { table, shape } = previous.join;
+        return joinReport(table, this.joinGraph(restored, gone), choices, choices.shape ?? shape);
+    }
+
+    /**
+     * A joined table still in the graph, or a refusal.
+     * @param source - its load's key
+     * @returns the load, with its join
+     */
+    private joinedSource(source: SourceKey): LoadedSource & { readonly join: JoinRecord } {
         const previous = this.storedSources().find((each) => each.key === source && each.join !== undefined);
         if (previous?.join === undefined) {
             throw new GraphtyError({
@@ -2387,14 +2419,7 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const { table, shape } = previous.join;
-        await this.applyJoin(
-            send,
-            { ...table, source: describeSource(previous) },
-            choices,
-            choices.shape ?? shape,
-            previous,
-        );
+        return previous as LoadedSource & { readonly join: JoinRecord };
     }
 
     /**

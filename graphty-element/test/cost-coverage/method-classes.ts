@@ -885,6 +885,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionDataApi.edge",
     "SessionDataApi.edgePage",
     "SessionDataApi.edges",
+    "SessionDataApi.editJoinReport",
     "SessionDataApi.fingerprint",
     "SessionDataApi.histogram",
     "SessionDataApi.issues",

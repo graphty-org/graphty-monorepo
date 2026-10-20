@@ -489,6 +489,8 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             newNodes: 0,
             newEdges: 0,
             updatedNodes: 0,
+            rowMatches: Object.freeze([]),
+            withoutValueIds: Object.freeze([]),
             ...counts,
             clashes: Object.freeze(
                 clashesOf(elements, columns).map((column) => Object.freeze({ column, code: "clash" as const })),
@@ -524,6 +526,8 @@ export function joinReport(table: JoinTable, graph: JoinGraph, choices: JoinChoi
             extraIgnoringCase: choices.ignoreCase === true ? 0 : extra({ ignoreCase: true }),
             extraIgnoringSpaces: choices.ignoreSpaces === true ? 0 : extra({ ignoreSpaces: true }),
             updatedNodes: chosen === "node-values" && columns.length > 0 ? now.matched.size : 0,
+            rowMatches: frozen(now.rowIds.map((ids) => [...ids])),
+            withoutValueIds: frozen(elements.map((element) => element.id).filter((id) => !now.matched.has(id))),
         },
         elements,
     );
@@ -557,6 +561,13 @@ function edgeReport(
     }
 
     const repeatedKeys = [...pairs.values()].filter((count) => count > 1).length;
+    const rowMatches: (readonly (NodeId | EdgeId)[])[] = table.rows.map(() => []);
+    for (const row of rows) {
+        if (row.found[0] && row.found[1]) {
+            rowMatches[row.at] = [row.ends[0] as NodeId, row.ends[1] as NodeId];
+        }
+    }
+
     const kept = choices.repeated === "both" ? rows.length : pairs.size;
     const matched = both(rows);
     return report(
@@ -576,6 +587,8 @@ function edgeReport(
             newNodes: fresh.size,
             newEdges: kept,
             updatedNodes: touched.size,
+            rowMatches: frozen(rowMatches),
+            withoutValueIds: frozen(graph.nodes.map((node) => node.id).filter((id) => !touched.has(id))),
         },
         graph.edges,
     );

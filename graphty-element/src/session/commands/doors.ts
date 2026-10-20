@@ -2000,6 +2000,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Reads and holds a source; the draft it returns loads through data.import.
             prepare: READ,
             joins: READ,
+            editJoinReport: READ,
             matchesSource: READ,
             // The copy's rows replace the load's as one batch: the gone edge, the load out of the
             // list, the merge of the copy under the same key, and the load back in its place.

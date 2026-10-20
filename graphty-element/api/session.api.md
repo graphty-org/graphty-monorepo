@@ -1963,8 +1963,10 @@ export interface JoinReport {
     readonly newNodes: number;
     readonly notInGraph: number;
     readonly repeatedKeys: number;
+    readonly rowMatches: readonly (readonly (NodeId_2 | EdgeId)[])[];
     readonly updatedNodes: number;
     readonly withoutValue: number;
+    readonly withoutValueIds: readonly (NodeId_2 | EdgeId)[];
 }
 
 // @public
@@ -3928,6 +3930,7 @@ export interface SessionDataApi {
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
+    editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
     expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<void>;
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;

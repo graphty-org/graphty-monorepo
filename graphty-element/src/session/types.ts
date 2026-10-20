@@ -1370,6 +1370,18 @@ export interface SessionDataApi {
      */
     editJoin(source: SourceKey, choices: JoinChoices): Promise<void>;
     /**
+     * What {@link SessionDataApi.editJoin} with these choices would do, counted against the graph
+     * as it would be with the join taken back, changing nothing: `draft.joinReport` for a table
+     * already joined.
+     * @param source - The joined table's load, from {@link SessionDataApi.joins}.
+     * @param choices - The join.
+     * @returns The counts.
+     * @throws `E_SOURCE_UNKNOWN` for a key no join has, and `E_BAD_COMMAND` for a key column the
+     *     table lacks.
+     * @since 3.30.0
+     */
+    editJoinReport(source: SourceKey, choices: JoinChoices): JoinReport;
+    /**
      * Load a generated graph, as one undoable step: one of `catalog.generators()` by name, run
      * with its parameters (each one left out takes its catalogue default). The same name and
      * parameters give the same graph on every platform. A random generator's `seed` picks which
@@ -1874,6 +1886,15 @@ export interface JoinReport {
     readonly updatedNodes: number;
     /** The incoming columns the graph already has. */
     readonly clashes: readonly { readonly column: string; readonly code: "clash" }[];
+    /**
+     * For each incoming row, in table order: the nodes (edges for `"edge-values"`) its key matches,
+     * or for `"edges"` its source and target nodes when both are in the graph; empty when it
+     * matches nothing. Empty for `"rows"` and `"replace"`.
+     * @since 3.30.0
+     */
+    readonly rowMatches: readonly (readonly (NodeId | EdgeId)[])[];
+    /** The nodes (or edges) {@link JoinReport.withoutValue} counts. @since 3.30.0 */
+    readonly withoutValueIds: readonly (NodeId | EdgeId)[];
 }
 
 /**

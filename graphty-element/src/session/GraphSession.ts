@@ -558,6 +558,12 @@ class Session implements ElementSession {
                 publish(this.watchers, "project:status", change);
             },
             isDerived: (id) => this.sessionRuns.isDerivedId(id),
+            sources: {
+                member: () => this.sessionData.sourceMember(),
+                restore: (member) => {
+                    this.sessionData.restoreSourceMember(member);
+                },
+            },
         });
     }
 
@@ -2042,6 +2048,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             declarations: () => dispatcher.state.attributes,
             progress: (change) => {
                 publish(watchers, "progress:changed", change);
+            },
+            send: (command) => dispatcher.dispatch(command),
+            emit: (event, detail) => {
+                publish(watchers, event, detail);
             },
             readers: () => ({ styles: dispatcher.state.styles, runs: dispatcher.state.runs }),
         },

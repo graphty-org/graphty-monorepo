@@ -91,12 +91,13 @@ describe("the test matrix", () => {
     });
 
     it("puts only the affected members into a group's job", () => {
-        const include = plan(["graph-io"]);
+        // graph-samples has one shard, a member of small-node (graph-io also has a browser shard)
+        const include = plan(["graph-samples"]);
         assert.equal(include.length, 1);
         assert.equal(include[0].shard, "small-node");
-        assert.match(include[0]["test-command"], /graph-io:coverage/);
+        assert.match(include[0]["test-command"], /graph-samples:coverage/);
         assert.doesNotMatch(include[0]["test-command"], /graph-format:coverage/);
-        assert.equal(include[0].coverage, "graph-io=graph-io/coverage/lcov.info");
+        assert.equal(include[0].coverage, "graph-samples=graph-samples/coverage/lcov.info");
     });
 
     it("leaves out the groups and shards of unaffected packages", () => {

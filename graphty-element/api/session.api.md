@@ -4,13 +4,60 @@
 
 ```ts
 
+import { AwsCredentials } from '@graphty/graph-io';
+import { Credential as Credential_2 } from '@graphty/graph-io';
+import { CredentialKind } from '@graphty/graph-io';
+import { credentials } from '@graphty/graph-io';
 import type { DatasetMeta } from '@graphty/graph-samples';
+import { defineSource } from '@graphty/graph-io';
 import type { DerivedGraph } from '@graphty/graph-format';
 import type { DuplicatePolicy } from '@graphty/graph-format';
+import { ExpandRequest } from '@graphty/graph-io';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GraphSnapshot } from '@graphty/graph-format';
+import { GraphSource } from '@graphty/graph-io';
+import { LazySource } from '@graphty/graph-io';
+import { listSources } from '@graphty/graph-io';
+import { LoadFromSourceOptions } from '@graphty/graph-io';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
+import { QueryLanguage } from '@graphty/graph-io';
+import { RecordBatch } from '@graphty/graph-io';
+import { Recording } from '@graphty/graph-io';
+import { recordingFrom } from '@graphty/graph-io';
+import { registerSource } from '@graphty/graph-io';
+import { ReplayFetch } from '@graphty/graph-io';
+import { replayFetch } from '@graphty/graph-io';
+import { ReplayOptions } from '@graphty/graph-io';
+import { RetryOptions } from '@graphty/graph-io';
+import { SOURCE_ISSUE } from '@graphty/graph-io';
+import { SourceContext } from '@graphty/graph-io';
+import { SourceCursor } from '@graphty/graph-io';
+import { SourceDescriptor } from '@graphty/graph-io';
+import { EdgeRecord as SourceEdgeRecord } from '@graphty/graph-io';
+import { SourceFeature } from '@graphty/graph-io';
+import { SourceFile } from '@graphty/graph-io';
+import { SourceFinish } from '@graphty/graph-io';
+import { SourceFreshness } from '@graphty/graph-io';
+import { SourceInfo } from '@graphty/graph-io';
+import { SourceIssueCode } from '@graphty/graph-io';
+import { SourceIssueParams } from '@graphty/graph-io';
+import { SourceKind } from '@graphty/graph-io';
+import { SourceLimitOptions } from '@graphty/graph-io';
+import { SourceLimits } from '@graphty/graph-io';
+import { SourceListing } from '@graphty/graph-io';
+import { SourceListItem } from '@graphty/graph-io';
+import { SourceListQuery } from '@graphty/graph-io';
+import { NodeRecord as SourceNodeRecord } from '@graphty/graph-io';
+import { SourceParamDescriptor } from '@graphty/graph-io';
+import { SourceParamType } from '@graphty/graph-io';
+import { SourceProbe } from '@graphty/graph-io';
+import { SourceReportInfo } from '@graphty/graph-io';
+import { SourceRequestInit } from '@graphty/graph-io';
+import { SourceRuntime } from '@graphty/graph-io';
+import { SourceRuntimeReason } from '@graphty/graph-io';
+import { SourceSample } from '@graphty/graph-io';
+import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
@@ -122,6 +169,8 @@ export type AttributeUse = {
 export interface AutosaveLookupOptions {
     readonly store?: AutosaveStore;
 }
+
+export { AwsCredentials }
 
 // @public
 export interface BatchResult {
@@ -275,6 +324,13 @@ export interface CodedFact<Code extends string = string> {
 export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
 
 // @public
+export interface CollapseResult {
+    readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
+    readonly removedEdges: number;
+    readonly removedNodes: readonly NodeId[];
+}
+
+// @public
 export interface ColumnEncodingSpec extends EncodingOptions {
     readonly column: ColumnRef;
 }
@@ -310,11 +366,14 @@ export interface CommandOutcomeMap {
     "algo.run": Run;
     "config.set": Promise<void>;
     "data.apply": Promise<void>;
+    "data.collapse": Promise<void>;
     "data.declare": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
+    "data.import-source": Promise<void>;
     "data.setFileStyles": Promise<void>;
     "data.setSource": Promise<void>;
+    "data.source-expand": Promise<void>;
     "layout.scope": Promise<void>;
     "layout.set": Promise<void>;
     "layout.transport": Promise<void>;
@@ -421,6 +480,12 @@ export interface CreateGraphSessionOptions {
     readonly runs?: SessionRunsOptions;
 }
 
+export { Credential_2 as Credential }
+
+export { CredentialKind }
+
+export { credentials }
+
 // @public
 export interface DataSourceDescriptor {
     readonly config?: Readonly<Record<string, unknown>>;
@@ -433,6 +498,7 @@ export interface DataSourceDescriptor {
 export interface DataSourceInput {
     readonly config: Readonly<Record<string, unknown>>;
     readonly name?: string;
+    readonly source?: string;
     readonly type?: string;
 }
 
@@ -456,6 +522,8 @@ export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
 
 // @public @deprecated
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
+
+export { defineSource }
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
@@ -614,6 +682,25 @@ export interface EngineVersions {
     readonly layout: string;
     readonly plugins?: Readonly<Record<string, string>>;
 }
+
+// @public
+export interface ExpandBehavior {
+    readonly depth?: number;
+    readonly direction?: "out" | "in" | "both";
+    readonly layout?: "continue" | "none";
+    readonly limit?: number;
+    readonly relationshipTypes?: readonly string[];
+    readonly trigger?: "none" | "click" | "double-click";
+}
+
+// @public
+export interface ExpandOptions extends Omit<ExpandBehavior, "trigger"> {
+    readonly credential?: Credential_2;
+    readonly fetch?: typeof fetch;
+    readonly signal?: AbortSignal;
+}
+
+export { ExpandRequest }
 
 // @public
 export type ExplainTarget = {
@@ -991,6 +1078,8 @@ export interface GraphSession {
     readonly views: SessionViews;
     readonly visibility: VisibilityApi;
 }
+
+export { GraphSource }
 
 // @public
 export interface GraphStatistics {
@@ -1474,6 +1563,74 @@ export type GraphtyErrorCode =
 */
 | "E_HELD_BY_TRANSACTION"
 /**
+* The browser refused a request to a network source and hid why. `details.cause` is `"cors"`, `"unreachable"`, `"local-network"` or `"unknown"`; `details.url` the address, origin and path.
+*/
+| "E_SOURCE_BLOCKED"
+/**
+* A network source wants a credential, or refused the one given. `details.origin` is the host that asked, `details.status` its status, `details.stored` true when the credential came from the element's store. Experimental.
+*/
+| "E_SOURCE_AUTH"
+/**
+* A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+*/
+| "E_SOURCE_FORBIDDEN"
+/**
+* The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+*/
+| "E_SOURCE_NOT_FOUND"
+/**
+* A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+*/
+| "E_SOURCE_QUOTA"
+/**
+* A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+*/
+| "E_SOURCE_TIMEOUT"
+/**
+* A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+*/
+| "E_SOURCE_QUERY"
+/**
+* A query returned no node, relationship or path. `details.columns`. Experimental.
+*/
+| "E_SOURCE_NOT_A_GRAPH"
+/**
+* A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+*/
+| "E_SOURCE_RESPONSE"
+/**
+* A redirect, or a changed origin, while a credential was attached; it was not followed. `details.from`, `details.to`. Experimental.
+*/
+| "E_SOURCE_REDIRECT"
+/**
+* The source cannot run here. `details.runtime`, `details.reason` (`"cors"`, `"needs-peer-dependency"`, `"insecure-endpoint"`, ...), `details.package`. Experimental.
+*/
+| "E_SOURCE_RUNTIME"
+/**
+* A source parameter or load option is invalid. `details.name`, `details.reason`. Experimental.
+*/
+| "E_SOURCE_PARAM"
+/**
+* A load cap was reached under `onLimit: "error"`. `details.limit`, `details.value`. Experimental.
+*/
+| "E_SOURCE_LIMIT"
+/**
+* No network source has that id. `details.id`, `details.known`. Experimental.
+*/
+| "E_SOURCE_UNKNOWN"
+/**
+* The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
+*/
+| "E_SOURCE_UNSUPPORTED"
+/**
+* A malformed network source at registration. `details.id`, `details.reason`. Experimental.
+*/
+| "E_SOURCE_INVALID"
+/**
+* A credential whose secret is a function (a token refresher, a custom or AWS credential) cannot be remembered. `details.kind`. Experimental.
+*/
+| "E_CREDENTIAL_NOT_STORABLE"
+/**
 * An invariant inside the element broke. This is a bug in graphty-element, not in the call.
 * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
 * message; nothing it can change will avoid it.
@@ -1624,7 +1781,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.expand" | "data.declare" | "data.set-source" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -1845,6 +2002,8 @@ export interface LayoutRecommendationOptions {
     readonly placedNodes?: number;
 }
 
+export { LazySource }
+
 // @public
 export interface LegendBlock {
     readonly channel: Channel;
@@ -1935,6 +2094,8 @@ export interface Limits {
 // @public
 export function listAutosaves(key: string, options?: AutosaveLookupOptions): Promise<readonly AutosaveEntry[]>;
 
+export { listSources }
+
 // @public
 export const LOAD_ROLES: Readonly<Record<"nodes" | "edges", {
     readonly takes: readonly ColumnRole[];
@@ -1975,6 +2136,8 @@ export interface LoadError {
     readonly line?: number;
     readonly params: Readonly<Record<string, unknown>>;
 }
+
+export { LoadFromSourceOptions }
 
 // @public
 export type LoadMapping = TableMapping | {
@@ -2306,6 +2469,16 @@ export type PendingId = string & {
 };
 
 // @public
+export interface PendingSourceLoad {
+    readonly authRequired: "required" | "optional" | "none";
+    readonly endpoint: string | null;
+    readonly hasQuery: boolean;
+    readonly id: string;
+    readonly isLocalNetwork: boolean;
+    readonly source: string;
+}
+
+// @public
 export interface PendingStep {
     readonly fact: CodedFact<HistoryCode>;
     readonly id: PendingId;
@@ -2525,6 +2698,8 @@ export interface ProjectStatus {
 // @public
 export type Query = string;
 
+export { QueryLanguage }
+
 // @public
 export interface QueryValidation {
     // (undocumented)
@@ -2595,6 +2770,12 @@ export interface ReadonlyElementPositions {
 // @public
 export function recommendLayout(statistics: GraphStatistics, options?: LayoutRecommendationOptions): LayoutRecommendation | undefined;
 
+export { RecordBatch }
+
+export { Recording }
+
+export { recordingFrom }
+
 // @public
 export interface RecordPage<TRecord> {
     readonly columns?: readonly PageColumn[];
@@ -2623,6 +2804,8 @@ export interface RecordSort {
     readonly key: string;
 }
 
+export { registerSource }
+
 // @public
 export function removeAutosave(key: string, id: string, options?: AutosaveLookupOptions): Promise<void>;
 
@@ -2642,6 +2825,12 @@ export interface RepeatedEdgeCounts {
     readonly merged: number;
     readonly seen: number;
 }
+
+export { ReplayFetch }
+
+export { replayFetch }
+
+export { ReplayOptions }
 
 // @public
 export interface ResolvedScope {
@@ -2843,6 +3032,8 @@ export interface ResultSummary {
     readonly tiedAtMin: number;
     readonly top: readonly SummaryEntry[];
 }
+
+export { RetryOptions }
 
 // @public
 export interface RowUpdate<Id> {
@@ -3438,7 +3629,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -3455,6 +3646,7 @@ export interface SessionDataApi {
     addNodes(records: readonly NodeRecordInput[]): Promise<void>;
     attributes(): readonly AttributeDescriptor[];
     clear(): Promise<void>;
+    collapse(id: NodeId_2): Promise<CollapseResult>;
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
     edge(id: EdgeId): EdgeRecord | undefined;
     edgePage(options: EdgePageOptions & {
@@ -3465,12 +3657,17 @@ export interface SessionDataApi {
     // (undocumented)
     edgePage(options?: EdgePageOptions): RecordPage<EdgeRecord>;
     edges(): readonly EdgeRecord[];
+    expand(ids: readonly NodeId_2[], options?: ExpandOptions): Promise<void>;
     fingerprint(): string;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
-    import(source: DataSourceInput, options?: LoadChoices): Promise<void>;
+    import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     lastImport(): LoadReport | null;
+    listSource(source: SourceInput, query?: Omit<SourceListQuery<Record<string, unknown>>, "params">, options?: SourceLoadOptions): Promise<SourceListing>;
     loadDataset(name: string, options?: DatasetLoadOptions): Promise<void>;
+    loads(): readonly SourceLoadRecord[];
+    loadSample(id: string, options?: LoadChoices & SourceLoadOptions): Promise<void>;
+    more(options?: SourceLoadOptions): Promise<void>;
     name(id: NodeId_2): string | undefined;
     neighbors(id: NodeId_2, options?: NeighborOptions): NeighborPage;
     node(id: NodeId_2): NodeRecord | undefined;
@@ -3482,6 +3679,7 @@ export interface SessionDataApi {
     // (undocumented)
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
+    pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;
     }): Promise<LoadDraft>;
@@ -3489,10 +3687,12 @@ export interface SessionDataApi {
     removeNodes(ids: readonly NodeId_2[]): Promise<void>;
     renameSource(name: string): Promise<void>;
     resultColumns(kind: "node" | "edge"): readonly ResultColumnDescriptor[];
+    runPendingSourceLoad(id: string, options?: SourceLoadOptions): Promise<void>;
     snapshot(): GraphSnapshot;
     source(): DataSourceDescriptor | null;
     statistics(): GraphStatistics;
     readonly store: SessionGraphStore;
+    testSource(source: SourceInput, options?: SourceLoadOptions): Promise<SourceProbe>;
     undirected(snapshot?: GraphSnapshot): DerivedGraph;
     updateEdges(rows: readonly RowUpdate<EdgeId>[]): Promise<void>;
     updateNodes(rows: readonly RowUpdate<NodeId_2>[]): Promise<void>;
@@ -3522,6 +3722,9 @@ export interface SessionEventMap {
     "run:changed": RunChange;
     "selection:changed": SelectionDelta;
     "set:changed": SetChange;
+    "source:expand-failed": SourceExpandFailed;
+    "source:expand-start": SourceExpandStart;
+    "source:expanded": SourceExpanded;
     "style:changed": StyleChange;
     "style:problem": StyleProblem;
     "visibility:changed": VisibilityChange;
@@ -3814,6 +4017,152 @@ export interface SetUser {
     readonly kind: "set" | "layer" | "filter" | "layout" | "run" | "note";
     readonly label: string;
 }
+
+// @public
+export const SOURCE_ATTR: Readonly<{
+    loads: "_source.loads";
+    expansion: "_source.expansion";
+    degree: "_source.degree";
+    hidden: "_source.hidden";
+    next: "_source.next";
+    stub: "_source.stub";
+    entity: "_source.entity";
+}>;
+
+// @public
+export const SOURCE_EVENT_DOM_NAMES: Readonly<{
+    readonly "source:expand-start": "graphty-source-expand-start";
+    readonly "source:expanded": "graphty-source-expanded";
+    readonly "source:expand-failed": "graphty-source-expand-failed";
+}>;
+
+export { SOURCE_ISSUE }
+
+// @public
+export const SOURCE_RECORD_MEMBER = "graphty-sources";
+
+// @public
+export const SOURCE_RECORD_VERSION = 1;
+
+export { SourceContext }
+
+// @public
+export interface SourceCredentialIdentity {
+    readonly kind: CredentialKind;
+    readonly origin: string;
+    readonly username?: string;
+}
+
+export { SourceCursor }
+
+export { SourceDescriptor }
+
+export { SourceEdgeRecord }
+
+// @public
+export type SourceExpanded = CodedFact<"I_SOURCE_EXPANDED">;
+
+// @public
+export type SourceExpandFailed = CodedFact;
+
+// @public
+export interface SourceExpandStart {
+    readonly seeds: readonly NodeId[];
+}
+
+// @public
+export interface SourceExpansionRecord {
+    readonly at: string;
+    readonly depth: number;
+    readonly direction: "out" | "in" | "both";
+    readonly ids: readonly NodeId[];
+    readonly key: string;
+    readonly limit?: number;
+    readonly next: SourceCursor | null;
+    readonly validators: SourceValidators;
+}
+
+export { SourceFeature }
+
+export { SourceFile }
+
+export { SourceFinish }
+
+export { SourceFreshness }
+
+export { SourceInfo }
+
+// @public
+export interface SourceInput {
+    readonly config: Readonly<Record<string, unknown>>;
+    readonly name?: string;
+    readonly source: string;
+}
+
+export { SourceIssueCode }
+
+export { SourceIssueParams }
+
+export { SourceKind }
+
+export { SourceLimitOptions }
+
+export { SourceLimits }
+
+export { SourceListing }
+
+export { SourceListItem }
+
+export { SourceListQuery }
+
+// @public
+export interface SourceLoadOptions extends LoadChoices {
+    readonly credential?: Credential_2;
+    readonly cursor?: SourceCursor;
+    readonly endpoint?: string;
+    readonly existing?: "keep" | "update";
+    readonly fetch?: typeof fetch;
+    readonly limits?: SourceLimitOptions;
+    readonly retry?: RetryOptions | false;
+    readonly signal?: AbortSignal;
+    readonly write?: boolean;
+}
+
+// @public
+export interface SourceLoadRecord {
+    readonly config: Readonly<Record<string, unknown>>;
+    readonly credential: SourceCredentialIdentity | null;
+    readonly endpoint: string | null;
+    readonly expansions: readonly SourceExpansionRecord[];
+    readonly key: string;
+    readonly loadedAt: string;
+    readonly next: SourceCursor | null;
+    readonly options: Readonly<Record<string, unknown>>;
+    readonly pages: number;
+    readonly source: string;
+    readonly validators: SourceValidators;
+    readonly version: number;
+}
+
+export { SourceNodeRecord }
+
+export { SourceParamDescriptor }
+
+export { SourceParamType }
+
+export { SourceProbe }
+
+export { SourceReportInfo }
+
+export { SourceRequestInit }
+
+export { SourceRuntime }
+
+export { SourceRuntimeReason }
+
+export { SourceSample }
+
+export { SourceValidators }
 
 // @public
 export interface StaleNote {

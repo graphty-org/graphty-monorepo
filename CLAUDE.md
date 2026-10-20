@@ -484,7 +484,8 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 - Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
 
 **graph-io:**
-- Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- Node.js project (`vitest.config.ts`); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
+- `browser` (`vitest.browser.config.ts`, shard `graph-io-browser`): the network sources in Chromium against a local server on another origin, with and without CORS headers
 
 **graph-samples:**
 - Single test project (Node.js); resolves `@graphty/graph-format` through `graph-format/dist`, so build graph-format first
@@ -706,16 +707,16 @@ changelog.
 
 ### CI Test Shards
 
-The CI runs 29 test shards on a manual dispatch or the release train (a push
+The CI runs 30 test shards on a manual dispatch or the release train (a push
 to master runs none). The
 short ones run one after another in two group jobs (`GROUPS` in `tools/ci-test-matrix.mjs`), so a
 full run is 18 test jobs: `small-node` (graph-format, graph-io, graph-samples, cytoscape-extensions, cytoscape-extensions-cytoscape-versions,
-layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, remote-logger, compact-mantine,
+layout, algorithms-default, githerd) and `small-browser` (algorithms-browser, graph-io-browser, remote-logger, compact-mantine,
 graphty, graphty-storybook, visual-review, webgpu-graph-algorithms-browser). A group job runs every affected member
 even when one fails, and names the failed ones. `./tools/run-tests.sh <shard>` still runs one
 shard. The shards:
 - `graph-format`
-- `graph-io`
+- `graph-io`, `graph-io-browser`
 - `webgpu-graph-algorithms-node`, `webgpu-graph-algorithms-node-device-errors`, `webgpu-graph-algorithms-node-no-subgroups`,
   `webgpu-graph-algorithms-node-no-subgroups-device-errors` (the four node passes, run side by side), `webgpu-graph-algorithms-browser`
 - `graph-samples`
@@ -1002,11 +1003,18 @@ that starts the same server from the owner's own shell, which is how the owner s
   canvas (the owner's rule): the full 1200 x 900 viewport, or the story's full scroll size when it
   is larger, never cropped to the content.
 - Only the owner approves visual changes. Agents never press Accept or Finish, never call the
-  page's API, and never write, move or delete anything under `visual-baselines/` on the owner's
-  behalf.
-- Once `visual-review/passkeys.json` on master holds a key, the gate accepts a review record only
-  with the owner's passkey approval (Face ID) over exactly that record and that pull request, and
-  only when its items take each file from master's contents to the pull request's. Agents never
+  page's API, and never write, move or delete anything under `visual-baselines/` or
+  `visual-review-approvals/` on the owner's behalf.
+- The owner's approval is of a tree, not of a pull request: Finish commits a statement naming its
+  accept commit and the git tree of `visual-baselines/` there, signed with the owner's passkey
+  (Face ID), as `visual-review-approvals/<tree>.json`. Once `visual-review/passkeys.json` on master
+  holds a key, the gate passes a pull request whose `visual-baselines/` tree differs from master's
+  only with such a signed statement of exactly that tree, made at a commit in its history, and
+  captures that match those baselines. The per-pull-request records under
+  `visual-baselines/reviews/` are part of the tree and mean nothing else to the gate. So an
+  approval made on golden holds on a cut of it, and anything that changes the baselines tree
+  afterwards (a merge of master's newer baselines, one changed byte) needs the owner again. A
+  Finish that rejects anything or leaves anything undecided signs nothing. Agents never
   edit `visual-review/passkeys.json`, `visual-review/trusted/gate.mjs`,
   `visual-review/trusted/lib/approval.mjs`, or the gate step and the visual job in ci.yml; never
   register a passkey; never merge a pull request past a failing gate; and never call the page's
@@ -1014,20 +1022,20 @@ that starts the same server from the owner's own shell, which is how the owner s
 - CI runs the gate and the capture as master has them (`git archive HEAD^1`), not the pull
   request's copy, so a change to `visual-review/trusted/` or `visual-review/capture/` is first
   exercised by the pull request after it; test it with the package's own tests.
-- A story settings file (`visual-baselines/<project>/<story id>.json`) needs an owner-approved
-  record like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
+- A story settings file (`visual-baselines/<project>/<story id>.json`) is part of the approved
+  tree like a baseline. Put `diffThreshold`, `delay` and `modes` in the story's
   `parameters.chromatic` (the Storybook convention visual-review reads its capture settings
   from) instead, and keep `diffThreshold` at 0.8 or below: the gate fails a story
   above it.
 - A gate line about a missing or invalid approval is fixed only by the owner reviewing again
-  (revert the accept commit, let CI recapture, Finish with Face ID), never by writing or editing a
-  record.
+  (a new preview of the head, then Finish with Face ID), never by writing or editing a record or
+  an approval file.
 - Never create a passkey or a virtual authenticator against a real review server; Chromium's
   virtual authenticator is for the test suite's own servers only.
 - Never make a failing visual check pass by changing what is captured or how it is compared: do
   not add or change `parameters.chromatic` (`disableSnapshot`, `diffThreshold`,
   `diffIncludeAntiAliasing`, `delay`, `modes`) in a story or preview file, and do not edit the
-  gate step in ci.yml, `visual-review/trusted/gate.mjs` or the `baselines` and `projects` of
+  gate step in ci.yml, `visual-review/trusted/gate.mjs` or the `baselines`, `approvals` and `projects` of
   `visual-review.config.json`, unless the owner asked for that change.
   A story excluded that way while it has a baseline shows up as `removed` anyway; a raised
   threshold does not, which is why it is forbidden.
@@ -1137,8 +1145,11 @@ its requirements are in `design/ci/golden-local.md`.
 How to land a change:
 
 1. Work on a branch in your own worktree, branched off `golden` (or `origin/master`):
-   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. A subagent commits and stops;
-   the session that started it lands the branch.
+   `./tools/worktree-new.sh <branch> origin/golden`. Commit there. Before your final tests, bring the
+   branch up to date: `git fetch origin`, `git merge origin/golden` (never rebase), `pnpm install
+   --frozen-lockfile`, resolve conflicts keeping both intents, then test the merged code. Conflicts and
+   tool-version differences then show up early, from the session that knows the change, not at landing.
+   A subagent commits and stops; the session that started it lands the branch.
 2. Run `node tools/land.mjs land <branch>` with `run_in_background`, then end your turn or do other
    work; its exit notice wakes you. It takes one machine-wide lock (a second landing waits and is
    told who holds it), merges `origin/golden` and `origin/master` into golden, merges your branch

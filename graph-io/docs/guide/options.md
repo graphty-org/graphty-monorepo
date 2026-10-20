@@ -16,24 +16,24 @@ which, and its "Read by" list names the formats that use it.
 
 An option whose default is the same in every format (`duplicateEdges: "keep"`, `long: "f64"`, `restoreMangledIds: true` and the like) is not reported when you set it to that default, so an options object you share between formats can spell those out. `ids`, `defaultDirected`, `weightFrom` and `addMissingNodes` have a default per format, and are reported whenever you set them for a format that does not read them: leave them out of a shared object, or skip `W_OPTION_IGNORED` when you show the report.
 
-| Option                                           | Type                                                                | Default    |
-| ------------------------------------------------ | ------------------------------------------------------------------- | ---------- |
-| [`ids`](#import-ids)                             | `"string" \| "number" \| "keep" \| "canonical"`                     | per format |
-| [`nodeIdFrom`](#import-nodeidfrom)               | `"id" \| "label" \| "index"`                                        | `"id"`     |
-| [`addMissingNodes`](#import-addmissingnodes)     | `boolean`                                                           | per format |
-| [`duplicateEdges`](#import-duplicateedges)       | `"keep" \| "error" \| "first" \| "last" \| "sum" \| "min" \| "max"` | `"keep"`   |
-| [`selfLoops`](#import-selfloops)                 | `"keep" \| "error" \| "drop"`                                       | `"keep"`   |
-| [`onMixedDirection`](#import-onmixeddirection)   | `"error" \| "expand" \| "directed" \| "undirected"`                 | `"expand"` |
-| [`defaultDirected`](#import-defaultdirected)     | `boolean`                                                           | per format |
-| [`weightFrom`](#import-weightfrom)               | `null \| string`                                                    | per format |
-| [`weightDtype`](#import-weightdtype)             | `"f32" \| "f64"`                                                    | `"f64"`    |
-| [`long`](#import-long)                           | `"string" \| "f64"`                                                 | `"f64"`    |
-| [`restoreMangledIds`](#import-restoremangledids) | `boolean`                                                           | `true`     |
-| [`hyperedges`](#import-hyperedges)               | `"error" \| "skip" \| "star" \| "clique"`                           | `"skip"`   |
-| [`errorLimit`](#import-errorlimit)               | `number`                                                            | `100`      |
-| [`signal`](#import-signal)                       | `AbortSignal`                                                       |            |
-| [`onProgress`](#import-onprogress)               | `(bytesDone: number, bytesTotal?: number \| undefined) => void`     |            |
-| [`encoding`](#import-encoding)                   | `string`                                                            |            |
+| Option                                           | Type                                                                                                    | Default    |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- | ---------- |
+| [`ids`](#import-ids)                             | `"string" \| "number" \| "keep" \| "canonical"`                                                         | per format |
+| [`nodeIdFrom`](#import-nodeidfrom)               | `"id" \| "label" \| "index"`                                                                            | `"id"`     |
+| [`addMissingNodes`](#import-addmissingnodes)     | `boolean`                                                                                               | per format |
+| [`duplicateEdges`](#import-duplicateedges)       | `"keep" \| "error" \| "first" \| "last" \| "sum" \| "min" \| "max"`                                     | `"keep"`   |
+| [`selfLoops`](#import-selfloops)                 | `"keep" \| "error" \| "drop"`                                                                           | `"keep"`   |
+| [`onMixedDirection`](#import-onmixeddirection)   | `"error" \| "expand" \| "directed" \| "undirected"`                                                     | `"expand"` |
+| [`defaultDirected`](#import-defaultdirected)     | `boolean`                                                                                               | per format |
+| [`weightFrom`](#import-weightfrom)               | `null \| string`                                                                                        | per format |
+| [`weightDtype`](#import-weightdtype)             | `"f32" \| "f64"`                                                                                        | `"f64"`    |
+| [`long`](#import-long)                           | `"string" \| "f64"`                                                                                     | `"f64"`    |
+| [`restoreMangledIds`](#import-restoremangledids) | `boolean`                                                                                               | `true`     |
+| [`hyperedges`](#import-hyperedges)               | `"error" \| "skip" \| "star" \| "clique"`                                                               | `"skip"`   |
+| [`errorLimit`](#import-errorlimit)               | `number`                                                                                                | `100`      |
+| [`signal`](#import-signal)                       | `AbortSignal`                                                                                           |            |
+| [`onProgress`](#import-onprogress)               | `(bytesDone: number, bytesTotal?: number \| undefined, unit?: "items" \| "bytes" \| undefined) => void` |            |
+| [`encoding`](#import-encoding)                   | `string`                                                                                                |            |
 
 - <a id="import-ids"></a>`ids`: How id text becomes a node id. "canonical": integer text such as "42" becomes the number 42 and everything else ("042", "4.2", "a") stays text. "string": every id stays text. "number": every id is read as a number, so "042" and "42" become one node (with a warning) and text that is not a number is an error. "keep": ids keep the type the file gives them. The default is "keep" for JSON, OBO, XGMML, CX, CX2 and Cytoscape sessions, and "canonical" for the other formats.
 - <a id="import-nodeidfrom"></a>`nodeIdFrom`: Which value becomes the node id: the file's own id ("id"), the node's label ("label"), or its position among the nodes, counting from 0 ("index"). Use it when a file's ids are meaningless numbers and the labels are the real names. In d3 JSON, "index" also reads edges whose ends are node positions. In GML and Pajek it only renames: every node still needs its id key or vertex number, because edges refer to nodes by it, and a GML node without an `id` key is skipped with `E_MISSING_ID`. CSV reads this option only when there is a node table, and it does not just rename: with "label" the node table's label column (`label`, or the `labelColumn` option) gives the ids, so the edge table must name its nodes by those labels. Read by: [json](./formats/json.md), [csv](./formats/csv.md), [gml](./formats/gml.md), [pajek](./formats/pajek.md).
@@ -49,7 +49,7 @@ An option whose default is the same in every format (`duplicateEdges: "keep"`, `
 - <a id="import-hyperedges"></a>`hyperedges`: What to do with a GraphML or JGF hyperedge (an edge with more than two ends): "skip" leaves it out with a warning, "error" stops the import, and "star" and "clique" turn it into ordinary edges. "clique" joins every pair of ends. "star" works differently per format: GraphML adds a new hub node joined to every end, while JGF makes the hyperedge's first node the hub, so no node is added. A directed JGF hyperedge (`source` and `target` arrays) becomes one edge from every source to every target under both. In JGF every edge made from a hyperedge carries the hyperedge's id, label, relation and metadata; GraphML drops a hyperedge's `<data>` and its `<desc>`, with a warning. Read by: [json](./formats/json.md), [graphml](./formats/graphml.md).
 - <a id="import-errorlimit"></a>`errorLimit`: How many errors an import tolerates. Each error skips one node, edge or value and is listed in the report; one error more than this stops the import with an ImportError. Pass 0 to stop at the first error.
 - <a id="import-signal"></a>`signal`: Cancels the import. When it aborts, the import stops and rejects with the signal's reason (an AbortError, or a TimeoutError from `AbortSignal.timeout()`).
-- <a id="import-onprogress"></a>`onProgress`: Called as the input is read, with the bytes read so far and the total. For a string or a Uint8Array the total is known from the first call. For a stream (which includes loadFromUrl() and loadFromFile()) it is undefined until the last call, which always has `bytesDone === bytesTotal`. Text counts its UTF-8 length.
+- <a id="import-onprogress"></a>`onProgress`: Called as the input is read, with the bytes read so far and the total. For a string or a Uint8Array the total is known from the first call. For a stream (which includes loadFromUrl() and loadFromFile()) it is undefined until the last call, which always has `bytesDone === bytesTotal`. Text counts its UTF-8 length. A load from a network source passes a third argument, "bytes" or "items", saying what is counted.
 - <a id="import-encoding"></a>`encoding`: The character encoding of byte input, as a label such as "utf-8", "windows-1252" or "utf-16le". Without it graph-io uses a byte order mark, then the encoding the file declares (an XML declaration, DOT's `charset`), then UTF-8, and reads bytes that are not UTF-8 as windows-1252 with a warning. A byte order mark wins over this option. A string input is already text: setting this option for one adds a `W_OPTION_IGNORED` warning, once per input (a CSV import with a `nodes` table has two inputs).
 
 ## Every exporter

@@ -1503,6 +1503,17 @@ export class Node {
     }
 
     /**
+     * Whether a mesh is flat: its geometry has no depth along one axis.
+     * @param mesh - The mesh.
+     * @returns True when one extent is (next to) zero beside the largest.
+     */
+    private static isFlat(mesh: Mesh): boolean {
+        const { extendSize } = mesh.getBoundingInfo().boundingBox;
+        const largest = Math.max(extendSize.x, extendSize.y, extendSize.z);
+        return Math.min(extendSize.x, extendSize.y, extendSize.z) <= largest * 1e-3;
+    }
+
+    /**
      * Build the one source mesh a kind of overlay is instanced from.
      * @param name - The mesh name, which is also its cache key.
      * @param color - The colour, as a hex string.
@@ -1541,8 +1552,16 @@ export class Node {
         material.diffuseColor = Color3.Black();
         material.specularColor = Color3.Black();
         material.alpha = alpha * painted.alpha;
-        // Both faces, so a halo drawn around a node is still a ring when the camera is inside it.
-        material.backFaceCulling = false;
+        // A halo around a solid draws only its far side. The near side lies in front of the node
+        // it surrounds, and blending it over the node tinted the whole node the halo's colour (a
+        // selected blue node drew gray-brown) instead of ringing it. The far side lies behind the
+        // node, so the node hides it inside its own outline and it shows only around it, as a
+        // ring; and from inside the halo every face seen is a far face, so the ring survives the
+        // camera there. A flat node's halo has no far side -- it is one sheet in the node's own
+        // plane, which the zOffset below keeps behind the node -- so it keeps both faces, and so
+        // does a context point, drawn in place of a hidden node with nothing in front of it.
+        material.backFaceCulling = name.startsWith(SELECTION_HALO_MESH) && !Node.isFlat(source);
+        material.cullBackFaces = false;
         // Drawn just behind a surface it shares a depth with, so around a flat node -- whose
         // scaled copy lies in the node's own plane -- the halo shows as a rim around the node
         // instead of fighting it for the same pixels. Too small to move a 3D halo visibly.

@@ -79,7 +79,9 @@ export { listGraphs } from "./src/catalog/listGraphs";
 export { LOG_SINK_DESCRIPTORS, logSinkDescriptor } from "./src/catalog/logSinks";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";
 export { SCALE_DESCRIPTORS, scaleDescriptor, scalesForDomain } from "./src/catalog/scales";
+export { sourceDescriptors } from "./src/catalog/sources";
 export type { CodedFact, CodedFactParam } from "./src/session/shared";
+export type { SourceInfo } from "@graphty/graph-io";
 export type { GraphListing } from "@graphty/graph-io";
 
 // The sample datasets `session.data.loadDataset` downloads and the graph generators

@@ -44,6 +44,7 @@ import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { HistoryCode, NodeRecordInput, RowUpdate } from "../types";
 import type { BatchCommand } from "./index";
+import type { DataImportSourceCommand } from "./source-load";
 
 /** A record to add; its id, or its endpoints, are read through the configured paths. */
 type RecordInput = NodeRecordInput;
@@ -139,6 +140,8 @@ export interface DataImportCommand {
     readonly unmatched?: "add" | "leave-out";
     /** A node record repeating an id an earlier one gave; see `LoadChoices.duplicateIds`. */
     readonly duplicateIds?: "first" | "merge" | "refuse";
+    /** For `"merge"`: a node already in the graph keeps its attributes (the default) or takes the incoming ones. */
+    readonly existing?: "keep" | "update";
     /**
      * Count the load instead of refusing it: a limit it passes is recorded in the report, and
      * the graph `present` describes counts as already there. Only a draft's scratch session sends it.
@@ -180,6 +183,8 @@ export interface HeldRows {
     readonly target?: string;
     /** The record key weights are read from, with no `value` fallback; null reads none; configured when absent. */
     readonly weight?: string | null;
+    /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
+    readonly repeated?: DuplicatePolicy;
 }
 
 /**
@@ -244,6 +249,7 @@ export interface DataSetFileStylesCommand {
 export type DataCommand =
     | DataApplyCommand
     | DataImportCommand
+    | DataImportSourceCommand
     | DataExpandCommand
     | DataDeclareCommand
     | DataSetSourceCommand
@@ -564,7 +570,7 @@ function categoryOf(mutation: DataMutation): "data-add" | "data-update" | "data-
  * @param service - The session's data service.
  * @returns It.
  */
-function serviceOf(service: DataService | undefined): DataService {
+export function serviceOf(service: DataService | undefined): DataService {
     if (service === undefined) {
         throw new GraphtyError({
             code: "E_UNSUPPORTED",
@@ -627,7 +633,7 @@ function layoutChoiceOf(command: DataImportCommand): "recommended" | "keep" {
     return layout;
 }
 
-const dataImport: UndoableDefinition<DataImportCommand> = {
+export const dataImport: UndoableDefinition<DataImportCommand> = {
     op: "data.import",
     undo: { kind: "undoable", label: importLabel, fact: importFact },
     // A chunked writer: a layout can move the lane between its chunks, so it takes the

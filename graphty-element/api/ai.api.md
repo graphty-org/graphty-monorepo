@@ -9,6 +9,8 @@ import { Camera } from '@babylonjs/core';
 import { Color3 } from '@babylonjs/core';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
+import type { Credential as Credential_2 } from '@graphty/graph-io';
+import type { CredentialKind } from '@graphty/graph-io';
 import { CSV_LOSS } from '@graphty/graph-io';
 import { CX2_LOSS } from '@graphty/graph-io';
 import { CX_LOSS } from '@graphty/graph-io';
@@ -45,8 +47,15 @@ import { PerfCounter } from '@babylonjs/core';
 import { PointerInfoPre } from '@babylonjs/core';
 import { Quaternion } from '@babylonjs/core';
 import { Ray } from '@babylonjs/core';
+import type { RetryOptions } from '@graphty/graph-io';
 import { Scene } from '@babylonjs/core';
 import { SceneInstrumentation } from '@babylonjs/core';
+import type { SourceCursor } from '@graphty/graph-io';
+import type { SourceLimitOptions } from '@graphty/graph-io';
+import type { SourceListing } from '@graphty/graph-io';
+import type { SourceListQuery } from '@graphty/graph-io';
+import type { SourceProbe } from '@graphty/graph-io';
+import type { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
@@ -165,11 +174,13 @@ export class ApiKeyManager {
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
+    getStoredItem(name: string): unknown;
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
     removeKey(provider: ProviderType): void;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
+    setStoredItem(name: string, value: unknown): void;
     toString(): string;
 }
 

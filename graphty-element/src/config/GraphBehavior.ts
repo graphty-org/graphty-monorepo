@@ -105,6 +105,29 @@ const CameraBehaviorOpts = z
     })
     .prefault({});
 
+const ExpandBehaviorOpts = z
+    .strictObject({
+        /*
+         * What expands a node from the network source that loaded it.
+         *
+         * "none" BY DEFAULT, so a click and a double-click do what they always did. Set, the
+         * element asks the node's source for its neighborhood and merges it as one undoable step;
+         * `fetchNodes` and `fetchEdges`, when a host sets them, still win. A node loaded from a
+         * file has nothing to ask, and the expansion fails with E_SOURCE_UNSUPPORTED. Experimental.
+         */
+        trigger: z.enum(["none", "click", "double-click"]).default("none"),
+        /* How many hops. */
+        depth: z.number().int().positive().default(1),
+        /* Which edges to follow. */
+        direction: z.enum(["out", "in", "both"]).default("both"),
+        /* At most this many new nodes per expansion; no limit when unset, the source's own default. */
+        limit: z.number().int().positive().optional(),
+        /* Only these relationship types; every type when unset. */
+        relationshipTypes: z.array(z.string()).optional(),
+        /* "continue" plays the layout so it places the new nodes; "none" leaves it as it is. */
+        layout: z.enum(["continue", "none"]).default("continue"),
+    })
+    .prefault({});
 /** What zoom-to-fit fits into view in 3D: the nodes' box, or the nodes at every turn of the view. */
 export type FitBounds = "box" | "turning";
 
@@ -191,6 +214,7 @@ export const GraphBehaviorOpts = z.strictObject({
     labels: LabelBehaviorOpts,
     rendering: RenderingBehaviorOpts,
     camera: CameraBehaviorOpts,
+    expand: ExpandBehaviorOpts,
     fetchNodes: z.optional(z.instanceof(Function)),
     fetchEdges: z.optional(z.instanceof(Function)),
 });

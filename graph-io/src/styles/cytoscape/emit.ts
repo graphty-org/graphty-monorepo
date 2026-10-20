@@ -191,7 +191,6 @@ const NEAR_LINES = { "dash-dot": "dashed", "long-dash": "dashed", zigzag: "solid
 const DESKTOP_ARROWS = {
     none: "NONE",
     triangle: "DELTA",
-    vee: "ARROW",
     tee: "T",
     diamond: "DIAMOND",
     circle: "CIRCLE",
@@ -220,6 +219,8 @@ const CX2_ARROWS = {
     "other:cross-open-delta": "cross_open_delta",
 };
 const NEAR_ARROWS = { crow: "vee", inverted: "triangle" };
+// desktop has no open vee: its ARROW, the nearest, is drawn as a filled delta and read back as one
+const DESKTOP_NEAR_ARROWS = { crow: "ARROW", inverted: "DELTA", vee: "ARROW" };
 
 /** The Cytoscape arrow names no canonical arrow names, which Cytoscape's readers keep as `other:` values. */
 const CY_OTHER_ARROWS: ReadonlySet<string> = new Set(["open-square", "open-half-circle", "half-circle", "half-bottom"]);
@@ -328,14 +329,14 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
                 "sourceArrow",
                 {
                     vp: "EDGE_SOURCE_ARROW_SHAPE",
-                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true, CY_OTHER_ARROWS),
+                    write: enumOut(DESKTOP_ARROWS, DESKTOP_NEAR_ARROWS, true, CY_OTHER_ARROWS),
                 },
             ],
             [
                 "targetArrow",
                 {
                     vp: "EDGE_TARGET_ARROW_SHAPE",
-                    write: enumOut(DESKTOP_ARROWS, nearIn(DESKTOP_ARROWS, NEAR_ARROWS), true, CY_OTHER_ARROWS),
+                    write: enumOut(DESKTOP_ARROWS, DESKTOP_NEAR_ARROWS, true, CY_OTHER_ARROWS),
                 },
             ],
             ["sourceArrowColor", { vp: "EDGE_SOURCE_ARROW_UNSELECTED_PAINT", write: colorOut }],

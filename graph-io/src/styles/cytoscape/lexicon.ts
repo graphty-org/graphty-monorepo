@@ -97,7 +97,8 @@ const shape: CytoscapeValueParser = (raw, site) => {
 const CY_ARROWS: ReadonlyMap<string, string> = new Map([
     ["none", "none"],
     ["delta", "triangle"],
-    ["arrow", "vee"],
+    // a filled delta with a shallow notch in its back, as long and wide as DELTA (Cytoscape 3.10.5 SVG export)
+    ["arrow", "triangle"],
     ["diamond", "diamond"],
     ["circle", "circle"],
     ["t", "tee"],

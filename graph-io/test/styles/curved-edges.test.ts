@@ -156,7 +156,7 @@ describe("curved edges: Cytoscape desktop", () => {
         expect(await curved(doc, "cx2")).toEqual([true, true, false, false, false, false]);
     });
 
-    it("fans nothing when the bundle's last edge has bends, or the edges are not curved", async () => {
+    it("fans nothing when the bundle's last edge has bends; fans them under EDGE_CURVED false too", async () => {
         const bentFirst = cx2(
             [
                 [1, 2],
@@ -173,7 +173,8 @@ describe("curved edges: Cytoscape desktop", () => {
             ],
             { EDGE_CURVED: false, EDGE_BEND: "" },
         );
-        expect(await curved(straight, "cx2")).toEqual([false, false]);
+        // desktop still curves the earlier one apart (xgmml-specimen-edges-lines.svg, curved-false-parallel)
+        expect(await curved(straight, "cx2")).toEqual([true, false]);
     });
 
     it("spaces the fanned edges by the larger side of the two nodes times the stacking density", async () => {

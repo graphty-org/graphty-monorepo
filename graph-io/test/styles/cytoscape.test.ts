@@ -563,7 +563,8 @@ function randomRules(rand: () => number): StyleRule[] {
             set: {
                 color: pick(colors),
                 width: 1 + Math.round(rand() * 5),
-                targetArrow: pick(["triangle", "vee", "tee", "none"]),
+                // desktop has no open vee (its ARROW is a filled delta), so no vee: it would not come back
+                targetArrow: pick(["triangle", "diamond", "tee", "none"]),
             },
         },
         {
@@ -746,6 +747,26 @@ describe("emit then translate returns the same rules", () => {
         const cx2 = new StyleNotes();
         emitCytoscapeStyle(ex, s, { dialect: "cx2", notes: cx2 });
         expect(codes(cx2)).toContain("W_STYLE_NOT_WRITTEN edge tooltip");
+    });
+
+    it("writes a vee to desktop as its ARROW, which desktop draws a filled delta, and says so", () => {
+        const s = graph(3, rng(1));
+        const ex = extracted(s, [
+            {
+                id: "y",
+                target: "edge",
+                role: "defaults",
+                origin: "declared",
+                where: { all: true },
+                set: { targetArrow: "vee" },
+            },
+        ]);
+        const notes = new StyleNotes();
+        const out = emitCytoscapeStyle(ex, s, { dialect: "desktop", notes });
+        expect(out.style.edge.defaults.get("EDGE_TARGET_ARROW_SHAPE")).toBe("ARROW");
+        expect(notes.list().map((n) => `${n.code} ${String(n.params.property)}`)).toContain(
+            "W_STYLE_APPROXIMATED targetArrow",
+        );
     });
 
     it("writes another program's shape as its nearest Cytoscape shape, and Cytoscape's own other values as they are", () => {

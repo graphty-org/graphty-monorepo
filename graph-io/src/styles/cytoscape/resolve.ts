@@ -114,6 +114,8 @@ export interface CytoscapeResolveOptions {
 
 /** How closely desktop stacks the edges it fans, 0..1: its anchors are twice this times the node size apart. */
 const EDGE_STACKING_DENSITY_VP = "EDGE_STACKING_DENSITY";
+/** How desktop draws parallel edges: AUTO_BEND (the default) fans them, HAYSTACK draws them straight. */
+const EDGE_STACKING_VP = "EDGE_STACKING";
 /** Whether an edge's label is turned along its line. */
 const AUTOROTATE_VP = "EDGE_LABEL_AUTOROTATE";
 
@@ -815,7 +817,9 @@ function arrowProportions(
  * it walks the pair's edges newest first, measured on Cytoscape 3.10.5's SVG of edges joining two nodes both ways)
  * -- unless the last has bends, when every anchor falls on the line. Its anchors are the larger side of the two
  * nodes times twice `EDGE_STACKING_DENSITY` apart, so the curves' middles half that: each fanned edge's
- * `fanSpacing`, when the node sizes are known.
+ * `fanSpacing`, when the node sizes are known. A fanned edge is drawn curved even under `EDGE_CURVED` false, and an
+ * edge whose `EDGE_STACKING` is HAYSTACK is neither fanned nor counted: desktop draws it straight (both measured on
+ * Cytoscape 3.10.5's SVG of the edges-lines specimen sheet).
  * @param out - the values per property, changed in place
  * @param one - reads one visual property of one element
  * @param n - the edge count
@@ -830,14 +834,15 @@ function straightenBendless(
     // an edge the style leaves unset takes EDGE_CURVED's default, true
     const curved = out.curved ?? new Array<StyleValue | null>(n).fill(null);
     const bent = (i: number): boolean => one(EDGE_BEND_VP, bendParser, "curved", i) === true;
+    const haystack = (i: number): boolean =>
+        String(one(EDGE_STACKING_VP, rawText, "fanned", i) ?? "").toUpperCase() === "HAYSTACK";
     const fanned = new Set<number>();
     if (ends !== undefined) {
-        // ponytail: EDGE_STACKING is taken as AUTO_BEND (the default); HAYSTACK draws these edges straight
         // desktop walks a node pair's edges newest first (its adjacency lists take each new edge at the head)
         const first = new Map<string, number>();
         for (let i = curved.length - 1; i >= 0; i--) {
             const [s, t] = [ends.source[i], ends.target[i]];
-            if (s === t) {
+            if (s === t || haystack(i)) {
                 continue;
             }
             const key = s < t ? `${s},${t}` : `${t},${s}`;
@@ -854,7 +859,7 @@ function straightenBendless(
         if (c === null) {
             return rounds(i) ? true : null;
         }
-        return c === true ? rounds(i) : c;
+        return c === true || fanned.has(i) ? rounds(i) : c;
     });
     if (out.curved !== undefined || rounded.includes(true)) {
         out.curved = rounded;

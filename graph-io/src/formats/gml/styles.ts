@@ -559,10 +559,16 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     const borderStyle = strokeStyle(g.outlineStyle, "borderStyle", writer, at("borderStyle"));
     put("borderStyle", borderStyle);
     readGv2gmlRings(g, shape, borderStyle, writer, put, at);
-    put("width", g.w === undefined ? null : canonNumber(g.w, at("width")));
+    // gv2gml's w and H are the node's outer size: Graphviz draws each further outline PERIPHERY_GAP outside the one
+    // within, so graphty's node (the innermost outline, its ring outside it) is that much smaller
+    const rings = 2 * PERIPHERY_GAP * ((SHAPE_PERIPHERIES.get(shape) ?? 1) - 1);
+    const inner = (raw: unknown, property: string): number | null => {
+        const n = raw === undefined ? null : canonNumber(raw, at(property));
+        return n === null ? null : Math.max(0, n - rings);
+    };
+    put("width", inner(g.w, "width"));
     // gv2gml writes the height as H (gv2gml.c emitReal("H", ...)); h where a later edit spelled it as GML does
-    const h = first(g, "H", "h");
-    put("height", h === undefined ? null : canonNumber(h, at("height")));
+    put("height", inner(first(g, "H", "h"), "height"));
     if (Number(g.visible) === 0 && g.visible !== undefined) {
         put("visible", false);
     }

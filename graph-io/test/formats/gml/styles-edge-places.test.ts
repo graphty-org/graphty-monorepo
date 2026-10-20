@@ -73,6 +73,8 @@ describe("GML styles: gv2gml's arrows and outlines as Graphviz draws them", () =
         expect(node$("outerBorderWidth")).toEqual([1, 2, null]);
         expect(node$("outerBorderOffset")).toEqual([3, 2, null]);
         expect(node$("outerBorderStyle")[1]).toBe("dashed");
+        // w and H are the outer size: the innermost outline is 2 x 4 points smaller
+        expect(node$("width")).toEqual([4, 4, 12]);
     });
 });
 

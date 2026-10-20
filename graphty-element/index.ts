@@ -51,6 +51,7 @@ export type {
     GraphtyCapabilitiesChangeDetail,
     GraphtyElementEventMap,
     GraphtyHistoryChangeDetail,
+    GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
 } from "./src/graphty-element";

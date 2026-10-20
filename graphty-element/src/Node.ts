@@ -31,9 +31,11 @@ import { NodeMesh } from "./meshes/NodeMesh";
 import { readColor } from "./meshes/readColor";
 import { RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { isFlatShape } from "./meshes/shapeOutlines";
+import { ModelCache, type ModelTemplate, type ModelUser } from "./models/ModelCache";
 import { NodeBehavior, type NodeDragHandler } from "./NodeBehavior";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
+import { CHANNEL_DESCRIPTORS } from "./session/styles/channels";
 
 export type NodeIdType = string | number;
 
@@ -204,11 +206,27 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
+/** The colour a node is drawn in when no layer a reader added colours it. */
+const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "").toLowerCase();
+
+/** White: an untinted model instance keeps its own colours. */
+const UNTINTED = new Color4(1, 1, 1, 1);
+
+/**
+ * Whether a shape block tints its model with the node's colour.
+ * @param shape - The shape block.
+ * @returns True for tint on or "replace".
+ */
+function modelTinted(shape: NodeStyleConfig["shape"]): boolean {
+    const tint = shape?.modelTint as unknown;
+    return tint === true || tint === "true" || tint === "replace";
+}
+
 /**
  * Represents a node in the graph visualization with its mesh, label, and associated data.
  * Manages node rendering, styling, drag behavior, and interactions with the layout engine.
  */
-export class Node {
+export class Node implements ModelUser {
     parentGraph: Graph | GraphContext;
     opts: NodeOpts;
     readonly id: NodeIdType;
@@ -294,6 +312,8 @@ export class Node {
 
     /** The style and the instance colour the current mesh was built from; see `paintFrom`. */
     private drawnStyle: NodeStyleConfig | null = null;
+    /** The model template this node's mesh instances, or null when it draws a built-in shape. */
+    private drawnModel: ModelTemplate | null = null;
     private drawnColor: Rgba | null = null;
 
     /**
@@ -445,12 +465,7 @@ export class Node {
         this.size = o.shape?.size ?? 0;
         this.shapeType = o.shape?.type;
 
-        this.mesh = NodeMesh.create(
-            this.context.getMeshCache(),
-            { styleId: paint.meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
-            this.context.getScene(),
-        );
+        this.mesh = this.buildMesh(paint.meshKey, o);
 
         // Parent to graph-root for XR gesture support
         // This allows gestures to transform the entire graph by manipulating the root
@@ -574,6 +589,12 @@ export class Node {
      * @returns The radius, or null.
      */
     private measureRoundRadius(): number | null {
+        // A model's edges stop at its fitted bounding sphere (design section 3.8).
+        if (this.drawnModel !== null) {
+            const { scaling } = this.mesh;
+            return this.drawnModel.radius * Math.max(Math.abs(scaling.x), Math.abs(scaling.y), Math.abs(scaling.z));
+        }
+
         // An unnamed shape is not assumed to be anything. `NodeMesh.create` throws for a type it
         // does not know, so a node that is drawn always has one.
         if (this.shapeType === undefined || !ROUND_SHAPES.has(this.shapeType)) {
@@ -776,6 +797,22 @@ export class Node {
      * @param color - The colour, or null when no layer painted one.
      */
     private applyInstanceColor(color: Rgba | null): void {
+        if (this.drawnModel !== null) {
+            // A model keeps its own colours unless `node.modelTint` asks for the node's: every
+            // template registers the colour buffer white, so this is one write per part.
+            const tint =
+                color !== null && modelTinted(this.drawnStyle?.shape)
+                    ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
+                    : UNTINTED;
+            for (const part of [this.mesh, ...this.mesh.getChildMeshes(true)]) {
+                if (part instanceof InstancedMesh && this.drawnModel.groups.includes(part.sourceMesh)) {
+                    part.instancedBuffers.color = tint;
+                }
+            }
+
+            return;
+        }
+
         if (color === null || !(this.mesh instanceof InstancedMesh)) {
             return;
         }
@@ -838,7 +875,61 @@ export class Node {
     private keepsMeshFor(meshKey: string, o: NodeStyleConfig, color: Rgba | null): boolean {
         const sameGeometry =
             meshKey === this.meshKey || (isEqual(o, this.drawnStyle) && isEqual(color, this.drawnColor));
-        return sameGeometry && !this.mesh.isDisposed();
+        return sameGeometry && !this.mesh.isDisposed() && this.modelFor(o) === this.drawnModel;
+    }
+
+    /**
+     * The model template a style asks for, once it is drawable; asking starts its load, and this
+     * node is repainted when it is ready. Null for a built-in shape, while a model loads, and
+     * when it failed: the node then draws `node.shape`.
+     * @param o - The resolved style.
+     * @returns The template, or null.
+     */
+    private modelFor(o: NodeStyleConfig): ModelTemplate | null {
+        if (o.shape?.model === undefined) {
+            return null;
+        }
+
+        return ModelCache.of(this.context)?.templateFor(this, o.shape) ?? null;
+    }
+
+    /**
+     * Build this node's mesh: an instance of its model when one is drawable, else its shape.
+     * @param meshKey - The source mesh key.
+     * @param o - The resolved style.
+     * @returns The mesh.
+     */
+    private buildMesh(meshKey: string, o: NodeStyleConfig): AbstractMesh {
+        const model = this.modelFor(o);
+        this.drawnModel = model;
+        if (model !== null) {
+            return NodeMesh.createModelInstance(model, o.shape, `node-model-${String(this.id)}`);
+        }
+
+        return NodeMesh.create(
+            this.context.getMeshCache(),
+            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
+            { shape: o.shape, texture: o.texture, effect: o.effect },
+            this.context.getScene(),
+        );
+    }
+
+    /**
+     * What this node draws as a model, for the model cache's warnings.
+     * @returns Its template, whether it is tinted and whether a reader's layer coloured it.
+     * @internal
+     */
+    modelDrawn(): { readonly template: ModelTemplate | null; readonly tinted: boolean; readonly colored: boolean } {
+        const color = this.drawnColor;
+        const hex =
+            color === null
+                ? DEFAULT_NODE_COLOR
+                : `#${[color.r, color.g, color.b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+        return {
+            template: this.drawnModel,
+            tinted: modelTinted(this.drawnStyle?.shape),
+            colored: hex !== DEFAULT_NODE_COLOR,
+        };
     }
 
     /**
@@ -939,7 +1030,9 @@ export class Node {
         // Width, height, depth, flatness and a border move a node's surface as surely as its size
         // and shape do, so any of them sends the edges back to find it.
         const geometryChanged =
-            !isEqual(this.drawnStyle?.shape, o.shape) || !isEqual(this.drawnStyle?.border, o.border);
+            !isEqual(this.drawnStyle?.shape, o.shape) ||
+            !isEqual(this.drawnStyle?.border, o.border) ||
+            this.modelFor(o) !== this.drawnModel;
 
         this.meshKey = meshKey;
         this.drawnStyle = o;
@@ -1006,12 +1099,7 @@ export class Node {
             this.geometryChanged();
         }
 
-        this.mesh = NodeMesh.create(
-            this.context.getMeshCache(),
-            { styleId: meshKey, is2D: this.context.is2D(), size: this.size },
-            { shape: o.shape, texture: o.texture, effect: o.effect },
-            this.context.getScene(),
-        );
+        this.mesh = this.buildMesh(meshKey, o);
 
         // Restore the saved position to the new mesh
         this.setMeshPosition(savedPosition.x, savedPosition.y, savedPosition.z);

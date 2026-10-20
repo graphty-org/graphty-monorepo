@@ -60,6 +60,12 @@ const DECLARED = [
     "node.borderWidth",
     "node.borderStyle",
     "node.cornerRadius",
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
     "edge.color",
     "edge.width",
     "edge.opacity",
@@ -113,8 +119,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into thirty-five node channels and twenty-seven edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 35);
+    it("splits into forty-one node channels and twenty-seven edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 41);
         assert.strictEqual(channelsFor("edge").length, 27);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -316,6 +322,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.drawOrder",
         // Unset, a round-rectangle's corners are a quarter of its shorter side.
         "node.cornerRadius",
+        // Unset, a node draws its shape and no model.
+        "node.model",
         "edge.patternCount",
         // Unset, an edge runs straight from node to node.
         "edge.bends",

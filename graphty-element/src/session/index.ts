@@ -100,6 +100,8 @@ export type {
     LoadDraft,
     LoadMapping,
     LoadMappingRead,
+    ModelChange,
+    ModelState,
     Neighbor,
     NeighborOptions,
     NeighborPage,

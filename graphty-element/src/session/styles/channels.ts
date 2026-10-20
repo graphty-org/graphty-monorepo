@@ -63,6 +63,9 @@ import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import {
     defaultNodeStyle,
     NodeBorderStyles,
+    NodeModelCenters,
+    NodeModelFits,
+    NodeModelUpAxes,
     NodeShapes,
     NodeSizeModes,
     type NodeStyleConfig,
@@ -242,6 +245,9 @@ export type NodeSizeModeValue = NonNullable<NonNullable<NodeStyleConfig["shape"]
 /** Every node size mode, in schema order. */
 const NODE_SIZE_MODE_VALUES: readonly NodeSizeModeValue[] = NodeSizeModes.options;
 
+/** The axis that points up in a model's file, as `node.modelSourceUp` takes it. */
+export type NodeModelUpValue = NonNullable<NonNullable<NodeStyleConfig["shape"]>["modelSourceUp"]>;
+
 /** A line style a node border can be drawn in. */
 export type NodeBorderStyleValue = NonNullable<NonNullable<NodeStyleConfig["border"]>["style"]>;
 
@@ -301,6 +307,12 @@ export interface ChannelValues {
     "node.borderWidth": number;
     "node.borderStyle": NodeBorderStyleValue;
     "node.cornerRadius": number;
+    "node.model": string;
+    "node.modelSourceUp": NodeModelUpValue;
+    "node.modelTurn": number;
+    "node.modelTint": boolean | "replace";
+    "node.modelFit": "contain" | "stretch";
+    "node.modelCenter": "bounds" | "origin";
     "edge.color": ColorValue;
     "edge.width": number;
     "edge.opacity": number;
@@ -732,6 +744,17 @@ export function mergeLabelStyle(held: unknown, over: object): object {
 }
 
 /**
+ * What a model node is, read by `node.model`.
+ */
+const NODE_MODEL_CAVEAT =
+    "Draws the node as a 3D model: an asset id from `session.assets` or a URL. The model is fitted " +
+    "to the box a node of the same size would fill, centered and lit; `node.shape` is drawn while it " +
+    "loads and if it fails. Only a layer added or updated by the page's code may name a URL: a URL " +
+    "from a project file, an AI command, a template, an encoding or an expression is not fetched " +
+    "unless `session.assets.allowHosts` names its host. `node.color` applies only with " +
+    "`node.modelTint`.";
+
+/**
  * What a node border is, written once and read by its three channels.
  */
 const NODE_BORDER_CAVEAT =
@@ -1121,6 +1144,91 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "The largest radius of a round-rectangle's corners, in the units of `node.size`. Unset, " +
             "the corners are a quarter of the shorter side; set, they are never larger than that, so " +
             "a large box keeps small corners. Other shapes ignore it.",
+    },
+    "node.model": {
+        channel: "node.model",
+        target: "node",
+        plainName: "Node Model",
+        shortName: "Model",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.model",
+        renderable: true,
+        caveat: NODE_MODEL_CAVEAT,
+    },
+    "node.modelSourceUp": {
+        channel: "node.modelSourceUp",
+        target: "node",
+        plainName: "Node Model Up Axis",
+        shortName: "Model up axis",
+        group: "shape",
+        default: "detected",
+        accepts: "enum",
+        values: NodeModelUpAxes.options,
+        stylePath: "shape.modelSourceUp",
+        renderable: true,
+        caveat:
+            "The axis that points up in the model's file; the element turns the model so it points " +
+            'up on screen. "detected": glTF and GLB are Y up by their specification, STL is taken ' +
+            "as Z up and OBJ and PLY as Y up.",
+    },
+    "node.modelTurn": {
+        channel: "node.modelTurn",
+        target: "node",
+        plainName: "Node Model Turn",
+        shortName: "Model turn",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: -360,
+        max: 360,
+        stylePath: "shape.modelTurn",
+        renderable: true,
+        caveat: "A turn about the up axis, in degrees, after the up axis is applied.",
+    },
+    "node.modelTint": {
+        channel: "node.modelTint",
+        target: "node",
+        plainName: "Node Model Tint",
+        shortName: "Model tint",
+        group: "color",
+        default: "false",
+        accepts: "enum",
+        values: ["false", "true", "replace"],
+        stylePath: "shape.modelTint",
+        renderable: true,
+        caveat:
+            "A model keeps its own colors unless this is set: true multiplies the model's base " +
+            'color by `node.color`, and "replace" paints every material in `node.color`. Takes ' +
+            'true, false or "replace".',
+    },
+    "node.modelFit": {
+        channel: "node.modelFit",
+        target: "node",
+        plainName: "Node Model Fit",
+        shortName: "Model fit",
+        group: "shape",
+        default: "contain",
+        accepts: "enum",
+        values: NodeModelFits.options,
+        stylePath: "shape.modelFit",
+        renderable: true,
+        caveat:
+            '"contain" keeps the model\'s proportions; "stretch" fills `node.width`, `node.height` ' +
+            "and `node.depth` separately.",
+    },
+    "node.modelCenter": {
+        channel: "node.modelCenter",
+        target: "node",
+        plainName: "Node Model Center",
+        shortName: "Model center",
+        group: "shape",
+        default: "bounds",
+        accepts: "enum",
+        values: NodeModelCenters.options,
+        stylePath: "shape.modelCenter",
+        renderable: true,
+        caveat: '"bounds" centers the model\'s bounding box on the node; "origin" keeps the file\'s own pivot.',
     },
     "edge.color": {
         channel: "edge.color",

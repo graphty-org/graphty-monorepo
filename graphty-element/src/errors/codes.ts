@@ -579,6 +579,10 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_DECODER_UNAVAILABLE"
     /**
+     * Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+     */
+    | "E_MODEL_PARSE"
+    /**
      * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
      */
     | "E_MODEL_ZIP"
@@ -653,7 +657,20 @@ export type GraphtyWarningCode =
      */
     | "W_MODEL_UP_GUESSED"
     /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
-    | "W_MODEL_HAS_ANIMATIONS";
+    | "W_MODEL_HAS_ANIMATIONS"
+    /**
+     * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+     * `params.layerIds` names the layers that write `node.color`.
+     */
+    | "W_MODEL_COLOR_IGNORED"
+    /** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+    | "W_MODEL_HEAVY"
+    /** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+    | "W_MODEL_BUDGET"
+    /** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+    | "W_MODEL_TRANSPARENT"
+    /** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+    | "W_MODEL_TEXTURES_REDUCED";
 
 /**
  * Every code, as a lookup table.
@@ -757,6 +774,7 @@ const CODE_TABLE = {
     E_MODEL_MISSING_FILE: "E_MODEL_MISSING_FILE",
     E_MODEL_EXTERNAL_URL: "E_MODEL_EXTERNAL_URL",
     E_MODEL_DECODER_UNAVAILABLE: "E_MODEL_DECODER_UNAVAILABLE",
+    E_MODEL_PARSE: "E_MODEL_PARSE",
     E_MODEL_ZIP: "E_MODEL_ZIP",
     E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
     E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",

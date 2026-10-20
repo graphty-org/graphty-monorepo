@@ -3100,6 +3100,10 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
 * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
 */
 | "E_MODEL_ZIP"
@@ -3168,6 +3172,9 @@ export interface GraphtyHistoryChangeDetail {
 }
 
 // @public
+export type GraphtyModelChangeDetail = ModelChange;
+
+// @public
 export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields" | "cause">;
 
 // @public
@@ -3231,7 +3238,20 @@ export type GraphtyWarningCode =
 */
 | "W_MODEL_UP_GUESSED"
 /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
-| "W_MODEL_HAS_ANIMATIONS";
+| "W_MODEL_HAS_ANIMATIONS"
+/**
+* A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+* `params.layerIds` names the layers that write `node.color`.
+*/
+| "W_MODEL_COLOR_IGNORED"
+/** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+| "W_MODEL_HEAVY"
+/** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+| "W_MODEL_BUDGET"
+/** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+| "W_MODEL_TRANSPARENT"
+/** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+| "W_MODEL_TEXTURES_REDUCED";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;
@@ -3613,7 +3633,7 @@ export interface NeighborSort {
 }
 
 // @public
-class Node_2 {
+class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
@@ -3649,6 +3669,12 @@ class Node_2 {
     label?: RichTextLabel;
     // (undocumented)
     mesh: AbstractMesh;
+    // @internal
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+    };
     // (undocumented)
     opts: NodeOpts;
     // (undocumented)
@@ -3904,6 +3930,26 @@ export const NodeStyle: z.ZodObject<{
         zIndex: z.ZodOptional<z.ZodNumber>;
         drawOrder: z.ZodOptional<z.ZodNumber>;
         cornerRadius: z.ZodOptional<z.ZodNumber>;
+        model: z.ZodOptional<z.ZodString>;
+        modelSourceUp: z.ZodOptional<z.ZodEnum<{
+            x: "x";
+            y: "y";
+            z: "z";
+            detected: "detected";
+            "-y": "-y";
+            "-z": "-z";
+            "-x": "-x";
+        }>>;
+        modelTurn: z.ZodOptional<z.ZodNumber>;
+        modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
+        modelFit: z.ZodOptional<z.ZodEnum<{
+            contain: "contain";
+            stretch: "stretch";
+        }>>;
+        modelCenter: z.ZodOptional<z.ZodEnum<{
+            origin: "origin";
+            bounds: "bounds";
+        }>>;
     }, z.core.$strict>>;
     texture: z.ZodOptional<z.ZodObject<{
         color: z.ZodOptional<z.ZodUnion<[z.ZodDiscriminatedUnion<[z.ZodObject<{

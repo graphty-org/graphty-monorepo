@@ -650,6 +650,15 @@ export interface SessionStylesApi extends StylesApi {
      * @returns The compiled layers, bottom first.
      */
     compiled(): readonly CompiledLayer[];
+    /**
+     * Whether the page's own code named this model URL, in a layer it added or updated directly
+     * (`styles.add`, `styles.update`). Only such a URL is fetched without the page allowing its
+     * host; a URL from a project file, a template, an AI command, suggested styles, an encoding or
+     * an expression is not (design/rendering/node-models.md, section 2.6).
+     * @param url - The URL as the layer named it.
+     * @returns True when code named it.
+     */
+    modelUrlFromCode(url: string): boolean;
 }
 
 /**
@@ -1765,6 +1774,26 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param options - A signal, and a progress handler.
      * @returns The run.
      */
+    /**
+     * The model URLs the page's code named in a layer it added or updated itself.
+     *
+     * ponytail: grows for the life of the session, so a URL code once named stays fetchable after
+     * its layer is gone; track it per layer id if a page ever needs to withdraw that.
+     */
+    const codeModelUrls = new Set<string>();
+
+    /**
+     * Record the model URL a direct add or update from code names. A layer that says it came from
+     * anything but the user (an AI command, a run, a template, a plugin) is not code's own.
+     * @param spec - The specification or patch as the caller handed it.
+     */
+    const noteCodeModel = (spec: Partial<LayerSpec>): void => {
+        const named = spec.set?.["node.model"];
+        if (typeof named === "string" && !named.startsWith("asset:") && (spec.source?.by ?? "user") === "user") {
+            codeModelUrls.add(named);
+        }
+    };
+
     const edit = <T>(
         verb: StyleVerb,
         label: string,
@@ -2485,6 +2514,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return current();
         },
 
+        modelUrlFromCode(url: string): boolean {
+            return codeModelUrls.has(url);
+        },
+
         get(id: LayerId): Layer | undefined {
             return byId().get(id)?.layer;
         },
@@ -2494,6 +2527,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         add(spec: LayerSpec, at?: LayerPosition, options: RunOptions = {}): Run<Layer> {
+            noteCodeModel(spec);
             return edit<Layer>(
                 "add",
                 `Add layer "${spec.name}"`,
@@ -2503,6 +2537,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         update(id: LayerId, patch: Partial<LayerSpec>, options: RunOptions = {}): Run<Layer> {
+            noteCodeModel(patch);
             return edit<Layer>(
                 "update",
                 `Update layer ${id}`,

@@ -906,6 +906,7 @@ export const READ_ONLY: readonly string[] = [
     "SessionGraphStore.undirected",
     "SessionHistory.cancel",
     "SessionStylesApi.compiled",
+    "SessionStylesApi.modelUrlFromCode",
     "SetsApi.containing",
     "SetsApi.get",
     "SetsApi.list",

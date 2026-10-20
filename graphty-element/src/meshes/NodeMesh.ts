@@ -1,6 +1,10 @@
+// Installs Mesh.prototype.createInstance, which createModelInstance calls.
+import "@babylonjs/core/Meshes/instancedMesh";
+
 import {
     AbstractMesh,
     Color3,
+    Color4,
     DynamicTexture,
     type ICanvasGradient,
     type ICanvasRenderingContext,
@@ -17,6 +21,7 @@ import {
 import { SharedImplementationMap } from "../catalog/pluginRegistry";
 import type { NodeStyleConfig } from "../config";
 import { PolyhedronType, SHAPE_CONSTANTS } from "../constants/meshConstants";
+import type { ModelTemplate } from "../models/ModelCache";
 import { shadeInstanceColors } from "./InstanceColorShading";
 import { setUpQuietly } from "./LabelBatch";
 import type { MeshCache } from "./MeshCache";
@@ -323,6 +328,46 @@ export class NodeMesh {
 
             return mesh;
         });
+    }
+
+    /**
+     * Draw one node as a model: an instance of the template's first group, which is what the
+     * node's position, picking, labels and visibility act on, with one instance of every other
+     * group as its children. It is picked by the whole model's bounding box, never by its
+     * triangles. Scaled so the model's largest extent is the extent a built-in shape of the same
+     * `size` and `sizeMode` is drawn at; `modelFit: "stretch"` fills width, height and depth
+     * separately.
+     * @param template - The model's template.
+     * @param shape - The node's shape block.
+     * @param name - A name for the instances.
+     * @returns The node's mesh.
+     */
+    static createModelInstance(template: ModelTemplate, shape: NodeStyleConfig["shape"], name: string): InstancedMesh {
+        const [first, ...rest] = template.groups;
+        const root = first.createInstance(name);
+        root.isPickable = true;
+        root.instancedBuffers.color = new Color4(1, 1, 1, 1);
+        // The box only: a pointer move tests no model triangle (design section 3.8).
+        const intersects = root.intersects.bind(root);
+        root.intersects = (ray, fastCheck, trianglePredicate, _onlyBoundingInfo, worldToUse, skipBoundingInfo) =>
+            intersects(ray, fastCheck, trianglePredicate, true, worldToUse, skipBoundingInfo);
+        for (const group of rest) {
+            const part = group.createInstance(`${name}-part`);
+            part.parent = root;
+            part.isPickable = false;
+            part.instancedBuffers.color = new Color4(1, 1, 1, 1);
+        }
+
+        const perSize = this.extentPerSize(shape);
+        const size = Math.max(shape?.size ?? 1, MIN_NODE_SIZE);
+        if (shape?.modelFit === "stretch") {
+            const axis = (value: number | undefined): number => Math.max(value ?? size, MIN_NODE_SIZE) * perSize;
+            root.scaling.set(axis(shape.width), axis(shape.height), axis(shape.depth));
+        } else {
+            root.scaling.setAll(size * perSize);
+        }
+
+        return root;
     }
 
     /**

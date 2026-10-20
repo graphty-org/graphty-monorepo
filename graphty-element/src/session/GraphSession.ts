@@ -155,6 +155,7 @@ import type {
     FindResult,
     GraphSession,
     HistoryOutcome,
+    ModelChange,
     PositionEntry,
     ProjectConfig,
     ProjectConfigPatch,
@@ -425,6 +426,14 @@ class Session implements ElementSession {
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
     readonly project: ProjectApi;
+
+    /**
+     * Publish what happened to a model a layer names, as `model:changed`.
+     * @param change - The change.
+     */
+    publishModelChange(change: ModelChange): void {
+        publish(this.watchers, "model:changed", change);
+    }
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;

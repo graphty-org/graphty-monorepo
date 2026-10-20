@@ -1193,6 +1193,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applySessionPaint: RENDER,
             dispose: RENDER,
             isDisposed: READ,
+            modelDrawn: READ,
             getRenderState: READ,
             setRenderState: RENDER,
             isSelected: READ,
@@ -1270,6 +1271,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...SESSION,
             paint: READ,
+            publishModelChange: EVENTS,
         },
     },
     {
@@ -2291,6 +2293,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         doors: {
             ...STYLES_API,
             compiled: READ,
+            modelUrlFromCode: READ,
         },
     },
     {

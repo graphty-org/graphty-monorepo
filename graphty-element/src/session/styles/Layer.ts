@@ -705,7 +705,9 @@ function checkNumber(descriptor: ChannelDescriptor, value: ChannelValue, path: s
 function checkEnum(descriptor: ChannelDescriptor, value: ChannelValue, path: string): LayerProblem | null {
     const values = descriptor.values ?? [];
 
-    if (typeof value === "string" && values.includes(value)) {
+    // A boolean is read by its name, for a channel such as `node.modelTint` that takes true,
+    // false or a word.
+    if ((typeof value === "string" || typeof value === "boolean") && values.includes(String(value))) {
         return null;
     }
 

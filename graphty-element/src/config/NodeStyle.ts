@@ -11,6 +11,15 @@ import { RichTextStyle } from "./RichTextStyle";
  */
 export const NodeSizeModes = z.enum(["scale", "diameter", "uniform"]);
 
+/** The axis that points up in a model's file, or "detected" to read it from the format. */
+export const NodeModelUpAxes = z.enum(["detected", "y", "z", "-y", "-z", "x", "-x"]);
+
+/** How a model fills a node: keeping its proportions, or stretched to width, height and depth. */
+export const NodeModelFits = z.enum(["contain", "stretch"]);
+
+/** Where a model's pivot sits on the node: its bounding box's center, or the file's own origin. */
+export const NodeModelCenters = z.enum(["bounds", "origin"]);
+
 /**
  * The single source of truth for the node shape vocabulary.
  *
@@ -165,6 +174,20 @@ export const NodeStyle = z.strictObject({
             // A round-rectangle's largest corner radius, in the units of `size`. Unset, the
             // corners are a quarter of the shorter side; set, they are never larger than that.
             cornerRadius: z.number().nonnegative().optional(),
+            // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
+            // URL. `type` stays the placeholder while it loads and the fallback when it fails
+            // (design/rendering/node-models.md).
+            model: z.string().optional(),
+            // The axis that points up in the model's file; "detected" reads it from the format.
+            modelSourceUp: NodeModelUpAxes.optional(),
+            // A turn about the up axis after `modelSourceUp`, in degrees.
+            modelTurn: z.number().min(-360).max(360).optional(),
+            // true multiplies the model's base color by the node color; "replace" paints it flat.
+            modelTint: z.union([z.boolean(), z.literal("replace")]).optional(),
+            // "contain" keeps proportions; "stretch" fills width, height and depth separately.
+            modelFit: NodeModelFits.optional(),
+            // "bounds" centers the bounding box on the node; "origin" keeps the file's pivot.
+            modelCenter: NodeModelCenters.optional(),
             // custom mesh https://doc.babylonjs.com/features/featuresDeepDive/mesh/creation/custom/custom
             // import mesh https://doc.babylonjs.com/typedoc/functions/BABYLON.ImportMeshAsync
         })

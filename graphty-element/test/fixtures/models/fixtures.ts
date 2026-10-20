@@ -293,3 +293,90 @@ export function hugePngGltf(): Map<string, Uint8Array> {
         }),
     );
 }
+
+/**
+ * A GLB holding one UV sphere with normals: `2 * segments * rings` triangles, stretched by
+ * `scale`, in one white (or `color`) material.
+ * @param segments - Slices around the axis.
+ * @param rings - Bands from pole to pole.
+ * @param scale - The stretch along x, y and z.
+ * @param color - The base color factor.
+ * @param offset - Where the sphere's center sits, away from the file's origin.
+ * @returns The GLB.
+ */
+export function sphereGlb(
+    segments = 16,
+    rings = 8,
+    scale: readonly [number, number, number] = [1, 1, 1],
+    color: readonly [number, number, number, number] = [1, 1, 1, 1],
+    offset: readonly [number, number, number] = [0, 0, 0],
+): Uint8Array {
+    const positions: number[] = [];
+    const normals: number[] = [];
+    for (let ring = 0; ring <= rings; ring++) {
+        const theta = (ring / rings) * Math.PI;
+        for (let segment = 0; segment <= segments; segment++) {
+            const phi = (segment / segments) * Math.PI * 2;
+            const n = [Math.sin(theta) * Math.cos(phi), Math.cos(theta), Math.sin(theta) * Math.sin(phi)];
+            normals.push(...n);
+            positions.push(n[0] * scale[0] + offset[0], n[1] * scale[1] + offset[1], n[2] * scale[2] + offset[2]);
+        }
+    }
+
+    const indices: number[] = [];
+    const row = segments + 1;
+    for (let ring = 0; ring < rings; ring++) {
+        for (let segment = 0; segment < segments; segment++) {
+            const a = ring * row + segment;
+            const b = a + row;
+            indices.push(a, b, a + 1, a + 1, b, b + 1);
+        }
+    }
+
+    const positionBytes = new Uint8Array(new Float32Array(positions).buffer);
+    const normalBytes = new Uint8Array(new Float32Array(normals).buffer);
+    const indexBytes = new Uint8Array(new Uint32Array(indices).buffer);
+    const bin = new Uint8Array(positionBytes.length + normalBytes.length + indexBytes.length);
+    bin.set(positionBytes, 0);
+    bin.set(normalBytes, positionBytes.length);
+    bin.set(indexBytes, positionBytes.length + normalBytes.length);
+    const count = positions.length / 3;
+    const json = {
+        asset: { version: "2.0", generator: "graphty fixtures" },
+        scene: 0,
+        scenes: [{ nodes: [0] }],
+        nodes: [{ mesh: 0 }],
+        meshes: [{ primitives: [{ attributes: { POSITION: 0, NORMAL: 1 }, indices: 2, material: 0 }] }],
+        materials: [
+            {
+                name: "plain",
+                pbrMetallicRoughness: { baseColorFactor: [...color], metallicFactor: 0, roughnessFactor: 1 },
+            },
+        ],
+        accessors: [
+            {
+                bufferView: 0,
+                componentType: 5126,
+                count,
+                type: "VEC3",
+                min: [offset[0] - scale[0], offset[1] - scale[1], offset[2] - scale[2]],
+                max: [offset[0] + scale[0], offset[1] + scale[1], offset[2] + scale[2]],
+            },
+            { bufferView: 1, componentType: 5126, count, type: "VEC3" },
+            { bufferView: 2, componentType: 5125, count: indices.length, type: "SCALAR" },
+        ],
+        bufferViews: [
+            { buffer: 0, byteOffset: 0, byteLength: positionBytes.length, target: 34962 },
+            { buffer: 0, byteOffset: positionBytes.length, byteLength: normalBytes.length, target: 34962 },
+            {
+                buffer: 0,
+                byteOffset: positionBytes.length + normalBytes.length,
+                byteLength: indexBytes.length,
+                target: 34963,
+            },
+        ],
+        buffers: [{ byteLength: bin.length }],
+    };
+
+    return glb(json, bin);
+}

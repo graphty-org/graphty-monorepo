@@ -30,6 +30,7 @@ const CODES_FROM_THE_DESIGN = [
     "E_MODEL_MISSING_FILE",
     "E_MODEL_EXTERNAL_URL",
     "E_MODEL_DECODER_UNAVAILABLE",
+    "E_MODEL_PARSE",
     "E_MODEL_ZIP",
     "E_MODEL_NAME_TAKEN",
     "E_MODEL_UNKNOWN_ASSET",
@@ -213,6 +214,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_MODEL_MISSING_FILE":
         case "E_MODEL_EXTERNAL_URL":
         case "E_MODEL_DECODER_UNAVAILABLE":
+        case "E_MODEL_PARSE":
         case "E_MODEL_ZIP":
         case "E_MODEL_NAME_TAKEN":
         case "E_MODEL_UNKNOWN_ASSET":

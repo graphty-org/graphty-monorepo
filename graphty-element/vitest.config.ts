@@ -123,6 +123,14 @@ const MODEL_CHUNK = [
     "@babylonjs/core/Materials/Textures/texture",
     "@babylonjs/core/Loading/sceneLoader",
     "@babylonjs/core/Loading/sceneLoaderFlags",
+    // The model template builder and the request guard (src/models/).
+    "@babylonjs/core/Maths/math.color",
+    "@babylonjs/core/Maths/math.vector",
+    "@babylonjs/core/Meshes/Builders/boxBuilder",
+    "@babylonjs/core/Meshes/mesh",
+    "@babylonjs/core/Meshes/mesh.vertexData",
+    "@babylonjs/core/Meshes/instancedMesh",
+    "@babylonjs/core/Instrumentation/sceneInstrumentation",
 ];
 
 /**
@@ -760,6 +768,8 @@ export default defineConfig({
                     name: "models-webkit",
                     setupFiles: ["./test/setup.ts"],
                     include: ["test/browser/models/**/*.test.ts"],
+                    // Timing benchmarks run in "browser-bench", in Chromium only.
+                    exclude: ["test/browser/**/*.bench.test.ts", "**/node_modules/**"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,

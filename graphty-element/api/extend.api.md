@@ -1559,6 +1559,10 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
 * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
 */
 | "E_MODEL_ZIP"
@@ -1860,7 +1864,7 @@ export function metricField(spec: Omit<FieldDescriptor, "path">): FieldDescripto
 export function metricFieldSpecs(kind: "node" | "edge", valueType?: "number" | "integer"): readonly ResultFieldSpec[];
 
 // @public
-class Node_2 {
+class Node_2 implements ModelUser {
     constructor(graph: Graph | GraphContext, nodeId: NodeIdType, paint: NodePaint, data: AdHocData<string | number>, opts?: NodeOpts);
     applySessionPaint(paint: NodePaint): void;
     // @internal
@@ -1896,6 +1900,12 @@ class Node_2 {
     label?: RichTextLabel;
     // (undocumented)
     mesh: AbstractMesh;
+    // @internal
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+    };
     // (undocumented)
     opts: NodeOpts;
     // (undocumented)

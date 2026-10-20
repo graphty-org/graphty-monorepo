@@ -341,7 +341,7 @@ export interface Caveats {
 }
 
 // @public
-export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
+export type Channel = "node.color" | "node.size" | "node.sizeMode" | "node.shape" | "node.label" | "node.labelStyle" | "node.labelColor" | "node.labelSize" | "node.labelFont" | "node.labelWeight" | "node.labelItalic" | "node.tooltip" | "node.tooltipStyle" | "node.opacity" | "node.outline" | "node.glow" | "node.glowStrength" | "node.halo" | "node.haloColor" | "node.haloScale" | "node.haloOpacity" | "node.wireframe" | "node.flat" | "node.unlit" | "node.marker" | "node.width" | "node.height" | "node.depth" | "node.planar" | "node.zIndex" | "node.drawOrder" | "node.borderColor" | "node.borderWidth" | "node.borderStyle" | "node.cornerRadius" | "node.model" | "node.modelSourceUp" | "node.modelTurn" | "node.modelTint" | "node.modelFit" | "node.modelCenter" | "edge.color" | "edge.width" | "edge.opacity" | "edge.style" | "edge.patternCount" | "edge.curvature" | "edge.bends" | "edge.arrowHead" | "edge.arrowHeadSize" | "edge.arrowHeadColor" | "edge.arrowHeadOpacity" | "edge.arrowHeadText" | "edge.arrowHeadTextStyle" | "edge.arrowTail" | "edge.arrowTailSize" | "edge.arrowTailColor" | "edge.arrowTailOpacity" | "edge.arrowTailText" | "edge.arrowTailTextStyle" | "edge.animationSpeed" | "edge.label" | "edge.labelStyle" | "edge.labelColor" | "edge.labelSize" | "edge.labelFont" | "edge.labelWeight" | "edge.labelItalic";
 
 // @public
 export type ChannelAgreement = {
@@ -1744,6 +1744,10 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
+* Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+*/
+| "E_MODEL_PARSE"
+/**
 * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
 */
 | "E_MODEL_ZIP"
@@ -1854,7 +1858,20 @@ export type GraphtyWarningCode =
 */
 | "W_MODEL_UP_GUESSED"
 /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
-| "W_MODEL_HAS_ANIMATIONS";
+| "W_MODEL_HAS_ANIMATIONS"
+/**
+* A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+* `params.layerIds` names the layers that write `node.color`.
+*/
+| "W_MODEL_COLOR_IGNORED"
+/** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+| "W_MODEL_HEAVY"
+/** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+| "W_MODEL_BUDGET"
+/** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+| "W_MODEL_TRANSPARENT"
+/** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+| "W_MODEL_TEXTURES_REDUCED";
 
 // @public
 export function graphvizAvailability(): Promise<GraphvizCapability>;
@@ -2346,6 +2363,15 @@ export interface Memberships {
 }
 
 // @public
+export interface ModelChange {
+    readonly id?: AssetId;
+    readonly layerIds: readonly LayerId[];
+    readonly problems: readonly CodedFact[];
+    readonly ref: string;
+    readonly state: ModelState;
+}
+
+// @public
 export type ModelFormat = string;
 
 // @public
@@ -2361,6 +2387,9 @@ export interface ModelLimits {
     readonly sceneTriangleBudget: number;
     readonly sessionBytes: number;
 }
+
+// @public
+export type ModelState = "pending" | "accepted" | "drawn" | "rejected" | "failed";
 
 // @public
 export interface ModelSummary {
@@ -3899,6 +3928,7 @@ export interface SessionEventMap {
     "journal:appended": {
         readonly entry: JournalEntry;
     };
+    "model:changed": ModelChange;
     "note:changed": NoteChange;
     "progress:changed": ProgressChange;
     "project:changed": {
@@ -3996,6 +4026,7 @@ export interface SessionStatus {
 // @public
 export interface SessionStylesApi extends StylesApi {
     compiled(): readonly CompiledLayer[];
+    modelUrlFromCode(url: string): boolean;
 }
 
 // @public

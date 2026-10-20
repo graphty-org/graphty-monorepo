@@ -112,6 +112,8 @@ export const DOT_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "lineStyle",
         "sourceArrow",
         "targetArrow",
+        "sourceArrowColor",
+        "targetArrowColor",
         "arrowSize",
         "label",
         "sourceLabel",
@@ -177,6 +179,7 @@ const EDGE_ATTRIBUTES: readonly string[] = [
     "arrowtail",
     "dir",
     "arrowsize",
+    "fillcolor",
     "headlabel",
     "taillabel",
     "xlabel",
@@ -472,10 +475,15 @@ function readCommon(
     put: Put,
     at: At,
 ): void {
-    if (tokens.includes("invis")) {
+    // Graphviz takes `invisible` for `invis` too (emit.c `parse_style`)
+    if (tokens.includes("invis") || tokens.includes("invisible")) {
         put("visible", false);
     }
-    readColor(nonEmpty(get("fontcolor")), scheme, "text", "labelColor", null, put, at);
+    // a part-transparent font color draws its text so (`#377eb880`); an opaque one needs no opacity
+    const putFont: Put = (property, value) => {
+        put(property, property === "labelOpacity" && value === 1 ? null : value);
+    };
+    readColor(nonEmpty(get("fontcolor")), scheme, "text", "labelColor", "labelOpacity", putFont, at);
     const size = get("fontsize");
     put("labelSize", size === null ? null : canonNumber(size, at("labelSize")));
     const font = get("fontname");
@@ -525,6 +533,14 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
         if (cx.cluster) {
             put("labelPosition", clusterLabelPosition(get));
         }
+    }
+    if (!cx.cluster && !n.point) {
+        const position = nodeLabelPosition(get);
+        put("labelPosition", position === "center" ? null : position);
+    }
+    // plain is its label alone at size 0: with an empty label Graphviz draws nothing, filled or not
+    if (shape === "plain" && shown === "") {
+        put("visible", false);
     }
     if (cx.cluster) {
         readClusterBox(get, put);
@@ -580,14 +596,28 @@ function readNode(get: Attr, cx: NodeContext, put: Put, at: At): void {
         readClusterFill(n);
     } else {
         readNodeFill(n);
-        readNodeBands(n);
     }
+    readNodeBands(n);
     readNodeOutline(n);
     readNodeShape(n);
     readNodeLabelAndSize(n, names);
-    if (Number(get("peripheries")) > 1 || nonEmpty(get("xlabel")) !== null) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, nonEmpty(get("xlabel")) === null ? "peripheries" : "xlabel");
+    if (nonEmpty(get("xlabel")) !== null) {
+        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
     }
+}
+
+/**
+ * Where a node's label sits: its `labelloc` puts it against the top or bottom of the node's box, inside it; it is
+ * centered by default.
+ * @param get - the node's attributes
+ * @returns the position
+ */
+function nodeLabelPosition(get: Attr): "inside-top" | "inside-bottom" | "center" {
+    const loc = (get("labelloc") ?? "").trim().toLowerCase();
+    if (loc.startsWith("t")) {
+        return "inside-top";
+    }
+    return loc.startsWith("b") ? "inside-bottom" : "center";
 }
 
 /**
@@ -684,18 +714,48 @@ function readNodeFill(n: NodeRead): void {
  * @param n - the node
  */
 function readNodeBands(n: NodeRead): void {
-    const striped = n.tokens.includes("striped") && BOX_LIKE.has(n.shape);
-    const wedged = n.tokens.includes("wedged") && ELLIPSE_LIKE.has(n.shape);
+    // a cluster is a box, so it takes stripes too (and never wedges)
+    const striped = n.tokens.includes("striped") && (n.cx.cluster || BOX_LIKE.has(n.shape));
+    const wedged = !n.cx.cluster && n.tokens.includes("wedged") && ELLIPSE_LIKE.has(n.shape);
     const list = nonEmpty(n.get("fillcolor")) ?? n.color;
     if ((!striped && !wedged) || list === null || !list.includes(":")) {
         return;
     }
+    const bands = colorBands(list, n.scheme, "fill", n.at(striped ? "stripeColors" : "pieColors"));
+    if (bands.length === 0) {
+        return;
+    }
+    const order = striped ? bands : [...bands].reverse();
+    const prefix = striped ? "stripe" : "pie";
+    n.put(`${prefix}Colors`, order.map((b) => b.color).join(" "));
+    n.put(`${prefix}Sizes`, order.map((b) => String(b.size)).join(" "));
+    if (striped) {
+        n.put("stripeDirection", "right");
+    } else {
+        n.put("pieFitBox", true);
+        n.put("pieRotation", 90);
+    }
+}
+
+/**
+ * The bands of a Graphviz color list (`color;fraction` separated by `:`), in order: a color with no fraction shares
+ * what the others leave, the last color takes what sized colors leave when none is unsized, and the shares stop at
+ * the whole (https://graphviz.org/docs/attr-types/colorList/, emit.c `parseSegs`).
+ * @param list - the color list
+ * @param scheme - the color scheme
+ * @param use - how Graphviz draws the colors
+ * @param site - where it was read
+ * @returns each band's color and share of the whole
+ */
+function colorBands(
+    list: string,
+    scheme: string | null,
+    use: "fill" | "edge",
+    site: CanonSite,
+): { color: string; size: number }[] {
     const parts = list.split(":").map((part) => {
         const [color, fraction] = part.split(";");
-        const c = canonColor(color.trim(), "graphviz", n.at(striped ? "stripeColors" : "pieColors"), {
-            scheme: n.scheme,
-            use: "fill",
-        });
+        const c = canonColor(color.trim(), "graphviz", site, { scheme, use });
         const f = fraction === undefined ? Number.NaN : Number(fraction);
         return { color: c?.color ?? null, fraction: Number.isFinite(f) && f >= 0 ? f : null };
     });
@@ -709,24 +769,12 @@ function readNodeBands(n: NodeRead): void {
         used += Math.max(size, 0);
         return size > 0 ? [{ color: p.color, size: num6(size) }] : [];
     });
-    if (bands.length === 0) {
-        return;
-    }
     // every color sized and short of the whole: Graphviz gives what is left to the last one (emit.c parseSegs)
-    if (unsized === 0 && used < 1) {
+    if (bands.length > 0 && unsized === 0 && used < 1) {
         const last = bands[bands.length - 1];
         last.size = num6(last.size + 1 - used);
     }
-    const order = striped ? bands : [...bands].reverse();
-    const prefix = striped ? "stripe" : "pie";
-    n.put(`${prefix}Colors`, order.map((b) => b.color).join(" "));
-    n.put(`${prefix}Sizes`, order.map((b) => String(b.size)).join(" "));
-    if (striped) {
-        n.put("stripeDirection", "right");
-    } else {
-        n.put("pieFitBox", true);
-        n.put("pieRotation", 90);
-    }
+    return bands;
 }
 
 /**
@@ -775,6 +823,58 @@ function readNodeOutline(n: NodeRead): void {
     } else if (tokens.includes("dotted")) {
         put("borderStyle", "dotted");
     }
+    if (!cx.cluster) {
+        readNodeRings(n);
+    }
+}
+
+/** The outlines Graphviz draws round a node of these shapes when `peripheries` is not set. */
+const SHAPE_PERIPHERIES: ReadonlyMap<string, number> = new Map([
+    ["doublecircle", 2],
+    ["doubleoctagon", 2],
+    ["tripleoctagon", 3],
+]);
+
+/** How far apart Graphviz draws a node's outlines, center to center (`GAP`, lib/common/shapes.c). */
+const PERIPHERY_GAP = 4;
+
+/**
+ * Reads a node's second outline (`peripheries=2`, `doublecircle`): Graphviz draws it `PERIPHERY_GAP` points outside
+ * the first, in the same color, width and dashes. graphty draws one outer ring, so a third and later outline is
+ * noted as not carried.
+ * @param n - the node
+ */
+function readNodeRings(n: NodeRead): void {
+    const raw = nonEmpty(n.get("peripheries"));
+    const count = raw === null ? (SHAPE_PERIPHERIES.get(n.shape) ?? 1) : Math.trunc(Number(raw));
+    if (!(count > 1) || NO_OUTLINE.has(n.shape)) {
+        return;
+    }
+    const c =
+        n.color === null
+            ? null
+            : canonColor(n.color, "graphviz", n.at("outerBorderColor"), {
+                  scheme: n.scheme,
+                  use: "line",
+              });
+    if (c !== null && c.alpha === 0) {
+        return;
+    }
+    const widthRaw = nonEmpty(n.get("penwidth")) ?? setLineWidth(n.tokens);
+    const parsed = widthRaw === null ? Number.NaN : Number(widthRaw);
+    const unset = n.tokens.includes("bold") ? 2 : 1;
+    const pen = Number.isFinite(parsed) ? Math.max(0, parsed) : unset;
+    n.put("outerBorderColor", c?.color ?? "#000000");
+    n.put("outerBorderOpacity", c !== null && c.alpha < 1 ? c.alpha : null);
+    n.put("outerBorderWidth", num6(pen));
+    // the gap between the outline's outer edge and the ring's inner edge
+    n.put("outerBorderOffset", num6(Math.max(0, PERIPHERY_GAP - pen)));
+    if (n.tokens.includes("dashed") || n.tokens.includes("dotted")) {
+        n.put("outerBorderStyle", n.tokens.includes("dashed") ? "dashed" : "dotted");
+    }
+    if (count > 2) {
+        noteAt(n.at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `peripheries=${String(count)}`);
+    }
 }
 
 /**
@@ -784,10 +884,15 @@ function readNodeOutline(n: NodeRead): void {
  */
 function readNodeShape(n: NodeRead): void {
     const rounded = n.tokens.includes("rounded") && !n.tokens.includes("striped");
+    const turned = turnedPolygon(n);
     if (n.cx.cluster) {
         n.put("shape", rounded ? "round-rectangle" : "rectangle");
     } else if (n.shape === "polygon") {
         readPolygon(n, rounded);
+    } else if (turned !== null) {
+        n.put("shape", "polygon");
+        n.put("shapePoints", cornersText(graphvizDrawnCorners(turned)));
+        n.put("shapePointsStretch", false);
     } else if (NAMED_OUTLINES.has(n.shape)) {
         n.put("shape", "polygon");
         n.put("shapePoints", NAMED_OUTLINES.get(n.shape) ?? null);
@@ -803,6 +908,36 @@ function readNodeShape(n: NodeRead): void {
         // a filled shape=none is its box filled, with no outline (its border is 0): a rectangle, not a node with no body
         n.put("shape", shape === "none" && isFilled(n) ? "rectangle" : shape);
     }
+}
+
+/** The polygon shapes `orientation` turns, by their own sides and orientation (`shapes.c`). */
+const TURNABLE_POLYGONS: ReadonlyMap<string, { readonly sides: number; readonly orientation: number }> = new Map([
+    ...[...BOX_LIKE].map((name) => [name, { sides: 4, orientation: 0 }] as const),
+    ["diamond", { sides: 4, orientation: 45 }],
+    ["hexagon", { sides: 6, orientation: 0 }],
+    ["octagon", { sides: 8, orientation: 0 }],
+]);
+
+/**
+ * The polygon a named polygon shape is when its `orientation` turns it off its own axes (a box turned 30 degrees),
+ * or null when it is drawn as its shape: Graphviz adds the attribute to the shape's own orientation.
+ * @param n - the node
+ * @returns the polygon, or null
+ */
+function turnedPolygon(n: NodeRead): Parameters<typeof graphvizPolygonCorners>[0] | null {
+    const turn = Number(nonEmpty(n.get("orientation")) ?? "0");
+    const own = TURNABLE_POLYGONS.get(n.shape) ?? GRAPHVIZ_POLYGON_SHAPES.get(n.shape);
+    if (own === undefined || !Number.isFinite(turn) || turn % 360 === 0) {
+        return null;
+    }
+    const polygon = {
+        distortion: 0,
+        skew: 0,
+        ...own,
+        orientation: own.orientation + Math.max(-360, turn),
+    };
+    // a quarter turn of a box is a box again
+    return isGraphvizBox(polygon) ? null : polygon;
 }
 
 /**
@@ -1005,6 +1140,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     const scheme = get("colorscheme");
     readCommon(get, tokens, scheme, cx.names, put, at);
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
+    readEdgeSegments(nonEmpty(get("color")), scheme, put, at);
     readEdgeLine(get, tokens, put, at);
     readEdgeArrows(get, cx, put, at);
     for (const [attribute, property] of [
@@ -1024,6 +1160,36 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     if (get(LABEL_ATTRIBUTE) !== null && nonEmpty(get("xlabel")) !== null) {
         noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "xlabel");
     }
+}
+
+/**
+ * Reads an edge's colored segments: a color list with a `;fraction` in it (`red;0.3:blue`) draws the line in one piece
+ * per color along its length, which is a linear gradient with a hard switch at each band's end. A list with no
+ * fraction draws parallel lines, which graphty does not draw (the line is in the first color).
+ * @param list - the edge's `color`
+ * @param scheme - its color scheme
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeSegments(list: string | null, scheme: string | null, put: Put, at: At): void {
+    if (list === null || !list.includes(":") || !list.includes(";")) {
+        return;
+    }
+    const bands = colorBands(list, scheme, "edge", at("gradientColors"));
+    if (bands.length < 2) {
+        return;
+    }
+    const colors: string[] = [];
+    const stops: number[] = [];
+    let start = 0;
+    for (const band of bands) {
+        colors.push(band.color, band.color);
+        stops.push(num6(start), num6(Math.min(1, start + band.size)));
+        start += band.size;
+    }
+    put("gradientKind", "linear");
+    put("gradientColors", colors.join(" "));
+    put("gradientStops", stops.join(" "));
 }
 
 /**
@@ -1195,9 +1361,12 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
             ["source", tail, back],
         ] as const) {
             const first = on ? graphvizArrow(raw ?? "normal") : null;
+            const other = first === null ? undefined : GRAPHVIZ_OTHER_ARROWS.get(first.name);
             put(
                 `${end}Arrow`,
-                on ? canonEnum("arrow", first?.name ?? raw ?? "normal", "graphviz", at(`${end}Arrow`)) : "none",
+                on
+                    ? (other ?? canonEnum("arrow", first?.name ?? raw ?? "normal", "graphviz", at(`${end}Arrow`)))
+                    : "none",
             );
             if (first?.side !== null && first?.side !== undefined) {
                 put(`${end}ArrowSide`, first.side);
@@ -1208,13 +1377,24 @@ function readEdgeArrows(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     if (size !== null) {
         put("arrowSize", canonNumber(size, at("arrowSize")));
     }
+    // an edge's `fillcolor` fills its arrowheads (their outline stays the edge's color)
+    const fill = nonEmpty(get("fillcolor"));
+    for (const property of ["targetArrowColor", "sourceArrowColor"]) {
+        readColor(fill, get("colorscheme"), "fill", property, null, put, at);
+    }
 }
 
 /** The sides an `l` or `r` arrow modifier keeps, by their first letters. */
 const ARROW_SIDES = ["left", "right"] as const;
 
 /** The open forms of Graphviz arrows that a neutral shape draws; the others are drawn filled. */
-const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", "dot"]);
+const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", "dot", "box", "inv"]);
+
+/** The open Graphviz arrows the neutral vocabulary has no name for, by the value graphty draws them as. */
+const GRAPHVIZ_OTHER_ARROWS: ReadonlyMap<string, string> = new Map([
+    ["obox", "other:open-square"],
+    ["oinv", "other:open-inverted"],
+]);
 
 /**
  * The arrow Graphviz draws at an edge's very end, from an arrow name of up to four shapes (`dotodot`,
@@ -1227,6 +1407,10 @@ const GRAPHVIZ_OPEN_ARROWS: ReadonlySet<string> = new Set(["normal", "diamond", 
  */
 export function graphvizArrow(raw: string): { readonly name: string; readonly side: "left" | "right" | null } | null {
     let rest = raw.trim().toLowerCase();
+    // the one synonym the grammar would misread (as `inv`): arrows.c's `invempty` is an open `inv`
+    if (rest === "invempty") {
+        rest = "oinv";
+    }
     while (rest.length > 0) {
         const m = /^([olr]{0,3})(normal|crow|tee|box|diamond|dot|none|inv|vee|icurve|curve)/.exec(rest);
         if (m === null) {
@@ -1415,6 +1599,9 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
     }
     const edge = valueColumns(snapshot.edgeCount);
     const loops = graphvizLoops(snapshot);
+    // `splines=none` and `splines=""` draw no edges at all (https://graphviz.org/docs/attrs/splines/)
+    const splines = cellText(snapshot.graph, "splines", 0)?.trim().toLowerCase();
+    const noEdges = splines === "" || splines === "none";
     for (let e = 0; e < snapshot.edgeCount; e++) {
         context.budget.spend("edge", EDGE_ATTRIBUTES.length);
         const get: Attr = (name) => cellText(snapshot.edges, name, e);
@@ -1427,6 +1614,9 @@ export function dotStyles(snapshot: GraphSnapshot, context: StyleReadContext): I
             },
             at,
         );
+        if (noEdges) {
+            edge.put(e, "visible", false);
+        }
         const bends = splineBends(snapshot, e, get(POS_ATTRIBUTE)) ?? loops.bendsOf(e, get);
         if (bends !== null) {
             edge.put(e, "bends", bends);
@@ -1543,6 +1733,8 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
     ["square", "box"],
     ["crow", "crow"],
     ["inverted", "inv"],
+    ["other:open-square", "obox"],
+    ["other:open-inverted", "oinv"],
 ]);
 
 /** Line and border styles Graphviz draws exactly; the others are written as the nearest. */
@@ -1627,12 +1819,16 @@ function gvColor(color: string, opacity: StyleValue | null): string {
 }
 
 /**
- * A label's text as a DOT label: backslashes and line breaks escaped, so Graphviz's escape passes give the text back.
+ * A label's text as a DOT label: backslashes, line breaks and `&` escaped, so Graphviz's escape and entity passes
+ * give the text back.
  * @param text - the text
  * @returns the label
  */
 function escapeLabel(text: string): string {
-    return text.replaceAll("\\", String.raw`\\`).replaceAll("\n", String.raw`\n`);
+    return text
+        .replaceAll("&", "&amp;")
+        .replaceAll("\\", String.raw`\\`)
+        .replaceAll("\n", String.raw`\n`);
 }
 
 /**
@@ -1743,15 +1939,18 @@ function nodeAttributes(
 }
 
 /**
- * Notes a label position Graphviz does not draw: a node's label is centered, and a cluster's sits where its own
- * `labelloc` and `labeljust` (kept as data) put it.
+ * Notes a label position Graphviz does not draw: a node's label sits where its own `labelloc` (kept as data) puts
+ * it, and a cluster's where its `labelloc` and `labeljust` do.
  * @param position - the label's position
  * @param cx - the node's name and kind
  * @param raw - the node's attributes as data
  * @param approximate - records approximations
  */
 function noteLabelPosition(position: StyleValue | null, cx: NodeContext, raw: Attr, approximate: Approximate): void {
-    if (typeof position === "string" && position !== (cx.cluster ? clusterLabelPosition(raw) : "center")) {
+    if (
+        typeof position === "string" &&
+        position !== (cx.cluster ? clusterLabelPosition(raw) : nodeLabelPosition(raw))
+    ) {
         approximate("labelPosition", position);
     }
 }
@@ -1904,6 +2103,16 @@ function edgeAttributes(get: Get, directed: boolean, approximate: Approximate): 
         tokens.push(spelled(STROKES, line, line.includes("dash") ? "dashed" : "solid", "lineStyle", approximate));
     }
     writeEdgeArrows(get, directed, approximate, out);
+    // Graphviz fills both arrowheads with the one `fillcolor`
+    const head = get("targetArrowColor");
+    const tail = get("sourceArrowColor");
+    const fill = head ?? tail;
+    if (typeof fill === "string") {
+        out.set("fillcolor", fill);
+        if (head !== null && tail !== null && head !== tail) {
+            approximate("sourceArrowColor", tail);
+        }
+    }
     const arrowSize = get("arrowSize");
     if (typeof arrowSize === "number") {
         out.set("arrowsize", arrowSize);

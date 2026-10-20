@@ -141,7 +141,7 @@ describe("Graphviz's arrow names", () => {
             "triangle-open",
             "crow",
             "triangle",
-            "square",
+            "other:open-square",
             "triangle-open",
             "none",
         ]);

@@ -51,7 +51,8 @@ export interface DotEscapeNames {
 /**
  * The text a DOT label draws, in Graphviz's two passes: first `\N`, `\G`, `\E`, `\T` and `\H` are replaced by the
  * names and every other backslash pair is kept; then `\n`, `\l` and `\r` end a line (a final one adds no empty line)
- * and any other escaped character stands for itself. So a node name holding `\n` breaks the line.
+ * and any other escaped character stands for itself. So a node name holding `\n` breaks the line. Between the
+ * two, HTML entities (`&amp;`, `&#946;`) are decoded, as Graphviz's `htmlEntityUTF8` does for a plain label.
  * @param text - the label as the file gives it
  * @param names - the names to substitute
  * @param site - where it was read, for the budget
@@ -62,7 +63,9 @@ export function dotLabelText(text: string, names: DotEscapeNames, site?: CanonSi
     if (site !== undefined) {
         spendAt(site, text.length);
     }
-    const out = replaceEscapes(substituteNames(text, names), (e) => (e === "n" || e === "l" || e === "r" ? "\n" : e));
+    const out = replaceEscapes(decodeEntities(substituteNames(text, names)), (e) =>
+        e === "n" || e === "l" || e === "r" ? "\n" : e,
+    );
     return out.endsWith("\n") ? out.slice(0, -1) : out;
 }
 
@@ -209,6 +212,22 @@ export function htmlLabelText(html: string, site: CanonSite): string {
         }
     }
     return out.trim();
+}
+
+/**
+ * Every entity of a text decoded; an `&` that starts none is itself.
+ * @param text - the text
+ * @returns the decoded text
+ */
+function decodeEntities(text: string): string {
+    let out = "";
+    let i = 0;
+    for (let amp = text.indexOf("&"); amp >= 0; amp = text.indexOf("&", i)) {
+        const [decoded, next] = entityAt(text, amp);
+        out += text.slice(i, amp) + decoded;
+        i = next;
+    }
+    return out + text.slice(i);
 }
 
 /**

@@ -70,6 +70,11 @@ interface GraphvizFont {
 export function graphvizFont(name: string): GraphvizFont {
     const trimmed = name.trim();
     const lower = trimmed.toLowerCase();
+    // a fontconfig pattern (`DejaVu Sans:bold`) is written into the SVG as it is, a family no viewer has, so the
+    // drawing falls back to the viewer's default face
+    if (trimmed.includes(":")) {
+        return { family: "Times, serif", bold: false, italic: false };
+    }
     for (const [base, [family, generic]] of POSTSCRIPT_FAMILIES) {
         if (lower === base || lower.startsWith(`${base}-`)) {
             const style = POSTSCRIPT_STYLES.get(lower.slice(base.length + 1));

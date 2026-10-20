@@ -919,6 +919,29 @@ const toBox = (b: PBox): { x: number; y: number; w: number; h: number } => ({
     h: boxH(b),
 });
 
+/**
+ * How thick a line drawn as a stray (an annotation's line, a chart's axis) is taken to be when two strays' boxes are
+ * overlapped, in render px: a straight line's box has no height (or width), so two identical lines overlapped by their
+ * bare boxes share no area at all.
+ */
+const STRAY_LINE_PX = 2;
+
+/**
+ * The overlap of two strays' boxes, each thin axis widened to `STRAY_LINE_PX` about its middle.
+ * @param a - one box
+ * @param b - the other
+ * @returns their IoU
+ */
+export function strayIou(a: PBox, b: PBox): number {
+    const thick = (box: PBox): PBox => {
+        const [mx, my] = boxMiddle(box);
+        const hw = Math.max(boxW(box), STRAY_LINE_PX) / 2;
+        const hh = Math.max(boxH(box), STRAY_LINE_PX) / 2;
+        return { x0: mx - hw, y0: my - hh, x1: mx + hw, y1: my + hh };
+    };
+    return iou(toBox(thick(a)), toBox(thick(b)));
+}
+
 /** A specimen sheet's corner anchor node (`anchor-nw` and so on), which fixes the frame. */
 const isAnchor = (id: string): boolean => id.startsWith("anchor-");
 
@@ -1985,7 +2008,7 @@ export function compareOracle(
         .filter((s) => onCanvas(s.box))
         .map((s, i) => {
             const matched =
-                gAnn.some((b) => iou(toBox(b), toBox(s.box)) >= T.strayIoU) ||
+                gAnn.some((b) => strayIou(b, s.box) >= T.strayIoU) ||
                 (s.text !== null && textDrawn(s.text, s.box, gTexts));
             j.add(
                 "stray.present",
@@ -2013,7 +2036,7 @@ export function compareOracle(
         const box = toO(s.box);
         const drawn =
             shapesDrawn.has(s.index) ||
-            oBoxes.some((b) => iou(toBox(b), toBox(box)) >= T.strayIoU) ||
+            oBoxes.some((b) => strayIou(b, box) >= T.strayIoU) ||
             (s.text !== null && textDrawn(s.text, box, oTexts));
         j.add("stray.extra", "stray", `graphty:${s.tag}#${String(s.index)}`, drawn ? 0 : 1, null, s.text ?? s.tag);
     }

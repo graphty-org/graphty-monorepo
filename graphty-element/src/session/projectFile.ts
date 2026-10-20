@@ -1536,9 +1536,12 @@ async function readIssues(opening: Opening, issues: unknown): Promise<void> {
         return;
     }
 
-    const { facts, ignored, kept } = issues;
+    const { facts, ignored, kept, fixed } = issues;
     await attempt(opening, "graph", () =>
-        opening.tx.execute({ op: "data.issues", state: { facts, ignored, kept } as IssueState }),
+        opening.tx.execute({
+            op: "data.issues",
+            state: { facts, ignored, kept, ...(fixed === undefined ? {} : { fixed }) } as IssueState,
+        }),
     );
 }
 

@@ -99,6 +99,15 @@ export type FixCode =
     | "read-yes-no";
 
 /**
+ * Where an issue stands: `"open"` (in the data now), `"ignored"` (in the data, ignored with
+ * `data.ignoreIssue`) or `"fixed"` (settled by `data.fix`, listed with `includeFixed`).
+ *
+ * OPEN UNION: states may be added in a minor release.
+ * @since 3.30.0
+ */
+export type IssueStatus = "open" | "ignored" | "fixed";
+
+/**
  * One problem with the loaded data: what `session.data.issues()` lists. Neutral facts: a reader
  * words them from `code`, `count` and `params`. An issue with a zero count is never listed.
  *
@@ -123,8 +132,22 @@ export interface DataIssue {
     readonly count: number;
     /** The facts its code names. */
     readonly params: Readonly<Record<string, unknown>>;
-    /** The fixes `data.fix` takes for it, in the order a reader would try them; may be empty. */
+    /**
+     * The fixes that would change the data, in the order a reader would try them; may be empty.
+     * Never `current`, and empty for a fixed issue.
+     */
     readonly fixes: readonly FixCode[];
+    /**
+     * The fix whose outcome the data already shows, for an issue the load settled one way by
+     * default: the made nodes are kept (`"add-nodes"`), the first row of a repeated id is kept
+     * (`"keep-first"`), the repeated edges are kept (`"keep"`). `data.fix` takes it too, and then
+     * only marks the issue fixed. Absent when no fix describes the data as it is.
+     */
+    readonly current?: FixCode;
+    /** Where the issue stands. */
+    readonly status: IssueStatus;
+    /** For a fixed issue, the fix that settled it; `count` and `params` are as they were then. */
+    readonly fixedBy?: FixCode;
     /** Whether it was ignored with `data.ignoreIssue`; only listed so with `includeIgnored`. */
     readonly ignored: boolean;
 }
@@ -156,6 +179,9 @@ export interface LoadFacts {
     readonly refusedRows: readonly { readonly line: number; readonly issue: string }[];
 }
 
+/** An issue as it stood when a fix settled it. */
+export type FixedIssue = Omit<DataIssue, "fixes" | "current" | "status" | "ignored"> & { readonly fixedBy: FixCode };
+
 /** The `issues` graph value. */
 export interface IssueState {
     /** What each load saw, by its key. */
@@ -164,6 +190,8 @@ export interface IssueState {
     readonly ignored: readonly IssueId[];
     /** The node pairs whose repeated edges were kept, by {@link pairKey}. */
     readonly kept: readonly string[];
+    /** The issues fixed, oldest first, one per id. Absent in a state saved before it existed. */
+    readonly fixed?: readonly FixedIssue[];
 }
 
 /** The graph value holding the {@link IssueState}. */
@@ -255,7 +283,7 @@ interface FixPlan {
 
 /** An issue as found: the public issue and how each of its fixes is carried out. */
 export interface FoundIssue {
-    readonly issue: Omit<DataIssue, "ignored">;
+    readonly issue: Omit<DataIssue, "ignored" | "status" | "fixedBy">;
     readonly plan: (fix: FixCode) => FixPlan;
 }
 
@@ -575,7 +603,8 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                 ...oneSource(unknownFrom),
                 count: touching.length,
                 params: { nodes: ids.length, examples: ids.slice(0, EXAMPLES) },
-                fixes: ["add-nodes", "leave-out"],
+                fixes: ["leave-out"],
+                current: "add-nodes",
             },
             plan: (fix) =>
                 fix === "add-nodes"
@@ -607,7 +636,8 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                 ...oneSource([...new Set(repeated.map(({ key }) => key))]),
                 count: repeated.length,
                 params: { ids },
-                fixes: ["keep-first", "merge-rows"],
+                fixes: ["merge-rows"],
+                current: "keep-first",
             },
             plan: (fix) => ({
                 steps:
@@ -702,7 +732,8 @@ function repeatedEdges(input: IssueInput): FoundIssue[] {
                 code: "repeated-edge",
                 count: repeats.length,
                 params: { pairs: pairs.size },
-                fixes: ["merge", "keep"],
+                fixes: ["merge"],
+                current: "keep",
             },
             plan: (fix) =>
                 fix === "keep"
@@ -759,9 +790,26 @@ export function isIssueState(value: unknown): value is IssueState {
         return false;
     }
 
-    const { facts, ignored, kept } = value as Record<string, unknown>;
+    const { facts, ignored, kept, fixed } = value as Record<string, unknown>;
     const strings = (list: unknown): boolean => Array.isArray(list) && list.every((each) => typeof each === "string");
-    return typeof facts === "object" && facts !== null && !Array.isArray(facts) && strings(ignored) && strings(kept);
+    const records =
+        fixed === undefined ||
+        (Array.isArray(fixed) &&
+            fixed.every(
+                (each: unknown) =>
+                    typeof each === "object" &&
+                    each !== null &&
+                    typeof (each as FixedIssue).id === "string" &&
+                    typeof (each as FixedIssue).fixedBy === "string",
+            ));
+    return (
+        typeof facts === "object" &&
+        facts !== null &&
+        !Array.isArray(facts) &&
+        strings(ignored) &&
+        strings(kept) &&
+        records
+    );
 }
 
 const dataIssues: UndoableDefinition<DataIssuesCommand> = {
@@ -794,10 +842,20 @@ const dataIssues: UndoableDefinition<DataIssuesCommand> = {
             });
         }
 
-        const { facts, ignored, kept } = command.state;
-        const empty = Object.keys(facts).length === 0 && ignored.length === 0 && kept.length === 0;
+        const { facts, ignored, kept, fixed = [] } = command.state;
+        const empty =
+            Object.keys(facts).length === 0 && ignored.length === 0 && kept.length === 0 && fixed.length === 0;
         service.values(
-            { [ISSUES_VALUE]: empty ? undefined : Object.freeze({ facts, ignored: [...ignored], kept: [...kept] }) },
+            {
+                [ISSUES_VALUE]: empty
+                    ? undefined
+                    : Object.freeze({
+                          facts,
+                          ignored: [...ignored],
+                          kept: [...kept],
+                          ...(fixed.length === 0 ? {} : { fixed: [...fixed] }),
+                      }),
+            },
             ctx.draft,
         );
     },

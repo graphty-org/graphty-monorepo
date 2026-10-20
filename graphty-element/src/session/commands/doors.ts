@@ -607,6 +607,26 @@ const TRIM_STEP: SessionCommand = {
     mutation: { kind: "update-rows", target: "node", rows: [{ id: "door-pad", values: { doorName: "Acme" } }] },
 };
 
+/** The issue state `data.fix("padded-space:node:doorName", "trim")` leaves: the issue kept as fixed. */
+const FIXED_STEP: SessionCommand = {
+    op: "data.issues",
+    state: {
+        facts: {},
+        ignored: [],
+        kept: [],
+        fixed: [
+            {
+                id: "padded-space:node:doorName",
+                code: "padded-space",
+                column: { kind: "node", name: "doorName" },
+                count: 1,
+                params: { examples: [" Acme "] },
+                fixedBy: "trim",
+            },
+        ],
+    },
+};
+
 /** What `data.ignoreIssue("padded-space:node:doorName")` dispatches inside its batch. */
 const IGNORE_STEP: SessionCommand = {
     op: "data.issues",
@@ -880,6 +900,7 @@ const VISIBILITY_API: Readonly<Record<string, Door>> = {
     nodes: READ,
     edges: READ,
     summary: READ,
+    summaryOf: READ,
     filter: READ,
     window: READ,
     set: calls([{ kind: "degree", min: 1 }], [{ op: "visibility.set", filter: { kind: "degree", min: 1 } }]),
@@ -1924,6 +1945,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             sources: READ,
             sourcesOf: READ,
             issues: READ,
+            hiddenColumns: READ,
             // The fix's rows and the issue state it settles, as one batch.
             fix: {
                 kind: "dispatches",
@@ -1950,9 +1972,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                                 count: 1,
                             },
                         },
-                        steps: [TRIM_STEP],
+                        steps: [TRIM_STEP, FIXED_STEP],
                     },
                     TRIM_STEP,
+                    FIXED_STEP,
                 ],
             },
             // The ignored id joins the issue state, as one batch.

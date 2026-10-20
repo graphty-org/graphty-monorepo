@@ -265,16 +265,19 @@ function rulePart(
             return part === null ? null : `e${part}`;
         }
         case "range":
-        case "categories": {
+        case "categories":
+        case "text":
+        case "flag": {
             const dependency = dependencyOf(where.attribute);
             if ("run" in dependency) {
                 const token = context.executionOf?.(dependency.run);
                 return context.executionOf === undefined ? null : `r${JSON.stringify(dependency.run)}=${token ?? "-"}`;
             }
 
-            return context.revisions === undefined
+            const revisions = where.side === "edges" ? context.edgeRevisions : context.revisions;
+            return revisions === undefined
                 ? null
-                : `a${JSON.stringify(dependency.field)}=${context.revisions.of(dependency.field)}`;
+                : `${where.side === "edges" ? "e" : ""}a${JSON.stringify(dependency.field)}=${revisions.of(dependency.field)}`;
         }
         case "item": {
             // Follow or hold, the members move exactly when the run's current execution does.

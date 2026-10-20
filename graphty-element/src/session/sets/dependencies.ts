@@ -182,6 +182,8 @@ class Collector {
                 return;
             case "range":
             case "categories":
+            case "text":
+            case "flag":
                 this.path(node.attribute);
                 return;
             case "degree":

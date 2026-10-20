@@ -424,7 +424,7 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
-export type { SourceKey } from "./src/catalog/types";
+export type { RuleSide, SourceKey } from "./src/catalog/types";
 export type {
     FilterResult,
     FilterStep,

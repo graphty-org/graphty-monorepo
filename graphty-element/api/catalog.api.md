@@ -182,6 +182,7 @@ export interface AttributeDescriptor {
     // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
+    yearLike?: true;
 }
 
 // @public
@@ -1557,6 +1558,9 @@ export interface Rgba {
 }
 
 // @public
+export type RuleSide = "nodes" | "edges";
+
+// @public
 export type RuleTree = {
     readonly kind: "expression";
     readonly where: Query;
@@ -1565,10 +1569,36 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly side?: RuleSide;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
+    readonly side?: RuleSide;
+}
+/**
+* The elements whose value for an attribute, as text, contains `text` (`match: "contains"`)
+* or is exactly `text` (`match: "is"`). Case-sensitive. A number or a yes/no value is read as
+* its text (`3`, `true`); an element with no value never matches.
+* @since 3.30.0
+*/
+| {
+    readonly kind: "text";
+    readonly attribute: Path;
+    readonly match: "contains" | "is";
+    readonly text: string;
+    readonly side?: RuleSide;
+}
+/**
+* The elements whose value for an attribute is the yes/no value `value`. Only a real `true` or
+* `false` matches: a text column of "yes" and "no" is converted first (`data.setType`).
+* @since 3.30.0
+*/
+| {
+    readonly kind: "flag";
+    readonly attribute: Path;
+    readonly value: boolean;
+    readonly side?: RuleSide;
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -1640,6 +1670,7 @@ export type RuleTree = {
 | {
     readonly kind: "source";
     readonly sources: readonly SourceKey[];
+    readonly side?: RuleSide;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];

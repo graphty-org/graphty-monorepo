@@ -948,11 +948,14 @@ export interface SessionDataApi {
      * // "decimal-comma" "amount" 3 ["read-decimal-comma"]
      * ```
      * @param options - which issues
-     * @param options.includeIgnored - list the ignored issues too, each with `ignored: true` (default false)
+     * @param options.includeIgnored - list the ignored issues too, each with `ignored: true` and
+     *     `status: "ignored"` (default false)
+     * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, each with
+     *     `status: "fixed"` and `fixedBy`, as they stood then (default false)
      * @returns the issues, those a load saw first
      * @since 3.30.0
      */
-    issues(options?: { readonly includeIgnored?: boolean }): readonly DataIssue[];
+    issues(options?: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean }): readonly DataIssue[];
     /**
      * Apply one of an issue's fixes, as one undoable step: `session.undo()` puts the data back.
      *
@@ -961,7 +964,8 @@ export interface SessionDataApi {
      * if (commas) await session.data.fix(commas, "read-decimal-comma"); // "12,5" becomes 12.5
      * ```
      * @param issue - the issue, or its id
-     * @param fix - one of the issue's `fixes`
+     * @param fix - one of the issue's `fixes`, or its `current` fix, which changes no data and
+     *     only marks the issue fixed
      * @returns how many nodes and edges the fix changed, kept or removed
      * @throws A `GraphtyError` with `E_BAD_COMMAND`: `details.reason` `"unknown-issue"` for an
      *     issue the data does not have now (`details.known`), `"unknown-fix"` for a fix the issue
@@ -1187,6 +1191,9 @@ export interface SessionDataApi {
      * const others = session.data.attributes().filter((a) => a.kind === "node" && a.name !== "holder");
      * await session.data.setHidden(others, true); // hide others
      * ```
+     * The node id (`{ kind: "node", name: "id" }`) and the edge ends (`"source"`, `"target"`) can
+     * be hidden too when no column carries them, as after a graph file; {@link
+     * SessionDataApi.hiddenColumns} lists them.
      * @param columns - the columns
      * @param hidden - true to hide, false to show
      * @returns settles once the step is recorded; nothing is recorded when nothing changes
@@ -1194,6 +1201,13 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void>;
+    /**
+     * Every hidden column, the node id and the edge ends included: what `setHidden` hid and has not
+     * shown again, saved with the project.
+     * @returns the columns, in the order they were hidden
+     * @since 3.30.0
+     */
+    hiddenColumns(): readonly ColumnRef[];
     /**
      * Name one value of a path -- a community the run calls group 3, "Students" -- or take its
      * name away with `null`. One undoable step, saved with the project. A name is not a data edit:

@@ -158,6 +158,18 @@ function inferMeasurement(type: AttributeType): Measurement {
 }
 
 /**
+ * Whether a column reads as years: whole numbers from 1000 to 2999, spanning 500 or less.
+ * ponytail: a range heuristic; a column of amounts from 1200 to 1450 reads as years too.
+ * @param type - the settled type
+ * @param accumulator - what the walk saw
+ * @returns true for a column of years
+ */
+function isYearLike(type: AttributeType, accumulator: Accumulator): boolean {
+    const { min, max } = accumulator;
+    return type === "integer" && accumulator.present > 0 && min >= 1000 && max <= 2999 && max - min <= 500;
+}
+
+/**
  * Turn one accumulator into the descriptor a consumer reads.
  * @param name - the attribute's key
  * @param kind - whether it was found on nodes or on edges
@@ -185,6 +197,7 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
         ...(numeric ? { min: accumulator.min, max: accumulator.max } : {}),
+        ...(isYearLike(settled, accumulator) ? { yearLike: true as const } : {}),
         sampleValues: Object.freeze([...accumulator.samples]),
     } satisfies AttributeDescriptor);
 }

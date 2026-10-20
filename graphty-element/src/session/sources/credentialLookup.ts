@@ -47,7 +47,7 @@ function publicLogin(source: string, origin: string): Credential | undefined {
     for (const sample of descriptor?.samples ?? []) {
         const endpoint = sample.endpoint ?? descriptor?.defaultEndpoint;
         const login = sample.publicLogin;
-        if (login !== undefined && endpoint !== undefined && new URL(endpoint).origin === origin) {
+        if (login !== undefined && typeof endpoint === "string" && new URL(endpoint).origin === origin) {
             return credentials.basic(login.username, login.password);
         }
     }

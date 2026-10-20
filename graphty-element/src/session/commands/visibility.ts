@@ -65,7 +65,8 @@ function filterKey(filter: VisibilitySetCommand["filter"]): string | null {
     switch (filter?.kind) {
         case "range":
         case "categories":
-            return `filter:${filter.kind}:${filter.attribute}`;
+        case "text":
+            return `filter:${filter.kind}:${filter.side ?? "nodes"}:${filter.attribute}`;
         case "degree":
             return `filter:degree:${filter.direction ?? ""}`;
         default:

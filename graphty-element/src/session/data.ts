@@ -1975,22 +1975,35 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
-     * What is wrong with the data now: neutral facts, each with the fixes it takes.
+     * What is wrong with the data now: neutral facts, each with the fixes it takes and the fix the
+     * data already shows (`current`).
      * @param options - which issues
      * @param options.includeIgnored - list the ignored issues too (default false)
+     * @param options.includeFixed - list the issues `data.fix` settled too, after the rest, as they
+     *     stood then (default false); one the data has again is listed open instead
      * @returns the issues, load issues first; never one with a zero count
      */
-    issues(options: { readonly includeIgnored?: boolean } = {}): readonly DataIssue[] {
+    issues(options: { readonly includeIgnored?: boolean; readonly includeFixed?: boolean } = {}): readonly DataIssue[] {
         this.requireLive("issues");
         const found = this.foundIssues();
-        const ignored = new Set(
-            ((this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE).ignored,
-        );
-        return Object.freeze(
-            found
-                .map(({ issue }) => Object.freeze({ ...issue, ignored: ignored.has(issue.id) }))
-                .filter((issue) => options.includeIgnored === true || !issue.ignored),
-        );
+        const state = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
+        const ignored = new Set(state.ignored);
+        const listed: DataIssue[] = found
+            .map(({ issue }): DataIssue => {
+                const isIgnored = ignored.has(issue.id);
+                return Object.freeze({ ...issue, ignored: isIgnored, status: isIgnored ? "ignored" : "open" });
+            })
+            .filter((issue) => options.includeIgnored === true || !issue.ignored);
+        if (options.includeFixed === true) {
+            const open = new Set(found.map(({ issue }) => issue.id));
+            for (const record of state.fixed ?? []) {
+                if (!open.has(record.id)) {
+                    listed.push(Object.freeze({ ...record, fixes: [], ignored: false, status: "fixed" }));
+                }
+            }
+        }
+
+        return Object.freeze(listed);
     }
 
     /**
@@ -2023,7 +2036,7 @@ export class SessionData implements SessionDataApi {
     async fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult> {
         this.requireLive("fix");
         const { issue: found, plan } = this.issueNamed(issue);
-        if (!found.fixes.includes(fix)) {
+        if (!found.fixes.includes(fix) && found.current !== fix) {
             throw new GraphtyError({
                 code: "E_BAD_COMMAND",
                 message: `The issue ${JSON.stringify(found.id)} takes ${found.fixes.length === 0 ? "no fix" : found.fixes.join(", ")}.`,
@@ -2032,8 +2045,13 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        const before = (this.writes.slice().values.get(ISSUES_VALUE) as IssueState | undefined) ?? NO_ISSUE_STATE;
-        const { steps, state, result } = plan(fix);
+        const { steps, state: planned, result } = plan(fix);
+        // The fixed issue stays listable (`includeFixed`) as it stood, replacing an earlier record.
+        const { fixes: _fixes, current: _current, ...facts } = found;
+        const state: IssueState = {
+            ...planned,
+            fixed: [...(planned.fixed ?? []).filter((each) => each.id !== found.id), { ...facts, fixedBy: fix }],
+        };
         await this.sendIssues(
             {
                 op: "batch",
@@ -2042,7 +2060,7 @@ export class SessionData implements SessionDataApi {
                     code: "data.fix-issue",
                     params: { issue: found.id, code: found.code, fix, count: found.count },
                 },
-                steps: [...steps, ...(state === before ? [] : [{ op: "data.issues" as const, state }])],
+                steps: [...steps, { op: "data.issues" as const, state }],
             },
             "fix an issue",
         );
@@ -3163,16 +3181,19 @@ export class SessionData implements SessionDataApi {
         const { knownFields } = this.readConfig();
         const report = this.lastImport();
         const out = new Map<string, AttributeRole[]>();
+        const put = (kind: "node" | "edge", role: AttributeRole, name: string | null | undefined): void => {
+            const at = `${kind}:${String(name)}`;
+            if (name !== null && name !== undefined && out.get(at)?.includes(role) !== true) {
+                out.set(at, [...(out.get(at) ?? []), role]);
+            }
+        };
         const add = (kind: "node" | "edge", role: AttributeRole, path: string | null | undefined): void => {
             if (path === null || path === undefined) {
                 return;
             }
 
             for (const name of new Set([path, keyOfExpression(path)])) {
-                if (name !== null) {
-                    const at = `${kind}:${name}`;
-                    out.set(at, [...(out.get(at) ?? []), role]);
-                }
+                put(kind, role, name);
             }
         };
 
@@ -3193,6 +3214,19 @@ export class SessionData implements SessionDataApi {
         );
         add("edge", "time", knownFields.edgeTimePath);
         add("edge", "edgeId", knownFields.edgeIdPath);
+        // The columns a load read the node ids and the edge ends from carry them as rows load, so
+        // the real column (`account`, `from`) is the key, not only the id the element keeps.
+        for (const { mapping } of this.storedSources()) {
+            for (const table of Object.values(mapping?.tables ?? {})) {
+                if (table.rowsAre === "nodes") {
+                    put("node", "key", table.key);
+                } else {
+                    put("edge", "source", table.source?.column);
+                    put("edge", "target", table.target?.column);
+                }
+            }
+        }
+
         return out;
     }
 
@@ -3558,6 +3592,20 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * Every hidden column.
+     * @returns the columns, in the order they were hidden
+     */
+    hiddenColumns(): readonly ColumnRef[] {
+        this.requireLive("hiddenColumns");
+        return Object.freeze(
+            this.columnSettings().hidden.map((key) => {
+                const at = key.indexOf(":");
+                return Object.freeze({ kind: key.slice(0, at) as "node" | "edge", name: key.slice(at + 1) });
+            }),
+        );
+    }
+
+    /**
      * Hide columns or show them again, as one undoable step.
      * @param columns - the columns
      * @param hidden - true to hide
@@ -3566,7 +3614,13 @@ export class SessionData implements SessionDataApi {
     async setHidden(columns: readonly ColumnRef[], hidden: boolean): Promise<void> {
         this.requireLive("setHidden");
         const attributes = this.attributes();
-        const keys = new Set(columns.map((column) => declarationKey(resolveColumn(attributes, column))));
+        // The id and the ends every record has, even when no column carries them (a graph file).
+        const keyField = (column: ColumnRef): boolean =>
+            (column.kind === "node" ? column.name === "id" : column.name === "source" || column.name === "target") &&
+            !attributes.some((each) => each.kind === column.kind && each.name === column.name);
+        const keys = new Set(
+            columns.map((column) => declarationKey(keyField(column) ? column : resolveColumn(attributes, column))),
+        );
         const settings = this.columnSettings();
         const now = new Set(settings.hidden);
         const changing = [...keys].filter((key) => now.has(key) !== hidden);

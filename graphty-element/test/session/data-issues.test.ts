@@ -65,13 +65,20 @@ describe("session.data.issues", () => {
         assert.deepEqual(refused?.fixes, []);
         assert.strictEqual(refused?.source, "s1");
         assert.deepEqual(issue(session, "unknown-end:edge")?.params.nodes, 18);
-        assert.deepEqual(issue(session, "unknown-end:edge")?.fixes, ["add-nodes", "leave-out"]);
+        // The made nodes are already there: "add-nodes" is what the data shows, not a fix to offer.
+        assert.deepEqual(issue(session, "unknown-end:edge")?.fixes, ["leave-out"]);
+        assert.strictEqual(issue(session, "unknown-end:edge")?.current, "add-nodes");
+        assert.deepEqual(issue(session, "repeated-edge:edge")?.fixes, ["merge"]);
+        assert.strictEqual(issue(session, "repeated-edge:edge")?.current, "keep");
+        assert.deepEqual(issue(session, "repeated-id:node")?.fixes, ["merge-rows"]);
+        assert.strictEqual(issue(session, "repeated-id:node")?.current, "keep-first");
         assert.deepEqual(issue(session, "repeated-id:node")?.params.ids, ["A010", "A020"]);
         assert.deepEqual(issue(session, "not-a-number:edge:amount")?.params.examples, ["N/A"]);
         assert.deepEqual(issue(session, "decimal-comma:edge:amount")?.column, { kind: "edge", name: "amount" });
         for (const each of issues) {
             assert.isAbove(each.count, 0);
             assert.isFalse(each.ignored);
+            assert.strictEqual(each.status, "open");
             assert.notProperty(each, "message", "an issue carries facts, not words");
         }
 
@@ -221,12 +228,50 @@ describe("data.fix", () => {
     });
 });
 
+describe("fixed issues", () => {
+    it("stay listable with includeFixed, as they stood, and undo lists them open again", async () => {
+        const session = await fraud();
+        await session.data.fix("unknown-end:edge", "add-nodes");
+        await session.data.fix("decimal-comma:edge:amount", "read-decimal-comma");
+        assert.isUndefined(issue(session, "unknown-end:edge"), "a fixed issue is not listed by default");
+
+        const fixed = session.data.issues({ includeFixed: true }).filter((each) => each.status === "fixed");
+        assert.deepEqual(
+            fixed.map((each) => [each.id, each.fixedBy, each.count, each.fixes]),
+            [
+                ["unknown-end:edge", "add-nodes", 18, []],
+                ["decimal-comma:edge:amount", "read-decimal-comma", 3, []],
+            ],
+        );
+
+        const { text } = await session.project.save();
+        const opened = createGraphSession();
+        await opened.project.open(text);
+        assert.deepEqual(
+            opened.data
+                .issues({ includeFixed: true })
+                .filter((each) => each.status === "fixed")
+                .map((each) => each.id),
+            ["unknown-end:edge", "decimal-comma:edge:amount"],
+            "the fixed record survives a reload",
+        );
+
+        await session.undo();
+        await session.undo();
+        assert.strictEqual(issue(session, "unknown-end:edge")?.status, "open");
+        assert.isEmpty(session.data.issues({ includeFixed: true }).filter((each) => each.status === "fixed"));
+        session.dispose();
+        opened.dispose();
+    });
+});
+
 describe("data.ignoreIssue", () => {
     it("hides an ignored issue, lists it with includeIgnored, and keeps it through a reload", async () => {
         const session = await fraud();
         await session.data.ignoreIssue("repeated-edge:edge");
         assert.isUndefined(session.data.issues().find((each) => each.id === "repeated-edge:edge"));
         assert.isTrue(issue(session, "repeated-edge:edge")?.ignored);
+        assert.strictEqual(issue(session, "repeated-edge:edge")?.status, "ignored");
         assert.deepEqual(session.history.steps.at(-1)?.fact, {
             code: "data.ignore-issue",
             params: { issue: "repeated-edge:edge", ignored: true },

@@ -11,6 +11,8 @@ const LEAF_KINDS: Record<RuleTree["kind"], true> = {
     expression: true,
     range: true,
     categories: true,
+    text: true,
+    flag: true,
     degree: true,
     component: true,
     neighborhood: true,

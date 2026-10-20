@@ -132,6 +132,7 @@ export type {
     PathKind,
     ResultId,
     ResultItem,
+    RuleSide,
     RuleTree,
     Scope,
     ScopeId,

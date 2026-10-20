@@ -50,7 +50,7 @@
 
 import { type GraphSnapshot, INVALID_INDEX, makeMask, type U8 } from "@graphty/graph-format";
 
-import type { EdgeId, FieldDescriptor, FilterStep, NodeId, Path, Scope } from "../../catalog/types";
+import type { EdgeId, FieldDescriptor, FilterStep, NodeId, Path, Scope, SourceKey } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import { VISIBILITY_DEFINITIONS, type VisibilityCommand } from "../commands/visibility";
@@ -210,8 +210,21 @@ export interface VisibilityApi {
     readonly nodes: ReadonlySet<NodeId>;
     /** The visible edge ids, on the same terms as {@link VisibilityApi.nodes}. */
     readonly edges: ReadonlySet<EdgeId>;
-    /** How much of the graph is showing. */
+    /**
+     * How much of the graph is showing: the one shown-versus-total count, after the filter, every
+     * step that is on and the time window.
+     */
     readonly summary: VisibilitySummary;
+    /**
+     * How much of what one load supplied is showing, on the same terms as
+     * {@link VisibilityApi.summary}: the totals are the elements the graph holds that the load
+     * supplied (what `session.data.sourcesOf` lists), the visible counts those of them visible now.
+     * @param source - A `session.data.sources()` key.
+     * @returns The counts; all zero for a key that supplied nothing, or when this session records
+     *     no provenance.
+     * @since 3.30.0
+     */
+    summaryOf(source: SourceKey): VisibilitySummary;
     /** The filter in force, or null when no filter is hiding anything. */
     readonly filter: RuleTree | null;
     /** The time window in force, or null when no window is hiding anything. */
@@ -1216,6 +1229,27 @@ export function createVisibilityApi(sources: VisibilitySources): SessionVisibili
 
         get summary(): VisibilitySummary {
             return summaryOf();
+        },
+
+        summaryOf(source: SourceKey): VisibilitySummary {
+            upToDate();
+            const supplied = sources.supplied?.([source]);
+            const count = <TId>(ids: Iterable<TId>, mask: ElementMask<TId>): [number, number] => {
+                let total = 0;
+                let visible = 0;
+                for (const id of ids) {
+                    const index = mask.indexOf(id);
+                    if (index !== INVALID_INDEX) {
+                        total++;
+                        visible += mask.has(index) ? 1 : 0;
+                    }
+                }
+
+                return [visible, total];
+            };
+            const [visibleNodes, totalNodes] = count(supplied?.nodes ?? [], nodeMaskValue);
+            const [visibleEdges, totalEdges] = count(supplied?.edges ?? [], edgeMaskValue);
+            return Object.freeze({ totalEdges, totalNodes, visibleEdges, visibleNodes });
         },
 
         get filter(): RuleTree | null {

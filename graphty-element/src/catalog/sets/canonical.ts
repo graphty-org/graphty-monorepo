@@ -219,6 +219,8 @@ const KNOWN_LEAVES = new Set([
     "edges",
     "range",
     "categories",
+    "text",
+    "flag",
     "degree",
     "component",
     "neighborhood",

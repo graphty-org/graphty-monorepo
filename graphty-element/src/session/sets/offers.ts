@@ -250,6 +250,8 @@ function elementLocal(filter: RuleTree): boolean {
         case "edges":
         case "range":
         case "categories":
+        case "text":
+        case "flag":
         case "degree":
         case "isolated":
         case "self-loop":

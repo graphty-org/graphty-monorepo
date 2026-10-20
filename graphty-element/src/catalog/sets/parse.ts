@@ -375,6 +375,16 @@ function checkDoorRoot(path: unknown, walker: Walker): void {
 }
 
 /**
+ * Check a leaf's side, when it has one.
+ * @param value - The leaf.
+ */
+function checkSide(value: Readonly<Record<string, unknown>>): void {
+    if (value.side !== undefined && value.side !== "nodes" && value.side !== "edges") {
+        throw bad(`A "${String(value.kind)}" leaf's side is "nodes" or "edges".`, { side: value.side });
+    }
+}
+
+/**
  * Check one rule tree node, all the way down.
  * @param value - The candidate node.
  * @param walker - The pass.
@@ -397,19 +407,46 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "range":
-            known(["attribute", "min", "max"]);
+            known(["attribute", "min", "max", "side"]);
             checkQuery(value.attribute, 'A "range" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
             checkBounds(value);
+            checkSide(value);
 
             return;
         case "categories":
-            known(["attribute", "values"]);
+            known(["attribute", "values", "side"]);
             checkQuery(value.attribute, 'A "categories" leaf\'s attribute');
             checkDoorRoot(value.attribute, walker);
+            checkSide(value);
 
             if (!Array.isArray(value.values) || !value.values.every((entry) => typeof entry === "string")) {
                 throw bad('A "categories" leaf\'s values are a list of strings.', { values: value.values });
+            }
+
+            return;
+        case "text":
+            known(["attribute", "match", "text", "side"]);
+            checkQuery(value.attribute, 'A "text" leaf\'s attribute');
+            checkDoorRoot(value.attribute, walker);
+            checkSide(value);
+
+            if ((value.match !== "contains" && value.match !== "is") || typeof value.text !== "string") {
+                throw bad('A "text" leaf has a match of "contains" or "is" and a text.', {
+                    match: value.match,
+                    text: value.text,
+                });
+            }
+
+            return;
+        case "flag":
+            known(["attribute", "value", "side"]);
+            checkQuery(value.attribute, 'A "flag" leaf\'s attribute');
+            checkDoorRoot(value.attribute, walker);
+            checkSide(value);
+
+            if (typeof value.value !== "boolean") {
+                throw bad('A "flag" leaf\'s value is true or false.', { value: value.value });
             }
 
             return;
@@ -446,7 +483,8 @@ function checkTree(value: unknown, walker: Walker): void {
 
             return;
         case "source":
-            known(["sources"]);
+            known(["sources", "side"]);
+            checkSide(value);
 
             if (!Array.isArray(value.sources) || !value.sources.every((key) => typeof key === "string")) {
                 throw bad('A "source" leaf\'s sources are a list of load keys.', { sources: value.sources });
@@ -540,8 +578,14 @@ export function speaksEdges(
         case "edges":
         case "self-loop":
         case "repeated-edge":
-        case "source":
             return true;
+        case "source":
+            return node.side !== "nodes";
+        case "range":
+        case "categories":
+        case "text":
+        case "flag":
+            return node.side === "edges";
         case "member":
             return readingOfScope(node.of, referent) !== "induced";
         case "item": {

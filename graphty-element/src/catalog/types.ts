@@ -1127,6 +1127,13 @@ export interface AttributeDescriptor {
      * @since 3.30.0
      */
     hidden?: boolean;
+    /**
+     * True when every value is a whole number from 1000 to 2999 and they span 500 or less, as a
+     * column of years does (`1975`); absent otherwise. A consumer that groups digits may leave
+     * them ungrouped for such a column: `1975`, not `1,975`.
+     * @since 3.30.0
+     */
+    yearLike?: true;
 }
 
 /**
@@ -1201,15 +1208,57 @@ export type SelectionDirection = "in" | "out" | "all";
  * the halves that are not silent, and `not` negates only those. `edges`, `self-loop` and
  * `repeated-edge` speak edges; `member` speaks the referenced set's nodes, and its edges only when
  * that set is read `listed` or `clipped` (`"visible"` is); `item` and `threshold` speak the half
- * or halves their field lives on; every other leaf speaks nodes. A group with no members
- * constrains nothing.
+ * or halves their field lives on; `range`, `categories`, `text` and `flag` speak the half their
+ * `side` names (nodes when absent); `source` speaks both halves, or the one its `side` names;
+ * every other leaf speaks nodes. A group with no members constrains nothing. An edge whose end
+ * is hidden is hidden, so a leaf that speaks nodes only still hides the edges of the nodes it
+ * hides.
  *
  * OPEN UNION: leaf kinds may be added in a minor release; handle unknown kinds.
  */
 export type RuleTree =
     | { readonly kind: "expression"; readonly where: Query }
-    | { readonly kind: "range"; readonly attribute: Path; readonly min?: number; readonly max?: number }
-    | { readonly kind: "categories"; readonly attribute: Path; readonly values: readonly string[] }
+    | {
+          readonly kind: "range";
+          readonly attribute: Path;
+          readonly min?: number;
+          readonly max?: number;
+          /** Which half the attribute is read on: `"nodes"` (the default) or `"edges"`. @since 3.30.0 */
+          readonly side?: RuleSide;
+      }
+    | {
+          readonly kind: "categories";
+          readonly attribute: Path;
+          readonly values: readonly string[];
+          /** Which half the attribute is read on: `"nodes"` (the default) or `"edges"`. @since 3.30.0 */
+          readonly side?: RuleSide;
+      }
+    /**
+     * The elements whose value for an attribute, as text, contains `text` (`match: "contains"`)
+     * or is exactly `text` (`match: "is"`). Case-sensitive. A number or a yes/no value is read as
+     * its text (`3`, `true`); an element with no value never matches.
+     * @since 3.30.0
+     */
+    | {
+          readonly kind: "text";
+          readonly attribute: Path;
+          readonly match: "contains" | "is";
+          readonly text: string;
+          /** Which half the attribute is read on: `"nodes"` (the default) or `"edges"`. */
+          readonly side?: RuleSide;
+      }
+    /**
+     * The elements whose value for an attribute is the yes/no value `value`. Only a real `true` or
+     * `false` matches: a text column of "yes" and "no" is converted first (`data.setType`).
+     * @since 3.30.0
+     */
+    | {
+          readonly kind: "flag";
+          readonly attribute: Path;
+          readonly value: boolean;
+          /** Which half the attribute is read on: `"nodes"` (the default) or `"edges"`. */
+          readonly side?: RuleSide;
+      }
     | {
           readonly kind: "degree";
           readonly min?: number;
@@ -1262,10 +1311,25 @@ export type RuleTree =
      * `session.data.sourcesOf(id)` lists. An element two loads both supplied matches either.
      * Speaks nodes and edges.
      */
-    | { readonly kind: "source"; readonly sources: readonly SourceKey[] }
+    | {
+          readonly kind: "source";
+          readonly sources: readonly SourceKey[];
+          /**
+           * Which half the rule speaks: both when absent; `"nodes"` keeps the nodes the loads
+           * supplied and leaves every edge between them, whichever load supplied it; `"edges"`
+           * keeps only the edges they supplied. @since 3.30.0
+           */
+          readonly side?: RuleSide;
+      }
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * Which half of the graph a rule leaf reads: its nodes or its edges.
+ * @since 3.30.0
+ */
+export type RuleSide = "nodes" | "edges";
 
 /** A load's stable key, as `session.data.sources()` lists it and a `source` rule names it. */
 export type SourceKey = string;

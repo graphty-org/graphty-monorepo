@@ -48,6 +48,7 @@ import type {
     Path,
     Query,
     ResultItem,
+    RuleSide,
     RuleTree,
     RunId,
     Scope,
@@ -315,6 +316,8 @@ const FILTER_KINDS = [
     "expression",
     "range",
     "categories",
+    "text",
+    "flag",
     "degree",
     "component",
     "neighborhood",
@@ -423,6 +426,18 @@ function assertBounds(min: number | undefined, max: number | undefined, kind: st
 }
 
 /**
+ * Check a leaf's side is a side.
+ * @param side - The side the leaf carried.
+ * @param kind - The filter kind, for the message.
+ * @throws A `GraphtyError` with code `E_BAD_COMMAND` when it is neither "nodes" nor "edges".
+ */
+function assertSide(side: unknown, kind: string): void {
+    if (side !== undefined && side !== "nodes" && side !== "edges") {
+        throw malformed(`A "${kind}" filter's side is "nodes" or "edges".`, { kind, side });
+    }
+}
+
+/**
  * Check a query is not empty.
  *
  * An empty query matches EVERY element, which is the same defect an empty style selector has: the
@@ -468,14 +483,37 @@ function assertFilter(filter: RuleTree): void {
             return;
         case "range":
             assertPath(filter.attribute, filter.kind);
+            assertSide(filter.side, filter.kind);
             assertBounds(filter.min, filter.max, filter.kind);
 
             return;
         case "categories":
             assertPath(filter.attribute, filter.kind);
+            assertSide(filter.side, filter.kind);
 
             if (!Array.isArray(filter.values)) {
                 throw malformed('A "categories" filter needs a list of values.', { values: filter.values });
+            }
+
+            return;
+        case "text":
+            assertPath(filter.attribute, filter.kind);
+            assertSide(filter.side, filter.kind);
+
+            if ((filter.match !== "contains" && filter.match !== "is") || typeof filter.text !== "string") {
+                throw malformed('A "text" filter needs a match of "contains" or "is" and a text.', {
+                    match: filter.match,
+                    text: filter.text,
+                });
+            }
+
+            return;
+        case "flag":
+            assertPath(filter.attribute, filter.kind);
+            assertSide(filter.side, filter.kind);
+
+            if (typeof filter.value !== "boolean") {
+                throw malformed('A "flag" filter\'s value is true or false.', { value: filter.value });
             }
 
             return;
@@ -517,6 +555,8 @@ function assertFilter(filter: RuleTree): void {
             if (!Array.isArray(filter.sources) || !filter.sources.every((key) => typeof key === "string")) {
                 throw malformed('A "source" filter needs a list of load keys.', { sources: filter.sources });
             }
+
+            assertSide(filter.side, filter.kind);
 
             return;
         case "member":
@@ -699,6 +739,8 @@ export function assertEvaluable(filter: RuleTree | null, window: TimeWindow | nu
                 return;
             case "range":
             case "categories":
+            case "text":
+            case "flag":
                 if (sources.values === undefined) {
                     throw unsupported(each.kind, "a source of attribute values");
                 }
@@ -906,10 +948,11 @@ function edgeQueryTest(context: CompileContext, where: Query): ElementTest {
  * The tests over what some loads supplied: a node or an edge passes when one of them supplied it.
  * @param context - The compile context.
  * @param keys - The loads' keys.
- * @returns Both halves.
+ * @param side - The one half to speak, or both when absent.
+ * @returns Both halves, or the one `side` names.
  * @throws A `GraphtyError` with code `E_UNSUPPORTED` when this session records no provenance.
  */
-function sourceTests(context: CompileContext, keys: readonly SourceKey[]): CompiledHalves {
+function sourceTests(context: CompileContext, keys: readonly SourceKey[], side: RuleSide | undefined): CompiledHalves {
     const { supplied } = context.sources;
     if (supplied === undefined) {
         throw unsupported("source", "a record of what each load supplied");
@@ -918,63 +961,96 @@ function sourceTests(context: CompileContext, keys: readonly SourceKey[]): Compi
     const { nodes, edges } = supplied(keys);
     const { graph } = context;
     const space = edgeSpaceOf(graph);
-    return { node: (index) => nodes.has(graph.ids.idOf(index)), edge: (index) => edges.has(space.idOf(index)) };
-}
-
-/**
- * A test over a numeric attribute.
- * @param context - The compile context.
- * @param attribute - The attribute path.
- * @param min - The lower bound, inclusive; unbounded when absent.
- * @param max - The upper bound, inclusive; unbounded when absent.
- * @returns The test, which rejects a node carrying no number for the attribute.
- */
-function rangeTest(
-    context: CompileContext,
-    attribute: Path,
-    min: number | undefined,
-    max: number | undefined,
-): ElementTest {
-    const values = valuesOf(context, "range");
-    const mark = markFor(context, attribute);
-    const low = min ?? Number.NEGATIVE_INFINITY;
-    const high = max ?? Number.POSITIVE_INFINITY;
-
-    return (index) => {
-        const value = readValue((row, path) => values.nodeValue(row, path), index, attribute, mark);
-
-        return typeof value === "number" && Number.isFinite(value) && value >= low && value <= high;
+    return {
+        node: side === "edges" ? null : (index) => nodes.has(graph.ids.idOf(index)),
+        edge: side === "nodes" ? null : (index) => edges.has(space.idOf(index)),
     };
 }
 
 /**
- * A test over a categorical attribute.
+ * A test over one attribute's value on one half: the leaf's own check, given each element's value.
+ * @param context - The compile context.
+ * @param leaf - The leaf: its kind, its attribute and its side.
+ * @param leaf.kind - The leaf kind, for a refusal.
+ * @param leaf.attribute - The attribute path.
+ * @param leaf.side - The half the attribute is read on; nodes when absent.
+ * @param check - Whether a value passes; never called for an element with no value.
+ * @returns The two halves, the one the leaf's side names speaking.
+ */
+function valueHalves(
+    context: CompileContext,
+    leaf: { readonly kind: string; readonly attribute: Path; readonly side?: RuleSide },
+    check: (value: unknown) => boolean,
+): CompiledHalves {
+    const values = valuesOf(context, leaf.kind);
+    const mark = markFor(context, leaf.attribute);
+    const read =
+        leaf.side === "edges"
+            ? (row: number, path: Path): unknown => values.edgeValue(row, path)
+            : (row: number, path: Path): unknown => values.nodeValue(row, path);
+    const test: ElementTest = (index) => {
+        const value = readValue(read, index, leaf.attribute, mark);
+        return value !== undefined && check(value);
+    };
+
+    return leaf.side === "edges" ? { node: null, edge: test } : { node: test, edge: null };
+}
+
+/**
+ * A check over a numeric value.
+ * @param min - The lower bound, inclusive; unbounded when absent.
+ * @param max - The upper bound, inclusive; unbounded when absent.
+ * @returns The check, which rejects a value that is not a number.
+ */
+function rangeCheck(min: number | undefined, max: number | undefined): (value: unknown) => boolean {
+    const low = min ?? Number.NEGATIVE_INFINITY;
+    const high = max ?? Number.POSITIVE_INFINITY;
+
+    return (value) => typeof value === "number" && Number.isFinite(value) && value >= low && value <= high;
+}
+
+/**
+ * A value as the text a `text` or `categories` leaf compares: a string itself, a number or a
+ * yes/no value as it is written, anything else null.
+ * @param value - The value.
+ * @returns The text, or null.
+ */
+function textOf(value: unknown): string | null {
+    if (typeof value === "string") {
+        return value;
+    }
+
+    return typeof value === "number" || typeof value === "boolean" ? String(value) : null;
+}
+
+/**
+ * A check over a value's text.
+ * @param match - Contains or is.
+ * @param text - The text.
+ * @returns The check.
+ */
+function textCheck(match: "contains" | "is", text: string): (value: unknown) => boolean {
+    return (value) => {
+        const own = textOf(value);
+        return own !== null && (match === "is" ? own === text : own.includes(text));
+    };
+}
+
+/**
+ * A check over a categorical value.
  *
  * The comparison is on the value's TEXT, so a chip list that hands back "3" still matches a record
  * whose type code arrived as the number 3. That is the opposite of the rule for node ids, where 1
  * and "1" are two different nodes on purpose: an id is an identity, and a category is a label.
- * @param context - The compile context.
- * @param attribute - The attribute path.
  * @param wanted - The categories to keep.
- * @returns The test, which rejects a node carrying no value for the attribute.
+ * @returns The check.
  */
-function categoriesTest(context: CompileContext, attribute: Path, wanted: readonly string[]): ElementTest {
-    const values = valuesOf(context, "categories");
-    const mark = markFor(context, attribute);
+function categoriesCheck(wanted: readonly string[]): (value: unknown) => boolean {
     const allowed = new Set(wanted);
 
-    return (index) => {
-        const value = readValue((row, path) => values.nodeValue(row, path), index, attribute, mark);
-
-        if (typeof value === "string") {
-            return allowed.has(value);
-        }
-
-        if (typeof value === "number" || typeof value === "boolean") {
-            return allowed.has(String(value));
-        }
-
-        return false;
+    return (value) => {
+        const own = textOf(value);
+        return own !== null && allowed.has(own);
     };
 }
 
@@ -1379,9 +1455,13 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "expression":
             return { node: expressionTest(context, filter.where), edge: null };
         case "range":
-            return { node: rangeTest(context, filter.attribute, filter.min, filter.max), edge: null };
+            return valueHalves(context, filter, rangeCheck(filter.min, filter.max));
         case "categories":
-            return { node: categoriesTest(context, filter.attribute, filter.values), edge: null };
+            return valueHalves(context, filter, categoriesCheck(filter.values));
+        case "text":
+            return valueHalves(context, filter, textCheck(filter.match, filter.text));
+        case "flag":
+            return valueHalves(context, filter, (value) => value === filter.value);
         case "degree":
             return { node: degreeTest(context, filter.min, filter.max, filter.direction), edge: null };
         case "component":
@@ -1397,7 +1477,7 @@ function compileOne(filter: RuleTree, context: CompileContext): CompiledHalves {
         case "edges":
             return { node: null, edge: edgeQueryTest(context, filter.where) };
         case "source":
-            return sourceTests(context, filter.sources);
+            return sourceTests(context, filter.sources, filter.side);
         case "member": {
             if (context.sources.scope === undefined) {
                 throw unsupported("member", "a scope resolver");

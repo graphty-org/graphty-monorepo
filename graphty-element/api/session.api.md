@@ -153,6 +153,7 @@ export interface AttributeDescriptor {
     // (undocumented)
     uniqueCount?: number;
     usedBy?: readonly AttributeUse[];
+    yearLike?: true;
 }
 
 // @public
@@ -497,11 +498,14 @@ export interface DataIssue {
     readonly code: IssueCode;
     readonly column?: ColumnRef;
     readonly count: number;
+    readonly current?: FixCode;
+    readonly fixedBy?: FixCode;
     readonly fixes: readonly FixCode[];
     readonly id: IssueId;
     readonly ignored: boolean;
     readonly params: Readonly<Record<string, unknown>>;
     readonly source?: SourceKey;
+    readonly status: IssueStatus;
 }
 
 // @public
@@ -3306,6 +3310,9 @@ export interface RowUpdate<Id> {
 }
 
 // @public
+export type RuleSide = "nodes" | "edges";
+
+// @public
 export type RuleTree = {
     readonly kind: "expression";
     readonly where: Query;
@@ -3314,10 +3321,36 @@ export type RuleTree = {
     readonly attribute: Path;
     readonly min?: number;
     readonly max?: number;
+    readonly side?: RuleSide;
 } | {
     readonly kind: "categories";
     readonly attribute: Path;
     readonly values: readonly string[];
+    readonly side?: RuleSide;
+}
+/**
+* The elements whose value for an attribute, as text, contains `text` (`match: "contains"`)
+* or is exactly `text` (`match: "is"`). Case-sensitive. A number or a yes/no value is read as
+* its text (`3`, `true`); an element with no value never matches.
+* @since 3.30.0
+*/
+| {
+    readonly kind: "text";
+    readonly attribute: Path;
+    readonly match: "contains" | "is";
+    readonly text: string;
+    readonly side?: RuleSide;
+}
+/**
+* The elements whose value for an attribute is the yes/no value `value`. Only a real `true` or
+* `false` matches: a text column of "yes" and "no" is converted first (`data.setType`).
+* @since 3.30.0
+*/
+| {
+    readonly kind: "flag";
+    readonly attribute: Path;
+    readonly value: boolean;
+    readonly side?: RuleSide;
 } | {
     readonly kind: "degree";
     readonly min?: number;
@@ -3389,6 +3422,7 @@ export type RuleTree = {
 | {
     readonly kind: "source";
     readonly sources: readonly SourceKey[];
+    readonly side?: RuleSide;
 } | {
     readonly kind: "all";
     readonly of: readonly RuleTree[];
@@ -3957,11 +3991,13 @@ export interface SessionDataApi {
     fingerprint(): string;
     fix(issue: IssueId | Pick<DataIssue, "id">, fix: FixCode): Promise<FixResult>;
     generate(name: string, params?: GeneratorParams, options?: ImportOptions): Promise<void>;
+    hiddenColumns(): readonly ColumnRef[];
     histogram(column: ColumnRef, options?: HistogramOptions): ColumnHistogram;
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
     issues(options?: {
         readonly includeIgnored?: boolean;
+        readonly includeFixed?: boolean;
     }): readonly DataIssue[];
     joins(): readonly JoinRecord[];
     lastImport(): LoadReport | null;
@@ -4896,6 +4932,7 @@ export interface VisibilityApi {
     showContext: boolean;
     readonly steps: readonly FilterStep[];
     readonly summary: VisibilitySummary;
+    summaryOf(source: SourceKey): VisibilitySummary;
     timeHistogram(attribute: Path, options?: {
         readonly bins?: number;
     }): TimeHistogram;

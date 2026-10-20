@@ -194,6 +194,9 @@ export function previewConversion(values: Iterable<unknown>, type: ValueType): T
 /** The keys whose string is a value path read literally, never an expression. */
 const PATH_KEYS = new Set(["path", "attribute", "by"]);
 
+/** The keys whose string is a reader's own text, never a path: a `text` leaf's `text`. */
+const TEXT_KEYS = new Set(["text"]);
+
 /**
  * Escape a string for a regular expression.
  * @param text - The text.
@@ -266,7 +269,7 @@ export function renameColumnIn<T>(
             let changed = false;
             const out: Record<string, unknown> = {};
             for (const [key, each] of Object.entries(record)) {
-                out[key] = visit(each, PATH_KEYS.has(key), inside);
+                out[key] = TEXT_KEYS.has(key) ? each : visit(each, PATH_KEYS.has(key), inside);
                 changed ||= out[key] !== each;
             }
 
@@ -281,15 +284,17 @@ export function renameColumnIn<T>(
 
 /**
  * Where a rule tree speaks of one kind's columns: a node column everywhere but inside an `edges`
- * leaf, an edge column only inside an `edges` or a `threshold` leaf. Pass `start` as
- * `kind === "node"`.
+ * leaf or a leaf whose `side` is `"edges"`, an edge column only inside those or a `threshold`
+ * leaf. Pass `start` as `kind === "node"`.
  * @param kind - The renamed column's kind.
  * @returns The scope for {@link renameColumnIn}.
  */
 export function ruleScope(
     kind: "node" | "edge",
 ): (node: Readonly<Record<string, unknown>>, inherited: boolean) => boolean {
+    const onEdges = (node: Readonly<Record<string, unknown>>): boolean =>
+        node.kind === "edges" || node.side === "edges";
     return kind === "node"
-        ? (node, inherited) => inherited && node.kind !== "edges"
-        : (node, inherited) => inherited || node.kind === "edges" || node.kind === "threshold";
+        ? (node, inherited) => inherited && !onEdges(node)
+        : (node, inherited) => inherited || onEdges(node) || node.kind === "threshold";
 }

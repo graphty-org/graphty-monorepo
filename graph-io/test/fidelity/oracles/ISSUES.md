@@ -442,7 +442,9 @@ one Preview setting per further page (`specimens/gexf/pages.json`; the `.oracle.
       nodes' colors (`end-colors`); `source`, `target`, `original` and a custom color are the other pages.
     - `z` is ignored in 2D (`position-z`).
     - Edge labels are hidden by default (`edge.label.show=false`; `gexf-specimen-edge-labels` vs `-p2`).
-    - A node label's line break is drawn as a space (`label-newline`: the SVG text is one line).
+    - A node label's line break is drawn as nothing: Java's drawString draws "line one\nline two" as "line oneline
+      two" on one line (Gephi's Preview and PNG export; its SVG writer turns the break into a space, which the oracle
+      route puts back, `restoreLabelText` in `tools/gephi.mjs`). graph-io draws it so (fixed 2026-10-19, fix round 2).
     - GEXF 1.3's hierarchy (nested `<nodes>`, `pid`, `<parents>` with several parents) is flattened: every parent
       and child is a plain node, with no group box (`gexf-specimen-groups`, `group-parents`).
     - A dynamic graph is drawn static (`gexf-specimen-node-sizes-opacity-p4`, `mode="dynamic"`): every node and edge
@@ -528,18 +530,24 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
   edge show, curved, color (mixed, source, target, original, a color), opacity, thickness, use-weight and weight
   rescaling; arrow size (0 draws none); edge label show, color, outline, shorten and font, centered on the line.
   This also settles the label overlap row: page 1 of every sheet was drawn with `node.label.avoidOverlap` false and
-  graph-io now hides overlapping labels only while that setting is on. The corpus oracles were drawn under Gephi's
-  default (overlap avoidance on), so their remaining label.present misses are Gephi's 10-unit grid against
-  graphty-element's box test (the allowedDrops above), not an oracle defect. Still open:
-    - Row gexf-label-outline-opacity: `node.label.outline.opacity` and `edge.label.outline.opacity` (`labels-p10`,
-      `edge-labels-p6`): the style
-      vocabulary has no label outline opacity (graph-io), so the outline is drawn opaque.
-    - `node.label.box.opacity` (`labels-p13`): Gephi strokes the label box (drawn as the label border, 0.08 of the
-      node's size wide) at that opacity; the vocabulary has no label border opacity, so it is drawn opaque.
-    - Row gexf-label-box: the label box's size (`labels-p11`, `-p12`, `-p20`, `-p21`, label.backgroundBox): graphty-element's label
-      border box is about 1.9 times the font size tall where Gephi's is 1.3 (its text box with Gephi's padding);
-      the vocabulary has no label box padding to ask for Gephi's (graphty-element). The raster label and node-body
-      drops on those pages follow from it and are allowed until 2026-12-31.
+  graph-io now hides overlapping labels only while that setting is on. Under it (Gephi's default, every corpus
+  oracle) graph-io now runs Gephi's own grid (NodeLabelRenderer.preProcess: largest font first, each label's Dialog
+  box marks the cells of a `node.label.overlapGridSize` grid, a label meeting a marked cell is hidden, Gephi's font
+  cache and its item order, largest node first) over the stored positions and leaves out the labels it hides;
+  graphty-element then avoids no overlap of its own. On cns-wos, sigma-ediaspora, gsa-fpki-certs, miserables,
+  graphology-rio and synth-nx-viz it hides exactly the labels Gephi's preview items mark hidden (fixed 2026-10-19,
+  fix round 2; Row gexf-label-overlap-grid, `labels-p16` included). Fixed in the same round:
+    - Row gexf-label-outline-opacity: `node.label.outline.opacity` and `edge.label.outline.opacity` (default 80;
+      `labels-p10`, `edge-labels-p5`, `-p6`): drawn at that opacity, cut down to one of Java's 256 alpha steps (30 is
+      76/255), through the new style keys `labelOutlineOpacity` (graph-io) and channels `node/edge.labelOutlineOpacity`
+      (graphty-element).
+    - `node.label.box.opacity` (`labels-p13`): drawn at that opacity (`labelBorderOpacity`). The oracle's 0.16 was
+      Gephi's SVG writer putting the opacity on the box twice (opacity and stroke-opacity); its PNG export strokes
+      the box at 0.4, and the oracle route now writes it once (`singleBoxOpacity` in `tools/gephi.mjs`).
+    - Row gexf-label-box: the label box's size (`labels-p11`, `-p12`, `-p20`, `-p21`, label.backgroundBox): Gephi's
+      box is the text's own bounds (advance width by the font's ascent plus descent) grown by its stroke; graph-io
+      now asks for a label padding of 0 and a line height of 1 (new keys `labelPadding`, `labelLineHeight`, channels
+      `node/edge.labelPadding`, `labelLineHeight` in graphty-element), and every page's box passes.
     - Seen in the same runs, not traced to this round: edge.curve on `hsk-chars` (0.145, floor 0.684),
       `sigma-ediaspora` (0.872, floor 0.905), 31 non-loop edges of `graphology-rio` and 2 of `miserables` (27->25,
       62->59: graphty bows 0.109 and 0.125 of the chord where Gephi bows 0.069 and 0.059), already at these values
@@ -553,26 +561,28 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
       graphty-element drew the data: URI's picture over the node, where Gephi Toolkit 0.11.3 draws every
       `viz:shape`, image too, as the node's disc (no `<image>` in the oracle). graph-io now draws no picture for a
       file graphty did not write; nodeBody 0.976, both pages pass.
-    - Comparator (graphty's side), corpus: `sigma-ediaspora` node.present 0.987 (floor 0.994) and label.present
-      0.766 (floor 0.768): nodes 134 and 77 (Gephi sizes 160 and 90) are drawn and labeled, but `groupsOf` (below)
-      reads each as a group box because a smaller node's box lies inside its own, so their oracle nodes are
-      unmatched. Seen once Gephi's border moved inside the node (`borderPosition` inside, which matches Gephi's
-      circle of radius 0.92 size with a 0.16 size stroke). Not an import defect; the floors stay.
-    - Comparator (oracle side), corpus: `graphology-rio` edge.arrowShape, 4 edges newly failing (ncs170<->ncs416,
-      ncs436->ncs65, ncs441->ncs65): Gephi's arrowheads there are read as `other` or `half` (another edge or the
-      node drawn over the tip, as on `arrows-p2`); graphty draws a triangle at each target.
+    - Fixed (comparator, 2026-10-19, fix round 2): `sigma-ediaspora` node.present (nodes 134 and 77 read as group
+      boxes) and every `labels` page's `label-overlap` (group.extra, node.present): `groupsOf` in
+      `graphty-element/test/fidelity/extract-scene.ts` now reads a group box only from a node graphty-element draws as
+      a group (a `node.zIndex` below 0, which the file's hierarchy gives a group), never from a plain node drawn
+      round a smaller one.
+    - Fixed (comparator, 2026-10-19, fix round 2): edge.arrowShape on Gephi's curved arrows (`arrows-p2`, `-p4`
+      `weight-4` and `target-size-12`, `graphology-rio` 409 -> 6, `sigma-ediaspora` 80 -> 0): Gephi ends the arc at the
+      arrowhead's back and aims the arrowhead from there at the target's center, about 14 degrees off the arc's end;
+      `measureArrow` (oracle/associate.ts) now reads such a cap along its own axis. The triangles were never covered
+      by the node; the reading direction was wrong.
+    - Fixed (2026-10-19, fix round 2): the edges graphty drew between overlapping nodes (`cns-wos` edge.extra 24,
+      `sigma-ediaspora` 30): Gephi draws a curved edge as an arc of radius distance / 1.2 cut back by a chord of
+      each end node's radius (and the arrowhead); where the cuts meet it draws no line, though it draws the arrowhead
+      (EdgeRenderer.CurvedEdgeRenderer, ArrowRenderer). graph-io now hides such an undirected edge and draws a
+      directed one with no line. On `sigma-ediaspora` the 30 arrowheads Gephi still draws are oracle strays that no
+      oracle line carries (a comparator reading of an arrowhead with no line).
     - `edge.radius` (`arrows-p4`): Gephi ends each edge that far short of its nodes; the vocabulary has no edge end
       gap (graph-io vocabulary, then graphty-element).
-    - `node.label.overlapGridSize` (`labels-p16`): graphty-element tests label boxes, not Gephi's grid.
-    - Gephi's SVG writes a label's text with the space before `&` and `<` dropped (`label-entity`: "a& b<c>");
-      graph-io keeps the file's text, so label.text fails there on every labels and edge-labels page.
-    - Comparator (graphty's side): `labels`, every page: graphty-element draws `label-overlap` as a plain node, but
-      `groupsOf` in `graphty-element/test/fidelity/extract-scene.ts` reads any node whose box holds another node's
-      box as a group box, so the small node drawn over it makes it a group (group.extra) and its oracle node is
-      missing (node.present). Gephi has no group boxes; the heuristic should not make one.
-    - `arrows-p2` (arrow.size 8) and `-p4`: the arrowheads of `weight-4` and `target-size-12` are read as `half` or
-      `other` from Gephi's SVG, where Gephi draws the node over the arrowhead's tip; graphty draws the size asked
-      for (arrowSize 8 / 3). The comparator's arrow-shape reading of a covered arrowhead, not the import.
+    - Fixed (oracle, 2026-10-19, fix round 2): Gephi's SVG wrote a label's text with the space before `&` and `<`
+      dropped (`label-entity`: "a& b<c>"), where its Preview, PNG export and preview items draw "a & b <c>"; the
+      oracle route now writes the label Gephi draws (`restoreLabelText`) and the 37 label and edge-label oracles were
+      drawn again.
     - `node-sizes-opacity`, `-p2`, `-p3`: one node has no `viz:position` (`position-none`), which the oracle route's
       autoscale-off import places at (0, 0); graphty-element's `layout: "recommended"` then lays out every node
       (layout, not style: position, size and stroke rows all fail with the frame). `-p4` .. `-p7` place every node
@@ -856,15 +866,18 @@ Fix round 1 (2026-10-19), what graph-io now reads as Cytoscape.js 3.34.3 draws i
 Fix round 2 (2026-10-19), what graph-io now reads (unit tests in `graph-io/test/styles/cyjs-specimen-fixes.test.ts`,
 the writer's round trip in `cyjs.test.ts`):
 
-- `text-opacity`, drawn times the element's `opacity` (`drawText`: `effectiveOpacity() * text-opacity`), as
-  `labelOpacity`; the label's box (`text-background-opacity`) is drawn at its own opacity times the element's, as
-  `labelBackgroundOpacity` (was drawn opaque). An edge's label follows the edge's `opacity`, not its `line-opacity`.
-  `json-cyjs-tokyo`'s edge labels at `opacity: 0.5` are its 533 `label.opacity` rows. The writer writes
-  `text-opacity` back divided by the opacity it writes.
+- Opacities as `drawText` and `drawNode` draw them, each part's own times the element's `opacity`: `text-opacity` as
+  `labelOpacity`, the label's box (`text-background-opacity`) as `labelBackgroundOpacity`, its line
+  (`text-border-opacity`) as `labelBorderOpacity`, its outline (`text-outline-opacity`, also times the words'
+  opacity) as `labelOutlineOpacity`, a node's `border-opacity` and `outline-opacity` as `borderOpacity` and
+  `outerBorderOpacity` (`opacity-0-15` drew its border at 1). An edge's label follows the edge's `opacity`, not its
+  `line-opacity`; `json-cyjs-tokyo`'s edge labels at `opacity: 0.5` are its 533 `label.opacity` rows. The writer
+  writes each back divided by the opacity it is drawn times.
 - `text-margin-x` / `-y` (negative too), a node's and an edge's, as `labelOffsetX` / `labelOffsetY`.
-- `text-border-width`, `-color` and `-opacity` as `labelBorderWidth` / `labelBorderColor`, drawn only with a width
-  and an opacity above 0 (both 0 by default); an opacity below 1 and the dotted, dashed and double styles are drawn
-  as a solid opaque line, noted. The writer writes them back.
+- `text-border-width` and `-color` as `labelBorderWidth` / `labelBorderColor`, drawn only with a width and an
+  opacity above 0 (both 0 by default); `double` is one line a quarter of the width, as `drawText` draws it; dotted
+  and dashed are drawn solid, noted. `text-background-padding` (0 unset) is `labelPadding` wherever a box or a line
+  is drawn. The writer writes the box, the line, the outline and the padding back.
 - `border-position` as `borderPosition`.
 - `width: label` / `height: label` as `labelFit: bounds` with that side 0 and the node's padding as the label
   padding, the other side kept; written back as `width: label`.
@@ -879,25 +892,28 @@ the writer's round trip in `cyjs.test.ts`):
   dotted where no dash is longer than one and a half widths (`json-cyjs-graphmaker`'s 5 px dashed edges, 32
   `edge.dash` rows), dash-dot for long and short dashes. The exact lengths still need a dash array (below).
 
-graphty-element and the comparator in the same round:
+The comparator in the same round:
 
-- A node's whole `opacity` now reaches its border (`translate.ts` composes `borderOpacity` with `opacity`), as the
-  neutral `opacity` says; it reached the fill alone (`opacity-0-15`: border drawn at 1).
-- Comparator: Cytoscape.js erases the canvas under a translucent edge's arrowhead before painting it (`drawArrowhead`,
+- Cytoscape.js erases the canvas under a translucent edge's arrowhead before painting it (`drawArrowhead`,
   `destination-out`, which the SVG replay records as a white fill of the same shape); the erasure was read as a hollow
   arrowhead (`json-cyjs-graphmaker`'s 31 `edge.arrowFill` rows at `opacity: 0.2`). The arrow painted over it is now
   the arrowhead (`compare-oracle-lines.test.ts`).
 
-`json-cyjs-graphmaker` fell from 73 failing elements to 12, the 24 Cytoscape.js samples from 3157 to 3049 before the
-label opacities (tokyo) were added.
+Failing elements on the 24 Cytoscape.js samples went from 3157 to 2768 (`oracle-report.test.ts`, this worktree):
+`json-cyjs-graphmaker` 73 to 12, `json-cyjs-tokyo` 2007 to 1785, `-node-fills-borders` 16 to 8, `-labels` 20 to 11,
+`-edge-labels` 29 to 20, `-edges-lines` 13 to 6, `cyjs-glycolysis` 10 to 0. The floors this worktree's
+`oracle-floors.json` sets for `json-cyjs-perf`, `json-cyjs-tokyo`, `json-cyjs-graphmaker`'s raster and
+`cyjs-genemania`'s `edge.extra` are not met with or without this round's reader (checked with the haystack ends
+turned back off): they come from the comparator work in flight beside it.
 
 Still open after fix round 2:
 
-- The opacity of a label's outline (`text-outline-opacity`), and a label border's opacity and style: no neutral slot,
-  and graphty-element's label outline and border take none.
-- `text-background-padding` and `text-background-shape` (round-rectangle, circle): no neutral slot; graphty-element's
-  label style has a padding and a corner radius the neutral styles do not carry (`label-background-box`, shared with
-  six other formats: one slot for all of them).
+- `text-background-shape` (round-rectangle's 2 px corners, circle) and a label line's dotted and dashed styles: no
+  neutral slot (graphty-element's label style has a corner radius the neutral styles do not carry).
+- graphty-element: composing `borderOpacity` with `opacity` as a second replanned composite in `translate.ts`
+  (`#compositeCombined`) painted one class's value onto another class's nodes (`opacity-0-5` drew its border at
+  0.15, the next class's value): two replanned composites in one translation collide. Not used now (the reader
+  gives the border its drawn opacity), but any second composite will meet it.
 - Numeric font weights (100, 200, 900, `lighter`): the neutral `labelWeight` and graphty-element's
   `LabelWeightValue` are `normal | bold` only; widening graphty-element's exported value type may break a consumer
   that switches over it, so it waits for the owner.

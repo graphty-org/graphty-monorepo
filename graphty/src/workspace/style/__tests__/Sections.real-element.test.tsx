@@ -325,8 +325,9 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
         await waitFor(() => {
-            const box = section("edge", "ends").querySelector('[data-line="edge.arrowHead"] [role="combobox"]');
-            assert.match(box?.getAttribute("aria-label") ?? "", /, default None$/);
+            const line = section("edge", "ends").querySelector<HTMLElement>('[data-line="edge.arrowHead"]');
+            assert.isNotNull(line);
+            within(line).getByRole("combobox", { name: /, default None$/ });
         });
         assert.isUndefined(written(session, "Everything", "edge.arrowHead"), "nothing written before a pick");
     });
@@ -406,7 +407,7 @@ describe("the Style tab's sections", () => {
         // checked as if it were set) and marked as not set.
         assert.equal((palette as HTMLInputElement).value, "", "no palette is set here");
         assert.notEqual((palette as HTMLInputElement).placeholder, "", "the palette in use is shown");
-        assert.match(palette.getAttribute("aria-label") ?? "", /^Palette, not set, /);
+        within(dialog).getByRole("combobox", { name: /^Palette, not set, / });
         const chips = within(dialog).getAllByTestId("compact-color-input-chip");
         assert.isAbove(chips.length, 0);
         for (const chip of chips) {
@@ -426,8 +427,9 @@ describe("the Style tab's sections", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const beneath = String(written(session, "Everything", "node.shape"));
         await waitFor(() => {
-            const box = section("node", "shape").querySelector('[data-line="node.shape"] [role="combobox"]');
-            assert.match(box?.getAttribute("aria-label") ?? "", new RegExp(`, default ${beneath}$`, "i"));
+            const line = section("node", "shape").querySelector<HTMLElement>('[data-line="node.shape"]');
+            assert.isNotNull(line);
+            within(line).getByRole("combobox", { name: new RegExp(`, default ${beneath}$`, "i") });
         });
         assert.isUndefined(written(session, "Key people", "node.shape"), "nothing written before a pick");
 

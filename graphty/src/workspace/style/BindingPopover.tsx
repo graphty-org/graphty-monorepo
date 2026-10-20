@@ -506,8 +506,32 @@ function PaletteSelect({
     patch: (change: { palette: string | undefined }) => void;
 }>): React.JSX.Element {
     const palettes = session.catalog.palettes().filter((p) => p.kind === "categorical");
+    const inForce = shown ?? palettes[0]?.id;
+    const strips = Object.fromEntries(
+        palettes.map((p) => [
+            p.id,
+            <span
+                key={p.id}
+                aria-hidden
+                style={{
+                    display: "block",
+                    width: 16,
+                    height: 8,
+                    marginBlock: 4,
+                    borderRadius: 2,
+                    background: `linear-gradient(to right, ${p.colors.slice(0, 8).join(", ")})`,
+                }}
+            />,
+        ]),
+    );
+    // Unset, the field holds nothing: the palette in force is its placeholder and its name says
+    // it is not set, so the open list checks no palette as if one were chosen.
+    const name = value === undefined && inForce !== undefined ? `Palette, not set, ${paletteWord(inForce)}` : "Palette";
     return (
-        <PanelLabelsProvider showLabels>
+        <Stack gap={2}>
+            <span className="cm-field-label" aria-hidden="true">
+                Palette
+            </span>
             <FieldRow
                 trailing={
                     value !== undefined && (
@@ -521,17 +545,20 @@ function PaletteSelect({
                 }
             >
                 <PanelField
-                    label="Palette"
+                    label={name}
                     kind="select"
                     width="fill"
                     data={palettes.map((p) => ({ value: p.id, label: paletteWord(p.id) }))}
-                    value={value ?? shown ?? palettes[0]?.id ?? null}
+                    value={value ?? null}
+                    placeholder={value === undefined && inForce !== undefined ? paletteWord(inForce) : undefined}
+                    glyph={strips[value ?? inForce ?? ""]}
+                    optionGlyphs={strips}
                     onChange={(palette) => {
                         patch({ palette: String(palette) });
                     }}
                 />
             </FieldRow>
-        </PanelLabelsProvider>
+        </Stack>
     );
 }
 

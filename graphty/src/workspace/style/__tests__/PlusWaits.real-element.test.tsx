@@ -117,11 +117,8 @@ describe("a section's '+' waits for a value", () => {
 
         await plus("shape", "Shape");
         const shape = await lineOf("node.shape");
-        assert.match(
-            within(shape).getByRole("combobox").getAttribute("aria-label") ?? "",
-            /Box$/,
-            "the line starts at the cube the node draws now",
-        );
+        // The line starts at the cube the node draws now: the field is named for it.
+        within(shape).getByRole("combobox", { name: /Box$/ });
         await plus("fill");
         const fill = await lineOf("node.color");
         await session.styles.settled();

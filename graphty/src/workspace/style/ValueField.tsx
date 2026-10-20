@@ -1,4 +1,4 @@
-import { ComboInput, CompactColorInput, FieldRow, PanelField, PanelLabelsProvider } from "@graphty/compact-mantine";
+import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
@@ -152,6 +152,14 @@ export function ValueField({
         // The value is in the name whether set or not, as the field shows it: "Node shape,
         // Cube"; an unset one is the default the field draws in italics: "Node shape, default
         // Icosphere".
+        // The catalog's picture for each choice in the open list, and for the one drawn now.
+        const glyphs =
+            GLYPH_TABLES[descriptor.channel] === undefined
+                ? undefined
+                : Object.fromEntries(
+                      options.map((o) => [o.value, <CatalogGlyph channel={descriptor.channel} value={o.value} />]),
+                  );
+        const pictured = glyphs === undefined || mixed ? undefined : (text(value) ?? text(shown));
         let name = label;
         if (mixed) {
             name = `${label}, mixed`;
@@ -161,21 +169,24 @@ export function ValueField({
             name = `${label}, ${chosen}`;
         }
         return (
-            <PanelLabelsProvider showLabels>
-                <FieldRow>
-                    <PanelField
-                        label={name}
-                        kind="select"
-                        width="fill"
-                        data={options.map((o) => ({ value: o.value, label: o.label }))}
-                        value={mixed ? null : (text(value) ?? text(shown) ?? null)}
-                        mixed={mixed}
-                        onChange={(next) => {
-                            onChange(boolean ? next === "true" : String(next));
-                        }}
-                    />
-                </FieldRow>
-            </PanelLabelsProvider>
+            <PanelField
+                label={name}
+                kind="select"
+                width="fill"
+                data={options.map((o) => ({ value: o.value, label: o.label }))}
+                // Unset, the field holds nothing and shows the default in force as its placeholder,
+                // so the open list checks no choice as if it were set.
+                value={mixed ? null : (text(value) ?? null)}
+                placeholder={unset ? inForce : undefined}
+                mixed={mixed}
+                optionGlyphs={glyphs}
+                glyph={
+                    pictured === undefined ? undefined : <CatalogGlyph channel={descriptor.channel} value={pictured} />
+                }
+                onChange={(next) => {
+                    onChange(boolean ? next === "true" : String(next));
+                }}
+            />
         );
     }
     if (kind === "text") {

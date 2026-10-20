@@ -1585,6 +1585,36 @@ export class RichTextLabel {
         return hung;
     }
 
+    /**
+     * The box a label is placed against: a point target's own point (the label then hangs from no pivot), or a mesh
+     * target's bounding box.
+     * @param target - What the label is attached to.
+     * @returns The box, or null when the target is neither, and the label stands at its own position.
+     */
+    private targetBounds(target: RichTextLabelOptions["attachTo"]): { min: Vector3; max: Vector3 } | null {
+        if (target instanceof Vector3) {
+            this.dropPivot();
+            return { min: target.clone(), max: target.clone() };
+        }
+        if (target && "getBoundingInfo" in target && target instanceof AbstractMesh) {
+            const { boundingBox } = target.getBoundingInfo();
+            return { min: boundingBox.minimum, max: boundingBox.maximum };
+        }
+        return null;
+    }
+
+    /**
+     * Point a label's pointer away from where it is placed, when its direction is "auto", and redraw it.
+     * @param position - Where the label is placed against its target.
+     */
+    private aimPointerAway(position: AttachPosition): void {
+        if (this.options.pointer && this.options.pointerDirection === "auto" && this.pointerInfo) {
+            this.pointerInfo.direction = POINTER_AWAY_FROM[position] ?? "bottom";
+            this._calculateDimensions();
+            this._drawContent();
+        }
+    }
+
     private _attachToTarget(): void {
         const target = this.options.attachTo;
         const position = this.options.attachPosition;
@@ -1593,14 +1623,8 @@ export class RichTextLabel {
             return;
         }
 
-        let bounds: { min: Vector3; max: Vector3 };
-        if (target instanceof Vector3) {
-            this.dropPivot();
-            bounds = { min: target.clone(), max: target.clone() };
-        } else if (target && "getBoundingInfo" in target && target instanceof AbstractMesh) {
-            const { boundingBox } = target.getBoundingInfo();
-            bounds = { min: boundingBox.minimum, max: boundingBox.maximum };
-        } else {
+        const bounds = this.targetBounds(target);
+        if (bounds === null || target === undefined) {
             this.dropPivot();
             this.mesh.position = new Vector3(this.options.position.x, this.options.position.y, this.options.position.z);
             this.placementBounds = this._pointBounds(this.mesh.position);
@@ -1611,11 +1635,7 @@ export class RichTextLabel {
         const labelHeight = this.lineHeightInWorld() * this.heightInLines;
         const labelWidth = (this.actualDimensions.width / this.actualDimensions.height) * labelHeight;
 
-        if (this.options.pointer && this.options.pointerDirection === "auto" && this.pointerInfo) {
-            this.pointerInfo.direction = POINTER_AWAY_FROM[position] ?? "bottom";
-            this._calculateDimensions();
-            this._drawContent();
-        }
+        this.aimPointerAway(position);
 
         const inside = Object.hasOwn(INSIDE, position) ? INSIDE[position as InsidePosition] : null;
         const inFront = (position === "center" || inside !== null) && !(target instanceof Vector3);

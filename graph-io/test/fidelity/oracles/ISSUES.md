@@ -562,14 +562,17 @@ title="Weight">` and timed `<attvalue for="weight" start end>`; `gexf-specimen-e
       `viz:shape`, image too, as the node's disc (no `<image>` in the oracle). graph-io now draws no picture for a
       file graphty did not write; nodeBody 0.976, both pages pass.
     - Fixed (comparator, 2026-10-19, fix round 2): `sigma-ediaspora` node.present (nodes 134 and 77 read as group
-      boxes) and every `labels` page's `label-overlap` (group.extra, node.present): `groupsOf` in
-      `graphty-element/test/fidelity/extract-scene.ts` now reads a group box only from a node graphty-element draws as
-      a group (a `node.zIndex` below 0, which the file's hierarchy gives a group), never from a plain node drawn
-      round a smaller one.
+      boxes) and every `labels` page's `label-overlap` (group.extra, node.present): the comparison reads no group box
+      from graphty's drawing where the oracle program draws none (Gephi Toolkit, Pajek: `NO_GROUP_PROGRAMS` in
+      `graphty-element/test/fidelity/oracle/oracle-library.ts`, as it already did for sigma.js), so a plain node drawn
+      round a smaller one is two nodes there. (Reading groups only from nodes graphty draws behind their members was
+      tried and dropped: Cytoscape.js and CX2 compartments with no hierarchy, `json-cyjs-sbgn-sciluna` and
+      `cx2-signor-aml`, lost their group boxes.)
     - Fixed (comparator, 2026-10-19, fix round 2): edge.arrowShape on Gephi's curved arrows (`arrows-p2`, `-p4`
       `weight-4` and `target-size-12`, `graphology-rio` 409 -> 6, `sigma-ediaspora` 80 -> 0): Gephi ends the arc at the
       arrowhead's back and aims the arrowhead from there at the target's center, about 14 degrees off the arc's end;
-      `measureArrow` (oracle/associate.ts) now reads such a cap along its own axis. The triangles were never covered
+      `measureArrow` (oracle/associate.ts) now reads such a cap along its own axis (only a pointed cap symmetric
+      about the axis from the line's end through its tip, turned under 30 degrees). The triangles were never covered
       by the node; the reading direction was wrong.
     - Fixed (2026-10-19, fix round 2): the edges graphty drew between overlapping nodes (`cns-wos` edge.extra 24,
       `sigma-ediaspora` 30): Gephi draws a curved edge as an arc of radius distance / 1.2 cut back by a chord of

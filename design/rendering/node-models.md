@@ -1316,6 +1316,397 @@ use })`). A row shows a spinner while its call runs and disappears when the part
 | 14  | Element: `assets.supply` and resume                           | `supply` with every `PartAnswer`; held sets; the gate for part URLs (`by: "supplied"`); skips drawn as described; redraw of every layer naming the ref; `skipped` on the record and in the assets member (12.9)       |
 | 15  | App: missing-part rows                                        | 12.10                                                                                                                                                                                                                 |
 
+Section 13 replaces package 15 and the placement in 9.1, 9.3 and 12.10 for the tier 3 Style
+panel.
+
+## 13. Models and pictures in the tier 3 Style panel
+
+**Owner request (2026-10-20):** build model loading on the tier 3 Style panel (branch
+`design/studio-tier3`, `design/ui/studio/tier3/design.md`), following its Figma interaction
+patterns, with pop-overs where needed. Three reports drive the changes beyond the move:
+
+- `police.glb` from the Kenney car kit (`https://kenney.nl/assets/car-kit`) was refused with
+  "police.glb needs Textures/colormap.png", and there was no way to hand over `colormap.png` alone.
+- Dropping the picture on the model's drop zone was not an obvious way to add it.
+- Dropping `colormap.png` there gave "PNG files cannot be loaded yet". The cause: the old
+  ModelPicker accepted the lone PNG as a picture asset (`kind: "image"`) and wrote its id to
+  `node.model`; the model loader then refused a picture (`loadModel.ts`,
+  `E_MODEL_FORMAT_UNSUPPORTED { format: "png" }`), and the app worded that code as "cannot be
+  loaded yet".
+
+So: a model is a choice in the Shape field; a picture has a target of its own; a model missing
+parts says so with a chip whose pop-over takes each part; and a picture dropped where a model is
+expected is either the part a waiting model needs or an offer to use it as the layer's picture.
+
+What stays as built: the element's loading, checks, limits and codes (sections 3 to 8, 12); the
+web-address question (2.6); the project storage (7.3). Tier 3's `decided.md` is binding on
+keyboard, Escape, focus and words; nothing here reverses an entry in it.
+
+### 13.1 Where models and pictures sit
+
+| Thing                                                                     | Where                                                                    | Why there                                                                                                                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `node.model`                                                              | Nodes, Shape, the Shape field: a Model tile at the end of the shape grid | A model is what the node is drawn as, so it is a shape choice (Figma: one field, one question). `node.shape` stays the placeholder |
+| `node.modelSourceUp`, `modelTurn`, `modelTint`, `modelFit`, `modelCenter` | Shape's settings pop-over, only while the Shape field holds a model      | Round 6: "one '+' item per thing drawn, sub-settings in the part's pop-over". They mean nothing on a built-in shape                |
+| `node.texture`                                                            | Nodes, Fill, a Picture row (Fill's "+" lists Color and Picture)          | Figma's Fill section takes an image as well as a color. A picture covers a model or a built-in shape, so it is not a model setting |
+| Missing parts of a model                                                  | A warning chip in the Shape field; its pop-over lists each part as a row | The problem belongs to the field that named the model; the rows replace the sentence                                               |
+
+Solid / Wireframe and Shown / Hidden stay where the current build puts them (Rendering and
+Visibility, design.md 1.1 as built); section 6 of the tier 3 design places them in Shape's
+settings, and when that lands they sit under the model rows in the same pop-over (13.3).
+
+`node.modelAnimation` has no row: the channel is a later work package (3.6). Its row ("Motion:
+Still | Play") joins Shape's settings when the channel exists. Pictures have no Fit row: no
+channel scales or repeats a picture on a node (2.8); one is added only with such a channel.
+
+### 13.2 Choosing a model
+
+The Shape field opens the glyph grid tier 3 already has (25 catalog glyphs with names). The grid
+gains one tile at its end, Model, drawn as a cube with a corner arrow:
+
+```
+ NODES
+  Shape                                            [+]
+   [(o) Sphere      v]  [ 1.0    ]   (=) (-)          Shape | Size
+        |
+        v  (the grid pop-over, 240 px, left of the panel)
+   +----------------------------------------+
+   | Shape                                  |
+   | [o] [#] [^] [<>] [*] [+] [()] [=] ...   |   25 catalog glyphs, arrows walk the grid
+   | ...                                    |
+   | -------------------------------------- |
+   | [cube->] Model...                      |   last tile, full width: opens Models
+   +----------------------------------------+
+```
+
+Model... replaces the grid with the Models pop-over in the same place (one pop-over at a time,
+decision 1.13). Its header has a back arrow to the grid.
+
+```
+   +----------------------------------------+
+   | (<) Models                         (x) |
+   | Samples                                |
+   |  [img]   [img]   [img]   [img]         |   catalog.models(): thumbnail + plainName
+   |  Box     Server  Person  Tree          |
+   | In this project                        |
+   |  [cube] police          [cube] rack    |   assets.list(), kind "model", newest first
+   | -------------------------------------- |
+   |  [ Paste URL                    ] (->) |   Enter adds
+   |  +----------------------------------+  |
+   |  |  (up) Choose files   (dir) Folder |  |   drop zone: files, a folder or a .zip
+   |  +----------------------------------+  |
+   |  (chip!) Not a model  [Use as picture] |   only after a lone picture arrived (13.5)
+   +----------------------------------------+
+```
+
+- **Picking** a sample or a project model writes `node.model` on the layer and closes the
+  pop-over; the Shape field then shows the model's thumbnail (a sample's catalog thumbnail, else
+  the cube glyph) and its name (`modelName`: a sample's plainName, else the main file's name
+  without extension):
+
+    ```
+     Shape                                            [+]
+      (gear) [(img) police   v]  [ 1.0    ]   (=) (-)
+    ```
+
+- **Paste URL, Choose files, Folder and a drop** add through `session.assets.add`. Accepted: the
+  same as picking. Rejected for missing parts: `node.model` is still written (the node draws its
+  shape meanwhile, as for any pending model) and the field carries the parts chip (13.4), so the
+  reader finishes the model where it is named, with the pop-over open on the parts. Any other
+  rejection: an error chip under the URL field or drop zone (13.6); nothing is written.
+- **"In this project"** is the session's own list, not a history across projects: a model's bytes
+  live in the project file (7.3), so a recent list across projects would hold models that cannot
+  be loaded.
+- **Choosing a built-in shape** in the grid while the field holds a model removes `node.model`
+  from the layer and writes `node.shape`, one undo step. The model stays in "In this project".
+- **The settings button** ("gear", Figma's settings button at the start of a row) appears on the
+  Shape row while it holds a model. Without a model there is nothing in it, so there is no button.
+
+### 13.3 The model's settings
+
+```
+   +----------------------------------------+
+   | Model settings                     (x) |
+   | Up        [ Detected (Y)        v]     |   node.modelSourceUp; Y, Z, -Y, -Z, X, -X
+   | Turn      [ 0       ] deg       (=)    |   node.modelTurn, scrub on the name
+   | Color     [ Model's own         v]     |   node.modelTint: Model's own | Node color on top | Node color only
+   | Fit       [ Keep proportions    v]     |   node.modelFit: Keep proportions | Stretch
+   | Center    [ Middle              v]     |   node.modelCenter: Middle | File's origin
+   | (Solid | Wireframe and Shown | Hidden   |
+   |  join here when design 6 lands)        |
+   +----------------------------------------+
+```
+
+- Compact property rows; each field unset shows the element's default as its placeholder, the
+  same rule as every tier 3 select; a set field has its minus.
+- `W_MODEL_UP_GUESSED` marks Up with a warning chip ("Guessed"), hover: "up axis guessed from the
+  file"; `W_MODEL_COLOR_IGNORED` marks Color the same way ("Color unused"). The chips replace
+  9.3's prominent "Turn upright" and "Use node color" buttons; Up's list is the turn-upright
+  control.
+- Every row writes one channel through `styles.update`; Turn varies like any number (vary glyph).
+
+### 13.4 Missing parts
+
+When the model a layer names is rejected with `E_MODEL_MISSING_FILE` or `E_MODEL_PART_AMBIGUOUS`,
+or the session holds it waiting for parts, the Shape field carries a chip after the name:
+
+```
+   Shape                                            [+]
+    (gear) [(img) police  (!1)  v]  [ 1.0  ]   (=) (-)
+                          ^ chip: "1 missing", hover: "Textures/colormap.png"
+```
+
+The chip is a button (named "police: 1 file missing"). It opens the Parts pop-over:
+
+```
+   +----------------------------------------------+
+   | police.glb                               (x) |
+   |                                              |
+   | (pic) colormap.png   Texture                 |   label column: name (middle-cut),
+   |   [ Paste URL                       ] (->)   |     kind icon + role word
+   |   [(up) Choose]  [Load without it]           |   "Load without it" only when optional
+   | (mesh) police.bin    Mesh                    |
+   |   [ Paste URL                       ] (->)   |
+   |   [(up) Choose]                              |
+   |                                              |
+   |  Drop files anywhere here                    |   the whole pop-over is a drop target
+   +----------------------------------------------+
+```
+
+- **One row per missing part**, in the record's order, from `problems`: label `params.name`
+  (truncated in the middle, full path in the tooltip), the role as an icon and one word ("Mesh",
+  "Materials", "Texture" from `role`). An ambiguous part's row has a select of
+  `params.candidates` instead of the URL field.
+- **Paste URL** (Enter or the arrow) calls `assets.supply(ref, { name, url })`. A URL on another
+  host raises the existing web-address question (2.6), worded for `by: "supplied"`.
+- **Choose** opens the file chooser for that row (`supply(ref, { name, file })`).
+- **Drop on a row** supplies to that row; **drop anywhere else in the pop-over** (or on the Models
+  pop-over's drop zone while a model waits) calls `supply(ref, { file })` with no name per file,
+  so the element matches by path, then base name. Dropping `colormap.png` from the kit's
+  `Textures` folder supplies `Textures/colormap.png`. A folder or zip drop supplies every part it
+  holds.
+- **Load without it** (`params.optional`, pictures and `.mtl` only) calls `supply(ref, { name,
+skip: true })`.
+- A row shows a spinner while its call runs and leaves when the part is in; a new row (pictures
+  an `.mtl` names) is announced. When the last row leaves, the pop-over closes, the chip goes,
+  focus returns to the Shape field, and the model draws (`model:changed` redraws every layer
+  naming the ref; nothing in the app re-applies anything).
+- **Several models in a zip** (`E_MODEL_AMBIGUOUS`): one row labeled Model with a select of
+  `candidates` ("+N more" from `more`), answered with `supply(ref, { main })`.
+- A pop-over row never holds a sentence: a failed supply puts an error chip on that row (13.6).
+
+### 13.5 A picture where a model was expected
+
+A PNG, JPEG or WebP never gets "cannot be loaded". Wherever models are taken -- the Models
+pop-over, the Parts pop-over, the canvas, the start screen -- files go first to
+`session.assets.offer(files)` (13.8), which supplies each file a waiting model is missing (by path,
+then base name, exactly one match). What is left:
+
+- **In the Models pop-over:** a lone picture becomes an image asset, and the pop-over shows the
+  chip "Not a model" with the button "Use as picture", which writes `node.texture` on the layer
+  (one click, one undo step) and closes the pop-over. Nothing is written to `node.model`.
+- **On the canvas or the start screen:** a picture is drawn on the selected nodes, or on every
+  node when none is selected, as one undoable layer, the same gesture as a dropped model (9.2);
+  the notice names it ("Nodes drawn with colormap") with Undo.
+- **A picture named by `node.model` anyway** (an old project, code) is refused by the element with
+  `E_MODEL_FORMAT_UNSUPPORTED` carrying the new param `assetKind: "image"`; the app shows the
+  chip "Picture, not a model" with the button "Use as picture", which moves the id from
+  `node.model` to `node.texture` in one undo step.
+
+### 13.6 Errors and warnings as chips
+
+Every problem the element reports on a model or picture is a chip next to the control that
+caused it, worded by the app from the code; the hover tooltip holds the detail (file name, host,
+limit), one line. No sentence sits in the panel.
+
+| Code                                             | Chip           | Tooltip                              | Action on the chip                      |
+| ------------------------------------------------ | -------------- | ------------------------------------ | --------------------------------------- |
+| `E_MODEL_MISSING_FILE`, `E_MODEL_PART_AMBIGUOUS` | "N missing"    | the part names                       | opens the Parts pop-over                |
+| `E_MODEL_FORMAT_UNSUPPORTED`                     | "FBX not read" | "Export as GLB" (format from params) | --                                      |
+| ... with `assetKind: "image"`                    | "Picture"      | "this file is a picture"             | Use as picture                          |
+| `E_MODEL_WEB_PAGE`                               | "Web page"     | the host                             | "Use file address" when `suggested`     |
+| `E_MODEL_FETCH`                                  | "Not reached"  | host and status                      | Retry                                   |
+| `E_MODEL_URL_BLOCKED`                            | "Blocked"      | the host                             | --                                      |
+| `E_MODEL_TOO_LARGE`                              | "Too large"    | what and the limit                   | --                                      |
+| other `E_MODEL_*`                                | "Not loaded"   | the code's words                     | --                                      |
+| `W_MODEL_PART_SUBSTITUTED`                       | "Substituted"  | "used maps/wood.png for wood.PNG"    | --                                      |
+| `W_MODEL_PART_SKIPPED`                           | "Without N"    | the skipped names                    | opens the Parts pop-over to supply them |
+| `W_MODEL_PART_UNUSED`                            | "Not needed"   | the file name                        | --                                      |
+
+A layer whose model is rejected keeps its warning badge in the layer tree (9.5). The web-address
+question stays the dialog it is today (2.6).
+
+### 13.7 Pictures (textures)
+
+Fill's "+" lists Color and Picture. Picture adds the row and opens its pop-over at once (round 6:
+picking a part opens its pop-over):
+
+```
+  Fill                                             [+]
+   Color    [# D55E00      ]                (=) (-)
+   Picture  [(thumb) colormap  v]               (-)
+        |
+        v
+   +----------------------------------------+
+   | (<) Picture                        (x) |
+   | In this project                        |
+   |  [thumb] colormap   [thumb] wood       |   assets.list(), kind "image"
+   | -------------------------------------- |
+   |  [ Paste URL                    ] (->) |
+   |  +----------------------------------+  |
+   |  |  (up) Choose picture             |  |   drop zone: PNG, JPEG, WebP
+   |  +----------------------------------+  |
+   +----------------------------------------+
+```
+
+- The thumbnail is the picture itself (an object URL of `assets.files(id)`'s one file).
+- Works on a model (every material's base color) or a built-in shape (2.8). With a model and
+  Color "Model's own" the picture shows its own colors; "Node color on top" tints it.
+- A model file dropped here is refused by the element (`E_MODEL_FORMAT_UNSUPPORTED`,
+  `assetKind: "model"`); the chip offers "Use as model", which writes `node.model` instead.
+- Picture does not vary yet (no vary glyph): a value table of pictures is a later step.
+
+### 13.8 What graphty-element adds for this
+
+All additive (new method, new optional param, new codes, new export); nothing changes meaning.
+
+1. **Finish 12.4 and 12.7:** `assets.supply`, held sets, resume, the `by: "supplied"` question,
+   skips, `skipped` on the record and in the assets member (12.9), and raising the declared
+   `E_MODEL_PART_REQUIRED`, `W_MODEL_PART_SKIPPED`, `W_MODEL_PART_UNUSED`.
+2. **`assets.offer(files, options?)`:** hands files to the session; every file that exactly one
+   held model is missing (path, then base name, case-insensitive) is supplied to it. Resolves
+   `{ supplied: { ref, name, fileName }[], rest: NamedBlob[] }`. A drop target calls it first so
+   a picture reaches the model that needs it without the application matching names itself.
+3. **`assets.waiting()`:** the held records, so a drop target can say whether any model waits.
+4. **`E_MODEL_FORMAT_UNSUPPORTED` params `assetKind: "image" | "model"`** when `node.model` names
+   a picture or `node.texture` names a model.
+5. **`detectAssetKind({ filename, head })` in `./catalog`:** `"model" | "image" | undefined`,
+   beside `detectModelFormat`, so drop targets classify a picture without reading formats
+   themselves.
+
+### 13.9 Keyboard and names
+
+| Control               | Accessible name (= tooltip)                  | Keys                                                                                                                            |
+| --------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Shape field           | "Node shape, police" / "Node shape, Sphere"  | Enter, Space or ArrowDown opens the grid                                                                                        |
+| Shape grid            | "Node shapes"                                | One Tab stop; arrows walk, stop at edges; Enter takes; Home / End; End reaches Model...                                         |
+| Model... tile         | "Model..."                                   | Enter opens Models with focus on the first sample                                                                               |
+| Models pop-over       | "Models"                                     | Tab: samples (one grid stop), project models (one grid stop), Paste URL, Choose files, Folder; Escape closes to the Shape field |
+| Back arrow            | "Back to shapes"                             | Enter; Alt+ArrowLeft anywhere in the pop-over                                                                                   |
+| Paste URL             | "Model address"                              | Enter adds; Escape reverts typed text (decided.md, 2026-10-19)                                                                  |
+| Choose files / Folder | "Choose model files" / "Choose model folder" | Enter opens the chooser                                                                                                         |
+| Settings button       | "Model settings"                             | Enter opens; Escape closes to the button                                                                                        |
+| Parts chip            | "police: 1 file missing"                     | Enter opens Parts with focus in the first row's URL field                                                                       |
+| Part row URL          | "colormap.png address"                       | Enter supplies                                                                                                                  |
+| Part row Choose       | "Choose colormap.png"                        | Enter opens the chooser                                                                                                         |
+| Load without it       | "Load without colormap.png"                  | Enter                                                                                                                           |
+| Use as picture        | "Use colormap as picture"                    | Enter                                                                                                                           |
+| Picture row           | "Node picture, colormap"                     | Enter opens the Picture pop-over; Delete removes the row (decision 1.1)                                                         |
+
+Drop is never the only way: every drop target is also a Choose button. A part arriving, a row
+leaving and a chip appearing are announced in the panel's live region ("colormap.png added",
+"police drawn").
+
+### 13.10 Build packages
+
+In order; each owns the files it lists. Element packages land first; app packages consume only
+the published element API.
+
+**P1. graphty-element: supply and resume** (finishes 12.4, 12.7, 12.9)
+
+- Files: `graphty-element/src/session/assets/AssetsApi.ts`, `intake.ts`, `references.ts`,
+  `gltfChecks.ts`, `textFormats.ts`, `projectMember.ts`; `src/session/network/*` (the
+  `by: "supplied"` asker); `src/models/loadModel.ts` (skipped picture as 1 x 1 white,
+  dropped `map_*` line); `src/errors/codes.ts`; `api/*.api.md`; `docs/guide/node-models.md`;
+  tests `test/session/assets-supply.test.ts`, `test/session/network.test.ts`, a browser test
+  `test/browser/model-supply.test.ts`; fixtures `test/fixtures/models/police.glb` (a small GLB
+  whose `images[0].uri` is `Textures/colormap.png`) and `Textures/colormap.png`, made by
+  `scripts/make-sample-models.mjs`.
+- Acceptance:
+    - police.glb alone is rejected with one `E_MODEL_MISSING_FILE { name: "Textures/colormap.png",
+role: "texture", optional: true }` and held; `supply(ref, { file: colormap.png })` with no
+      name matches by base name, the record is accepted with its digest id, and `model:changed`
+      fires pending, accepted, drawn under the same ref.
+    - The same with `{ name, url }` on the main file's origin; on another host it waits as
+      `W_URL_NEEDS_APPROVAL { by: "supplied", kind: "texture" }` and `deny` gives
+      `E_MODEL_URL_BLOCKED { part }`; a private host is refused whoever asks.
+    - `{ name, skip: true }` draws without the picture with `W_MODEL_PART_SKIPPED`; a skip of
+      `police.bin` throws `E_MODEL_PART_REQUIRED`; a saved project reopens with the skip and asks
+      nothing; a part's URL never appears in a saved file or a problem's params with its query.
+    - The same files reached by folder, by zip and by supply give the same asset id.
+
+**P2. graphty-element: picture routing**
+
+- Files: `src/session/assets/AssetsApi.ts` (`offer`, `waiting`), `src/catalog/detectModel.ts`
+  (`detectAssetKind`), `src/models/loadModel.ts` and `src/models/TextureCache.ts` (the
+  `assetKind` param), `api/*.api.md`, the guide; tests `test/session/assets-offer.test.ts`,
+  `test/catalog/detect-asset-kind.test.ts`.
+- Acceptance: `offer([colormap.png])` while police waits supplies it and returns it in
+  `supplied`; with nothing waiting it returns it in `rest`; two waiting models that both miss
+  `colormap.png` leave it in `rest` (never a guess); `node.model` naming a picture asset gives
+  `E_MODEL_FORMAT_UNSUPPORTED { assetKind: "image" }` and `node.texture` naming a model gives
+  `{ assetKind: "model" }`; `detectAssetKind` reads PNG, JPEG, WebP and every model format by
+  bytes, not by extension.
+
+**P3. compact-mantine: a grid's trailing action and a file drop zone**
+
+- Files: `compact-mantine/src/components/inputs/listbox.tsx` (an optional `footerAction` tile in
+  a glyph grid, reached by End and the arrows), a new
+  `compact-mantine/src/components/inputs/FileDrop.tsx` (a button that opens a chooser, optional
+  folder button, a drop zone, `accept`, a hover state, named by its label), their stories and
+  tests.
+- Acceptance: real keyboard reaches the footer tile from the grid with End and ArrowDown from the
+  last row and takes it with Enter; FileDrop opens the chooser on Enter and Space, hands over
+  files from a real drop and from the chooser, and a folder pick keeps `webkitRelativePath`.
+
+**P4. graphty app: the Shape field's models and Model settings**
+
+- Files: `graphty/src/workspace/style/ModelsPopover.tsx` (replaces `ModelPicker.tsx`, deleted),
+  `ModelSettings.tsx` (new), `ValueField.tsx` (Model tile, thumbnail and name in the Shape
+  field), `PropertyRow.tsx` (settings button on the Shape row while it holds a model),
+  `words.ts` (Model words, Fill section gains `node.texture`, the model channels' choice words),
+  `coverage.ts` (homes for `node.model*` and `node.texture`), `canvas/models.ts` (helpers kept for
+  the canvas, `offer` first), stories in `StylePanel.stories.tsx` ("Model on a layer", "Model
+  settings"), test `style/__tests__/ModelsPopover.real-element.test.tsx` (replaces
+  `ModelPicker.real-element.test.tsx`).
+- Acceptance (real input, real element): open the Shape grid by keyboard, End, Enter on
+  Model..., pick the Box sample: `node.model` is `asset:sample/box` on the layer and the field
+  reads "Box"; choose `quad.glb` by the file button: drawn; pick Sphere: `node.model` removed,
+  one Undo brings the model back; Up set to Z writes `node.modelSourceUp: "z"`; the coverage test
+  passes with no `NOT_PLACED` model channel.
+
+**P5. graphty app: missing parts and chips**
+
+- Files: `graphty/src/workspace/style/PartsPopover.tsx` (new), `ModelChip.tsx` (new: every chip
+  of 13.6, words from codes), `modelWords.ts` (new: moves `modelWords` out of `words.ts` and
+  rewrites it as chip and tooltip words, no sentences), the Parts story, test
+  `style/__tests__/ModelParts.real-element.test.tsx`.
+- Acceptance, the Kenney car kit case, each by real input in the app with the real element:
+    - **By folder:** the Folder button with `police.glb` and `Textures/colormap.png` draws police
+      with no chip.
+    - **By zip:** the same two files zipped, dropped on the drop zone: drawn, no chip.
+    - **By the row:** `police.glb` alone shows the "1 missing" chip; Enter opens Parts; dropping
+      `colormap.png` on its row (and, in a second run, anywhere in the pop-over, and in a third the
+      Choose button) draws police; the chip and pop-over go; focus is on the Shape field.
+    - **By URL:** police.glb by URL with colormap.png served elsewhere on the same origin; pasting
+      that address in the row draws police; an address on another host shows the web-address
+      question first.
+    - Load without it gives "Without 1"; a GitHub blob page address gives "Web page" with Use file
+      address, which fills the field with the raw address.
+
+**P6. graphty app: Picture row and picture routing**
+
+- Files: `graphty/src/workspace/style/PicturePopover.tsx` (new), the Picture row's entry in
+  `PropertyRow.tsx` (after P4), `canvas/models.ts` and `canvas/useCanvasDrop.ts` (pictures on the
+  canvas through `offer`, then one undoable layer with `node.texture`), `start/open.ts` (the same
+  on the start screen), the Picture story, test
+  `style/__tests__/Picture.real-element.test.tsx`.
+- Acceptance: Fill's "+" > Picture opens the pop-over; choosing `colormap.png` writes
+  `node.texture` on a sphere layer and on a model layer; dropping `colormap.png` in the Models
+  pop-over with nothing waiting shows "Not a model" and Use as picture writes `node.texture`, not
+  `node.model`, and the words "cannot be loaded" appear nowhere; dropping it on the canvas with
+  police waiting supplies police instead of making a layer.
+
 ---
 
 See also: `design/documents/container.md` for the project file container this design extends.

@@ -102,6 +102,18 @@ describe("a label's wrap width", () => {
         assert.closeTo(height(true), planeOf({ text: "aa\naa\naa\naa" }).height, 1e-9);
     });
 
+    test("with wrapTrailingSpace, keeps whole a line that fits without the space after its last word", () => {
+        const one = planeOf({ text: "aa" });
+        const two = planeOf({ text: "aa aa" }).width;
+        const joined = planeOf({ text: "aaaa" }).width;
+        const margin = 2 * one.width - joined;
+        const space = two - joined;
+        // wide enough for "aa aa", not for "aa aa " (cys-import-and-save "Decanoic Acid": 98.95 at a width of 100)
+        const wrapWidth = two - margin + space / 2;
+        const wrapped = planeOf({ text: "aa aa", wrapWidth, wrapTrailingSpace: true });
+        assert.closeTo(wrapped.height, one.height, 1e-9);
+    });
+
     test("with wrapEllipsis, cuts a long label to one line ending in an ellipsis", () => {
         const one = planeOf({ text: WORDS });
         const wrapWidth = planeOf({ text: "ionizing rad" }).width;

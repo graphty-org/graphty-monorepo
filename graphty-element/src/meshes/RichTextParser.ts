@@ -338,6 +338,13 @@ function spaceAfter(pieces: readonly TextSegment[], i: number, measure: Measure,
  */
 function wrapLine(line: TextSegment[], width: number, measure: Measure, options: WrapOptions): TextSegment[][] {
     const anywhere = options.anywhere === true;
+    // Measured with the space after each word, a line narrower than the width as a whole is still kept whole:
+    // Cytoscape desktop (ding's LabelInfo) and Cytoscape.js both measure the whole line first and wrap only one
+    // that does not fit ("Decanoic Acid", 98.95 wide at a width of 100, stays on one line).
+    // ponytail: ding keeps it whole only for a one-line label; a label of several lines breaks each by its words
+    if (options.trailingSpace === true && line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
+        return [line];
+    }
     const blanks = options.spaceCount ?? 1;
     const out: TextSegment[][] = [];
     let current: TextSegment[] = [];

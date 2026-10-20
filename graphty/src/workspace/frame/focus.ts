@@ -108,23 +108,12 @@ export function tabStops(root: ParentNode): HTMLElement[] {
 }
 
 /**
- * The regions F6 and Shift+F6 move between, in order, as a desktop application's do: the top
- * bar, the left panel, the drawing, the canvas toolbar, the table while it is open, then the
- * inspector, and round again to the top bar. The Data page stands in for the panels while it is
- * open. A hidden one is passed over; a resize handle is never where F6 lands.
+ * The panels F6 and Shift+F6 move between, in order, as a desktop application's do: the left
+ * panel, then the inspector that edits what it picks (one press from a layer to its style), the
+ * drawing, the canvas toolbar, the table while it is open, and the Data page while it stands in
+ * for them. A hidden one is passed over.
  */
-const PANELS = [
-    ".ws-header",
-    ".ws-page",
-    ".ws-left",
-    ".ws-canvas graphty-element",
-    ".ws-toolbar-dock",
-    ".ws-dock",
-    ".ws-right",
-];
-
-/** A control F6 never lands on: a panel's resize handle is a control, not a place to work. */
-const NOT_A_LANDING = '[role="separator"]';
+const PANELS = [".ws-left", ".ws-right", ".ws-canvas graphty-element", ".ws-toolbar-dock", ".ws-dock", ".ws-page"];
 
 /** The control that last had focus in each panel, by its selector: where F6 returns to it. */
 const lastInPanel = new Map<string, HTMLElement>();
@@ -176,12 +165,10 @@ export function cyclePanel(step: 1 | -1): void {
  */
 function panelTarget(selector: string, element: HTMLElement): HTMLElement | undefined {
     const last = lastInPanel.get(selector);
-    if (last !== undefined && element.contains(last) && canFocus(last) && !last.matches(NOT_A_LANDING)) {
+    if (last !== undefined && element.contains(last) && canFocus(last)) {
         return last;
     }
-    return element.tagName === "GRAPHTY-ELEMENT"
-        ? element
-        : tabStops(element).find((stop) => !stop.matches(NOT_A_LANDING));
+    return element.tagName === "GRAPHTY-ELEMENT" ? element : tabStops(element)[0];
 }
 
 /** How many focused controls the guard remembers, newest last. */

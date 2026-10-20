@@ -1,6 +1,6 @@
 /**
  * Where keyboard focus goes in the workspace, on the REAL graphty-element, by real keys: never to
- * the page. Tab rounds the page; F6 moves round the top bar, left panel, drawing, toolbar and inspector;
+ * the page. Tab rounds the page; F6 crosses from the layer list to the inspector in one press;
  * Shift+T puts focus in the table; View > Frame selection hands focus back to View; a "Why this
  * look" link hands it to the inspector's title; the arrow keys on the Node and Edge tabs keep it
  * on the tabs; an info button opens only when pressed; Tab out of a Vary by list closes it and
@@ -98,40 +98,19 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         assert.notStrictEqual(last, menu);
     });
 
-    it("F6 moves round the five regions, never onto a resize handle, and Shift+F6 back", async () => {
+    it("F6 goes from a layer row to the inspector in one press, and Shift+F6 back", async () => {
         await openRings();
-        // Where each press lands: the top bar's first control, the left panel's first control,
-        // the drawing, the canvas toolbar's first control, the inspector.
-        const region = (): string => {
-            const active = document.activeElement;
-            assert.notStrictEqual(active?.getAttribute("role"), "separator", "F6 landed on a resize handle");
-            const named = [
-                [".ws-header", "top bar"],
-                [".ws-left", "left panel"],
-                [".ws-toolbar-dock", "toolbar"],
-                [".ws-canvas", "canvas"],
-                [".ws-right", "inspector"],
-            ].find(([selector]) => (active?.closest(selector) ?? null) !== null);
-            return named?.[1] ?? `outside every region: ${active?.outerHTML.slice(0, 120) ?? "nothing"}`;
-        };
-        const title = await waitFor(() => {
-            const found = document.getElementById(INSPECTOR_TITLE_ID);
-            assert.isNotNull(found);
-            return found;
-        });
-        title?.focus();
-        const forward: string[] = [];
-        for (let press = 0; press < 5; press++) {
-            await userEvent.keyboard("{F6}");
-            forward.push(region());
-        }
-        assert.deepEqual(forward, ["top bar", "left panel", "canvas", "toolbar", "inspector"]);
-        const back: string[] = [];
-        for (let press = 0; press < 5; press++) {
-            await userEvent.keyboard("{Shift>}{F6}{/Shift}");
-            back.push(region());
-        }
-        assert.deepEqual(back, ["toolbar", "canvas", "left panel", "top bar", "inspector"]);
+        const row = await treeRow("Everything");
+        await userEvent.click(row);
+        assert.strictEqual(document.activeElement, row);
+        await userEvent.keyboard("{F6}");
+        const right = screen.getByRole("complementary", { name: "Inspector" });
+        assert.isTrue(
+            right.contains(document.activeElement),
+            `F6 did not reach the inspector: ${document.activeElement?.outerHTML.slice(0, 200) ?? "nothing"}`,
+        );
+        await userEvent.keyboard("{Shift>}{F6}{/Shift}");
+        assert.strictEqual(document.activeElement, row);
         // The shortcuts dialog lists it.
         await userEvent.keyboard("?");
         const dialog = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });

@@ -125,22 +125,4 @@ describe("the focus guard", () => {
         cyclePanel(-1);
         assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Row" }));
     });
-
-    it("F6 never lands on a resize handle, even one it last left", () => {
-        render(
-            <div>
-                <aside className="ws-left">
-                    <div role="separator" aria-label="Resize left panel" tabIndex={0} />
-                    <button type="button">Tree</button>
-                </aside>
-                <aside className="ws-right">
-                    <button type="button">Title</button>
-                </aside>
-            </div>,
-        );
-        screen.getByRole("separator").focus();
-        cyclePanel(1);
-        cyclePanel(1);
-        assert.strictEqual(document.activeElement, screen.getByRole("button", { name: "Tree" }));
-    });
 });

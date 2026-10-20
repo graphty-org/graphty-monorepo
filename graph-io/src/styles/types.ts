@@ -506,6 +506,14 @@ export interface EdgeStyleValues {
     /** How wide the target arrowhead is, as `sourceArrowWidth` says. */
     readonly targetArrowWidth: number;
     /**
+     * How far from its node the source arrowhead is drawn, the line stopping there too, as a multiple of the
+     * arrowhead's own length along its line: Cytoscape desktop draws its T bar 4 of its lengths off the node. Unset or
+     * 0, the arrowhead touches the node.
+     */
+    readonly sourceArrowGap: number;
+    /** How far from its node the target arrowhead is drawn, as `sourceArrowGap` says. */
+    readonly targetArrowGap: number;
+    /**
      * The side of its line the source arrowhead is drawn on alone, cut along the line: `left` or `right` looking along
      * the line toward the arrowhead's tip (Graphviz's `l` and `r` arrow modifiers: `lcrow`, `rdiamond`). Unset, the
      * whole arrowhead.

@@ -154,6 +154,26 @@ const CY_ARROW_PROPORTIONS: ReadonlyMap<string, { readonly length: number; reado
     ["triangle-cross", { length: 1.5, width: 1.5 }],
 ]);
 
+/**
+ * How far from its node Cytoscape draws each arrow that stands off the node's outline, as a multiple of the arrow's
+ * own length along its line, from the unit glyphs Cytoscape 3.10.5's SVG export draws back from the outline: T's bar
+ * from 0.8 to 1 (4 of its 0.2), a half circle from 0.5 to 1, HALF_TOP's barb from 0.3 to 1.435, a square from 0.25
+ * to 1.25. Every other arrow touches the outline.
+ */
+const CY_ARROW_GAPS: ReadonlyMap<string, number> = new Map([
+    ["t", 4],
+    ["tee", 4],
+    ["half_circle", 1],
+    ["open_half_circle", 1],
+    ["half_top", 0.3 / 1.135],
+    ["half_bottom", 0.3 / 1.135],
+    ["half-top", 0.3 / 1.135],
+    ["half-bottom", 0.3 / 1.135],
+    ["square", 0.25],
+    ["open_square", 0.25],
+    ["open-square", 0.25],
+]);
+
 /** Cytoscape 2.x numbered arrow codes. */
 const LEGACY_ARROW: readonly string[] = [
     "none",
@@ -210,6 +230,22 @@ export function arrowProportion(side: "length" | "width"): CytoscapeValueParser 
         return CY_ARROW_PROPORTIONS.get(key)?.[side] ?? (CY_ARROWS.has(key) ? 1 : null);
     };
 }
+
+/**
+ * The parser of how far an arrow stands off its node, as a multiple of its own length (`CY_ARROW_GAPS`), from the
+ * arrow's name: 0 for an arrow that touches the node.
+ * @param raw - the arrow's name
+ * @param site - where it was read
+ * @returns the gap; null for a name it does not know (the shape's parser notes it)
+ */
+export const arrowGap: CytoscapeValueParser = (raw, site) => {
+    const s = scalarText(raw, site);
+    if (s === null) {
+        return null;
+    }
+    const key = arrowKey(s);
+    return CY_ARROW_GAPS.get(key) ?? (CY_ARROWS.has(key) ? 0 : null);
+};
 
 /** Cytoscape's line types, lowercase. */
 const CY_LINES: ReadonlyMap<string, string> = new Map([

@@ -26,6 +26,7 @@ import type {
 import { isStyleValue } from "../vocabulary.js";
 import { readCytoscapeCharts } from "./charts.js";
 import {
+    arrowGap,
     arrowProportion,
     arrowSizeParser,
     colorParser,
@@ -805,7 +806,8 @@ function squashHexagons(out: Partial<Record<string, StyleColumn>>): void {
 /**
  * What Cytoscape draws of each end's arrow beyond its shape and the one neutral `arrowSize`: the source end's own
  * size where it differs from the target's (an unset size is Cytoscape's 6), and the length and width of the short and
- * crossed arrows against their neutral shape's. Each is kept only where some edge needs it.
+ * crossed arrows against their neutral shape's, and how far off its node each arrow stands. Each is kept only where
+ * some edge needs it.
  * @param out - the values per property, changed in place
  * @param column - reads one visual property of every element
  */
@@ -825,6 +827,16 @@ function arrowProportions(
         ["targetArrowWidth", "EDGE_TARGET_ARROW_SHAPE", "width"],
     ] as const) {
         const values = column(vp, arrowProportion(side), prop).map((v) => (v === 1 ? null : v));
+        if (values.some((v) => v !== null)) {
+            out[prop] = values;
+        }
+    }
+    // the arrows desktop draws standing off their node (T, the half circles, HALF_TOP, the squares)
+    for (const [prop, vp] of [
+        ["sourceArrowGap", "EDGE_SOURCE_ARROW_SHAPE"],
+        ["targetArrowGap", "EDGE_TARGET_ARROW_SHAPE"],
+    ] as const) {
+        const values = column(vp, arrowGap, prop).map((v) => (v === 0 ? null : v));
         if (values.some((v) => v !== null)) {
             out[prop] = values;
         }

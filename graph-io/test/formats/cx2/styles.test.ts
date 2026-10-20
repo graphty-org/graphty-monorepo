@@ -364,3 +364,32 @@ describe("CX2 edge colors under arrowColorMatchesEdge", () => {
         ]);
     });
 });
+
+describe("CX2 arrows Cytoscape draws off their node", () => {
+    it("stand T 4, the half circles 1, HALF_TOP 0.26 and the square 0.25 of their own lengths off it", async () => {
+        const shapes = ["tee", "half_circle", "open_half_circle", "half_top", "square", "triangle"];
+        const text = JSON.stringify([
+            { CXVersion: "2.0", hasFragments: false },
+            { nodes: [{ id: 1 }, { id: 2 }] },
+            { edges: shapes.map((_, i) => ({ id: i, s: 1, t: 2 })) },
+            {
+                visualProperties: [
+                    { default: { edge: { EDGE_STACKING: "HAYSTACK" } }, nodeMapping: {}, edgeMapping: {} },
+                ],
+            },
+            {
+                edgeBypasses: shapes.map((shape, i) => ({
+                    id: i,
+                    v: { EDGE_TARGET_ARROW_SHAPE: shape, EDGE_SOURCE_ARROW_SHAPE: shape },
+                })),
+            },
+            { status: [{ error: "", success: true }] },
+        ]);
+        const { snapshot, styles } = await load(text);
+        const ex = styles as ExtractedStyles;
+        const round = (v: unknown): unknown => (typeof v === "number" ? Math.round(v * 100) / 100 : v);
+        const expected = [4, 1, 1, 0.26, 0.25, null];
+        expect(resolveStyles(ex, "edge", "targetArrowGap", snapshot).map(round)).toEqual(expected);
+        expect(resolveStyles(ex, "edge", "sourceArrowGap", snapshot).map(round)).toEqual(expected);
+    });
+});

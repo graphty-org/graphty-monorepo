@@ -174,6 +174,8 @@ export const STYLE_PROPERTIES: {
         ["targetArrowLength", "number"],
         ["sourceArrowWidth", "number"],
         ["targetArrowWidth", "number"],
+        ["sourceArrowGap", "number"],
+        ["targetArrowGap", "number"],
         ["sourceArrowSide", "arrowSide"],
         ["targetArrowSide", "arrowSide"],
         ["arrowPosition", "number"],

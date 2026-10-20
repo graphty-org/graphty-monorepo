@@ -2,16 +2,21 @@ import { CHANNEL_DESCRIPTORS, type ChannelDescriptor } from "@graphty/graphty-el
 import { createGraphSession, type GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
+import { CHANNEL_HOMES } from "../coverage";
 import { addLabelLine, EVERYTHING_LAYER, labelRow, propose, startingValue, textBinding, writeLine } from "../row";
 
 /**
- * Every channel a "+" can add: drawn, and not a whole label style or a channel that takes nothing.
+ * Every channel a "+" can add: drawn, offered somewhere on the Style tab, and not a whole label
+ * style or a channel that takes nothing.
  * @returns the descriptors.
  */
 function addable(): ChannelDescriptor[] {
     return Object.values(CHANNEL_DESCRIPTORS).filter(
         (descriptor) =>
-            descriptor.renderable && descriptor.accepts !== "labelStyle" && descriptor.accepts !== "nothing",
+            descriptor.renderable &&
+            "place" in CHANNEL_HOMES[descriptor.channel] &&
+            descriptor.accepts !== "labelStyle" &&
+            descriptor.accepts !== "nothing",
     );
 }
 

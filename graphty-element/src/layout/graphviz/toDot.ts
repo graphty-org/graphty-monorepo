@@ -16,6 +16,14 @@ export const POINTS_PER_UNIT = 72;
 const DEFAULT_NODE_SIZE = 1;
 
 /**
+ * patchwork's cell area per square inch of node width. patchwork ignores `width` and gives each
+ * node a cell of about 1000 square points per unit of its `area` attribute (measured), so a node
+ * one inch wide needs an area of 9 for a cell about 1.3 inches on a side: the drawn node fits
+ * inside its cell with a margin, even in the narrower cells of an uneven treemap.
+ */
+const PATCHWORK_AREA_PER_SQUARE_INCH = 9;
+
+/**
  * Quote a DOT attribute value.
  * @param value - the value
  * @returns the value as a DOT double-quoted string
@@ -42,12 +50,15 @@ function isPlainName(name: string): boolean {
  * @param stored - the graph as the element stores it: direction and every parallel edge
  * @param attributes - graph attributes, already as Graphviz text
  * @param sizes - the drawn size of each node, in scene units; NaN or absent for the default
+ * @param cellAreas - also give each node a patchwork `area` that fits its drawn size, for the
+ *   engine that sizes nodes by area and ignores their width
  * @returns the DOT text
  */
 export function toDot(
     stored: GraphSnapshot,
     attributes: Readonly<Record<string, string>>,
     sizes?: ArrayLike<number>,
+    cellAreas = false,
 ): string {
     const lines: string[] = [];
     const arrow = stored.directed ? "->" : "--";
@@ -63,7 +74,8 @@ export function toDot(
     for (let row = 0; row < stored.nodeCount; row++) {
         const size = sizes?.[row];
         const inches = typeof size === "number" && Number.isFinite(size) && size > 0 ? size : DEFAULT_NODE_SIZE;
-        lines.push(`n${row} [width=${inches}];`);
+        const area = cellAreas ? `, area=${PATCHWORK_AREA_PER_SQUARE_INCH * inches * inches}` : "";
+        lines.push(`n${row} [width=${inches}${area}];`);
     }
 
     const { src, dst } = stored.edgeList();

@@ -185,6 +185,42 @@ describe("DataTable header features", () => {
         });
     });
 
+    it("draws the header's end controls outside the sort button, so clicking one never sorts", async () => {
+        const onWarn = vi.fn();
+        const onSort = vi.fn();
+        render(
+            <MantineProvider theme={compactTheme}>
+                <DataTable
+                    columns={[
+                        {
+                            id: "degree",
+                            header: "Degree",
+                            value: (node: Node) => node.degree,
+                            headerEnd: (
+                                <button type="button" tabIndex={-1} onClick={onWarn}>
+                                    warn
+                                </button>
+                            ),
+                            menu: <Menu.Item>Hide column</Menu.Item>,
+                        },
+                    ]}
+                    data={NODES}
+                    getRowId={(node) => node.id}
+                    label="Nodes"
+                    onSortingChange={onSort}
+                />
+            </MantineProvider>,
+        );
+        const end = screen.getByTestId("data-table-header-end");
+        expect(within(screen.getByTestId("data-table-sort-button")).queryByText("warn")).toBeNull();
+        expect(end).toHaveAttribute("data-with-menu");
+        await userEvent.click(within(end).getByRole("button", { name: "warn" }));
+        expect(onWarn).toHaveBeenCalledTimes(1);
+        expect(onSort).not.toHaveBeenCalled();
+        // The sort button keeps clear of both the end controls and the caret.
+        expect(screen.getByTestId("data-table-sort-button")).toHaveAttribute("data-with-end");
+    });
+
     it("leaves the caret out of the tab order", () => {
         renderTable();
         expect(screen.getByRole("button", { name: "Options for Degree" })).toHaveAttribute("tabindex", "-1");

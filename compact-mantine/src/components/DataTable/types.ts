@@ -108,6 +108,13 @@ export interface DataTableColumn<TRow extends object> {
      * the keyboard, Alt+ArrowDown, Shift+F10 or the context-menu key on the header opens it.
      */
     menu?: React.ReactNode;
+    /**
+     * Controls at the end of the header, before the menu caret and outside the sort button, so a
+     * click on them never sorts: a warning that opens its details on hover, a status badge. Keep
+     * them small (about 20px); they are always shown. They take no tab stop of their own: the
+     * grid has one, so whatever they offer must also be reachable from `menu`.
+     */
+    headerEnd?: React.ReactNode;
 }
 
 /**

@@ -626,6 +626,22 @@ button.cm-entity-chip:hover { background: color-mix(in srgb, var(--cm-entity-ink
 .cm-dt .cm-dt-header-icon { flex: none; display: inline-flex; align-items: center; color: var(--cm-icon-secondary); }
 .cm-dt .cm-dt-sort[data-with-menu],
 .cm-dt .cm-dt-cell.cm-dt-header[data-with-menu] { padding-inline-end: 32px; }
+/* A header's end controls (a warning): before the menu caret, always shown. */
+.cm-dt .cm-dt-header-end {
+    position: absolute;
+    inset-inline-end: 4px;
+    top: 50%;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    transform: translateY(-50%);
+}
+.cm-dt .cm-dt-header-end[data-with-menu] { inset-inline-end: 32px; }
+.cm-dt .cm-dt-sort[data-with-end],
+.cm-dt .cm-dt-cell.cm-dt-header[data-with-end] { padding-inline-end: 32px; }
+.cm-dt .cm-dt-sort[data-with-end][data-with-menu],
+.cm-dt .cm-dt-cell.cm-dt-header[data-with-end][data-with-menu] { padding-inline-end: 56px; }
 .cm-dt .cm-dt-header-menu {
     position: absolute;
     inset-inline-end: 4px;

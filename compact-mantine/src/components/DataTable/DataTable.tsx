@@ -818,6 +818,7 @@ function DataTableInner<TRow extends object>(
                                 const rovingTabIndex = isFocused ? 0 : -1;
 
                                 const hasMenu = config?.menu !== undefined && config.menu !== null;
+                                const hasEnd = config?.headerEnd !== undefined && config.headerEnd !== null;
                                 const caption = (
                                     <>
                                         {config?.icon !== undefined && config.icon !== null && (
@@ -895,6 +896,7 @@ function DataTableInner<TRow extends object>(
                                         // A header that is not a button keeps room for the menu
                                         // caret itself; a sort button does it on the button.
                                         data-with-menu={hasMenu && !sortable ? "" : undefined}
+                                        data-with-end={hasEnd && !sortable ? "" : undefined}
                                         onFocus={
                                             sortable
                                                 ? undefined
@@ -936,11 +938,21 @@ function DataTableInner<TRow extends object>(
                                                       className="cm-dt-sort"
                                                       data-align={config?.align === "end" ? "end" : undefined}
                                                       data-with-menu={hasMenu ? "" : undefined}
+                                                      data-with-end={hasEnd ? "" : undefined}
                                                   >
                                                       {caption}
                                                   </UnstyledButton>,
                                               )
                                             : caption}
+                                        {hasEnd && (
+                                            <span
+                                                className="cm-dt-header-end"
+                                                data-testid="data-table-header-end"
+                                                data-with-menu={hasMenu ? "" : undefined}
+                                            >
+                                                {config?.headerEnd}
+                                            </span>
+                                        )}
                                         {hasMenu && (
                                             <Menu
                                                 opened={menuFor === column.id}

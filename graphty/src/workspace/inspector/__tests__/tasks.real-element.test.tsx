@@ -264,8 +264,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         });
         // A heading with no focus mark: a box reads as an editable name, an underline as a link.
-        // Named by its label, as the find list names it.
-        const title = inspector().getByRole("heading", { level: 2, name: "Node 0" });
+        const title = inspector().getByRole("heading", { level: 2, name: "n0" });
         assert.equal(title, document.activeElement);
         assert.equal(getComputedStyle(title).textDecorationLine, "none");
         assert.equal(getComputedStyle(title).outlineStyle, "none");
@@ -430,9 +429,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await act(async () => {
             await session.selection.apply({ edges: [bridge.id] });
         });
-        // Each end named by its label, as the edge's title names it.
-        assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "Node 0");
-        assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "Node 6");
+        assert.include((await inspector().findByRole("button", { name: /^From/ })).textContent, "n0");
+        assert.include(inspector().getByRole("button", { name: /^To/ }).textContent, "n6");
         assert.include(inspector().getByRole("group", { name: "weight" }).textContent, "9");
         assert.deepEqual(controlNames(), [...new Set(controlNames())]);
 

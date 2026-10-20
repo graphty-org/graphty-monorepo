@@ -30,7 +30,6 @@ import {
     count,
     formatNumber,
     groupName,
-    nodeName,
     queuedWords,
     rankedName,
     routeWords,
@@ -575,7 +574,7 @@ export function GroupValues({
                     {[...members.nodes].slice(0, TOP).map((id) => (
                         <DataRow
                             key={nodeKey(id)}
-                            name={nodeName(session, id)}
+                            name={String(id)}
                             onClick={() => {
                                 selectNode(session, id);
                             }}

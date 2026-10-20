@@ -210,11 +210,12 @@ export function directionNote(statistics: GraphStatistics): string {
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    return `${nodeName(session, edge.source)}${edgeJoiner(session)}${nodeName(session, edge.target)}`;
+    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
+    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
 }
 
 /**
- * What the app calls a node wherever it names one: the label graphty-element gives it
+ * What the status line calls one selected node: the label graphty-element gives it
  * (`session.data.name`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.

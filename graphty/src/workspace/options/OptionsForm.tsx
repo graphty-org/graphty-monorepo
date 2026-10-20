@@ -6,7 +6,6 @@ import React, { useEffect, useState } from "react";
 
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
-import { nodeName } from "../inspector/words";
 
 /** What the app calls one option, and each of its choices. */
 interface OptionLabel {
@@ -375,7 +374,7 @@ function NodeOption({
     if (id === undefined && !offer) {
         return null;
     }
-    const name = id === undefined ? "None" : nodeName(session, id);
+    const name = id === undefined ? "None" : (session.data.name(id) ?? String(id));
     // A node is a fact of the run, drawn as the same label and value row as the others.
     return (
         <DataRow

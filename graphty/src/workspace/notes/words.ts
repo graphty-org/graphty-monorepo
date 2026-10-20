@@ -7,7 +7,7 @@
 import type { GraphSession, NoteTarget, NoteTargetInput, NoteTargetStatus } from "@graphty/graphty-element/session";
 
 import type { Resolved } from "../inspector/inspected";
-import { count, edgeName, nodeName } from "../inspector/words";
+import { count, edgeName } from "../inspector/words";
 import { runName } from "../runWords";
 
 /** The most targets one note may name (graphty-element's limit). */
@@ -53,7 +53,7 @@ export function targetWords(session: GraphSession, target: NoteTarget | NoteTarg
         return "Graph";
     }
     if ("node" in target) {
-        return nodeName(session, target.node);
+        return String(target.node);
     }
     if ("edge" in target) {
         const edge = typeof target.edge === "string" ? session.data.edge(target.edge) : target.edge;

@@ -7,7 +7,6 @@ import { Button, Group, Input, Stack, Text, UnstyledButton } from "@mantine/core
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { nodeName } from "../inspector/words";
 import { isPanelEscape } from "../keys/keys";
 import { OptionsForm } from "../options/OptionsForm";
 import { useWorkspace } from "../state/WorkspaceContext";
@@ -78,7 +77,7 @@ function resolve(session: GraphSession, choice: NodeChoice): NodeId | null {
  * @returns the field's value.
  */
 function chosen(session: GraphSession, id: NodeId | undefined): NodeChoice {
-    return id === undefined ? EMPTY : { text: nodeName(session, id), node: id };
+    return id === undefined ? EMPTY : { text: session.data.name(id) ?? String(id), node: id };
 }
 
 /** Props for NodeField. */

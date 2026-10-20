@@ -14,7 +14,7 @@ import { ActionIcon, Box, Button, Group, Menu, Stack, Text, TextInput, Tooltip }
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { count as countOf, nodeName } from "../inspector/words";
+import { count as countOf } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { type DataBinding, type LayerBinding, sourceName, startingValue } from "./row";
 import { focusLineNext } from "./useFocusLine";
@@ -492,7 +492,7 @@ function pinnedGroup(
         if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
             return {};
         }
-        const has = "node" in at ? nodeName(session, at.node) : "the selected edge";
+        const has = "node" in at ? (session.data.name(at.node) ?? String(at.node)) : "the selected edge";
         return { pinned: { key: String(value), has } };
     } catch {
         return {};

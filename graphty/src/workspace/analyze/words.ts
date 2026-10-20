@@ -12,7 +12,7 @@ import type { AlgorithmDescriptor, OptionDescriptor } from "@graphty/graphty-ele
 import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@graphty/graphty-element/session";
 
 import { findTreeRow } from "../graph-place/rows";
-import { count, formatNumber, nodeName } from "../inspector/words";
+import { count, formatNumber } from "../inspector/words";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -618,7 +618,7 @@ export function pathWords(session: GraphSession, run: Run): { from: string; to: 
         return null;
     }
     const name = (id: unknown): string =>
-        typeof id === "string" || typeof id === "number" ? nodeName(session, id) : "";
+        typeof id === "string" || typeof id === "number" ? (session.data.name(id) ?? String(id)) : "";
     return {
         from: name(run.params.source),
         to: name(run.params.target),

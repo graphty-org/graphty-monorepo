@@ -13,7 +13,7 @@ import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
 import { focusValuesNext, openMember, selectNode, takeMemberFocus } from "./reads";
 import { PathValues } from "./RunValues";
-import { count, formatNumber, nodeName } from "./words";
+import { count, formatNumber } from "./words";
 
 /** How many members, groups or top entries show before "N more". */
 const FIRST = 8;
@@ -427,7 +427,7 @@ function MemberValues({
                 session={session}
                 ids={nodes}
                 first
-                row={(id, onClick) => <DataRow key={nodeKey(id)} name={nodeName(session, id)} onClick={onClick} />}
+                row={(id, onClick) => <DataRow key={nodeKey(id)} name={String(id)} onClick={onClick} />}
             />
         </ControlSection>
     );
@@ -472,7 +472,7 @@ function StateValues({
                         rows={nodes.map((id) => (
                             <DataRow
                                 key={nodeKey(id)}
-                                name={nodeName(session, id)}
+                                name={String(id)}
                                 onClick={() => {
                                     // The row goes with the view it sat in; focus goes to the node's view.
                                     focusValuesNext();

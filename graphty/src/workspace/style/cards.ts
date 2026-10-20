@@ -16,7 +16,7 @@ import {
     selectorRule,
 } from "@graphty/graphty-element/session";
 
-import { edgeName, ID_NAME, nodeName } from "../inspector/words";
+import { edgeName, ID_NAME } from "../inspector/words";
 import { countName, readableName, valueFact, valueName } from "./words";
 
 /** What a layer's rule picks, as graphty-element's layer holds it. */
@@ -812,7 +812,7 @@ export function selectionName(session: GraphSession): string {
         return selectorName(session, session.selection.layerSelector) ?? origin.text.slice(1).trim();
     }
     if (nodes.length === 1 && edges.length === 0) {
-        return nodeName(session, nodes[0]);
+        return String(nodes[0]);
     }
     const edge = edges.length === 1 && nodes.length === 0 ? session.data.edge(edges[0]) : undefined;
     if (edge !== undefined) {

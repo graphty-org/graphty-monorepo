@@ -3,14 +3,7 @@ import { type GraphSession, isGraphtyError, type NodeId } from "@graphty/graphty
 import { type CommandContext, defineRegistration } from "../commands/registry";
 import { NEW, openStepEditor } from "../data-place/filterSteps";
 import { neighborhoodKey } from "../inspector/inspected";
-import {
-    framedWords,
-    neighborhoodWords,
-    nodeName,
-    selectionWords,
-    xrEntryFailureWords,
-    xrReasonWords,
-} from "../inspector/words";
+import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
 import { nothingDrawn } from "./useSessionVersion";
 
@@ -287,7 +280,7 @@ export const registration = defineRegistration({
                     workspace.set({
                         inspected: { kind: "neighborhood", id: neighborhoodKey(center, depth) },
                         announcement: neighborhoodWords(
-                            nodeName(session, center),
+                            session.data.name(center) ?? String(center),
                             nodes.filter((node) => node !== center).length,
                             depth,
                         ),

@@ -513,10 +513,13 @@ export class GraphOps {
     }
 }
 
+/** The graph values a dataset-wide step writes: `SOURCES_VALUE` and `COLUMNS_VALUE` of `commands/data.ts`. */
+const DATASET_VALUES: ReadonlySet<string> = new Set(["sources", "columns"]);
+
 /**
  * The node and edge ids the steps an undo, a redo or a restore passed touched, which the session
  * then selects (design/undo/undo-design.md section 8). Collection stops, and nothing is selected,
- * once a replace or a clear passes or more ids than the limit are touched: selecting everything
+ * once a replace, a clear or another dataset-wide step passes or more ids than the limit are touched: selecting everything
  * says nothing, and a selection built only to be truncated says less.
  */
 export class TouchedIds {
@@ -745,8 +748,18 @@ class GraphEntry implements OpLogEntry {
                 case "replace":
                     into.all();
                     return;
+                case "value":
+                    // A step that rewrites the sources list or the column settings -- a load, a
+                    // join, a replace with a newer copy, a type change -- is about the dataset,
+                    // not elements: selecting the rows it rewrote would select a column's worth.
+                    if (DATASET_VALUES.has(op.name)) {
+                        into.all();
+                        return;
+                    }
+
+                    break;
                 default:
-                    // "value" and "direction" name no element.
+                    // "direction" names no element.
                     break;
             }
         }

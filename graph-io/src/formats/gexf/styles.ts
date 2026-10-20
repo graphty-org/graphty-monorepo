@@ -132,7 +132,7 @@ const VIZ_COLUMNS: Readonly<Record<StyleTarget, readonly string[]>> = {
  * @returns `[r, g, b, 1]`, or null when Java cannot read it as an int
  */
 export function canonVizColor(hex: string): [number, number, number, number] | null {
-    const m = /^([+-]?)(?:(0x|0X|#)([0-9a-fA-F]+)|(0[0-7]+)|([0-9]+))$/.exec(hex.trim());
+    const m = /^([+-]?)(?:(0x|0X|#)([0-9a-fA-F]+)|(0[0-7]+)|(\d+))$/.exec(hex.trim());
     if (m === null) {
         return null;
     }
@@ -356,27 +356,25 @@ function gephiEdges(snapshot: GraphSnapshot, gexf: boolean): GephiDrawnEdges {
     };
     const leaders = new Map<string, number>();
     const drawnLeaders: number[] = [];
+    const ownDirection = gexfOwnDirection(header, dirCol, mutualCol);
     for (let e = 0; e < n; e++) {
         const f = first(e);
         if (f !== e) {
             continue;
         }
         // the edge's own type: graph-io records it only when the file mixes directions
-        const ownUndirected =
-            dirCol === null ? header === "undirected" : dirCol.value(f) === false && mutualCol?.value(f) !== true;
-        const ownDirected =
-            dirCol === null ? header !== "undirected" : dirCol.value(f) === true && mutualCol?.value(f) !== true;
-        if ((header === "directed" && ownUndirected) || (header === "undirected" && ownDirected)) {
+        const { ownUndirected, mismatched } = ownDirection(f);
+        if (mismatched) {
             out.hidden[f] = true;
             continue;
         }
         // Gephi draws no arrowhead on a self-loop
         const s = snapshot.edgeSource(f);
         const t = snapshot.edgeTarget(f);
-        const directed = header === "undirected" || s === t ? false : !ownUndirected;
+        const directed = header !== "undirected" && s !== t && !ownUndirected;
         out.directed[f] = directed;
         const kind = kindCol?.isSet(f) === true ? String(kindCol.value(f)) : "";
-        const key = `${kind}\u0000${directed ? `${String(s)}>${String(t)}` : `${String(Math.min(s, t))}-${String(Math.max(s, t))}`}`;
+        const key = `${kind}\u0000${gephiEndsKey(s, t, directed)}`;
         const leader = leaders.get(key);
         if (leader === undefined) {
             leaders.set(key, f);
@@ -397,6 +395,47 @@ function gephiEdges(snapshot: GraphSnapshot, gexf: boolean): GephiDrawnEdges {
         out.weight[e] = out.weight[f] + shift;
     }
     return out;
+}
+
+/**
+ * The ends of an edge as the key Gephi merges parallel edges by: in order for a directed edge, either way round
+ * for an undirected one.
+ * @param s - the source node index
+ * @param t - the target node index
+ * @param directed - whether the edge is drawn directed
+ * @returns the key
+ */
+function gephiEndsKey(s: number, t: number, directed: boolean): string {
+    return directed ? `${String(s)}>${String(t)}` : `${String(Math.min(s, t))}-${String(Math.max(s, t))}`;
+}
+
+/**
+ * A GEXF edge's own type, read from the directed and mutual columns, or from the header when the file did not
+ * mix directions (no directed column); an edge whose own type disagrees with the header's is one Gephi never loads.
+ * @param header - the file's default edge type
+ * @param dirCol - the directed column, or null
+ * @param mutualCol - the mutual column, or null
+ * @returns per edge index, whether its own type is undirected and whether it disagrees with the header
+ */
+function gexfOwnDirection(
+    header: ReturnType<typeof gexfDefaultEdgeType>,
+    dirCol: ReturnType<GraphSnapshot["edges"]["byRole"]>,
+    mutualCol: ReturnType<GraphSnapshot["edges"]["byRole"]>,
+): (f: number) => { ownUndirected: boolean; mismatched: boolean } {
+    const verdict = (
+        ownUndirected: boolean,
+        ownDirected: boolean,
+    ): { ownUndirected: boolean; mismatched: boolean } => ({
+        ownUndirected,
+        mismatched: (header === "directed" && ownUndirected) || (header === "undirected" && ownDirected),
+    });
+    return (f) => {
+        if (dirCol === null) {
+            return verdict(header === "undirected", header !== "undirected");
+        }
+        const mutual = mutualCol?.value(f) === true;
+        return verdict(dirCol.value(f) === false && !mutual, dirCol.value(f) === true && !mutual);
+    };
 }
 
 /**
@@ -873,7 +912,7 @@ function gephiOverlapHidden(
     preview: GephiPreview,
 ): boolean[] | null {
     const centers = gephiCenters(snapshot);
-    if (centers.some((c) => c === null)) {
+    if (centers.includes(null)) {
         return null;
     }
     const f = Math.fround;

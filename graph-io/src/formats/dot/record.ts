@@ -80,18 +80,20 @@ export function textWidth(text: string, size: number): number {
 function splitLines(text: string): RecordLine[] {
     const lines: RecordLine[] = [];
     let line = "";
-    for (let i = 0; i < text.length; i++) {
+    let i = 0;
+    while (i < text.length) {
         const c = text[i];
         const next = text[i + 1];
         if (c === "\\" && (next === "n" || next === "l" || next === "r")) {
             lines.push({ text: line, justify: next === "n" ? "c" : next });
             line = "";
-            i++;
+            i += 2;
         } else if (c === "\\" && next !== undefined) {
             line += c + next;
-            i++;
+            i += 2;
         } else {
             line += c;
+            i++;
         }
     }
     if (line !== "" || lines.length === 0) {
@@ -108,65 +110,104 @@ function splitLines(text: string): RecordLine[] {
  * @returns the root field
  */
 function parseRecord(label: string, lr: boolean): Field {
-    let i = 0;
-    const parse = (across: boolean, top: boolean): Field => {
-        const children: Field[] = [];
-        let text = "";
-        let port: string | null = null;
-        let sub: Field | null = null;
-        const flush = (): void => {
-            children.push(
-                sub ?? {
-                    lines: splitLines(text.trim()),
-                    port,
-                    children: [],
-                    lr: !across,
-                    w: 0,
-                    h: 0,
-                    x: 0,
-                    y: 0,
-                },
-            );
-            if (sub !== null && port !== null) {
-                sub.port = port;
+    return parseFields(label, { i: 0 }, lr, true);
+}
+
+/** Where reading a record label is: the index of the next character. */
+interface Cursor {
+    i: number;
+}
+
+/** The field being read: its text so far, its port and the sub-record it holds. */
+interface PendingField {
+    text: string;
+    port: string | null;
+    sub: Field | null;
+}
+
+/**
+ * A parent field holding its children.
+ * @param children - the children
+ * @param across - whether they lay left to right
+ * @returns the field
+ */
+function parentField(children: Field[], across: boolean): Field {
+    return { lines: null, port: null, children, lr: across, w: 0, h: 0, x: 0, y: 0 };
+}
+
+/**
+ * Parses the fields of one (sub-)record from the cursor up to its closing `}` (or the label's end).
+ * @param label - the label
+ * @param cursor - where reading is, moved past what is read
+ * @param across - whether these fields lay left to right
+ * @param top - whether this is the top level, where a stray `}` is skipped
+ * @returns the field holding them
+ */
+function parseFields(label: string, cursor: Cursor, across: boolean, top: boolean): Field {
+    const children: Field[] = [];
+    const pending: PendingField = { text: "", port: null, sub: null };
+    while (cursor.i < label.length) {
+        const c = label[cursor.i];
+        if (c === "{") {
+            cursor.i++;
+            pending.sub = parseFields(label, cursor, !across, false);
+        } else if (c === "}") {
+            cursor.i++;
+            if (!top) {
+                flushField(children, pending, across);
+                return parentField(children, across);
             }
-            text = "";
-            port = null;
-            sub = null;
-        };
-        while (i < label.length) {
-            const c = label[i];
-            if (c === "\\" && i + 1 < label.length && "{}|<> ".includes(label[i + 1])) {
-                text += label[i + 1];
-                i += 2;
-            } else if (c === "\\" && i + 1 < label.length) {
-                text += c + label[i + 1];
-                i += 2;
-            } else if (c === "<") {
-                const close = label.indexOf(">", i + 1);
-                port = label.slice(i + 1, close < 0 ? label.length : close).trim();
-                i = close < 0 ? label.length : close + 1;
-            } else if (c === "{") {
-                i++;
-                sub = parse(!across, false);
-            } else if (c === "}") {
-                i++;
-                if (!top) {
-                    flush();
-                    return { lines: null, port: null, children, lr: across, w: 0, h: 0, x: 0, y: 0 };
-                }
-            } else if (c === "|") {
-                i++;
-                flush();
-            } else {
-                text += c;
-                i++;
-            }
+        } else if (c === "|") {
+            cursor.i++;
+            flushField(children, pending, across);
+        } else {
+            readFieldText(label, cursor, pending);
         }
-        flush();
-        return { lines: null, port: null, children, lr: across, w: 0, h: 0, x: 0, y: 0 };
-    };
-    return parse(lr, true);
+    }
+    flushField(children, pending, across);
+    return parentField(children, across);
+}
+
+/**
+ * Reads one escape, port name or character of a field's text at the cursor.
+ * @param label - the label
+ * @param cursor - where reading is, moved past what is read
+ * @param pending - the field being read
+ */
+function readFieldText(label: string, cursor: Cursor, pending: PendingField): void {
+    const c = label[cursor.i];
+    const next = label.at(cursor.i + 1);
+    if (c === "\\" && next !== undefined) {
+        pending.text += "{}|<> ".includes(next) ? next : c + next;
+        cursor.i += 2;
+    } else if (c === "<") {
+        const close = label.indexOf(">", cursor.i + 1);
+        const end = close < 0 ? label.length : close;
+        pending.port = label.slice(cursor.i + 1, end).trim();
+        cursor.i = close < 0 ? label.length : close + 1;
+    } else {
+        pending.text += c;
+        cursor.i++;
+    }
+}
+
+/**
+ * Ends the field being read: adds it (its sub-record, or a leaf of its text) to the children and starts the next.
+ * @param children - the children so far
+ * @param pending - the field being read, cleared
+ * @param across - whether the children lay left to right
+ */
+function flushField(children: Field[], pending: PendingField, across: boolean): void {
+    const { sub, port } = pending;
+    children.push(
+        sub ?? { lines: splitLines(pending.text.trim()), port, children: [], lr: !across, w: 0, h: 0, x: 0, y: 0 },
+    );
+    if (sub !== null && port !== null) {
+        sub.port = port;
+    }
+    pending.text = "";
+    pending.port = null;
+    pending.sub = null;
 }
 
 /**

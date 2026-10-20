@@ -25,7 +25,8 @@ export function gmlPositions(snapshot: GraphSnapshot): ImporterPositions | null 
     // Gephi writes its Creator line inside the graph
     const inGraph = snapshot.graph.has("Creator") ? snapshot.graph.value("Creator", 0) : null;
     const gv2gml = writtenByGv2gml(snapshot);
-    const tool = gv2gml ? "graphviz" : toolOf(snapshot.meta.creator ?? (typeof inGraph === "string" ? inGraph : null));
+    const graphCreator = typeof inGraph === "string" ? inGraph : null;
+    const tool = gv2gml ? "graphviz" : toolOf(snapshot.meta.creator ?? graphCreator);
     return {
         units: "px",
         // a z that is the same on every node collapses to 2D

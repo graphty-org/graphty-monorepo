@@ -941,23 +941,47 @@ function yedResources(snapshot: GraphSnapshot): ReadonlyMap<string, string> {
         if (col.dtype !== "json" || col.meta.origin?.namespace !== "yfiles") {
             continue;
         }
-        for (const resources of treeChildren(plainCell(snapshot.graph.value(col.meta.name, 0)), "Resources")) {
-            for (const r of treeChildren(resources, "Resource")) {
-                const id = treeAttr(r, "id");
-                const text = treeText(r)?.trim() ?? "";
-                if (id === undefined || text === "" || out.has(id)) {
-                    continue;
-                }
-                const type = treeAttr(r, "type") ?? "";
-                if (type.endsWith("BufferedImage")) {
-                    out.set(id, `data:image/png;base64,${text.replace(/\s+/g, "")}`);
-                } else if (text.includes("<svg")) {
-                    out.set(id, `data:image/svg+xml;utf8,${encodeURIComponent(text)}`);
-                }
+        addYedResources(plainCell(snapshot.graph.value(col.meta.name, 0)), out);
+    }
+    return out;
+}
+
+/**
+ * Adds the pictures of one yFiles graph value's `<y:Resources>`; an id already there keeps its picture.
+ * @param root - the graph's yFiles value
+ * @param out - the pictures by id, added to
+ */
+function addYedResources(root: unknown, out: Map<string, string>): void {
+    for (const resources of treeChildren(root, "Resources")) {
+        for (const r of treeChildren(resources, "Resource")) {
+            const id = treeAttr(r, "id");
+            const url = id === undefined || out.has(id) ? null : yedResourceUrl(r);
+            if (id !== undefined && url !== null) {
+                out.set(id, url);
             }
         }
     }
-    return out;
+}
+
+/**
+ * One `<y:Resource>` as a picture URL: a `java.awt.image.BufferedImage` (base64 PNG) as a `data:image/png` URL and
+ * an SVG's text as a `data:image/svg+xml` one.
+ * @param r - the resource element
+ * @returns the URL, or null for an empty resource or one that is no picture
+ */
+function yedResourceUrl(r: unknown): string | null {
+    const text = treeText(r)?.trim() ?? "";
+    if (text === "") {
+        return null;
+    }
+    const type = treeAttr(r, "type") ?? "";
+    if (type.endsWith("BufferedImage")) {
+        return `data:image/png;base64,${text.replaceAll(/\s+/g, "")}`;
+    }
+    if (text.includes("<svg")) {
+        return `data:image/svg+xml;utf8,${encodeURIComponent(text)}`;
+    }
+    return null;
 }
 
 /**

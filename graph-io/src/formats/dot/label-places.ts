@@ -53,32 +53,56 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
         return;
     }
     const route = edgeRoute(source, target, get("pos"));
-    const stored = route.start !== null;
-    const lp = stored ? point(get("lp")) : null;
+    const lp = route.start === null ? null : point(get("lp"));
     if (lp !== null && get("label") !== null) {
         const mid = routeMiddle(route.points);
         put("labelOffsetX", num6(lp[0] - mid[0]));
         put("labelOffsetY", num6(mid[1] - lp[1]));
     }
-    for (const end of ["head", "tail"] as const) {
-        if (get(`${end}label`) === null) {
-            continue;
-        }
-        const head = end === "head";
-        const node = head ? t : s;
-        const tip =
-            (head ? route.end : route.start) ?? boundary(cx, node, head ? target : source, head ? source : target);
-        // the nearest route point back from the end that is not the end itself (a spline with no arrow ends at it);
-        // the route's last point is the node's center, past the end
-        const back = head ? route.points.slice(0, -1).reverse() : route.points.slice(1);
-        const toward = back.find((p) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) > 1e-6) ?? (head ? source : target);
-        const at = (stored ? point(get(`${end}_lp`)) : null) ?? portLabel(get, tip, toward);
-        if (at !== null) {
-            const prefix = head ? "target" : "source";
-            put(`${prefix}LabelOffset`, 0);
-            put(`${prefix}LabelOffsetX`, num6(at[0] - tip[0]));
-            put(`${prefix}LabelOffsetY`, num6(tip[1] - at[1]));
-        }
+    readEndLabel(cx, route, { node: t, at: target, other: source }, "head", get, put);
+    readEndLabel(cx, route, { node: s, at: source, other: target }, "tail", get, put);
+}
+
+/** One end of an edge: its node, that node's center and the other end's center. */
+interface EdgeEnd {
+    readonly node: number;
+    readonly at: BendPoint;
+    readonly other: BendPoint;
+}
+
+/**
+ * Reads one end's label place as an offset from where its line meets its node.
+ * @param cx - the graph's label place context
+ * @param route - the edge's route
+ * @param end - the end's node and the two centers
+ * @param which - which end
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ */
+function readEndLabel(
+    cx: LabelPlaceContext,
+    route: EdgeRoute,
+    end: EdgeEnd,
+    which: "head" | "tail",
+    get: Attr,
+    put: Put,
+): void {
+    if (get(`${which}label`) === null) {
+        return;
+    }
+    const head = which === "head";
+    const tip = (head ? route.end : route.start) ?? boundary(cx, end.node, end.at, end.other);
+    // the nearest route point back from the end that is not the end itself (a spline with no arrow ends at it);
+    // the route's last point is the node's center, past the end
+    const back = head ? route.points.slice(0, -1).reverse() : route.points.slice(1);
+    const toward = back.find((p) => Math.hypot(p[0] - tip[0], p[1] - tip[1]) > 1e-6) ?? end.other;
+    const stored = route.start === null ? null : point(get(`${which}_lp`));
+    const at = stored ?? portLabel(get, tip, toward);
+    if (at !== null) {
+        const prefix = head ? "target" : "source";
+        put(`${prefix}LabelOffset`, 0);
+        put(`${prefix}LabelOffsetX`, num6(at[0] - tip[0]));
+        put(`${prefix}LabelOffsetY`, num6(tip[1] - at[1]));
     }
 }
 
@@ -123,6 +147,13 @@ function point(raw: string | null): BendPoint | null {
     return parts.length >= 2 && Number.isFinite(parts[0]) && Number.isFinite(parts[1]) ? [parts[0], parts[1]] : null;
 }
 
+/** An edge's route: its points from center to center, and the ends of its line when stored. */
+interface EdgeRoute {
+    readonly points: BendPoint[];
+    readonly start: BendPoint | null;
+    readonly end: BendPoint | null;
+}
+
 /**
  * The route an edge is drawn along: its stored spline's points (flattened) between the two centers, and the ends of
  * its line where `pos` gives arrow points (`s,` / `e,`) or its spline's own ends.
@@ -131,11 +162,7 @@ function point(raw: string | null): BendPoint | null {
  * @param pos - the edge's `pos`
  * @returns the route
  */
-function edgeRoute(
-    source: BendPoint,
-    target: BendPoint,
-    pos: string | null,
-): { points: BendPoint[]; start: BendPoint | null; end: BendPoint | null } {
+function edgeRoute(source: BendPoint, target: BendPoint, pos: string | null): EdgeRoute {
     const tokens = (pos ?? "").split(";")[0].trim().split(/\s+/).filter(Boolean);
     const marked = (flag: string): BendPoint | null => {
         const token = tokens.find((x) => x.startsWith(`${flag},`));
@@ -149,7 +176,7 @@ function edgeRoute(
     return {
         points: [source, ...flat, target],
         start: marked("s") ?? flat[0],
-        end: marked("e") ?? flat[flat.length - 1],
+        end: marked("e") ?? flat.at(-1) ?? null,
     };
 }
 
@@ -196,6 +223,6 @@ function boundary(cx: LabelPlaceContext, n: number, center: BendPoint, toward: B
     if (len === 0 || rx === 0 || ry === 0) {
         return center;
     }
-    const r = 1 / Math.sqrt((dx / len / rx) ** 2 + (dy / len / ry) ** 2);
+    const r = 1 / Math.hypot(dx / len / rx, dy / len / ry);
     return [center[0] + (dx / len) * r, center[1] + (dy / len) * r];
 }

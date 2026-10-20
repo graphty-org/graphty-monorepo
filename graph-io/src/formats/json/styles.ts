@@ -423,20 +423,7 @@ function readSigmaRow(
         putColor(put, fill, opacity, i, color(i), site(fill));
     }
     if (size !== null) {
-        const raw = size(i);
-        if (target === "node") {
-            // sigma draws a node's size as its radius, and a node of negative size not at all
-            // (graphology-specimen-node-sizes-opacity, size-negative)
-            const v = Number(raw) < 0 ? 0 : canonNumber(raw, site("width"));
-            const d = v === null ? null : v * 2;
-            put("width", i, d);
-            put("height", i, d);
-        } else {
-            // sigma's edge shader draws an edge half as wide as a node of the same size is in radius: size 6 draws
-            // 3 px where a node of size 6 is 5.8 px in radius (graphology-specimen-arrows edge-size-6)
-            const w = canonNumber(raw, site("width"));
-            put("width", i, w === null ? null : w / 2);
-        }
+        putSigmaSize(put, target, i, size(i), site);
     }
     // an edge's label is drawn only under sigma's renderEdgeLabels setting, which a document never carries (the
     // `sigmaSettings` import option); otherwise it is data (graphology-specimen-edge-labels, -p2, -p3)
@@ -444,7 +431,37 @@ function readSigmaRow(
         const text = canonText(label(i), site("label"));
         // sigma draws a label with the canvas's fillText, which draws each ASCII whitespace as a space: one line
         // (graphology-specimen-labels, label-multiline)
-        put("label", i, text === null ? null : text.replace(/[\t\n\f\r]/g, " "));
+        put("label", i, text === null ? null : text.replaceAll(/[\t\n\f\r]/g, " "));
+    }
+}
+
+/**
+ * One element's sigma.js size, as its width (and a node's height).
+ * @param put - the setter
+ * @param target - nodes or edges
+ * @param i - the element
+ * @param raw - the size value
+ * @param site - where a value of a property was read
+ */
+function putSigmaSize(
+    put: (p: string, i: number, v: StyleValue | null) => void,
+    target: StyleTarget,
+    i: number,
+    raw: unknown,
+    site: (property: string) => CanonSite,
+): void {
+    if (target === "node") {
+        // sigma draws a node's size as its radius, and a node of negative size not at all
+        // (graphology-specimen-node-sizes-opacity, size-negative)
+        const v = Number(raw) < 0 ? 0 : canonNumber(raw, site("width"));
+        const d = v === null ? null : v * 2;
+        put("width", i, d);
+        put("height", i, d);
+    } else {
+        // sigma's edge shader draws an edge half as wide as a node of the same size is in radius: size 6 draws
+        // 3 px where a node of size 6 is 5.8 px in radius (graphology-specimen-arrows edge-size-6)
+        const w = canonNumber(raw, site("width"));
+        put("width", i, w === null ? null : w / 2);
     }
 }
 
@@ -909,6 +926,20 @@ function visImage(layer: VisLayer, shape: string, box: { width: number; height: 
     if (opacity !== null) {
         row.imageOpacity = opacity;
     }
+    visImagePlace(row, layer, box);
+    return row;
+}
+
+/**
+ * Where a vis-network picture sits in its node's box: inside its `imagePadding`, and from the top left corner under
+ * `shapeProperties.coordinateOrigin` "top-left" (visImage).
+ * @param row - the picture's values so far, written in place
+ * @param layer - the node's merged layer
+ * @param box - the node's width and height, in the file's units
+ * @param box.width - its width
+ * @param box.height - its height
+ */
+function visImagePlace(row: Row, layer: VisLayer, box: { width: number; height: number }): void {
     const pad = visImagePadding(layer.imagePadding);
     if (pad !== null && layer.useImageSize !== true) {
         row.imageFit = "none";
@@ -921,7 +952,6 @@ function visImage(layer: VisLayer, shape: string, box: { width: number; height: 
         row.imageOffsetX = box.width / 2 + (typeof row.imageOffsetX === "number" ? row.imageOffsetX : 0);
         row.imageOffsetY = box.height / 2 + (typeof row.imageOffsetY === "number" ? row.imageOffsetY : 0);
     }
-    return row;
 }
 
 /**
@@ -1061,29 +1091,39 @@ function visValues(layer: VisLayer, target: StyleTarget, site: (property: string
     } else {
         color("color", "opacity", layer.edgeColor);
         visEdgeValues(layer, put, site);
-        // the background: a band `size` wide under the line, its outline beyond the line. vis-network draws it only
-        // under a smooth (bezier) edge (BezierEdgeBase._bezierCurve calls drawBackground; StraightEdge never does).
-        // ponytail: `smooth` is read from this layer alone, else vis-network's default (smooth)
-        if (isJsonObject(layer.background)) {
-            const bg = layer.background;
-            const straight = layer.smooth === false || (isJsonObject(layer.smooth) && layer.smooth.enabled === false);
-            color("outlineColor", "outlineOpacity", bg.color);
-            if (bg.enabled !== undefined) {
-                const size = typeof bg.size === "number" ? bg.size : 10;
-                const width = typeof layer.width === "number" ? layer.width : 1;
-                put("outlineWidth", bg.enabled === true && !straight ? Math.max(0, size - width) : 0);
-            }
-            const band = visBandStyle(bg, false);
-            if (band !== null) {
-                put("outlineStyle", band);
-            }
-        }
+        visEdgeBackground(layer, put, color);
     }
     if (layer.hidden !== undefined && canonBoolean(layer.hidden, site("visible")) === true) {
         put("visible", false);
     }
     visLabelValues(layer, target, put, color, site);
     return out;
+}
+
+/**
+ * An edge's background: a band `size` wide under the line, its outline beyond the line. vis-network draws it only
+ * under a smooth (bezier) edge (BezierEdgeBase._bezierCurve calls drawBackground; StraightEdge never does).
+ * @param layer - the layer
+ * @param put - the row's setter
+ * @param color - the row's color setter
+ */
+function visEdgeBackground(layer: VisLayer, put: PutRow, color: PutColor): void {
+    // ponytail: `smooth` is read from this layer alone, else vis-network's default (smooth)
+    if (!isJsonObject(layer.background)) {
+        return;
+    }
+    const bg = layer.background;
+    const straight = layer.smooth === false || (isJsonObject(layer.smooth) && layer.smooth.enabled === false);
+    color("outlineColor", "outlineOpacity", bg.color);
+    if (bg.enabled !== undefined) {
+        const size = typeof bg.size === "number" ? bg.size : 10;
+        const width = typeof layer.width === "number" ? layer.width : 1;
+        put("outlineWidth", bg.enabled === true && !straight ? Math.max(0, size - width) : 0);
+    }
+    const band = visBandStyle(bg, false);
+    if (band !== null) {
+        put("outlineStyle", band);
+    }
 }
 
 /** Puts a color of a row, and its alpha as an opacity when it has one (visValues). */
@@ -1112,23 +1152,7 @@ function visLabelValues(
         put("labelFont", canonText(layer.fontFace, site("labelFont")));
     }
     if (layer.label !== undefined) {
-        // vis-network 9.1.9 draws no edge label whose `font` is text: Edge.drawLabel reads `options.font.align` (undefined
-        // on a string) as not horizontal and moves the context to the label point, while the label module, which
-        // parsed the text, still draws at the absolute point, so the label lands off the canvas
-        const text = target === "edge" && layer.fontText === true ? "" : canonText(layer.label, site("label"));
-        const marked = typeof text === "string" ? visMarkup(text, layer.fontMulti) : null;
-        put("label", marked?.text ?? text);
-        if (marked !== null) {
-            const runs = visRuns(marked.runs, layer, site("labelRuns"));
-            put("labelRuns", runs);
-            if (runs !== null) {
-                put("labelRunAlign", visRunAlign(layer, target));
-            }
-        }
-        // after the face: a label all in mono is drawn in the mono face
-        for (const [p, v] of Object.entries(VIS_MOD_VALUES[marked?.mod ?? "normal"] ?? {})) {
-            put(p, v);
-        }
+        visLabelText(layer, target, put, site);
     }
     // vis-network wraps a label's lines at `widthConstraint.maximum` (or a number), margins not taken off:
     // Label.adjustSizes subtracts them only under constrainWidth, which nothing sets. LabelSplitter keeps each blank
@@ -1146,6 +1170,33 @@ function visLabelValues(
         put("labelMinScreenSize", Math.max(0, threshold - 1));
     }
     visLabelLook(layer, target, put, color, site);
+}
+
+/**
+ * The text of a vis.js layer's label, its markup read into runs.
+ * @param layer - the layer
+ * @param target - nodes or edges
+ * @param put - the row's setter
+ * @param site - where its values are read
+ */
+function visLabelText(layer: VisLayer, target: StyleTarget, put: PutRow, site: (property: string) => CanonSite): void {
+    // vis-network 9.1.9 draws no edge label whose `font` is text: Edge.drawLabel reads `options.font.align` (undefined
+    // on a string) as not horizontal and moves the context to the label point, while the label module, which
+    // parsed the text, still draws at the absolute point, so the label lands off the canvas
+    const text = target === "edge" && layer.fontText === true ? "" : canonText(layer.label, site("label"));
+    const marked = typeof text === "string" ? visMarkup(text, layer.fontMulti) : null;
+    put("label", marked?.text ?? text);
+    if (marked !== null) {
+        const runs = visRuns(marked.runs, layer, site("labelRuns"));
+        put("labelRuns", runs);
+        if (runs !== null) {
+            put("labelRunAlign", visRunAlign(layer, target));
+        }
+    }
+    // after the face: a label all in mono is drawn in the mono face
+    for (const [p, v] of Object.entries(VIS_MOD_VALUES[marked?.mod ?? "normal"] ?? {})) {
+        put(p, v);
+    }
 }
 
 /**
@@ -1390,7 +1441,8 @@ function visRunAlign(layer: VisLayer, target: StyleTarget): "baseline" | "hangin
             ] ?? "middle"
         );
     }
-    return VIS_SIZED.has(typeof layer.shape === "string" ? layer.shape : "ellipse") ? "hanging" : "middle";
+    const shape = typeof layer.shape === "string" ? layer.shape : "ellipse";
+    return VIS_SIZED.has(shape) ? "hanging" : "middle";
 }
 
 /**
@@ -1433,7 +1485,7 @@ function visRunsDrop(runs: string, size: number): number {
                 lines.push(size);
             }
             if (piece !== "") {
-                lines[lines.length - 1] = Math.max(lines[lines.length - 1], runSize);
+                lines[lines.length - 1] = Math.max(lines.at(-1) ?? size, runSize);
             }
         });
     }
@@ -1565,6 +1617,16 @@ function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (prop
     if (layer.borderWidth !== undefined) {
         put("borderWidth", canonNumber(layer.borderWidth, site("borderWidth")));
     }
+    visNodeOpacityAndDashes(layer, put, site);
+}
+
+/**
+ * A vis.js node's opacity and border dashes (visNodeValues).
+ * @param layer - the layer
+ * @param put - the row's setter
+ * @param site - where its values are read
+ */
+function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.opacity !== undefined) {
         // vis-network's node opacity replaces the alpha of its border color and its background color alike, but only of
         // a hex or rgb() color: overrideOpacity leaves rgba() and any other text (a name) as it is (Node.getFormattingValues)
@@ -1716,20 +1778,14 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     const node = valuesOf(n);
     const shapes: string[] = [];
     const rawRecords = elementRaw(snapshot, "node");
-    const records = (i: number): VisLayer => visLayer(rawRecords(i), "node");
-    const rawShape = (layer: VisLayer): string | null => (typeof layer.shape === "string" ? layer.shape : null);
-    const range = visValueRange(n, (i) => {
-        const g = groupOf(i);
-        const value = records(i).value ?? (g === null ? undefined : groupLayers.get(g)?.value) ?? nodeDefaults.value;
-        return typeof value === "number" && Number.isFinite(value) ? value : null;
-    });
+    const range = visNodeValueRange(n, groupOf, rawRecords, groupLayers, nodeDefaults);
     const ownGroup = visOwnGroup(groupLayers, visGroupDefs(src, options));
     for (let i = 0; i < n; i++) {
         const g = groupOf(i);
         const raw = rawRecords(i);
         const own = visLayer(raw, "node");
         const group = g === null ? {} : ownGroup(g, raw);
-        const shape = rawShape(own) ?? rawShape(group) ?? rawShape(nodeDefaults) ?? "ellipse";
+        const shape = visShapeOf(own) ?? visShapeOf(group) ?? visShapeOf(nodeDefaults) ?? "ellipse";
         shapes.push(shape);
         const site = (property: string): CanonSite => ({
             notes,
@@ -1738,38 +1794,8 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             element: i,
             budget: context.budget,
         });
-        const merged: VisLayer = { ...nodeDefaults, ...group, ...own };
-        if (g !== null && raw.color !== undefined) {
-            // a color of the node's own fills its gaps from options.nodes and vis-network's defaults, never its group's
-            merged.fill ??= VIS_NODE_FILL;
-            merged.border ??= VIS_NODE_BORDER;
-        }
-        const row = visValues(merged, "node", site, VIS_SIZED.has(shape));
-        const shaped = VIS_SIZED.has(shape)
-            ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
-            : visFitShape(merged, shape);
-        if (VIS_SIZED.has(shape) && merged.label !== undefined) {
-            const size =
-                visLabelScaled(merged, range) ??
-                (typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE);
-            // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
-            const drop = typeof row.labelRuns === "string" ? visRunsDrop(row.labelRuns, size) : 0;
-            const below = typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0;
-            row.labelOffsetY = below + drop + visBelowGap(size);
-        }
-        // the shape's own label place, then font.vadjust below it
-        for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
-            const [a, b] = [row[p], shaped[p]];
-            if (typeof a === "number" && typeof b === "number") {
-                shaped[p] = a + b;
-            }
-        }
-        Object.assign(row, shaped);
-        const labelSize = visLabelScaled(merged, range);
-        if (labelSize !== null) {
-            row.labelSize = labelSize;
-        }
-        for (const [p, v] of Object.entries(row)) {
+        const merged = visMergedNode(nodeDefaults, group, own, g !== null && raw.color !== undefined);
+        for (const [p, v] of Object.entries(visNodeRow(merged, shape, range, site))) {
             node.put(p, i, v);
         }
     }
@@ -1777,21 +1803,7 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
     if (Object.keys(declaredNode).length > 0) {
         nodeRules.push(rule("node.vis.defaults", "node", "defaults", "declared", { all: true }, declaredNode));
     }
-    let k = 0;
-    for (const [g, layer] of groupLayers) {
-        const set = paletteRows.get(g) ?? visValues(layer, "node", ruleSite("node"), true);
-        if (Object.keys(set).length === 0) {
-            continue;
-        }
-        const key = `group.${String(k)}`;
-        nodeColumns.set(
-            key,
-            Array.from({ length: n }, (_v, i) => (groupOf(i) === g ? true : null)),
-        );
-        const origin = paletteRows.has(g) ? "tool" : "declared";
-        const r = rule(`node.vis.group.${String(k++)}`, "node", "group", origin, { has: { style: key } }, set);
-        nodeRules.push({ ...r, facts: { names: [[key, g]] } });
-    }
+    visGroupRules(n, groupOf, groupLayers, paletteRows, ruleSite("node"), nodeRules, nodeColumns);
 
     const toolNode = toolDefaults("vis-network")?.node;
     const borderOf = (i: number): StyleValue =>
@@ -1815,6 +1827,136 @@ function visStyles(snapshot: GraphSnapshot, src: JsonStyleSource, context: Style
             edge: VIS_KEYS.edge.filter((x) => snapshot.edges.has(x)),
         },
     };
+}
+
+/**
+ * vis.js: a layer's own shape.
+ * @param layer - the layer
+ * @returns its `shape`, or null when it gives none
+ */
+function visShapeOf(layer: VisLayer): string | null {
+    return typeof layer.shape === "string" ? layer.shape : null;
+}
+
+/**
+ * vis.js: the smallest and largest `value` of the nodes, each its own over its group's over `options.nodes`.
+ * @param n - the node count
+ * @param groupOf - each node's group
+ * @param rawRecords - each node's own keys
+ * @param groupLayers - each group's layer (visGroupLayers)
+ * @param nodeDefaults - `options.nodes`
+ * @returns the range, or null when no node has a value
+ */
+function visNodeValueRange(
+    n: number,
+    groupOf: (i: number) => string | null,
+    rawRecords: (i: number) => Record<string, unknown>,
+    groupLayers: ReadonlyMap<string, VisLayer>,
+    nodeDefaults: VisLayer,
+): readonly [number, number] | null {
+    return visValueRange(n, (i) => {
+        const g = groupOf(i);
+        const own = visLayer(rawRecords(i), "node").value;
+        const value = own ?? (g === null ? undefined : groupLayers.get(g)?.value) ?? nodeDefaults.value;
+        return typeof value === "number" && Number.isFinite(value) ? value : null;
+    });
+}
+
+/**
+ * vis.js: one node's layer, its own keys over its group's over `options.nodes`.
+ * @param nodeDefaults - `options.nodes`
+ * @param group - its group's layer
+ * @param own - its own layer
+ * @param ownColorInGroup - whether it is in a group and gives a color of its own
+ * @returns the merged layer
+ */
+function visMergedNode(nodeDefaults: VisLayer, group: VisLayer, own: VisLayer, ownColorInGroup: boolean): VisLayer {
+    const merged: VisLayer = { ...nodeDefaults, ...group, ...own };
+    if (ownColorInGroup) {
+        // a color of the node's own fills its gaps from options.nodes and vis-network's defaults, never its group's
+        merged.fill ??= VIS_NODE_FILL;
+        merged.border ??= VIS_NODE_BORDER;
+    }
+    return merged;
+}
+
+/**
+ * vis.js: the values one node draws, from its merged layer: its colors and label, then its shape's own.
+ * @param merged - the node's merged layer
+ * @param shape - its vis-network shape
+ * @param range - the smallest and largest `value` of the graph's nodes (visValueRange)
+ * @param site - where its values are read
+ * @returns the values
+ */
+function visNodeRow(
+    merged: VisLayer,
+    shape: string,
+    range: readonly [number, number] | null,
+    site: (property: string) => CanonSite,
+): Row {
+    const sized = VIS_SIZED.has(shape);
+    const row = visValues(merged, "node", site, sized);
+    const shaped = sized
+        ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
+        : visFitShape(merged, shape);
+    if (sized && merged.label !== undefined) {
+        const size =
+            visLabelScaled(merged, range) ?? (typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE);
+        // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
+        const drop = typeof row.labelRuns === "string" ? visRunsDrop(row.labelRuns, size) : 0;
+        const below = typeof row.labelOffsetY === "number" ? row.labelOffsetY : 0;
+        row.labelOffsetY = below + drop + visBelowGap(size);
+    }
+    // the shape's own label place, then font.vadjust below it
+    for (const p of ["labelOffsetX", "labelOffsetY"] as const) {
+        const [a, b] = [row[p], shaped[p]];
+        if (typeof a === "number" && typeof b === "number") {
+            shaped[p] = a + b;
+        }
+    }
+    Object.assign(row, shaped);
+    const labelSize = visLabelScaled(merged, range);
+    if (labelSize !== null) {
+        row.labelSize = labelSize;
+    }
+    return row;
+}
+
+/**
+ * vis.js: one rule per node group with values, over a column marking the group's nodes; a group the file does not
+ * define is the tool's palette.
+ * @param n - the node count
+ * @param groupOf - each node's group
+ * @param groupLayers - each group's layer (visGroupLayers)
+ * @param paletteRows - the palette values of the groups the file does not define
+ * @param site - where a group's values are read
+ * @param rules - the node rules, appended to
+ * @param columns - the node columns, written to
+ */
+function visGroupRules(
+    n: number,
+    groupOf: (i: number) => string | null,
+    groupLayers: ReadonlyMap<string, VisLayer>,
+    paletteRows: ReadonlyMap<string, Row>,
+    site: (property: string) => CanonSite,
+    rules: StyleRule[],
+    columns: Map<string, StyleColumn>,
+): void {
+    let k = 0;
+    for (const [g, layer] of groupLayers) {
+        const set = paletteRows.get(g) ?? visValues(layer, "node", site, true);
+        if (Object.keys(set).length === 0) {
+            continue;
+        }
+        const key = `group.${String(k)}`;
+        columns.set(
+            key,
+            Array.from({ length: n }, (_v, i) => (groupOf(i) === g ? true : null)),
+        );
+        const origin = paletteRows.has(g) ? "tool" : "declared";
+        const r = rule(`node.vis.group.${String(k++)}`, "node", "group", origin, { has: { style: key } }, set);
+        rules.push({ ...r, facts: { names: [[key, g]] } });
+    }
 }
 
 /**
@@ -1901,28 +2043,19 @@ function visLabelFit(layer: VisLayer, shape: string): Row {
     const minH = length(layer.heightMin) ?? 0;
     let padX: number;
     let padY: number;
-    // a box or text node draws its label its left and top margins in from its corner (Box.draw, Text.draw), off
-    // center by half the difference of opposite margins
-    const offset: Row = {};
+    let offset: Row = {};
     if (fit.ellipse) {
-        padX = padY = Math.max(lines * fontSize, minH) / 2;
+        padX = Math.max(lines * fontSize, minH) / 2;
+        padY = padX;
     } else {
-        const m = layer.margin;
-        const side = (key: string): number => (isJsonObject(m) ? length(m[key]) : length(m)) ?? VIS_MARGIN;
-        padX = (side("left") + side("right")) / 2;
-        padY = (side("top") + side("bottom")) / 2;
-        if (!fit.square && side("left") !== side("right")) {
-            offset.labelOffsetX = (side("left") - side("right")) / 2;
-        }
-        if (!fit.square && side("top") !== side("bottom")) {
-            offset.labelOffsetY = (side("top") - side("bottom")) / 2;
-        }
+        ({ padX, padY, offset } = visMarginPads(layer.margin, fit.square));
     }
     // a node with no label text is sized as if its label were 14 x 14 (NodeBase.getDimensionsFromLabel)
     const empty = typeof layer.label !== "string" || layer.label === "";
     const [boxW, boxH] = empty ? [Math.max(minW, 14), Math.max(minH, 14)] : [minW, minH];
     if (empty && fit.ellipse) {
-        padX = padY = boxH / 2;
+        padX = boxH / 2;
+        padY = padX;
     }
     const row: Row = {
         ...offset,
@@ -1936,6 +2069,27 @@ function visLabelFit(layer: VisLayer, shape: string): Row {
         row.labelFitSquare = true;
     }
     return row;
+}
+
+/**
+ * vis.js: the padding a node's `margin` puts round its label (visLabelFit). A box or text node draws its label its
+ * left and top margins in from its corner (Box.draw, Text.draw), off center by half the difference of opposite
+ * margins.
+ * @param m - the `margin`: one number for every side, or `{ top, right, bottom, left }`
+ * @param square - whether the shape stays as wide as it is tall
+ * @returns the horizontal and vertical padding, and the label's offset
+ */
+function visMarginPads(m: unknown, square: boolean): { padX: number; padY: number; offset: Row } {
+    const length = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+    const side = (key: string): number => (isJsonObject(m) ? length(m[key]) : length(m)) ?? VIS_MARGIN;
+    const offset: Row = {};
+    if (!square && side("left") !== side("right")) {
+        offset.labelOffsetX = (side("left") - side("right")) / 2;
+    }
+    if (!square && side("top") !== side("bottom")) {
+        offset.labelOffsetY = (side("top") - side("bottom")) / 2;
+    }
+    return { padX: (side("left") + side("right")) / 2, padY: (side("top") + side("bottom")) / 2, offset };
 }
 
 /**
@@ -2196,30 +2350,70 @@ function visEdges(
         if (band !== null) {
             vals.outlineStyle = band;
         }
-        const inherit = own.inherit ?? edgeDefaults.inherit ?? "from";
-        const inherits = inherit !== false && inherit !== "false";
-        if (inherits) {
-            // the edge's own `inherit` wins over a color `options.edges` gives (that only stops inheriting there)
-            delete vals.color;
-        }
-        if (inherit === "both") {
-            // vis-network: a linear gradient from the source node's border color to the target's
-            vals.gradientKind = "linear";
-            vals.gradientColors = `${String(borderOf(s))} ${String(borderOf(t))}`;
-        }
+        const from = visEdgeInherit(vals, own.inherit ?? edgeDefaults.inherit ?? "from", borderOf, s, t);
         for (const [p, v] of Object.entries(vals)) {
             edge.put(p, e, v);
         }
-        if (!inherits) {
-            if (vals.color === undefined) {
-                edge.put("color", e, VIS_EDGE_COLOR);
-            }
-            continue;
+        if (from !== null) {
+            inherited[e] = from;
+            inheriting++;
         }
-        inherited[e] = borderOf(inherit === "to" ? snapshot.edgeTarget(e) : snapshot.edgeSource(e));
-        inheriting++;
     }
     context.budget.spend("edge", m);
+    const { rules, columns } = visEdgeRules(edgeDefaults, notes, inherited, inheriting);
+    return { values: edge.values, rules, columns };
+}
+
+/**
+ * vis.js: an edge's `inherit`, applied to its values: an edge that inherits draws its node's border color, not a
+ * color `options.edges` gives (that only stops inheriting there), and under "both" a gradient between its nodes'; one
+ * that does not inherit and has no color draws vis-network's default.
+ * @param vals - the edge's values, written in place
+ * @param inherit - its `inherit`
+ * @param borderOf - each node's drawn border color
+ * @param s - its source node
+ * @param t - its target node
+ * @returns the color it inherits, or null for none
+ */
+function visEdgeInherit(
+    vals: Row,
+    inherit: unknown,
+    borderOf: (node: number) => StyleValue,
+    s: number,
+    t: number,
+): StyleValue | null {
+    const inherits = inherit !== false && inherit !== "false";
+    if (inherits) {
+        delete vals.color;
+    }
+    if (inherit === "both") {
+        // vis-network: a linear gradient from the source node's border color to the target's
+        vals.gradientKind = "linear";
+        vals.gradientColors = `${String(borderOf(s))} ${String(borderOf(t))}`;
+    }
+    if (!inherits) {
+        if (vals.color === undefined) {
+            vals.color = VIS_EDGE_COLOR;
+        }
+        return null;
+    }
+    return borderOf(inherit === "to" ? t : s);
+}
+
+/**
+ * vis.js: the edge rules: `options.edges` as declared, and the colors edges inherit from their nodes.
+ * @param edgeDefaults - `options.edges`
+ * @param notes - where problems are noted
+ * @param inherited - each edge's inherited color, or null
+ * @param inheriting - how many edges inherit one
+ * @returns the rules and their style columns
+ */
+function visEdgeRules(
+    edgeDefaults: VisLayer,
+    notes: StyleNotes,
+    inherited: (StyleValue | null)[],
+    inheriting: number,
+): { rules: StyleRule[]; columns: Map<string, StyleColumn> } {
     const edgeRules: StyleRule[] = [];
     const edgeColumns = new Map<string, StyleColumn>();
     const declaredEdge = visValues(edgeDefaults, "edge", (property) => ({ notes, target: "edge", property }), true);
@@ -2241,7 +2435,7 @@ function visEdges(
             facts: { elements: inheriting, reason: "SOURCE_NODE_COLOR" },
         });
     }
-    return { values: edge.values, rules: edgeRules, columns: edgeColumns };
+    return { rules: edgeRules, columns: edgeColumns };
 }
 
 /** What a vis.js edge's route is drawn from: its nodes' positions and boxes. */
@@ -2934,8 +3128,11 @@ const VIS_WRITTEN: Written = {
                 return null;
             }
             // written as `dashes: true`, vis-network's [5, 5], which a wide edge's round caps close up
+            if (s === "solid") {
+                return "solid";
+            }
             const width = want("width");
-            return s === "solid" ? "solid" : visDashStyle([5, 5], typeof width === "number" ? width : 1, true);
+            return visDashStyle([5, 5], typeof width === "number" ? width : 1, true);
         },
         targetArrow: (want) => arrowBack(want("targetArrow")),
         sourceArrow: (want) => arrowBack(want("sourceArrow")),

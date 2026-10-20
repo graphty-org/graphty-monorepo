@@ -955,7 +955,9 @@ class GmlImport {
         const t = this.requireTokens();
         const record = parseRecord(t, open);
         const ordinal = this.clusterCount++;
-        const id = `cluster${typeof record.id === "number" || typeof record.id === "string" ? String(record.id) : `#${String(ordinal)}`}`;
+        const ownId = typeof record.id === "number" || typeof record.id === "string" ? String(record.id) : null;
+        const fallback = `#${String(ordinal)}`;
+        const id = `cluster${ownId ?? fallback}`;
         if (this.sink.indexOf(id) !== INVALID_INDEX) {
             this.report.warnOnce(
                 "validation-error",

@@ -610,24 +610,42 @@ function readEdgeStyle(refs: References, data: unknown, put: PutValue, at: SiteO
         put("lineStyle", canonEnum("lineStyle", stroke.line, "yfiles3", at("lineStyle")));
     }
     for (const end of ["source", "target"] as const) {
-        const a = refs.deref(prop(st, `${end}Arrow`));
-        const property = `${end}Arrow`;
-        let type: string | null = null;
-        let hollow = false;
-        if (a !== null && a !== NULL && typeof a === "object") {
-            type = treeAttr(a.e, "type") ?? "DEFAULT";
-            const fill = paintOf(refs, prop(a, "fill"), null);
-            // a `{x:Null}` fill draws the arrow's outline alone, in its stroke's color
-            const open = fill === NULL ? strokeOf(refs, prop(a, "stroke")) : null;
-            hollow = open !== null && open !== NULL;
-            putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
-        } else if (typeof a === "string") {
-            type = a;
-        }
-        if (type !== null) {
-            const arrow = canonEnum("arrow", RENAMED_ARROWS.get(type.toUpperCase()) ?? type, "yfiles3", at(property));
-            put(property, hollow ? (HOLLOW_ARROWS.get(arrow ?? "") ?? arrow) : arrow);
-        }
+        readEdgeArrow(refs, refs.deref(prop(st, `${end}Arrow`)), end, put, at);
+    }
+}
+
+/**
+ * Reads one end's arrow of an edge style: its type, and for an arrow element its color, drawn hollow in its
+ * stroke's color when its fill is `{x:Null}`.
+ * @param refs - the references
+ * @param a - the dereferenced `sourceArrow` or `targetArrow` value
+ * @param end - which end
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readEdgeArrow(
+    refs: References,
+    a: ReturnType<References["deref"]>,
+    end: "source" | "target",
+    put: PutValue,
+    at: SiteOf,
+): void {
+    const property = `${end}Arrow`;
+    let type: string | null = null;
+    let hollow = false;
+    if (a !== null && a !== NULL && typeof a === "object") {
+        type = treeAttr(a.e, "type") ?? "DEFAULT";
+        const fill = paintOf(refs, prop(a, "fill"), null);
+        // a `{x:Null}` fill draws the arrow's outline alone, in its stroke's color
+        const open = fill === NULL ? strokeOf(refs, prop(a, "stroke")) : null;
+        hollow = open !== null && open !== NULL;
+        putPaint(open !== null && open !== NULL ? open.color : fill, `${end}ArrowColor`, null, put, at);
+    } else if (typeof a === "string") {
+        type = a;
+    }
+    if (type !== null) {
+        const arrow = canonEnum("arrow", RENAMED_ARROWS.get(type.toUpperCase()) ?? type, "yfiles3", at(property));
+        put(property, hollow ? (HOLLOW_ARROWS.get(arrow ?? "") ?? arrow) : arrow);
     }
 }
 
@@ -861,6 +879,91 @@ function readLabelFont(f: ReturnType<References["deref"]>, put: PutValue, at: Si
     }
 }
 
+/** The style, labels and geometry key kinds of nodes and of edges. */
+const YFILES3_KINDS: Readonly<Record<StyleTarget, readonly KeyKind[]>> = {
+    node: ["NodeStyle", "NodeLabels", "NodeGeometry"],
+    edge: ["EdgeStyle", "EdgeLabels", "EdgeGeometry"],
+};
+
+/** What reading one table's yFiles 3 styles shares. */
+interface Yfiles3Context {
+    readonly snapshot: GraphSnapshot;
+    readonly notes: StyleNotes;
+    readonly budget: StyleWorkBudget;
+    readonly refs: References;
+    /** each node's center x and y, width and height from its NodeGeometry, for its edges' bends; NaN without one */
+    readonly boxes: Float64Array;
+}
+
+/**
+ * Reads the yFiles 3 styles of every node or every edge.
+ * @param ctx - the shared state
+ * @param target - nodes or edges
+ * @param kinds - the table's columns by key kind
+ * @returns the values
+ */
+function readYfiles3Target(
+    ctx: Yfiles3Context,
+    target: StyleTarget,
+    kinds: Map<KeyKind, string>,
+): ReturnType<typeof valueColumns>["values"] {
+    const { snapshot, notes, budget, refs, boxes } = ctx;
+    const isNode = target === "node";
+    const table = isNode ? snapshot.nodes : snapshot.edges;
+    const n = isNode ? snapshot.nodeCount : snapshot.edgeCount;
+    const out = valueColumns(n);
+    const [style, labels, geometry] = YFILES3_KINDS[target].map((kind) => kinds.get(kind));
+    const cell = (name: string | undefined, i: number): unknown =>
+        name === undefined ? undefined : plainCell(table.value(name, i));
+    for (let i = 0; i < n; i++) {
+        budget.spend(target, 1);
+        const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
+        const put: PutValue = (property, value) => {
+            out.put(i, property, value);
+        };
+        let size: Size | null = null;
+        if (geometry !== undefined && !isNode) {
+            const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
+            const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
+            readEdgeGeometry(refs, cell(geometry, i), cell(style, i), [box(s), box(t), s === t], put);
+        } else if (geometry !== undefined) {
+            size = readNodeGeometry(cell(geometry, i), i, boxes, put, at);
+        }
+        if (style !== undefined && isNode) {
+            readNodeStyle(refs, cell(style, i), put, at, size);
+        } else if (style !== undefined) {
+            readEdgeStyle(refs, cell(style, i), put, at);
+        }
+        if (labels !== undefined) {
+            readLabels(refs, cell(labels, i), put, at);
+        }
+    }
+    return out.values;
+}
+
+/**
+ * Reads a node's NodeGeometry: its width and height, and its box for its edges' bends.
+ * @param geometry - the `<data>` content of the NodeGeometry key
+ * @param i - the node's index
+ * @param boxes - receives the node's center x and y, width and height
+ * @param put - receives the values
+ * @param at - the sites
+ * @returns the node's size, or null when its width or height is not a number
+ */
+function readNodeGeometry(geometry: unknown, i: number, boxes: Float64Array, put: PutValue, at: SiteOf): Size | null {
+    const rect = treeChild(geometry, "RectD");
+    const width = canonNumber(treeAttr(rect, "Width"), at("width"));
+    const height = canonNumber(treeAttr(rect, "Height"), at("height"));
+    put("width", width);
+    put("height", height);
+    if (width === null || height === null) {
+        return null;
+    }
+    const [x, y] = [Number(treeAttr(rect, "X")), Number(treeAttr(rect, "Y"))];
+    boxes.set([x + width / 2, y + height / 2, width, height], 4 * i);
+    return { width, height };
+}
+
 /**
  * The yFiles 3 styles of a graph.
  * @param snapshot - the graph
@@ -878,53 +981,9 @@ export function readYfiles3Styles(snapshot: GraphSnapshot, notes: StyleNotes, bu
     const graphKinds = columnsByKind(snapshot.graph);
     const sharedName = graphKinds.get("SharedData");
     const refs = new References(sharedName === undefined ? null : plainCell(snapshot.graph.value(sharedName, 0)));
-    // each node's center x and y, width and height from its NodeGeometry, for its edges' bends; NaN without one
     const boxes = new Float64Array(4 * snapshot.nodeCount).fill(Number.NaN);
-    const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] => {
-        const table = target === "node" ? snapshot.nodes : snapshot.edges;
-        const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
-        const out = valueColumns(n);
-        const style = kinds.get(target === "node" ? "NodeStyle" : "EdgeStyle");
-        const labels = kinds.get(target === "node" ? "NodeLabels" : "EdgeLabels");
-        const geometry = kinds.get(target === "node" ? "NodeGeometry" : "EdgeGeometry");
-        const cell = (name: string | undefined, i: number): unknown =>
-            name === undefined ? undefined : plainCell(table.value(name, i));
-        for (let i = 0; i < n; i++) {
-            budget.spend(target, 1);
-            const at: SiteOf = (property) => ({ notes, target, property, element: i, budget });
-            const put: PutValue = (property, value) => {
-                out.put(i, property, value);
-            };
-            let size: Size | null = null;
-            if (geometry !== undefined && target === "edge") {
-                const box = (k: number): Float64Array => boxes.subarray(4 * k, 4 * k + 4);
-                const [s, t] = [snapshot.edgeSource(i), snapshot.edgeTarget(i)];
-                readEdgeGeometry(refs, cell(geometry, i), cell(style, i), [box(s), box(t), s === t], put);
-            } else if (geometry !== undefined) {
-                const rect = treeChild(cell(geometry, i), "RectD");
-                const width = canonNumber(treeAttr(rect, "Width"), at("width"));
-                const height = canonNumber(treeAttr(rect, "Height"), at("height"));
-                put("width", width);
-                put("height", height);
-                size = width === null || height === null ? null : { width, height };
-                if (size !== null) {
-                    const [x, y] = [Number(treeAttr(rect, "X")), Number(treeAttr(rect, "Y"))];
-                    boxes.set([x + size.width / 2, y + size.height / 2, size.width, size.height], 4 * i);
-                }
-            }
-            if (style !== undefined) {
-                if (target === "node") {
-                    readNodeStyle(refs, cell(style, i), put, at, size);
-                } else {
-                    readEdgeStyle(refs, cell(style, i), put, at);
-                }
-            }
-            if (labels !== undefined) {
-                readLabels(refs, cell(labels, i), put, at);
-            }
-        }
-        return out.values;
-    };
+    const read = (target: StyleTarget, kinds: Map<KeyKind, string>): ReturnType<typeof valueColumns>["values"] =>
+        readYfiles3Target({ snapshot, notes, budget, refs, boxes }, target, kinds);
     const node = read("node", nodeKinds);
     const edge = read("edge", edgeKinds);
     if (refs.cycles > 0) {

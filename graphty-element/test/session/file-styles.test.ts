@@ -198,6 +198,28 @@ describe("a file's styles drawn by the load", () => {
         session.dispose();
     });
 
+    it("draws a node's opacity on its border too, times the border's own", async () => {
+        const doc = JSON.stringify({
+            elements: [
+                { data: { id: "a" }, classes: "faint" },
+                { data: { id: "b" }, classes: "half" },
+                { data: { id: "c" } },
+            ],
+            style: [
+                { selector: "node", style: { "border-width": 2 } },
+                { selector: ".faint", style: { opacity: 0.15 } },
+                { selector: ".half", style: { opacity: 0.5, "border-opacity": 0.5 } },
+            ],
+        });
+        const session = createGraphSession();
+        await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
+
+        assert.strictEqual(drawn(session, { node: "a" }, "node.borderOpacity"), 0.15);
+        assert.strictEqual(drawn(session, { node: "b" }, "node.borderOpacity"), 0.25);
+        assert.notStrictEqual(drawn(session, { node: "c" }, "node.borderOpacity"), 0.15);
+        session.dispose();
+    });
+
     it("draws every 2D shape as the flat shape of the same name, with no nearest note", async () => {
         const doc = JSON.stringify({
             elements: [{ data: { id: "a" } }, { data: { id: "b" } }, { data: { id: "c" } }],

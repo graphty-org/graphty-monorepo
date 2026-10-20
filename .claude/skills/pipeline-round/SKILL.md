@@ -38,6 +38,9 @@ part: in the one-client normal mode, issue-round still runs after it in the same
 - **While master's build is red:** step 4 lands only the branch whose commit names the red-master issue, step 5 does
   nothing, and ship condition 1 applies. If golden already holds other landings since the last ship,
   `land.mjs revert` them first and land them again once master is green.
+- **`--priority`** (`node tools/land.mjs land --priority <branch>`, also on `revert` and `cut`) waits ahead of
+  every ordinary landing. Use it only for the red-master fix and other fixes that unblock the pipeline (a broken
+  golden, a fix a cut is blocked on), never to speed up ordinary work.
 - **A critical issue that is not a red master** is still this skill's alarm (issue-round skips every
   `priority:critical` issue): mark it and start a fix subagent the same way, ahead of everything below.
 

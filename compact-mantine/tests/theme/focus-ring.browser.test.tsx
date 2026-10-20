@@ -27,6 +27,7 @@ import {
     Slider,
     Switch,
     Tabs,
+    Text,
     Textarea,
     TextInput,
     UnstyledButton,
@@ -35,6 +36,7 @@ import type { ReactElement } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { focusWithRing } from "../../src";
 import { hex, renderThemed, resetHarness } from "../harness/measure";
 
 afterEach(resetHarness);
@@ -148,4 +150,34 @@ describe("a pointer click on a button draws no ring (fields ring on any focus)",
             expect(ring(button as Element)).toBeNull();
         },
     );
+});
+
+describe("a heading focused by script draws the 1px ring", () => {
+    const heading = (
+        <>
+            <Button>Open</Button>
+            <Text tabIndex={-1} role="heading" aria-level={2} truncate>
+                Two rings
+            </Text>
+        </>
+    );
+
+    it("after a key moved focus", async () => {
+        const { container } = await renderThemed(heading);
+        await userEvent.tab();
+        const title = container.querySelector<HTMLElement>('[role="heading"]');
+        expect(title).not.toBeNull();
+        title?.focus();
+        expect(document.activeElement).toBe(title);
+        expect(ring(title as Element), "no 1px ring found").not.toBeNull();
+    });
+
+    it("by focusWithRing after a pointer click", async () => {
+        const { container } = await renderThemed(heading);
+        await userEvent.click(container.querySelector("button") as HTMLElement);
+        const title = container.querySelector<HTMLElement>('[role="heading"]');
+        focusWithRing(title as HTMLElement);
+        expect(document.activeElement).toBe(title);
+        expect(ring(title as Element), "no 1px ring found").not.toBeNull();
+    });
 });

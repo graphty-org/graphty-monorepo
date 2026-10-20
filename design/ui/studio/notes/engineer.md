@@ -16,6 +16,24 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+00. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
+   graphty `frame/focus.ts`) The heading (a Text with tabIndex -1, focused by script after a graph
+   opens, a find pick, a run, a Why this look link) had an inline `outline: none` from an older
+   "a heading takes no focus mark" call; decided.md now asks for the ring (WCAG 2.4.7). Fix in the
+   theme: `.cm-text[tabindex="-1"]` rings 1px `--cm-border-selected` on `:focus-visible` and under
+   `data-cm-modality="keyboard"`, inset, with 2px padding the margin takes back so the words do not
+   move. `focusOpenedGraph` and `focusInspectorTitle` now use `focusWithRing`, so the ring shows
+   even when the step before was a pointer press or an untrusted test key (Chromium's
+   `:focus-visible` on script focus depends on how focus last moved). Tests red first:
+   compact-mantine focus-ring.browser "a heading focused by script draws the 1px ring" (2);
+   graphty FocusAfterClose `assertFocusOnGraphHeading` (3 opens) and tasks T12 (which had asserted
+   NO outline). Walk: `design/ui/studio/tmp/r1-dry1-focus-ring-heading/open2/` 03 (sample opened
+   by Enter, ring on "Graph"), 07 (Enter in find, ring on "3"). Only the inspector heading is a Text
+   with tabIndex -1 today. Pre-existing red, not mine (red with my app change reverted too):
+   tasks "T8 Louvain's row", "an edge, an attribute ...", FocusAndTabOrder "Tab out of the Vary by
+   list", FindBoxPlain two timeouts. `nx run graphty:build` fails while an untracked
+   `compact-mantine-headproof/` copy sits in the worktree (duplicate project name); `npm run build`
+   in the package works.
 0. (2026-10-19, Analyze filter Tab; graphty `analyze/AnalyzePopover.tsx`) Tab in Filter analyses
    with letters typed and an option highlighted opens that analysis's card, focus on Run (the
    decided rule for every list); with nothing typed, or Shift+Tab, it still leaves and closes.

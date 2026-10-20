@@ -129,6 +129,18 @@ const css = `
     font-weight: var(--cm-text-fw);
     letter-spacing: var(--cm-text-ls);
 }
+/* A Text focused by script (tabIndex -1: a heading where focus lands after an action) is not a
+   control, so Mantine gives it no ring; draw the 1px ring on keyboard focus (WCAG 2.4.7), and after
+   focusWithRing, which puts focus there as keyboard focus would. Inset, so a truncating parent
+   does not clip it, with 2px of room each side that the margin takes back, so the words do not
+   move. */
+.cm-text[tabindex="-1"]:focus { outline: none; }
+.cm-text[tabindex="-1"] { padding-inline: 2px; margin-inline: -2px; }
+.cm-text[tabindex="-1"]:focus-visible,
+:root[data-cm-modality="keyboard"] .cm-text[tabindex="-1"]:focus {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: -1px;
+}
 
 /* ---- ThemeIcon (spec 11.10) ---------------------------------------------------------------- */
 .cm-theme-icon { border-radius: var(--ti-radius, 5px); }

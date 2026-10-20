@@ -1,20 +1,25 @@
-import { ControlSection, FieldRow } from "@graphty/compact-mantine";
+import { ControlSection, EntityChip, FieldRow } from "@graphty/compact-mantine";
 import type { ColumnRole, GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 import { Select, Text } from "@mantine/core";
 import React from "react";
 
-import { useWorkspace } from "../state/WorkspaceContext";
+import { formatNumber } from "../inspector/words";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { pickEnd } from "./commands";
 import {
     columnChoices,
     DIRECTIONS,
     FIELD_ROWS,
     type FieldRow as FieldRowSpec,
     type FieldSide,
+    isNumeric,
     KIND_OF,
     kindChoices,
     loadValue,
     remap,
     roleHolder,
+    ROWS_ARE,
+    sidesOf,
     tableRoles,
     WEIGHT_MEANINGS,
 } from "./words";
@@ -75,18 +80,22 @@ function PickRow({
 }
 
 /**
- * The Fields section (spec section 3.3): one row per special field of the selected load -- Id,
- * Label, Kind and Time of its nodes; Source, Target, Weight (with what it means), Time and the
- * kinds of the two ends of its edges -- then the graph's direction, and the shared-ids choice when
- * an id appears under two kinds. A setting row changes the element's role in place
- * (`data.setRole`); a row read when the rows load reads the load again (`data.reloadSource`).
- * Each change is one undo step. No list of the other columns: every column is in the table.
+ * The Fields section (spec section 3.3), for the selected load: its name, then Rows are (for a
+ * load of one table), then its special fields grouped under a node chip and an edge chip -- Id,
+ * Label, Kind and Node time of its nodes; Source, Target, Weight (numbers only, with what it
+ * means), Edge time and the kinds of the two ends of its edges -- the shared-ids choice when an id
+ * appears under two kinds, and the graph's direction. A setting row changes the element's role in
+ * place (`data.setRole`); a row read when the rows load reads the load again
+ * (`data.reloadSource`). Rows are: edges on a table of nodes asks for Source and Target first and
+ * reads the load again once both are picked. Each change is one undo step. No list of the other
+ * columns: every column is in the table.
  * @param props - Component props
  * @param props.source - the selected load, or undefined when the graph was not loaded from one
  * @returns the section, or nothing before the element has come up
  */
 export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
+    const held = useWorkspaceState((state) => state.ends);
     if (session === null) {
         return null;
     }
@@ -99,13 +108,18 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
             session.data.reloadSource(source.key, choices).catch(fail);
         }
     };
-    const sides: FieldSide[] = (["nodes", "edges"] as const).filter(
-        (side) => attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined,
-    );
+    const tables = Object.values(source?.mapping?.tables ?? {});
+    const ends = source !== undefined && held?.load === source.key ? held : null;
+    const own = sidesOf(source);
+    const sides: FieldSide[] =
+        ends === null
+            ? (["nodes", "edges"] as const).filter((side) =>
+                  own === undefined
+                      ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
+                      : own.includes(side),
+              )
+            : [];
     const rowOf = (row: FieldRowSpec): React.JSX.Element | null => {
-        if (!sides.includes(row.side)) {
-            return null;
-        }
         const id = `${row.side}:${row.key}`;
         if (row.atLoad) {
             const roles = tableRoles(source, row.side);
@@ -130,12 +144,13 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
         const role = row.key as ColumnRole;
         const holder = roleHolder(attributes, row.side, role);
         const kind = KIND_OF[row.side];
+        const offered = role === "weight" ? attributes.filter((a) => isNumeric(a) || a.name === holder) : attributes;
         return (
             <PickRow
                 key={id}
                 label={row.label}
                 value={holder}
-                choices={columnChoices(attributes, source, row.side, holder)}
+                choices={columnChoices(offered, source, row.side, holder)}
                 onPick={(picked) => {
                     // `none` takes the role from the column holding it.
                     const column = picked ?? holder;
@@ -146,60 +161,117 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
             />
         );
     };
+    const rowsOf = (side: FieldSide): (React.JSX.Element | null)[] =>
+        FIELD_ROWS.filter((row) => row.side === side).map(rowOf);
 
     const { knownFields, directed } = session.config.data;
     const weighted = roleHolder(attributes, "edges", "weight") !== null;
     const kinds = source?.reloadable === true ? session.data.lastImport()?.kinds : undefined;
-    const rows = FIELD_ROWS.map(rowOf);
+    const { totalNodes, totalEdges } = session.visibility.summary;
+    const edgeRows = rowsOf("edges");
+    const single = tables.length === 1 ? tables[0].rowsAre : undefined;
+    const rowsAre = ends === null ? single : "edges";
     return (
-        <ControlSection label="Fields" empty={sides.length === 0}>
+        <ControlSection label="Fields" empty={sides.length === 0 && ends === null}>
             <div className="dp-fields">
-                {rows.slice(0, 4)}
-                {rows.slice(4, 7)}
-                {sides.includes("edges") && weighted ? (
+                {source === undefined ? null : (
+                    <Text size="xs" fw={600} truncate className="dp-fields-source">
+                        {source.name}
+                    </Text>
+                )}
+                {source?.reloadable === true && rowsAre !== undefined ? (
                     <PickRow
-                        label="Meaning"
-                        value={knownFields.edgeWeightMeaning ?? null}
-                        choices={WEIGHT_MEANINGS.flatMap((m) => (m.value === "" ? [] : [m.value]))}
-                        onPick={(meaning) => {
-                            session.config
-                                .set({
-                                    data: {
-                                        knownFields: {
-                                            edgeWeightMeaning: (meaning ??
-                                                undefined) as typeof knownFields.edgeWeightMeaning,
-                                        },
-                                    },
-                                })
-                                .catch(fail);
+                        label="Rows are"
+                        value={rowsAre}
+                        choices={ROWS_ARE}
+                        withNone={false}
+                        onPick={(picked) => {
+                            if (picked === "edges") {
+                                store.set({ ends: { load: source.key, source: null, target: null } });
+                            } else if (ends === null) {
+                                reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
+                            } else {
+                                store.set({ ends: null });
+                            }
                         }}
                     />
                 ) : null}
-                {rows.slice(7)}
-                {kinds === undefined || kinds.sharedIds === 0 ? null : (
-                    <PickRow
-                        label={`${String(kinds.sharedIds)} in both`}
-                        name="Shared ids"
-                        value={source?.choices?.kindIds === "scoped" ? "Different nodes" : "Same node"}
-                        choices={SHARED_IDS}
-                        withNone={false}
-                        onPick={(picked) => {
-                            reload({ kindIds: picked === "Different nodes" ? "scoped" : "shared" });
-                        }}
-                    />
+                {ends === null || source === undefined ? null : (
+                    <>
+                        <div className="dp-fields-group">
+                            <EntityChip kind="edge">{formatNumber(source.counts.nodes)}</EntityChip>
+                        </div>
+                        {(["source", "target"] as const).map((end) => (
+                            <PickRow
+                                key={end}
+                                label={end === "source" ? "Source" : "Target"}
+                                value={ends[end]}
+                                choices={columnChoices(attributes, source, "nodes", ends[end])}
+                                onPick={(picked) => {
+                                    pickEnd(store, session, source, end, picked).catch(fail);
+                                }}
+                            />
+                        ))}
+                    </>
                 )}
+                {sides.includes("nodes") ? (
+                    <>
+                        <div className="dp-fields-group">
+                            <EntityChip kind="node">{formatNumber(source?.counts.nodes ?? totalNodes)}</EntityChip>
+                        </div>
+                        {rowsOf("nodes")}
+                    </>
+                ) : null}
                 {sides.includes("edges") ? (
-                    <PickRow
-                        label="Direction"
-                        value={DIRECTIONS.find((d) => d.value === String(directed))?.label ?? null}
-                        choices={DIRECTIONS.map((d) => d.label)}
-                        withNone={false}
-                        onPick={(picked) => {
-                            const value = DIRECTIONS.find((d) => d.label === picked)?.value ?? "auto";
-                            const next = value === "auto" ? "auto" : value === "true";
-                            session.config.set({ data: { directed: next } }).catch(fail);
-                        }}
-                    />
+                    <>
+                        <div className="dp-fields-group">
+                            <EntityChip kind="edge">{formatNumber(source?.counts.edges ?? totalEdges)}</EntityChip>
+                        </div>
+                        {edgeRows.slice(0, 3)}
+                        {weighted ? (
+                            <PickRow
+                                label="Meaning"
+                                value={knownFields.edgeWeightMeaning ?? null}
+                                choices={WEIGHT_MEANINGS.flatMap((m) => (m.value === "" ? [] : [m.value]))}
+                                onPick={(meaning) => {
+                                    session.config
+                                        .set({
+                                            data: {
+                                                knownFields: {
+                                                    edgeWeightMeaning: (meaning ??
+                                                        undefined) as typeof knownFields.edgeWeightMeaning,
+                                                },
+                                            },
+                                        })
+                                        .catch(fail);
+                                }}
+                            />
+                        ) : null}
+                        {edgeRows.slice(3)}
+                        {kinds === undefined || kinds.sharedIds === 0 ? null : (
+                            <PickRow
+                                label={`${String(kinds.sharedIds)} in both`}
+                                name="Shared ids"
+                                value={source?.choices?.kindIds === "scoped" ? "Different nodes" : "Same node"}
+                                choices={SHARED_IDS}
+                                withNone={false}
+                                onPick={(picked) => {
+                                    reload({ kindIds: picked === "Different nodes" ? "scoped" : "shared" });
+                                }}
+                            />
+                        )}
+                        <PickRow
+                            label="Direction"
+                            value={DIRECTIONS.find((d) => d.value === String(directed))?.label ?? null}
+                            choices={DIRECTIONS.map((d) => d.label)}
+                            withNone={false}
+                            onPick={(picked) => {
+                                const value = DIRECTIONS.find((d) => d.label === picked)?.value ?? "auto";
+                                const next = value === "auto" ? "auto" : value === "true";
+                                session.config.set({ data: { directed: next } }).catch(fail);
+                            }}
+                        />
+                    </>
                 ) : null}
             </div>
         </ControlSection>

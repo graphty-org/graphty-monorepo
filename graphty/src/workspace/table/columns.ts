@@ -142,12 +142,15 @@ export function columnChoices(session: GraphSession, kind: RecordKind, roles = h
 
 /**
  * The roles a header's Role menu offers for a kind: what a load reads the kind's rows with, less
- * the edge id, which a reader never picks here.
+ * the edge id, which a reader never picks here. A node column also offers source and target,
+ * which read its table's rows as edges once both ends are picked.
  * @param kind - nodes or edges.
  * @returns the roles.
  */
 export function headerRoles(kind: RecordKind): ColumnRole[] {
-    return kind === "node" ? ["key", "label", "time", "kind"] : ["source", "target", "weight", "time", "kind"];
+    return kind === "node"
+        ? ["key", "label", "time", "kind", "source", "target"]
+        : ["source", "target", "weight", "time", "kind"];
 }
 
 /** What a role is called in a header: the special field's name. */

@@ -85,3 +85,12 @@
 .dp-rename {
     flex: 1;
 }
+
+/* Fields: the load's name, then each side's rows under its node or edge chip. */
+.dp-fields-source {
+    padding: 4px 0;
+}
+
+.dp-fields-group {
+    padding: 6px 0 2px;
+}

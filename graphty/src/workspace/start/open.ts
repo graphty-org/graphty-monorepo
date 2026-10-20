@@ -10,11 +10,12 @@ import {
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { DataSourceInput, GraphSession, LoadDraft, LoadMapping } from "@graphty/graphty-element/session";
+import type { DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import type { CommandContext } from "../commands/registry";
+import { refusalFor } from "../data-page/words";
 import { routeToReplace } from "../replace/commands";
 import { fileStylesChoice } from "../settings/preferences";
 import { newProjectId, type WorkspaceStore } from "../state/store";
@@ -39,6 +40,7 @@ export function openProject(
         inspected: null,
         dialog: null,
         opening: { name, load },
+        ends: null,
     }));
 }
 
@@ -117,51 +119,43 @@ export interface Incoming {
 
 /**
  * The files the reader dropped or picked, as one source: one file, or the first two as a node file
- * and an edge file, which graphty-element reads as one load and tells apart by their columns.
+ * and an edge file, which graphty-element reads as one load and tells apart by their columns,
+ * named after both.
  * @param files - the files, at least one.
  * @returns the source.
  */
 export function incomingFiles(files: readonly File[]): Incoming {
-    // ponytail: a third file and more are left out; take them as more sources if readers drop them.
     const [first, second] = files;
-    return second === undefined
-        ? { name: first.name, source: { config: { file: first }, name: first.name } }
-        : { name: `${first.name} + ${second.name}`, source: { config: { nodeFile: first, edgeFile: second } } };
-}
-
-/**
- * The mapping a first load is given: the draft's own guess, passed on so a later reload with new
- * Fields keeps it; a single table whose edge ends are not found reads its rows as nodes; a graph
- * file keeps the roles its format sets.
- * @param draft - the draft.
- * @param ready - whether every table has the roles it needs.
- * @returns the mapping, or undefined to give none.
- */
-function firstMapping(draft: LoadDraft, ready: boolean): LoadMapping | undefined {
-    if (draft.tables.every((table) => table.fixed)) {
-        return undefined;
+    if (second === undefined) {
+        return { name: first.name, source: { config: { file: first }, name: first.name } };
     }
-    if (ready) {
-        return draft.mapping;
-    }
-    return draft.tables.length === 1 ? { rowsAre: "nodes" } : undefined;
+    const name = `${first.name} + ${second.name}`;
+    return { name, source: { config: { nodeFile: first, edgeFile: second }, name } };
 }
 
 /**
  * Draws the first source of a graph at once (spec section 2.1). graphty-element guesses the roles,
- * reading the values where no header names them; a table whose edge ends it cannot find draws its
- * rows as nodes until the reader picks the ends in Fields. A file with problems, or with ends to
- * pick, also opens the table dock maximized.
+ * reading the values where no header names them. A table it reads as edges without finding their
+ * ends cannot load as edges, so its rows load as nodes and Fields opens on Rows are: edges with
+ * Source and Target to pick, which reads the load again as edges. A file with problems, or with
+ * ends to pick, also opens the table dock maximized.
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param source - what to load.
  */
 async function drawFirst(workspace: WorkspaceStore, session: GraphSession, source: DataSourceInput): Promise<void> {
     const draft = await session.data.prepare(source, { guess: "values" });
+    const fixed = draft.tables.every((table) => table.fixed);
     const ready = Object.values(draft.missing()).every((roles) => roles.length === 0);
-    const mapping = firstMapping(draft, ready);
-    await draft.load({ styles: fileStylesChoice(), ...(mapping === undefined ? {} : { mapping }) });
+    const lone = draft.tables.length === 1 && !ready;
+    const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
+    // A graph file keeps the roles its format sets.
+    await draft.load({ styles: fileStylesChoice(), ...(fixed ? {} : { mapping }) });
     noticeFileStyles(workspace, session);
+    const load = session.data.sources().at(-1);
+    if (lone && load !== undefined) {
+        workspace.set({ ends: { load: load.key, source: null, target: null } });
+    }
     if (!ready || session.data.issues().length > 0) {
         workspace.set({ dockOpen: true, dockMaximized: true });
     }
@@ -213,8 +207,7 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
             ? drawFirst(workspace, session, incoming.source)
             : takeIn(workspace, session, incoming);
     work.catch((error: unknown) => {
-        const reason = error instanceof Error ? error.message : String(error);
-        workspace.set({ notice: { message: `${incoming.name} could not be added. ${reason}` } });
+        workspace.set({ notice: { message: refusalFor(error, incoming.name).what } });
     });
 }
 
@@ -226,6 +219,11 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
 export function openFiles(ctx: CommandContext, files: readonly File[]): void {
     if (files.length > 0) {
         addSource(ctx, incomingFiles(files));
+    }
+    if (files.length > 2) {
+        // A load reads one node file and one edge file; the rest are named, not dropped silently.
+        const rest = files.slice(2).map((file) => file.name);
+        ctx.workspace.set({ notice: { message: `Not added: ${rest.join(", ")}` } });
     }
 }
 

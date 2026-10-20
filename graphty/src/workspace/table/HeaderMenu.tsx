@@ -10,7 +10,9 @@ import {
 import { Menu } from "@mantine/core";
 import React from "react";
 
+import { pickEnd } from "../data-place/commands";
 import { remap } from "../data-place/words";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import {
     fixLabel,
@@ -46,7 +48,9 @@ interface HeaderMenuProps {
 /**
  * Gives a column a role, one undo step. A role the rows are made from (id, source, target, kind)
  * cannot change in place, so graphty-element refuses it; the column's load is then read again
- * with the column in that role, as the Fields row does.
+ * with the column in that role, as the Fields row does. Source or target on a node column is one
+ * end of rows read as edges: held until the other end is picked, here or in Fields.
+ * @param workspace - the workspace store.
  * @param session - the element's session.
  * @param ref - the column.
  * @param role - the role, or null for none.
@@ -54,18 +58,23 @@ interface HeaderMenuProps {
  * @param from - the loads whose rows carry the column, when the element says.
  */
 async function assignRole(
+    workspace: WorkspaceStore,
     session: GraphSession,
     ref: ColumnRef,
     role: ColumnRole | null,
     kind: RecordKind,
     from: readonly string[] | undefined,
 ): Promise<void> {
+    const load = session.data
+        .sources()
+        .find((source) => source.reloadable === true && (from?.includes(source.key) ?? true));
+    if (kind === "node" && (role === "source" || role === "target") && load !== undefined) {
+        await pickEnd(workspace, session, load, role, ref.name);
+        return;
+    }
     try {
         await session.data.setRole(ref, role);
     } catch (error) {
-        const load = session.data
-            .sources()
-            .find((source) => source.reloadable === true && (from?.includes(source.key) ?? true));
         if (!isGraphtyError(error) || error.code !== "E_UNSUPPORTED" || role === null || load === undefined) {
             throw error;
         }
@@ -178,9 +187,14 @@ export function HeaderMenu({ column, kind, issues, anyHidden, actions }: HeaderM
                                     checked={role === (column.role ?? null)}
                                     onClick={() => {
                                         if (role !== (column.role ?? null)) {
-                                            assignRole(session, ref, role, kind, column.descriptor?.sources).catch(
-                                                fail,
-                                            );
+                                            assignRole(
+                                                store,
+                                                session,
+                                                ref,
+                                                role,
+                                                kind,
+                                                column.descriptor?.sources,
+                                            ).catch(fail);
                                         }
                                     }}
                                 >

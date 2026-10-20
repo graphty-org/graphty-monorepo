@@ -42,13 +42,32 @@ async function openDataPlace(): Promise<GraphSession> {
 }
 
 /**
- * Loads the auth log as edges from user to host, through a draft as a load screen does.
- * @param session - the session.
+ * Drops files as the browser does, on the window. A synthetic DragEvent, the one exception to
+ * real input here: a page cannot start a drag of a file from the operating system.
+ * @param files - the files.
  */
-async function loadLog(session: GraphSession): Promise<void> {
-    const draft = await session.data.prepare({ config: { file: new File([AUTH_LOG_CSV], "auth-log.csv") } });
-    await draft.load({ mapping: { rowsAre: "edges", source: "user", target: "host" } });
+function drop(...files: File[]): void {
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragover", "drop"]) {
+        globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
 }
+
+/**
+ * Queries inside the Data place: a maximized table dock shows another Sources list and Fields
+ * section beside the table.
+ * @returns the queries.
+ */
+const place = (): ReturnType<typeof within> => within(screen.getByRole("region", { name: "Data place" }));
+
+/**
+ * The Data place's Fields section.
+ * @returns the section.
+ */
+const fieldsGroup = (): HTMLElement => place().getByRole("group", { name: "Fields" });
 
 /**
  * Picks an option of a Fields dropdown by clicking it open and clicking the option.
@@ -56,8 +75,7 @@ async function loadLog(session: GraphSession): Promise<void> {
  * @param option - the option's text.
  */
 async function pick(label: string, option: string): Promise<void> {
-    const fields = await screen.findByRole("group", { name: "Fields" }, { timeout: TIMEOUT_MS });
-    await userEvent.click(within(fields).getByRole("combobox", { name: label }));
+    await userEvent.click(within(fieldsGroup()).getByRole("combobox", { name: label }));
     await userEvent.click(await screen.findByRole("option", { name: option }));
 }
 
@@ -67,8 +85,31 @@ async function pick(label: string, option: string): Promise<void> {
  * @returns its text.
  */
 const shown = (label: string): string =>
-    within(screen.getByRole("group", { name: "Fields" })).getByRole<HTMLInputElement>("combobox", { name: label })
-        .value;
+    within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
+
+/**
+ * Drops the auth log, whose ends the element cannot find from its values, and reads it as edges
+ * from user to host in Fields, as a reader does.
+ * @param session - the session.
+ */
+async function loadLog(session: GraphSession): Promise<void> {
+    drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
+    await waitFor(
+        () => {
+            assert.equal(shown("Rows are"), "edges");
+        },
+        { timeout: TIMEOUT_MS },
+    );
+    await pick("Source", "user");
+    await pick("Target", "host");
+    await waitFor(
+        () => {
+            assert.lengthOf(session.data.edges(), 4);
+            assert.equal(shown("Source"), "user");
+        },
+        { timeout: TIMEOUT_MS },
+    );
+}
 
 describe("the Data place's sidebar on the real element", () => {
     beforeAll(async () => {
@@ -79,7 +120,7 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
 
-        const row = await screen.findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
         const [source] = session.data.sources();
         assert.include(row.textContent, `Node ${String(source.counts.nodes)}`);
         assert.include(row.textContent, `Edge ${String(source.counts.edges)}`);
@@ -89,6 +130,106 @@ describe("the Data place's sidebar on the real element", () => {
             assert.equal(shown("Kind of source"), "none");
         });
         assert.isNull(screen.queryByRole("tree", { name: "Attributes" }));
+        // The section names the load it edits, and shows only that load's edge rows, under an edge chip.
+        const fields = fieldsGroup();
+        assert.include(fields.textContent, "auth-log.csv");
+        assert.isNotNull(fields.querySelector('[data-kind="edge"]'));
+        assert.isNull(fields.querySelector('[data-kind="node"]'));
+        within(fields).getByRole("combobox", { name: "Edge time" });
+        assert.isNull(within(fields).queryByRole("combobox", { name: "Time" }));
+        assert.isNull(within(fields).queryByRole("combobox", { name: "Node time" }));
+    });
+
+    it("reads an event table as nodes until the reader says its rows are edges, one undo step", async () => {
+        const session = await openDataPlace();
+        drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
+        await waitFor(
+            () => {
+                assert.equal(shown("Rows are"), "edges");
+                assert.lengthOf(session.data.edges(), 0);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+        // Back to nodes: the node rows, with no ends to pick.
+        await pick("Rows are", "nodes");
+        await waitFor(() => {
+            assert.equal(shown("Rows are"), "nodes");
+            within(fieldsGroup()).getByRole("combobox", { name: "Node time" });
+        });
+        assert.isNull(within(fieldsGroup()).queryByRole("combobox", { name: "Source" }));
+
+        await pick("Rows are", "edges");
+        const before = session.history.steps.length;
+        await pick("Source", "user");
+        // One end is held; nothing is read again yet.
+        assert.lengthOf(session.data.edges(), 0);
+        await pick("Target", "host");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 4);
+            assert.equal(session.history.steps.length, before + 1);
+            assert.equal(shown("Rows are"), "edges");
+        });
+
+        await pick("Rows are", "nodes");
+        await waitFor(() => {
+            assert.lengthOf(session.data.edges(), 0);
+        });
+    });
+
+    it("reads an event table as edges from two node columns' Role menus", async () => {
+        const session = await openDataPlace();
+        drop(new File([AUTH_LOG_CSV], "auth-log.csv"));
+        const header = async (name: string): Promise<HTMLElement> => {
+            const label = (await screen.findAllByTestId("data-table-header-label", {}, { timeout: TIMEOUT_MS })).find(
+                (each) => each.textContent === name,
+            );
+            const cell = label?.closest<HTMLElement>('[data-testid="data-table-header"]');
+            if (cell === null || cell === undefined) {
+                throw new Error(`no header ${name}`);
+            }
+            return cell;
+        };
+        for (const [column, role] of [
+            ["user", "source"],
+            ["host", "target"],
+        ]) {
+            await userEvent.click(within(await header(column)).getByRole("button", { name: `Options for ${column}` }));
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+            await userEvent.click(await screen.findByRole("menuitemradio", { name: role }));
+        }
+        await waitFor(
+            () => {
+                assert.lengthOf(session.data.edges(), 4);
+            },
+            { timeout: TIMEOUT_MS },
+        );
+    });
+
+    it("offers only number columns as the weight", async () => {
+        const session = await openDataPlace();
+        await loadLog(session);
+        const fields = fieldsGroup();
+        await userEvent.click(within(fields).getByRole("combobox", { name: "Weight" }));
+        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        assert.includeMembers(options, ["none", "time", "bytes"]);
+        assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("names a two-file drop after both files", async () => {
+        const session = await openDataPlace();
+        drop(
+            new File([HOSTS_CSV], "hosts.csv"),
+            new File(["source,target\nweb1,db1\n"], "logins.csv"),
+            new File(["x"], "extra.csv"),
+        );
+        await screen.findByText("Not added: extra.csv", {}, { timeout: TIMEOUT_MS });
+        await waitFor(
+            () => {
+                assert.equal(session.data.sources()[0]?.name, "hosts.csv + logins.csv");
+            },
+            { timeout: TIMEOUT_MS },
+        );
     });
 
     it("makes a column the weight and its meaning distance, each one undo step", async () => {
@@ -148,13 +289,13 @@ describe("the Data place's sidebar on the real element", () => {
     it("offers the Data source condition only once two sources are loaded", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await place().findByRole("button", { name: "Add filter" }));
         assert.isNull(screen.queryByRole("menuitem", { name: "Data source" }));
         await userEvent.keyboard("{Escape}");
 
         await session.data.import({ config: { file: new File([HOSTS_CSV], "hosts.csv") } }, { mode: "merge" });
-        await screen.findByRole("listitem", { name: "hosts.csv" });
-        await userEvent.click(screen.getByRole("button", { name: "Add filter" }));
+        await place().findByRole("listitem", { name: "hosts.csv" });
+        await userEvent.click(place().getByRole("button", { name: "Add filter" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Data source" }));
         const card = await screen.findByRole("group", { name: "Data source" });
         await userEvent.click(within(card).getByRole("textbox", { name: "Sources" }));
@@ -170,7 +311,7 @@ describe("the Data place's sidebar on the real element", () => {
     it("removes a source from its row menu, and renames one in place", async () => {
         const session = await openDataPlace();
         await loadLog(session);
-        const row = await screen.findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
+        const row = await place().findByRole("listitem", { name: "auth-log.csv" }, { timeout: TIMEOUT_MS });
 
         await userEvent.click(within(row).getByRole("button", { name: "auth-log.csv menu" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Rename" }));
@@ -185,7 +326,7 @@ describe("the Data place's sidebar on the real element", () => {
             assert.equal(session.data.sources()[0]?.name, "logins");
         });
 
-        const renamed = await screen.findByRole("listitem", { name: "logins" });
+        const renamed = await place().findByRole("listitem", { name: "logins" });
         renamed.querySelector("button")?.focus();
         await userEvent.keyboard("{Shift>}{F10}{/Shift}");
         await userEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));

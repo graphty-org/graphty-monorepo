@@ -81,7 +81,7 @@ describe("the table dock's words and sorts", () => {
 
     it("words an issue with its count, and a fix as its button", () => {
         const issue = (code: string, count: number, params = {}): DataIssue =>
-            ({ id: code, code, count, params, fixes: [], ignored: false }) as DataIssue;
+            ({ id: code, code, count, params, fixes: [], ignored: false, status: "open" }) as DataIssue;
         assert.equal(issueLabel(issue("not-a-number", 1)), "1 not a number");
         assert.equal(issueLabel(issue("decimal-comma", 3)), "3 decimal commas");
         assert.equal(issueLabel(issue("refused-row", 1, { lines: [412] })), "row 412 refused");
@@ -92,7 +92,7 @@ describe("the table dock's words and sorts", () => {
 
     it("puts a column issue in its column and a row issue in the key of its rows", () => {
         const session = { data: { sources: () => [{ key: "s1", counts: { nodes: 3, edges: 2 } }] } } as never;
-        const base = { count: 1, params: {}, fixes: [], ignored: false };
+        const base = { count: 1, params: {}, fixes: [], ignored: false, status: "open" as const };
         assert.deepEqual(
             issuePlace({ ...base, id: "a", code: "decimal-comma", column: { kind: "edge", name: "amount" } }, session),
             { kind: "edge", column: "a:amount", name: "amount" },

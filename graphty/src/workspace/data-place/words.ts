@@ -58,11 +58,11 @@ export const FIELD_ROWS: readonly FieldRow[] = [
     { key: "key", side: "nodes", label: "Id", atLoad: true },
     { key: "label", side: "nodes", label: "Label", atLoad: false },
     { key: "kind", side: "nodes", label: "Kind", atLoad: true },
-    { key: "time", side: "nodes", label: "Time", atLoad: false },
+    { key: "time", side: "nodes", label: "Node time", atLoad: false },
     { key: "source", side: "edges", label: "Source", atLoad: true },
     { key: "target", side: "edges", label: "Target", atLoad: true },
     { key: "weight", side: "edges", label: "Weight", atLoad: false },
-    { key: "time", side: "edges", label: "Time", atLoad: false },
+    { key: "time", side: "edges", label: "Edge time", atLoad: false },
     { key: "sourceKind", side: "edges", label: "Kind of source", atLoad: true },
     { key: "targetKind", side: "edges", label: "Kind of target", atLoad: true },
 ];
@@ -104,6 +104,36 @@ export function loadValue(roles: TableMappingRead | undefined, key: FieldKey): s
         return value;
     }
     return typeof value === "object" && value !== null ? (value as Endpoint).column : null;
+}
+
+/** What Fields' Rows are row offers: what one table's rows load as. */
+export const ROWS_ARE: readonly FieldSide[] = ["nodes", "edges"];
+
+/**
+ * The sides a load's own rows hold, so Fields shows only its rows: a join's shape, else what its
+ * tables were read as.
+ * @param source - the load.
+ * @returns the sides, or undefined when the load does not say (a graph file, a network load).
+ */
+export function sidesOf(source: LoadedSource | undefined): FieldSide[] | undefined {
+    const shape = source?.join?.shape;
+    if (shape === "node-values") {
+        return ["nodes"];
+    }
+    if (shape === "edge-values" || shape === "edges") {
+        return ["edges"];
+    }
+    const rows = source?.tableRows ?? Object.values(source?.mapping?.tables ?? {}).map((table) => table.rowsAre);
+    return rows.length === 0 ? undefined : [...new Set(rows)];
+}
+
+/**
+ * Whether a column holds numbers, so it can be a weight.
+ * @param attribute - the column.
+ * @returns true for numbers.
+ */
+export function isNumeric(attribute: AttributeDescriptor): boolean {
+    return attribute.type === "number" || attribute.type === "integer";
 }
 
 /** The attribute kind of each side. */

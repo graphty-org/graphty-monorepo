@@ -75,6 +75,11 @@ export interface WorkspaceState {
     } | null;
     /** A joined table whose join the join screen is editing (its row's Edit join), or null. */
     readonly editingJoin: SourceKey | null;
+    /**
+     * The edge ends picked for a load whose rows are still nodes (Fields' Rows are, or a header's
+     * Role): the load is read again as edges once both are picked.
+     */
+    readonly ends: { readonly load: SourceKey; readonly source: string | null; readonly target: string | null } | null;
     /** Whether the timeline strip is open above the toolbar; `timeline.toggle` flips it. */
     readonly timelineOpen: boolean;
     /** The one legend switch (round 7): the canvas card and Export read it. */
@@ -125,6 +130,7 @@ const INITIAL: WorkspaceState = {
     dockMaximized: false,
     joining: null,
     editingJoin: null,
+    ends: null,
     timelineOpen: false,
     legendShown: true,
     exportOn: "image",

@@ -2,6 +2,8 @@ import { sourceDescriptors } from "@graphty/graphty-element/catalog";
 import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration, type SourceRowCommand } from "../commands/registry";
+import type { WorkspaceStore } from "../state/store";
+import { remap } from "./words";
 
 /** One network load, as `data.loads()` records it. */
 type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
@@ -14,6 +16,39 @@ type LoadRecord = ReturnType<GraphSession["data"]["loads"]>[number];
  */
 export function loadOf(session: GraphSession | null, source: LoadedSource): LoadRecord | undefined {
     return source.loadKey === undefined ? undefined : session?.data.loads().find((each) => each.key === source.loadKey);
+}
+
+/**
+ * Picks one edge end of a load whose rows are still nodes (Fields' Source and Target after Rows
+ * are: edges, or a node column's Role): held until both ends are picked, then the load is read
+ * again as edges between them, one undo step.
+ * @param workspace - the workspace store, which holds the end picked first.
+ * @param session - the element's session.
+ * @param load - the load.
+ * @param end - which end.
+ * @param column - the column, or null for none.
+ */
+export async function pickEnd(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    load: LoadedSource,
+    end: "source" | "target",
+    column: string | null,
+): Promise<void> {
+    const held = workspace.get().ends;
+    const before = held?.load === load.key ? held : { source: null, target: null };
+    const ends = {
+        load: load.key,
+        source: end === "source" ? column : before.source,
+        target: end === "target" ? column : before.target,
+    };
+    workspace.set({ ends });
+    if (ends.source !== null && ends.target !== null) {
+        await session.data.reloadSource(load.key, {
+            mapping: remap(load, "nodes", { rowsAre: "edges", source: ends.source, target: ends.target }),
+        });
+        workspace.set({ ends: null });
+    }
 }
 
 /**

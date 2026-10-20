@@ -37,7 +37,7 @@ const EXPECTED: Readonly<Record<string, { nodes: number; edges: number; maximize
     "ships-to-2024-10.csv": { nodes: 40, edges: 159, maximized: false },
     "accounts.csv": { nodes: 298, edges: 0, maximized: true },
     "transfers.csv": { nodes: 316, edges: 449, maximized: true },
-    "auth-log.csv": { nodes: 400, edges: 0, maximized: true },
+    "auth-log.csv": { nodes: 19, edges: 400, maximized: true },
 };
 
 /**

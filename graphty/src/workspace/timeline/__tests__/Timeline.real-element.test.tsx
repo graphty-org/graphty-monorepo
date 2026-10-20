@@ -57,8 +57,8 @@ function rowsOf(text: string): Row[] {
 }
 
 /**
- * Renders the workspace on the Data place, loads the auth log as edges from user to host, and
- * waits for the session.
+ * Renders the workspace on the Data place, drops the auth log, and waits for the element to read
+ * it as edges from user to host.
  * @param text - the log.
  * @returns the session.
  */
@@ -76,8 +76,20 @@ async function openLog(text: string): Promise<GraphSession> {
     if (session === undefined) {
         throw new Error("the element never came up");
     }
-    const draft = await session.data.prepare({ config: { file: new File([text], "auth-log.csv") } });
-    await draft.load({ mapping: { rowsAre: "edges", source: "user", target: "host" } });
+    // Dropped as a reader drops it: the element reads its user and host columns as the ends.
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([text], "auth-log.csv"));
+    for (const type of ["dragover", "drop"]) {
+        globalThis.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+    await waitFor(
+        () => {
+            const [log] = session?.data.sources() ?? [];
+            assert.strictEqual(log?.mapping?.tables.rows?.source?.column, "user");
+            assert.strictEqual(log?.mapping?.tables.rows?.target?.column, "host");
+        },
+        { timeout: TIMEOUT_MS },
+    );
     return session;
 }
 
@@ -123,12 +135,18 @@ describe("the timeline strip on the real element", () => {
         await waitFor(() => {
             assert.strictEqual(session.data.edges().length, rows.length);
         });
+        // A file with issues opens the table dock maximized over the canvas; close it.
+        const close = screen.queryByRole("button", { name: "Close table" });
+        if (close !== null) {
+            await userEvent.click(close);
+        }
         // No time role yet: no clock.
         assert.isNull(within(toolbar).queryByRole("button", { name: "Timeline" }));
 
-        // Fields: Time = time, on the edges.
-        const fields = await screen.findByRole("group", { name: "Fields" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(fields).getAllByRole("combobox", { name: "Time" }).at(-1) as HTMLElement);
+        // Fields: Edge time = time.
+        const place = screen.getByRole("region", { name: "Data place" });
+        const fields = await within(place).findByRole("group", { name: "Fields" }, { timeout: TIMEOUT_MS });
+        await userEvent.click(within(fields).getByRole("combobox", { name: "Edge time" }));
         await userEvent.click(await screen.findByRole("option", { name: "time" }));
         const clock = await within(toolbar).findByRole("button", { name: "Timeline" }, { timeout: TIMEOUT_MS });
 

@@ -2074,7 +2074,18 @@ export class Node {
     private createLabelOptions(labelText: string, labelStyle: NodeStyleConfig["label"] = {}): RichTextLabelOptions {
         // Get attach position and offset
         const attachPosition = this.getAttachPosition(labelStyle.location ?? "top");
-        const attachOffset = labelStyle.attachOffset ?? this.getDefaultAttachOffset(labelStyle.location ?? "top");
+        // Measured from the node's outline: a border centered on it or inside it draws the fill, which the label is
+        // placed against, in from it by the inset, so a label beside the node goes that much further out and one
+        // inside it that much less far in; one in the middle stays.
+        const inset = this.fillInset();
+        const placed = labelStyle.location ?? "top";
+        let along = inset;
+        if (placed === "center") {
+            along = 0;
+        } else if (placed.startsWith("inside-")) {
+            along = -inset;
+        }
+        const attachOffset = (labelStyle.attachOffset ?? this.getDefaultAttachOffset(placed)) + along;
 
         // Transform backgroundColor to string if it's an advanced color style
         let backgroundColor: string | undefined = undefined;
@@ -2141,6 +2152,24 @@ export class Node {
         const { location, textPath, enabled, ...finalLabelOptions } = labelOptions;
 
         return finalLabelOptions;
+    }
+
+    /**
+     * How far in from its outline this node's fill is drawn: half its border's width for a border centered on the
+     * outline, the whole width for one inside it, nothing for one outside it (`NodeMesh.borderFit`).
+     * @returns The inset, in world units.
+     */
+    private fillInset(): number {
+        const style = this.drawnStyle;
+        if (style?.border === undefined) {
+            return 0;
+        }
+        const { shape } = style;
+        return NodeMesh.borderFit(
+            shape,
+            style.border,
+            NodeMesh.extentsOf(shape ?? {}, Math.max(shape?.size ?? this.size, 1e-3)),
+        ).inset;
     }
 
     private getAttachPosition(location: string): AttachPosition {

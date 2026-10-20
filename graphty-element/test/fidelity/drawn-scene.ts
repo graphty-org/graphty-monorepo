@@ -212,7 +212,7 @@ interface NodeInternals {
  * @param p - the projector
  * @returns the pieces
  */
-function readPieces(node: Node, p: Projector): { kind: "shape" | "image"; box: ScreenBox }[] {
+function readPieces(node: Node, p: Projector): { kind: "shape" | "image" | "body"; box: ScreenBox }[] {
     const pieces = (node as unknown as NodeInternals).decorationPieces;
     if (pieces.length === 0 || !node.mesh.isEnabled()) {
         return [];
@@ -833,16 +833,28 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
     // a node with no body draws nothing of its own but what is over its face: drawn as its image (vis-network's
     // image nodes)
     const picture = faces ? undefined : pieces.find((piece) => piece.kind === "image");
-    const drawnBox = picture?.box ?? {
+    // the further pieces of its body (`shape.parts`) are the node, as a program draws a glyph of several pieces
+    const body = pieces.filter((piece) => piece.kind === "body").map((piece) => piece.box);
+    const drawnOwn: ScreenBox = picture?.box ?? {
         ...box,
         x0: box.x0 - grow,
         y0: box.y0 - grow,
         x1: box.x1 + grow,
         y1: box.y1 + grow,
     };
+    const drawnBox = [drawnOwn, ...body].reduce((a: ScreenBox, b: ScreenBox): ScreenBox => ({
+        ...a,
+        x0: Math.min(a.x0, b.x0),
+        y0: Math.min(a.y0, b.y0),
+        x1: Math.max(a.x1, b.x1),
+        y1: Math.max(a.y1, b.y1),
+    }));
+    // a body drawn off its position (a glyph above its baseline, in pieces) is placed by its box, as a program's is
+    const offCenter = body.length > 0 || drawnStyle?.shape?.stretchPoints === false;
+    const placedBy = picture?.box ?? (offCenter ? drawnBox : null);
     return {
-        x: picture === undefined ? center.x : (picture.box.x0 + picture.box.x1) / 2,
-        y: picture === undefined ? center.y : (picture.box.y0 + picture.box.y1) / 2,
+        x: placedBy === null ? center.x : (placedBy.x0 + placedBy.x1) / 2,
+        y: placedBy === null ? center.y : (placedBy.y0 + placedBy.y1) / 2,
         box: drawnBox,
         meshName: source.name,
         shapeType: node.shapeType,
@@ -861,7 +873,9 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
         outer,
         label: readLabel(node.label, p),
         // the image of a node with no body is the node itself
-        pieces: pieces.filter((piece) => piece !== picture),
+        pieces: pieces.filter(
+            (piece): piece is { kind: "shape" | "image"; box: ScreenBox } => piece !== picture && piece.kind !== "body",
+        ),
         // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
         faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
         glyph:

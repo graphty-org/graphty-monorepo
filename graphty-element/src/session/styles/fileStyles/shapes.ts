@@ -24,7 +24,8 @@ export type FileStyleShapeTable = Readonly<Record<string, string>>;
  * name, exactly: `none` as a node with no body, which draws only its label, and Pajek's cross,
  * house, man and woman (`other:cross`, `other:house`, `other:man`, `other:woman`), Cytoscape.js's
  * rounded polygons and barrel (`other:round-triangle` ... `other:round-polygon`, `other:barrel`) and
- * vis-network's database (`other:database`) as the element's shapes of those names.
+ * vis-network's database (`other:database`) as the element's shapes of those names, and Graphviz's cylinder
+ * (`other:cylinder`) as the database it is drawn as.
  */
 export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     ellipse: "ellipse",
@@ -54,6 +55,8 @@ export const FILE_STYLE_SHAPES: FileStyleShapeTable = Object.freeze({
     "other:round-polygon": "round-polygon",
     "other:barrel": "barrel",
     "other:database": "database",
+    // Graphviz's cylinder: a box between two ellipses, the near half of the top one drawn across it
+    "other:cylinder": "database",
     // vis-network's icon node draws its icon's glyph and no body: drawn as a node with no body, its glyph left out
     "other:icon": "none",
 });

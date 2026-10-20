@@ -242,6 +242,17 @@ export const NodeStyle = z.strictObject({
             // lie on the ellipse inside the node's box stays that size, as OGDF draws its
             // triangles, pentagons, hexagons and octagons. Other shapes ignore it.
             stretchPoints: z.boolean().optional(),
+            // Further closed pieces of a flat node's body, beside its outline: polygons as `x,y` pairs
+            // separated by spaces, one polygon after another separated by ";", each point relative to
+            // the node's center as fractions of its half width and half height, y up, drawn where they
+            // say (never stretched). Each is filled as the node is and outlined in its border's color
+            // and width, centered on the polygon: a Graphviz `assembly` is two bars, a `noverhang` four.
+            parts: z.string().optional(),
+            // Lines drawn over a flat node in its border's color, as `parts` gives polygons: open
+            // polylines (one that ends where it starts is closed), centered on their points, `lineWidth`
+            // wide (unset, the border's width): a Graphviz `promoter`'s baseline, a `box3d`'s edges.
+            lines: z.string().optional(),
+            lineWidth: z.number().nonnegative().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and

@@ -140,6 +140,9 @@ const DECLARED = [
     "node.exactCornerRadius",
     "node.shapePoints",
     "node.shapeStretchPoints",
+    "node.shapeParts",
+    "node.shapeLines",
+    "node.shapeLineWidth",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
@@ -224,6 +227,7 @@ const DECLARED = [
     "edge.arrowMiddleHeadWidth",
     "edge.arrowMiddleHeadSide",
     "edge.arrowMiddleHeadPosition",
+    "edge.arrowMiddleHeadGap",
     "edge.arrowMiddleHeadColor",
     "edge.arrowMiddleHeadOpacity",
     "edge.arrowMiddleHeadImage",
@@ -232,6 +236,7 @@ const DECLARED = [
     "edge.arrowMiddleTailWidth",
     "edge.arrowMiddleTailSide",
     "edge.arrowMiddleTailPosition",
+    "edge.arrowMiddleTailGap",
     "edge.arrowMiddleTailColor",
     "edge.arrowMiddleTailOpacity",
     "edge.arrowMiddleTailImage",
@@ -296,9 +301,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and eighteen node channels and one hundred and twelve edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 118);
-        assert.strictEqual(channelsFor("edge").length, 112);
+    it("splits into one hundred and twenty-seven node channels and one hundred and twenty-three edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 127);
+        assert.strictEqual(channelsFor("edge").length, 123);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -509,6 +514,11 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "node.shapeParts",
+        "node.shapeLines",
+        "node.shapeLineWidth",
+        "node.gradientColors",
+        "node.gradientStops",
         "node.label",
         "node.labelStyle",
         "node.tooltip",

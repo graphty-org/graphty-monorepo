@@ -4,7 +4,17 @@
  */
 import { assert, describe, test } from "vitest";
 
-import { boxOf, clipToBox, databaseRim, imageBox, pieSlices, stripeBands } from "../../src/meshes/nodeDecoration";
+import {
+    boxOf,
+    clipToBox,
+    databaseRim,
+    imageBox,
+    pieSlices,
+    pointLists,
+    shapeLinePieces,
+    shapePartPieces,
+    stripeBands,
+} from "../../src/meshes/nodeDecoration";
 import { earClip, type Point2 } from "../../src/meshes/shapeOutlines";
 
 const area = (o: readonly Point2[]): number =>
@@ -148,5 +158,68 @@ describe("a database's rim", () => {
         assert.isNull(databaseRim(undefined, 60, 30));
         assert.isNull(databaseRim({ color: "#000000", width: 0 }, 60, 30));
         assert.isNull(databaseRim({ color: "#000000", width: 1, opacity: 0 }, 60, 30));
+    });
+});
+
+describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
+    test("reads lists of points separated by semicolons, dropping a list with a bad pair", () => {
+        assert.deepEqual(pointLists("-1,0 1,0; 0,0 0,1 2,2; 1,x 2,2"), [
+            [
+                [-1, 0],
+                [1, 0],
+            ],
+            [
+                [0, 0],
+                [0, 1],
+                [2, 2],
+            ],
+        ]);
+        assert.deepEqual(pointLists(undefined), []);
+    });
+
+    test("draws a line across the node in its border's color, the border's width wide, centered on it", () => {
+        const pieces = shapeLinePieces({ lines: "-1,0 1,0" }, { width: 2, color: "#505050" }, 36, 36);
+        assert.equal(pieces.length, 1);
+        const box = boxOf(pieces[0].outline);
+        // from the node's left side to its right, one unit above and below its middle
+        assert.deepEqual([box.x0, box.x1, box.y0, box.y1], [-18, 18, -1, 1]);
+        assert.deepEqual(pieces[0].rgb, [80 / 255, 80 / 255, 80 / 255]);
+        assert.isAbove(area(pieces[0].outline), 0);
+    });
+
+    test("draws lines at their own width, and none with no width and no border", () => {
+        const wide = shapeLinePieces({ lines: "-1,-1 1,-1", lineWidth: 4 }, { width: 0, color: "#000000" }, 20, 10);
+        assert.approximately(boxOf(wide[0].outline).y1 - boxOf(wide[0].outline).y0, 4, 1e-9);
+        assert.deepEqual(shapeLinePieces({ lines: "-1,-1 1,-1" }, { color: "#000000" }, 20, 10), []);
+    });
+
+    test("closes a line that ends where it starts: a square ring of four sides meeting at their miters", () => {
+        const ring = shapeLinePieces(
+            { lines: "0.5,0.5 0.5,-0.5 -0.5,-0.5 -0.5,0.5 0.5,0.5" },
+            { width: 1, color: "#000000" },
+            36,
+            36,
+        );
+        assert.equal(ring.length, 4);
+        const all = boxOf(ring.flatMap((p) => p.outline));
+        assert.deepEqual([all.x0, all.x1, all.y0, all.y1], [-9.5, 9.5, -9.5, 9.5]);
+    });
+
+    test("fills each further part as the node is and outlines it in its border, where its points say", () => {
+        const { fills, lines } = shapePartPieces(
+            { parts: "-1,-0.5 1,-0.5 1,-0.25 -1,-0.25" },
+            { width: 1, color: "#505050" },
+            "#c8c8c8",
+            24,
+            24,
+        );
+        assert.equal(fills.length, 1);
+        assert.deepEqual(boxOf(fills[0].outline), { x0: -12, y0: -6, x1: 12, y1: -3 });
+        assert.deepEqual(fills[0].rgb, [200 / 255, 200 / 255, 200 / 255]);
+        assert.isAbove(area(fills[0].outline), 0);
+        assert.equal(earClip(fills[0].outline).length, 2);
+        // its outline is its four sides, half the border's width either side of them
+        assert.equal(lines.length, 4);
+        assert.deepEqual(boxOf(lines.flatMap((p) => p.outline)), { x0: -12.5, y0: -6.5, x1: 12.5, y1: -2.5 });
     });
 });

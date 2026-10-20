@@ -93,6 +93,10 @@ const PREREQUISITES: Readonly<Partial<Record<string, Record<string, unknown>>>> 
     "edge.wavePeriod": { "edge.style": "sinewave", "edge.waveAmplitude": 1 },
     "node.borderWaveAmplitude": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1 },
     "node.borderWavePeriod": { "node.borderStyle": "zigzag", "node.borderWidth": 0.1, "node.borderWaveAmplitude": 1 },
+    // A node's further parts are outlined, and its lines drawn, in its border; a line's own width needs a line.
+    "node.shapeParts": { "node.shape": "polygon", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
+    "node.shapeLines": { "node.shape": "rectangle", "node.borderWidth": 0.1, "node.borderColor": "#000000" },
+    "node.shapeLineWidth": { "node.shape": "rectangle", "node.borderColor": "#000000", "node.shapeLines": "-1,0 1,0" },
 };
 
 /** How wide the canvas is. */
@@ -155,6 +159,13 @@ function probeFor(descriptor: ChannelDescriptor): unknown {
             }
             if (descriptor.channel === "node.gradientStops") {
                 return "0 0.1 1";
+            }
+            // A node's further parts are polygons beside it, and its lines polylines across it.
+            if (descriptor.channel === "node.shapeParts") {
+                return "1,-1 3,-1 2,1";
+            }
+            if (descriptor.channel === "node.shapeLines") {
+                return "-1,-1 1,1; -1,1 1,-1";
             }
             return "CHANNEL PROBE WORDS";
         case "boolean":

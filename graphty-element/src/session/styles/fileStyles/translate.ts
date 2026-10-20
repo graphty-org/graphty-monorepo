@@ -584,6 +584,9 @@ function channelPlans(
             [CORNER_CAP, [length("node.cornerRadius")]],
             ["shapePoints", [id("node.shapePoints")]],
             ["shapePointsStretch", [id("node.shapeStretchPoints")]],
+            ["shapeParts", [id("node.shapeParts")]],
+            ["shapeLines", [id("node.shapeLines")]],
+            ["shapeLineWidth", [length("node.shapeLineWidth")]],
             // An image drawn at its own size draws each of its pixels one of the file's lengths across.
             [
                 "image",

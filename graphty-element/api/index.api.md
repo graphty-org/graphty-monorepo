@@ -3794,6 +3794,9 @@ export const NodeStyle: z.ZodObject<{
         exactCornerRadius: z.ZodOptional<z.ZodBoolean>;
         points: z.ZodOptional<z.ZodString>;
         stretchPoints: z.ZodOptional<z.ZodBoolean>;
+        parts: z.ZodOptional<z.ZodString>;
+        lines: z.ZodOptional<z.ZodString>;
+        lineWidth: z.ZodOptional<z.ZodNumber>;
         labelFit: z.ZodOptional<z.ZodEnum<{
             inside: "inside";
             bounds: "bounds";

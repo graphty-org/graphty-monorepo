@@ -211,6 +211,18 @@ describe("the graphty scene extractor's vocabulary", () => {
             "other:house": "other",
             "other:man": "other",
             "other:woman": "other",
+            // Cytoscape.js's rounded polygons are curved shapes of no class; its barrel, vis-network's database and
+            // Graphviz's cylinder (drawn as a database) read as rounded boxes, as the programs' own do
+            "other:round-triangle": "other",
+            "other:round-diamond": "other",
+            "other:round-pentagon": "other",
+            "other:round-hexagon": "other",
+            "other:round-octagon": "other",
+            "other:round-polygon": "other",
+            "other:barrel": "roundrect",
+            "other:database": "roundrect",
+            "other:cylinder": "roundrect",
+            "other:icon": "other",
         };
         for (const [fileShape, mesh] of Object.entries(FILE_STYLE_SHAPES)) {
             assert.strictEqual(shapeClassOf(mesh), expected[fileShape], `${fileShape} -> ${mesh}`);

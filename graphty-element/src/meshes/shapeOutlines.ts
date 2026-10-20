@@ -984,7 +984,7 @@ export function zigzagPeriod(
  * @param caps - Whether an open line's start and end are capped.
  * @returns The piece; `outer` is the side on the left of the line's direction.
  */
-function strokeLine(
+export function strokeLine(
     points: readonly Point2[],
     width: number,
     closed: boolean,

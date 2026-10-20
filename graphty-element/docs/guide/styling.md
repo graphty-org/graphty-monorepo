@@ -207,6 +207,9 @@ A channel is one visual property with one name. These are all of them:
 | `node.borderStyle`            | `solid`, `dashed`, `dotted`, `dash-dot`, `double`, `zigzag`, `sinewave`, `forward-slash`, `backward-slash`, `vertical-slash` or `separate-arrow` |
 | `node.cornerRadius`           | 0 or more: a round-rectangle's largest corner radius, in `node.size` units                                                                       |
 | `node.shapePoints`            | a `polygon`'s corners, `x,y` pairs as fractions of its half width and height                                                                     |
+| `node.shapeParts`             | further pieces of the node's body: polygons as `node.shapePoints` writes them, separated by `;`, filled and outlined as the node is              |
+| `node.shapeLines`             | lines over the node in its border's color: polylines as `node.shapeParts` writes polygons; one that ends where it starts is closed               |
+| `node.shapeLineWidth`         | 0 or more: how wide `node.shapeLines` are, in the units of `node.borderWidth`; unset, the border's width                                         |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
 | `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |

@@ -374,6 +374,9 @@ export interface ChannelValues {
     "node.overlayCornerRadius": number;
     "node.shapePoints": string;
     "node.shapeStretchPoints": boolean;
+    "node.shapeParts": string;
+    "node.shapeLines": string;
+    "node.shapeLineWidth": number;
     "node.labelFit": NodeLabelFitValue;
     "node.labelPaddingX": number;
     "node.labelPaddingY": number;
@@ -2534,6 +2537,53 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "the node's sides (true), or drawn exactly where they say, as fractions of its half width and " +
             "half height (false), so a regular polygon inside the ellipse of the node's box keeps its size. " +
             "Other shapes ignore it.",
+    },
+    "node.shapeParts": {
+        channel: "node.shapeParts",
+        target: "node",
+        plainName: "Node Shape Parts",
+        shortName: "Shape parts",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.parts",
+        renderable: true,
+        caveat:
+            "Further closed pieces of a flat node's body beside its outline: polygons as `x,y` pairs separated " +
+            'by spaces, one after another separated by ";", each point relative to the node\'s center as ' +
+            "fractions of its half width and half height, y up, drawn where they say (never stretched). Each is " +
+            "filled in the node's color and outlined in its border's color and width, centered on it: " +
+            '`-1,0.1 1,0.1 1,0.5 -1,0.5; -1,-0.1 1,-0.1 1,-0.5 -1,-0.5` beside a "polygon" node is two bars. ' +
+            "Solid shapes ignore it.",
+    },
+    "node.shapeLines": {
+        channel: "node.shapeLines",
+        target: "node",
+        plainName: "Node Shape Lines",
+        shortName: "Shape lines",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.lines",
+        renderable: true,
+        caveat:
+            "Lines drawn over a flat node in its border's color: polylines as `x,y` pairs separated by spaces, " +
+            'one after another separated by ";", in the frame `node.shapeParts` uses; a polyline that ends ' +
+            "where it starts is closed. Each is centered on its points, `node.shapeLineWidth` wide: " +
+            "`-1,0 1,0` is a line across the node's middle, as Graphviz draws a promoter's baseline. Solid " +
+            "shapes ignore it.",
+    },
+    "node.shapeLineWidth": {
+        channel: "node.shapeLineWidth",
+        target: "node",
+        plainName: "Node Shape Line Width",
+        shortName: "Line width",
+        group: "shape",
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.lineWidth",
+        renderable: true,
+        caveat:
+            "How wide `node.shapeLines` are drawn, in the units of `node.borderWidth`. Unset, the border's " +
+            "width, so a node with no border draws no lines unless this is set.",
     },
     "node.labelFit": {
         channel: "node.labelFit",

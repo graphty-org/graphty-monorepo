@@ -5,7 +5,7 @@
  */
 import type { NodeStyleConfig } from "../config";
 import { toColorValue } from "../session/styles/channels";
-import type { Point2 } from "./shapeOutlines";
+import { type Point2, strokeLine } from "./shapeOutlines";
 
 /** One colored piece over a node's face. */
 export interface ColorPiece {
@@ -324,5 +324,138 @@ export function databaseRim(
         outline: [...outer, ...inner],
         rgb: [color.r / 255, color.g / 255, color.b / 255],
         opacity,
+    };
+}
+
+/**
+ * Lists of points as `node.shapeParts` and `node.shapeLines` write them: `x,y` pairs separated by spaces, one list
+ * after another separated by ";". A list with a pair that is not two finite numbers is dropped.
+ * @param text - The lists.
+ * @returns The lists, in the units they were written in.
+ */
+export function pointLists(text: string | undefined): Point2[][] {
+    return (text ?? "")
+        .split(";")
+        .map((list) =>
+            list
+                .trim()
+                .split(/\s+/)
+                .filter((pair) => pair !== "")
+                .map((pair): Point2 => {
+                    const [x, y, extra] = pair.split(",").map(Number);
+                    return extra === undefined ? [x, y] : [Number.NaN, Number.NaN];
+                }),
+        )
+        .filter((list) => list.length > 0 && list.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y)));
+}
+
+/**
+ * A color and an opacity as a piece takes them.
+ * @param color - A CSS color, or none.
+ * @param opacity - An opacity to draw it at, times its own alpha.
+ * @returns Its red, green and blue and its opacity, or null for one that draws nothing.
+ */
+function paint(color: string | undefined, opacity = 1): Pick<ColorPiece, "rgb" | "opacity"> | null {
+    const c = color === undefined ? null : toColorValue(color);
+    const alpha = (c?.a ?? 1) * opacity;
+    return c === null || !(alpha > 0) ? null : { rgb: [c.r / 255, c.g / 255, c.b / 255], opacity: alpha };
+}
+
+/**
+ * A polyline drawn `width` wide, centered on its points, as pieces: one four-cornered piece a side, each meeting the
+ * next at the miter of their corner. One that ends where it starts is closed.
+ * @param points - The points.
+ * @param width - How wide.
+ * @param color - Its color and opacity.
+ * @returns The pieces.
+ */
+function linePieces(
+    points: readonly Point2[],
+    width: number,
+    color: Pick<ColorPiece, "rgb" | "opacity">,
+): ColorPiece[] {
+    const [first, last] = [points[0], points.at(-1)];
+    const closed = points.length > 2 && first[0] === last?.[0] && first[1] === last[1];
+    const line = closed ? points.slice(0, -1) : points;
+    if (line.length < 2 || !(width > 0)) {
+        return [];
+    }
+    const { inner, outer } = strokeLine(line, width, closed);
+    const sides = closed ? line.length : line.length - 1;
+    return Array.from({ length: sides }, (_, i): ColorPiece => {
+        const j = (i + 1) % line.length;
+        // counter-clockwise: outer is the side on the left of the line's direction
+        return { outline: [inner[i], inner[j], outer[j], outer[i]], ...color };
+    });
+}
+
+/**
+ * The lines a flat node draws over itself (`shape.lines`), in its border's color, `shape.lineWidth` wide (else its
+ * border's width), each list of points relative to the node's center as fractions of its half width and half height.
+ * @param shape - The node's shape block.
+ * @param border - The node's border.
+ * @param width - The face's width.
+ * @param height - Its height.
+ * @param scale - World units per unit of the style's lengths.
+ * @returns The pieces.
+ */
+export function shapeLinePieces(
+    shape: NodeStyleConfig["shape"],
+    border: NodeStyleConfig["border"],
+    width: number,
+    height: number,
+    scale = 1,
+): ColorPiece[] {
+    const color = paint(border?.color, border?.opacity);
+    const line = (shape?.lineWidth ?? border?.width ?? 0) * scale;
+    if (color === null || !(line > 0)) {
+        return [];
+    }
+    return pointLists(shape?.lines).flatMap((list) =>
+        linePieces(
+            list.map(([x, y]): Point2 => [(x * width) / 2, (y * height) / 2]),
+            line,
+            color,
+        ),
+    );
+}
+
+/**
+ * The further pieces of a flat node's body (`shape.parts`): each polygon filled in the node's color and outlined in
+ * its border's color and width, centered on it, as the node is. A polygon of fewer than three points is dropped.
+ * @param shape - The node's shape block.
+ * @param border - The node's border.
+ * @param fill - The node's fill color, or none for an unfilled node.
+ * @param width - The face's width.
+ * @param height - Its height.
+ * @param scale - World units per unit of the style's lengths.
+ * @param fillOpacity - The fill's opacity.
+ * @returns The fills, and their outlines.
+ */
+export function shapePartPieces(
+    shape: NodeStyleConfig["shape"],
+    border: NodeStyleConfig["border"],
+    fill: string | undefined,
+    width: number,
+    height: number,
+    scale = 1,
+    fillOpacity = 1,
+): { fills: ColorPiece[]; lines: ColorPiece[] } {
+    const parts = pointLists(shape?.parts)
+        .filter((list) => list.length >= 3)
+        .map((list) => {
+            const placed = list.map(([x, y]): Point2 => [(x * width) / 2, (y * height) / 2]);
+            const area = placed.reduce((sum, [x0, y0], i) => {
+                const [x1, y1] = placed[(i + 1) % placed.length];
+                return sum + x0 * y1 - x1 * y0;
+            }, 0);
+            return area < 0 ? placed.reverse() : placed;
+        });
+    const color = paint(fill, fillOpacity);
+    const stroke = paint(border?.color, border?.opacity);
+    const line = (border?.width ?? 0) * scale;
+    return {
+        fills: color === null ? [] : parts.map((outline) => ({ outline, ...color })),
+        lines: stroke === null ? [] : parts.flatMap((outline) => linePieces([...outline, outline[0]], line, stroke)),
     };
 }

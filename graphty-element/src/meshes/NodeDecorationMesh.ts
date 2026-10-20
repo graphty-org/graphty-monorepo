@@ -26,14 +26,19 @@ import {
     imageBox,
     type PieceBox,
     pieSlices,
+    shapeLinePieces,
+    shapePartPieces,
     stripeBands,
 } from "./nodeDecoration";
 import { NodeMesh } from "./NodeMesh";
 import { earClip, type Point2 } from "./shapeOutlines";
 
-/** One piece drawn over a node's face, for a reader of the drawing: its kind and its box in the node's plane. */
+/**
+ * One piece drawn over a node's face, for a reader of the drawing: its kind and its box in the node's plane. A
+ * `body` piece is part of the node's own body (`shape.parts`), not something drawn over it.
+ */
 export interface NodeDecorationPiece {
-    readonly kind: "shape" | "image";
+    readonly kind: "shape" | "image" | "body";
     readonly box: PieceBox;
 }
 
@@ -50,6 +55,7 @@ export interface NodeDecorationOptions {
     readonly stripes?: NodeStyleConfig["stripes"];
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
+    readonly texture?: NodeStyleConfig["texture"];
 }
 
 /**
@@ -70,6 +76,8 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
         o.stripes?.colors !== undefined ||
         (o.image?.src ?? "") !== "" ||
         (o.glyph?.text ?? "") !== "" ||
+        (o.shape?.parts ?? "") !== "" ||
+        (o.shape?.lines ?? "") !== "" ||
         (o.shape?.type === "database" && (o.border?.width ?? 0) > 0)
     );
 }
@@ -202,9 +210,10 @@ function buildGlyph(
 
 /**
  * A colored piece, with the box a reader of the drawing gives it where that is not its outline's; `line` marks part
- * of the node's own line work (a database's rim), which a reader counts with the node's outline, not as a piece.
+ * of the node's own line work (a database's rim), which a reader counts with the node's outline, not as a piece, and
+ * `body` a further piece of the node's body (`shape.parts`).
  */
-type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean };
+type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean; readonly body?: boolean };
 
 /**
  * The pieces a node draws in color over its face: its stripes, cut to its outline, and over them
@@ -227,11 +236,31 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         o.shape?.type === "database"
             ? databaseRim(o.border, face.width, face.height, NodeMesh.extentPerSize(o.shape))
             : null;
+    const scale = NodeMesh.extentPerSize(o.shape);
+    const [fill, fillOpacity] = solidFill(o.texture);
+    const parts = shapePartPieces(o.shape, o.border, fill, face.width, face.height, scale, fillOpacity);
     return [
+        ...parts.fills.map((p) => ({ ...p, body: true })),
+        ...parts.lines.map((p) => ({ ...p, line: true })),
         ...bands,
-        ...pieSlices(o.pie, face.width, face.height, NodeMesh.extentPerSize(o.shape)),
+        ...pieSlices(o.pie, face.width, face.height, scale),
         ...(rim === null ? [] : [{ ...rim, line: true }]),
+        ...shapeLinePieces(o.shape, o.border, face.width, face.height, scale).map((p) => ({ ...p, line: true })),
     ];
+}
+
+/**
+ * A node's fill as one color: its plain or solid color and that color's opacity, or none for a gradient.
+ * @param texture - The node style's texture block.
+ * @returns The color, or undefined, and its opacity.
+ */
+function solidFill(texture: NodeStyleConfig["texture"]): [string | undefined, number] {
+    const color = texture?.color;
+    if (typeof color === "string") {
+        return [color, 1];
+    }
+    // ponytail: a gradient's parts are not filled; give them the gradient when a format draws one
+    return color?.colorType === "solid" ? [color.value, color.opacity ?? 1] : [undefined, 1];
 }
 
 /**
@@ -322,7 +351,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
     const metadata: NodeDecorationMetadata = {
         nodePieces: pieces
             .filter((p) => p.line !== true)
-            .map((p) => ({ kind: "shape", box: p.box ?? boxOf(p.outline) })),
+            .map((p) => ({ kind: p.body === true ? "body" : "shape", box: p.box ?? boxOf(p.outline) })),
     };
     mesh.metadata = metadata;
     return mesh;

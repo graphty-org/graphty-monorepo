@@ -321,6 +321,13 @@ export interface TemplateReport {
      * paint is `update(id, { enabled: true })` once the data is there.
      */
     readonly unbound: readonly UnboundLayer[];
+    /**
+     * What happened to the document's shaders, as codes: `shader.held` with `ids`, the ones that
+     * wait for `session.shaders.approve`; `shader.id-taken` with `id`, one the project already
+     * holds with other text (the project's stays). Absent when the document carries none.
+     * @since 3.36.0
+     */
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
 }
 
 /** What applying a style document accepts beyond the document itself. */
@@ -337,6 +344,14 @@ export interface TemplateOptions extends RunOptions {
      * the layers a reader added stay on top of them.
      */
     readonly at?: TemplatePosition;
+    /**
+     * What to do with the shaders the document carries, for this call only: `"hold"` until
+     * `session.shaders.approve`, `"run"` them, or `"refuse"` them (layers naming them draw what
+     * lies beneath). Absent: the element's `shaderSettings.untrusted`, which holds by default.
+     * A `shaderSettings` member in the document itself is ignored.
+     * @since 3.36.0
+     */
+    readonly shaders?: "run" | "hold" | "refuse";
 }
 
 /** Where `applyTemplate` puts a document's layers. */
@@ -3250,6 +3265,53 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     };
 
     /**
+     * What a document's shaders do to the project: the ones it adds, and the facts to report.
+     * @param document - The document.
+     * @param asked - The trust the call asked for, if any.
+     * @returns The entries to write and the facts.
+     */
+    const documentShaders = (
+        document: StyleDocument,
+        asked: "run" | "hold" | "refuse" | undefined,
+    ): {
+        readonly mode: "run" | "hold" | "refuse";
+        readonly writes: readonly { readonly id: string; readonly text: string }[];
+        readonly facts: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    } => {
+        const trust = SHADER_TRUST.get(api);
+        const mode = asked ?? trust?.mode() ?? "hold";
+        const writes: { id: string; text: string }[] = [];
+        const facts: CodedFact<"shader.held" | "shader.id-taken">[] = [];
+        if (mode === "refuse") {
+            return { mode, writes, facts };
+        }
+
+        const held: string[] = [];
+        for (const { id, text } of document.shaders ?? []) {
+            const existing = dispatcher.state.shaders.get(id);
+            if (existing !== undefined) {
+                // The first loaded wins; a second text under the id is reported, not swapped in.
+                if (existing.text !== text) {
+                    facts.push({ code: "shader.id-taken", params: { id } });
+                }
+
+                continue;
+            }
+
+            writes.push({ id, text });
+            if (mode !== "run" && trust?.trusted(text) !== true) {
+                held.push(id);
+            }
+        }
+
+        if (held.length > 0) {
+            facts.push({ code: "shader.held", params: { ids: held } });
+        }
+
+        return { mode, writes, facts };
+    };
+
+    /**
      * The plan for applying a style document: every layer lands, bound or disabled, or none does.
      * @param document - The document.
      * @param templateId - What to record as the template.
@@ -3804,7 +3866,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            return planTemplate(command.document, command.templateId, command.at);
+            const plan = planTemplate(command.document, command.templateId, command.at);
+            const { facts } = documentShaders(command.document, command.shaders);
+            return facts.length === 0 && command.document.shaders === undefined
+                ? plan
+                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(facts) }) };
         }
 
         switch (command.action) {
@@ -3910,6 +3976,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
         execute(command, draft) {
             const planned = planOf(command);
+            if (command.op === "style.template") {
+                // The layers are planned first, so a refused document writes no shader either.
+                const { mode, writes } = documentShaders(command.document, command.shaders);
+                if (mode === "run") {
+                    SHADER_TRUST.get(api)?.trust(writes.map((entry) => entry.text));
+                }
+
+                for (const { id, text } of writes) {
+                    draft.shaders.set(id, Object.freeze({ text }));
+                }
+            }
+
             const stack = current();
             // The tree follows the stack another verb planned, or is the one a tree verb planned;
             // the stack then takes the tree's order.
@@ -4535,7 +4613,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+        applyTemplate(given: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+            // Trust is the reader's and the page's, never the file's: a document that carries
+            // shader settings has them dropped before anything reads it.
+            const { shaderSettings: _ignored, ...document } = given as StyleDocument & { shaderSettings?: unknown };
             return edit<TemplateReport>(
                 "template",
                 "Apply a style document",
@@ -4544,6 +4625,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     document,
                     ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
                     ...(options.at === undefined ? {} : { at: options.at }),
+                    ...(options.shaders === undefined ? {} : { shaders: options.shaders }),
                 },
                 options,
             );
@@ -4841,6 +4923,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
+            // The project's shaders travel with its look, verbatim, beside the palettes.
+            const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
             // Saved by place, since an opened document mints new layer ids.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
@@ -4850,6 +4934,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 // Written only when there is something to write, so a look that uses nothing but
                 // the element's own palettes saves byte for byte what it saved before.
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
+                ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
             });
         },
@@ -4872,4 +4957,27 @@ const PAINTING = new WeakMap<SessionStylesApi, (stack: readonly CompiledLayer[])
  */
 export function paintingOf(api: SessionStylesApi, stack: readonly CompiledLayer[]): readonly CompiledLayer[] {
     return PAINTING.get(api)?.(stack) ?? stack;
+}
+
+/** What a session's shaders tell its style stack about trust; see {@link setShaderTrust}. */
+interface ShaderTrust {
+    /** The trust a document gets when its call names none. */
+    readonly mode: () => "run" | "hold" | "refuse";
+    /** Whether a text may run without asking. */
+    readonly trusted: (text: string) => boolean;
+    /** Approve texts for this session. */
+    readonly trust: (texts: readonly string[]) => void;
+}
+
+/** Each stack's shader trust, by the API that owns it. */
+const SHADER_TRUST = new WeakMap<SessionStylesApi, ShaderTrust>();
+
+/**
+ * Tell a style stack how its session trusts shader text, so a document it applies reports which
+ * shaders it holds.
+ * @param api - The stack.
+ * @param trust - The session's trust.
+ */
+export function setShaderTrust(api: SessionStylesApi, trust: ShaderTrust): void {
+    SHADER_TRUST.set(api, trust);
 }

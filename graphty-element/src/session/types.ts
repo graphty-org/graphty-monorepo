@@ -76,6 +76,7 @@ import type {
 import type { ScopeApi } from "./scope/index";
 import type { SelectionApi, SelectionDelta, SelectionOwner, SelectionTarget, SelectionTextMode } from "./selection";
 import type { SetChange, SetsApi } from "./sets/types";
+import type { SessionShaders, ShaderStatus } from "./shaders";
 import type { CodedFact, ColumnRef, ProgressChange, ResultRef } from "./shared";
 import type {
     CollapseResult,
@@ -2062,6 +2063,25 @@ export interface SessionEventMap {
      * changed. Mirrored on the element as `graphty-project-status`.
      */
     "project:status": ProjectStatus;
+    /**
+     * A project shader's status changed: it started compiling, became ready, failed, was held,
+     * approved, or turned off. Mirrored on the element as `graphty-shader-status`.
+     * @since 3.36.0
+     */
+    "shader:status": { readonly id: string } & ShaderStatus;
+    /**
+     * Shaders arrived that wait for approval: a project or style file opened, an AI command, or
+     * an undo brought them back. Mirrored as `graphty-shader-held`.
+     * @since 3.36.0
+     */
+    "shader:held": { readonly ids: readonly string[] };
+    /**
+     * A shader's text was approved to run: the reader added it, or `approve` ran it. An
+     * application that remembers approvals stores the hash and passes it back in
+     * `shaderSettings.trustedHashes`. Mirrored as `graphty-shader-approved`.
+     * @since 3.36.0
+     */
+    "shader:approved": { readonly id: string; readonly hash: string };
 }
 
 /**
@@ -2084,7 +2104,8 @@ export type ProjectSlice =
     | "views"
     | "notes"
     | "attributes"
-    | "valueLabels";
+    | "valueLabels"
+    | "shaders";
 
 /** What moved project state: a command, a history move, or a failed command being reverted. */
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
@@ -2118,6 +2139,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.set-source` | `name`: the source's name, or null |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
+ * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
  * | `style.update-layer` | `layer`: its name, or its id; `channels`: the channels whose set value or binding changed (empty when only another key did) |
  * | `style.remove-layers` | `count` |
@@ -2202,6 +2224,9 @@ export type HistoryCode =
     | "style.hide-row"
     | "style.delete-row"
     | "style.restore-starting-rows"
+    | "shader.add"
+    | "shader.replace"
+    | "shader.remove"
     | "visibility.filter"
     | "visibility.clear-filter"
     | "visibility.window"
@@ -2404,6 +2429,8 @@ export interface CommandOutcomeMap {
     "style.encode": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
     "style.template": Promise<void>;
+    /** Settles once the shader's text is recorded. */
+    "shader.set": Promise<void>;
     /** Settles once the filter is recorded and the pass that evaluates the masks has run. */
     "visibility.set": Promise<void>;
     /** Settles once the window is recorded and the pass that evaluates the masks has run. */
@@ -2707,6 +2734,13 @@ export interface GraphSession {
      * change.
      */
     readonly styles: StylesApi;
+    /**
+     * The shaders that belong to the project -- pasted, or carried in by a file -- and whether
+     * each may run. Presets and registered shaders are in `catalog.shaders()`; this adds, checks,
+     * approves and removes the project's own (design: shaders as style features).
+     * @since 3.36.0
+     */
+    readonly shaders: SessionShaders;
     /**
      * The saved camera views, by name: camera states kept under a name of the consumer's
      * choosing. Saving and removing one are undoable steps; moving the camera to one is not.

@@ -153,6 +153,53 @@ export function registerShader(registration: ShaderRegistration, options?: Regis
 }
 
 /**
+ * Where the pasted shaders of one open project are found: the session that holds them.
+ *
+ * A pasted shader belongs to its project, not to the page, so the catalog asks each open
+ * session for it rather than keeping it in the registry.
+ */
+export interface PastedShaderSource {
+    /** The descriptor of one of the project's shaders, or undefined when it holds none by that id. */
+    descriptor(id: string): ShaderDescriptor | undefined;
+    /** The ids of the project's shaders. */
+    ids(): readonly string[];
+}
+
+/** Every open session's pasted shaders. */
+const pastedSources = new Set<PastedShaderSource>();
+
+/**
+ * Let the catalog find a session's pasted shaders by id.
+ *
+ * ponytail: one page-wide lookup over every session, first match wins. Two graphs on one page
+ * holding the same pasted id with different text check a layer against whichever answered first;
+ * compiled programs are keyed by the text's hash, so neither draws the other's shader. Thread the
+ * session into every lookup if a page ever needs both.
+ * @param source - The session's shaders.
+ * @returns Stops the lookup; call it when the session is disposed.
+ */
+export function addPastedShaderSource(source: PastedShaderSource): () => void {
+    pastedSources.add(source);
+
+    return () => {
+        pastedSources.delete(source);
+    };
+}
+
+/**
+ * The descriptor of a pasted shader, built exactly as a registered one is.
+ * @param registration - What `parseShaderText` read from the text.
+ * @param hash - The SHA-256 of the text.
+ * @returns The descriptor, origin `"pasted"`.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND` when the registration does not pass the checks.
+ */
+export function describePastedShader(registration: ShaderRegistration, hash: string): ShaderDescriptor {
+    const { descriptor } = admit(registration, "pasted", true);
+
+    return Object.freeze({ ...descriptor, hash });
+}
+
+/**
  * Every shader the element can draw: its presets first, then the registered ones.
  * @returns The descriptors.
  */
@@ -168,7 +215,19 @@ export function shaderDescriptors(): readonly ShaderDescriptor[] {
  * @returns Its descriptor, or undefined when the catalog does not list it.
  */
 export function shaderDescriptor(id: string): ShaderDescriptor | undefined {
-    return SHADER_PRESETS.find((preset) => preset.id === id) ?? registry.byId(id)?.descriptor;
+    const known = SHADER_PRESETS.find((preset) => preset.id === id) ?? registry.byId(id)?.descriptor;
+    if (known !== undefined || !id.includes("/")) {
+        return known;
+    }
+
+    for (const source of pastedSources) {
+        const pasted = source.descriptor(id);
+        if (pasted !== undefined) {
+            return pasted;
+        }
+    }
+
+    return undefined;
 }
 
 /**
@@ -177,7 +236,14 @@ export function shaderDescriptor(id: string): ShaderDescriptor | undefined {
  * @returns The ids.
  */
 export function shaderIdsOf(kinds: readonly ShaderKind[]): readonly string[] {
-    return shaderDescriptors()
+    const pasted = [...pastedSources].flatMap((source) =>
+        source.ids().flatMap((id) => {
+            const descriptor = source.descriptor(id);
+            return descriptor === undefined ? [] : [descriptor];
+        }),
+    );
+
+    return [...shaderDescriptors(), ...pasted]
         .filter((descriptor) => kinds.includes(descriptor.kind))
         .map((descriptor) => descriptor.id);
 }

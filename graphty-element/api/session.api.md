@@ -485,6 +485,7 @@ export interface CommandOutcomeMap {
     "set.remove": Promise<void>;
     "set.rename": Promise<void>;
     "set.restore": Promise<void>;
+    "shader.set": Promise<void>;
     "style.encode": Promise<void>;
     "style.patch": Promise<void>;
     "style.template": Promise<void>;
@@ -1239,6 +1240,7 @@ export interface GraphSession {
     readonly selection: SelectionApi;
     setAccelerator(accelerator: GraphAccelerator | null): void;
     readonly sets: SetsApi;
+    readonly shaders: SessionShaders;
     snapshot(): GraphSnapshot;
     readonly status: SessionStatus;
     readonly styles: StylesApi;
@@ -1997,7 +1999,7 @@ export interface HistogramOptions {
 export type HistoryCause = "command" | "undo" | "redo" | "restore" | "rollback";
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.label" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.restore-starting-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.steps" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -3023,7 +3025,17 @@ export interface ProjectSaveReport {
 }
 
 // @public
-export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels";
+export interface ProjectShader {
+    readonly hash: string;
+    readonly id: string;
+    readonly kind: ShaderKind;
+    readonly plainName: string;
+    readonly state: ShaderState;
+    readonly usedBy: number;
+}
+
+// @public
+export type ProjectSlice = "graph" | "config" | "layout" | "pins" | "arrangement" | "runs" | "styles" | "visibility" | "sets" | "views" | "notes" | "attributes" | "valueLabels" | "shaders";
 
 // @public
 export type ProjectSource = Blob | Uint8Array | string;
@@ -4148,7 +4160,7 @@ export type SessionAttributes = Readonly<Record<string, unknown>>;
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -4268,6 +4280,16 @@ export interface SessionEventMap {
         readonly origin: SelectionTarget | null;
     };
     "set:changed": SetChange;
+    "shader:approved": {
+        readonly id: string;
+        readonly hash: string;
+    };
+    "shader:held": {
+        readonly ids: readonly string[];
+    };
+    "shader:status": {
+        readonly id: string;
+    } & ShaderStatus;
     "source:expand-failed": SourceExpandFailed;
     "source:expand-start": SourceExpandStart;
     "source:expanded": SourceExpanded;
@@ -4339,6 +4361,26 @@ export interface SessionRunsOptions {
     readonly limits?: Readonly<CostGateLimits>;
     readonly measurements?: () => ReadonlyMap<AlgorithmKey, CostMeasurement> | undefined;
     readonly queue?: RunQueue;
+}
+
+// @public
+export interface SessionShaders {
+    add(text: ShaderText, options?: ShaderAddOptions): Promise<ShaderAddResult>;
+    approve(id: string): Promise<ShaderAddResult>;
+    // (undocumented)
+    availability(id: string): ShaderAvailability;
+    check(text: ShaderText, options?: {
+        readonly kind?: ShaderKind;
+        readonly compile?: boolean;
+    }): Promise<ShaderAddResult>;
+    // (undocumented)
+    list(): readonly ProjectShader[];
+    remove(id: string): Promise<void>;
+    replace(id: string, text: ShaderText): Promise<ShaderAddResult>;
+    source(id: string): Promise<ShaderText>;
+    // (undocumented)
+    status(id: string): ShaderStatus;
+    thumbnail(id: string, params?: ShaderParams): Promise<Blob>;
 }
 
 // @public
@@ -4574,6 +4616,37 @@ export interface SetUser {
 }
 
 // @public
+export interface ShaderAddOptions {
+    readonly apply?: {
+        readonly layer: LayerId;
+    };
+    readonly kind?: ShaderKind;
+    readonly onTaken?: "refuse" | "rename";
+    readonly source?: "reader" | "content";
+}
+
+// @public
+export type ShaderAddResult = {
+    readonly ok: true;
+    readonly descriptor: ShaderDescriptor;
+    readonly sameAs?: {
+        readonly id: string;
+        readonly params: ShaderParams;
+    };
+} | {
+    readonly ok: false;
+    readonly problems: readonly ShaderProblem[];
+};
+
+// @public
+export type ShaderAvailability = {
+    readonly ok: true;
+} | {
+    readonly ok: false;
+    readonly problem: ShaderProblem;
+};
+
+// @public
 export type ShaderEffects = Readonly<Record<string, ShaderParams | boolean>>;
 
 // @public
@@ -4584,6 +4657,24 @@ export type ShaderParams = Readonly<Record<string, number | string | boolean>>;
 
 // @public
 export type ShaderParamSets = Readonly<Record<string, ShaderParams>>;
+
+// @public
+export interface ShaderSettings {
+    readonly guard?: boolean;
+    readonly motion?: "system" | "on" | "off";
+    readonly quality?: "auto" | "low" | "medium" | "high";
+    readonly trustedHashes?: readonly string[];
+    readonly untrusted?: "hold" | "run" | "refuse";
+}
+
+// @public
+export type ShaderState = "ready" | "compiling" | "failed" | "held" | "off" | "still" | "not-checked";
+
+// @public
+export interface ShaderStatus {
+    readonly problem?: ShaderProblem;
+    readonly state: ShaderState;
+}
 
 // @public
 export type ShaderText = string;
@@ -5039,6 +5130,7 @@ export interface TableMappingRead extends TableMapping {
 // @public
 export interface TemplateOptions extends RunOptions {
     readonly at?: TemplatePosition;
+    readonly shaders?: "run" | "hold" | "refuse";
     readonly templateId?: string;
 }
 
@@ -5050,6 +5142,7 @@ export type TemplatePosition = "top" | "aboveBase" | {
 // @public
 export interface TemplateReport {
     readonly applied: readonly LayerId[];
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken">[];
     readonly unbound: readonly UnboundLayer[];
 }
 

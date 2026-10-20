@@ -140,6 +140,10 @@ export interface GraphtyElementJSXProps {
      */
     renderOnDemand?: Graphty["renderOnDemand"];
     /**
+     * Sets the reader's shader settings, in place of the ones before.
+     */
+    shaderSettings?: Graphty["shaderSettings"];
+    /**
      * Sets what a selected node looks like.
      */
     selectionStyle?: Graphty["selectionStyle"];

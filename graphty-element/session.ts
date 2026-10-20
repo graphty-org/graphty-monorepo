@@ -512,6 +512,16 @@ export type {
     TopTies,
 } from "./src/catalog/types";
 export { isResultShape, RESULT_SHAPES } from "./src/catalog/types";
+export type {
+    ProjectShader,
+    SessionShaders,
+    ShaderAddOptions,
+    ShaderAddResult,
+    ShaderAvailability,
+    ShaderSettings,
+    ShaderState,
+    ShaderStatus,
+} from "./src/session/shaders";
 
 // ---------------------------------------------------------------------------------------------
 // Style layers: what paints what, in what order, and why one element looks the way it does

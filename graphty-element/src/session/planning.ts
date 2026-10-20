@@ -41,6 +41,7 @@ import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
 import type { PositionsCommand } from "./commands/positions";
 import type { SetCommand } from "./commands/sets";
+import type { ShaderCommand } from "./commands/shaders";
 import type { SourceExpandOpCommand } from "./commands/source-expand";
 import type { StyleCommand } from "./commands/style";
 import type { ViewCommand } from "./commands/view";
@@ -119,6 +120,7 @@ export type SessionCommand =
     | DataCommand
     | SourceExpandOpCommand
     | StyleCommand
+    | ShaderCommand
     | VisibilityCommand
     | SetCommand
     | NoteCommand

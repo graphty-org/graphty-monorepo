@@ -68,6 +68,17 @@ const NodeStyleParamsSchema = z
                     "so asking for this is answered with the reason rather than applied",
             ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
+        shader: z
+            .string()
+            .optional()
+            .describe("A node surface or sprite shader from the shader catalog to draw the nodes with, by its id"),
+        shaderText: z
+            .string()
+            .optional()
+            .describe(
+                "Shader text the person pasted or asked for (GLSL with a graphty-shader 1 header). It is added to " +
+                    "the project and held until the person approves it in the app; the nodes draw as before until then",
+            ),
     })
     .describe("Style properties for nodes");
 
@@ -132,6 +143,10 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
 
     if (params.outlineColor !== undefined) {
         set["node.outline"] = params.outlineColor;
+    }
+
+    if (params.shader !== undefined) {
+        set["node.shader"] = params.shader;
     }
 
     // "Not visible" is said as fully transparent, because hiding an element is the visibility
@@ -356,13 +371,29 @@ export const findAndStyleNodes: GraphCommand = {
         };
 
         const { set, unsupported } = nodeChannels(styleParams);
+        const writer = writerOf(graph, context);
 
-        return addLayer(
-            writerOf(graph, context),
-            layerSpecOf(layerName, "node", selector, set, connectedBy),
-            unsupported,
-            "node",
-        );
+        if (styleParams.shaderText !== undefined) {
+            // Text from a model is content, never the reader's own: it is held until the reader
+            // approves it, so a prompt cannot make the element run a shader nobody looked at.
+            const added = await writer.shaders.add(styleParams.shaderText, { source: "content", onTaken: "rename" });
+            if (!added.ok) {
+                return {
+                    success: false,
+                    message: `That shader could not be added: ${added.problems.map((problem) => problem.code).join(", ")}`,
+                    data: { problems: added.problems },
+                };
+            }
+
+            const { id, kind } = added.descriptor;
+            if (kind === "node-effect") {
+                set["node.effects"] = { [id]: true };
+            } else {
+                set["node.shader"] = id;
+            }
+        }
+
+        return addLayer(writer, layerSpecOf(layerName, "node", selector, set, connectedBy), unsupported, "node");
     },
 };
 

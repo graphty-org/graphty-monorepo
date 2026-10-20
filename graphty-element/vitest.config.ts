@@ -665,7 +665,8 @@ export default defineConfig({
                 resolve: { alias: OWN_ENTRY_POINTS },
                 test: {
                     name: "autosave-engines",
-                    include: ["test/browser/autosave/**/*.test.ts"],
+                    // Beside autosave: graphs that compiled shaders give their contexts back.
+                    include: ["test/browser/autosave/**/*.test.ts", "test/browser/shaders/dispose-engines.test.ts"],
                     fileParallelism: false,
                     browser: {
                         enabled: true,

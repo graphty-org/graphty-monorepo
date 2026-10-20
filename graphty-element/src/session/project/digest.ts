@@ -150,6 +150,8 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `attributes=${canonical(state.attributes, path)}`,
         // Only when some value is named, so a digest of a state without names is as it was.
         ...(state.valueLabels.size === 0 ? [] : [`valueLabels=${canonical(state.valueLabels, path)}`]),
+        // Likewise for pasted shaders.
+        ...(state.shaders.size === 0 ? [] : [`shaders=${canonical(state.shaders, path)}`]),
     ];
     if (options.snapshot !== undefined) {
         parts.push(

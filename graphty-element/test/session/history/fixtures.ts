@@ -729,6 +729,15 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "data.label", path: "data.name", value: "a", label: "Alpha" },
     },
     {
+        name: "shader.set",
+        tags: BOTH,
+        command: {
+            op: "shader.set",
+            id: "user/fixture",
+            text: "vec4 shade(NodeInput n) { return n.color; }",
+        },
+    },
+    {
         name: "data.setFileStyles",
         tags: ["session"],
         command: {

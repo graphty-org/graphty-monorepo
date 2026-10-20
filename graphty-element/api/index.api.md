@@ -2575,6 +2575,8 @@ export class Graphty extends LitElement {
     setRunning(running: boolean): void;
     setViewMode(mode: ViewMode): Promise<void>;
     setXRConfig(config: PartialXRConfig): void;
+    get shaderSettings(): ShaderSettings;
+    set shaderSettings(value: ShaderSettings | undefined);
     static readonly shadowRootOptions: ShadowRootInit;
     shutdown(): void;
     get startingCameraDistance(): number | undefined;
@@ -5220,6 +5222,15 @@ export class SelectionManager implements Manager {
 // @public
 export interface SetLayoutOptions extends QueueableOptions {
     scope?: ScopeInput;
+}
+
+// @public
+export interface ShaderSettings {
+    readonly guard?: boolean;
+    readonly motion?: "system" | "on" | "off";
+    readonly quality?: "auto" | "low" | "medium" | "high";
+    readonly trustedHashes?: readonly string[];
+    readonly untrusted?: "hold" | "run" | "refuse";
 }
 
 // @public (undocumented)

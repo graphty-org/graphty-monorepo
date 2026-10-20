@@ -146,6 +146,8 @@ export const PLAIN_STRING_ALLOWLIST = new Set([
     "digest",
     "dataDigest",
     "fingerprint",
+    // a shader text's SHA-256, which trust settings name
+    "hash",
     "version",
     "at",
     "startedAt",

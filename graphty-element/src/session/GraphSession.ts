@@ -133,6 +133,7 @@ import { createSetsApi, sessionEdgeMember, setsStoreOf } from "./sets/SetsApi";
 import { identityOf, scopeSignature } from "./sets/signature";
 import type { StatusRun } from "./sets/status";
 import type { SetsApi, SetUser } from "./sets/types";
+import { bindShadersController, createSessionShaders, type SessionShaders, type ShadersController } from "./shaders";
 import {
     createAutoApplyPolicy,
     createStylesApi,
@@ -326,6 +327,7 @@ const TX_PARTS = [
     "selection",
     "visibility",
     "styles",
+    "shaders",
     "views",
     "positions",
     "config",
@@ -374,6 +376,8 @@ interface SessionParts {
     readonly visibility: SessionVisibilityApi;
     /** The style stack, with the element's own layers already at the bottom of it. */
     readonly styles: SessionStylesApi;
+    /** The project's shaders, and whether each may run. */
+    readonly shaders: ShadersController;
     /** Cancels every style edit still pending, for `dispose()`. */
     readonly stopStyleEdits: () => void;
     /** What the last style pass painted, which is what a renderer draws from. */
@@ -470,6 +474,7 @@ class Session implements ElementSession {
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
     readonly styles: SessionStylesApi;
+    readonly shaders: SessionShaders;
     readonly views: SessionViews;
     readonly layout: SessionLayout;
     readonly paint: ElementPaint;
@@ -477,6 +482,8 @@ class Session implements ElementSession {
 
     /** Cancels every style edit still pending. */
     private readonly stopStyleEdits: () => void;
+    /** The shaders' controller: the host, the trust settings. */
+    private readonly shadersController: ShadersController;
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
@@ -528,6 +535,9 @@ class Session implements ElementSession {
         this.selection = parts.selection;
         this.visibility = parts.visibility;
         this.styles = parts.styles;
+        this.shaders = parts.shaders.api;
+        this.shadersController = parts.shaders;
+        bindShadersController(this, parts.shaders);
         this.stopStyleEdits = parts.stopStyleEdits;
         this.paint = parts.paint;
         this.planning = parts.planning;
@@ -1070,6 +1080,7 @@ class Session implements ElementSession {
         this.sessionRuns.dispose();
         // Style edits are runs the runs list does not hold, so they are cancelled on their own.
         this.stopStyleEdits();
+        this.shadersController.dispose();
         this.watchers.clear();
         this.sessionData.dispose();
         this.ownedAcceleration?.dispose();
@@ -3318,6 +3329,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         previewSteps: (steps) => visibility.previewSteps(steps),
     };
 
+    const shaders = createSessionShaders({
+        dispatcher,
+        styles,
+        publish: (event, detail) => {
+            publish(watchers, event, detail);
+        },
+    });
     const session = new Session({
         store: store.store,
         ownedStore: store.owned,
@@ -3333,6 +3351,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             resolve: (spec) => scope.resolutionOf(spec ?? defaultScope),
             attributes: () => data.attributes(),
             results: () => results,
+            projectShaders: () => shaders.descriptors(),
         }),
         readProject,
         controller: acceleration.controller,
@@ -3351,6 +3370,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             teardown.abort(new DOMException("The session was disposed.", "AbortError"));
         },
         paint: painter.paint,
+        shaders,
         planning,
         watchers,
         dispatcher,

@@ -143,6 +143,8 @@ interface StyleTemplateCommand {
     readonly templateId?: string;
     /** Where the layers go; the top of the stack when absent. */
     readonly at?: TemplatePosition;
+    /** What to do with the document's shaders: hold them (absent), run them, or leave them out. */
+    readonly shaders?: "run" | "hold" | "refuse";
 }
 
 /** Every style op. */
@@ -395,6 +397,8 @@ const styleTemplate: UndoableDefinition<StyleTemplateCommand> = {
         label: () => "Applied a style document",
         fact: () => ({ code: "style.template", params: {} }),
     },
+    // Its document's shaders join the project in the same step.
+    keys: () => ["styles", "shaders"],
     execute: (command, ctx) => required(ctx.services.styles).execute(command, ctx.draft),
 };
 

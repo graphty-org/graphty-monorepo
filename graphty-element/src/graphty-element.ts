@@ -70,6 +70,7 @@ import {
 } from "./session/projectFile";
 import type { Run, RunChange, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
+import { shadersControllerOf, type ShaderSettings } from "./session/shaders";
 import type { ProgressChange } from "./session/shared";
 import { attachCredentials } from "./session/sources/credentialLookup";
 import { SOURCE_EVENT_DOM_NAMES } from "./session/sources/ids";
@@ -193,6 +194,8 @@ export class Graphty extends LitElement {
     #unwatchSource: (() => void) | null = null;
     #unwatchNotes: (() => void) | null = null;
     #unwatchProgress: (() => void) | null = null;
+    /** Unsubscribes the three shader mirrors. */
+    #unwatchShaders: (() => void) | null = null;
     readonly #progressAt = new Map<string, number>();
     readonly #runProgressAt = new Map<string, number>();
     #reportedStrayAttributes = false;
@@ -489,6 +492,31 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Mirror the session's shader events onto the DOM as `graphty-shader-status`,
+     * `graphty-shader-held` and `graphty-shader-approved`.
+     * @param session - The session to watch.
+     * @param session.on - Its event subscription.
+     * @returns Unsubscribes all three.
+     */
+    #mirrorShaderEvents(session: { on: GraphSession["on"] }): () => void {
+        const names = {
+            "shader:status": "graphty-shader-status",
+            "shader:held": "graphty-shader-held",
+            "shader:approved": "graphty-shader-approved",
+        } as const;
+        const offs = (Object.keys(names) as (keyof typeof names)[]).map((event) =>
+            session.on(event, (detail) => {
+                this.dispatchEvent(new CustomEvent(names[event], { detail, bubbles: true, composed: true }));
+            }),
+        );
+        return () => {
+            for (const off of offs) {
+                off();
+            }
+        };
+    }
+
+    /**
      * Mirror one run notification onto the DOM, so a consumer holding only the tag can follow it.
      *
      * The detail carries the run's RECORD rather than the run: a `CustomEvent` detail crosses to
@@ -751,6 +779,10 @@ export class Graphty extends LitElement {
         });
         // Click-to-expand from a network source (experimental): plain codes and values, as the other mirrors.
         this.#unwatchSource ??= this.#mirrorSourceEvents(session);
+        // A project shader's status, held shaders after a load, and approvals an application may remember.
+        this.#unwatchShaders ??= this.#mirrorShaderEvents(session);
+        // A shader nobody approved is compiled only once the work it could take down is saved.
+        shadersControllerOf(session)?.onRisk(() => this.#autosaveControl.api.flush());
         // A source load given no credential asks this element's store, by source and origin.
         attachCredentials(session.data, (source, origin) => this.credentials.lookup(source, origin));
         this.#unwatchHistory ??= session.on("history:changed", ({ reason }) => {
@@ -976,6 +1008,8 @@ export class Graphty extends LitElement {
         this.#unwatchNotes = null;
         this.#unwatchProgress?.();
         this.#unwatchProgress = null;
+        this.#unwatchShaders?.();
+        this.#unwatchShaders = null;
 
         // The final autosave write is built now, while the session is still alive; only its
         // commit finishes after the shutdown below.
@@ -2497,6 +2531,36 @@ export class Graphty extends LitElement {
         const oldValue = this.renderOnDemand;
         this.#graph.setLayoutBehavior({ rendering: { onDemand: value } });
         this.requestUpdate("renderOnDemand", oldValue);
+    }
+
+    /**
+     * The reader's shader settings: quality, motion, the frame guard, and what to do with shader
+     * text that arrives in content (a project or style file, an AI command, a URL).
+     * @remarks
+     * A preference of this reader and this page, never of the project: it is not saved in a
+     * project file or a style document, and a file that carries a `shaderSettings` member has it
+     * ignored, so a file can never ask to run its own shaders. `untrusted` holds such shaders
+     * until `session.shaders.approve` by default; `trustedHashes` names the texts (by SHA-256) the
+     * application remembers the reader approved, from `graphty-shader-approved` events. A shader
+     * that was compiling or drawing when the page last died is held whatever `trustedHashes` says.
+     * @since 3.36.0
+     * @example
+     * ```typescript
+     * element.shaderSettings = { untrusted: "hold", trustedHashes: rememberedHashes };
+     * ```
+     * @returns The settings in force
+     */
+    @property({ attribute: false })
+    get shaderSettings(): ShaderSettings {
+        return shadersControllerOf(this.session)?.settings ?? {};
+    }
+    /**
+     * Sets the reader's shader settings, in place of the ones before.
+     */
+    set shaderSettings(value: ShaderSettings | undefined) {
+        const oldValue = this.shaderSettings;
+        shadersControllerOf(this.session)?.configure(value ?? {});
+        this.requestUpdate("shaderSettings", oldValue);
     }
 
     /**

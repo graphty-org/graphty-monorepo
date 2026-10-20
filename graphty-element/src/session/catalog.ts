@@ -48,6 +48,7 @@ import { PALETTE_DESCRIPTORS } from "../catalog/palettes";
 import { registeredAlgorithmDescriptors } from "../catalog/registry";
 import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import { shaderDescriptors } from "../catalog/shaderRegistry";
+import type { ShaderDescriptor } from "../catalog/shaders";
 import type { AlgorithmDescriptor } from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
 import { describeMetrics, type MetricsSource } from "./metrics";
@@ -160,10 +161,23 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
  * @returns The catalogue.
  */
 export function createSessionCatalog(
-    source: MetricsSource & Pick<OptionsForSource, "resolve" | "attributes" | "results">,
+    source: MetricsSource &
+        Pick<OptionsForSource, "resolve" | "attributes" | "results"> & {
+            /** The project's own shaders, listed after the presets and registered ones. */
+            readonly projectShaders?: () => readonly ShaderDescriptor[];
+        },
 ): SessionCatalogApi {
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
+        /**
+         * Every shader a layer can name: the element's presets, the registered ones, then the
+         * project's own (pasted, or carried in by a file).
+         * @returns the shader descriptors, the element's own first
+         */
+        shaders: () => {
+            const pasted = source.projectShaders?.() ?? [];
+            return pasted.length === 0 ? shaderDescriptors() : Object.freeze([...shaderDescriptors(), ...pasted]);
+        },
         /**
          * Every metric the element could compute on this graph, with what it would cost and
          * whether it has been run.

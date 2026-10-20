@@ -334,13 +334,15 @@
             "labelWeight": "normal",
             "labelPosition": "right",
             "labelAvoidOverlap": true,
-            "labelOnTop": true
+            "labelOnTop": true,
+            "labelMinNodeScreenSize": 12
         },
         "edge": {
             "color": "#cccccc",
             "width": 0.5,
             "sourceArrow": "none",
-            "targetArrow": "none"
+            "targetArrow": "none",
+            "minScreenWidth": 0.85
         },
         "graph": {
             "background": "#ffffff"

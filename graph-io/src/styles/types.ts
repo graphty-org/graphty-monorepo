@@ -296,6 +296,12 @@ export interface NodeStyleValues {
      */
     readonly labelAvoidOverlap: boolean;
     /**
+     * The label is not drawn while its node is drawn smaller than this many screen pixels across (the smaller of its
+     * width and height): a screen size, not a length, so it is never scaled with the file's lengths (sigma.js's
+     * `labelRenderedSizeThreshold`, a radius of 6 px). Unset, the node's size never hides its label.
+     */
+    readonly labelMinNodeScreenSize: number;
+    /**
      * Whether the label is drawn over every node and edge, as sigma.js draws its labels on a layer of their own; unset
      * or false, a nearer node may cover it.
      */
@@ -452,6 +458,12 @@ export interface EdgeStyleValues {
     readonly gradientKind: string;
     /** The line width. */
     readonly width: number;
+    /**
+     * The fewest screen pixels wide the line is drawn, whatever its `width` comes to on screen (0 included): a screen
+     * size, not a length, so it is never scaled with the file's lengths (sigma.js's `minEdgeThickness`). Unset, the
+     * line is drawn at its width alone.
+     */
+    readonly minScreenWidth: number;
     /** The label's font size. */
     readonly labelSize: number;
     /** The arrow size as a factor: 1 is the writing tool's normal size. With `sourceArrowSize`, the target's alone. */

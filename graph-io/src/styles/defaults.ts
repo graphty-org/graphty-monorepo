@@ -694,6 +694,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                         `${SIGMA4} LabelGrid.getLabelsToDisplay (labelDensity 1, labelGridCellSize 100)`,
                     ),
                     labelOnTop: v(true, `${SIGMA4} labels are drawn by their own program after every node and edge`),
+                    // a node's label is drawn only while its node's rendered size (a radius) is 6 px or more
+                    labelMinNodeScreenSize: v(12, `${SIGMA4} renderLabels (labelRenderedSizeThreshold 6, a radius)`),
                 },
                 edge: {
                     color: v("#cccccc", `${SIGMA}/settings.ts lines 119-126`),
@@ -701,6 +703,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     width: v(0.5, `${SIGMA4} DEFAULT_EDGE_DISPLAY_DATA (size 1)`),
                     sourceArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
                     targetArrow: v("none", `${SIGMA}/settings.ts lines 119-126 (type line)`),
+                    // no edge is drawn thinner on screen, whatever its size (the shader's max(size, minEdgeThickness 1.7),
+                    // drawn half as wide as a node of that size is in radius, as readSigmaRow halves a size)
+                    minScreenWidth: v(
+                        0.85,
+                        `${SIGMA4} edge program (pixelsThickness = max(size, minEdgeThickness 1.7))`,
+                    ),
                 },
                 graph: {
                     background: v(

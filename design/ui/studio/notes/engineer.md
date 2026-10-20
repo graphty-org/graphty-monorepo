@@ -16,45 +16,35 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, color picker refusals and Tab walk; compact-mantine `color/ColorPickerPanel.tsx`,
-   `popout/PopoutPanel.tsx`) The picker's value box refuses unreadable text as the color field's
-   hex box does: Enter keeps it, `aria-invalid`, picker stays open, a `role=alert` line under the
-   value row (`refused(typed, format)`, per-format "what it takes"); blur reverts and says
-   `refusedKept`. Tab: the fix is in PopoutPanel, not the picker, because the close button is the
-   panel's: a panel opened on a `data-autofocus` stop that is not its first wraps Tab/Shift+Tab at
-   either end while any of its stops has not had focus since open (`entryRef`, `visitedRef` via
-   the panel's onFocus); then Tab past the end leaves as before. Rejected: a ring that leaves at
-   the stop before the entry (Tab after a Shift+Tab would leave at once) and a plain trap (breaks
-   "Tab closes a pop-out"). Tests red before: `ColorPickerPanel.browser.test.tsx` (4). Walk on a
-   fresh build (`design/ui/studio/tmp/r1-dry1-color-picker-refusal-tab/detours/`): 05 refusal
-   shown, picker open; 06-23 Tab goes value, 5 swatches, close, field, eyedropper, hue, format,
-   value, swatches, then out to the hex box. Not done: the picker's Escape still reverts without
-   the spoken "Edit discarded" decided.md asks for. Nx in the studio worktree fails on an
-   untracked `compact-mantine-headproof/` (duplicate project name): build with each package's
-   `npm run build`. compact-mantine: 12 failures, all pre-existing (axe FieldChooser x4,
-   CompactColorInput swatches x2 + story, Tree x3, select AA, FieldChooser story).
-1. (2026-10-19, lists say when typing matches nothing, and stay inside the window; compact-mantine
-   `inputs/listbox.tsx`) Typed letters that start no option: the foot line shows
-   `listNoMatch(typed)` (new optional label, default `No option starts with "cube"`) in place of
-   the letters, and a `role=status` region INSIDE the list surface (`.cm-listbox-said`, made on
-   the first miss, words a frame later so they are announced) says it. Not a page-level region:
-   one in `document.body` made every `getByRole("status")` on the page ambiguous (broke
-   CompactColorInput's Escape test). Words reach the document-level keyboard code through
-   `setListNoMatchLabel`, called by `LabelsProvider`. Width: a single-choice list with nothing
-   checked opened below, flush left but 16px wider than its field (`listboxMinWidth`), so a
-   field at the window's right edge put the list on the edge; it is now the field's width
-   (`selectedOption` shared with the offset). Tests red before: StyleSelect "highlights nothing
-   and writes nothing ...", inputs "with nothing selected, opens below as wide as its field ...".
-   Walk on a fresh build (`design/ui/studio/tmp/r1-dry1-lists-no-match-in-window/`): shape grid
-   `cube` shows the line, Enter writes nothing (shape/12-13); filter step's attribute list
-   1209-1417 under its field (filter/07). Not walked by screen reader (sr mode is keyboard only,
-   long route); the unit test reads the region. 13 compact-mantine failures, all on HEAD too
-   (axe FieldChooser x4, CompactColorInput swatches x3, Tree toggles x3, select AA).
-   0b. (2026-10-19, tooltips only for the control the reader is on, compact-mantine 423fb38cc)
-   `overlayBehavior.ts` finds a tooltip's trigger through a WeakMap `tooltipFlip` fills, not
-   `aria-describedby` (Mantine inputs overwrite it); a tooltip mounts dismissed while its
-   trigger's own pop-up is open. In full: `git show b824a5e61:design/ui/studio/notes/engineer.md`,
-   Top of mind 0.
+0. (2026-10-19, targeted re-walk of the tooltip, list and color picker fixes 423fb38cc,
+   a340d0c6f, 8f49cc133; nothing changed) graphty/dist built 18:32 from a clean tree holding all
+   three (stamp a340d0c6f8c3; picker sources edited before the build, committed after). Walks in
+   `design/ui/studio/tmp/r1-dry1-recheck-tooltips-own-control/`: tips, lists, picker, plus
+   frozen-compare on the frozen build. No regression found; each acceptance holds. About Degree:
+   one bubble, no name tooltip on hover or click (tips/04-05; frozen shows both, frozen-compare/04).
+   Undo/redo bringing the label text box under a resting pointer opens nothing, a move does
+   (tips/30-31). "+" menu and bind pop-out open: no tooltip over them (tips/18-19, 45). Shape grid
+   `cube` and filter Keep `x`: no-match line, Enter writes nothing (lists/04-05, 24). Filter
+   attribute list fits its field 1210-1417 (lists/13). Picker: refusal on Enter keeps text and
+   picker (picker/05), blur says "so this stays" (07), Tab walks every stop then leaves to the hex
+   box (08-23), Shift+Tab wraps from close to the last swatch (38-46), valid hex commits (47).
+   Pre-existing, same on the frozen build, not from these diffs: (a) Tab out of a select-only list
+   with letters typed and an option highlighted takes nothing (lists/08; frozen-compare/08) --
+   decided.md's "Tab takes that option" was written for the condition lists; whether it covers
+   select-only lists is open; (b) Escape on About Degree with the pointer resting on the circle
+   leaves the hover bubble open (tips/06; frozen-compare/05); (c) Escape in a style text box or the
+   picker's value box reverts without the "Edit discarded; this stays X" line decided.md asks for
+   (tips/32, picker/06); (d) the filter step's searchable attribute box shows nothing when typed
+   letters match nothing (lists/14) -- the new no-match line covers select-only lists only.
+   Seen once, not reproduced: the bind pop-out showed open on a hover after Escape had closed it
+   (tips/46-47); 54-61 repeated the sequence and it stayed shut.
+
+1. (2026-10-19, the three compact-mantine fixes re-walked above) Their design, the rejected
+   alternatives, the tests red before and the pre-existing compact-mantine failures are in full in
+   `git show 532890ecc:design/ui/studio/notes/engineer.md`, Top of mind 0, 1 and 0b. Kept here:
+   the picker's Tab wrap lives in PopoutPanel (`entryRef`, `visitedRef`), not the picker; the
+   no-match line's status region sits inside the list surface, never in `document.body`; build
+   each package with its own `npm run build` (nx fails on the untracked `compact-mantine-headproof/`).
 
 0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
 starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary

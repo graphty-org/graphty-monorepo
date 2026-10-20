@@ -941,6 +941,7 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     W_MODEL_PART_SUBSTITUTED: (p) => `Used ${said(p.used)} for ${said(p.name)}.`,
     W_MODEL_PART_SKIPPED: (p) => `Drawn without ${said(p.name)}.`,
     W_MODEL_PART_UNUSED: (p) => `${said(p.fileName)} is not a part this model is missing.`,
+    W_MODEL_NOT_KEPT_BY_URL: (p) => `Saved the files of ${said(p.url)}: its parts came from more than one place.`,
 };
 
 /**

@@ -1109,9 +1109,11 @@ Still open on the session sheets (the same rows, with the same counts, on the XG
   `Serif,bold,12` and Cytoscape draws it plain (the XGMML saves `Serif.plain,plain,12`). Cytoscape's font parser
   takes bold only from a `.bold` suffix on the name and ignores the style word; graph-io reads the style word. The
   reader fix needs the writer to change with it (graph-io writes `SansSerif,bold,12`, which Cytoscape also draws
-  plain), so both are left for one change.
+  plain), so both are left for one change. Resolved in fix round 2 (07cd87d31, the CX round): the session sheet
+  passes.
 - `labels` and `mappings-bypass-p6` `font-face-serif` (label.anchor, all four formats): the oracle reads the serif
-  label as start-anchored; not an import setting (graph-io reads the label as centered, as the file says).
+  label as start-anchored; not an import setting (graph-io reads the label as centered, as the file says). Resolved
+  in fix round 2: a comparator misreading, fixed there (f5a24b69c, see the session round 2 section below).
 
 ## Specimen sheets: vis-network
 
@@ -2211,6 +2213,15 @@ Still open:
   graphty frames a sigma file 1.1x to 1.2x smaller, so the exact grid computed on graphty's screen scores below
   today's rule (see I35). It waits for graphty to frame a sigma file as sigma does, then a label grid option in
   graphty-element.
+- `edge-labels-p2`, `-p3` `edge-label-long` ("A longer edge label"): sigma 4.0.1 draws an edge label only along the
+  edge's body between its two node discs, and softly truncates the rest: glyphs fade out over the last 15 px before
+  either disc (`FADE_WIDTH_PIXELS`, `v_edgeFade` in its edge label shader), and the whole label fades or is hidden
+  when the body is shorter than the text (`computeEdgeLabelAlpha`, its min and full visibility ratios). Its PNG
+  shows "A" and "el" faded to almost nothing; graphty draws the whole label, over the source node's disc. Not judged:
+  the comparator reads the label's text from sigma's record (`getEdgeDisplayedLabels()` lists a label whatever alpha
+  the shader gives it), not the glyphs drawn, so edge label passes. graphty-element has no way to clip or fade an
+  edge label to the edge's visible body; it waits for that option in graphty-element (then graph-io sets it for
+  sigma), and the oracle record should then carry each label's visible span.
 - A node whose `x` or `y` is a string, even a numeric one ("100"), makes sigma throw while drawing; graph-io places
   no node of such a file (the column is text). No oracle can be drawn, so no sheet holds it.
 

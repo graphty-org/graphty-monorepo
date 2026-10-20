@@ -64,6 +64,30 @@ export interface ScreenBox {
     far: number;
 }
 
+/** The end cap at the other end of its line. */
+const OTHER_END: Readonly<Record<string, "arrowHead" | "arrowTail">> = {
+    arrowHead: "arrowTail",
+    arrowTail: "arrowHead",
+};
+
+/** The cap that points the other way along its line, for a cap read at the other end (`ArrowStyle.position`). */
+const POINTS_BACK: Readonly<Record<string, string>> = {
+    normal: "inverted",
+    inverted: "normal",
+    vee: "crow",
+    crow: "vee",
+};
+
+/**
+ * A cap's name with its type turned to the one pointing the other way along its line (`POINTS_BACK`).
+ * @param name - the cap's name, its type within it
+ * @returns the name
+ */
+function pointingBack(name: string): string {
+    const type = Object.keys(POINTS_BACK).find((t) => name.includes(t));
+    return type === undefined ? name : name.replace(type, POINTS_BACK[type]);
+}
+
 /** Projects world points to render pixels through the active camera. */
 export class Projector {
     readonly width: number;
@@ -189,8 +213,8 @@ interface EdgeInternals {
     lineIsCurve: boolean;
     drawnStyle: {
         line?: { bezier?: boolean; gradient?: { kind?: string } };
-        arrowHead?: { gap?: number };
-        arrowTail?: { gap?: number };
+        arrowHead?: { gap?: number; position?: number };
+        arrowTail?: { gap?: number; position?: number };
     } | null;
 }
 interface PatternInternals {
@@ -1178,10 +1202,11 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
     // The line stops short of a tip by the arrow's length, which on a short edge between two ports
     // can turn it round; a route judged to the node center from there would not be the one drawn.
-    const tip = (cap: ArrowCap | null): Vector3 | null =>
-        cap !== null && !cap.isDisposed() && cap.visibility > 0 ? cap.position.clone() : null;
-    const tail = tip(edge.arrowTailCap);
-    const head = tip(edge.arrowCap);
+    // A cap drawn part-way along its line (`ArrowStyle.position`) is no end: the line runs on past it to its node.
+    const tip = (cap: ArrowCap | null, position: number | undefined): Vector3 | null =>
+        cap !== null && !cap.isDisposed() && cap.visibility > 0 && !((position ?? 0) > 0) ? cap.position.clone() : null;
+    const tail = tip(edge.arrowTailCap, internal.drawnStyle?.arrowTail?.position);
+    const head = tip(edge.arrowCap, internal.drawnStyle?.arrowHead?.position);
     if (world.length >= 2 && tail !== null) {
         world = [tail, ...world.slice(1)];
     }
@@ -1200,9 +1225,15 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const look = cap?.drawnAppearance?.colour ?? null;
         const material = look === null ? materialColor(cap?.batchMesh?.material ?? null) : null;
         const rgb = look ?? material?.rgb ?? null;
+        // an end cap drawn past the middle of its line (`ArrowStyle.position` above 0.5) sits at the other end, and is
+        // read there, as a reader of the drawing finds it (Pajek's `ap 1`: the head drawn at the source end)
+        const other = OTHER_END[c.end];
+        const own = c.end === "arrowHead" ? internal.drawnStyle?.arrowHead : internal.drawnStyle?.arrowTail;
+        const across = other !== undefined && (own?.position ?? 0) > 0.5;
         return {
-            end: c.end,
-            name: c.name,
+            end: across ? other : c.end,
+            // read there, it points back along its line: a head's triangle into the line from its source end
+            name: across ? pointingBack(c.name) : c.name,
             sizePx: c.span * p.pxPerWorld(at),
             outline: capOutline(cap, p),
             color: rgb === null ? null : hex(rgb),

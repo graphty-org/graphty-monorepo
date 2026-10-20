@@ -110250,7 +110250,10 @@
             "frame.zoom": [
                 "frame"
             ],
-            "background": []
+            "background": [],
+            "stray.present": [
+                "text#2"
+            ]
         },
         "pajek-1crn@matched": {
             "node.present": [
@@ -110321,7 +110324,10 @@
             "frame.zoom": [
                 "frame"
             ],
-            "background": []
+            "background": [],
+            "stray.present": [
+                "text#2"
+            ]
         },
         "pajek-c": {
             "node.present": [],
@@ -112353,7 +112359,25 @@
                 "99->208#0@target"
             ],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "edge.route": [
+                "11->5#0",
+                "125->123#0",
+                "130->123#0",
+                "177->185#0",
+                "178->174#0",
+                "183->185#0",
+                "215->208#0",
+                "235->228#0",
+                "241->232#0",
+                "310->5#0",
+                "43->53#0",
+                "7->14#0",
+                "89->87#0",
+                "97->87#0"
+            ],
+            "frame.mirror": [],
+            "frame.rotation": []
         },
         "pajek-iliad@matched": {
             "node.present": [],
@@ -115865,7 +115889,9 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "node.strokeWidth": [],
+            "node.strokeDash": []
         },
         "pajek-kdorola": {
             "node.present": [],
@@ -117043,7 +117069,11 @@
             "frame.zoom": [
                 "frame"
             ],
-            "background": []
+            "background": [],
+            "stray.present": [
+                "text#0",
+                "text#1"
+            ]
         },
         "pajek-synth-vertices@matched": {
             "node.present": [],
@@ -117256,7 +117286,11 @@
             "frame.zoom": [
                 "frame"
             ],
-            "background": []
+            "background": [],
+            "stray.present": [
+                "text#0",
+                "text#1"
+            ]
         },
         "vis-network-specimen-arrows": {
             "node.present": [],
@@ -129035,7 +129069,13 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "edge.arrowShape": [],
+            "edge.arrowFill": [],
+            "edge.arrowColor": [],
+            "edge.arrowLength": [],
+            "edge.arrowWidth": [],
+            "edge.arrowToSpacing": []
         },
         "pajek-specimen-arrows-p2@matched": {
             "node.present": [],
@@ -129094,7 +129134,13 @@
             "frame.mirror": [],
             "frame.rotation": [],
             "frame.zoom": [],
-            "background": []
+            "background": [],
+            "edge.arrowShape": [],
+            "edge.arrowFill": [],
+            "edge.arrowColor": [],
+            "edge.arrowLength": [],
+            "edge.arrowWidth": [],
+            "edge.arrowToSpacing": []
         },
         "pajek-specimen-arrows-p3": {
             "node.present": [],

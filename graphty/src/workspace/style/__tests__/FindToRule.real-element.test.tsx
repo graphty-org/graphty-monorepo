@@ -127,6 +127,58 @@ describe("selection as a way into a rule", () => {
         assert.strictEqual(session.styles.counts(made.id).matched, 2);
     });
 
+    it("New layer from selection on the canvas menu makes the layer at once and opens its Style tab", async () => {
+        const { session, element } = await openWithGraph();
+        await element.waitForStableFrame();
+        const before = readerLayers(session).length;
+        const at = (id: string): { x: number; y: number } => {
+            const p = element.nodeScreenPosition(id);
+            if (p?.visible !== true) {
+                throw new Error(`node ${id} is not on screen`);
+            }
+            return { x: p.x, y: p.y };
+        };
+        await userEvent.click(element, { position: at("a") });
+        await userEvent.keyboard("{Shift>}");
+        await userEvent.click(element, { position: at("c") });
+        await userEvent.keyboard("{/Shift}");
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["a", "c"]);
+        });
+
+        // A right-click on a selected node keeps the selection and lists its commands.
+        await userEvent.click(element, { position: at("a"), button: "right" });
+        await userEvent.click(await screen.findByRole("menuitem", { name: /New layer from selection/ }));
+
+        // The layer is made with no value set yet, named after the selection.
+        await waitFor(() => {
+            assert.lengthOf(readerLayers(session), before + 1);
+        });
+        const made = readerLayers(session).at(-1);
+        assert.isDefined(made);
+        assert.deepEqual(made.selector, { match: "ids", nodes: ["a", "c"], edges: [] });
+        // It is the selected row of the tree, a notice names it, and focus is on its Style tab.
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await waitFor(() => {
+            const row = within(tree).getByRole("treeitem", { selected: true });
+            assert.include(row.textContent, made.name);
+        });
+        // The notice, and the status line that speaks it.
+        assert.isNotEmpty(await screen.findAllByText("Made a layer for the 2 selected nodes"));
+        await waitFor(() => {
+            const focused = document.activeElement;
+            assert.strictEqual(focused?.getAttribute("role"), "tab");
+            assert.strictEqual(focused?.textContent, "Style");
+            assert.isNotNull(focused?.closest('[data-inspected="layer-row"]'));
+        });
+
+        // Undo takes the layer back.
+        await userEvent.keyboard("{Control>}z{/Control}");
+        await waitFor(() => {
+            assert.lengthOf(readerLayers(session), before);
+        });
+    });
+
     it("a selection made by a rule makes a layer with that rule", async () => {
         const { session } = await openWithGraph();
         const before = readerLayers(session).length;

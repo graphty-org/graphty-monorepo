@@ -16,57 +16,33 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, Quick actions' "Add label line" is the Text "+" line) One path, `labelRow` +
-   `addLabelLine` (`style/row.ts`), used by Quick actions and the attribute menus (`labelLine`,
-   `style/commands.ts`): the inspected layer row, else Everything (the starting tree row as its
-   `layer-row`), words only -- no Card look, no size 72, no layer named after the attribute.
-   `addLabelRow`/`LABEL_SIZE_PX` gone; number format is `textBinding`. No attribute open: the
-   command opens Text's source list there (store `textNext`, taken by `LabelSection`), or focuses
-   the label line when the row already labels. Walk `tmp/r1-dry1-quick-actions-label-line/`:
-   plus/07 = attr/07; attr/11 list; attr/14 focus. Pre-existing red here, same on old code:
-   StyleTab "...states the counts" (hiddenByOverlap 0) and tasks "a click on a drawn name".
-
-0b. (2026-10-19, condition card keys) in full: `git show c9eb6f622:design/ui/studio/notes/engineer.md`,
-Top of mind 0b.
-
-0. (2026-10-19, one name per control, names that say the value; graphty and compact-mantine)
-   The node id is "Id" everywhere it is listed (`ID_NAME` in `inspector/words.ts`: table key
-   column, filter step and condition lists, value picker, binding source). Combine is named by
-   its label and value (no aria-label). Stop varying, One value for all and the label gear: the
-   tooltip IS the name (one string). A yes-or-no card's select is named by its column alone
-   (`MatchSelect spoken`). "Already open" on the open sample. Undo of `config.set` names the
-   setting from `params.keys` ("changing the background", `SETTING_WORDS` in `historyWords.ts`).
-   File-set roles on the read-the-file page are text values, not disabled selects.
-   compact-mantine: the color field's label is a `<label for>` its hex box (a click focuses it);
-   a tree folder's box is checked when every row inside is selected (selection unchanged); a
-   QuickActions section's first row is `aria-describedby` its heading (ids by section index:
-   an id list splits on spaces). The study tool now names an `aria-labelledby` group by its
-   label: "Shape Shape" was the tool reading the group's text, the real name was "Shape".
-   Walk: `design/ui/studio/tmp/r1-dry1-names-match/walk/` 03 (group "Shape"), 05-07 (label
-   click focuses the box; "Undid changing the background."), 13-17 (tooltip = name), 15
-   (Combine), 21 (gear), 25-27 (Id; select "trained"), 38 (folder checked);
-   `sample/03` (Already open), `sample/05` (roles as values). The "Select layers" boxes are
-   already `aria-hidden` (the row's aria-selected carries the state); no change there.
-   Pre-existing failures in the same run, none on lines this touched (another agent was
-   editing `StylePanel.tsx`, `row.ts`, `WhichPicker.tsx`, compact-mantine inputs): StylePanel 3
-   (fold row name regex, keyboard bind, tooltip `/^id/`), BulkPilot 2, VaryByLayer 7,
-   NamesAndRules timeout, OneLineRows left edge, DataPage "All 12 rows" twice.
-1. (2026-10-19, earlier today: Style nodes dimmed reason and others) in full in
-   `git show c9eb6f622:design/ui/studio/notes/engineer.md`, Top of mind 1.
-
-0a. (2026-10-19, crimson re-walk: REGRESSION, still open) compact-mantine `colorWord`'s red band
-starting at hue 340 calls Kelly's pink E68FAC (hue exactly 340) "red". Fix idea: a boundary
-between 340 and 344, or lightness too, with E68FAC in the test. Lesson: test every palette
-color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-
-1b. (2026-10-19, label count and the selection ring) in full in
-`git show c9eb6f622:design/ui/studio/notes/engineer.md`, Top of mind 1.
-
-2. (2026-10-18, layer rows and the key agree with what a layer draws: `styles.groups` counted over
-   the layer's selector, `rows.ts` `builtParts`, `legendWords.ts` `heldRows`/`coveredLine`) in
-   full, with its walks and the tests red on HEAD then, in
-   `git show 9ed873a75:design/ui/studio/notes/engineer.md`, Top of mind 1.
-   0d. (2026-10-18, undo words and keys) in full in `git show e247f1900:design/ui/studio/notes/engineer.md`, Top of mind 0.
+0. (2026-10-19, "New layer from selection" makes the layer at once; graphty app + graphty-element)
+   `layerFromSelection` (`style/commands.ts`): if the selection already has its row
+   (`selectionRow`), open it ("Opened layer X"); else `styles.addRow({ name: selectionName,
+selector: selection.layerSelector, target: node|edge|both, userData: DEFAULT_NAME_KEY })` above
+   `topmostRow`, one undo step; then `inspected: { kind: "layer-row", id, tab: "style" }`, notice
+   `madeWords`, and a rAF focuses `[data-inspected="layer-row"] [role="tab"][aria-selected]` (the
+   context menu has already handed focus back to the canvas by then). `selectionName` moved from
+   `StylePanel.tsx` to `cards.ts` (react-refresh lint forbids a non-component export there).
+   ELEMENT DEFECT FIXED: `addRow` refused an empty row of ONE kind (`E_BAD_LAYER`, "writes no
+   channel") but accepted an empty both-kinds row (parts carry `row`); `planAddRow` now checks
+   with `mayBeEmpty`. Recorded in `owner-decisions.md` (decided by the team). A both-kinds row was
+   not an option: a node rule's edge part would paint the edges the rule reaches.
+   Test: `FindToRule.real-element.test.tsx` "...on the canvas menu..." (right-click a selected
+   node, the menu row, layer added, tree row selected, notice, focus on Style tab, Control+Z takes
+   it away); red before (no layer). Element: `test/session/empty-row.test.ts` one-kind rows.
+   Walk on a fresh dist, `design/ui/studio/tmp/r1-dry1-new-layer-from-selection/walk/`: 06 menu,
+   07 "Made layer Guadagni for 1 node" with the Style tab ringed, 08 undo, 11 rule selection
+   ("Rule: graphty.degree >= 4", a name from `selectorName` that reads the internal path -- not
+   touched here, worth a look). Pre-existing red in the same run, not from this: StylePanel 3
+   (attribute option names), inspector T8 and "an edge, an attribute..." (Id rename), CanvasMenu
+   "Open a sample" list, element `door-surface` (`LoadDraft.graphtyDocument`).
+1. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
+   control, Style nodes reason, label count and selection ring) in full in
+   `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
+2. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+   Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
+   `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
 3. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
    summaries and the Data place, focus after a style line, shape list typing and the color picker,
    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
@@ -96,8 +72,8 @@ color near a moved hue boundary. In full: `git show 3db58912a:design/ui/studio/n
    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
    BoundValue for one layer and for several (owner 2026-10-16).
 10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
-    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused
-    (`E_BAD_LAYER`); Top N takes a tie group whole; `data.histogram` takes data columns only, a
+    expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
+    `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
 11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
@@ -223,6 +199,11 @@ Older decisions (28 entries, 2026-10-17 to 10-18) are in full in git: `git show 
 
 ## Tried: worked / did not work
 
+- (2026-10-19) New layer from selection as `addRow` of one kind with nothing set: DID NOT WORK at
+  first -- the element refused it ("writes no channel"), caught as a notice; the screenshot of the
+  failing test showed "The layer could not be made". Fixed in the element, not the app. Focus on
+  the Style tab after a menu command: a `requestAnimationFrame` after the store write WORKED
+  (the menu's own focus return runs on close, before the awaited add resolves).
 - (2026-10-19) Swapping the tree's checkbox for `Checkbox.Indicator` (no input): did not keep
   the themed look (the theme styles `Checkbox` only), so kept `Checkbox` inside `aria-hidden`.
 - (2026-10-19) A page-level live region for a list's message. DID NOT WORK: any always-present

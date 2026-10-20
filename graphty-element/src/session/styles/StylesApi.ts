@@ -480,6 +480,7 @@ export interface StylesApi {
      * (`"edge.width"`) or bare properties (`"color"`), each going to the parts whose kind has it.
      * {@link StylesApi.remove} and {@link StylesApi.move} on either part act on the whole row;
      * {@link StylesApi.list} still returns one layer per part, each with its own `target`.
+     * A row may start with no `set` and no `encode`, painting nothing until its first write.
      * @param spec - The row.
      * @param at - Which neighbour to sit next to; the top of the stack when absent.
      * @param options - A signal to cancel with, and a progress handler.
@@ -3189,7 +3190,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 ...partPatch({ target: kind }, { set: spec.set, encode: spec.encode }),
                 ...(row === undefined ? {} : { row }),
             };
-            const checked = check(layerSpec, ids[index]);
+            // A row may start empty, whichever kinds it paints: its first write gives it a value.
+            const checked = check(layerSpec, ids[index], true, true);
             if (checked.layer === null) {
                 throw refusedSpec(spec.name, checked.result);
             }

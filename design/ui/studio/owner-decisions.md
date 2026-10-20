@@ -62,6 +62,17 @@ outside React, so the provider hands it the words (one set per page).
 Also: a single-choice list with nothing chosen opens below its field as wide as the field (it was
 16px wider, which put a field at the window's right edge on its list's edge).
 
+## 2026-10-19 -- Decided by the team: a row of one kind may start empty, like a row of both (graphty-element)
+
+graphty-element, non-breaking: `styles.addRow` with target `"node"` or `"edge"` and no `set` or
+`encode` now adds the row, where it refused it with `E_BAD_LAYER` ("writes no channel"). A row of
+both kinds could already start empty (each part carries `row`), so one verb answered the same
+request two ways depending on the target. Nothing that worked before changes: only a call that
+threw now succeeds, and the row paints nothing until its first write, as an empty both-kinds row
+does. `styles.add` (one layer, not a row) still refuses an empty layer. The graphty app needs it so
+"New layer from selection" makes the selection's layer at once: a node selection's layer paints
+nodes only, and adding it as a both-kinds row would also paint the edges its rule reaches.
+
 ## 2026-10-19 -- Decided by the team: the key never moves the drawing (graphty app)
 
 Graphty app, no API change. This reverses the arrival frame in the entry below ("the key's room

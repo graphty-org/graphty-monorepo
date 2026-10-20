@@ -40,4 +40,30 @@ describe("an empty row", () => {
         assert.isUndefined(session.styles.get(row.edge ?? ""));
         session.dispose();
     });
+
+    it("may paint one kind: a row of nodes or of edges starts empty too", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ source: "a", target: "b" }]);
+
+        const nodes = await session.styles.addRow({
+            name: "2 nodes",
+            target: "node",
+            selector: { match: "ids", nodes: ["a", "b"], edges: [] },
+        });
+        assert.strictEqual(nodes.target, "node");
+        assert.isUndefined(nodes.edge);
+        assert.deepStrictEqual(session.styles.counts(nodes.id).painted, {});
+        const edges = await session.styles.addRow({
+            name: "1 edge",
+            target: "edge",
+            selector: { match: "everything" },
+        });
+        assert.strictEqual(edges.target, "edge");
+
+        await session.undo();
+        assert.isUndefined(session.styles.get(edges.id), "one undo takes the row away");
+        assert.isDefined(session.styles.get(nodes.id));
+        session.dispose();
+    });
 });

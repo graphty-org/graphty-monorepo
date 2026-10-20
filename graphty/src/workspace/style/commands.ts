@@ -1,9 +1,9 @@
 import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
 
 import { type CommandContext, defineRegistration } from "../commands/registry";
-import { resolveInspected } from "../inspector/inspected";
-import { addLabelLine, labelRow } from "./row";
-import { firstStyleWords } from "./words";
+import { DEFAULT_NAME_KEY, selectionName } from "./cards";
+import { addLabelLine, labelRow, selectionRow, topmostRow } from "./row";
+import { madeWords } from "./words";
 
 /**
  * The node attribute the inspector shows, when it shows one: the attribute kind's id is the
@@ -48,6 +48,50 @@ export async function labelLine(
 }
 
 /**
+ * Makes the selection's own layer at once -- the rule that selected it, or the selected elements
+ * picked by hand -- above the topmost row, as one undoable step, then selects it in the tree and
+ * opens its Style tab with focus on the tab. A selection that already has its layer opens that one.
+ * @param session - the element's session.
+ * @param workspace - the chrome store.
+ * @returns when the layer is made and opened.
+ */
+async function layerFromSelection(session: GraphSession, workspace: CommandContext["workspace"]): Promise<void> {
+    const { nodes, edges } = session.selection;
+    const name = selectionName(session);
+    const had = selectionRow(session).at(-1);
+    let id = had;
+    if (id === undefined) {
+        let target: "node" | "edge" | "both" = nodes.length > 0 ? "node" : "edge";
+        if (nodes.length > 0 && edges.length > 0) {
+            target = "both";
+        }
+        const base = topmostRow(session);
+        const parts = await session.styles.addRow(
+            {
+                name,
+                selector: session.selection.layerSelector,
+                target,
+                // The name is a default: it follows the layer's cards until the reader renames it.
+                userData: { [DEFAULT_NAME_KEY]: name },
+            },
+            base === undefined ? undefined : { above: base.id },
+        );
+        ({ id } = parts);
+    }
+    const layerName = session.styles.get(id)?.name ?? name;
+    workspace.set({
+        inspected: { kind: "layer-row", id, tab: "style" },
+        notice: {
+            message: had === undefined ? madeWords(layerName, nodes.length, edges.length) : `Opened layer ${layerName}`,
+        },
+    });
+    // The menu that ran this has given focus back to the canvas: the tab takes it once drawn.
+    requestAnimationFrame(() => {
+        document.querySelector<HTMLElement>('[data-inspected="layer-row"] [role="tab"][aria-selected="true"]')?.focus();
+    });
+}
+
+/**
  * The Style tab package's commands. "Add label line" (Quick actions, and the attribute menu's
  * door: Data > Attributes, the attribute inspector, a table column) adds the Text "+" label line
  * on the inspected layer row or Everything.
@@ -84,21 +128,16 @@ export const registration = defineRegistration({
                 ctx.session === null || ctx.session.selection.nodes.length + ctx.session.selection.edges.length === 0
                     ? "Select something first"
                     : null,
-            run: (ctx) => {
+            run: async (ctx) => {
                 const { session, workspace } = ctx;
                 if (session === null) {
                     return;
                 }
-                // The selection's Style tab is the new layer: it paints what the selection's rule
-                // holds, or the selected elements, and the first value set makes it a layer.
-                const { nodes, edges } = session.selection;
-                const { kind } = resolveInspected(null, { nodes, edges });
-                workspace.set({
-                    inspected: null,
-                    tabs: { ...workspace.get().tabs, [kind]: "style" },
-                    // No layer is made yet: said, as its panel says it.
-                    announcement: firstStyleWords(nodes.length, edges.length),
-                });
+                try {
+                    await layerFromSelection(session, workspace);
+                } catch {
+                    workspace.set({ notice: { message: "The layer could not be made", error: true } });
+                }
             },
         },
     ],

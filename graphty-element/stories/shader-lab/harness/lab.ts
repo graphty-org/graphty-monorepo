@@ -610,6 +610,11 @@ function build(
     camera.minZ = 0.5;
     camera.maxZ = 5000;
     camera.wheelDeltaPercentage = 0.01;
+    // Touch: pinch zooms in proportion to the distance (not by a fixed step, which is far too slow at
+    // this radius on a tablet), and two fingers pan.
+    camera.pinchDeltaPercentage = 0.01;
+    camera.useNaturalPinchZoom = true;
+    camera.multiTouchPanAndZoom = true;
     camera.panningSensibility = 40;
     camera.lowerRadiusLimit = 5;
     if (flat) {

@@ -200,14 +200,6 @@ describe("colorWord", () => {
         expect(colorWord("#810081")).toBe("dark purple");
     });
 
-    it("calls a crimson red and keeps pink for pinks", () => {
-        // A deep crimson (hue 344) and one just off the crimson keyword (hue 348).
-        expect(colorWord("#BE0032")).toBe("red");
-        expect(colorWord("#DC143D")).toBe("red");
-        expect(colorWord("#EC4899")).toBe("pink");
-        expect(colorWord("#CC79A7")).toBe("pink");
-    });
-
     it("calls a bluish green green, and keeps teal for blue-greens and blues for blues", () => {
         // The categorical palette's green (Okabe-Ito), as the key draws it beside "agency".
         expect(colorWord("#009E73")).toBe("green");

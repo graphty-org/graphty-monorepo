@@ -1,11 +1,11 @@
 import { ActionIcon, Group, Select, Tooltip } from "@mantine/core";
-import { useUncontrolled } from "@mantine/hooks";
 import React, { useState } from "react";
 
 import { PANEL_GRID, PANEL_INK } from "../constants/panel";
 import { useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
+import { useChosen } from "../utils/chosen";
 import { useControlAnnotation, VISUALLY_HIDDEN_STYLE } from "../utils/control-annotation";
 import { belowComboboxProps, ListboxCheck, walkHighlight } from "./inputs/listbox";
 
@@ -215,15 +215,9 @@ export function StyleSelect({
     // PanelField does it.
     const annotation = useControlAnnotation({ name: label, disabled, disabledReason });
 
-    // Controlled and uncontrolled, the way every state-holding component in
-    // this package works. The uncontrolled state starts at undefined, which is
-    // this component's word for "the reader has chosen nothing".
-    const [selected, setSelected] = useUncontrolled<string | undefined>({
-        value,
-        defaultValue: undefined,
-        finalValue: undefined,
-        onChange,
-    });
+    // The caller's value, else the last pick; undefined is "the reader has chosen nothing", and a
+    // caller that goes back to it (a reset, an undo) shows the default again.
+    const [selected, setSelected] = useChosen(value, onChange);
 
     // A list that opens under a pointer that has not moved (a list opens over its own field)
     // fills no option for it: the fill starts on the value in force, until the pointer moves. It

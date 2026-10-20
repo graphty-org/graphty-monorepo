@@ -16,7 +16,34 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
-0. (2026-10-19, table: Show in table and sorting; compact-mantine `DataTable`, graphty `table/`)
+0. (2026-10-19, inspector after Undo; compact-mantine `utils/chosen.ts`) A folder's or several
+   layers' Shape passes `value={undefined}` until the write lands, so Mantine's `useUncontrolled`
+   kept the pick Box in its own copy; after Undo the stale copy showed Box and a second Box was
+   no change. The panels already re-read on `history:changed`. Fix in the shared controls:
+   `useChosen` (taken out of `CompactColorInput`, which had the same trap) drops its copy when
+   the caller's value changes; `StyleSelect` and `CompactColorInput` use it; the event is passed
+   only when present (an explicit `undefined` broke `toHaveBeenCalledWith`). Tests red first:
+   compact-mantine "a caller taking its value/color back"; graphty `InspectorAfterUndo`. Walk:
+   `design/ui/studio/tmp/r1-dry1-inspector-after-undo/folder/` 13-16 (Box, Undo italic
+   Icosphere, Box again writes), 20-22 (color, two Undos). Trap left: any control on
+   `useUncontrolled` whose caller holds `undefined` while a write is in flight.
+
+1. (2026-10-19, Select all; graphty app only) Command `selection.all` in `frame/commands.ts`
+   ("Select all", group Selection, keys `Mod+A`, disabled by `nothingDrawn`) runs
+   `session.selection.apply({ scope: "visible" })`; the empty-canvas menu (`EMPTY_CANVAS` in
+   `canvas/CanvasMenu.tsx`) lists it before Clear selection. No notice of its own: the
+   `selection:changed` listener in `CanvasOverlays.tsx` already announces "N nodes, M edges
+   selected". Control+A in a text box is untouched because `firesWhileTyping("Mod+A")` is false
+   (`a` is a field key), so the command never runs there and the browser selects the text. It
+   selects every visible node AND the edges among them: the element has no node-only "everything"
+   target (`{ scope }` brings induced edges; `{ text }` is a search). Test:
+   `frame/__tests__/Workspace.real-element.test.tsx` "selects every node with Control+A ..." (find
+   box keeps its text selection and selects no node; canvas Control+A; menu row), red without the
+   change. Walk: `design/ui/studio/tmp/r1-dry1-select-all/walk/` 03 (77 nodes, 254 edges
+   selected), 05 (menu row with Ctrl+A), 06, 10 (find box text selected). Pre-existing red, not
+   mine: `KeysLeaveNothingOpen` "Tab from a card's value reaches the card's remove button" (lands
+   on "Add a condition"), red with my change reverted too.
+   0a. (2026-10-19, table: Show in table and sorting; compact-mantine `DataTable`, graphty `table/`)
    (a) `DataTable` `markedColumn` (header boxed with `--cm-border-selected`, cells tinted
    `--cm-bg-selected-secondary`; a selected row's fill still wins). TableDock keeps
    `{kind, id}` from Show in table, scrolls the header into view, focuses its sort button, and
@@ -35,46 +62,46 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
    0a. (2026-10-19, F6 regions; start-screen slowness was the study tool) in full in
    `git show ab5c74c0b:design/ui/studio/notes/engineer.md`, Top of mind 0; "New layer from
    selection" makes the layer at once: `git show 18f1cae06:...`, Top of mind 0.
-1. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
+2. Earlier 2026-10-19 entries (Quick actions' label line, condition card keys, one name per
    control, Style nodes reason, label count and selection ring) in full in
    `git show d60b1956b:design/ui/studio/notes/engineer.md`, Top of mind 0 to 1b.
-2. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
+3. STILL OPEN (2026-10-19): compact-mantine `colorWord` calls Kelly's pink E68FAC (hue 340) "red".
    Fix idea: boundary between 340 and 344, or lightness too, with E68FAC in the test. In full:
    `git show 3db58912a:design/ui/studio/notes/engineer.md`, Top of mind 0.
-3. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
+4. Earlier 2026-10-18 entries (find box words, keyboard stops and Escape, screen-reader names,
    summaries and the Data place, focus after a style line, shape list typing and the color picker,
    labels on the drawing, framing and hover, keys and focus, filter steps, layer panel words, redo
    of a run): Top of mind 0c to 6 of `git show e247f1900:design/ui/studio/notes/engineer.md`.
-4. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
+5. Open questions for the owner live in `owner-decisions.md` ("For the owner"): a bare rule name
    reading a run's field; comparisons by default in `selectorRule`; a larger or screen-pixel
    default label size; Kelly's palette for 10 to 19 groups.
-5. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
+6. Shared worktree: other agents commit beside me. Stage only my files. For a shared file, build
    the blob from `git show HEAD:<file>` plus my edits by exact string replacement in Python,
    `git hash-object -w` + `git update-index --cacheinfo`, then read `git diff --cached`. Never
    `git stash` (not even `list`). Commit headers <= 100 characters, scope from commitlint's list
    (`workspace` for studio notes, not `design`).
-6. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
+7. Prove a test fails without the change: copy the fixed file aside, `git show HEAD:<file>` over
    it, run only that test (`-t`), copy back at once. Only for files no one else has touched.
-7. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
+8. graphty tests read compact-mantine from its `dist` (rebuild it: `npm run build` there) and
    graphty-element from source; rebuild the app (`pnpm exec nx run graphty:build`, Sentry vars
    unset) before a real.mjs walk; end the session and start again after a rebuild. When nx
    refuses ("defined in multiple locations", a `compact-mantine-headproof` copy another agent
    is using), run `npm run build` in compact-mantine, graphty-element, then graphty.
-8. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
+9. API changes: additive ones go in `owner-decisions.md` under "decided by the team" with the
    name and shape; a changed default or a renamed or removed member goes "for the owner". A new
    Graph or element member needs `doors.ts` and `test/cost-coverage/method-classes.ts` lines,
    `npm run api:report` after a build, and `jsx.ts` regenerated by the build.
-9. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
-   `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
-   round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
-   built: number card histogram for a run field, "lowest N", dashed chips at rest. One
-   BoundValue for one layer and for several (owner 2026-10-16).
-10. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
+10. Combined Style panel (V7 tabs, condition cards, several layers): `style/cards.ts`,
+    `style/WhichPicker.tsx`, `RowStyle` in `StylePanel.tsx`. A controlled text field never
+    round-trips through the element; one undo step per open is `TransactionOptions.after`. Not
+    built: number card histogram for a run field, "lowest N", dashed chips at rest. One
+    BoundValue for one layer and for several (owner 2026-10-16).
+11. Element facts worth citing: layers paint one kind (a row is two parts); selectors everything,
     expression, has, ids, top, member, rule, state; a user layer that sets nothing is refused by
     `styles.add` (`E_BAD_LAYER`) but `styles.addRow` takes an empty row of any target (2026-10-19); Top N takes a tie group whole; `data.histogram` takes data columns only, a
     run field uses `run.result.histogram`; a bound label size wins over a label style's `sizePx`
     in the same stack (`writeRank` in `StylePainter.ts`).
-11. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
+12. Study tool: `real.mjs --start <dir> empty|setup:<file>` through its own browser slot;
     `--click "role=<role>:<name>"` for shared names, `--click-at x,y` when a name will not match
     (it prints the control it hit); step N lands in screenshot N+1; `--end` always. A select's
     option click can fail on `cm-pointer-still` (list opened under a still pointer): use
@@ -83,6 +110,9 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Decisions and reasons
 
+- (2026-10-19) **Select all means the whole drawing: every visible node and the edges among
+  them**, through `{ scope: "visible" }`. A node a filter hides is not one the reader can see
+  selected. Two-way door: a node-only variant would need a new element target.
 - (2026-10-19) **A tooltip and its control's name are one string in code**, so they cannot
   drift; the longer words win ("Stop varying node size by data: use one value for all"), and
   tests match the name by its start.

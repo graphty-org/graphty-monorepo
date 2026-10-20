@@ -194,6 +194,44 @@ describe("the workspace frame on the real element", () => {
         assert.equal(getComputedStyle(box).userSelect, "text", "a text box still selects its text");
     });
 
+    it("selects every node with Control+A on the canvas and from the canvas menu, and leaves a text box's Control+A to it", async () => {
+        await page.viewport(1366, 768);
+        const session = await openWorkspace();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+
+        // In the find box, Control+A selects the typed text and no node.
+        const find = screen.getByRole("combobox", { name: "Find" });
+        await realInput.click(find);
+        await realInput.keyboard("ab");
+        await realInput.keyboard("{Control>}a{/Control}");
+        assert.instanceOf(find, HTMLInputElement);
+        assert.strictEqual(find.selectionStart, 0);
+        assert.strictEqual(find.selectionEnd, 2, "the box's text is selected");
+        assert.strictEqual(session.selection.size, 0, "no node is selected");
+        await realInput.keyboard("{Escape}");
+
+        // On the canvas, Control+A selects every node.
+        await realInput.click(element, { position: { x: 10, y: 10 } });
+        await waitFor(() => {
+            assert.strictEqual(session.selection.size, 0);
+        });
+        await realInput.keyboard("{Control>}a{/Control}");
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["a", "b", "c"]);
+        });
+
+        // The empty canvas's menu lists Select all, and it selects every node again.
+        session.selection.clear();
+        await realInput.click(element, { position: { x: 10, y: 10 }, button: "right" });
+        await realInput.click(await screen.findByRole("menuitem", { name: /^Select all/ }));
+        await waitFor(() => {
+            assert.sameMembers([...session.selection.nodes], ["a", "b", "c"]);
+        });
+    });
+
     it("opens the shortcuts sheet with ? while a closed Select's list is mounted on the page", async () => {
         // The inspector has room at the design's width.
         await page.viewport(1366, 768);

@@ -857,6 +857,29 @@ describe("CompactColorInput", () => {
         });
     });
 
+    describe("a caller taking its color back", () => {
+        it("shows the default again when the caller's color returns to undefined after a typed color", async () => {
+            const user = userEvent.setup();
+            const field = (color: string | undefined): ReactNode => (
+                <TestWrapper>
+                    <CompactColorInput color={color} defaultColor="#FF0000" onColorChange={vi.fn()} />
+                </TestWrapper>
+            );
+            const { rerender } = render(field(undefined));
+            const input = screen.getByRole("textbox", { name: /hex/i });
+            await user.clear(input);
+            await user.type(input, "00FF00");
+            await user.tab();
+            // The caller writes the color, then takes it back (an undo).
+            rerender(field("#00FF00"));
+            rerender(field(undefined));
+
+            const after = screen.getByRole("textbox", { name: /hex/i });
+            expect(after).toHaveAttribute("data-is-default", "true");
+            expect(after).toHaveValue("FF0000");
+        });
+    });
+
     describe("a color with none in force", () => {
         it("draws an empty swatch, not the picker's starting color, until one is chosen", () => {
             const { rerender } = render(

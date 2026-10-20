@@ -85,9 +85,9 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                 workspace.run(command.id);
                 return;
             }
-            // Select all is a text box's; anywhere else it would highlight the workspace's own
-            // labels and panels as if they were a document, and leave the text boxes it swept
-            // highlighted after the reader moves on.
+            // Select all is a text box's, or the graph's (the Select all command); never the page's,
+            // which would highlight the workspace's own labels and panels as if they were a
+            // document, and leave the text boxes it swept highlighted after the reader moves on.
             if (!typing && matchesKey(event, "Mod+A")) {
                 event.preventDefault();
             }

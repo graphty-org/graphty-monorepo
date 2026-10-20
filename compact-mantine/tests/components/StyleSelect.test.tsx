@@ -396,6 +396,40 @@ describe("StyleSelect", () => {
         });
     });
 
+    describe("a caller taking its value back", () => {
+        it("shows the default again when the caller's value returns to undefined after a pick, and a second pick reports", async () => {
+            const user = userEvent.setup();
+            const onChange = vi.fn();
+            const select = (value: string | undefined): ReactNode => (
+                <DirectionProvider initialDirection="ltr" detectDirection={false}>
+                    <MantineProvider theme={compactTheme}>
+                        <StyleSelect
+                            label="Select"
+                            value={value}
+                            defaultValue="option1"
+                            options={options}
+                            onChange={onChange}
+                        />
+                    </MantineProvider>
+                </DirectionProvider>
+            );
+            const { rerender } = render(select(undefined));
+            await user.click(screen.getByRole("combobox", { name: /^Select/ }));
+            fireEvent.click(screen.getByRole("option", { name: "Option 3", hidden: true }));
+            // The caller writes the pick, then takes it back (an undo).
+            rerender(select("option3"));
+            rerender(select(undefined));
+
+            const box = screen.getByRole("combobox", { name: /^Select/ });
+            expect(box).toHaveAttribute("value", "");
+            expect(box).toHaveAttribute("placeholder", "Option 1");
+            await user.click(box);
+            fireEvent.click(screen.getByRole("option", { name: "Option 3", hidden: true }));
+            expect(onChange).toHaveBeenCalledTimes(2);
+            expect(onChange.mock.calls[1][0]).toBe("option3");
+        });
+    });
+
     describe("reset at the default", () => {
         it("is off while the choice set is the default, and on once it differs", () => {
             const { rerender } = renderSelect(

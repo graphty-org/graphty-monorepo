@@ -2,6 +2,7 @@ import { defineRegistration } from "../commands/registry";
 import { selectionClearedWords } from "../inspector/words";
 import { unlessUnsaved } from "../project/actions";
 import { newProjectId } from "../state/store";
+import { nothingDrawn } from "../toolbar/useSessionVersion";
 import { cyclePanel } from "./focus";
 import { historyTip, undoOrRedo } from "./historyWords";
 
@@ -9,8 +10,8 @@ import { historyTip, undoOrRedo } from "./historyWords";
 const DOCUMENTATION_URL = "https://graphty.app/docs/";
 
 /**
- * The Frame's own commands: New project, Rename, Undo and Redo, the two places, clearing the
- * selection, and Help.
+ * The Frame's own commands: New project, Rename, Undo and Redo, the two places, selecting all and
+ * clearing the selection, and Help.
  */
 export const registration = defineRegistration({
     owner: "frame",
@@ -106,6 +107,18 @@ export const registration = defineRegistration({
             keys: ["Shift+F6"],
             run: () => {
                 cyclePanel(-1);
+            },
+        },
+        {
+            // Every node the drawing shows: a node a filter hides is not one the reader can see
+            // selected. The selection's own announcement says how many.
+            id: "selection.all",
+            label: "Select all",
+            group: "Selection",
+            keys: ["Mod+A"],
+            disabled: ({ session }) => nothingDrawn(session),
+            run: async ({ session }) => {
+                await session?.selection.apply({ scope: "visible" });
             },
         },
         {

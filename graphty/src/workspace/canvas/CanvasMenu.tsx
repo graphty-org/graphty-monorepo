@@ -11,7 +11,13 @@ import { MENUS } from "../inspector/kindMenus";
 import { useWorkspace } from "../state/WorkspaceContext";
 
 /** What a press on empty canvas offers. */
-const EMPTY_CANVAS = ["view.fit", "view.frame-selection", "style.layer-from-selection", "selection.clear"] as const;
+const EMPTY_CANVAS = [
+    "view.fit",
+    "view.frame-selection",
+    "style.layer-from-selection",
+    "selection.all",
+    "selection.clear",
+] as const;
 
 /** How long after Shift+F10 a `contextmenu` event is that key press, not a pointer (ms). */
 const KEYBOARD_ECHO_MS = 500;

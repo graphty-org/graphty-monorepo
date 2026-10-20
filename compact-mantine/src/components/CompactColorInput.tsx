@@ -6,6 +6,7 @@ import { PANEL_GRID } from "../constants/panel";
 import { defaultLabels, useLabels } from "../i18n";
 import { UiGlyph } from "../icons";
 import type { ChangeHandler } from "../types/events";
+import { useChosen } from "../utils/chosen";
 import { opacityToAlphaHex, parseAlphaFromHexa } from "../utils/color-utils";
 import { useControlAnnotation } from "../utils/control-annotation";
 import { useDevWarning } from "../utils/dev-warning";
@@ -245,29 +246,6 @@ export interface CompactColorInputProps {
      * @default "field"
      */
     variant?: "field" | "chip";
-}
-
-/**
- * One half of the field's value: the caller's when it passes one, else the last one set here.
- *
- * Not Mantine's `useUncontrolled`: that keeps its own copy only while the caller passes
- * `undefined`, so a value typed at the default and then reset by a controlling caller came back
- * from that stale copy once the caller returned to `undefined`, and the reset did nothing.
- * Here every set updates the copy, so a reset leaves `undefined` behind.
- * @param value - The caller's value, `undefined` when it has chosen none
- * @param onChange - Told of each set
- * @returns The value and its setter
- */
-function useChosen<T>(
-    value: T | undefined,
-    onChange: ChangeHandler<T | undefined> | undefined,
-): [T | undefined, ChangeHandler<T | undefined>] {
-    const [own, setOwn] = useState<T | undefined>(undefined);
-    const set: ChangeHandler<T | undefined> = (next, event) => {
-        setOwn(next);
-        onChange?.(next, event);
-    };
-    return [value ?? own, set];
 }
 
 /**

@@ -32,6 +32,7 @@ import type {
     Path,
     RunId,
     ScopeInput,
+    SourceKey,
 } from "../catalog/types";
 import { isPairConfig } from "../data/CSVDataSource";
 import { edgeCounterOf, edgeIdOf } from "../data/edgeIdentity";
@@ -82,6 +83,7 @@ import { ExpansionState, type HostEdge, type SourceHost } from "./sources/host";
 import { SOURCE_RECORD_VERSION, sourceLoadsOf } from "./sources/ids";
 import { SourceLedger } from "./sources/ledger";
 import * as sourceLoad from "./sources/load";
+import { type Provenance, PROVENANCE_VALUE, provenanceIndex, withoutSource } from "./sources/provenance";
 import type {
     CollapseResult,
     ExpandOptions,
@@ -107,6 +109,7 @@ import type {
     ImportOptions,
     LoadChoices,
     LoadedSource,
+    LoadedSourceKind,
     Neighbor,
     NeighborOptions,
     NeighborPage,
@@ -116,6 +119,7 @@ import type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemoveSourceResult,
     ResultColumn,
     ResultColumnDescriptor,
     RowUpdate,
@@ -443,6 +447,19 @@ export class SessionData implements SessionDataApi {
         readonly key: string;
         readonly result: readonly AttributeDescriptor[];
     } | null = null;
+    /** `sources()` with its counts, and what they were counted from. */
+    private sourcesMemo: {
+        readonly stored: readonly LoadedSource[];
+        readonly provenance: Provenance | undefined;
+        readonly snapshot: GraphSnapshot;
+        readonly result: readonly LoadedSource[];
+    } | null = null;
+    /** The loads whose rows carry each column, and what they were read from. */
+    private columnSourcesMemo: {
+        readonly described: readonly AttributeDescriptor[];
+        readonly provenance: Provenance | undefined;
+        readonly result: ReadonlyMap<string, readonly SourceKey[]>;
+    } | null = null;
     private disposed = false;
     /** The records of the loads from network sources; see `loads()`. Internal: the type is not published. */
     readonly ledger = new SourceLedger();
@@ -613,7 +630,7 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(graph, name), options);
+        await this.importVia(send, recordsSource(graph, name), options, "sample");
     }
 
     /**
@@ -648,7 +665,7 @@ export class SessionData implements SessionDataApi {
                 cause: error,
             });
         }
-        await this.importVia(send, recordsSource(snapshot, name), load);
+        await this.importVia(send, recordsSource(snapshot, name), load, "sample");
     }
 
     /**
@@ -656,12 +673,14 @@ export class SessionData implements SessionDataApi {
      * @param send - The importer, taken when the verb was called.
      * @param source - What `import` takes.
      * @param options - What `import` takes.
+     * @param origin - What `data.sources()` says the load came from; read from the source's type when absent.
      * @returns Settles once the last chunk is in the graph.
      */
     private async importVia(
         send: (command: DataImportCommand | BatchCommand) => Promise<unknown>,
         source: DataSourceInput,
         options: LoadChoices & Pick<SourceLoadOptions, "existing">,
+        origin?: LoadedSourceKind,
     ): Promise<void> {
         if ((options.mode ?? "replace") === "replace") {
             // A file, a URL, a generated graph or a dataset replacing the graph replaces what its source loads brought too; their
@@ -689,6 +708,7 @@ export class SessionData implements SessionDataApi {
             op: "data.import",
             source: resolved,
             mode: options.mode ?? "replace",
+            ...(origin === undefined ? {} : { origin }),
             ...(options.layout === undefined ? {} : { layout: options.layout }),
             ...(options.existing === undefined ? {} : { existing: options.existing }),
             ...(options.styles === undefined ? {} : { styles: options.styles }),
@@ -1612,8 +1632,9 @@ export class SessionData implements SessionDataApi {
             });
         }
 
-        // The last load is the one `source()` describes, so it takes the new name too.
-        const sources = this.sources();
+        // The last load is the one `source()` describes, so it takes the new name too. Read as
+        // stored, not recounted: a rename costs the same however big the graph is.
+        const sources = (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
         await this.writes.setSource(
             { ...current, name },
             sources.length === 0
@@ -1629,7 +1650,181 @@ export class SessionData implements SessionDataApi {
      */
     sources(): readonly LoadedSource[] {
         this.requireLive("sources");
-        return (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+        const stored = (this.writes.slice().values.get(SOURCES_VALUE) as readonly LoadedSource[] | undefined) ?? [];
+        const provenance = this.provenance();
+        const snapshot = this.current();
+        const memo = this.sourcesMemo;
+        if (memo?.stored === stored && memo.provenance === provenance && memo.snapshot === snapshot) {
+            return memo.result;
+        }
+
+        const space = edgeSpaceOf(snapshot);
+        // An entry saved before loads had keys gets one by its place in the list.
+        const result = Object.freeze(
+            stored.map((each, at) => {
+                const key = (each as Partial<LoadedSource>).key ?? `s${String(at + 1)}`;
+                const supplied = provenance?.[key];
+                return Object.freeze({
+                    ...each,
+                    key,
+                    kind: (each as Partial<LoadedSource>).kind ?? "file",
+                    counts: Object.freeze(
+                        supplied === undefined
+                            ? { ...each.added }
+                            : {
+                                  nodes: supplied.nodes.filter((id) => snapshot.ids.has(id)).length,
+                                  edges: supplied.edges.filter((id) => space.indexOf(id) !== INVALID_INDEX).length,
+                              },
+                    ),
+                });
+            }),
+        );
+        this.sourcesMemo = { stored, provenance, snapshot, result };
+        return result;
+    }
+
+    /**
+     * The loads that supplied one node or edge.
+     * @param id - the node id, or the edge id with `kind: "edge"`
+     * @param options - which kind of element the id names
+     * @param options.kind - `"node"` (the default) or `"edge"`
+     * @returns the keys, oldest load first
+     */
+    sourcesOf(id: NodeId | EdgeId, options: { readonly kind?: "node" | "edge" } = {}): readonly SourceKey[] {
+        this.requireLive("sourcesOf");
+        const snapshot = this.current();
+        const index = provenanceIndex(this.provenance());
+        if (options.kind === "edge") {
+            return edgeSpaceOf(snapshot).indexOf(String(id)) === INVALID_INDEX
+                ? []
+                : (index.edges.get(String(id)) ?? []);
+        }
+
+        return snapshot.ids.has(id) ? (index.nodes.get(id) ?? []) : [];
+    }
+
+    /**
+     * Take one load out of the graph, keeping what another load also supplied. One undoable step.
+     * @param key - the load's key
+     * @returns how many nodes and edges went and stayed
+     * @throws A `GraphtyError` with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     */
+    async removeSource(key: SourceKey): Promise<RemoveSourceResult> {
+        this.requireLive("removeSource");
+        const sources = this.sources();
+        const entry = sources.find((each) => each.key === key);
+        if (entry === undefined) {
+            throw new GraphtyError({
+                code: "E_SOURCE_UNKNOWN",
+                message: `No load still in the graph has key ${JSON.stringify(key)}.`,
+                source: "data",
+                details: { key, known: sources.map((each) => each.key) },
+            });
+        }
+
+        const provenance = this.provenance();
+        const index = provenanceIndex(provenance);
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        const shared = (keys: readonly SourceKey[] | undefined): boolean => keys?.some((k) => k !== key) === true;
+        const nodes = (provenance?.[key]?.nodes ?? []).filter((id) => snapshot.ids.has(id));
+        const edges = (provenance?.[key]?.edges ?? []).filter((id) => space.indexOf(id) !== INVALID_INDEX);
+        const goingNodes = nodes.filter((id) => !shared(index.nodes.get(id)));
+        const goingEdges = edges.filter((id) => !shared(index.edges.get(id)));
+        const left = sources.filter((each) => each.key !== key);
+        const last = left.at(-1);
+        if (this.writes.send === undefined) {
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "This session cannot dispatch commands, so it cannot remove a load.",
+                source: "data",
+            });
+        }
+
+        const before = { nodes: snapshot.nodeCount, edges: snapshot.edgeCount };
+        await this.writes.send({
+            op: "batch",
+            label: `Removed ${entry.name ?? key}`,
+            fact: { code: "data.remove-source", params: { key, name: entry.name ?? null } },
+            steps: [
+                { op: "data.apply", mutation: { kind: "remove-edges", ids: goingEdges } },
+                { op: "data.apply", mutation: { kind: "remove-nodes", ids: goingNodes } },
+                {
+                    op: "data.setSource",
+                    source: last === undefined ? (this.source() ?? {}) : describeLoaded(last),
+                    sources: left,
+                    provenance: withoutSource(provenance, key),
+                },
+            ],
+        });
+        const after = this.current();
+        const removed = { nodes: before.nodes - after.nodeCount, edges: before.edges - after.edgeCount };
+        return Object.freeze({
+            removed: Object.freeze(removed),
+            kept: Object.freeze({
+                nodes: nodes.length - goingNodes.length,
+                edges: edges.filter((id) => edgeSpaceOf(after).indexOf(id) !== INVALID_INDEX).length,
+            }),
+        });
+    }
+
+    /**
+     * The `provenance` graph value: what each load supplied.
+     * @returns the value, or undefined when no load recorded one
+     */
+    private provenance(): Provenance | undefined {
+        return this.writes.slice().values.get(PROVENANCE_VALUE) as Provenance | undefined;
+    }
+
+    /**
+     * The loads whose rows carry each column, by `<kind>:<name>`.
+     * ponytail: walks every row a load supplied once per revision; index columns per load at
+     * ingest if many large loads make it slow.
+     * @param described - the columns, which key the memo with the revision
+     * @returns the keys, oldest load first
+     */
+    private columnSources(described: readonly AttributeDescriptor[]): ReadonlyMap<string, readonly SourceKey[]> {
+        const provenance = this.provenance();
+        const memo = this.columnSourcesMemo;
+        if (memo?.described === described && memo.provenance === provenance) {
+            return memo.result;
+        }
+
+        const result = new Map<string, SourceKey[]>();
+        const add = (
+            kind: "node" | "edge",
+            record: Readonly<Record<string, unknown>> | undefined,
+            key: SourceKey,
+        ): void => {
+            for (const name of Object.keys(record ?? {})) {
+                const at = declarationKey({ kind, name });
+                const list = result.get(at) ?? [];
+                if (!list.includes(key)) {
+                    list.push(key);
+                    result.set(at, list);
+                }
+            }
+        };
+        const snapshot = this.current();
+        const space = edgeSpaceOf(snapshot);
+        for (const [key, supplied] of Object.entries(provenance ?? {})) {
+            for (const id of supplied.nodes) {
+                const at = snapshot.ids.indexOf(id);
+                if (at !== INVALID_INDEX) {
+                    add("node", this.records?.nodeAttributes(at, id), key);
+                }
+            }
+
+            for (const id of supplied.edges) {
+                const at = space.indexOf(id);
+                if (at !== INVALID_INDEX) {
+                    add("edge", this.records?.edgeAttributes(at), key);
+                }
+            }
+        }
+
+        this.columnSourcesMemo = { described, provenance, result };
+        return result;
     }
 
     /**
@@ -1747,22 +1942,27 @@ export class SessionData implements SessionDataApi {
         const declarations = this.writes.declarations();
         const roles = this.columnRoles();
         const uses = this.columnUses(described);
+        const fed = this.columnSources(described);
         // The same array back while nothing it was laid from moved, so a consumer can memo on it.
-        const key = JSON.stringify([[...declarations], [...roles], [...uses]]);
+        const key = JSON.stringify([[...declarations], [...roles], [...uses], [...fed]]);
         const memo = this.attributeOverlay;
         if (memo?.described === described && memo.key === key) {
             return memo.result;
         }
 
         const result =
-            declarations.size === 0 && roles.size === 0 && uses.size === 0
+            declarations.size === 0 && roles.size === 0 && uses.size === 0 && fed.size === 0
                 ? described
                 : Object.freeze(
                       described.map((each) => {
                           const declared = declarations.get(declarationKey(each));
                           const played = roles.get(declarationKey(each));
                           const used = uses.get(declarationKey(each));
-                          return declared === undefined && played === undefined && used === undefined
+                          const from = fed.get(declarationKey(each));
+                          return declared === undefined &&
+                              played === undefined &&
+                              used === undefined &&
+                              from === undefined
                               ? each
                               : Object.freeze({
                                     ...each,
@@ -1774,6 +1974,7 @@ export class SessionData implements SessionDataApi {
                                           }),
                                     ...(played === undefined ? {} : { roles: Object.freeze(played) }),
                                     ...(used === undefined ? {} : { usedBy: Object.freeze(used) }),
+                                    ...(from === undefined ? {} : { sources: Object.freeze([...from]) }),
                                 });
                       }),
                   );
@@ -2002,6 +2203,20 @@ export class SessionData implements SessionDataApi {
 function recordsSource(graph: SampleGraph | GraphSnapshot, name: string): DataSourceInput {
     const data = JSON.stringify({ directed: graph.directed, ...toElementData(graph) });
     return { type: "json", name, config: { data } };
+}
+
+/**
+ * A load's entry as the plain source descriptor `source()` reports: its type, name, size and options.
+ * @param entry - the load
+ * @returns the descriptor
+ */
+function describeLoaded(entry: LoadedSource): DataSourceDescriptor {
+    return {
+        ...(entry.type === undefined ? {} : { type: entry.type }),
+        ...(entry.name === undefined ? {} : { name: entry.name }),
+        ...(entry.size === undefined ? {} : { size: entry.size }),
+        ...(entry.config === undefined ? {} : { config: entry.config }),
+    };
 }
 
 /**

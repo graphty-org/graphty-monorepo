@@ -45,6 +45,7 @@ import type {
     ScopeInput,
     SelectionDirection,
     SetId,
+    SourceKey,
 } from "../catalog/types";
 import type { DataConfig } from "../config/DataConfig";
 import type { GraphBackgroundConfig, GraphSelectionStyleConfig, GraphSelectionStyleInput } from "../config/GraphStyle";
@@ -906,6 +907,39 @@ export interface SessionDataApi {
      */
     renameSource(name: string): Promise<void>;
     /**
+     * The loads that supplied one node or edge, oldest first: every load whose rows named it, so
+     * a node two files both list answers with both keys. Empty for an element the graph does not
+     * hold, or one no load recorded (added with `addNodes`, or saved before loads had keys).
+     *
+     * ```ts
+     * await session.data.import({ type: "csv", config: { data: people }, name: "people.csv" });
+     * await session.data.import({ type: "csv", config: { data: more }, name: "more.csv" }, { mode: "merge" });
+     * session.data.sourcesOf("alice"); // ["s1", "s2"] when both files list alice
+     * ```
+     * @param id - The node id, or the edge id with `kind: "edge"`.
+     * @param options - Which kind of element the id names.
+     * @param options.kind - `"node"` (the default) or `"edge"`.
+     * @returns The keys, as {@link LoadedSource.key} has them.
+     * @since 3.30.0
+     */
+    sourcesOf(id: NodeId | EdgeId, options?: { readonly kind?: "node" | "edge" }): readonly SourceKey[];
+    /**
+     * Take one load out of the graph, as one undoable step: the nodes and edges only it supplied
+     * go, with the edges attached to a node that goes, and the load leaves `sources()`. A node or
+     * edge another load also supplied stays, as does anything no load recorded.
+     *
+     * ```ts
+     * const removed = await session.data.removeSource("s2");
+     * removed.removed.nodes; // nodes only s2 supplied
+     * removed.kept.nodes; // s2's nodes another load also supplied
+     * ```
+     * @param key - The load's key, from {@link SessionDataApi.sources}.
+     * @returns How many nodes and edges went and stayed.
+     * @throws A `GraphtyError` (as a rejection) with `E_SOURCE_UNKNOWN` for a key `sources()` does not list.
+     * @since 3.30.0
+     */
+    removeSource(key: SourceKey): Promise<RemoveSourceResult>;
+    /**
      * Every attribute the graph's records carry, with its type, what it measures, how complete
      * it is and a few sample values. Walked once per revision and cached.
      * @returns the descriptors, node attributes first, each kind in first-seen order
@@ -1461,6 +1495,14 @@ export interface DataSourceDescriptor {
  * @since 3.30.0
  */
 export interface LoadedSource extends DataSourceDescriptor {
+    /** Its stable key: what {@link SessionDataApi.sourcesOf} returns and a `source` rule names. Saved with the project. */
+    readonly key: SourceKey;
+    /** Where it came from: a file, a network source, a generated or sample graph, or a joined table. */
+    readonly kind: LoadedSourceKind;
+    /** How many nodes and edges it supplied that the graph still holds, counting ones another load also supplied. */
+    readonly counts: { readonly nodes: number; readonly edges: number };
+    /** For a joined table: the load it was joined onto. */
+    readonly joinedOnto?: SourceKey;
     /** The names of the tables the load read, as the draft named them; empty when it read none by name. */
     readonly tables: readonly string[];
     /**
@@ -1471,6 +1513,23 @@ export interface LoadedSource extends DataSourceDescriptor {
     readonly tableRows?: readonly ("nodes" | "edges")[];
     /** How many nodes and edges the load added to the graph. */
     readonly added: { readonly nodes: number; readonly edges: number };
+}
+
+/** Where a load came from, as {@link LoadedSource.kind} says. OPEN UNION: kinds may be added. */
+export type LoadedSourceKind = "file" | "server" | "sample" | "join";
+
+/** One entry of `session.data.sources()`: the name the data prototype's design uses for it. */
+export type SourceEntry = LoadedSource;
+
+/**
+ * What `session.data.removeSource(key)` did.
+ * @since 3.30.0
+ */
+export interface RemoveSourceResult {
+    /** The nodes and edges that went: the load supplied them and no other load did. */
+    readonly removed: { readonly nodes: number; readonly edges: number };
+    /** The load's nodes and edges that stayed, because another load also supplied them. */
+    readonly kept: { readonly nodes: number; readonly edges: number };
 }
 
 /** How an import treats the graph already there. */
@@ -1752,6 +1811,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.collapse` | `node`: the id collapsed; `nodes`: how many nodes went (experimental) |
  * | `data.declare` | `kind`: `"node"` or `"edge"`; `column`: the column's name |
  * | `data.set-source` | `name`: the source's name, or null |
+ * | `data.remove-source` | `key`: the load's key; `name`: its name, or null |
  * | `data.label` | `path`: the value path; `value`: the value named; `label`: its name, or null when it was removed |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `style.add-layer`, `style.update-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
@@ -1809,6 +1869,7 @@ export type HistoryCode =
     | "data.collapse"
     | "data.declare"
     | "data.set-source"
+    | "data.remove-source"
     | "data.label"
     | "data.set-file-styles"
     | "style.add-layer"

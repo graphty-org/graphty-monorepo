@@ -174,6 +174,8 @@ export interface ScopeSources {
     readonly matchEdges?: (where: Query) => Iterable<EdgeId>;
     /** Attribute values. Absent refuses a rule's `range` and `categories` leaves. */
     readonly values?: FilterValueSource;
+    /** What each load supplied. Absent refuses a rule's `source` leaf. */
+    readonly supplied?: FilterSources["supplied"];
     /** A run's current result. Absent refuses a rule's `item` leaf and a `threshold` over `results.*`. */
     readonly result?: FilterSources["result"];
     /**
@@ -579,6 +581,7 @@ export function createScopeApi(sources: ScopeSources): ScopeResolver {
         sets: kept,
         ...(sources.matchEdges === undefined ? {} : { matchEdges: sources.matchEdges }),
         ...(sources.values === undefined ? {} : { values: sources.values }),
+        ...(sources.supplied === undefined ? {} : { supplied: sources.supplied }),
         ...(sources.result === undefined ? {} : { result: sources.result }),
         ...(sources.fieldKinds === undefined ? {} : { fieldKinds: sources.fieldKinds }),
     });

@@ -177,7 +177,9 @@ export const X11_COLORS: ReadonlyMap<string, string> = table(
 
 /**
  * dvips names, case as Pajek spells them, and the ten Pajek adds (from LightYellow on: Pajek 6.02 manual, figure 19,
- * with the CMYK values of the color dictionary in Pajek's own EPS export).
+ * with the CMYK values of the color dictionary in Pajek's own EPS export). LightOrange is the one its SVG export draws
+ * otherwise: #ffd9bc, Pajek's default vertex fill, not the EPS dictionary's #ffccb3 (`pajek-specimen-node-fills-borders-p2`
+ * `ic-lightorange`, `pajek-graphstream-b`: 18 vertices).
  */
 export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
     "GreenYellow=d9ff4f Yellow=ffff00 Goldenrod=ffe629 Dandelion=ffb529 Apricot=ffad7a Peach=ff804d " +
@@ -193,7 +195,7 @@ export const DVIPS_COLORS: ReadonlyMap<string, string> = table(
         "YellowGreen=8fff42 SpringGreen=bdff3d OliveGreen=009900 RawSienna=8c0000 Sepia=4d0000 Brown=660000 " +
         "Tan=db9470 Gray=808080 Black=000000 White=ffffff " +
         "LightYellow=ffff99 LightCyan=ccffff LightMagenta=ffccff LightPurple=ccccff LightGreen=ccffb3 " +
-        "LightOrange=ffccb3 Canary=ffff80 LFadedGreen=e6ffcc Pink=ffd9f2 LSkyBlue=d9f2ff",
+        "LightOrange=ffd9bc Canary=ffff80 LFadedGreen=e6ffcc Pink=ffd9f2 LSkyBlue=d9f2ff",
 );
 
 /** Java's `java.awt.Color` constants, lowercase, with and without the underscore. */

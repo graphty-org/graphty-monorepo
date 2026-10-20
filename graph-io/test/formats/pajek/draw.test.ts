@@ -77,12 +77,13 @@ describe("Pajek's arrow size s and label angle la", () => {
         expect(get("edge", "arrowSize")).toEqual([4, 4, 0.5]);
     });
 
-    it("turns a label by la counterclockwise, read as a clockwise rotation, and leaves 360 and above", async () => {
-        // pajek-specimen-labels: `la 30` is drawn rotate(-30)
+    it("turns a label by la counterclockwise, read as a clockwise rotation, 360 and above away from the middle", async () => {
+        // pajek-specimen-labels: `la 30` is drawn rotate(-30); `la 400` at (0.3, 0.3) points away from (0.5, 0.5),
+        // 135 degrees counterclockwise, and 40 more: 175, a clockwise 185
         const { get } = await load(
             "*Vertices 3\n1 a 0.1 0.1 0.5 la 30\n2 b 0.2 0.2 0.5 la 90\n3 c 0.3 0.3 0.5 la 400\n",
         );
-        expect(get("node", "labelRotation")).toEqual([330, 270, null]);
+        expect(get("node", "labelRotation")).toEqual([330, 270, 185]);
     });
 });
 

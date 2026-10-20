@@ -40,8 +40,9 @@ import type {
     StyleWriteCapabilities,
 } from "../../styles/types.js";
 import type { LossNote } from "../../types.js";
+import { graphvizFontName, postscriptFont } from "../dot/drawing.js";
 import { type ValueColumns, valueColumns } from "../graphml/styles-yed.js";
-import { drawLines, drawVertices, type PajekDraw } from "./draw.js";
+import { drawLines, drawsLineLabels, drawVertices, type PajekDraw } from "./draw.js";
 import { LABEL_COLUMN, PAJEK_STYLE_COMMENT, SHAPE_COLUMN, VALUE_COLUMN } from "./syntax.js";
 
 /**
@@ -64,6 +65,9 @@ export const PAJEK_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelSize",
         "labelFont",
         "labelPosition",
+        "labelOffsetX",
+        "labelOffsetY",
+        "labelShiftX",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -197,6 +201,9 @@ const READ: Readonly<Record<StyleTarget, readonly string[]>> = {
         "labelSize",
         "labelFont",
         "labelPosition",
+        "labelOffsetX",
+        "labelOffsetY",
+        "labelShiftX",
         "labelRotation",
     ],
     edge: [
@@ -236,6 +243,13 @@ function readColor(raw: unknown, property: string, opacity: string | null, put: 
     }
     const c = canonColor(raw, "dvips", at(property));
     if (c === null) {
+        // a name Pajek does not know, or a known one in another case (`red`), fills a vertex white and draws a line
+        // black (`pajek-specimen-node-fills-borders-p3` `ic-unknown-name`, `ic-lowercase-name`); ponytail: measured
+        // on names in `ic` and `c` only, so a border or label color and an unreadable RGB / CMYK form keep the default
+        const unknown = UNKNOWN_COLORS.get(property);
+        if (unknown !== undefined && typeof raw === "string" && /^[A-Za-z]\w*$/.test(raw.trim())) {
+            put(property, unknown);
+        }
         return;
     }
     put(property, c.color);
@@ -244,6 +258,12 @@ function readColor(raw: unknown, property: string, opacity: string | null, put: 
         put(opacity, alpha);
     }
 }
+
+/** What Pajek draws for a color it cannot read, by property. */
+const UNKNOWN_COLORS: ReadonlyMap<string, StyleValue> = new Map([
+    ["fill", "#ffffff"],
+    ["color", "#000000"],
+]);
 
 /**
  * Reads a length or factor.
@@ -263,8 +283,9 @@ function readNumber(raw: unknown, property: string, put: Put, at: At): void {
  * @param get - the vertex's parameters
  * @param put - receives the values
  * @param at - the sites
+ * @param place - the vertex's place in the file's coordinates, or null when it has none
  */
-function readVertex(get: Param, put: Put, at: At): void {
+function readVertex(get: Param, put: Put, at: At, place: Place | null = null): void {
     // an empty label draws nothing
     const label = get(LABEL_COLUMN);
     if (label !== null && label !== "") {
@@ -281,23 +302,70 @@ function readVertex(get: Param, put: Put, at: At): void {
     readSize(get, put, at, PAJEK_FIGURES.get(String(shape)));
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
-    readText(get("font"), "labelFont", put, at);
+    readFont(get("font"), put, at);
     readLabelPosition(get, put, at);
-    readLabelAngle(get("la"), put, at);
+    readLabelAngle(get("la"), put, at, place);
+    if (shape === "none") {
+        // an `empty` vertex's label is drawn white at size 1 on its center, whatever the line sets
+        // (`pajek-synth-vertices` `empty *`, `pajek-lin-rel4` v226 to v233)
+        for (const [property, value] of EMPTY_LABEL) {
+            put(property, value);
+        }
+    }
+}
+
+/** How Pajek 6.02's SVG export draws an `empty` vertex's label. */
+const EMPTY_LABEL: readonly (readonly [string, StyleValue])[] = [
+    ["labelSize", 1],
+    ["labelColor", "#ffffff"],
+    ["labelPosition", "center"],
+    ["labelOffsetX", 0],
+    ["labelOffsetY", 0],
+    ["labelShiftX", 0],
+];
+
+/** A vertex's place in the file's own coordinates, 0..1 across and down. */
+type Place = readonly [x: number, y: number];
+
+/**
+ * A label's `font`: Pajek writes it into its SVG export as the family, as given, so a PostScript name (`Courier-Bold`,
+ * `Helvetica-Oblique`) is drawn in its family, with a generic one after it, and upright, as the pinned fonts draw it
+ * (`pajek-specimen-labels` `font-courier-bold` monospace, `font-helvetica-oblique` sans-serif and upright); any other
+ * name is the family as written. Pajek draws every label bold whatever the name says.
+ * @param raw - the parameter's value, or null
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readFont(raw: unknown, put: Put, at: At): void {
+    if (raw === null || raw === "") {
+        return;
+    }
+    const ps = typeof raw === "string" ? postscriptFont(raw.trim()) : null;
+    if (ps === null) {
+        readText(raw, "labelFont", put, at);
+        return;
+    }
+    put("labelFont", ps.family);
 }
 
 /**
  * A vertex label's angle `la` (manual p. 90), degrees counterclockwise, as a clockwise rotation: Pajek 6.02's SVG export
  * turns the label by `rotate(-la)` (`pajek-specimen-labels`, `la-30` .. `la-270`). An angle of 360 or more turns the
- * label toward the middle of the layout, which depends on where the vertex is drawn; it is left unread.
+ * label away from the middle of the file's square, (0.5, 0.5) in its own coordinates, and then `la - 360` further
+ * (`la-360` at (0.4533, 0.3706) is drawn at -109.83, the direction from the middle; `la-400` at (0.5467, 0.3706) at
+ * -110.17, that direction, 70.17, and 40 more); without the vertex's place it is left unread.
  * @param raw - the parameter's value, or null
  * @param put - receives the value
  * @param at - the sites
+ * @param place - the vertex's place in the file's coordinates, or null
  */
-function readLabelAngle(raw: unknown, put: Put, at: At): void {
-    const a = raw === null ? null : canonNumber(raw, at("labelRotation"));
-    if (a !== null && a < 360) {
-        put("labelRotation", (((360 - a) % 360) + 360) % 360);
+function readLabelAngle(raw: unknown, put: Put, at: At, place: Place | null): void {
+    let a = raw === null ? null : canonNumber(raw, at("labelRotation"));
+    if (a !== null && a >= 360) {
+        a = place === null ? null : (Math.atan2(0.5 - place[1], place[0] - 0.5) * 180) / Math.PI + a - 360;
+    }
+    if (a !== null) {
+        put("labelRotation", Number(((((360 - a) % 360) + 360) % 360).toPrecision(12)));
     }
 }
 
@@ -340,26 +408,7 @@ function readText(raw: unknown, property: string, put: Put, at: At): void {
     }
 }
 
-/**
- * The side a label falls on for Pajek's label angle `lphi` (degrees counterclockwise from the right). Pajek starts the
- * label's text at the polar point and runs it to the right, so a point above or below the vertex puts the label above
- * or below and to its right. Measured in Pajek 6.02's own SVG export (`test/fidelity/oracles/pajek-*.svg`: every
- * label's text starts at the point, `text-anchor` start).
- * @param angle - `lphi`
- * @returns the side
- */
-function labelSide(angle: number): string {
-    const a = ((angle % 360) + 360) % 360;
-    if (a < 30 || a >= 330) {
-        return "right";
-    }
-    if (a < 150) {
-        return "top-right";
-    }
-    return a < 210 ? "left" : "bottom-right";
-}
-
-/** The `lphi` written for each side `labelSide` gives back, and the side written for each it does not. */
+/** The `lphi` written for each side graphty puts a label on, and the side written for each Pajek has no angle for. */
 const SIDE_ANGLES: ReadonlyMap<string, number> = new Map([
     ["right", 0],
     ["top-right", 90],
@@ -374,35 +423,65 @@ const NEAREST_SIDES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /**
- * A vertex's label position from Pajek's polar label parameters (manual p. 90): `lr` is the distance of the label from
- * the vertex center, 0 centering it, and `lphi` its angle in degrees, read as the side the label falls on (`labelSide`).
- * A vertex that sets neither is left to the default beneath.
+ * A vertex's label place from Pajek's polar label parameters (manual p. 90): `lr` is the distance of the label from
+ * the vertex center, 0 centering it, and `lphi` its angle in degrees counterclockwise. Pajek 6.02's SVG export starts
+ * the text at that point, its baseline through it (`text-anchor` start at y = the point), so the label's left edge is
+ * at the point's x (`labelShiftX` 0.5) and its middle `PAJEK_BASELINE_TO_MIDDLE` of its size above the point's y
+ * (`pajek-specimen-labels` `lr-*`, `lphi-*`; every corpus label). A vertex that sets none of `lr`, `lphi` and `fos`
+ * is left to the default beneath, the same place at the default size.
  * @param get - the vertex's parameters
- * @param put - receives the value
+ * @param put - receives the values
  * @param at - the sites
  */
 function readLabelPosition(get: Param, put: Put, at: At): void {
-    const lr = get("lr");
-    const lphi = get("lphi");
-    if (lr === null && lphi === null) {
+    const [lr, lphi, fos] = [get("lr"), get("lphi"), get("fos")];
+    if (lr === null && lphi === null && fos === null) {
         return;
     }
-    const radius = lr === null ? null : canonNumber(lr, at("labelPosition"));
-    if (radius === 0) {
-        put("labelPosition", "center");
-        return;
-    }
+    const radius = lr === null ? PAJEK_LABEL_RADIUS : canonNumber(lr, at("labelPosition"));
     const angle = lphi === null ? PAJEK_LABEL_ANGLE : canonNumber(lphi, at("labelPosition"));
-    if (angle !== null) {
-        put("labelPosition", labelSide(angle));
+    const size = fos === null ? PAJEK_LABEL_SIZE : canonNumber(fos, at("labelSize"));
+    if (radius === null || angle === null || size === null) {
+        return;
     }
+    const [x, y] = labelOffset(radius, angle, size);
+    put("labelPosition", "center");
+    put("labelOffsetX", x);
+    put("labelOffsetY", y);
+    put("labelShiftX", radius === 0 ? 0 : 0.5);
 }
 
 /**
- * The label angle Pajek uses when a vertex sets a radius but no angle: 285, below the vertex. Measured in Pajek 6.02's
- * own SVG export (`test/fidelity/oracles/pajek-football.svg`: every label starts 20 from its vertex at 285 degrees).
+ * Where Pajek's polar label parameters put a label, from the vertex center, y down: the middle of its left edge, or
+ * its middle when `lr` is 0, which centers it.
+ * @param radius - `lr`
+ * @param angle - `lphi`, degrees counterclockwise
+ * @param size - the label's size
+ * @returns the offset across and down
  */
+function labelOffset(radius: number, angle: number, size: number): [number, number] {
+    if (radius === 0) {
+        return [0, 0];
+    }
+    const t = (angle * Math.PI) / 180;
+    const round = (v: number): number => Number(v.toFixed(9)) + 0;
+    return [round(radius * Math.cos(t)), round(-radius * Math.sin(t) - PAJEK_BASELINE_TO_MIDDLE * size)];
+}
+
+/**
+ * The label radius and angle Pajek uses when a vertex sets none: 20 and 285, below and to the right of the vertex.
+ * Measured in Pajek 6.02's own SVG export (`test/fidelity/oracles/pajek-football.svg`, `pajek-specimen-labels`
+ * `default`: every such label starts 20 from its vertex at 285 degrees); the size is the default label size.
+ */
+const PAJEK_LABEL_RADIUS = 20;
 const PAJEK_LABEL_ANGLE = 285;
+const PAJEK_LABEL_SIZE = 15;
+
+/**
+ * How far above its baseline a label's middle is, per unit of its size: half the ascent less the descent of Arial
+ * (Liberation Sans: 0.905 and 0.212), the face Pajek draws its labels in by default.
+ */
+const PAJEK_BASELINE_TO_MIDDLE = 0.3465;
 
 /**
  * One line's style: its color, width and pattern. Pajek draws an edge (undirected) twice as wide as an arc of the
@@ -411,8 +490,10 @@ const PAJEK_LABEL_ANGLE = 285;
  * @param put - receives the values
  * @param at - the sites
  * @param directed - whether the line is an arc
+ * @param labels - whether its label is drawn (`drawsLineLabels`)
+ * @param run - the line from its source's center to its target's, in drawn units, y down, or null when unplaced
  */
-function readLine(get: Param, put: Put, at: At, directed: boolean): void {
+function readLine(get: Param, put: Put, at: At, directed: boolean, labels = true, run: Run | null = null): void {
     readColor(get("c"), "color", "opacity", put, at);
     readNumber(
         get("w"),
@@ -433,10 +514,132 @@ function readLine(get: Param, put: Put, at: At, directed: boolean): void {
     // an arrowhead is 6 x `s` long and 5 x `s` wide; `s` 1, Pajek's normal size, is 6 long (the pajek tool arrowhead)
     readNumber(get("s"), "arrowSize", put, at);
     readArrowPosition(get("ap"), put, at);
-    readText(get("l"), "label", put, at);
+    if (labels) {
+        readText(get("l"), "label", put, at);
+        readLineLabelPlace(get, put, at, run);
+    }
+    readBezier(get, put, run);
     readColor(get("lc"), "labelColor", null, put, at);
     readNumber(get("fos"), "labelSize", put, at);
-    readText(get("font"), "labelFont", put, at);
+    readFont(get("font"), put, at);
+}
+
+/** A line from its source's center to its target's, in drawn units, y down. */
+type Run = readonly [dx: number, dy: number];
+
+/**
+ * Where Pajek 6.02's SVG export draws a line's label (`pajek-specimen-edge-labels`): its middle at `lp` from the
+ * terminal vertex, a fraction of the line up to 1 (0.5 by default, 0.2 near the target) and a distance beyond it
+ * (`lp 20` 20 from the target), moved by `lr` at `lphi` degrees counterclockwise (`lr 12 lphi 90` 12 above), its
+ * baseline through that point, and turned along the line and `la` degrees counterclockwise from it (`la 45` drawn
+ * rotate(-45) on a level line; `la 405` as `la 45`). graphty hangs a line's label on the line's middle, so the place is
+ * an offset from there. ponytail: a straight line's angle; Pajek turns a curve's label along the curve.
+ * @param get - the line's parameters
+ * @param put - receives the values
+ * @param at - the sites
+ * @param run - the line, or null when unplaced
+ */
+function readLineLabelPlace(get: Param, put: Put, at: At, run: Run | null): void {
+    const length = run === null ? 0 : Math.hypot(run[0], run[1]);
+    if (run === null || length === 0) {
+        return;
+    }
+    const n = (key: string, fallback: number, property: string): number | null => {
+        const v = get(key);
+        return v === null ? fallback : canonNumber(v, at(property));
+    };
+    const [lp, lr, lphi, la] = [
+        n("lp", 0.5, "labelOffsetX"),
+        n("lr", 0, "labelOffsetX"),
+        n("lphi", 0, "labelOffsetX"),
+        n("la", 0, "labelRotation"),
+    ];
+    const size = n("fos", PAJEK_LABEL_SIZE, "labelSize");
+    if (lp === null || lr === null || lphi === null || la === null || size === null) {
+        return;
+    }
+    // from the line's middle to the point lp from its target, then out by lr at lphi
+    const along = 0.5 - (lp <= 1 ? lp : lp / length);
+    const t = (lphi * Math.PI) / 180;
+    const round = (v: number): number => Number(v.toFixed(9)) + 0;
+    put("labelPosition", "center");
+    put("labelOffsetX", round(along * run[0] + lr * Math.cos(t)));
+    put("labelOffsetY", round(along * run[1] - lr * Math.sin(t) - PAJEK_BASELINE_TO_MIDDLE * size));
+    const angle = lineDirection(get, run, along + 0.5) - la;
+    put("labelRotation", round(((angle % 360) + 360) % 360));
+}
+
+/**
+ * A line's Bezier route (manual p. 90: `a1`, `k1` at its source, `a2`, `k2` at its target), as Pajek 6.02's SVG export
+ * draws it (`pajek-specimen-edges-lines-p2`, `pajek-specimen-edge-labels`): one cubic Bezier curve whose first control
+ * point is `k1` / 2 of the line's length from the source, turned `a1` degrees clockwise on screen from the line, and
+ * whose second is `k2` / 2 of it back from the target, turned `a2` degrees counterclockwise (`a1 40 k1 1.5 a2 -40 k2
+ * 1.5` an S, `a2 40` a bow). A negative `k1` is one of Pajek's oval, circular arc or double routes, which its SVG export
+ * draws straight, and a loop is left to graphty's own. ponytail: a line that sets only some of the four reads the
+ * others as 0 and 1; Pajek's values for them were not measured.
+ * @param get - the line's parameters
+ * @param put - receives the values
+ * @param run - the line, or null when unplaced
+ */
+function readBezier(get: Param, put: Put, run: Run | null): void {
+    const controls = bezierControls(get, run);
+    if (controls === null) {
+        return;
+    }
+    const fraction = (x: number): string => String(Math.round(x * 1e4) / 1e4 || 0);
+    put("curved", true);
+    put("bendCurve", "bezier");
+    put("bends", controls.map(([along, across]) => `${fraction(along)},${fraction(across)}`).join(" "));
+}
+
+/**
+ * A line's two Bezier control points (`readBezier`), each `[along, across]` as fractions of the line from its source:
+ * along it, and to its left on screen.
+ * @param get - the line's parameters
+ * @param run - the line, or null when unplaced
+ * @returns the points, or null for a line Pajek draws straight or a loop
+ */
+function bezierControls(get: Param, run: Run | null): [[number, number], [number, number]] | null {
+    const [a1, k1, a2, k2] = ["a1", "k1", "a2", "k2"].map((key) => numberOrNull(get(key)));
+    if ((a1 === null && k1 === null && a2 === null && k2 === null) || run === null || (run[0] === 0 && run[1] === 0)) {
+        return null;
+    }
+    const [s, t] = [k1 ?? 1, k2 ?? 1];
+    if (s < 0 || t < 0) {
+        return null;
+    }
+    const rad = Math.PI / 180;
+    const [u, v] = [(a1 ?? 0) * rad, (a2 ?? 0) * rad];
+    return [
+        [(s / 2) * Math.cos(u), (-s / 2) * Math.sin(u)],
+        [1 - (t / 2) * Math.cos(v), (-t / 2) * Math.sin(v)],
+    ];
+}
+
+/**
+ * A line's direction on screen, in degrees clockwise, where its label is drawn: along a straight line, or along its
+ * Bezier curve (`bezierControls`) at the label's place, `along` of the way from the source.
+ * @param get - the line's parameters
+ * @param run - the line
+ * @param along - the label's place, 0 at the source and 1 at the target
+ * @returns the direction
+ */
+function lineDirection(get: Param, run: Run, along: number): number {
+    const controls = bezierControls(get, run);
+    let [dx, dy] = run;
+    if (controls !== null) {
+        // the cubic's tangent at `along`, in the line's own frame (along, left), then on screen
+        const t = Math.min(1, Math.max(0, along));
+        const p = [[0, 0], ...controls, [1, 0]];
+        const d = (k: 0 | 1): number =>
+            3 * (1 - t) ** 2 * (p[1][k] - p[0][k]) +
+            6 * (1 - t) * t * (p[2][k] - p[1][k]) +
+            3 * t ** 2 * (p[3][k] - p[2][k]);
+        const [a, l] = [d(0), d(1)];
+        // left of (dx, dy) on screen, y down, is (dy, -dx)
+        [dx, dy] = [a * run[0] + l * run[1], a * run[1] - l * run[0]];
+    }
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
 }
 
 /**
@@ -545,6 +748,15 @@ function styleColumns(table: GraphSnapshot["nodes"], keys: readonly string[]): s
  */
 export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles {
     const notes = new StyleNotes();
+    const { block, draw } = keptOf(context.kept);
+    const labels = drawsLineLabels(draw);
+    const place = places(snapshot);
+    // Pajek stretches the file's 0..1 to its Draw window one axis at a time, 500 x 500 without one
+    const window = draw ?? { width: PAJEK_POINTS_PER_UNIT, height: PAJEK_POINTS_PER_UNIT };
+    const runOf = (e: number): Run | null => {
+        const [s, t] = [place(snapshot.edgeSource(e)), place(snapshot.edgeTarget(e))];
+        return s === null || t === null ? null : [(t[0] - s[0]) * window.width, (t[1] - s[1]) * window.height];
+    };
     const read = (target: StyleTarget): ValueColumns => {
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
@@ -558,9 +770,9 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
             };
             const get = carry(cells(table, i));
             if (target === "node") {
-                readVertex(get, put, at);
+                readVertex(get, put, at, place(i));
             } else {
-                readLine(get, put, at, directed[i]);
+                readLine(get, put, at, directed[i], labels, runOf(i));
                 readLineValue(lineValue(i), get, put);
             }
         }
@@ -573,13 +785,12 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         weights.isExplicit(e) ? weights.value(e) : numberOrNull(cells(snapshot.edges, e)(VALUE_COLUMN));
     const node = read("node");
     const edge = read("edge");
-    const { block, draw } = keptOf(context.kept);
     if (draw !== null) {
         drawVertices(draw, snapshot, node);
         drawLines(draw, snapshot, node, edge);
     }
     if (block !== null) {
-        exactFromBlock(snapshot, block, { node, edge });
+        exactFromBlock(snapshot, block, { node, edge }, labels);
     }
     // Pajek's defaults that are a rule: an arc has an arrow at its target and is drawn grey and thinner, an edge not
     const rules: StyleRule[] = [];
@@ -611,6 +822,23 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
             node: styleColumns(snapshot.nodes, [SHAPE_COLUMN, ...NODE_KEYS]),
             edge: styleColumns(snapshot.edges, EDGE_KEYS),
         },
+    };
+}
+
+/**
+ * Each vertex's place in the file's own coordinates, as the position column holds them.
+ * @param snapshot - the graph
+ * @returns a getter of a vertex's place, null when it has none
+ */
+function places(snapshot: GraphSnapshot): (i: number) => Place | null {
+    const col = snapshot.nodes.byRole("position");
+    return (i) => {
+        const v: unknown = col === null || col === undefined ? null : col.value(i);
+        if (v === null || typeof v !== "object" || !("length" in v)) {
+            return null;
+        }
+        const [x, y] = v as ArrayLike<unknown> as [unknown, unknown];
+        return typeof x === "number" && typeof y === "number" ? [x, y] : null;
     };
 }
 
@@ -766,28 +994,49 @@ function vertexParams(get: Get, approximate: Approximate): Map<string, Written> 
     if (typeof bw === "number" && bw !== pajekDefault("node", "borderWidth")) {
         out.set("bw", bw);
     }
-    const font = get("labelFont");
-    if (typeof font === "string" && font !== "" && font !== pajekDefault("node", "labelFont")) {
-        out.set("font", font);
-    }
+    fontParam(get, out, pajekDefault("node", "labelFont"));
     labelPositionParams(get, out, approximate);
     return out;
 }
 
 /**
- * A label position as Pajek's polar label parameters, leaving out the default (below and to the right): the center is
- * `lr 0`, a side its angle `lphi`; a side Pajek cannot put a label on is written as the nearest it can, and noted.
+ * A label's `font`, the inverse of `readFont`: a PostScript family with a generic one after it is written by its
+ * PostScript name (`Courier, monospace` as `Courier`), any other family as it is; Pajek draws every label bold and
+ * upright, so neither the weight nor the slant is written.
+ * @param get - the element's values
+ * @param out - the parameters, changed in place
+ * @param skip - the font left out, Pajek's default, or undefined
+ */
+function fontParam(get: Get, out: Map<string, Written>, skip?: StyleValue): void {
+    const font = get("labelFont");
+    const name = typeof font === "string" && font !== "" ? graphvizFontName(font, false, false) : null;
+    if (name !== null && name !== skip) {
+        out.set("font", name);
+    }
+}
+
+/**
+ * A label position as Pajek's polar label parameters, leaving out the default (20 from the center at 285 degrees): a
+ * label centered with its left edge's middle offset from the center is `lr` and `lphi` (the inverse of
+ * `readLabelPosition`), one centered on the vertex `lr 0`, and a side its angle `lphi`; a side Pajek cannot put a
+ * label on is written as the nearest it can, and noted.
  * @param get - the vertex's values
  * @param out - the parameters, changed in place
  * @param approximate - records approximations
  */
 function labelPositionParams(get: Get, out: Map<string, Written>, approximate: Approximate): void {
     const position = get("labelPosition");
-    if (typeof position !== "string" || position === pajekDefault("node", "labelPosition")) {
+    if (typeof position !== "string") {
         return;
     }
     if (position === "center") {
-        out.set("lr", 0);
+        const polar = polarOf(get);
+        if (polar === null) {
+            out.set("lr", 0);
+        } else if (polar[0] !== PAJEK_LABEL_RADIUS || polar[1] !== PAJEK_LABEL_ANGLE) {
+            out.set("lr", polar[0]);
+            out.set("lphi", polar[1]);
+        }
         return;
     }
     const nearest = NEAREST_SIDES.get(position);
@@ -795,9 +1044,26 @@ function labelPositionParams(get: Get, out: Map<string, Written>, approximate: A
         approximate("labelPosition", position);
     }
     const angle = SIDE_ANGLES.get(nearest ?? position);
-    if (angle !== undefined && (nearest ?? position) !== pajekDefault("node", "labelPosition")) {
+    if (angle !== undefined && angle !== PAJEK_LABEL_ANGLE) {
         out.set("lphi", angle);
     }
+}
+
+/**
+ * The `lr` and `lphi` that put a centered label where its offsets say (`labelOffset`, inverted), 6 places each.
+ * @param get - the vertex's values
+ * @returns `[lr, lphi]`, or null for a label on the vertex's center (no offset, no shift)
+ */
+function polarOf(get: Get): [number, number] | null {
+    const [x, y, shift] = [get("labelOffsetX"), get("labelOffsetY"), get("labelShiftX")];
+    if (typeof x !== "number" || typeof y !== "number" || shift !== 0.5) {
+        return null;
+    }
+    const size = get("labelSize");
+    const up = y + PAJEK_BASELINE_TO_MIDDLE * (typeof size === "number" ? size : PAJEK_LABEL_SIZE);
+    const round = (v: number): number => Number(v.toFixed(6)) + 0;
+    const lr = round(Math.hypot(x, up));
+    return lr === 0 ? null : [lr, round(((((Math.atan2(-up, x) * 180) / Math.PI) % 360) + 360) % 360)];
 }
 
 /**
@@ -877,10 +1143,7 @@ function lineLabelParams(get: Get, out: Map<string, Written>, approximate: Appro
     if (typeof labelSize === "number") {
         out.set("fos", labelSize);
     }
-    const font = get("labelFont");
-    if (typeof font === "string" && font !== "") {
-        out.set("font", font);
-    }
+    fontParam(get, out);
 }
 
 /**
@@ -907,11 +1170,13 @@ function pajekDots(lineStyle: string, approximate: Approximate): boolean {
  * @param read - the values read, changed in place
  * @param read.node - the node values
  * @param read.edge - the edge values
+ * @param labels - whether the lines' labels are drawn
  */
 function exactFromBlock(
     snapshot: GraphSnapshot,
     text: string,
     read: { readonly node: ValueColumns; readonly edge: ValueColumns },
+    labels: boolean,
 ): void {
     const notes = new StyleNotes();
     const directed = directedEdges(snapshot);
@@ -920,12 +1185,16 @@ function exactFromBlock(
         properties: READ[target],
         writes: PAJEK_STYLE_CAPABILITIES[target],
         readBack: (i, want) => {
-            const back = writtenAndReadBack(target, want, directed[i], notes);
+            const back = writtenAndReadBack(target, want, directed[i], notes, labels);
             return (property) => back.get(property) ?? null;
         },
-        take: (_property, wanted) => wanted !== null,
+        // a label the block places by a side clears the offsets its `lphi` reads back as
+        take: (property, wanted) => wanted !== null || LABEL_PLACE.has(property),
     }));
 }
+
+/** The label place properties a side written as `lphi` reads back as. */
+const LABEL_PLACE: ReadonlySet<string> = new Set(["labelOffsetX", "labelOffsetY", "labelShiftX"]);
 
 /**
  * An element's values written as the writer writes them and read back as the reader reads them.
@@ -933,6 +1202,7 @@ function exactFromBlock(
  * @param want - its values
  * @param directed - for a line, whether it is an arc
  * @param notes - a scratch for the notes the round trip makes
+ * @param labels - whether the lines' labels are drawn
  * @returns the values read back, by property
  */
 function writtenAndReadBack(
@@ -940,6 +1210,7 @@ function writtenAndReadBack(
     want: Get,
     directed: boolean,
     notes: StyleNotes,
+    labels: boolean,
 ): Map<string, StyleValue> {
     const ignore: Approximate = () => undefined;
     const params = target === "node" ? vertexParams(want, ignore) : lineParams(want, directed, ignore);
@@ -967,7 +1238,7 @@ function writtenAndReadBack(
     if (target === "node") {
         readVertex(get, put, at);
     } else {
-        readLine(get, put, at, directed);
+        readLine(get, put, at, directed, labels);
     }
     return back;
 }
@@ -1010,6 +1281,9 @@ export function pajekStyledExport(
         const params = (i: number): Map<string, Written> =>
             target === "node" ? vertexParams(get(i), approximate) : lineParams(get(i), directed[i], approximate);
         const columns = paramColumns(n, params);
+        if (target === "edge") {
+            keepLineLabels(snapshot, columns);
+        }
         restateCarried(target, columns, directed);
         replaceParamColumns(table, target === "node" ? [SHAPE_COLUMN, ...NODE_KEYS] : EDGE_KEYS, columns);
     }
@@ -1025,6 +1299,30 @@ export function pajekStyledExport(
     const block = writeStyleBlock(input.rules, { inlineColumns: true, snapshot });
     notes.push(...styleBlockLosses(block, input.rules.styles.rules.length, "size"));
     return { snapshot: out, comment: PAJEK_STYLE_COMMENT + block, notes };
+}
+
+/**
+ * Keeps each line's own label `l` where graphty draws none: Pajek draws no line label by default (`drawsLineLabels`),
+ * so a label the file holds is not drawn, and writing it back keeps it for a Draw window that marks lines with labels.
+ * @param snapshot - the graph handed to the exporter
+ * @param columns - the written edge columns, by key, changed in place
+ */
+function keepLineLabels(snapshot: GraphSnapshot, columns: Map<string, (Written | null)[]>): void {
+    if (!snapshot.edges.has("l")) {
+        return;
+    }
+    const own = (e: number): unknown => plainCell(snapshot.edges.value("l", e));
+    let col = columns.get("l");
+    for (let e = 0; e < snapshot.edgeCount; e++) {
+        const v = own(e);
+        if (typeof v === "string" && v !== "" && (col?.[e] ?? null) === null) {
+            col ??= new Array<Written | null>(snapshot.edgeCount).fill(null);
+            col[e] = pajekLabelText(v);
+        }
+    }
+    if (col !== undefined) {
+        columns.set("l", col);
+    }
 }
 
 /**

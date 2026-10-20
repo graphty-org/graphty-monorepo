@@ -69,12 +69,28 @@ interface GraphvizFont {
  */
 export function graphvizFont(name: string): GraphvizFont {
     const trimmed = name.trim();
-    const lower = trimmed.toLowerCase();
     // a fontconfig pattern (`DejaVu Sans:bold`) is written into the SVG as it is, a family no viewer has, so the
     // drawing falls back to the viewer's default face
     if (trimmed.includes(":")) {
         return { family: "Times, serif", bold: false, italic: false };
     }
+    const ps = postscriptFont(trimmed);
+    if (ps !== null) {
+        return ps;
+    }
+    const last = trimmed.split(",").at(-1)?.trim().toLowerCase() ?? "";
+    return { family: GENERIC_FAMILIES.has(last) ? trimmed : `${trimmed}, sans-serif`, bold: false, italic: false };
+}
+
+/**
+ * The font a PostScript font name such as `Helvetica-Bold` or `Times-Italic` (any case) names: its family with a
+ * generic one after it, its weight and its slant (`lib/common/ps_font_equiv.h`). Pajek writes its `font` into its SVG
+ * export as given, which the pinned fonts resolve the same way.
+ * @param name - the name, trimmed
+ * @returns the font, or null for a name that is not a PostScript font name
+ */
+export function postscriptFont(name: string): GraphvizFont | null {
+    const lower = name.toLowerCase();
     for (const [base, [family, generic]] of POSTSCRIPT_FAMILIES) {
         if (lower === base || lower.startsWith(`${base}-`)) {
             const style = POSTSCRIPT_STYLES.get(lower.slice(base.length + 1));
@@ -83,8 +99,7 @@ export function graphvizFont(name: string): GraphvizFont {
             }
         }
     }
-    const last = trimmed.split(",").at(-1)?.trim().toLowerCase() ?? "";
-    return { family: GENERIC_FAMILIES.has(last) ? trimmed : `${trimmed}, sans-serif`, bold: false, italic: false };
+    return null;
 }
 
 /** How each PostScript family is spelled, with the suffixes of its upright, bold and slanted faces. */

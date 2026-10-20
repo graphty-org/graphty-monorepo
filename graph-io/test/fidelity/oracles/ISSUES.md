@@ -412,14 +412,31 @@ Still open, each judged against Pajek's drawing:
   draws it so (football arrow length 49/118 -> 118/118, graphstream-b 0/192 -> 193/193).
 - Bidirected arcs and loops: Pajek draws the two arcs of a mutual pair as curves and a loop as a
   Bezier loop (synth-lines edge route 54/88, c 122/125, graphstream-b 23/193 routes).
-- Line labels: Pajek's default drawing hides them; graphty draws them (synth-lines label 0/28).
-- Label placement at a small `lr`: graphty's label positions are eight sides, Pajek's a point at
-  `lr` and `lphi` with the text starting there (kdorola offset 0/127 at `lr 11`, 1crn 0/314 with
-  large vertices).
+- FIXED (2026-10-19) Line labels: Pajek's default drawing hides them, and graph-io now draws them only under the
+  `pajekDraw` ini flag `Form8.withLabels1` (Mark Lines / with Labels), writing the file's own `l` back on export
+  (synth-lines edge.label 0/28 -> none drawn, as Pajek).
+- FIXED (2026-10-19) Label placement: graph-io places a label by its point, `labelPosition` center with
+  `labelOffsetX` / `Y` at (lr cos lphi, -lr sin lphi) and `labelShiftX` 0.5 (the text starts there), its middle
+  0.3465 of its size above that baseline point; the default is lr 20 at 285 degrees (label offset 1crn 0/324 ->
+  324/324, kdorola 0/127 -> 127/127, lin-rel4 0/234 -> 234/234, football 0/35 -> 35/35, graphstream-b 0/111 ->
+  111/111, c 0/65 -> 65/65, iliad 11/311 -> 309/311, synth-lines 0/40 -> 40/40, synth-vertices 0/71 -> 67/71).
+  Left: a label turned by `la` turns about its start point in Pajek (synth-vertices v27, v51, v75: `la 60 fos 10`,
+  1.09 of the tolerance off), and graphty turns it about its middle; iliad's two misses are its widest labels.
+- Raster dips the right label places expose (2026-10-19): Pajek draws each vertex and then its label, in file
+  order, so a later vertex covers an earlier vertex's label; graphty-element draws every label over every node in
+  2D (`RichTextLabel` sorts by depth, and a 2D drawing has none between nodes). With the labels now where Pajek
+  draws them, among dense vertices, raster.nodeBody fell 0.01 to 0.02 (1crn 0.95 -> 0.94, c 0.94 -> 0.93,
+  kdorola 0.94 -> 0.92, lin-rel4 0.83 -> 0.81) and 1crn raster.edge 0.95 -> 0.93 and raster.label 0.92 -> 0.91,
+  while raster.label rose elsewhere (c 0.82 -> 0.85, kdorola 0.83 -> 0.85, lin-rel4 0.72 -> 0.78) and c's label
+  ink ratio went 3.69 -> 1.17. Open in graphty-element: a 2D drawing in which a node drawn later covers the labels
+  of the nodes before it (side by side: `tmp/style-specimens/pajek-fix2/1crn-side.png`).
 - FIXED (2026-10-19): `c 0.700 0.700 0.700` (three fractions) is no color to Pajek; graph-io now reads it so
   (1crn edge color 0/337 -> 337/337), and `s_size` is not read as a size (synth-vertices width 48/80 -> 52/80).
-- Pajek quirks graph-io does not copy: an `empty` vertex's label is
-  drawn white at size 1, so it is hidden (synth-vertices); `cross` is drawn as an ellipse in the
+- FIXED (2026-10-19): an `empty` vertex's label is drawn white at size 1 on its center, and graph-io now reads it so
+  (synth-vertices label size 66/71 -> 68/71, color 65/71 -> 69/71; lin-rel4 v226 to v233 225/234 -> 234/234).
+- LightOrange: Pajek's SVG export draws it #ffd9bc (its default vertex fill), not its EPS dictionary's #ffccb3;
+  FIXED (2026-10-19) in graph-io's Pajek color table (graphstream-b node fill 93/111 -> 111/111).
+- Pajek quirks graph-io does not copy: `cross` is drawn as an ellipse in the
   SVG export; a vertex line's first parameter is read as a shape by its first letter when the line
   names no shape (`bw 2` draws a box), `Triangle` (capital T) is not a shape, and a line that starts its parameters with `s_size` without a shape has them all ignored; an `empty` vertex draws no body, which graphty still sizes (synth-vertices width 48/80).
 
@@ -1381,7 +1398,8 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   80 x 80 and 120 x 180). FIXED (2026-10-19) per axis; the fix round had scaled a half-sized vertex's unsized axis by
   f, not f squared.
 - Colors: a name Pajek does not know, or a known one in lower case (`red`), fills a vertex white and draws a line
-  black; `Gray50`, which Figure 19 does not list, is drawn gray. The four syntaxes (`RGBFF8800`, `RGB(1,0.5,0)`,
+  black (FIXED 2026-10-19: node fill on `node-fills-borders-p3` 31/33 -> 33/33; LightOrange, drawn #ffd9bc,
+  `-p2` 52/53 -> 53/53); `Gray50`, which Figure 19 does not list, is drawn gray. The four syntaxes (`RGBFF8800`, `RGB(1,0.5,0)`,
   `CMYK00FF8800`, `CMYK(0,1,0.5,0)`) all work. `bw 0` draws no border.
 - Labels: always bold; `lr 0` centers the label on the vertex, any other `lr` starts the text at (`lr`, `lphi`)
   from the center, left-aligned; `la` 360 and above turns the label toward the layout's center; `font` is written
@@ -1400,7 +1418,14 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   the source end; `*Edges` lines draw no arrow whatever `a` and `s` say. No Labels no Arrows draws neither
   (`specimen-arrows-p2`); Lines finished at Vertex Border stops each line at its vertex's border (`-p3`).
 - Line labels: drawn only under Mark Lines / with Labels (`specimen-edge-labels` against `-p2`, which draws none);
-  `lp` is measured from the terminal vertex. Mark Lines / with Values could not be switched on through the ini
+  `lp` is measured from the terminal vertex. Pajek's SVG export writes each line's label BEFORE its line's comment,
+  after the line before it, so the comparison read every label as the line before's (`Edge: 1 2`, which has no
+  label, followed by the label drawn at the middle of `3 4`); FIXED (2026-10-19) in the comparator's Pajek markup
+  reader, and graph-io now reads the place: the label's middle at `lp` from the target (a fraction up to 1, else a
+  distance), out by `lr` at `lphi`, its baseline through that point, turned along the line (along a Bezier curve's
+  tangent there) and `la` further (`edge-labels` alongLine 0/26 -> 28/28, offLine 18/26 -> 28/28, rotation 21/26 ->
+  27/28, size, color and family 22-23/26 -> 28/28, edge.label 24/30 -> 28/28; `edge-labels-p2` and `arrows-p2`
+  draw none, as Pajek). Left: the loop's label (`on-loop`, rotate(179.97)), with the loop below. Mark Lines / with Values could not be switched on through the ini
   (`Form8.withValues1` leaves the export unchanged), so line values have no page.
 - Options that change only the Draw window, never the SVG (the export is byte for byte the default one): Size of
   Vertex Border, Size of Lines, Size of Arrows, Size of Font, Labels Centered, Labels with Transparent Background,
@@ -1436,16 +1461,23 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
   a color written as numbers (`c 0.700 0.700 0.700`, `c 0.7 0.2 0.2`) as no color, the line keeping its carried or
   default one (`pajek-1crn` edge color 0/337 before; `c-three-fractions`).
 - Still open after the fix round:
-    - Label placement (`lr`, `lphi`): Pajek starts the text at the point `lr` from the center at angle `lphi`,
-      left-aligned on its baseline (`lr 0` centers it); graph-io can say only one of eight sides. It needs a label
-      placed by a point and anchored at its start, which the shared label offset work (`labelOffsetX` / `Y` with the
-      label's own-size shift `labelShiftX` / `Y`, in progress for Cytoscape and OGDF) gives: center + offset
-      (lr cos lphi, -lr sin lphi) + a shift of half the label's width. Label offset / anchor on `labels`, `labels-p2`
-      and every corpus sample (1,136 labels) wait on it.
-    - `la` 360 and above turns the label toward the layout's middle: not read.
-    - Bezier routes (`k1`, `a1`, ...), mutual pairs and loops: graphty draws them otherwise (`edges-lines-p2`, `-p4`,
-      `-p5` edge route 0.72, curve 0.78; graphstream-b's mutual arcs, route 0/193, whose raster.edge fell 0.86 -> 0.85
-      once the arrowheads were drawn at Pajek's size over the mismatched curves).
+    - FIXED (2026-10-19) Label placement (`lr`, `lphi`): the label is centered with its left edge's middle at
+      (lr cos lphi, -lr sin lphi) less 0.3465 of its size (its baseline through the point), `labelShiftX` 0.5
+      (`labels` offset 28/39 -> 39/39, anchor 26/39 -> 39/39; `labels-p2` 33/44 -> 44/44, 31/44 -> 44/44).
+    - FIXED (2026-10-19) `la` 360 and above turns the label away from the middle of the file's square, (0.5, 0.5) in
+      its own coordinates, then `la - 360` further (`la-360` -109.83, `la-400` -110.17; `labels` rotation 37/39 ->
+      39/39, `labels-p2` 42/44 -> 44/44).
+    - FIXED (2026-10-19) Bezier routes: `a1 k1 a2 k2` are one cubic curve, its first control point k1 / 2 of the line
+      from the source turned a1 clockwise on screen, its second k2 / 2 back from the target turned a2
+      counterclockwise; a negative `k1` (oval, arcs, double) stays straight, as the SVG export draws them, and
+      Straight Lines draws every one straight (`edges-lines-p2` and `-p5` curve 28/36 -> 32/36, route 26/36 ->
+      29/36; `edge-labels`, `-p2` 28/30 -> 29/30; `arrows-p3` curve 21/22 -> 22/22; c 122/125 -> 125/125). Left: an
+      arc's curve, which Pajek fits to the arrowhead's back rather than the target's center (`arrow-bezier`, curve
+      0.13 against 0.19 on `arrows`, `-p2`), and loops: Pajek's Bezier loop has its control points k x 250 out at
+      a1 and 180 - a2 degrees on screen (k 0.3 at -70 by default), which graphty's own loop does not draw (curve
+      2.4 against 11.1). Mutual pairs pass.
+    - FIXED (2026-10-19) SVG Vertices 3D Effect (`Form10.effect3d`): each vertex is a linear gradient from its fill
+      to half of it, top to bottom, turned with `phi` (`node-shapes-p2` gradient 0/38 -> 38/38).
     - `x_fact 0 y_fact 0` draws nothing; graphty draws a 2 px dot (`x-fact-0`). The same holds for a vertex a vector
       value of 0 hides (`specimen-mappings-bypass` `vec-0`).
     - A vertex line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`, `s-size-no-shape`) is
@@ -1458,9 +1490,20 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
       `node-sizes-opacity-p2` the 80 px vertices at Size of Vertices 16) is reported `node.present` missing with a
       graphty `group.extra`, although both drawings show it the same size in the same place (overlay of
       `pajek-specimen-mappings-bypass`). A comparator false positive, sent to the comparator work.
-    - Two vertex fonts, `Courier-Bold` and `Helvetica-Oblique`, fail `label.family` on `labels` and `labels-p2`.
+    - FIXED (2026-10-19) PostScript font names: Pajek writes `font` into its SVG as the family, which the pinned
+      fonts draw as that PostScript family, upright: graph-io reads `Courier-Bold` as `Courier, monospace` and
+      `Helvetica-Oblique` as `Helvetica, sans-serif` (`labels`, `labels-p2` family 37/39 -> 39/39, 42/44 -> 44/44;
+      `edge-labels` 23/26 -> 28/28).
+    - Comparator: the specimen sheets' lines are now named by their end vertices' settings too
+      (`lp-0-2-s->lp-0-2-t#0` for `7->8#0`), as their vertices already were (FIXED 2026-10-19).
+    - Arrowhead class: Pajek's notched arrowhead is read as a triangle; `edge.arrowShape` passes on `edges-lines`,
+      `-p3` and `-p5` (7/7, 7/7, 12/12) since the comparator reads an arrowhead along its own axis.
     - Label text encoding (pajek-iliad): Pajek 6.02 reads the UTF-8 file as Windows-1252 and draws the two
-      characters of each UTF-8 byte pair; graph-io decodes it right. The program's limit, not an import gap.
+      characters of each UTF-8 byte pair; graph-io decodes it right. The program's limit, not an import gap. It is
+      also why two labels miss their place now that a label starts at its point: vertices 204 and 85 (Oilean Ajax and
+      Deiphobus, each with an i-diaeresis) are a character wider in Pajek's drawing, which draws that letter as two
+      (A-tilde and a diaeresis), so their middles sit further right (label.offset 309/311; listed in
+      oracle-known-failures.json).
 
 ## Specimen sheets: Cytoscape desktop (XGMML, CX, CX2, sessions)
 

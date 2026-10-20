@@ -749,10 +749,13 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(15, `${PAJEK_SVG}football, 1crn: every label without fos)`),
                     labelFont: v("Arial", `${PAJEK_SVG}football, 1crn: every label without font)`),
                     labelWeight: v("bold", `${PAJEK_SVG}football, 1crn: every label is bold)`),
-                    labelPosition: v(
-                        "bottom-right",
-                        `${PAJEK_SVG}football, 1crn: the text starts 20 from the vertex at lphi 285 and runs to the right)`,
-                    ),
+                    // the text starts 20 from the center at lphi 285 and runs to the right, its baseline through
+                    // that point: its left edge's middle at 20 cos 285 across and 20 sin 285 less 0.3465 of its
+                    // size down (formats/pajek/styles.ts readLabelPosition)
+                    labelPosition: v("center", `${PAJEK_SVG}football, 1crn, specimen-labels: lr 20 lphi 285)`),
+                    labelOffsetX: v(5.176380902, `${PAJEK_SVG}football, 1crn, specimen-labels: lr 20 lphi 285)`),
+                    labelOffsetY: v(14.121016526, `${PAJEK_SVG}football, 1crn, specimen-labels: lr 20 lphi 285)`),
+                    labelShiftX: v(0.5, `${PAJEK_SVG}football, 1crn, specimen-labels: text-anchor start)`),
                 },
                 edge: {
                     // an edge (undirected) is drawn twice the width of an arc; the arc rule below sets an arc's

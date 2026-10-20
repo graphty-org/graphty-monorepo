@@ -132,8 +132,11 @@ describe("Pajek styles: Pajek's rules", () => {
         expect(drawn(styles, snapshot, "node", "labelColor").slice(0, 3)).toEqual(["#0f75ff", "#000000", "#660000"]);
         expect(drawn(styles, snapshot, "node", "labelSize").slice(0, 3)).toEqual([16, 16, 15]);
         expect(drawn(styles, snapshot, "node", "borderWidth")[1]).toBe(2);
-        // lr 30 lphi 200 is nearest the left side; no lr or lphi is Pajek's default, below and to the right
-        expect(drawn(styles, snapshot, "node", "labelPosition").slice(2, 4)).toEqual(["bottom-right", "left"]);
+        // a label's text starts at its polar point: no lr or lphi is Pajek's default, 20 from the center at 285
+        // degrees, and lr 30 lphi 200 is 30 out at 200 degrees, each label's middle 0.3465 of its size above the point
+        expect(drawn(styles, snapshot, "node", "labelPosition").slice(2, 4)).toEqual(["center", "center"]);
+        expect(drawn(styles, snapshot, "node", "labelOffsetX").slice(2, 4)).toEqual([5.176380902, -28.190778624]);
+        expect(drawn(styles, snapshot, "node", "labelOffsetY").slice(2, 4)).toEqual([14.121016526, 5.0631043]);
         // `cross` has no name in the neutral vocabulary: kept as other:cross and noted; the line pattern `Dashed` is
         // no Pajek keyword: noted
         expect(codes(styles)).toEqual(["W_STYLE_UNKNOWN_VALUE", "W_STYLE_UNKNOWN_VALUE"]);
@@ -190,7 +193,7 @@ describe("Pajek styles: Pajek's rules", () => {
             "#33cc99",
             "#404040",
             // LightYellow, one of the ten names Pajek adds to dvips'; an out-of-range channel and no ic: Pajek's
-            // default
+            // default (a name Pajek does not know is white: `pajek-specimen-node-fills-borders-p3`)
             "#ffff99",
             "#ffd9bc",
             "#ffd9bc",
@@ -290,22 +293,33 @@ describe("Pajek styles: sizes, label placement and line labels", () => {
         expect(drawn(styles, snapshot, "node", "height")).toEqual([20, 20, 8, 20]);
         expect(drawn(styles, snapshot, "node", "borderWidth")).toEqual([0.5, 0.5, 0.5, 0.5]);
         expect(drawn(styles, snapshot, "node", "labelSize")).toEqual([8, 15, 15, 15]);
-        expect(drawn(styles, snapshot, "node", "labelFont")).toEqual(["Courier", "Arial", "Arial", "Arial"]);
-        // Pajek starts a label's text at the polar point and runs it right: above the vertex is above and right
-        expect(drawn(styles, snapshot, "node", "labelPosition")).toEqual([
-            "center",
-            "top-right",
-            "bottom-right",
-            "bottom-right",
-        ]);
+        // a PostScript font name is its family with a generic one after it (`pajek-specimen-labels` `font-courier`)
+        expect(drawn(styles, snapshot, "node", "labelFont")).toEqual(["Courier, monospace", "Arial", "Arial", "Arial"]);
+        // Pajek starts a label's text at the polar point, its baseline through it, and runs it right: lr 0 centers it,
+        // lphi 90 at the default lr 20 is 20 above the center, lr 12 lphi 300 below and right; the last vertex sets
+        // neither and is left to the default beneath
+        expect(drawn(styles, snapshot, "node", "labelPosition")).toEqual(["center", "center", "center", "center"]);
+        expect(drawn(styles, snapshot, "node", "labelShiftX")).toEqual([0, 0.5, 0.5, 0.5]);
+        expect(drawn(styles, snapshot, "node", "labelOffsetX")).toEqual([0, 0, 6, 5.176380902]);
+        expect(drawn(styles, snapshot, "node", "labelOffsetY")).toEqual([0, -25.1975, 5.194804845, 14.121016526]);
     });
 
     it("reads a line's label, its color, size and font, and its width in points", async () => {
         const { snapshot, styles } = await load(doc);
-        expect(drawn(styles, snapshot, "edge", "label")).toEqual(["a to b", null]);
+        // Pajek draws no line label but under Mark Lines / with Labels (`pajek-specimen-edge-labels-p2`)
+        expect(drawn(styles, snapshot, "edge", "label")).toEqual([null, null]);
+        const marked = await registry.importGraph(doc, {
+            format: "pajek",
+            styles: true,
+            pajekDraw: { ini: { "Form8.withLabels1": "" } },
+        });
+        if (marked.styles === null || marked.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(drawn(marked.styles, marked.snapshot, "edge", "label")).toEqual(["a to b", null]);
         expect(drawn(styles, snapshot, "edge", "labelColor")).toEqual(["#ff0000", null]);
         expect(drawn(styles, snapshot, "edge", "labelSize")).toEqual([14, null]);
-        expect(drawn(styles, snapshot, "edge", "labelFont")).toEqual(["Times", null]);
+        expect(drawn(styles, snapshot, "edge", "labelFont")).toEqual(["Times, serif", null]);
         // the second arc sets no w and is drawn as wide as the first, as Pajek 6.02 draws it
         expect(drawn(styles, snapshot, "edge", "width")).toEqual([0.6, 0.6]);
     });
@@ -415,7 +429,7 @@ describe("Pajek styles: writing", () => {
             /^2 square 0\.8 0\.25 0\.5 box ic SkyBlue lc Black x_fact 4\.0 y_fact 4\.0 fos 16\.0 bw 2\.0$/m,
         );
         // the width arc 4-2 is drawn at, carried from the arc before it, is written on it
-        expect(out).toContain("4 2 -1 c Red w 3.0 l dotted p Dots");
+        expect(out).toContain("4 2 -1 c Red w 3.0 p Dots l dotted");
         const back = await load(out);
         expect(back.styles.styles.source.tool).toBe("graphty");
         expect(plain(back.styles)).toEqual(plain(styles));

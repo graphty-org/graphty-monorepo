@@ -46,7 +46,9 @@ export interface PajekDrawOptions {
      * other than "0" or false. Read: `Form8.MarkVerticesUsing` (1 labels, 2 vertex numbers, 3 no labels, 4 no labels
      * and no arrows), `Form8.SizeofVertices` (8), `TransparencyofVertices` and `TransparencyofLines` (the SVG
      * export's opacities, 0 to 1), `Form10.StraightLinesOnly1` (every line straight) and `Form10.ColorGradientLines`
-     * (each line a gradient of its end vertices' colors). Any other option is ignored.
+     * (each line a gradient of its end vertices' colors), `Form8.withLabels1` (the lines' labels drawn; without it
+     * none is) and `Form10.effect3d` (each vertex filled with a gradient down to half its color). Any other option is
+     * ignored.
      */
     readonly ini?: Readonly<Record<string, string | number | boolean>> | undefined;
 }
@@ -119,6 +121,17 @@ export function resolvePajekDraw(option: unknown): PajekDraw | null {
 function flag(draw: PajekDraw, name: string): boolean {
     const v = draw.ini.get(name);
     return v !== undefined && v !== "0" && v !== "false";
+}
+
+/**
+ * Whether Pajek draws the lines' labels: only under Options / Lines / Mark Lines / with Labels (`Form8.withLabels1`);
+ * its default, Mark Lines / No, draws none (`pajek-specimen-edge-labels` against `-p2`, `pajek-synth-lines`: 28 `l`
+ * labels, none drawn).
+ * @param draw - the settings, or null when the import names none (Pajek's defaults)
+ * @returns true when the line labels are drawn
+ */
+export function drawsLineLabels(draw: PajekDraw | null): boolean {
+    return draw !== null && flag(draw, "Form8.withLabels1");
 }
 
 /**
@@ -271,6 +284,9 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
         });
         column(node, "borderOpacity", n).fill(o * o);
     }
+    if (flag(draw, "Form10.effect3d")) {
+        effect3d(snapshot, node);
+    }
     const mark = iniNumber(draw, "Form8.MarkVerticesUsing");
     if (mark === 2) {
         // ponytail: a vertex's number is its place in the file, as in every file Pajek writes
@@ -284,6 +300,38 @@ export function drawVertices(draw: PajekDraw, snapshot: GraphSnapshot, node: Val
         if (node[property].every((v) => v === null)) {
             Reflect.deleteProperty(node, property);
         }
+    }
+}
+
+/**
+ * SVG Vertices 3D Effect (`Form10.effect3d`): Pajek 6.02's SVG export fills each vertex with a linear gradient from
+ * its color at the top to half of it at the bottom (`pajek-specimen-node-shapes-p2`: `#ffd9bc` to rgb(128,108,94),
+ * `#c8c8c8` to rgb(100,100,100); each channel halved and rounded half to even, as Delphi's Round does). The gradient
+ * turns with the vertex: `phi 90` runs it from left to right (`phi-90-box`, `phi-90-triangle`).
+ * @param snapshot - the graph
+ * @param node - the vertices' values, changed in place
+ */
+function effect3d(snapshot: GraphSnapshot, node: Values): void {
+    const n = snapshot.nodeCount;
+    const fill = column(node, "fill", n);
+    const end = column(node, "fillGradient", n);
+    const angle = column(node, "fillGradientAngle", n);
+    const half = (v: number): number => {
+        const h = v / 2;
+        const f = Math.floor(h);
+        return h - f === 0.5 && f % 2 === 0 ? f : Math.round(h);
+    };
+    for (let i = 0; i < n; i++) {
+        const color = typeof fill[i] === "string" ? String(fill[i]) : VERTEX_FILL;
+        end[i] = `#${[1, 3, 5]
+            .map((k) =>
+                half(Number.parseInt(color.slice(k, k + 2), 16))
+                    .toString(16)
+                    .padStart(2, "0"),
+            )
+            .join("")}`;
+        const phi = snapshot.nodes.has("phi") ? Number(snapshot.nodes.value("phi", i)) : 0;
+        angle[i] = Number.isFinite(phi) ? (((90 - phi) % 360) + 360) % 360 : 90;
     }
 }
 
@@ -347,6 +395,10 @@ export function drawLines(draw: PajekDraw, snapshot: GraphSnapshot, node: Values
     }
     if (flag(draw, "Form10.StraightLinesOnly1")) {
         column(edge, "curved", m).fill(false);
+        // a Bezier route drawn straight: no control points
+        if (edge.bends !== undefined) {
+            edge.bends.fill(null);
+        }
     }
     if (flag(draw, "Form10.ColorGradientLines")) {
         // each line runs from its source vertex's fill to its target's, and an arrowhead is its own end vertex's fill

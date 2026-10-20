@@ -417,8 +417,8 @@ describe("the Graph place", () => {
 
         // A column the graph does not have: the refusal offers the one it names, set like a rule.
         await userEvent.clear(box);
-        await userEvent.type(box, "=degree >= 3");
-        const suggestion = await screen.findByRole("option", { name: /^Degree >= 3/ });
+        await userEvent.type(box, "=indegree >= 3");
+        const suggestion = await screen.findByRole("option", { name: /^In-degree >= 3/ });
         assert.equal(suggestion.getAttribute("aria-selected"), "true");
         const suggestionName = suggestion.querySelector(".cm-result-name") as HTMLElement;
         assert.equal(getComputedStyle(suggestionName).fontFamily, ruleFont);
@@ -690,10 +690,10 @@ describe("the Graph place", () => {
         await session.data.addEdges([{ source: "b", target: "c", minutes: 12 }]);
         renderPlace(session);
         const box = screen.getByRole("combobox", { name: "Find" });
-        const words = "Did you mean Degree >= 10?";
+        const words = "Did you mean In-degree >= 10?";
         const spoken = (): string[] => screen.queryAllByRole("status").map((status) => status.textContent ?? "");
 
-        await userEvent.type(box, "=degree >= 10");
+        await userEvent.type(box, "=indegree >= 10");
         await waitFor(() => {
             assert.include(spoken(), words);
         });

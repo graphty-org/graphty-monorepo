@@ -97,7 +97,9 @@ describe("the find box", () => {
         await focusFind();
         await userEvent.keyboard("=degree > `2`");
 
-        await screen.findByText("Did you mean Degree?", {}, { timeout: TIMEOUT_MS });
+        // degree is the Degree column in another letter case: read as it, with no suggestion.
+        await screen.findByText("Rule: press Enter to select matches", {}, { timeout: TIMEOUT_MS });
+        assert.isNull(screen.queryByText(/Did you mean/));
         await userEvent.keyboard("{Enter}");
         await waitFor(() => {
             assert.deepEqual([...session.selection.nodes], ["a"]);

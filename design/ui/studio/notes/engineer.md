@@ -16,6 +16,28 @@ camera) is in full in git: `git show 54c009f84:design/ui/studio/notes/engineer.m
 
 ## Top of mind
 
+000. (2026-10-19, find box words and keys; graphty `graph-place/FindBox.tsx`) (a) A column typed in
+   another letter case is that column: `elementRule` takes the element's `checkRule` suggestion
+   when every unknown name equals its first candidate's shown name or rule path ignoring case
+   (`caseOnly`), so `=degree > 30` runs with no "Did you mean Degree?". A real correction still
+   shows: on a directed graph `=indegree > 0` says "Did you mean In-degree?" (the tests use that
+   now). The element's candidates are case-insensitive name matches today, so nearly every old
+   suggestion was case-only. (b) A `focused` state on the box: the suggestion and the rule hints
+   ("Rule: press Enter", "Type a rule") show only while focus is in the box; the polite status
+   region says a refusal only while the box has focus, so a run (which re-checks the rule on the
+   version change) says nothing again. Window blur keeps `focused` (`document.hasFocus()`). (c) The
+   box remembers the membership its text made (`made`, a JSON key of nodes and edges, set after a
+   rule run or a Shift pick via `select`); when another act replaces it with OTHER, non-empty
+   members (a click on a dot) the text clears. A cleared selection keeps the text, so Enter
+   selects again (undoWords test relies on it); a run or a click on another panel keeps it. This
+   replaced "clear after Shift picks once the list closes" (it lost 'Mme' on a Style tab click).
+   (d) Enter on "most" already said and showed "No match" (the pilot ran without screen-reader
+   mode); covered by a test now. Tests: FindBoxWords (3 new, 3 changed; 5 fail without the
+   change). Walk: `design/ui/studio/tmp/r1-dry1-find-box-words-keys/` karate 03-04, 06; lesmis 07
+   (nothing under the box after Degree), 10 ('Mme' kept), 11 (cleared on a dot); volunteers 03-04.
+   Pre-existing red, not mine: inspector tasks T8 and "an edge, an attribute...", graph-place
+   tasks "a click on a drawn name", FocusAfterAdding "a new node Color line" (other agents'
+   uncommitted Style work). This file is past 25 KB; another agent was summarizing it.
 00. (2026-10-19, focus ring on the inspector heading; compact-mantine `theme/css/shell.css.ts`,
    graphty `frame/focus.ts`) The heading (a Text with tabIndex -1, focused by script after a graph
    opens, a find pick, a run, a Why this look link) had an inline `outline: none` from an older

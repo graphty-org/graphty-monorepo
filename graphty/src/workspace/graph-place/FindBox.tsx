@@ -142,19 +142,46 @@ function shownRule(session: GraphSession, rule: string): string {
 }
 
 /**
+ * Whether every column a rule names that the graph does not have differs from the element's
+ * correction only in letter case, as degree from Degree or Name from name.
+ * @param session - the element's session.
+ * @param check - what `selection.checkRule` said.
+ * @returns true when the correction changes nothing but case.
+ */
+function caseOnly(session: GraphSession, check: RuleCheck): boolean {
+    return (
+        check.unknown.length > 0 &&
+        check.unknown.every(({ path, candidates }) => {
+            const typed = path.replace(/^data\./, "").toLowerCase();
+            const [meant] = candidates;
+            return (
+                meant !== undefined &&
+                [shownName(session, meant), rulePath(meant)].some((name) => name?.toLowerCase() === typed)
+            );
+        })
+    );
+}
+
+/**
  * The rule the element reads for one the reader typed: the rule itself, or, when its only fault is
- * bare numbers, the element's rewrite with them in backticks. So the box reads donations >= 10000
- * as typed.
+ * bare numbers, the element's rewrite with them in backticks, and a column named in another letter
+ * case under its own name. So the box reads donations >= 10000 and degree > 30 as typed.
  * @param session - the element's session.
  * @param rule - the rule, without "=".
  * @returns the rule to run, without "=".
  */
 function elementRule(session: GraphSession, rule: string): string {
+    let read = rule;
     try {
-        session.selection.checkRule(rule);
-        return rule;
+        session.selection.checkRule(read);
     } catch (error) {
-        return backtickSuggestion(error) ?? rule;
+        read = backtickSuggestion(error) ?? rule;
+    }
+    try {
+        const check = session.selection.checkRule(read);
+        return check.suggestion !== undefined && caseOnly(session, check) ? check.suggestion : read;
+    } catch {
+        return read;
     }
 }
 
@@ -238,6 +265,15 @@ function unknownRefusal(session: GraphSession, check: RuleCheck): Refusal | null
     // A bare name and its `data.` path are one column to the reader.
     const names = check.unknown.map(({ path }) => `"${path.replace(/^data\./, "")}"`).join(", ");
     return { words: `No ${check.unknown.length === 1 ? "column" : "columns"} named ${names}`, rule: null };
+}
+
+/**
+ * The selection's members, as one string that changes whenever they do.
+ * @param session - the element's session.
+ * @returns the key.
+ */
+function selectionKey(session: GraphSession): string {
+    return JSON.stringify([session.selection.nodes, session.selection.edges]);
 }
 
 /** How long typing pauses before the element checks a typed rule. */
@@ -490,19 +526,39 @@ export function FindBox(): React.JSX.Element {
     const listId = useId();
     // The value rows added to the selection with Shift while the list stays open, marked as picked.
     const [pickedValues, setPickedValues] = useState<ReadonlySet<string>>(new Set());
-    // A Shift pick keeps the list for the next one; once the list closes, the box clears as it
-    // does after a plain pick.
-    const shiftPicked = useRef(false);
-    useEffect(() => {
-        if (!listOpen && shiftPicked.current) {
-            shiftPicked.current = false;
-            setText("");
-            setActive(-1);
-            setPickedValues(new Set());
-        }
-    }, [listOpen]);
+    // Whether focus is in the box: a suggestion belongs to the text being typed, and goes with it.
+    const [focused, setFocused] = useState(false);
     // A change to the data, a run or the selection asks again, so a count or a hit is never stale.
     const version = useSessionVersion(session);
+    // The selection the box's text made (a rule run, Shift picks), while it stands: the text stays
+    // through a run, a click on another panel or a cleared selection (Enter selects it again), and
+    // clears once another act replaces it with other members.
+    const made = useRef<string | null>(null);
+    const making = useRef(false);
+    const select = async (current: GraphSession, act: () => Promise<unknown>): Promise<void> => {
+        making.current = true;
+        try {
+            await act();
+            made.current = selectionKey(current);
+        } finally {
+            making.current = false;
+        }
+    };
+    useEffect(() => {
+        if (
+            session === null ||
+            made.current === null ||
+            making.current ||
+            session.selection.size === 0 ||
+            selectionKey(session) === made.current
+        ) {
+            return;
+        }
+        made.current = null;
+        setText("");
+        setActive(-1);
+        setPickedValues(new Set());
+    }, [session, version]);
 
     const found: FindResult | null = useMemo(() => {
         const _changeCount = version; // NOSONAR(S1481): reads the change count so the memo runs again on each session change
@@ -637,7 +693,8 @@ export function FindBox(): React.JSX.Element {
     // once the box holds no rule or a rule Find can read.
     const [spoken, setSpoken] = useState("");
     useEffect(() => {
-        if (refusal === null || session === null) {
+        // Said to the reader typing; a refusal asked again because the data changed is not news.
+        if (refusal === null || session === null || document.activeElement?.id !== FIND_BOX_ID) {
             return;
         }
         const example = refusal.example ? exampleRule(session) : null;
@@ -660,8 +717,9 @@ export function FindBox(): React.JSX.Element {
         }
         if (adding && (option.type === "value" || option.type === "hit")) {
             // Shift adds the pick to the selection and keeps the list, for the next pick.
-            await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add");
-            shiftPicked.current = true;
+            await select(session, () =>
+                session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add"),
+            );
             if (option.type === "value") {
                 setPickedValues((before) => new Set(before).add(valueKey(option)));
             }
@@ -723,7 +781,7 @@ export function FindBox(): React.JSX.Element {
                 setRefusal(unknown);
                 return;
             }
-            await current.selection.apply({ text: rule });
+            await select(current, () => current.selection.apply({ text: rule }));
         } catch (error) {
             const refused = ruleRefusal(error);
             if (refused === null) {
@@ -845,8 +903,9 @@ export function FindBox(): React.JSX.Element {
                     </>
                 ),
         } as const;
-        emptyLine = ruleCheck === null ? null : ruleLines[ruleCheck];
-        if (ruleCheck === null) {
+        emptyLine = ruleCheck === null || !focused ? null : ruleLines[ruleCheck];
+        // The hints are for the reader typing: an unfocused box shows none.
+        if (ruleCheck === null || !focused) {
             lineWords = null;
         } else if (ruleCheck === "ok") {
             lineWords = ruleLines.ok;
@@ -890,7 +949,7 @@ export function FindBox(): React.JSX.Element {
                 `${refusal.words}${keptWords}`
             );
     }
-    const suggestion = refusal?.rule === null || refusal === null ? null : refusal.words;
+    const suggestion = refusal?.rule === null || refusal === null || !focused ? null : refusal.words;
     const showLine =
         found !== null &&
         (options.length === 0 || isRule || ruleOption !== null) &&
@@ -918,11 +977,17 @@ export function FindBox(): React.JSX.Element {
         <div
             className="ws-find"
             ref={boxRef}
+            onFocus={() => {
+                setFocused(true);
+            }}
             onBlur={(event) => {
                 // Focus moving on to another control closes the list; focus leaving the window does not.
                 const next = event.relatedTarget;
                 if (next instanceof Node && !event.currentTarget.contains(next)) {
                     setListOpen(false);
+                }
+                if (document.hasFocus() && !(next instanceof Node && event.currentTarget.contains(next))) {
+                    setFocused(false);
                 }
             }}
         >
@@ -934,7 +999,7 @@ export function FindBox(): React.JSX.Element {
                     setActive(-1);
                     setRefusal(null);
                     setListOpen(true);
-                    shiftPicked.current = false;
+                    made.current = null;
                     setPickedValues(new Set());
                 }}
                 onClick={() => {

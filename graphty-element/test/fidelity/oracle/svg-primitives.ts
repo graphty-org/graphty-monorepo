@@ -520,6 +520,54 @@ function textOutlineOf(
     };
 }
 
+/**
+ * The faces Java drew the logical fonts in that Cytoscape desktop's SVG writer (FreeHEP) names by their PostScript
+ * stand-ins or by their Java names: it writes Dialog and SansSerif as Helvetica, Serif as Times and Monospaced as
+ * Courier, and a styled logical font it cannot map by its Java name (`Dialog.bolditalic`), but Java laid each line out
+ * (and placed it) with the JRE's own face, DejaVu with the pinned fonts. Measured on Cytoscape 3.10.5's SVGs: a
+ * centered line starts half a DejaVu Sans width left of its node's middle ("Multidrug " in cys-import-and-save,
+ * 71.07 px at 14 px against Liberation Sans's 61.47), the Serif specimen half a DejaVu Serif width
+ * (cys-specimen-labels font-face-serif), and a `Dialog.bolditalic` label's background box is its DejaVu Sans Bold
+ * Oblique width (cys-syn-mappings). Java draws a font named `Default`, which it does not have, in Dialog.
+ */
+const FREEHEP_JAVA_FACES: Readonly<Record<string, string>> = {
+    helvetica: "DejaVu Sans",
+    dialog: "DejaVu Sans",
+    sansserif: "DejaVu Sans",
+    default: "DejaVu Sans",
+    times: "DejaVu Serif",
+    serif: "DejaVu Serif",
+    courier: "DejaVu Sans Mono",
+    monospaced: "DejaVu Sans Mono",
+    dialoginput: "DejaVu Sans Mono",
+};
+
+/**
+ * Lays a text of a FreeHEP SVG out in the face Java drew it in, so its box is the one the program measured.
+ * @param el - the text
+ * @param first - the first family it declares, lowercased, with any Java style suffix (`dialog.bolditalic`)
+ * @returns a call that puts the text's own font back
+ */
+function measureInJavaFace(el: SVGTextElement, first: string): () => void {
+    const [name, javaStyle = ""] = first.split(".");
+    const face = FREEHEP_JAVA_FACES[name];
+    const desc = el.ownerSVGElement?.querySelector(":scope > desc")?.textContent ?? "";
+    if (face === undefined || !desc.includes("FreeHEP")) {
+        return () => undefined;
+    }
+    const { fontFamily, fontWeight, fontStyle } = el.style;
+    el.style.fontFamily = `"${face}"`;
+    if (javaStyle.includes("bold")) {
+        el.style.fontWeight = "bold";
+    }
+    if (javaStyle.includes("italic")) {
+        el.style.fontStyle = "italic";
+    }
+    return () => {
+        Object.assign(el.style, { fontFamily, fontWeight, fontStyle });
+    };
+}
+
 function textOf(
     el: SVGTextElement,
     m: DOMMatrix,
@@ -555,6 +603,7 @@ function textOf(
     const anchor = cs.textAnchor === "middle" || cs.textAnchor === "end" ? cs.textAnchor : "start";
     // A text the browser does not lay out (draw.io's fallback beside a foreignObject) has an empty
     // box: estimate it from its anchor, size and length instead.
+    const restore = measureInJavaFace(el, first);
     const bb = el.getBBox();
     const size = Number.parseFloat(cs.fontSize) || 12;
     const w = 0.55 * size * content.length;
@@ -576,6 +625,7 @@ function textOf(
             const b = t.getBBox();
             return b.width > 0 && b.height > 0 ? [boxThrough(m, b)] : [];
         });
+    restore();
     return {
         content,
         x: ax,
